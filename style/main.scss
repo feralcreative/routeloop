@@ -1,0 +1,555 @@
+@import url("https://feralcreative.dev/utils.min.css");
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.crater-lake {
+  width: 100vw;
+  min-width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-image: url("../img/crater-lake.jpg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+// Google Maps overrides
+.gm-ui-hover-effect {
+  display: none !important;
+}
+
+// Color Variables
+$url: #1565c0;
+$gpx: #43a047;
+$kml: #d32f2f;
+$white: #fff;
+$grey: #ddd;
+$text: #333;
+$panel-bg: rgba(255, 255, 255, 0.9);
+$panel-shadow: rgba(0, 0, 0, 0.18);
+$font: lato;
+$panel-logo-size: 1em;
+
+html,
+body {
+  font: 400 14px/1.1em $font;
+}
+
+div.map-logo {
+  position: fixed; /* Changed to fixed to match the map container */
+  top: 50px;
+  left: 50px;
+  padding: 25px;
+  border-radius: 10%;
+  z-index: 1001;
+
+  img {
+    max-width: 100px; /* Control the size of your logo */
+    height: auto;
+    display: block;
+  }
+}
+
+div.panel-logo {
+  display: inline-block;
+  max-width: fit-content;
+  max-height: fit-content;
+  img {
+    height: $panel-logo-size;
+    width: $panel-logo-size;
+    margin-right: calc($panel-logo-size * 0.25);
+    vertical-align: middle;
+    transform: translateY(-0.1em);
+    border-radius: 10%;
+  }
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+}
+
+// Waypoint Tooltip Styles
+.waypoint-tooltip {
+  &-toprow {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 0.25em;
+    margin-bottom: 0.5em;
+  }
+  &-title {
+    align-items: end;
+    flex: 1 1 50%;
+    overflow: hidden;
+    margin-bottom: 0;
+    font-size: 1.5em;
+    font-weight: 600;
+    color: $text;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    & {
+      margin-bottom: 2px;
+      font-size: 1.5em;
+      font-weight: 800;
+      color: $text;
+    }
+  }
+  &-num {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    flex: 0 0 100px;
+    min-width: fit-content;
+    margin-right: 4px;
+    padding-left: 0;
+    border: none;
+    font-size: 1em;
+    font-weight: 600;
+    color: #666;
+    text-align: center;
+    white-space: nowrap;
+  }
+  &-label {
+    display: block;
+    margin-bottom: 0.05em;
+    font-size: 0.95em;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+  &-value {
+    display: block;
+    margin-top: 0;
+    font-size: 1em;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  &-name {
+    margin-bottom: 2px;
+    font-size: 1em;
+    font-weight: 400;
+    color: $text;
+  }
+  &-desc {
+    max-width: 240px;
+    margin-top: 3px;
+    font-size: 0.92em;
+    font-weight: 400;
+    line-height: 1.3;
+    color: #666;
+    white-space: normal;
+  }
+}
+
+a {
+  &:link {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+#map {
+  display: block;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+}
+
+#info-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  flex: 0 0 auto !important;
+  align-self: flex-start !important;
+  position: fixed;
+  z-index: 1000;
+  bottom: 2vw;
+  left: 2vw;
+  box-shadow: 0 2px 12px $panel-shadow;
+  box-sizing: border-box;
+  width: auto !important;
+  min-width: 0;
+  max-width: calc(95vw - 50px);
+  min-height: 42px;
+  max-height: 90vh;
+  padding: 18px 18px 14px 18px;
+  transition: max-width 0.5s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
+  background: $panel-bg;
+  border-radius: 12px;
+
+  .toggle-checkbox {
+    justify-content: flex-end;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.5em;
+    padding: 0.4em;
+    font-size: 0.7em;
+    input[type="checkbox"] {
+      accent-color: gray;
+    }
+  }
+  div.details {
+    max-width: 100%;
+    padding-bottom: 1em;
+    table {
+      tr {
+        border-bottom: 1px dotted #000;
+        td {
+        }
+      }
+    }
+    .title {
+      margin-bottom: 8px;
+      font-size: 1em;
+      font-weight: bold;
+      color: $text;
+      letter-spacing: 0.02em;
+    }
+    p.description {
+      font: 400 0.9rem/1.1em $font;
+      color: $text;
+    }
+    table.details-table {
+      width: 100%;
+    }
+  }
+
+  .panel-title {
+    transition: font-size 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+    font-size: 3rem;
+    font-weight: 500;
+    color: $text;
+    max-width: 500px !important;
+    display: inline-block;
+    margin: 0 0.5em 0 0;
+  }
+
+  .collapse-toggle {
+    background-color: transparent;
+    display: inline-flex !important;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    z-index: 100;
+    top: 6px;
+    right: 6px;
+    height: 30px;
+    padding: 0;
+    cursor: pointer;
+    border: none;
+    border-radius: 50%;
+    margin: 0;
+    .collapse-icon {
+      pointer-events: none;
+      display: block;
+      width: 18px;
+      height: 18px;
+      margin: auto;
+      background: none;
+      border: none;
+    }
+    &:hover {
+    }
+    flex: 0 0 auto !important;
+    width: auto !important;
+  }
+
+  .panel-contents-wrapper {
+    pointer-events: auto;
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), visibility 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+
+  &.collapsed {
+    display: inline-flex !important;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    flex: 0 0 auto !important;
+    align-self: flex-start !important;
+
+    overflow: visible !important;
+    box-sizing: border-box;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 1em 3em 1em 1em !important;
+    background: $panel-bg;
+    // border: 2px solid green;
+
+    .panel-title,
+    .collapse-toggle {
+      display: inline-flex !important;
+      flex: 0 0 auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      padding: 0 !important;
+      background: none !important;
+    }
+    .panel-contents-wrapper {
+      display: none !important;
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+    }
+    .panel-title {
+      position: relative;
+      z-index: 2;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+  }
+}
+
+table.route-table {
+  min-width: 100%;
+  tr {
+    height: 100%;
+    border-bottom: 1px dotted;
+    &:last-child {
+      border-bottom: 1px solid #333;
+    }
+    td {
+      // border: 1px solid red;
+      // white-space: nowrap;
+      overflow: hidden;
+      padding: 0.5em 0;
+      font-size: 0.8em;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+      br {
+        display: inline-block;
+      }
+      &.label,
+      &.route-label-cell {
+        width: fit-content;
+        height: 1.1em;
+        padding: 0.25em 0;
+        background: none;
+        border: none;
+      }
+      // For dynamic color support:
+      &[data-color] {
+        border-color: attr(data-color color, $url);
+      }
+      &:hover,
+      &:focus {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
+    }
+  }
+
+  // Ensure hover/focus effect always applies to div.route-label
+  .route-label:hover,
+  .route-label:focus {
+    background: var(--route-color-bg, lighten($url, 43%));
+  }
+
+  // Route table line icon
+  .route-table-line-icon {
+    display: inline-flex;
+    margin-right: 0;
+    vertical-align: middle;
+  }
+
+  // Route icon background
+  .route-icon-bg {
+  }
+
+  // Checkbox styling
+  input {
+    margin-right: 0 !important;
+  }
+  .route-checkbox {
+    margin-right: 0;
+    &.custom-accent {
+    }
+  }
+
+  .btn-group {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    a {
+      display: block;
+      align-items: center;
+      width: 30%;
+      padding: 0 0.5em;
+      transition: background 0.2s, border 0.2s;
+      cursor: pointer;
+      border: 1px solid $grey;
+      border-radius: 5px;
+      font-size: 0.95em;
+      &.btn {
+        width: fit-content;
+        white-space: nowrap;
+        &::before {
+          filter: invert(1);
+          pointer-events: none;
+          content: "";
+          display: inline-block;
+          position: relative;
+          transform: translate(-25%, 25%);
+          width: 1em;
+          height: 1em;
+        }
+      }
+      &.btn.gpx-btn {
+        background: $gpx;
+        border-color: darken($gpx, 20%);
+        color: $white;
+        &:hover {
+          background: darken($gpx, 15%);
+          border-color: darken($gpx, 20%);
+        }
+        &::before {
+          background: url("/img/dl.svg") no-repeat center/contain;
+        }
+      }
+      &.btn.kml-btn {
+        background-color: $kml;
+        border-color: darken($kml, 20%);
+        color: $white;
+        &:hover {
+          background: darken($kml, 10%);
+          border-color: darken($kml, 20%);
+        }
+        &::before {
+          background: url("/img/dl.svg") no-repeat center/contain;
+        }
+      }
+      &.btn.url-btn {
+        background-color: $url;
+        border-color: darken($url, 20%);
+        color: $white;
+        &:hover {
+          background: darken($url, 10%);
+          border-color: darken($url, 20%);
+        }
+        &::before {
+          content: "";
+          background: url("/img/link.svg") no-repeat center/contain;
+        }
+      }
+    }
+  }
+}
+
+.panel-content {
+  will-change: opacity, max-height;
+  opacity: 1;
+  max-height: 2000px;
+  transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+@media (min-width: 768px) {
+  #info-panel {
+    max-width: 550px;
+  }
+
+  table.route-table {
+    table.route-table:has(.route-label:hover) .route-label {
+      opacity: 0.3;
+      transition: opacity 0.15s;
+    }
+    table.route-table .route-label:hover {
+      z-index: 1;
+      opacity: 1 !important;
+    }
+
+    // Route label cell
+    td.label,
+    td.route-label-cell {
+      background: $white;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: $text;
+      text-align: left;
+      width: fit-content;
+      div.route-label {
+        // border: 4px solid black !important;
+        padding: 0 0.75em;
+        border-radius: 100px;
+        white-space: nowrap;
+        width: min-content;
+      }
+    }
+
+    // Mileage cell
+    td.route-mileage-cell {
+      min-width: fit-content;
+      max-width: 80px;
+      font-size: 0.8em;
+      font-weight: bold;
+      color: $text;
+      text-align: center;
+    }
+
+    // Download buttons cell
+    td.value {
+      padding: 0 0.5em;
+      background: none;
+      border: none;
+      text-align: right;
+    }
+
+    tr {
+      td {
+        padding: 0.1em;
+        br {
+          display: inline-block;
+        }
+        &.value {
+          width: fit-content;
+        }
+      }
+    }
+  }
+}
+
+//@ XXL >1400px
+@media (min-width: 1400px) {
+}
+
+//@ XL >1200px
+@media (min-width: 1200px) {
+}
+
+//@ LG >992px
+@media (min-width: 992px) {
+  .route-table-line-icon {
+    display: inline-block;
+    margin-right: 0.5em;
+  }
+}
+
+//@ SM >576px
+@media (min-width: 576px) {
+}
+
+//@ XS <576px
+@media (max-width: 575px) {
+}
+
+// Responsive helpers
+.desktop {
+  display: none;
+}
+.mobile {
+  display: inherit;
+}

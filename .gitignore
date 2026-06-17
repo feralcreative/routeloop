@@ -1,0 +1,241 @@
+# Ignore WordPress backup files
+**/*.wpress
+# Ignore macOS system files
+**/.DS_Store
+# Ignore archive folders
+**/_archive
+# Ignore design files
+**/*.psd
+**/*.ai
+# Ignore Adobe Premiere project files
+**/*.prproj
+**/*.aep
+# Ignore video files
+**/*.mp4
+**/*.mov
+**/*.mkv
+# Ignore WordPress core folders
+wp-includes/
+wp-admin/
+wp-content/cache/
+wp-content/languages/
+wp-content/plugins/
+# Ignore Node.js modules
+**/node_modules
+# Ignore environment variable files
+**/*.env
+# Ignore WordPress PHP files starting with wp-
+**/wp-*.php
+# Ignore the Twenty Twenty theme and its variations
+**/wp-content/themes/twenty*/
+# Ignore specific backup files
+wp-content/ai1wm-backups/*
+# Ignore XML-RPC file
+xmlrpc.php
+# Ignore readme and license files
+readme.html
+license.txt
+# Ignore the main index.php file
+/index.php
+# Ignore well-known directory
+.well-known/
+
+# IDE and Editor files
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+*.code-workspace
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Node.js and JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm
+.eslintcache
+.stylelintcache
+
+# Angular specific
+.angular/
+dist/
+tmp/
+out-tsc/
+bazel-out/
+
+# Dependency directories and files
+vendor/
+composer.phar
+
+# Build outputs
+dist/
+build/
+out/
+lib/
+coverage/
+*.tgz
+*.tar.gz
+
+# Framework specific builds
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.vite/
+storybook-static/
+
+# Deployment
+.vercel/
+.netlify/
+.firebase/
+.surge/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.sass-cache/
+*.js.map
+
+## Compiled style docs
+*.css
+*.min.css
+*.css.map
+
+
+# Database files
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Configuration files with sensitive data
+config.php
+wp-config-local.php
+.htaccess.backup
+.htpasswd
+
+# Backup and archive files
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Documentation build files
+docs/_build/
+site/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Shell scripts
+*.sh~
+*.bash_history
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Testing and Coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+test-results.xml
+junit.xml
+
+# Linting and formatting
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Docker
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+.docker/
+
+# Kubernetes
+*.kubeconfig
+
+# Serverless
+.serverless/
+serverless.yml.bak
+
+# Miscellaneous
+.playwright-mcp
+.secrets
+.claude
+.DS_Store?
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+*.orig
+.history/
+**/_archive
+**/_tasks
+**/console.txt
+**/_deprecated
+**/*.syncthing*
+**/*.sync-conflict*
+_reference
