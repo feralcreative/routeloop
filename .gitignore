@@ -226,7 +226,7 @@ serverless.yml.bak
 .secrets
 .claude
 .DS_Store?
-Icon?
+Icon[\r]
 ._*
 .Spotlight-V100
 .Trashes
