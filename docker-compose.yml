@@ -1,0 +1,12 @@
+services:
+  routeloop:
+    image: routeloop:latest
+    container_name: routeloop
+    restart: unless-stopped
+    ports:
+      - "16703:6686"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=6686
