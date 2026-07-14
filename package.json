@@ -1,13 +1,29 @@
 {
-  "name": "moto-rooter",
-  "version": "2.0.0",
-  "description": "Multi-tenant motorcycle route map sharing app (PHP/MySQL). Node is used only to compile SCSS.",
+  "name": "tankbag",
+  "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "description": "Multi-tenant motorcycle route map sharing app (TypeScript + Hono).",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",
     "sass:watch": "sass --watch style/main.scss public/style/main.min.css"
   },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.6.14",
+    "pg": "^8.22.0"
+  },
   "devDependencies": {
-    "sass": "^1.101.0"
+    "@types/node": "^20.17.10",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "sass": "^1.83.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }

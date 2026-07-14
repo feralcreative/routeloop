@@ -1,7 +1,7 @@
 # Status and Handoff
 
 **Updated:** 2026-07-11
-**Repo:** `mapbox` (this is the source-of-truth repo going forward)
+**Repo:** `tankbag` (this is the source-of-truth repo going forward)
 **For:** the next agent picking up development
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) first for architecture, then
@@ -47,7 +47,7 @@ The local dev environment is already set up on this machine:
   (currently `Zgn3ti1PzyCZehbQiwc3RP`)
 
 ```bash
-cd /Users/ziad/www/moto/mapbox
+cd /Users/ziad/www/moto/tankbag
 npm install && npm run sass          # first time only
 php -S 127.0.0.1:6686 -t public public/router.php
 # open http://127.0.0.1:6686  (list)  and  /m/<slug>  (viewer)
@@ -126,6 +126,6 @@ Details for each are in the plan.
 
 The map engine was recovered from commit `0bdf2e2` of the original
 `moto-rooter` repo. That original repo still holds the same M0+M1 work as
-**uncommitted** changes on branch `refactor/public-version`. **This `mapbox`
+**uncommitted** changes on branch `refactor/public-version`. **This `tankbag`
 repo is the source of truth.** Ignore or later discard the original's working
 changes to avoid divergence.
