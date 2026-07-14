@@ -1,0 +1,25 @@
+{
+  "name": "feralcreative/moto-rooter",
+  "description": "Multi-tenant motorcycle route map sharing app (LAMP)",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "ext-dom": "*",
+    "ext-libxml": "*",
+    "ext-curl": "*",
+    "league/oauth2-client": "^2.7",
+    "league/oauth2-google": "^4.0",
+    "league/oauth2-github": "^3.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

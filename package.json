@@ -1,0 +1,13 @@
+{
+  "name": "moto-rooter",
+  "version": "2.0.0",
+  "description": "Multi-tenant motorcycle route map sharing app (PHP/MySQL). Node is used only to compile SCSS.",
+  "private": true,
+  "scripts": {
+    "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",
+    "sass:watch": "sass --watch style/main.scss public/style/main.min.css"
+  },
+  "devDependencies": {
+    "sass": "^1.101.0"
+  }
+}
