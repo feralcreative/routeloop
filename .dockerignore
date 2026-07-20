@@ -1,0 +1,32 @@
+.git
+.gitignore
+node_modules
+npm-debug.log
+
+# Secrets and user data never enter the build context.
+.env
+.env.*
+moto-storage
+
+# Build artifact — regenerated inside the image by `npm run sass`.
+public/style/*.css
+public/style/*.css.map
+
+# Retired PHP build (superseded by src/).
+app
+composer.json
+config.example.php
+config.local.php
+utils/schema.sql
+
+# Docs and tooling the runtime does not need.
+docs
+_PLANS
+_AI_AGENT_PRIMER.md
+README.md
+.vscode
+.claude
+utils/deploy
+deploy.config
+docker-compose.yml
+docker-compose.prod.yml

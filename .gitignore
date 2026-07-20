@@ -209,7 +209,9 @@ junit.xml
 .prettiercache
 
 # Docker
-.dockerignore
+# .dockerignore is build config, not local cruft — it must be committed or a
+# clean clone builds with the full context (node_modules, moto-storage, .env).
+!.dockerignore
 Dockerfile.dev
 docker-compose.override.yml
 .docker/
