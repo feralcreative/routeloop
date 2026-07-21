@@ -1,6 +1,6 @@
 # Status and Handoff
 
-**Updated:** 2026-07-19
+**Updated:** 2026-07-20
 **Repo:** `tankbag-app` (source of truth)
 **For:** the next agent picking up development
 
@@ -17,10 +17,19 @@ have happened since the original plan, and both are committed:
 - **Hosting:** Synology NAS (`feral-nas`) behind Cloudflare Tunnel, not
   DreamHost. Node is fine now — it runs in a container on our own hardware.
 
-Phase 0 and Phase 1 are built. The Phase 5 deploy tooling was added early (on
-2026-07-19). The image and the full container stack were validated locally on
-that date — build, schema push, seed, and every public endpoint — but the
-**deploy to the NAS has never been run**.
+Phase 0, Phase 1, and the Phase 5 deploy are done. On 2026-07-20 both
+environments were deployed to the NAS and verified through the tunnel:
+
+- **stage** — `https://stage.tankbag.app` (:6687), seeded with the sample route.
+- **prod** — `https://tankbag.app` (:6686), schema applied, database
+  deliberately empty.
+
+The viewer was confirmed in a real browser on staging — route polyline,
+direction arrows, waypoint markers, legend, and both download buttons render,
+with no Maps API referrer errors. That closes the "never browser-verified on
+this stack" gap.
+
+Phase 2 (auth) is the next build work.
 
 ## Superseded documents
 
@@ -53,9 +62,8 @@ returns 404 for private/unknown slugs (never confirms existence), file paths are
 built only from integer ids and containment-checked against `STORAGE_PATH`, and
 `esc()` escapes user-derived strings before they reach HTML.
 
-**Not yet verified in a browser on this stack.** The PHP version was
-browser-verified at M1; the Hono port has not been re-confirmed here. Do that
-before trusting the viewer end to end.
+**Browser-verified on 2026-07-20** against `stage.tankbag.app` — the viewer
+renders end to end on this stack, not just on the retired PHP one.
 
 ## Local development
 
@@ -104,10 +112,20 @@ Deploy tooling follows **archetype B (Docker-on-NAS templated)** from
   `status`, `restart`, `psql`, `migrate`, `db-backup`, `backup`. Prefix with
   `DEPLOY_ENV=stage` for staging.
 
-The tunnel already routes `tankbag.app` → `localhost:6686` and
-`stage.tankbag.app` → `localhost:6687`; cloudflared runs natively on the
-Synology host. **Both hostnames return 502 until the app is deployed** — that is
-expected, not a fault. The deploy scripts never touch tunnel config.
+The tunnel routes `tankbag.app` → `localhost:6686` and `stage.tankbag.app` →
+`localhost:6687`; cloudflared runs natively on the Synology host. Both
+hostnames now serve the app. The deploy scripts never touch tunnel config.
+
+**The app container runs as the host uid, not the image's `node` user.**
+`data/storage` lives on a Synology share whose ACL grants rwx to `ziad` (1026)
+and r-x to `users` (100), but nothing to uid 1000 — so the container could
+stream metadata yet returned 404 for every KML/GPX read. Synology's
+`synoacltool` refuses to add an ACE for a bare numeric uid with no passwd
+record, so the fix is `user: "${APP_UID}:${APP_GID}"` in
+`docker-compose.prod.yml`, fed from `APP_UID`/`APP_GID` in `deploy.config`
+through the generated remote `.env`. Keep this in mind if the NAS user or share
+permissions ever change — the symptom is a working map list with silently
+404-ing route files.
 
 The prod deploy refuses a dirty tree or a non-`main` branch (`--force`
 overrides the gates but never the confirmation prompt).
@@ -124,22 +142,31 @@ overrides the gates but never the confirmation prompt).
   Changing it later requires `ALTER USER` inside the db container, not a
   redeploy.
 - A fresh deploy has an **empty database**. Expect a working but empty map list
-  until data is seeded or uploaded.
+  until data is seeded or uploaded. Prod is in exactly this state by choice.
+- The verify step runs **before** the post-deploy schema push, so a first-ever
+  deploy always logs `App not responding yet` and dumps a Postgres
+  "relation does not exist" error before recovering. Cosmetic, but it looks like
+  a failure when it is not. Reordering verify to run after the hook would fix it.
+- Prod and stage currently share one DB password. Postgres has now initialised
+  both volumes, so changing it means `ALTER USER` in each db container.
+- The Maps key is proven on `stage.tankbag.app` but **not yet on `tankbag.app`**
+  — prod has no map to render, so that referrer entry is still untested. A
+  missing entry shows up as `RefererNotAllowedMapError` on the first real map.
 
 ## Next up
 
-1. Run `./utils/deploy/stage.sh` and confirm `stage.tankbag.app` serves the
-   viewer end to end. Staging skips the prod gates, so prove the chain there
-   first.
-2. **Phase 2 — Auth.** Lucia (or Auth.js) with Google + GitHub OAuth, server
-   sessions, `/login`, `/auth/*`, `/logout`, dashboard shell. Needs OAuth
-   credentials only the owner can create: redirect URIs
+1. **Phase 2 — Auth.** Google + GitHub OAuth, server sessions, `/login`,
+   `/auth/*`, `/logout`, dashboard shell, on `users` + `user_identities`. Needs
+   OAuth credentials only the owner can create: redirect URIs
    `http://127.0.0.1:6686/auth/{provider}/callback` for dev, plus the
-   `tankbag.app` equivalents for prod.
-3. **Phase 3 — Upload + quota.** Port the PHP pipeline: Turnstile, XXE-safe
+   `tankbag.app` and `stage.tankbag.app` equivalents.
+2. **Phase 3 — Upload + quota.** Port the PHP pipeline: Turnstile, XXE-safe
    parse rejecting `<!DOCTYPE>`, KML sanitization, server-side metadata
    extraction, transactional quota. Re-derive these rather than skipping them.
-4. **Phase 4 — Browse + share.**
+   Note that `src/db/seed.ts` sets `totalMiles: 52.4` while the viewer computes
+   185.2 mi from the KML — the seed value is a wrong placeholder, and this is
+   the phase that makes the stored figure authoritative.
+3. **Phase 4 — Browse + share.**
 
 ## Conventions and guardrails
 

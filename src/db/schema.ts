@@ -45,6 +45,22 @@ export const userIdentities = pgTable(
   (t) => [uniqueIndex('uq_provider_identity').on(t.provider, t.providerUserId), index('idx_user').on(t.userId)],
 )
 
+// Server sessions. The primary key is the SHA-256 hash of the token we hand the
+// browser, never the token itself — a leaked database therefore yields no usable
+// session cookies.
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(), // hex sha256 of the token
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('idx_session_user').on(t.userId), index('idx_session_expires').on(t.expiresAt)],
+)
+
 export const maps = pgTable(
   'maps',
   {
@@ -75,3 +91,5 @@ export const maps = pgTable(
 )
 
 export type MapRow = typeof maps.$inferSelect
+export type UserRow = typeof users.$inferSelect
+export type SessionRow = typeof sessions.$inferSelect

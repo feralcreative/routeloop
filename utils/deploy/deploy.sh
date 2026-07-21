@@ -83,6 +83,28 @@ case "$DB_PASSWORD" in
     exit 1 ;;
 esac
 
+# ------------------------------------------------------------- auth env ------
+# APP_ORIGIN is always this environment's own public origin — it builds the OAuth
+# redirect URIs and decides the Secure flag on session cookies, so the value in
+# .env (which is the dev origin) must not leak into a deploy.
+APP_ORIGIN="https://${DOMAIN}"
+
+# Google's OAuth client accepts several redirect URIs, so one client normally
+# covers every environment. GitHub OAuth Apps expose a single callback URL, so
+# per-environment overrides fall back to the shared value when unset.
+if [ "$DEPLOY_ENV" = "prod" ]; then
+  GITHUB_ID="${PROD_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
+  GITHUB_SECRET="${PROD_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
+else
+  GITHUB_ID="${STAGE_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
+  GITHUB_SECRET="${STAGE_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
+fi
+
+# Non-fatal: tankbag's public read path works without auth, and the sign-in page
+# offers only the providers that are configured.
+[ -n "${GOOGLE_CLIENT_ID:-}" ] || log_warning "GOOGLE_CLIENT_ID unset — Google sign-in will be unavailable on ${DOMAIN}"
+[ -n "${GITHUB_ID}" ]          || log_warning "GITHUB_CLIENT_ID unset — GitHub sign-in will be unavailable on ${DOMAIN}"
+
 [ -f "$PROJECT_ROOT/$COMPOSE_SRC" ] || { log_error "Compose file not found: $COMPOSE_SRC"; exit 1; }
 
 # -------------------------------------------------------------- ssh key ------
@@ -196,6 +218,11 @@ printf '%s\n' \
   "APP_GID=${APP_GID}" \
   "GMAPS_KEY=${GMAPS_KEY}" \
   "DB_PASSWORD=${DB_PASSWORD}" \
+  "APP_ORIGIN=${APP_ORIGIN}" \
+  "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}" \
+  "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}" \
+  "GITHUB_CLIENT_ID=${GITHUB_ID}" \
+  "GITHUB_CLIENT_SECRET=${GITHUB_SECRET}" \
   | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
 
 # --------------------------------------------------------------- deploy ------

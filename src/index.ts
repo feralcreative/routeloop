@@ -7,7 +7,11 @@ import { readFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { desc, eq } from 'drizzle-orm'
 import { db } from './db/index'
-import { maps as mapsTable, type MapRow } from './db/schema'
+import { maps as mapsTable, type MapRow, type UserRow } from './db/schema'
+import { withSession, type AuthEnv } from './auth/middleware'
+import { authRoutes } from './routes/auth'
+import { dashboardRoutes } from './routes/dashboard'
+import { esc, page } from './views/layout'
 
 const PORT = Number(process.env.PORT ?? 6686)
 const GMAPS_KEY = process.env.GMAPS_KEY ?? ''
@@ -22,16 +26,20 @@ async function getViewable(slug: string): Promise<MapRow | undefined> {
   return m
 }
 
-const esc = (s: unknown): string =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-
-const app = new Hono()
+const app = new Hono<AuthEnv>()
 
 // Static viewer assets (js/css/img) straight from public/.
 app.use('/js/*', serveStatic({ root: './public' }))
 app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/favicon.ico' }))
+
+// Resolves the session once per request so every template can render the right
+// header. Mounted after the static assets so they skip the database entirely.
+app.use('*', withSession)
+
+app.route('/', authRoutes)
+app.route('/', dashboardRoutes)
 
 // Home listing (mirrors app/views/home.php).
 app.get('/', async (c) => {
@@ -46,7 +54,7 @@ app.get('/', async (c) => {
         `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(m.color)}"></span><span>${esc(m.title)}</span><span class="meta">${m.waypointCount} stops &middot; ${Number(m.totalMiles)} mi</span></a></li>`,
     )
     .join('')
-  return c.html(homeHtml(cards || '<p class="empty">No public maps yet.</p>'))
+  return c.html(homeHtml(cards || '<p class="empty">No public maps yet.</p>', c.get('user')))
 })
 
 // Viewer page (mirrors app/views/view.php).
@@ -155,32 +163,14 @@ function viewHtml(m: MapRow, gmapsKey: string): string {
 </html>`
 }
 
-function homeHtml(cards: string): string {
-  return `<!doctype html>
-<html lang="en-US">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>tankbag</title>
-  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <style>
-    body { font: 400 16px/1.5 Lato, system-ui, sans-serif; margin: 0; padding: 2rem; color: #333; background: #f4f4f4; }
-    h1 { margin: 0 0 0.25rem; }
-    .sub { color: #777; margin-bottom: 2rem; }
-    ul { list-style: none; padding: 0; display: grid; gap: 0.75rem; max-width: 640px; }
-    li { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); }
-    a.card { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; text-decoration: none; color: inherit; }
-    .swatch { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
-    .meta { color: #888; font-size: 0.85em; margin-left: auto; }
-    .empty { color: #999; }
-  </style>
-</head>
-<body>
-  <h1>tankbag</h1>
+function homeHtml(cards: string, user: UserRow | null): string {
+  return page({
+    title: 'tankbag',
+    user,
+    body: `<h1>tankbag</h1>
   <div class="sub">Public road-trip maps</div>
-  <ul>${cards}</ul>
-</body>
-</html>`
+  <ul class="cards">${cards}</ul>`,
+  })
 }
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
