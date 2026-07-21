@@ -13,6 +13,12 @@ services:
     image: ${IMAGE_NAME}
     container_name: ${CONTAINER_NAME}
     restart: unless-stopped
+    # The image's own user is node (uid 1000), but ./data/storage lives on a
+    # Synology share whose ACL grants no access to uid 1000 — the app gets
+    # "Permission denied" on every KML/GPX read. Synology ACLs cannot be granted
+    # to a bare numeric uid, so the container runs as the host owner instead.
+    # Supplied by the .env deploy.sh writes; see APP_UID/APP_GID in deploy.config.
+    user: "${APP_UID}:${APP_GID}"
     environment:
       PORT: 6686
       STORAGE_PATH: /app/moto-storage

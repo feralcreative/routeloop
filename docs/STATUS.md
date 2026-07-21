@@ -18,7 +18,9 @@ have happened since the original plan, and both are committed:
   DreamHost. Node is fine now — it runs in a container on our own hardware.
 
 Phase 0 and Phase 1 are built. The Phase 5 deploy tooling was added early (on
-2026-07-19) so the app can be pushed to the NAS, but **it has never been run**.
+2026-07-19). The image and the full container stack were validated locally on
+that date — build, schema push, seed, and every public endpoint — but the
+**deploy to the NAS has never been run**.
 
 ## Superseded documents
 
