@@ -4,26 +4,29 @@ import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { resolve, sep } from 'node:path'
 import { desc, eq } from 'drizzle-orm'
 import { db } from './db/index'
 import { maps as mapsTable, type MapRow, type UserRow } from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
+import { mapFilePath } from './maps/storage'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
+import { mapsRoutes } from './routes/maps'
 import { esc, page } from './views/layout'
 
 const PORT = Number(process.env.PORT ?? 6686)
 const GMAPS_KEY = process.env.GMAPS_KEY ?? ''
-const STORAGE = resolve(process.env.STORAGE_PATH ?? './moto-storage')
 
-// Visibility gate: only public/unlisted are viewable (no auth yet); anything
-// else (private / unknown) is treated as not-found so we never confirm it exists.
-async function getViewable(slug: string): Promise<MapRow | undefined> {
+// Visibility gate: public/unlisted are viewable by anyone with the link;
+// private only by its owner. Anything else (private to a non-owner, unknown
+// slug) is treated as not-found so we never confirm it exists.
+async function getViewable(slug: string, viewer: UserRow | null): Promise<MapRow | undefined> {
   if (!slug) return undefined
   const [m] = await db.select().from(mapsTable).where(eq(mapsTable.slug, slug)).limit(1)
-  if (!m || (m.visibility !== 'public' && m.visibility !== 'unlisted')) return undefined
-  return m
+  if (!m) return undefined
+  if (m.visibility === 'public' || m.visibility === 'unlisted') return m
+  if (viewer && viewer.id === m.ownerId) return m
+  return undefined
 }
 
 const app = new Hono<AuthEnv>()
@@ -40,6 +43,7 @@ app.use('*', withSession)
 
 app.route('/', authRoutes)
 app.route('/', dashboardRoutes)
+app.route('/', mapsRoutes)
 
 // Home listing (mirrors app/views/home.php).
 app.get('/', async (c) => {
@@ -59,14 +63,14 @@ app.get('/', async (c) => {
 
 // Viewer page (mirrors app/views/view.php).
 app.get('/m/:slug', async (c) => {
-  const m = await getViewable(c.req.param('slug'))
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
   return c.html(viewHtml(m, GMAPS_KEY))
 })
 
 // Seam 1: metadata JSON (one-element array — the legend renders fine with one).
 app.get('/api/public/maps/:slug', async (c) => {
-  const m = await getViewable(c.req.param('slug'))
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
   return c.json([
     {
@@ -84,20 +88,20 @@ app.get('/api/public/maps/:slug', async (c) => {
 
 // Seam 2 + GPX: gated file streams from outside-the-web-root storage.
 app.get('/api/public/maps/:slug/kml', async (c) => {
-  const m = await getViewable(c.req.param('slug'))
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
   return streamFile(c, m, 'kml', 'application/vnd.google-earth.kml+xml')
 })
 app.get('/api/public/maps/:slug/gpx', async (c) => {
-  const m = await getViewable(c.req.param('slug'))
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m || !m.gpxPresent) return c.text('Not found', 404)
   return streamFile(c, m, 'gpx', 'application/gpx+xml')
 })
 
-async function streamFile(c: Context, m: MapRow, ext: string, type: string): Promise<Response> {
-  // Path built only from integer ids, then containment-checked against STORAGE.
-  const path = resolve(STORAGE, String(m.ownerId), `${m.id}.${ext}`)
-  if (path !== STORAGE && !path.startsWith(STORAGE + sep)) return c.text('Not found', 404)
+async function streamFile(c: Context, m: MapRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
+  // Path built only from integer ids, containment-checked in mapFilePath.
+  const path = mapFilePath(m.ownerId, m.id, ext)
+  if (!path) return c.text('Not found', 404)
   let buf: Buffer
   try {
     buf = await readFile(path)
