@@ -1,69 +1,61 @@
 # Status and Handoff
 
-**Updated:** 2026-07-20
+**Updated:** 2026-07-23
 **Repo:** `tankbag-app` (source of truth)
 **For:** the next agent picking up development
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) first for architecture, then
-this doc for exactly where things stand. The current build plan is
-[\_PLANS/tankbag-hono-rebuild.md](../_PLANS/tankbag-hono-rebuild.md).
+this doc for where things stand. The current build plan is
+[\_PLANS/tankbag-route-builder-pivot.md](../_PLANS/tankbag-route-builder-pivot.md);
+the live session handoff (most precise resume point) is
+[\_PLANS/tankbag-pivot-handoff.md](../_PLANS/tankbag-pivot-handoff.md).
 
 ## TL;DR
 
-tankbag is a public, multi-tenant motorcycle route-map sharing app. Two pivots
-have happened since the original plan, and both are committed:
+tankbag is a ride **planning / sharing / organizing** app (not navigation). It
+pivoted from "upload KML files" to "**plan rides in-app on Mapbox**"; upload is
+now an import path.
 
-- **Stack:** TypeScript + Hono + PostgreSQL (Drizzle), not PHP + MySQL.
-- **Hosting:** Synology NAS (`feral-nas`) behind Cloudflare Tunnel, not
-  DreamHost. Node is fine now — it runs in a container on our own hardware.
+- **Stack:** TypeScript + Hono + PostgreSQL (Drizzle), Zod. Node in Docker.
+- **Maps:** Mapbox GL JS + Directions + Geocoding, client-side, public token.
+- **Hosting:** Synology NAS (`feral-nas`) behind Cloudflare Tunnel.
 
-Phase 0, Phase 1, and the Phase 5 deploy are done. On 2026-07-20 both
-environments were deployed to the NAS and verified through the tunnel:
+**State of the pivot (uncommitted — entire pivot is in the working tree):**
 
-- **stage** — `https://stage.tankbag.app` (:6687), seeded with the sample route.
-- **prod** — `https://tankbag.app` (:6686), schema applied, database
-  deliberately empty.
+- **Auth** — done (Google/GitHub OAuth, sessions, dashboard).
+- **Phase 1** (data model + roles + structured import) — done, verified.
+- **Phase 2** (Mapbox ride builder + native viewer + ride API) — done, verified
+  in a real browser: plan a snapped route, classify stops, save, view.
+- **Phase 3** (drag-to-shape + KML/GPX export) — next.
 
-The viewer was confirmed in a real browser on staging — route polyline,
-direction arrows, waypoint markers, legend, and both download buttons render,
-with no Maps API referrer errors. That closes the "never browser-verified on
-this stack" gap.
-
-Phase 2 (auth) is the next build work.
-
-## Superseded documents
-
-These describe the original PHP/MySQL/DreamHost build. Keep them for the
-security reasoning and the viewer port notes; ignore them on stack and hosting.
-
-- [\_PLANS/multi-tenant-rebuild.md](../_PLANS/multi-tenant-rebuild.md) — the
-  original plan. Its upload-pipeline and security sections are still the spec
-  to port from.
-- `app/`, `composer.json`, `config.*.php`, `utils/schema.sql` — retired PHP
-  build, still on disk, excluded from the Docker image via `.dockerignore`.
+> A prior deploy (2026-07-20) put the **pre-pivot** app on stage + prod. The
+> current working tree is well ahead of what is deployed, and a redeploy needs
+> the `maps` → `rides` migration step (see Known risks).
 
 ## What is built
 
-The backend is a single Hono app in [src/index.ts](../src/index.ts) serving the
-public read path, with the Drizzle schema in
-[src/db/schema.ts](../src/db/schema.ts):
+Backend is the Hono app in [src/index.ts](../src/index.ts) plus route modules in
+[src/routes/](../src/routes/); schema is
+[src/db/schema.ts](../src/db/schema.ts) (source of truth). Data model:
+`users`, `user_identities`, `sessions`, `rides`, `routes`, `points`,
+`route_legs` (see the primer for columns).
 
-- `GET /` — public map listing
-- `GET /m/:slug` — viewer page (injects `window.MOTO` + the Maps key)
-- `GET /api/public/maps/:slug` — metadata JSON (viewer seam 1)
-- `GET /api/public/maps/:slug/kml` — gated KML stream (seam 2)
-- `GET /api/public/maps/:slug/gpx` — gated GPX download
+Public read path:
 
-Schema tables: `users`, `user_identities`, `maps` — translated from the MySQL
-design, including the `size_bytes` generated column and the browse index.
+- `GET /` — public ride listing
+- `GET /m/:slug` — viewer (native → Mapbox shell; imported → legacy Google shell)
+- `GET /api/public/rides/:slug/ride.json` — normalized viewer contract
+- `GET /api/public/maps/:slug` + `/kml` + `/gpx` — legacy metadata + gated file
+  streams (imported rides; retire in Phase 4)
 
-The security invariants carried over from the PHP build: the visibility gate
-returns 404 for private/unknown slugs (never confirms existence), file paths are
-built only from integer ids and containment-checked against `STORAGE_PATH`, and
-`esc()` escapes user-derived strings before they reach HTML.
+Owner path (`requireAuthApi` + `requireSameOrigin`): `POST /api/maps` (import),
+`POST`/`PUT`/`GET /api/rides` (builder), `PATCH`/`DELETE /api/maps/:id`, plus the
+`/builder` pages.
 
-**Browser-verified on 2026-07-20** against `stage.tankbag.app` — the viewer
-renders end to end on this stack, not just on the retired PHP one.
+Security invariants carried from the PHP build and still enforced: XXE-safe KML
+parse (reject `<!DOCTYPE>`), text sanitization at rest, transactional quota
+(413), the visibility gate returning 404 for private/unknown slugs, integer-id
+containment-checked file paths, and the `Origin` CSRF gate.
 
 ## Local development
 
@@ -72,23 +64,31 @@ Postgres runs in Docker; the app runs on the host with hot reload.
 ```bash
 cd /Users/ziad/www/moto/tankbag-app
 npm install
-cp .env.example .env          # then fill in GMAPS_KEY
+cp .env.example .env          # fill in MAPBOX_TOKEN (+ GMAPS_KEY for imports, OAuth)
 docker compose up -d --wait db
-npx tsx src/db/seed.ts        # one demo user + one public map
-npm run dev                   # http://127.0.0.1:6686
+npx drizzle-kit push          # apply schema
+npx tsx src/db/seed.ts        # demo user + sample ride (structured rows)
+npm run dev                   # http://localhost:6686
 ```
 
-Port 6686 is this project's designated port. Do not start a server on a
-different port if it is busy — kill the existing process and reuse 6686.
+Port 6686 is this project's designated port — kill and reuse it if busy, never
+switch ports.
 
 Notes:
 
-- The root [docker-compose.yml](../docker-compose.yml) is **local-dev only**
-  (Postgres alone). The deployed stack is `docker-compose.prod.yml`.
-- The seed expects the sample KML/GPX already at `moto-storage/1/1.{kml,gpx}`.
+- **Browse dev at `http://localhost:6686`, not `127.0.0.1`** — the Mapbox dev
+  token is `localhost`-restricted; tiles/Directions/geocoding 403 from the raw
+  IP. `APP_ORIGIN` stays `127.0.0.1`, but `isAllowedOrigin` accepts both dev
+  hosts, so the CSRF gate passes either way. (Imported-ride viewing still uses
+  the Google key, referrer-locked to `127.0.0.1` — a wrinkle that dies in
+  Phase 4.)
+- Root [docker-compose.yml](../docker-compose.yml) is **local-dev only**
+  (Postgres). The deployed stack is `docker-compose.prod.yml`.
+- The seed reads `moto-storage/1/1.{kml,gpx}` and extracts structured rows from
+  the KML.
 - `public/style/main.min.css` is a gitignored build artifact — run
   `npm run sass` locally, or let the Docker build compile it.
-- The plan proposed pnpm; npm was used in practice (`package-lock.json`).
+- npm is used in practice (`package-lock.json`), not pnpm.
 
 ## Deploy — NAS + Cloudflare Tunnel
 
@@ -103,18 +103,20 @@ Deploy tooling follows **archetype B (Docker-on-NAS templated)** from
 
 - [deploy.config](../deploy.config) — committed, secret-free, selects prod vs
   stage values.
-- `.env` — secrets (`GMAPS_KEY`, `PROD_DB_PASSWORD`, `STAGE_DB_PASSWORD`,
-  Cloudflare token). Gitignored; see [.env.example](../.env.example).
+- `.env` — secrets (`MAPBOX_TOKEN`, `GMAPS_KEY`, `PROD_DB_PASSWORD`,
+  `STAGE_DB_PASSWORD`, Cloudflare token). Gitignored; see
+  [.env.example](../.env.example). The prod Mapbox token must be URL-restricted
+  to `tankbag.app` / `stage.tankbag.app`.
 - [docker-compose.prod.yml](../docker-compose.prod.yml) — app + Postgres,
   published on `127.0.0.1` only. `deploy.sh` ships it to the NAS as
-  `docker-compose.yml` plus a chmod-600 `.env` that supplies its variables.
+  `docker-compose.yml` plus a chmod-600 `.env`.
 - [utils/deploy/deploy-utils.sh](../utils/deploy/deploy-utils.sh) — `logs`,
   `status`, `restart`, `psql`, `migrate`, `db-backup`, `backup`. Prefix with
   `DEPLOY_ENV=stage` for staging.
 
 The tunnel routes `tankbag.app` → `localhost:6686` and `stage.tankbag.app` →
-`localhost:6687`; cloudflared runs natively on the Synology host. Both
-hostnames now serve the app. The deploy scripts never touch tunnel config.
+`localhost:6687`; cloudflared runs natively on the Synology host. The deploy
+scripts never touch tunnel config.
 
 **The app container runs as the host uid, not the image's `node` user.**
 `data/storage` lives on a Synology share whose ACL grants rwx to `ziad` (1026)
@@ -122,62 +124,62 @@ and r-x to `users` (100), but nothing to uid 1000 — so the container could
 stream metadata yet returned 404 for every KML/GPX read. Synology's
 `synoacltool` refuses to add an ACE for a bare numeric uid with no passwd
 record, so the fix is `user: "${APP_UID}:${APP_GID}"` in
-`docker-compose.prod.yml`, fed from `APP_UID`/`APP_GID` in `deploy.config`
-through the generated remote `.env`. Keep this in mind if the NAS user or share
-permissions ever change — the symptom is a working map list with silently
-404-ing route files.
+`docker-compose.prod.yml`, fed from `APP_UID`/`APP_GID` in `deploy.config`. The
+symptom if NAS permissions change: a working ride list with silently 404-ing
+route files.
 
-The prod deploy refuses a dirty tree or a non-`main` branch (`--force`
-overrides the gates but never the confirmation prompt).
+The prod deploy refuses a dirty tree or a non-`main` branch (`--force` overrides
+the gates but never the confirmation prompt).
 
 ### Known risks in the deploy path
 
-- The Docker image runs `tsx` (a devDependency) as its entrypoint, so the image
-  installs dev dependencies deliberately. `--omit=dev` would produce an image
-  that cannot boot.
+- **`maps` → `rides` rename (pivot branch).** The post-deploy `drizzle-kit push`
+  runs non-interactively and cannot resolve a table rename — it needs a TTY
+  prompt and will hang/fail. **Before the first deploy of this branch, run**
+  `DROP TABLE IF EXISTS maps CASCADE;` on the stage and prod databases (their
+  data is seed-grade; accepted in the plan).
+- The Docker image runs `tsx` (a devDependency) as its entrypoint, so it
+  installs dev dependencies deliberately. `--omit=dev` would not boot.
 - Schema is applied with `drizzle-kit push --force`, not generated migrations —
-  there is no `drizzle/` directory. The post-deploy hook is non-fatal; re-run
-  with `deploy-utils.sh migrate`.
+  no `drizzle/` directory. The post-deploy hook is non-fatal; re-run with
+  `deploy-utils.sh migrate`.
 - The Postgres password is read only when the data volume first initialises.
-  Changing it later requires `ALTER USER` inside the db container, not a
-  redeploy.
-- A fresh deploy has an **empty database**. Expect a working but empty map list
-  until data is seeded or uploaded. Prod is in exactly this state by choice.
+  Changing it later requires `ALTER USER` in the db container.
+- A fresh deploy has an **empty database** — a working but empty ride list until
+  seeded.
 - The verify step runs **before** the post-deploy schema push, so a first-ever
-  deploy always logs `App not responding yet` and dumps a Postgres
-  "relation does not exist" error before recovering. Cosmetic, but it looks like
-  a failure when it is not. Reordering verify to run after the hook would fix it.
-- Prod and stage currently share one DB password. Postgres has now initialised
-  both volumes, so changing it means `ALTER USER` in each db container.
-- The Maps key is proven on `stage.tankbag.app` but **not yet on `tankbag.app`**
-  — prod has no map to render, so that referrer entry is still untested. A
-  missing entry shows up as `RefererNotAllowedMapError` on the first real map.
+  deploy logs `App not responding yet` and a Postgres "relation does not exist"
+  error before recovering. Cosmetic.
+- Prod and stage share one DB password; both volumes are initialised, so
+  changing it means `ALTER USER` in each container.
+- **Mapbox** must be added to the deploy env plumbing before deploy (`.env` →
+  remote `.env` → `docker-compose.prod.yml`), mirroring how `GMAPS_KEY` is
+  handled today. Confirm this wiring exists before shipping Phase 5.
 
 ## Next up
 
-1. **Phase 2 — Auth.** Google + GitHub OAuth, server sessions, `/login`,
-   `/auth/*`, `/logout`, dashboard shell, on `users` + `user_identities`. Needs
-   OAuth credentials only the owner can create: redirect URIs
-   `http://127.0.0.1:6686/auth/{provider}/callback` for dev, plus the
-   `tankbag.app` and `stage.tankbag.app` equivalents.
-2. **Phase 3 — Upload + quota.** Port the PHP pipeline: Turnstile, XXE-safe
-   parse rejecting `<!DOCTYPE>`, KML sanitization, server-side metadata
-   extraction, transactional quota. Re-derive these rather than skipping them.
-   Note that `src/db/seed.ts` sets `totalMiles: 52.4` while the viewer computes
-   185.2 mi from the KML — the seed value is a wrong placeholder, and this is
-   the phase that makes the stored figure authoritative.
-3. **Phase 4 — Browse + share.**
+1. **Phase 3 — Shaping + export.** Drag-to-shape legs into `route_legs.via_points`;
+   `src/maps/export.ts` (`buildKml` / `buildGpx` via `formatRoleName`);
+   source-aware `/kml` + `/gpx` (native = generated); flip native
+   `kmlUrl`/`gpxUrl` in `ride.json` from null to real URLs.
+2. **Phase 4 — Unify viewer + retire Google.** Backfill structured rows for
+   pre-pivot rides; `/m/:slug` always Mapbox; delete `main.js`, the legacy
+   metadata endpoint, and `GMAPS_KEY`; add the dashboard import UI.
+3. **Phase 5 — Trip features.** Multi-day rides + the timeline slider.
+4. **Near-term UX** from [\_PLANS/changes-260724T0250Z.md](../_PLANS/changes-260724T0250Z.md):
+   title-as-placeholder, role multi-select dropdown, splash/login + home page
+   (recent 10 + popular 10 rides), logo.
 
 ## Conventions and guardrails
 
 - **Never commit, push, or deploy without the owner's explicit permission.**
-  Hand over a terse commit message instead.
+  Hand over a terse commit message instead. No AI co-author attribution.
 - **SCSS** compiles with `npm run sass` (the `sass` CLI), never an IDE
   extension. Source `style/main.scss` → `public/style/main.min.css`.
-- **Utility scripts** go in `utils/`; **docs** (besides the README and primer)
-  go in `docs/`.
-- **Don't re-couple the viewer to the filesystem.** `public/js/main.js` reads
-  from the API via `window.MOTO.metadataUrl` and the `/kml` endpoint.
+- **Utility scripts** go in `utils/`; **docs** (besides README and primer) in
+  `docs/`.
+- **Don't re-couple viewers to the filesystem.** Native rides render from
+  `ride.json`; the legacy viewer reads its API seams.
 - Preserve the security invariants listed above when adding write paths.
-- Follow the owner's markdown rules in docs: fenced blocks need a language, no
-  `---` horizontal rules, blank lines around headings, lists, and code.
+- Follow the owner's markdown rules: fenced blocks need a language, no `---`
+  horizontal rules, blank lines around headings, lists, and code.

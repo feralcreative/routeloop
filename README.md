@@ -1,58 +1,67 @@
 # tankbag
 
-tankbag (tankbag.app) is a web app for uploading, organizing, and sharing
-motorcycle road-trip maps. Riders sign in, upload their route files, and get a
-clean, interactive map they can share with a link — complete with per-stop icons
-(gas, food, camp, meet), automatically calculated mileage, and
-direction-of-travel indicators along each route.
+tankbag (tankbag.app) is a web app for **planning, organizing, and sharing**
+motorcycle rides and car road trips. Riders build a route on an interactive
+Mapbox map — dropping stops, classifying them (gas, food, camp, lodging,
+scenic…), with the road route snapped between them — then manage it, share it by
+link, and export it. Existing route files (KML, GPX) can be imported to migrate
+in.
 
-It is being rebuilt from an earlier single-person, file-on-disk viewer (formerly
-"Moto-Rooter") into a public, multi-tenant service. For deep technical onboarding
-see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); for the build plan see
-[\_PLANS/tankbag-hono-rebuild.md](_PLANS/tankbag-hono-rebuild.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation
+app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route
+per layer and can't be used to navigate — tankbag has no such limits and gives a
+holistic view of an entire multi-day trip. For deep technical onboarding see
+[\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in
+[docs/ideas.md](docs/ideas.md); the build plan is
+[\_PLANS/tankbag-route-builder-pivot.md](_PLANS/tankbag-route-builder-pivot.md).
 
 ## Status
 
-Active rebuild on a **TypeScript + Hono + PostgreSQL** stack, hosted on a
-Synology NAS behind a Cloudflare Tunnel. Delivered in phases:
+Active build on a **TypeScript + Hono + PostgreSQL** stack with a **Mapbox**
+front end, hosted on a Synology NAS behind a Cloudflare Tunnel. The product
+recently pivoted from "upload KML files" to "plan rides in-app"; upload is now an
+import path. Delivered in phases:
 
-- [x] **Phase 0** — Hono app scaffold, local dev server, viewer served
-- [x] **Phase 1** — Postgres + Drizzle; a stored map renders end-to-end from the database
-- [ ] **Phase 2** — Accounts (Google / GitHub sign-in, sessions, dashboard)
-- [ ] **Phase 3** — Web upload UI, validation, and per-user storage quotas
-- [ ] **Phase 4** — Public browse / discovery and shareable links
-- [ ] **Phase 5** — Deploy to the NAS (Docker) on `tankbag.app` / `stage.tankbag.app`
-- [ ] **Later** — PostGIS geo discovery; MapLibre migration
+- [x] **Auth** — Google / GitHub sign-in, server sessions, dashboard
+- [x] **Data model** — rides → routes → stops/POIs → routed legs; role taxonomy
+- [x] **Import** — KML/GPX upload → a structured, editable-model ride
+- [x] **Ride builder** — plan a snapped route on Mapbox, classify stops, save
+- [x] **Native viewer** — shared rides render on Mapbox from the database
+- [ ] **Shaping + export** — drag routes into shape; export KML/GPX _(next)_
+- [ ] **Unify + retire Google** — one Mapbox viewer; drop the legacy viewer
+- [ ] **Trip features** — multi-day rides and the timeline slider
+- [ ] **Later** — bikes/rider profiles, more import formats, PostGIS discovery
 
 ## What it does
 
-The vision, and where each piece stands today:
-
-- **Accounts** — sign in with Google or GitHub, no passwords to manage
-  _(planned, Phase 2)_
-- **Upload** — drag-and-drop `.kml` (required) and `.gpx` (optional) through the
-  browser instead of over SSH _(planned, Phase 3)_
-- **Storage** — every account gets a storage quota for its map files
-  _(planned, Phase 3)_
-- **Viewer** — interactive Google map with a colored route polyline, direction
-  arrows, mileage, and typed waypoint markers with tooltips _(working)_
-- **Sharing** — public, unlisted, or private visibility, shareable by link
-  _(gating working; UI in Phase 4)_
-- **Browse** — a public gallery of shared maps _(planned, Phase 4)_
+- **Plan** — build a route on a Mapbox map: click or search to add stops, and
+  the road route is snapped between them. Classify each stop with the 17-role
+  taxonomy (gas, food, camp, meet, scenic…).
+- **Organize** — a ride packages one or more routes (days/sessions); stops,
+  points of interest, and ephemeral shaping waypoints are distinct.
+- **Share** — public, unlisted, or private visibility, shareable by link.
+- **Import** — bring in existing `.kml` / `.gpx` to migrate from other tools
+  _(KMZ, CSV later)_.
+- **Export** — download a ride as KML/GPX for other apps / round-tripping
+  _(next phase)_.
+- **Accounts** — sign in with Google or GitHub; each account has a storage quota
+  for imported files.
 
 ## Tech stack
 
-- **Backend** — TypeScript on Hono (runs on Node in Docker; portable to
-  Cloudflare Workers), PostgreSQL via Drizzle ORM
-- **Frontend** — vanilla JavaScript with the Google Maps JavaScript API; SCSS
-  compiled to CSS
-- **Bot defense** — Cloudflare Turnstile on sign-up and upload _(Phase 3)_
+- **Backend** — TypeScript on Hono (Node in Docker; portable to Cloudflare
+  Workers), PostgreSQL via Drizzle ORM, Zod validation.
+- **Maps** — Mapbox GL JS (rendering) + Mapbox Directions (per-leg road routing)
+  + Mapbox Geocoding v6 (search), called client-side with a URL-restricted
+  public token. Loaded from the Mapbox CDN — the front end has no bundler.
+- **Auth** — `arctic` OAuth (Google + GitHub) with hand-rolled server sessions;
+  Cloudflare Turnstile guards uploads/saves (feature-flagged).
 - **Hosting** — Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS at the
-  Cloudflare edge
+  Cloudflare edge.
 
-The map viewer is deliberately map-provider-agnostic apart from its rendering
-calls; migrating to MapLibre later (to avoid Google Maps usage costs at scale)
-would leave the KML parsing, waypoint model, and UI untouched.
+> A legacy Google Maps viewer (`public/js/main.js`) still renders **imported**
+> rides during the transition; it and its `GMAPS_KEY` are removed once the
+> Mapbox viewer is unified across both sources.
 
 ## Local development
 
@@ -60,6 +69,7 @@ would leave the KML parsing, waypoint model, and UI untouched.
 
 - Node.js 20+
 - Docker (to run PostgreSQL locally)
+- A Mapbox account with a public token
 
 ### Setup
 
@@ -70,23 +80,31 @@ would leave the KML parsing, waypoint model, and UI untouched.
    docker compose up -d --wait db
    ```
 
-2. Create a git-ignored `.env` in the repo root:
+2. Create a git-ignored `.env` from `.env.example` and fill it in. The essential
+   dev keys:
 
    ```text
    PORT=6686
-   GMAPS_KEY=<Google Maps browser key, restricted by HTTP referrer>
+   MAPBOX_TOKEN=pk.<public token>
    STORAGE_PATH=./moto-storage
-   DATABASE_URL=postgres://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
+   DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
+   APP_ORIGIN=http://127.0.0.1:6686
    ```
 
-3. Apply the schema (defined in `src/db/schema.ts`) and seed a sample map:
+   The Mapbox public token needs only the default public scopes (styles, fonts);
+   Directions and Geocoding work on any public token. In dev, either leave its
+   URL restrictions empty or restrict to `localhost` (Mapbox rejects IP
+   addresses). For production, restrict it to `tankbag.app` and
+   `stage.tankbag.app`.
+
+3. Apply the schema and seed a sample ride:
 
    ```bash
    npx drizzle-kit push
    npx tsx src/db/seed.ts
    ```
 
-4. Compile the styles if you changed the SCSS:
+4. Compile styles if you changed the SCSS:
 
    ```bash
    npm run sass
@@ -98,49 +116,66 @@ would leave the KML parsing, waypoint model, and UI untouched.
 npm run dev
 ```
 
-Then open <http://127.0.0.1:6686> (use `127.0.0.1`, not `localhost`, to match the
-Maps key's referrer allowlist). The seed map is at `/m/sample-route-one`.
+Then open <http://localhost:6686>. **Use `localhost`, not `127.0.0.1`** — the
+Mapbox dev token is restricted to `localhost`, and Mapbox tiles/Directions/
+geocoding return 403 from the raw IP. (The one exception: viewing an *imported*
+ride uses the legacy Google viewer, whose key is referrer-locked to `127.0.0.1`.
+This split goes away when the Google viewer is retired.) The seed ride is at
+`/m/sample-route-one`; the builder is at `/builder`.
 
 ## Project structure
 
 ```text
 src/                  TypeScript app (Hono)
-  index.ts            Routes, viewer/home templates, gated file streaming
-  db/                 Drizzle schema, connection, dev seed
-public/               Static assets, served directly
-  js/main.js          The map viewer (vanilla JS)
+  index.ts            Home, viewer (native Mapbox / imported Google), ride.json,
+                      legacy metadata + gated file streams
+  db/                 Drizzle schema (source of truth), connection, dev seed
+  auth/               Sessions, middleware, OAuth (arctic)
+  maps/               roles.ts, kml.ts, storage.ts, slug.ts, turnstile.ts
+  routes/             maps.ts (import), rides.ts (builder), dashboard.ts, auth.ts
+  views/layout.ts     Shared chrome shell
+public/
+  js/main.js          Legacy Google Maps viewer (imported rides only)
+  js/map-common.js    Shared Mapbox engine
+  js/viewer.js        Native ride viewer
+  js/builder.js       The ride builder
   style/main.min.css  Compiled CSS
-  img/                Icons, logos, assets
-style/main.scss       SCSS source (compiled into public/style/)
+  img/icons/          17 role SVGs (currentColor) + UI icons
+style/main.scss       SCSS source
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
-utils/schema.sql      Legacy MySQL schema (historical)
-app/                  Legacy PHP implementation (superseded; reference only)
-_PLANS/               Rebuild plans
+docs/ideas.md         Product vision
+_PLANS/               Plans + session handoff
+app/, utils/schema.sql  Legacy PHP/MySQL (superseded; reference only)
 ```
 
-User-uploaded map files live in a private `STORAGE_PATH` **outside** the web root
-and are served only through an ownership / visibility check.
+Imported files live in a private `STORAGE_PATH` **outside** the web root, served
+only through an ownership / visibility check. Native rides are pure database
+rows.
 
-## How routes work
+## The data model
 
-A map is defined by a `.kml` file (route geometry plus waypoints) and optional
-`.gpx` (a downloadable GPS track) and an external route URL. The viewer parses
-the KML, draws the longest coordinate path as the route, and turns every
-placemark point into a typed waypoint marker.
+- **Ride** — the shareable package (slug, visibility, title): holds many routes.
+- **Route** — one day/session: an ordered list of stops joined by road-snapped
+  legs, with an optional start/end date-time.
+- **Points** come in two kinds: **Stops** (ordered routing anchors, can carry a
+  duration) and **POIs** (unordered annotations that don't affect routing).
+  Ephemeral **shaping waypoints** are stored on the leg, not as points.
+- **Legs** carry the snapped geometry and Directions distance/duration between
+  consecutive stops. Imported rides are stored as one route with a single
+  full-track leg, so imported and native rides render through one code path.
 
-### Waypoint types and icons
+## Waypoint roles (classification, import & export)
 
-Name a waypoint in your mapping software with a type prefix so the viewer picks
-the right icon:
+Stops and POIs are classified with a 17-role taxonomy defined canonically in
+`src/maps/roles.ts`. In the builder you pick roles from icons; on **import** the
+`ROLE - Name` name-prefix convention is parsed into roles, and on **export** it
+is written back so files round-trip through other tools (Google Earth, etc.).
+
+Prefix a name with a type, and combine up to four with `/`:
 
 ```text
 GAS - Chevron Station
-```
-
-Combine up to four types on one waypoint by separating them with `/`:
-
-```text
 GAS/BREAK/FOOD - Roadside Stop
 ```
 
@@ -156,7 +191,7 @@ Supported types and the alternate words that map to them:
 | GAS     | icon-gas.svg     | FUEL                                |
 | CHARGE  | icon-charge.svg  | CHARGER                             |
 | BREAK   | icon-break.svg   | REST                                |
-| CAMP    | icon-camp.svg    | CAMPGROUND, CAMPING                 |
+| CAMP    | icon-camp.svg    | CAMPGROUND, CAMPING, CAMPSITE       |
 | HOTEL   | icon-hotel.svg   | LODGING, MOTEL, AIRBNB, SLEEP, STAY |
 | FOOD    | icon-food.svg    | LUNCH, DINNER, BREAKFAST            |
 | COFFEE  | icon-coffee.svg  | CAFE                                |
@@ -166,45 +201,27 @@ Supported types and the alternate words that map to them:
 | POI     | icon-poi.svg     | STOP                                |
 | WTF     | icon-wtf.svg     | WEIRD, RANDOM                       |
 
-Icons live in `public/img/icons/` and were designed in
+Icons live in `public/img/icons/`, designed in
 [this Figma document](https://www.figma.com/design/pFQck3CUIa5twKqMu1IxD5/moto-router).
 Their fill is `currentColor` so each icon tints to match its route color.
-
-### Route colors
-
-Each map carries its own color. When a color is not set, the viewer falls back
-to a palette in `public/js/main.js`:
-
-| Hex       | Label      |
-| --------- | ---------- |
-| `#0000cc` | Blue       |
-| `#cc0000` | Red        |
-| `#8800DD` | Violet     |
-| `#FF6F00` | Orange     |
-| `#DD00DD` | Magenta    |
-| `#006064` | Teal       |
-| `#4A148C` | Purple     |
-| `#4E342E` | Brown      |
-| `#00aaaa` | Cyan       |
-| `#0D1335` | Dark Blue  |
-| `#A0740B` | Mustard    |
-| `#003300` | Dark Green |
-| `#550000` | Burgundy   |
 
 ## Deployment
 
 Target host is a Synology NAS. The app runs as a Docker container (prod
 `tankbag.app` on `:6686`, stage `stage.tankbag.app` on `:6687`) behind a
-Cloudflare Tunnel; the tunnel routes and DNS are already configured, so a site
-goes live as soon as its container is listening. PostgreSQL runs as a sibling
-container. HTTPS terminates at Cloudflare's edge and no inbound ports are open on
-the NAS. Full deployment steps land under Phase 5.
+Cloudflare Tunnel; tunnel routes and DNS are already configured. PostgreSQL runs
+as a sibling container. HTTPS terminates at Cloudflare's edge and no inbound
+ports are open on the NAS.
+
+> **Before the first deploy of the pivot branch:** the schema renamed `maps` →
+> `rides`. The post-deploy `drizzle-kit push` runs non-interactively and cannot
+> resolve a table rename, so drop the old table first:
+> `DROP TABLE IF EXISTS maps CASCADE;` on the stage and prod databases.
 
 ## Provenance
 
-This app reuses the client-side map engine from the original Moto-Rooter static
-viewer, recovered from git history and rewired to read from a database and
-per-user storage instead of files on disk. The backend was first rebuilt in
-PHP/MySQL (see `app/`, now superseded) and then re-based on TypeScript + Hono +
-PostgreSQL. The rendering, mileage math, and waypoint model are unchanged;
-everything around them — accounts, upload, storage, sharing — is new.
+tankbag reuses the client-side map engine from the original Moto-Rooter static
+viewer, recovered from git history. The backend was rebuilt PHP/MySQL →
+TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the
+in-app Mapbox ride builder. The rendering behavior, mileage math, and waypoint
+taxonomy were ported forward; the upload path survives as import.
