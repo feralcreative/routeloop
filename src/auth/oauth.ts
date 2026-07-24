@@ -10,6 +10,32 @@ import { users, userIdentities, type UserRow } from '../db/schema'
 
 export const APP_ORIGIN = process.env.APP_ORIGIN ?? 'http://127.0.0.1:6686'
 
+// Origins accepted by the CSRF same-origin gate. Production is strict — just the
+// one https origin. In dev (non-https APP_ORIGIN), localhost and 127.0.0.1 are
+// the same server but distinct origins, and Mapbox's URL restriction forces the
+// browser onto localhost while APP_ORIGIN may be pinned to 127.0.0.1; accept
+// both same-port siblings so legitimate same-machine requests are not rejected.
+const ALLOWED_ORIGINS: ReadonlySet<string> = (() => {
+  const set = new Set<string>([APP_ORIGIN])
+  if (!APP_ORIGIN.startsWith('https://')) {
+    try {
+      const port = new URL(APP_ORIGIN).port
+      const suffix = port ? `:${port}` : ''
+      set.add(`http://localhost${suffix}`)
+      set.add(`http://127.0.0.1${suffix}`)
+    } catch {
+      /* APP_ORIGIN unparseable — fall back to the exact string only */
+    }
+  }
+  return set
+})()
+
+// Whether a request's Origin header is same-origin for CSRF purposes. A missing
+// Origin is not allowed — state-changing fetch() always sends one.
+export function isAllowedOrigin(origin: string | undefined | null): boolean {
+  return origin != null && ALLOWED_ORIGINS.has(origin)
+}
+
 export type Provider = 'google' | 'github'
 
 export const callbackUrl = (p: Provider): string => `${APP_ORIGIN}/auth/${p}/callback`

@@ -12,7 +12,7 @@ import {
   googleProfile,
   enabledProviders,
   resolveUser,
-  APP_ORIGIN,
+  isAllowedOrigin,
   type Provider,
 } from '../auth/oauth'
 import {
@@ -131,7 +131,7 @@ authRoutes.get('/auth/github/callback', async (c) => {
 // SameSite=Lax session cookie covers the cross-site case.
 authRoutes.post('/logout', async (c) => {
   const origin = c.req.header('Origin')
-  if (origin && origin !== APP_ORIGIN) return c.text('Bad origin', 403)
+  if (origin && !isAllowedOrigin(origin)) return c.text('Bad origin', 403)
 
   const sessionId = c.get('sessionId')
   if (sessionId) await invalidateSession(sessionId)

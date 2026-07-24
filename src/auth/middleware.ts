@@ -2,7 +2,7 @@
 // and the owner API.
 import type { Context, MiddlewareHandler } from 'hono'
 import type { UserRow } from '../db/schema'
-import { APP_ORIGIN } from './oauth'
+import { isAllowedOrigin } from './oauth'
 import { readSessionCookie, validateSessionToken } from './session'
 
 // Typed access to c.get('user') / c.get('sessionId') across the app.
@@ -37,7 +37,7 @@ export const requireAuthApi: MiddlewareHandler<AuthEnv> = async (c, next) => {
 // Origin header must be present AND match — same-origin fetch always sends it,
 // so only cross-site (or non-browser) requests are turned away.
 export const requireSameOrigin: MiddlewareHandler<AuthEnv> = async (c, next) => {
-  if (c.req.header('Origin') !== APP_ORIGIN) return c.json({ error: 'bad origin' }, 403)
+  if (!isAllowedOrigin(c.req.header('Origin'))) return c.json({ error: 'bad origin' }, 403)
   await next()
 }
 

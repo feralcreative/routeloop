@@ -29,6 +29,12 @@ const CHROME_CSS = `
               background: #fff; border: 1px solid #ddd; border-radius: 8px; text-decoration: none; color: #333; font-weight: 700; }
   .provider:hover { border-color: #bbb; }
   .note { color: #999; font-size: 0.9em; max-width: 480px; }
+  .btn { display: inline-block; background: #06c; color: #fff; border: 0; border-radius: 8px;
+         padding: 0.6rem 1.2rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn:hover { background: #05a; }
+  .cardrow { display: flex; align-items: center; }
+  .cardrow .card { flex: 1; }
+  .editlink { padding: 0 1rem; font-size: 0.85em; }
 `
 
 function header(user: UserRow | null): string {
