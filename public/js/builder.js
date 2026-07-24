@@ -273,8 +273,8 @@
         const meta = window.TB.roles[r];
         const on = (point.roles || []).includes(r);
         return (
-          '<button type="button" class="role-opt' + (on ? " on" : "") + '" data-role="' + r + '" title="' + esc(meta.title) + '">' +
-          '<span class="tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span></button>'
+          '<button type="button" class="role-opt' + (on ? " on" : "") + '" data-role="' + r + '" aria-pressed="' + on + '">' +
+          '<span class="tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span><span>' + esc(meta.title) + '</span></button>'
         );
       })
       .join("");
@@ -294,9 +294,9 @@
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
       '<div class="row-main">' +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
-      '<input class="row-name" type="text" maxlength="255" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
+      '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       (isStop
-        ? '<input class="row-dur" type="number" min="0" max="43200" placeholder="min" title="Stop duration (minutes)" value="' +
+        ? '<input class="row-dur" name="stop-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="Stop duration (minutes)" value="' +
           (point.durationMin ?? "") + '">'
         : "") +
       '<button type="button" class="row-roles-btn" title="Categories">' + (roleIconsHtml(point) || "+") + "</button>" +
@@ -308,7 +308,7 @@
       '<button type="button" class="row-del" title="Delete">✕</button>' +
       "</span></div>" +
       '<div class="row-roles" hidden>' + rolePickerHtml(point) + "</div>" +
-      '<textarea class="row-desc" maxlength="2000" placeholder="Notes (optional)"' +
+      '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
       "</li>"
     );
@@ -398,6 +398,7 @@
         else if (point.roles.length < 4) point.roles.push(role);
         else return toast("Up to 4 categories per point", true);
         btn.classList.toggle("on");
+        btn.setAttribute("aria-pressed", String(point.roles.includes(role)));
         const rolesBtn = row.querySelector(".row-roles-btn");
         rolesBtn.innerHTML = roleIconsHtml(point) || "+";
         hydrateIcons(rolesBtn);

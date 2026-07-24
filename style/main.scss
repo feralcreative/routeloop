@@ -838,20 +838,31 @@ table.route-table {
     }
     .row-roles {
       display: grid;
-      grid-template-columns: repeat(9, 1fr);
-      gap: 0.25em;
-      padding: 0.4em 0 0.2em 1.9em;
+      gap: 0.2em;
+      max-height: 16em;
+      margin: 0.35em 0 0.2em 1.9em;
+      padding: 0.35em;
+      overflow-y: auto;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      background: $white;
+      box-shadow: 0 4px 12px $panel-shadow;
       .role-opt {
-        border: 1px solid $grey;
-        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 0.65em;
+        width: 100%;
+        border: 0;
+        border-radius: 4px;
         background: $white;
-        padding: 0.25em;
+        padding: 0.45em 0.55em;
+        text-align: left;
         cursor: pointer;
         .tb-inline-icon {
           width: 18px;
           height: 18px;
           display: block;
-          margin: 0 auto;
+          flex: 0 0 18px;
           color: $text;
         }
         &.on {

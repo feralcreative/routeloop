@@ -36,19 +36,23 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 }
 
 authRoutes.get('/login', (c) => {
-  if (c.get('user')) return c.redirect('/dashboard', 302)
+  if (c.get('user')) return c.redirect('/', 302)
 
   const available = enabledProviders()
   const buttons = available.map((p) => `<a class="provider" href="/auth/${p}">${PROVIDER_LABEL[p]}</a>`).join('')
 
   const body = available.length
-    ? `<h1>Sign in</h1>
-       <div class="sub">Sign in to upload and manage your route maps.</div>
-       ${buttons}`
-    : `<h1>Sign in</h1>
+    ? `<main class="splash">
+       <p class="eyebrow">Plan the whole ride</p>
+       <h1>Every stop. Every day. One map.</h1>
+       <p class="splash-copy">Build road-snapped motorcycle rides and road trips, organize the places that matter, then share the complete plan.</p>
+       <div class="providers">${buttons}</div>
+       <p class="note">tankbag is a planning and sharing tool, not turn-by-turn navigation.</p>
+       </main>`
+    : `<main class="splash"><h1>Plan the whole ride.</h1>
        <p class="note">No sign-in provider is configured on this server yet.
        Set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET or GITHUB_CLIENT_ID /
-       GITHUB_CLIENT_SECRET and restart.</p>`
+       GITHUB_CLIENT_SECRET and restart.</p></main>`
 
   return c.html(page({ title: 'Sign in — tankbag', user: null, body }))
 })
@@ -85,7 +89,7 @@ authRoutes.get('/auth/google/callback', async (c) => {
     const profile = googleProfile(tokens.idToken())
     const user = await resolveUser(profile)
     setSessionCookie(c, await createSession(user.id))
-    return c.redirect('/dashboard', 302)
+    return c.redirect('/', 302)
   } catch (e) {
     return oauthFailure(c, 'google', e)
   }
@@ -120,7 +124,7 @@ authRoutes.get('/auth/github/callback', async (c) => {
     const profile = await githubProfile(tokens.accessToken())
     const user = await resolveUser(profile)
     setSessionCookie(c, await createSession(user.id))
-    return c.redirect('/dashboard', 302)
+    return c.redirect('/', 302)
   } catch (e) {
     return oauthFailure(c, 'github', e)
   }

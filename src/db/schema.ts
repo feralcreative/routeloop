@@ -112,6 +112,7 @@ export const rides = pgTable(
     totalMiles: numeric('total_miles', { precision: 7, scale: 1 }).notNull().default('0'),
     totalDurationS: integer('total_duration_s').notNull().default(0),
     stopCount: smallint('stop_count').notNull().default(0),
+    viewCount: integer('view_count').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -119,6 +120,7 @@ export const rides = pgTable(
     uniqueIndex('uq_slug').on(t.slug),
     index('idx_owner').on(t.ownerId),
     index('idx_browse').on(t.visibility, t.createdAt),
+    index('idx_popular').on(t.visibility, t.viewCount),
   ],
 )
 

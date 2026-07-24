@@ -4,7 +4,7 @@ import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
 import {
   rides,
@@ -69,21 +69,25 @@ app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 
-// Home listing (mirrors app/views/home.php).
+// Signed-in home: the rider's latest work alongside public community picks.
 app.get('/', async (c) => {
-  const rows = await db
-    .select({ ride: rides, color: routesTable.color })
-    .from(rides)
-    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
-    .where(eq(rides.visibility, 'public'))
-    .orderBy(desc(rides.createdAt))
-  const cards = rows
-    .map(
-      ({ ride: m, color }) =>
-        `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(color ?? '#0000cc')}"></span><span>${esc(m.title)}</span><span class="meta">${m.stopCount} stops &middot; ${Number(m.totalMiles)} mi</span></a></li>`,
-    )
-    .join('')
-  return c.html(homeHtml(cards || '<p class="empty">No public rides yet.</p>', c.get('user')))
+  const user = c.get('user')
+  if (!user) return c.redirect('/login', 302)
+
+  const selectCards = () =>
+    db
+      .select({ ride: rides, color: routesTable.color })
+      .from(rides)
+      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+
+  const [recent, popular] = await Promise.all([
+    selectCards().where(eq(rides.ownerId, user.id)).orderBy(desc(rides.updatedAt)).limit(10),
+    selectCards()
+      .where(eq(rides.visibility, 'public'))
+      .orderBy(desc(rides.viewCount), desc(rides.createdAt))
+      .limit(10),
+  ])
+  return c.html(homeHtml(rideCards(recent), rideCards(popular, true), user))
 })
 
 // Viewer page. Native rides render on the Mapbox shell from structured rows;
@@ -91,6 +95,10 @@ app.get('/', async (c) => {
 app.get('/m/:slug', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
+  await db
+    .update(rides)
+    .set({ viewCount: sql`${rides.viewCount} + 1` })
+    .where(eq(rides.id, m.id))
   return c.html(m.source === 'native' ? nativeViewHtml(m) : viewHtml(m, GMAPS_KEY))
 })
 
@@ -316,13 +324,30 @@ function viewHtml(m: RideRow, gmapsKey: string): string {
 </html>`
 }
 
-function homeHtml(cards: string, user: UserRow | null): string {
+type CardRow = { ride: RideRow; color: string | null }
+
+function rideCards(rows: CardRow[], showViews = false): string {
+  if (rows.length === 0) return '<p class="empty">No rides yet.</p>'
+  return `<ul class="cards">${rows
+    .map(
+      ({ ride: m, color }) =>
+        `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(color ?? '#0000cc')}"></span><span>${esc(m.title)}</span><span class="meta">${m.stopCount} stops &middot; ${Number(m.totalMiles)} mi${showViews ? ` &middot; ${m.viewCount} views` : ''}</span></a></li>`,
+    )
+    .join('')}</ul>`
+}
+
+function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {
   return page({
-    title: 'tankbag',
+    title: 'Home — tankbag',
     user,
-    body: `<h1>tankbag</h1>
-  <div class="sub">Public road-trip maps</div>
-  <ul class="cards">${cards}</ul>`,
+    body: `<main class="home">
+      <h1>Welcome back, ${esc(user.displayName)}</h1>
+      <p><a class="btn" href="/builder">Plan a ride</a></p>
+      <div class="home-sections">
+        <section class="home-section"><h2>Your recent rides</h2>${recentCards}</section>
+        <section class="home-section"><h2>Popular public rides</h2>${popularCards}</section>
+      </div>
+    </main>`,
   })
 }
 

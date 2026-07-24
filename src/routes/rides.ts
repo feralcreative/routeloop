@@ -378,16 +378,16 @@ function builderHtml(rideId: number | null): string {
       <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
     </button>
 
-    <h1 class="panel-title">${rideId ? 'Edit ride' : 'Plan a ride'}</h1>
+    ${rideId ? '<h1 class="panel-title">Edit ride</h1>' : ''}
 
     <div class="panel-contents-wrapper">
       <div class="panel-content">
         <div class="ride-meta">
-          <input id="ride-title" type="text" maxlength="150" placeholder="Ride title" autocomplete="off">
-          <textarea id="ride-description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
+          <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
+          <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
-            <input id="route-color" type="color" value="#0066cc" title="Route color">
-            <select id="ride-visibility" title="Visibility">
+            <input id="route-color" name="route-color" type="color" value="#0066cc" title="Route color">
+            <select id="ride-visibility" name="visibility" title="Visibility">
               <option value="private" selected>Private</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
@@ -400,7 +400,7 @@ function builderHtml(rideId: number | null): string {
         </div>
 
         <div class="search-wrap">
-          <input id="search" type="text" placeholder="Search for a place…" autocomplete="off">
+          <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
           <ul id="search-results" hidden></ul>
         </div>
 
