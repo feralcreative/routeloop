@@ -4,29 +4,52 @@ import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
-import { maps as mapsTable, type MapRow, type UserRow } from './db/schema'
+import {
+  rides,
+  routes as routesTable,
+  points as pointsTable,
+  routeLegs,
+  type RideRow,
+  type UserRow,
+} from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
+import { METERS_PER_MILE, type Track } from './maps/kml'
+import { ROLE_META } from './maps/roles'
 import { mapFilePath } from './maps/storage'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
+import { rideRoutes } from './routes/rides'
 import { esc, page } from './views/layout'
 
 const PORT = Number(process.env.PORT ?? 6686)
 const GMAPS_KEY = process.env.GMAPS_KEY ?? ''
+const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN ?? ''
+const MAPBOX_GL_VERSION = 'v3.10.0'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
 // slug) is treated as not-found so we never confirm it exists.
-async function getViewable(slug: string, viewer: UserRow | null): Promise<MapRow | undefined> {
+async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRow | undefined> {
   if (!slug) return undefined
-  const [m] = await db.select().from(mapsTable).where(eq(mapsTable.slug, slug)).limit(1)
-  if (!m) return undefined
-  if (m.visibility === 'public' || m.visibility === 'unlisted') return m
-  if (viewer && viewer.id === m.ownerId) return m
+  const [r] = await db.select().from(rides).where(eq(rides.slug, slug)).limit(1)
+  if (!r) return undefined
+  if (r.visibility === 'public' || r.visibility === 'unlisted') return r
+  if (viewer && viewer.id === r.ownerId) return r
   return undefined
+}
+
+// Color for listing swatches and the legacy metadata contract: the first
+// route's color (imports have exactly one route).
+async function firstRouteColor(rideId: number): Promise<string> {
+  const [r] = await db
+    .select({ color: routesTable.color })
+    .from(routesTable)
+    .where(and(eq(routesTable.rideId, rideId), eq(routesTable.position, 0)))
+    .limit(1)
+  return r?.color ?? '#0000cc'
 }
 
 const app = new Hono<AuthEnv>()
@@ -44,43 +67,124 @@ app.use('*', withSession)
 app.route('/', authRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
+app.route('/', rideRoutes)
 
-// Home listing (mirrors app/views/home.php).
+// Signed-in home: the rider's latest work alongside public community picks.
 app.get('/', async (c) => {
-  const rows = await db
-    .select()
-    .from(mapsTable)
-    .where(eq(mapsTable.visibility, 'public'))
-    .orderBy(desc(mapsTable.createdAt))
-  const cards = rows
-    .map(
-      (m) =>
-        `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(m.color)}"></span><span>${esc(m.title)}</span><span class="meta">${m.waypointCount} stops &middot; ${Number(m.totalMiles)} mi</span></a></li>`,
-    )
-    .join('')
-  return c.html(homeHtml(cards || '<p class="empty">No public maps yet.</p>', c.get('user')))
+  const user = c.get('user')
+  if (!user) return c.redirect('/login', 302)
+
+  const selectCards = () =>
+    db
+      .select({ ride: rides, color: routesTable.color })
+      .from(rides)
+      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+
+  const [recent, popular] = await Promise.all([
+    selectCards().where(eq(rides.ownerId, user.id)).orderBy(desc(rides.updatedAt)).limit(10),
+    selectCards()
+      .where(eq(rides.visibility, 'public'))
+      .orderBy(desc(rides.viewCount), desc(rides.createdAt))
+      .limit(10),
+  ])
+  return c.html(homeHtml(rideCards(recent), rideCards(popular, true), user))
 })
 
-// Viewer page (mirrors app/views/view.php).
+// Viewer page. Native rides render on the Mapbox shell from structured rows;
+// imported rides stay on the legacy Google shell until Phase 4 unifies them.
 app.get('/m/:slug', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
-  return c.html(viewHtml(m, GMAPS_KEY))
+  await db
+    .update(rides)
+    .set({ viewCount: sql`${rides.viewCount} + 1` })
+    .where(eq(rides.id, m.id))
+  return c.html(m.source === 'native' ? nativeViewHtml(m) : viewHtml(m, GMAPS_KEY))
 })
 
-// Seam 1: metadata JSON (one-element array — the legend renders fine with one).
+// The normalized public contract: everything the Mapbox viewer needs, for
+// both sources, derived from structured rows only.
+app.get('/api/public/rides/:slug/ride.json', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m) return c.json({ error: 'not found' }, 404)
+
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, m.id))
+    .orderBy(routesTable.position)
+  if (routeRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
+
+  const routesOut = []
+  for (const r of routeRows) {
+    const pts = await db
+      .select()
+      .from(pointsTable)
+      .where(eq(pointsTable.routeId, r.id))
+      .orderBy(pointsTable.position)
+    const legs = await db
+      .select({ geometry: routeLegs.geometry })
+      .from(routeLegs)
+      .where(eq(routeLegs.routeId, r.id))
+      .orderBy(routeLegs.position)
+
+    // Concatenate leg geometries, dropping duplicated joints.
+    const track: Track = []
+    for (const leg of legs) {
+      for (const pt of leg.geometry) {
+        const last = track[track.length - 1]
+        if (!last || last[0] !== pt[0] || last[1] !== pt[1]) track.push(pt)
+      }
+    }
+
+    const pointOut = (p: (typeof pts)[number]) => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      description: p.description ?? '',
+      roles: p.roles,
+      distFromStartMi: p.distFromStartM == null ? null : Math.round((p.distFromStartM / METERS_PER_MILE) * 10) / 10,
+    })
+    routesOut.push({
+      title: r.title,
+      color: r.color,
+      startAt: r.startAt?.toISOString() ?? null,
+      distanceMi: Math.round((r.distanceM / METERS_PER_MILE) * 10) / 10,
+      track,
+      stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
+      pois: pts.filter((p) => p.kind === 'poi').map(pointOut),
+    })
+  }
+
+  // Downloads: imported rides stream their stored originals; native
+  // generation lands with exports (Phase 3), until then no links.
+  const isImported = m.source === 'imported'
+  return c.json({
+    title: m.title,
+    description: m.description ?? '',
+    source: m.source,
+    totalMiles: Number(m.totalMiles),
+    kmlUrl: isImported ? `/api/public/maps/${m.slug}/kml` : null,
+    gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
+    externalUrl: m.externalUrl || null,
+    routes: routesOut,
+  })
+})
+
+// Seam 1: legacy metadata JSON for the Google-Maps viewer (one-element array —
+// the legend renders fine with one). Retires with main.js in Phase 4.
 app.get('/api/public/maps/:slug', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
   return c.json([
     {
       name: m.title,
-      color: m.color,
+      color: await firstRouteColor(m.id),
       kmlUrl: `/api/public/maps/${m.slug}/kml`,
       gpxUrl: m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
       externalUrl: m.externalUrl || null,
       gpxPresent: m.gpxPresent,
-      waypointCount: m.waypointCount,
+      waypointCount: m.stopCount,
       totalMiles: Number(m.totalMiles),
     },
   ])
@@ -98,7 +202,7 @@ app.get('/api/public/maps/:slug/gpx', async (c) => {
   return streamFile(c, m, 'gpx', 'application/gpx+xml')
 })
 
-async function streamFile(c: Context, m: MapRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
+async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
   // Path built only from integer ids, containment-checked in mapFilePath.
   const path = mapFilePath(m.ownerId, m.id, ext)
   if (!path) return c.text('Not found', 404)
@@ -120,7 +224,60 @@ async function streamFile(c: Context, m: MapRow, ext: 'kml' | 'gpx', type: strin
 }
 
 // --- Templates ------------------------------------------------------------
-function viewHtml(m: MapRow, gmapsKey: string): string {
+
+// The unified Mapbox viewer shell (native rides now; everything in Phase 4).
+// Same panel markup as the legacy shell so main.scss carries over.
+function nativeViewHtml(m: RideRow): string {
+  const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
+  return `<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${esc(m.title)} — tankbag</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="/style/main.min.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="info-panel" class="floating-panel">
+    <button class="collapse-toggle" aria-label="Collapse panel">
+      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
+    </button>
+
+    <h1 class="panel-title">${esc(m.title)}</h1>
+
+    <div class="panel-contents-wrapper">
+      <div class="panel-content">
+        <div class="details">${desc}</div>
+        <div class="routes">
+          <table class="route-table"></table>
+          <label class="toggle-checkbox">
+            <input type="checkbox" id="toggle-arrows" checked>
+            Show Direction of Travel
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <noscript><p style="padding:1em">JavaScript is required to view the map.</p></noscript>
+
+  <script>window.TB = ${JSON.stringify({
+    rideUrl: `/api/public/rides/${m.slug}/ride.json`,
+    token: MAPBOX_TOKEN,
+    roles: ROLE_META,
+  })};</script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+  <script src="/js/map-common.js" defer></script>
+  <script src="/js/viewer.js" defer></script>
+</body>
+</html>`
+}
+
+function viewHtml(m: RideRow, gmapsKey: string): string {
   const metadataUrl = `/api/public/maps/${m.slug}`
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
   return `<!doctype html>
@@ -167,13 +324,30 @@ function viewHtml(m: MapRow, gmapsKey: string): string {
 </html>`
 }
 
-function homeHtml(cards: string, user: UserRow | null): string {
+type CardRow = { ride: RideRow; color: string | null }
+
+function rideCards(rows: CardRow[], showViews = false): string {
+  if (rows.length === 0) return '<p class="empty">No rides yet.</p>'
+  return `<ul class="cards">${rows
+    .map(
+      ({ ride: m, color }) =>
+        `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(color ?? '#0000cc')}"></span><span>${esc(m.title)}</span><span class="meta">${m.stopCount} stops &middot; ${Number(m.totalMiles)} mi${showViews ? ` &middot; ${m.viewCount} views` : ''}</span></a></li>`,
+    )
+    .join('')}</ul>`
+}
+
+function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {
   return page({
-    title: 'tankbag',
+    title: 'Home — tankbag',
     user,
-    body: `<h1>tankbag</h1>
-  <div class="sub">Public road-trip maps</div>
-  <ul class="cards">${cards}</ul>`,
+    body: `<main class="home">
+      <h1>Welcome back, ${esc(user.displayName)}</h1>
+      <p><a class="btn" href="/builder">Plan a ride</a></p>
+      <div class="home-sections">
+        <section class="home-section"><h2>Your recent rides</h2>${recentCards}</section>
+        <section class="home-section"><h2>Popular public rides</h2>${popularCards}</section>
+      </div>
+    </main>`,
   })
 }
 

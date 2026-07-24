@@ -14,11 +14,14 @@ const CHROME_CSS = `
   a { color: #06c; }
   h1 { margin: 0 0 0.25rem; }
   .sub { color: #777; margin-bottom: 2rem; }
-  .topbar { display: flex; align-items: baseline; gap: 1rem; max-width: 640px; margin-bottom: 2rem; }
+  .topbar { display: flex; align-items: baseline; gap: 1rem; max-width: 960px; margin: 0 auto 2rem; }
   .topbar .spacer { margin-left: auto; }
   .topbar form { display: inline; }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: #06c; cursor: pointer; text-decoration: underline; }
-  ul.cards { list-style: none; padding: 0; display: grid; gap: 0.75rem; max-width: 640px; }
+  .home, .splash { max-width: 960px; margin: 0 auto; }
+  .home-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+  .home-section h2 { margin-bottom: 0.5rem; }
+  ul.cards { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
   ul.cards li { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); }
   a.card { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; text-decoration: none; color: inherit; }
   .swatch { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
@@ -28,7 +31,19 @@ const CHROME_CSS = `
   .provider { display: block; max-width: 320px; margin-bottom: 0.75rem; padding: 0.85rem 1rem; text-align: center;
               background: #fff; border: 1px solid #ddd; border-radius: 8px; text-decoration: none; color: #333; font-weight: 700; }
   .provider:hover { border-color: #bbb; }
+  .splash { padding: clamp(2rem, 9vh, 7rem) 0; }
+  .splash h1 { max-width: 700px; font-size: clamp(2.5rem, 7vw, 5.5rem); line-height: 0.98; letter-spacing: -0.04em; }
+  .eyebrow { color: #06c; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; }
+  .splash-copy { max-width: 620px; color: #666; font-size: 1.25rem; }
+  .providers { margin: 2rem 0 1rem; }
   .note { color: #999; font-size: 0.9em; max-width: 480px; }
+  .btn { display: inline-block; background: #06c; color: #fff; border: 0; border-radius: 8px;
+         padding: 0.6rem 1.2rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn:hover { background: #05a; }
+  .cardrow { display: flex; align-items: center; }
+  .cardrow .card { flex: 1; }
+  .editlink { padding: 0 1rem; font-size: 0.85em; }
+  @media (max-width: 720px) { body { padding: 1rem; } .home-sections { grid-template-columns: 1fr; } .meta { display: none; } }
 `
 
 function header(user: UserRow | null): string {
