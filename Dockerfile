@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# tankbag — Node + Hono app image. Built on Apple Silicon for linux/amd64 (NAS).
+# routeloop — Node + Hono app image. Built on Apple Silicon for linux/amd64 (NAS).
 FROM node:22-alpine
 
 WORKDIR /app

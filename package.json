@@ -1,5 +1,5 @@
 {
-  "name": "tankbag",
+  "name": "routeloop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,6 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@xmldom/xmldom": "^0.9.10",
-    "arctic": "^3.7.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.14",

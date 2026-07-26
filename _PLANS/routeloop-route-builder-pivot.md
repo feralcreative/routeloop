@@ -1,12 +1,12 @@
-# tankbag — Route-Builder Pivot Plan (rev 2)
+# routeloop — Route-Builder Pivot Plan (rev 2)
 
 Updated: 2026-07-22, after ingesting `docs/ideas.md`. Supersedes the Phase 3
-"upload-first" trajectory in `_PLANS/tankbag-hono-rebuild.md`. On approval,
-copy this plan to `_PLANS/tankbag-route-builder-pivot.md` (user rule).
+"upload-first" trajectory in `_PLANS/routeloop-hono-rebuild.md`. On approval,
+copy this plan to `_PLANS/routeloop-route-builder-pivot.md` (user rule).
 
 ## Context
 
-tankbag.app is live (NAS Docker + Cloudflare Tunnel, OAuth working) but
+routeloop.app is live (NAS Docker + Cloudflare Tunnel, OAuth working) but
 useless: sign in, look at an empty dashboard. The pivot: **planning rides
 in-app is the product** — "MyRouteApp but 1000x better, entire-trip focused"
 (`docs/ideas.md`). Users build snapped routes on Mapbox, classify stops in the
@@ -65,9 +65,9 @@ ported** — a multi-day ride is multiple routes on one map.
 ## Phase 0 — Baseline + Mapbox setup
 
 - Commit the uncommitted import-pipeline work (asking Ziad first, per rule).
-- **Ziad**: Mapbox account + two public tokens — `tankbag-dev`
-  (unrestricted, local) and `tankbag-web` (URL-restricted to tankbag.app +
-  stage.tankbag.app).
+- **Ziad**: Mapbox account + two public tokens — `routeloop-dev`
+  (unrestricted, local) and `routeloop-web` (URL-restricted to routeloop.app +
+  stage.routeloop.app).
 - Env: `MAPBOX_TOKEN` in `.env`; deploy plumbing mirrors `GMAPS_KEY`
   (`utils/deploy/deploy.sh`, `docker-compose.prod.yml`). Keep `GMAPS_KEY`
   until Phase 4.
@@ -221,7 +221,7 @@ imported maps).
   route a Folder with LineStyle (`#rrggbb` → `aabbggrr`), stop/POI
   Placemarks named via `formatRoleName` (round-trips our importer, Google
   Earth, the README convention), track LineString; XML-escaped everywhere.
-  `buildGpx()` — GPX 1.1 `creator="tankbag.app"`, all `wpt` before one
+  `buildGpx()` — GPX 1.1 `creator="routeloop.app"`, all `wpt` before one
   `trk` per route (multiple `trk` elements = multi-day rides in one file).
 - `/kml` + `/gpx` endpoints become source-aware: imported streams the stored
   original; native returns generated docs. URLs unchanged.

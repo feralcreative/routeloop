@@ -72,8 +72,8 @@ Only the account owner can create these; the code cannot be tested without them.
 - **Google** — one OAuth 2.0 Web Application client, which accepts several
   redirect URIs, so one client covers every environment:
   - `http://127.0.0.1:6686/auth/google/callback`
-  - `https://stage.tankbag.app/auth/google/callback`
-  - `https://tankbag.app/auth/google/callback`
+  - `https://stage.routeloop.app/auth/google/callback`
+  - `https://routeloop.app/auth/google/callback`
 - **GitHub** — an OAuth App exposes a single Authorization callback URL field,
   so this likely needs one app per environment. Verify before creating three.
 

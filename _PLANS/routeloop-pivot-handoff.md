@@ -1,20 +1,28 @@
 # Pivot Handoff — updated 2026-07-23
 
-The precise resume point for the route-builder pivot. Architecture is in
-[../\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md); the governing plan is
-[tankbag-route-builder-pivot.md](tankbag-route-builder-pivot.md); deploy detail
-is in [../docs/STATUS.md](../docs/STATUS.md).
+The precise resume point for the **route-builder pivot** specifically.
+Architecture is in [../\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md); the
+governing plan is
+[routeloop-route-builder-pivot.md](routeloop-route-builder-pivot.md).
+
+> **Superseded for overall project state (2026-07-24).** Work since this doc was
+> written — the Cloudflare Access auth rebuild, the `tankbag` → `routeloop`
+> rename, and the production cutover — is recorded in
+> [../docs/STATUS.md](../docs/STATUS.md), which is now the authoritative "where
+> we left off" document. The phase notes below are still accurate for Phases 0–2.
 
 ## Git state
 
-- Last commit: `d4ca68f`. **The entire pivot (Phases 1–2) is uncommitted in the
-  working tree.** Do not commit/push/deploy without the owner's explicit
-  permission, and no AI co-author attribution.
+- Branch `feat/auth`, last commit `ea08cc8` (`main` is at `d4ca68f`). **The
+  entire pivot (Phases 1–2), the auth rebuild, and the rename are all
+  uncommitted in the working tree.** Do not commit/push/deploy without the
+  owner's explicit permission, and no AI co-author attribution.
 
 ## Done and verified
 
-- **Phase 0 — Mapbox.** Public token is in `.env` as `MAPBOX_TOKEN`,
-  URL-restricted to `localhost`. (Account `feralcreative`.)
+- **Phase 0 — Mapbox.** Public token is in `.env` as `MAPBOX_TOKEN`. (Account
+  `feralcreative`.) It was URL-restricted to `localhost`; as of 2026-07-24 it
+  answers every origin, so re-check the restrictions.
 - **Phase 1 — Data model + roles + structured import.** `rides` / `routes` /
   `points` / `route_legs`; `src/maps/roles.ts`; import produces structured rows.
   Verified: schema pushed, seed + curl import populate correct rows (parsed
@@ -27,7 +35,9 @@ is in [../docs/STATUS.md](../docs/STATUS.md).
     roles/durations, save. The owner used it hands-on.
   - **Save works.** A CSRF-gate bug ("bad origin" on save) was fixed: the app is
     browsed at `localhost` but `APP_ORIGIN` is `127.0.0.1`; `isAllowedOrigin`
-    (`src/auth/oauth.ts`) now accepts both dev hosts while prod stays strict.
+    now accepts both dev hosts while prod stays strict. (It lived in
+    `src/auth/oauth.ts` at the time; that file was deleted in the auth rebuild
+    and `isAllowedOrigin` now lives in `src/auth/access.ts`.)
 
 ## Small polish still open (quick wins)
 
@@ -68,7 +78,7 @@ Then Phase 4 (unify viewer, import UI, retire Google + `GMAPS_KEY`), Phase 5
   wants `127.0.0.1`.
 - Mint a dev session cookie for API/browser testing:
   `npx tsx -e "import('./src/auth/session').then(async s=>{console.log(await s.createSession(1));process.exit(0)})"`
-  then set `tankbag_session=<token>` (works from either dev host; the cookie is
+  then set `routeloop_session=<token>` (works from either dev host; the cookie is
   per-host, so set it on whichever origin you're testing).
 - Dev DB right now: ride 1 = seeded `sample-route-one` (imported, public);
   ride 3 = `Test Loop` (native, unlisted). Re-running the seed wipes all and

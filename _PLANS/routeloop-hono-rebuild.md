@@ -1,8 +1,8 @@
-# tankbag.app — TypeScript + Hono Rebuild Plan
+# routeloop.app — TypeScript + Hono Rebuild Plan
 
 Supersedes the PHP/MySQL plan in `multi-tenant-rebuild.md` (backend only) as of
 2026-07-13. Hosting is the Synology NAS behind Cloudflare Tunnel; tunnel routes for
-`tankbag.app` (:6686) and `stage.tankbag.app` (:6687) are already pre-staged.
+`routeloop.app` (:6686) and `stage.routeloop.app` (:6687) are already pre-staged.
 
 ## Stack
 
@@ -47,7 +47,7 @@ Supersedes the PHP/MySQL plan in `multi-tenant-rebuild.md` (backend only) as of
 
 ## Open setup choices (proposed defaults)
 
-- Repo: restructure `tankbag-app` in place — keep `public/`, `docs/`, `_PLANS/`;
+- Repo: restructure `routeloop-app` in place — keep `public/`, `docs/`, `_PLANS/`;
   replace `app/` (PHP) with `src/` (TS). Keep git history.
 - Package manager: pnpm.
 - Postgres: a container in the same `docker-compose` (not the NAS's MariaDB).
