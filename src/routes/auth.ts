@@ -1,138 +1,55 @@
-// OAuth entry points and callbacks. The state check and the PKCE verifier are
-// handled here on purpose rather than inside a middleware, since they are the
-// security-critical part of the flow.
-import * as arctic from 'arctic'
+// Cloudflare Access owns authentication and the allowlist at the edge. Only
+// /auth/cloudflare needs an Access policy; public ride URLs remain public.
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import type { AuthEnv } from '../auth/middleware'
-import {
-  github,
-  githubProfile,
-  google,
-  googleProfile,
-  enabledProviders,
-  resolveUser,
-  isAllowedOrigin,
-  type Provider,
-} from '../auth/oauth'
-import {
-  clearSessionCookie,
-  createSession,
-  invalidateSession,
-  setOAuthCookie,
-  setSessionCookie,
-  takeOAuthCookie,
-} from '../auth/session'
-import { esc, page } from '../views/layout'
+import { APP_ORIGIN, accessEmail, isAllowedOrigin, resolveAccessUser } from '../auth/access'
+import { clearSessionCookie, createSession, invalidateSession, setSessionCookie } from '../auth/session'
+import { page } from '../views/layout'
 
 export const authRoutes = new Hono<AuthEnv>()
-
-const STATE_COOKIE = (p: Provider) => `oauth_state_${p}`
-const VERIFIER_COOKIE = 'oauth_verifier_google'
-
-const PROVIDER_LABEL: Record<Provider, string> = {
-  google: 'Continue with Google',
-  github: 'Continue with GitHub',
-}
 
 authRoutes.get('/login', (c) => {
   if (c.get('user')) return c.redirect('/', 302)
 
-  const available = enabledProviders()
-  const buttons = available.map((p) => `<a class="provider" href="/auth/${p}">${PROVIDER_LABEL[p]}</a>`).join('')
-
-  const body = available.length
-    ? `<main class="splash">
+  // The clip is decoration, so the whole layer is hidden from assistive tech.
+  // `src` is deliberately absent — site.js assigns it from data-src only when
+  // motion is welcome, which keeps the fetch off reduced-motion and no-JS
+  // visitors; both keep the poster frame the CSS paints underneath.
+  return c.html(
+    page({
+      title: 'Sign in',
+      user: null,
+      variant: 'splash',
+      body: `<div class="splash-media" aria-hidden="true">
+        <video class="splash-video" data-src="/video/routeloop-intro.mp4"
+               autoplay loop muted playsinline preload="none"
+               disablepictureinpicture disableremoteplayback></video>
+       </div>
+       <main class="splash">
+       <img class="splash-logo" src="/img/logo-routeloop-vert-dark.svg" alt="routeloop" width="368" height="208">
        <p class="eyebrow">Plan the whole ride</p>
        <h1>Every stop. Every day. One map.</h1>
-       <p class="splash-copy">Build road-snapped motorcycle rides and road trips, organize the places that matter, then share the complete plan.</p>
-       <div class="providers">${buttons}</div>
-       <p class="note">tankbag is a planning and sharing tool, not turn-by-turn navigation.</p>
-       </main>`
-    : `<main class="splash"><h1>Plan the whole ride.</h1>
-       <p class="note">No sign-in provider is configured on this server yet.
-       Set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET or GITHUB_CLIENT_ID /
-       GITHUB_CLIENT_SECRET and restart.</p></main>`
-
-  return c.html(page({ title: 'Sign in — tankbag', user: null, body }))
+       <p class="splash-copy">Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with the group.</p>
+       <div class="providers"><a class="provider" href="/auth/cloudflare">Continue with Google</a></div>
+       </main>`,
+    }),
+  )
 })
 
-// --- Google ---------------------------------------------------------------
-
-authRoutes.get('/auth/google', (c) => {
-  if (!google) return c.text('Google sign-in is not configured', 503)
-
-  const state = arctic.generateState()
-  const codeVerifier = arctic.generateCodeVerifier()
-  setOAuthCookie(c, STATE_COOKIE('google'), state)
-  setOAuthCookie(c, VERIFIER_COOKIE, codeVerifier)
-
-  const url = google.createAuthorizationURL(state, codeVerifier, ['openid', 'email', 'profile'])
-  return c.redirect(url.toString(), 302)
-})
-
-authRoutes.get('/auth/google/callback', async (c) => {
-  if (!google) return c.text('Google sign-in is not configured', 503)
-
-  const code = c.req.query('code') ?? ''
-  const state = c.req.query('state') ?? ''
-  const expectedState = takeOAuthCookie(c, STATE_COOKIE('google'))
-  const codeVerifier = takeOAuthCookie(c, VERIFIER_COOKIE)
-
-  // A missing or mismatched state means this callback was not initiated by us.
-  if (!code || !state || !expectedState || state !== expectedState || !codeVerifier) {
-    return c.text('Sign-in request expired or was tampered with. Please try again.', 400)
+// Cloudflare Access must protect this path in stage/prod. The injected email
+// is trusted because the origin is reachable only through Cloudflare Tunnel.
+authRoutes.get('/auth/cloudflare', async (c) => {
+  const email = accessEmail(c)
+  if (!email) {
+    console.error('[auth] missing Cf-Access-Authenticated-User-Email header')
+    return c.text('Cloudflare Access did not provide an authenticated identity.', 403)
   }
 
-  try {
-    const tokens = await google.validateAuthorizationCode(code, codeVerifier)
-    const profile = googleProfile(tokens.idToken())
-    const user = await resolveUser(profile)
-    setSessionCookie(c, await createSession(user.id))
-    return c.redirect('/', 302)
-  } catch (e) {
-    return oauthFailure(c, 'google', e)
-  }
+  const user = await resolveAccessUser(email)
+  setSessionCookie(c, await createSession(user.id))
+  return c.redirect('/', 302)
 })
 
-// --- GitHub ---------------------------------------------------------------
-// GitHub OAuth Apps do not implement PKCE, so this flow carries state only.
-
-authRoutes.get('/auth/github', (c) => {
-  if (!github) return c.text('GitHub sign-in is not configured', 503)
-
-  const state = arctic.generateState()
-  setOAuthCookie(c, STATE_COOKIE('github'), state)
-
-  const url = github.createAuthorizationURL(state, ['user:email'])
-  return c.redirect(url.toString(), 302)
-})
-
-authRoutes.get('/auth/github/callback', async (c) => {
-  if (!github) return c.text('GitHub sign-in is not configured', 503)
-
-  const code = c.req.query('code') ?? ''
-  const state = c.req.query('state') ?? ''
-  const expectedState = takeOAuthCookie(c, STATE_COOKIE('github'))
-
-  if (!code || !state || !expectedState || state !== expectedState) {
-    return c.text('Sign-in request expired or was tampered with. Please try again.', 400)
-  }
-
-  try {
-    const tokens = await github.validateAuthorizationCode(code)
-    const profile = await githubProfile(tokens.accessToken())
-    const user = await resolveUser(profile)
-    setSessionCookie(c, await createSession(user.id))
-    return c.redirect('/', 302)
-  } catch (e) {
-    return oauthFailure(c, 'github', e)
-  }
-})
-
-// --- Logout ---------------------------------------------------------------
-// POST, so a link or a prefetch cannot sign anyone out. The Origin check plus a
-// SameSite=Lax session cookie covers the cross-site case.
 authRoutes.post('/logout', async (c) => {
   const origin = c.req.header('Origin')
   if (origin && !isAllowedOrigin(origin)) return c.text('Bad origin', 403)
@@ -140,25 +57,8 @@ authRoutes.post('/logout', async (c) => {
   const sessionId = c.get('sessionId')
   if (sessionId) await invalidateSession(sessionId)
   clearSessionCookie(c)
-  return c.redirect('/', 302)
-})
 
-// Log the real cause server-side; show the user something that leaks nothing.
-function oauthFailure(c: Context<AuthEnv>, provider: Provider, e: unknown): Response {
-  if (e instanceof arctic.OAuth2RequestError) {
-    console.error(`[auth] ${provider} rejected the authorization code:`, e.code, e.message)
-  } else if (e instanceof arctic.ArcticFetchError) {
-    console.error(`[auth] ${provider} token request could not be sent:`, e.cause)
-  } else {
-    console.error(`[auth] ${provider} sign-in failed:`, e)
-  }
-  return c.html(
-    page({
-      title: 'Sign-in failed — tankbag',
-      user: null,
-      body: `<h1>Sign-in failed</h1>
-             <p class="note">Something went wrong talking to ${esc(provider)}. Please <a href="/login">try again</a>.</p>`,
-    }),
-    500,
-  )
-}
+  // Cloudflare serves this path at the edge and clears its application cookie.
+  // Locally there is no Access cookie, so return directly to the splash page.
+  return c.redirect(APP_ORIGIN.startsWith('https://') ? '/cdn-cgi/access/logout' : '/login', 302)
+})

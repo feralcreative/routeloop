@@ -9,7 +9,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { db } from '../db/index'
 import { sessions, users, type UserRow } from '../db/schema'
 
-export const SESSION_COOKIE = 'tankbag_session'
+export const SESSION_COOKIE = 'routeloop_session'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SESSION_TTL_MS = 30 * DAY_MS
@@ -102,24 +102,4 @@ export function readSessionCookie(c: Context): string {
 
 export function clearSessionCookie(c: Context): void {
   deleteCookie(c, SESSION_COOKIE, { path: '/', secure: SECURE_COOKIES })
-}
-
-// Short-lived cookies carrying the OAuth `state` and PKCE verifier between the
-// redirect out and the callback back.
-const OAUTH_TEMP_MAX_AGE = 10 * 60
-
-export function setOAuthCookie(c: Context, name: string, value: string): void {
-  setCookie(c, name, value, {
-    httpOnly: true,
-    secure: SECURE_COOKIES,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: OAUTH_TEMP_MAX_AGE,
-  })
-}
-
-export function takeOAuthCookie(c: Context, name: string): string {
-  const v = getCookie(c, name) ?? ''
-  deleteCookie(c, name, { path: '/', secure: SECURE_COOKIES })
-  return v
 }
