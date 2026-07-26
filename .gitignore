@@ -14,6 +14,14 @@
 **/*.mp4
 **/*.mov
 **/*.mkv
+# The sign-in background clip is a shipped asset, not a working file. This must
+# stay below the **/*.mp4 rule above — a negation cannot resurrect a path whose
+# exclusion appears after it.
+!public/video/*.mp4
+# Ignore Adobe Premiere preview indexes
+**/*.prin
+# Ignore exported agent transcripts kept alongside real planning docs
+_PLANS/chat-*.md
 # Ignore WordPress core folders
 wp-includes/
 wp-admin/
