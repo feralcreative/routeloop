@@ -1,6 +1,6 @@
-# tankbag
+# routeloop
 
-tankbag (tankbag.app) is a web app for **planning, organizing, and sharing**
+routeloop (routeloop.app) is a web app for **planning, organizing, and sharing**
 motorcycle rides and car road trips. Riders build a route on an interactive
 Mapbox map — dropping stops, classifying them (gas, food, camp, lodging,
 scenic…), with the road route snapped between them — then manage it, share it by
@@ -9,20 +9,30 @@ in.
 
 It is deliberately a **planning and sharing tool, not a turn-by-turn navigation
 app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route
-per layer and can't be used to navigate — tankbag has no such limits and gives a
+per layer and can't be used to navigate — routeloop has no such limits and gives a
 holistic view of an entire multi-day trip. For deep technical onboarding see
 [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in
 [docs/ideas.md](docs/ideas.md); the build plan is
-[\_PLANS/tankbag-route-builder-pivot.md](_PLANS/tankbag-route-builder-pivot.md).
+[\_PLANS/routeloop-route-builder-pivot.md](_PLANS/routeloop-route-builder-pivot.md).
 
 ## Status
 
 Active build on a **TypeScript + Hono + PostgreSQL** stack with a **Mapbox**
 front end, hosted on a Synology NAS behind a Cloudflare Tunnel. The product
 recently pivoted from "upload KML files" to "plan rides in-app"; upload is now an
-import path. Delivered in phases:
+import path.
 
-- [x] **Auth** — Google / GitHub sign-in, server sessions, dashboard
+**Live at [routeloop.app](https://routeloop.app), with sign-in restricted to a
+single owner account** via a Cloudflare Access policy — everyone else is denied
+at the edge, and the production database starts empty. Public and unlisted ride
+links stay reachable without signing in. The former domain `tankbag.app`
+permanently redirects here and will be dropped after a year. See
+[docs/STATUS.md](docs/STATUS.md) for the precise state and
+[docs/cloudflare-access.md](docs/cloudflare-access.md) for the auth design.
+
+Delivered in phases:
+
+- [x] **Auth** — Cloudflare Access sign-in, server sessions, dashboard
 - [x] **Data model** — rides → routes → stops/POIs → routed legs; role taxonomy
 - [x] **Import** — KML/GPX upload → a structured, editable-model ride
 - [x] **Ride builder** — plan a snapped route on Mapbox, classify stops, save
@@ -44,7 +54,7 @@ import path. Delivered in phases:
   _(KMZ, CSV later)_.
 - **Export** — download a ride as KML/GPX for other apps / round-tripping
   _(next phase)_.
-- **Accounts** — sign in with Google or GitHub; each account has a storage quota
+- **Accounts** — sign in through Cloudflare Access; each account has a storage quota
   for imported files.
 
 ## Tech stack
@@ -54,7 +64,8 @@ import path. Delivered in phases:
 - **Maps** — Mapbox GL JS (rendering) + Mapbox Directions (per-leg road routing)
   + Mapbox Geocoding v6 (search), called client-side with a URL-restricted
   public token. Loaded from the Mapbox CDN — the front end has no bundler.
-- **Auth** — `arctic` OAuth (Google + GitHub) with hand-rolled server sessions;
+- **Auth** — Cloudflare Access authenticates at the edge; the app links the
+  verified email to a local user and uses SHA-256-hashed server sessions.
   Cloudflare Turnstile guards uploads/saves (feature-flagged).
 - **Hosting** — Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS at the
   Cloudflare edge.
@@ -87,15 +98,15 @@ import path. Delivered in phases:
    PORT=6686
    MAPBOX_TOKEN=pk.<public token>
    STORAGE_PATH=./moto-storage
-   DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
+   DATABASE_URL=postgresql://routeloop:routeloop_dev_pw@127.0.0.1:5432/routeloop
    APP_ORIGIN=http://127.0.0.1:6686
    ```
 
    The Mapbox public token needs only the default public scopes (styles, fonts);
    Directions and Geocoding work on any public token. In dev, either leave its
    URL restrictions empty or restrict to `localhost` (Mapbox rejects IP
-   addresses). For production, restrict it to `tankbag.app` and
-   `stage.tankbag.app`.
+   addresses). For production, restrict it to `routeloop.app` and
+   `stage.routeloop.app`.
 
 3. Apply the schema and seed a sample ride:
 
@@ -130,7 +141,7 @@ src/                  TypeScript app (Hono)
   index.ts            Home, viewer (native Mapbox / imported Google), ride.json,
                       legacy metadata + gated file streams
   db/                 Drizzle schema (source of truth), connection, dev seed
-  auth/               Sessions, middleware, OAuth (arctic)
+  auth/               Cloudflare Access identity, sessions, middleware
   maps/               roles.ts, kml.ts, storage.ts, slug.ts, turnstile.ts
   routes/             maps.ts (import), rides.ts (builder), dashboard.ts, auth.ts
   views/layout.ts     Shared chrome shell
@@ -207,20 +218,30 @@ Their fill is `currentColor` so each icon tints to match its route color.
 
 ## Deployment
 
-Target host is a Synology NAS. The app runs as a Docker container (prod
-`tankbag.app` on `:6686`, stage `stage.tankbag.app` on `:6687`) behind a
-Cloudflare Tunnel; tunnel routes and DNS are already configured. PostgreSQL runs
-as a sibling container. HTTPS terminates at Cloudflare's edge and no inbound
-ports are open on the NAS.
+Target host is a Synology NAS. The app runs as a Docker container behind a
+Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at
+Cloudflare's edge and no inbound ports are open on the NAS.
 
-> **Before the first deploy of the pivot branch:** the schema renamed `maps` →
-> `rides`. The post-deploy `drizzle-kit push` runs non-interactively and cannot
-> resolve a table rename, so drop the old table first:
-> `DROP TABLE IF EXISTS maps CASCADE;` on the stage and prod databases.
+Production serves `routeloop.app` from `localhost:16703` and staging serves
+`stage.routeloop.app` from `localhost:6687`. Each container also publishes an
+alias port so the surviving legacy `tankbag.app` / `stage.tankbag.app` tunnel
+routes reach the same app and get redirected to the canonical host.
+
+```bash
+./utils/deploy/stage.sh --dry-run   # preview
+./utils/deploy/stage.sh             # stage.routeloop.app
+./utils/deploy/prod.sh              # routeloop.app
+```
+
+> **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push`
+> runs non-interactively and cannot resolve a table rename. Production sidestepped
+> this by being redeployed onto a fresh, empty database, so it is settled there.
+> Any older database that still has a `maps` table needs
+> `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
 
 ## Provenance
 
-tankbag reuses the client-side map engine from the original Moto-Rooter static
+routeloop reuses the client-side map engine from the original Moto-Rooter static
 viewer, recovered from git history. The backend was rebuilt PHP/MySQL →
 TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the
 in-app Mapbox ride builder. The rendering behavior, mileage math, and waypoint
