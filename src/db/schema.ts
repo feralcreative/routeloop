@@ -17,7 +17,9 @@ import {
   check,
 } from 'drizzle-orm/pg-core'
 
-export const providerEnum = pgEnum('provider', ['google', 'github'])
+// Google/GitHub are retained for existing identity rows. New sign-ins arrive
+// through Cloudflare Access, which owns the upstream identity-provider flow.
+export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare'])
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
@@ -55,7 +57,7 @@ export const users = pgTable('users', {
   lastLoginAt: timestamp('last_login_at'),
 })
 
-// One user may link both Google and GitHub → normalized identities.
+// One user may retain legacy OAuth identities alongside Cloudflare Access.
 export const userIdentities = pgTable(
   'user_identities',
   {

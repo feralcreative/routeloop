@@ -1,0 +1,92 @@
+@use "tokens" as *;
+
+//@ MD >768px
+@media (min-width: 768px) {
+  #info-panel {
+    max-width: 550px;
+  }
+
+  table.route-table {
+    table.route-table:has(.route-label:hover) .route-label {
+      opacity: 0.3;
+      transition: opacity 0.15s;
+    }
+    table.route-table .route-label:hover {
+      z-index: 1;
+      opacity: 1 !important;
+    }
+
+    // Route label cell
+    td.label,
+    td.route-label-cell {
+      background: $white;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: $text;
+      text-align: left;
+      width: fit-content;
+      div.route-label {
+        // border: 4px solid black !important;
+        padding: 0 0.75em;
+        border-radius: 100px;
+        white-space: nowrap;
+        width: min-content;
+      }
+    }
+
+    // Mileage cell
+    td.route-mileage-cell {
+      min-width: fit-content;
+      max-width: 80px;
+      font-size: 0.8em;
+      font-weight: bold;
+      color: $text;
+      text-align: center;
+    }
+
+    // Download buttons cell
+    td.value {
+      padding: 0 0.5em;
+      background: none;
+      border: none;
+      text-align: right;
+    }
+
+    tr {
+      td {
+        padding: 0.1em;
+        br {
+          display: inline-block;
+        }
+        &.value {
+          width: fit-content;
+        }
+      }
+    }
+  }
+}
+
+//@ XXL >1400px
+@media (min-width: 1400px) {
+}
+
+//@ XL >1200px
+@media (min-width: 1200px) {
+}
+
+//@ LG >992px
+@media (min-width: 992px) {
+  .route-table-line-icon {
+    display: inline-block;
+    margin-right: 0.5em;
+  }
+}
+
+//@ SM >576px
+@media (min-width: 576px) {
+}
+
+//@ XS <576px
+@media (max-width: 575px) {
+}

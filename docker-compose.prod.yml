@@ -1,4 +1,4 @@
-# tankbag — NAS stack (app + Postgres).
+# routeloop — NAS stack (app + Postgres).
 #
 # This file is transferred to the NAS as docker-compose.yml by
 # utils/deploy/deploy.sh, which also writes the .env beside it that supplies
@@ -23,23 +23,21 @@ services:
       PORT: 6686
       STORAGE_PATH: /app/moto-storage
       GMAPS_KEY: ${GMAPS_KEY}
-      DATABASE_URL: postgresql://tankbag:${DB_PASSWORD}@db:5432/tankbag
-      # Auth. APP_ORIGIN also decides the Secure flag on session cookies, so it
-      # must be the https hostname for this environment.
+      MAPBOX_TOKEN: ${MAPBOX_TOKEN}
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+      # Cloudflare Access supplies identity at the edge. APP_ORIGIN also decides
+      # the Secure flag on routeloop's local session cookie.
       APP_ORIGIN: ${APP_ORIGIN}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     ports:
       - "127.0.0.1:${HOST_PORT}:6686"
+      - "127.0.0.1:${ALIAS_HOST_PORT}:6686"
     volumes:
       - ./data/storage:/app/moto-storage
     depends_on:
       db:
         condition: service_healthy
     networks:
-      - tankbag
+      - routeloop
 
   db:
     image: postgres:17-alpine
@@ -47,22 +45,22 @@ services:
     restart: unless-stopped
     # No ports: — Postgres is reachable only from the app over the bridge.
     environment:
-      POSTGRES_USER: tankbag
+      POSTGRES_USER: routeloop
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: tankbag
+      POSTGRES_DB: routeloop
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tankbag -d tankbag"]
+      test: ["CMD-SHELL", "pg_isready -U routeloop -d routeloop"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
-      - tankbag
+      - routeloop
 
 volumes:
   db-data:
 
 networks:
-  tankbag:
+  routeloop:
     driver: bridge

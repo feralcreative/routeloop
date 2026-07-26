@@ -1,0 +1,11 @@
+{
+  "printWidth": 120,
+  "trailingComma": "all",
+  "singleQuote": true,
+  "semi": false,
+  "overrides": [
+    { "files": "public/js/**/*.js", "options": { "singleQuote": false, "semi": true } },
+    { "files": "**/*.scss", "options": { "singleQuote": false } },
+    { "files": "**/*.md", "options": { "printWidth": 80, "proseWrap": "preserve" } }
+  ]
+}

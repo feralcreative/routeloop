@@ -15,6 +15,7 @@ import {
   points as pointsTable,
   routeLegs,
   type RideRow,
+  type UserRow,
 } from '../db/schema'
 import { currentUser, requireAuth, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
@@ -25,13 +26,14 @@ import {
   type Track,
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
+import { MAPBOX_CSS_LINK, page, panelShell } from '../views/layout'
+import { MAPBOX_GL_VERSION, MAPBOX_TOKEN } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { fields, firstIssue, ownRide } from './maps'
 
 export const rideRoutes = new Hono<AuthEnv>()
 
-const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN ?? ''
 
 // A native ride is DB rows, not files — caps bound the rows since byte quota
 // does not apply. 8 MB JSON backstop over the structural caps.
@@ -349,40 +351,18 @@ export async function loadRidePayload(ride: RideRow) {
 
 // --- Builder pages ---------------------------------------------------------
 
-rideRoutes.get('/builder', requireAuth, (c) => c.html(builderHtml(null)))
+rideRoutes.get('/builder', requireAuth, (c) => c.html(builderHtml(null, currentUser(c))))
 
 rideRoutes.get('/builder/:id', requireAuth, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.text('Not found', 404)
   if (ride.source !== 'native') return c.text('Imported rides are not editable yet', 409)
-  return c.html(builderHtml(ride.id))
+  return c.html(builderHtml(ride.id, user))
 })
 
-function builderHtml(rideId: number | null): string {
-  return `<!doctype html>
-<html lang="en-US">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${rideId ? 'Edit ride' : 'Plan a ride'} — tankbag</title>
-  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet">
-  <link rel="stylesheet" href="/style/main.min.css">
-</head>
-<body class="builder-page">
-  <div id="map"></div>
-
-  <div id="info-panel" class="floating-panel builder-panel">
-    <button class="collapse-toggle" aria-label="Collapse panel">
-      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
-    </button>
-
-    ${rideId ? '<h1 class="panel-title">Edit ride</h1>' : ''}
-
-    <div class="panel-contents-wrapper">
-      <div class="panel-content">
-        <div class="ride-meta">
+function builderHtml(rideId: number | null, user: UserRow): string {
+  const contents = `        <div class="ride-meta">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
@@ -412,17 +392,24 @@ function builderHtml(rideId: number | null): string {
         <div class="builder-actions">
           <button id="save" class="btn" type="button">Save ride</button>
           <span id="save-status" class="save-status"></span>
-        </div>
-      </div>
-    </div>
-  </div>
+        </div>`
 
-  <noscript><p style="padding:1em">JavaScript is required to plan a ride.</p></noscript>
-
-  <script>window.TB = ${JSON.stringify({ token: MAPBOX_TOKEN, roles: ROLE_META, rideId })};</script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
+  return page({
+    title: rideId ? 'Edit ride' : 'Plan a ride',
+    user,
+    variant: 'map',
+    bodyClass: 'builder-page',
+    head: MAPBOX_CSS_LINK,
+    navKey: 'builder',
+    noscript: 'JavaScript is required to plan a ride.',
+    body: `  <div id="map"></div>\n\n  ${panelShell({
+      title: rideId ? 'Edit ride' : undefined,
+      extraClass: 'builder-panel',
+      contents,
+    })}`,
+    tb: { token: MAPBOX_TOKEN, roles: ROLE_META, rideId },
+    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
   <script src="/js/map-common.js" defer></script>
-  <script src="/js/builder.js" defer></script>
-</body>
-</html>`
+  <script src="/js/builder.js" defer></script>`,
+  })
 }
