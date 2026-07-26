@@ -1,0 +1,255 @@
+@use "tokens" as *;
+
+// Builder
+.builder-panel {
+  input[type="text"],
+  input[type="number"],
+  textarea,
+  select {
+    font: inherit;
+    color: $text;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    padding: 0.45em 0.55em;
+    background: $white;
+    box-sizing: border-box;
+  }
+
+  .ride-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin-bottom: 0.75em;
+    #ride-title {
+      font-weight: 700;
+      width: 100%;
+    }
+    #ride-description {
+      width: 100%;
+      resize: vertical;
+    }
+  }
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    #route-color {
+      width: 2.2em;
+      height: 2em;
+      padding: 0;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      background: $white;
+    }
+    .add-mode {
+      margin-left: auto;
+      display: flex;
+      gap: 0.25em;
+    }
+    .mode-btn {
+      font: inherit;
+      font-size: 0.85em;
+      padding: 0.35em 0.6em;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      background: $white;
+      color: $text;
+      cursor: pointer;
+      &.active {
+        background: $url;
+        border-color: $url;
+        color: $white;
+      }
+    }
+  }
+
+  .search-wrap {
+    position: relative;
+    margin-bottom: 0.75em;
+    #search {
+      width: 100%;
+    }
+    #search-results {
+      position: absolute;
+      z-index: 20;
+      left: 0;
+      right: 0;
+      top: 100%;
+      margin: 2px 0 0;
+      padding: 0;
+      list-style: none;
+      background: $white;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px $panel-shadow;
+      max-height: 240px;
+      overflow-y: auto;
+      li {
+        padding: 0.45em 0.6em;
+        cursor: pointer;
+        &:hover {
+          background: rgba(0, 0, 0, 0.05);
+        }
+        .hit-ctx {
+          color: lighten($text, 35%);
+          font-size: 0.85em;
+        }
+      }
+    }
+  }
+
+  .totals {
+    font-weight: 700;
+    margin-bottom: 0.5em;
+    min-height: 1em;
+  }
+
+  .poi-head {
+    font-weight: 700;
+    margin: 0.75em 0 0.25em;
+  }
+
+  .point-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    .empty-hint {
+      color: lighten($text, 35%);
+      padding: 0.5em 0;
+    }
+
+    .point-row {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+      padding: 0.35em 0;
+      &.flash {
+        background: rgba(21, 101, 192, 0.12);
+      }
+    }
+    .row-main {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+    }
+    .row-num {
+      flex: 0 0 1.5em;
+      text-align: center;
+      font-weight: 700;
+      color: lighten($text, 25%);
+      &.poi-dot::before {
+        content: "◦";
+      }
+    }
+    .row-name {
+      flex: 1;
+      min-width: 0;
+    }
+    .row-dur {
+      width: 4em;
+    }
+    .row-roles-btn {
+      font: inherit;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 2em;
+      height: 2em;
+      padding: 0.2em 0.35em;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      background: $white;
+      cursor: pointer;
+      .role-chip {
+        width: 16px;
+        height: 16px;
+        display: inline-block;
+      }
+    }
+    .row-actions {
+      display: flex;
+      gap: 0.15em;
+      button {
+        font: inherit;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        color: lighten($text, 25%);
+        padding: 0.2em 0.3em;
+        &:hover {
+          color: $text;
+        }
+      }
+      .row-del:hover {
+        color: $kml;
+      }
+    }
+    .row-roles {
+      display: grid;
+      gap: 0.2em;
+      max-height: 16em;
+      margin: 0.35em 0 0.2em 1.9em;
+      padding: 0.35em;
+      overflow-y: auto;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      background: $white;
+      box-shadow: 0 4px 12px $panel-shadow;
+      .role-opt {
+        display: flex;
+        align-items: center;
+        gap: 0.65em;
+        width: 100%;
+        border: 0;
+        border-radius: 4px;
+        background: $white;
+        padding: 0.45em 0.55em;
+        text-align: left;
+        cursor: pointer;
+        .tb-inline-icon {
+          width: 18px;
+          height: 18px;
+          display: block;
+          flex: 0 0 18px;
+          color: $text;
+        }
+        &.on {
+          border-color: $url;
+          background: rgba(21, 101, 192, 0.12);
+          .tb-inline-icon {
+            color: $url;
+          }
+        }
+      }
+    }
+    .row-desc {
+      width: 100%;
+      margin: 0.35em 0 0.1em 0;
+      resize: vertical;
+    }
+  }
+
+  .builder-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    margin-top: 0.9em;
+    .btn {
+      font: inherit;
+      font-weight: 700;
+      background: $url;
+      color: $white;
+      border: 0;
+      border-radius: 6px;
+      padding: 0.55em 1.2em;
+      cursor: pointer;
+      &:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+    }
+    .save-status {
+      font-size: 0.9em;
+      color: lighten($text, 25%);
+    }
+  }
+}

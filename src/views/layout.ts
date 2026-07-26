@@ -1,72 +1,153 @@
-// Shared HTML shell. The viewer page deliberately does NOT use this — it has its
-// own full-bleed map layout — but every chrome page (home, login, dashboard)
-// does, so the header and auth state stay consistent.
+// The one HTML shell. Chrome pages and full-bleed map pages used to build their
+// documents separately — four near-identical heads, two disjoint stylesheets,
+// and no header at all on the builder or viewer, which is why there was no way
+// back to the site from a map. `variant` is what that split collapses into.
+import { MAPBOX_GL_VERSION } from '../config'
 import type { UserRow } from '../db/schema'
+import { alphaSplash } from './splash'
 
-export const esc = (s: unknown): string =>
-  String(s).replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
-  )
+export { esc } from './esc'
+import { esc } from './esc'
 
-const CHROME_CSS = `
-  body { font: 400 16px/1.5 Lato, system-ui, sans-serif; margin: 0; padding: 2rem; color: #333; background: #f4f4f4; }
-  a { color: #06c; }
-  h1 { margin: 0 0 0.25rem; }
-  .sub { color: #777; margin-bottom: 2rem; }
-  .topbar { display: flex; align-items: baseline; gap: 1rem; max-width: 960px; margin: 0 auto 2rem; }
-  .topbar .spacer { margin-left: auto; }
-  .topbar form { display: inline; }
-  .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: #06c; cursor: pointer; text-decoration: underline; }
-  .home, .splash { max-width: 960px; margin: 0 auto; }
-  .home-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
-  .home-section h2 { margin-bottom: 0.5rem; }
-  ul.cards { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
-  ul.cards li { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); }
-  a.card { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; text-decoration: none; color: inherit; }
-  .swatch { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
-  .meta { color: #888; font-size: 0.85em; margin-left: auto; }
-  .pill { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.1rem 0.45rem; border-radius: 999px; background: #eee; color: #666; }
-  .empty { color: #999; }
-  .provider { display: block; max-width: 320px; margin-bottom: 0.75rem; padding: 0.85rem 1rem; text-align: center;
-              background: #fff; border: 1px solid #ddd; border-radius: 8px; text-decoration: none; color: #333; font-weight: 700; }
-  .provider:hover { border-color: #bbb; }
-  .splash { padding: clamp(2rem, 9vh, 7rem) 0; }
-  .splash h1 { max-width: 700px; font-size: clamp(2.5rem, 7vw, 5.5rem); line-height: 0.98; letter-spacing: -0.04em; }
-  .eyebrow { color: #06c; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; }
-  .splash-copy { max-width: 620px; color: #666; font-size: 1.25rem; }
-  .providers { margin: 2rem 0 1rem; }
-  .note { color: #999; font-size: 0.9em; max-width: 480px; }
-  .btn { display: inline-block; background: #06c; color: #fff; border: 0; border-radius: 8px;
-         padding: 0.6rem 1.2rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
-  .btn:hover { background: #05a; }
-  .cardrow { display: flex; align-items: center; }
-  .cardrow .card { flex: 1; }
-  .editlink { padding: 0 1rem; font-size: 0.85em; }
-  @media (max-width: 720px) { body { padding: 1rem; } .home-sections { grid-template-columns: 1fr; } .meta { display: none; } }
-`
+export const SITE_ICON_LINKS = `<link rel="icon" type="image/png" href="/img/favicon-96x96.png" sizes="96x96">
+  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+  <link rel="manifest" href="/img/site.webmanifest">`
 
-function header(user: UserRow | null): string {
-  const right = user
-    ? `<span class="spacer"></span><a href="/dashboard">${esc(user.displayName)}</a>
-       <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>`
-    : `<span class="spacer"></span><a href="/login">Sign in</a>`
-  return `<div class="topbar"><a href="/"><strong>tankbag</strong></a>${right}</div>`
+// Inlining JSON into a <script> is only safe if the payload cannot close the
+// tag. `</script>` inside any string would end the block and drop the rest of
+// the document into HTML; U+2028/2029 are literal newlines to a JS parser.
+export function jsonScript(varName: string, value: unknown): string {
+  const json = JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+  return `<script>window.${varName} = ${json};</script>`
 }
 
-export function page(opts: { title: string; user: UserRow | null; body: string }): string {
+// Mapbox pages pass this as `head`. Kept here so the version stays pinned to
+// the same constant the <script> tag uses.
+export const MAPBOX_CSS_LINK = `<link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">`
+
+export type PageVariant = 'chrome' | 'map' | 'splash'
+export type NavKey = 'home' | 'rides' | 'builder' | 'places'
+
+export type PageOpts = {
+  /** Without the " — routeloop" suffix; page() appends it. */
+  title: string
+  user: UserRow | null
+  body: string
+  /**
+   * 'map' drops the reading-width wrapper and floats the header. 'splash' keeps
+   * the wrapper but renders no header at all — it is the landing surface, where
+   * the nav would only offer the page you are already on.
+   */
+  variant?: PageVariant
+  bodyClass?: string
+  navKey?: NavKey
+  /**
+   * Extra <link>/<meta> for the head. Engine-specific assets belong here, not
+   * behind `variant` — the legacy Google viewer is a map page that must not
+   * load the Mapbox stylesheet. Use MAPBOX_CSS_LINK for the Mapbox pages.
+   */
+  head?: string
+  /** Extra <script> tags, emitted last. */
+  scripts?: string
+  /** Serialized to window.TB via jsonScript. */
+  tb?: Record<string, unknown>
+  /** Set false to suppress the alpha modal on a page. */
+  splash?: boolean
+  /** Plain message; page() supplies the <noscript> wrapper and markup. */
+  noscript?: string
+}
+
+const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
+  { key: 'home', href: '/', label: 'Home' },
+  { key: 'builder', href: '/builder', label: 'Plan a ride' },
+  { key: 'rides', href: '/dashboard', label: 'Your rides' },
+]
+
+function navLink(item: { key: NavKey; href: string; label: string }, navKey?: NavKey): string {
+  const current = item.key === navKey ? ' aria-current="page"' : ''
+  return `<a href="${item.href}"${current}>${esc(item.label)}</a>`
+}
+
+function siteHeader(user: UserRow | null, navKey?: NavKey): string {
+  const links = user
+    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}
+      <hr>
+      <span class="nav-user">${esc(user.displayName)}</span>
+      <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>`
+    : `${navLink(NAV_LINKS[0], navKey)}<a href="/login">Sign in</a>`
+
+  return `<header class="site-header" id="site-header">
+  <a class="site-logo" href="/"><img src="/img/logo-routeloop-horiz.svg" alt="routeloop" width="849" height="104"></a>
+  <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
+    <span class="nav-bars" aria-hidden="true"></span>
+  </button>
+  <nav class="site-nav" id="site-nav" hidden>
+    ${links}
+    <hr>
+    <button type="button" class="linkbtn" data-open-alpha>About this alpha</button>
+  </nav>
+</header>`
+}
+
+// The floating map panel scaffold, previously copy-pasted into all three map
+// shells. map-common.js binds the collapse toggle by these class names.
+export function panelShell(o: { title?: string; extraClass?: string; contents: string }): string {
+  const cls = o.extraClass ? ` ${o.extraClass}` : ''
+  return `<div id="info-panel" class="floating-panel${cls}">
+    <button class="collapse-toggle" aria-label="Collapse panel">
+      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
+    </button>
+    ${o.title ? `<h1 class="panel-title">${esc(o.title)}</h1>` : ''}
+    <div class="panel-contents-wrapper">
+      <div class="panel-content">
+${o.contents}
+      </div>
+    </div>
+  </div>`
+}
+
+export function page(opts: PageOpts): string {
+  const variant: PageVariant = opts.variant ?? 'chrome'
+  const isMap = variant === 'map'
+  const htmlClass = isMap ? ' class="map-page"' : ''
+  const bodyClass = [
+    isMap ? 'map-page' : '',
+    variant === 'splash' ? 'splash-page' : '',
+    opts.bodyClass ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const title = `${esc(opts.title)} — routeloop`
+  const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n</div>`
+
   return `<!doctype html>
-<html lang="en-US">
+<html lang="en-US"${htmlClass}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(opts.title)}</title>
+  <title>${title}</title>
+  ${SITE_ICON_LINKS}
+  <meta property="og:title" content="${title}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/img/logo-routeloop-horiz@2x.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <style>${CHROME_CSS}</style>
+  <link rel="stylesheet" href="/style/main.min.css">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
-<body>
-${header(opts.user)}
-${opts.body}
+<body${bodyClass ? ` class="${bodyClass}"` : ''}>
+${variant === 'splash' ? '' : siteHeader(opts.user, opts.navKey)}
+${body}
+${opts.splash === false ? '' : alphaSplash()}
+${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
+${opts.tb ? jsonScript('TB', opts.tb) : ''}
+<script src="/js/site.js" defer></script>
+${opts.scripts ?? ''}
 </body>
 </html>`
 }

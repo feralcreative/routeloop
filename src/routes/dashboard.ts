@@ -46,5 +46,5 @@ dashboardRoutes.get('/dashboard', requireAuth, async (c) => {
     <p><a class="btn" href="/builder">Plan a ride</a></p>
     ${rows.length ? `<ul class="cards">${cards}</ul>` : '<p class="empty">No rides yet — plan your first one.</p>'}`
 
-  return c.html(page({ title: 'Your rides — tankbag', user, body }))
+  return c.html(page({ title: 'Your rides', user, navKey: 'rides', body }))
 })

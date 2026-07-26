@@ -1,0 +1,34 @@
+// Design tokens. Every name that existed before the partial split is preserved
+// verbatim so no rule had to be rewritten when it moved.
+
+// Color Variables
+$url: #1565c0;
+$gpx: #43a047;
+$kml: #d32f2f;
+$white: #fff;
+$grey: #ddd;
+$text: #333;
+$panel-bg: rgba(255, 255, 255, 0.9);
+$panel-shadow: rgba(0, 0, 0, 0.18);
+$font: lato;
+
+// Forward-looking alias. `$url` is historical — it is the generic accent, not a
+// link color — so new work should reach for `$brand`.
+$brand: $url;
+
+// The logo's yellow, and the only accent legible on the sign-in clip.
+$accent: #ffdd00;
+
+// Base for the dark, full-bleed sign-in page: what shows under the video before
+// a frame decodes, and the color every scrim over it is mixed from.
+$splash-ink: #0a0e11;
+
+// The stacking order used to be magic numbers spread across three files. The
+// map panel and toast keep their original values so nothing shifts; the banner
+// moved 2001 -> 2100 to leave room under the modal.
+$z-map-panel: 1000;
+$z-header: 1200;
+$z-nav: 1300;
+$z-toast: 2000;
+$z-banner: 2100;
+$z-modal: 3000;

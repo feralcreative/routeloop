@@ -1,0 +1,252 @@
+@use "tokens" as *;
+
+// The sign-in page is the only full-bleed marketing surface in the app: a
+// looping aerial clip behind the pitch. Every rule here assumes light type over
+// dark footage, so the page opts out of the light chrome it would otherwise
+// inherit — hence the `body.splash-page` scoping rather than bare `.splash`.
+//
+// The `.splash*`, `.eyebrow`, `.providers` and `.note` rules moved here verbatim
+// from _chrome.scss; they were only ever used by /login.
+
+.splash {
+  position: relative; // lifts the copy above the fixed video layer
+  z-index: 1;
+  padding: clamp(2rem, 9vh, 7rem) 0;
+
+  h1 {
+    max-width: 700px;
+    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+  }
+}
+
+.splash-logo {
+  display: block;
+  width: 100%;
+  max-width: 180px;
+  height: auto;
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+  color: $url;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.splash-copy {
+  max-width: 620px;
+  color: #666;
+  font-size: 1.25rem;
+}
+
+.providers {
+  margin: 2rem 0 1rem;
+}
+
+.provider {
+  display: block;
+  max-width: 320px;
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  text-decoration: none;
+  color: $text;
+  font-weight: 700;
+
+  &:hover {
+    border-color: #bbb;
+  }
+}
+
+.note {
+  color: #999;
+  font-size: 0.9em;
+  max-width: 480px;
+}
+
+// --- The video layer -------------------------------------------------------
+
+// `fixed` rather than `absolute` so the clip escapes .page-wrap's 960px cap and
+// 2rem padding without either being restructured. Nothing between here and
+// <body> establishes a containing block, so this is anchored to the viewport.
+//
+// The poster frame is the layer's own background, not a `poster` attribute: it
+// then also covers the no-JS and reduced-motion cases, where no <video> ever
+// renders. $splash-ink sits under it so a slow image load is still dark enough
+// for white type.
+.splash-media {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: $splash-ink url("/img/splash-poster.jpg") center / cover no-repeat;
+  pointer-events: none; // the page behind must stay selectable
+}
+
+.splash-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+// Two soft passes and no flat tint: a horizontal ramp that settles the text
+// column and a shallow bottom vignette, both clearing to fully transparent so
+// the right two-thirds of the frame stays the actual footage. Legibility is
+// carried by the text-shadows below rather than by darkening the whole clip.
+.splash-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, rgba(6, 10, 12, 0.25) 0%, rgba(6, 10, 12, 0.05) 52%, rgba(6, 10, 12, 0) 100%),
+    linear-gradient(to top, rgba(6, 10, 12, 0.25) 0%, rgba(6, 10, 12, 0) 38%);
+}
+
+// --- Dark treatment --------------------------------------------------------
+
+body.splash-page {
+  background: $splash-ink; // what shows before the first frame decodes
+  color: $white;
+
+  // This page must never scroll, so exactly one element owns the vertical space.
+  // .page-wrap keeps its side gutter and gives up its 2rem top and bottom, which
+  // would otherwise stack on top of a full-height child.
+  .page-wrap {
+    padding: 0 2rem;
+  }
+
+  // page() renders no header on this variant, so the hero is the whole document.
+  // border-box is what keeps this honest: min-height then *includes* the padding
+  // instead of adding to it, so the page measures exactly one viewport. svh is
+  // the primary unit — it is the height with the mobile URL bar showing, so the
+  // bar appearing can never push content out of view; vh sits behind @supports as
+  // the fallback rather than a duplicate declaration.
+  .splash {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 2rem 0;
+
+    @supports (height: 100svh) {
+      min-height: 100svh;
+    }
+  }
+
+  // Each block carries its own shadow so the scrim above can stay light. A wide,
+  // soft shadow reads as depth rather than as a drop shadow, and it only has to
+  // survive the worst frame in the clip.
+  .splash h1 {
+    color: $white;
+    text-wrap: balance;
+    text-shadow:
+      0 1px 2px rgba(6, 10, 12, 0.55),
+      0 2px 30px rgba(6, 10, 12, 0.7);
+  }
+
+  .splash-logo {
+    filter: drop-shadow(0 2px 18px rgba(6, 10, 12, 0.55));
+  }
+
+  .eyebrow,
+  .splash-copy,
+  .note {
+    text-shadow:
+      0 1px 2px rgba(6, 10, 12, 0.6),
+      0 1px 16px rgba(6, 10, 12, 0.55);
+  }
+
+  // The yellow is lifted from the logo artwork; $url is far too dark to sit on
+  // the footage.
+  .eyebrow {
+    color: $accent;
+  }
+
+  .splash-copy {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  // Sits low in the frame, where the clip is often bright gravel rather than
+  // shadow, so it needs more than the 0.62 the light chrome used.
+  .note {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .provider {
+    border-color: transparent;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+    &:hover {
+      border-color: transparent;
+      background: #f4f4f4;
+    }
+  }
+}
+
+//@ Reduced motion — the poster frame is already the layer's background, so
+// dropping the element is the whole fallback. site.js additionally never
+// assigns a src, so the clip is not fetched either.
+@media (prefers-reduced-motion: reduce) {
+  .splash-video {
+    display: none;
+  }
+}
+
+//@ XS <576px — the copy spans the full width here, so the horizontal ramp stops
+// helping and the pass runs top-to-bottom instead.
+@media (max-width: 575px) {
+  .splash-media::after {
+    background: linear-gradient(to top, rgba(6, 10, 12, 0.5) 0%, rgba(6, 10, 12, 0.18) 55%, rgba(6, 10, 12, 0.42) 100%);
+  }
+}
+
+// Nothing below scrolls the page — .splash is pinned to one viewport, so these
+// exist to keep its contents from *overflowing* that box. Both are keyed on
+// height rather than width because height is the axis that runs out. At full
+// scale the stack measures ~665px, so the tiers hand off continuously: >760px
+// full, 620–760px trimmed to ~600px, below that trimmed again.
+
+//@ Short viewports — laptop windows and landscape tablets
+@media (max-height: 760px) {
+  .splash-logo {
+    max-width: 150px;
+  }
+
+  .splash h1 {
+    font-size: clamp(2rem, 5.5vw, 4rem);
+  }
+}
+
+//@ Very short viewports — landscape phones
+@media (max-height: 620px) {
+  // Scoped to match the base rule this overrides — that one lives under
+  // body.splash-page, so a bare .splash here would lose on specificity.
+  body.splash-page .splash {
+    padding: 1.25rem 0;
+  }
+
+  .splash-logo {
+    max-width: 120px;
+    margin-bottom: 0.75rem;
+  }
+
+  .splash h1 {
+    font-size: clamp(1.65rem, 4.5vw, 2.5rem);
+  }
+
+  .splash-copy {
+    font-size: 1.05rem;
+  }
+
+  .providers {
+    margin: 1.25rem 0 0;
+  }
+}

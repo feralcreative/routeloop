@@ -1,0 +1,140 @@
+@use "tokens" as *;
+
+// Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
+// chrome and map pages share one stylesheet and one accent color. The old
+// inline copy hardcoded #06c while the map used $url (#1565c0) — same intent,
+// two different blues.
+
+// Page padding and the reading-width cap used to live on `body`, which made a
+// full-bleed map page impossible without fighting them. They belong to a
+// container the map variant simply doesn't render.
+.page-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+body {
+  background: #f4f4f4;
+}
+
+html.map-page body {
+  background: none;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+}
+
+.sub {
+  color: #777;
+  margin-bottom: 2rem;
+}
+
+.linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: $url;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn {
+  display: inline-block;
+  background: $url;
+  color: $white;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    background: darken($url, 8%);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.home-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+}
+
+.home-section h2 {
+  margin-bottom: 0.5rem;
+}
+
+ul.cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+
+  li {
+    background: $white;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+a.card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.meta {
+  color: #888;
+  font-size: 0.85em;
+  margin-left: auto;
+}
+
+.pill {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #eee;
+  color: #666;
+}
+
+.empty {
+  color: #999;
+}
+
+.cardrow {
+  display: flex;
+  align-items: center;
+
+  .card {
+    flex: 1;
+  }
+}
+
+.editlink {
+  padding: 0 1rem;
+  font-size: 0.85em;
+}
+
+// The sign-in splash used to live here. It moved to _splash.scss when the page
+// gained its own dark, full-bleed treatment.

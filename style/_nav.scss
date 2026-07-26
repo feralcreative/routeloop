@@ -1,0 +1,199 @@
+@use "tokens" as *;
+
+// Global header. Before this existed there was no way off the builder or viewer
+// short of the browser back button — they rendered no chrome at all.
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 960px;
+  margin: 0 auto 2rem;
+  position: relative;
+}
+
+.site-logo {
+  display: block;
+  line-height: 0;
+
+  img {
+    display: block;
+    width: auto;
+    height: 24px;
+  }
+}
+
+.nav-toggle {
+  margin-left: auto;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: $text;
+
+  &:hover {
+    border-color: $grey;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $url;
+    outline-offset: 2px;
+  }
+}
+
+// Three bars from one element: the middle is the span, the outer two are its
+// pseudo-elements. Collapses to an X while the menu is open.
+.nav-bars {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 20px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 2px;
+    transition: transform 0.2s ease;
+  }
+
+  &::before {
+    top: -6px;
+  }
+  &::after {
+    top: 6px;
+  }
+}
+
+.site-header.open .nav-bars {
+  background: transparent;
+
+  &::before {
+    transform: translateY(6px) rotate(45deg);
+  }
+  &::after {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+}
+
+.site-nav {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: $z-nav;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px $panel-shadow;
+
+  &[hidden] {
+    display: none;
+  }
+
+  a,
+  .linkbtn {
+    display: block;
+    width: 100%;
+    padding: 0.5em 0.65em;
+    border-radius: 6px;
+    text-align: left;
+    text-decoration: none;
+    color: $text;
+    font-weight: 600;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+      text-decoration: none;
+    }
+  }
+
+  a[aria-current="page"] {
+    color: $url;
+    background: rgba(21, 101, 192, 0.08);
+  }
+
+  form {
+    margin: 0;
+  }
+
+  hr {
+    margin: 0.35rem 0;
+    border: 0;
+    border-top: 1px solid $grey;
+  }
+}
+
+.nav-user {
+  display: block;
+  padding: 0.5em 0.65em 0.15em;
+  color: #888;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+//@ Map pages — the header floats over a full-viewport canvas
+// #map is `position: fixed; width: 100vw; height: 100vh`, so the header sits on
+// live canvas. It must not swallow drags: the bar is transparent to pointers and
+// only the interactive children opt back in.
+html.map-page {
+  .site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    z-index: $z-header;
+    pointer-events: none;
+  }
+
+  .site-logo,
+  .nav-toggle,
+  .site-nav {
+    pointer-events: auto;
+  }
+
+  // The logo artwork is a hardcoded #333, so it needs a light backing to stay
+  // legible over outdoors and satellite tiles.
+  .site-logo {
+    padding: 0.35rem 0.6rem;
+    background: $panel-bg;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px $panel-shadow;
+
+    img {
+      height: 22px;
+    }
+  }
+
+  .nav-toggle {
+    background: $panel-bg;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px $panel-shadow;
+    margin-right: 0.1rem;
+  }
+
+  .site-nav {
+    top: calc(100% - 0.2rem);
+    right: 0.9rem;
+  }
+}

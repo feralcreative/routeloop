@@ -22,12 +22,8 @@ import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
 import { rideRoutes } from './routes/rides'
-import { esc, page } from './views/layout'
-
-const PORT = Number(process.env.PORT ?? 6686)
-const GMAPS_KEY = process.env.GMAPS_KEY ?? ''
-const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN ?? ''
-const MAPBOX_GL_VERSION = 'v3.10.0'
+import { esc, jsonScript, MAPBOX_CSS_LINK, page, panelShell } from './views/layout'
+import { GMAPS_KEY, MAPBOX_GL_VERSION, MAPBOX_TOKEN, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -54,11 +50,35 @@ async function firstRouteColor(rideId: number): Promise<string> {
 
 const app = new Hono<AuthEnv>()
 
-// Static viewer assets (js/css/img) straight from public/.
+// Keep the former domains alive during the one-year transition, but make the
+// canonical host unambiguous for cookies, sharing, and search engines. Each
+// legacy host maps to its own environment so staging never lands on prod. This
+// also runs ahead of every route, which is what keeps a legacy hostname from
+// reaching /auth/cloudflare — only the canonical host is Access-protected.
+const LEGACY_HOSTS: Readonly<Record<string, string>> = {
+  'tankbag.app': 'routeloop.app',
+  'www.tankbag.app': 'routeloop.app',
+  'stage.tankbag.app': 'stage.routeloop.app',
+}
+
+app.use('*', async (c, next) => {
+  const host = (c.req.header('host') ?? '').split(':', 1)[0].toLowerCase()
+  const canonical = LEGACY_HOSTS[host]
+  if (canonical) {
+    const url = new URL(c.req.url)
+    return c.redirect(`https://${canonical}${url.pathname}${url.search}`, 301)
+  }
+  await next()
+})
+
+// Static viewer assets (js/css/img/video) straight from public/. serveStatic
+// honors Range requests, which the splash video needs — without 206 support a
+// browser cannot seek and some will refuse to start playback at all.
 app.use('/js/*', serveStatic({ root: './public' }))
 app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
-app.use('/favicon.ico', serveStatic({ path: './public/favicon.ico' }))
+app.use('/video/*', serveStatic({ root: './public' }))
+app.use('/favicon.ico', serveStatic({ path: './public/img/favicon.ico' }))
 
 // Resolves the session once per request so every template can render the right
 // header. Mounted after the static assets so they skip the database entirely.
@@ -93,13 +113,14 @@ app.get('/', async (c) => {
 // Viewer page. Native rides render on the Mapbox shell from structured rows;
 // imported rides stay on the legacy Google shell until Phase 4 unifies them.
 app.get('/m/:slug', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  const viewer = c.get('user') ?? null
+  const m = await getViewable(c.req.param('slug'), viewer)
   if (!m) return c.text('Not found', 404)
   await db
     .update(rides)
     .set({ viewCount: sql`${rides.viewCount} + 1` })
     .where(eq(rides.id, m.id))
-  return c.html(m.source === 'native' ? nativeViewHtml(m) : viewHtml(m, GMAPS_KEY))
+  return c.html(m.source === 'native' ? nativeViewHtml(m, viewer) : viewHtml(m, GMAPS_KEY, viewer))
 })
 
 // The normalized public contract: everything the Mapbox viewer needs, for
@@ -225,103 +246,60 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 
 // --- Templates ------------------------------------------------------------
 
-// The unified Mapbox viewer shell (native rides now; everything in Phase 4).
-// Same panel markup as the legacy shell so main.scss carries over.
-function nativeViewHtml(m: RideRow): string {
+// Both viewers render the same panel — only the engine below it differs — so the
+// markup lives in one place and the two shells just pick their scripts.
+function viewerPanel(m: RideRow): string {
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
-  return `<!doctype html>
-<html lang="en-US">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(m.title)} — tankbag</title>
-  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">
-  <link rel="stylesheet" href="/style/main.min.css">
-</head>
-<body>
-  <div id="map"></div>
-
-  <div id="info-panel" class="floating-panel">
-    <button class="collapse-toggle" aria-label="Collapse panel">
-      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
-    </button>
-
-    <h1 class="panel-title">${esc(m.title)}</h1>
-
-    <div class="panel-contents-wrapper">
-      <div class="panel-content">
-        <div class="details">${desc}</div>
+  return panelShell({
+    title: m.title,
+    contents: `        <div class="details">${desc}</div>
         <div class="routes">
           <table class="route-table"></table>
           <label class="toggle-checkbox">
             <input type="checkbox" id="toggle-arrows" checked>
             Show Direction of Travel
           </label>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <noscript><p style="padding:1em">JavaScript is required to view the map.</p></noscript>
-
-  <script>window.TB = ${JSON.stringify({
-    rideUrl: `/api/public/rides/${m.slug}/ride.json`,
-    token: MAPBOX_TOKEN,
-    roles: ROLE_META,
-  })};</script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
-  <script src="/js/map-common.js" defer></script>
-  <script src="/js/viewer.js" defer></script>
-</body>
-</html>`
+        </div>`,
+  })
 }
 
-function viewHtml(m: RideRow, gmapsKey: string): string {
-  const metadataUrl = `/api/public/maps/${m.slug}`
-  const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
-  return `<!doctype html>
-<html lang="en-US">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(m.title)} — tankbag</title>
-  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <link rel="stylesheet" href="/style/main.min.css">
-</head>
-<body>
-  <div id="map"></div>
+const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
-  <div id="info-panel" class="floating-panel">
-    <button class="collapse-toggle" aria-label="Collapse panel">
-      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
-    </button>
+// The unified Mapbox viewer shell (native rides now; everything in Phase 4).
+function nativeViewHtml(m: RideRow, user: UserRow | null): string {
+  return page({
+    title: m.title,
+    user,
+    variant: 'map',
+    head: MAPBOX_CSS_LINK,
+    noscript: VIEWER_NOSCRIPT,
+    body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
+    tb: {
+      rideUrl: `/api/public/rides/${m.slug}/ride.json`,
+      token: MAPBOX_TOKEN,
+      roles: ROLE_META,
+    },
+    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+  <script src="/js/map-common.js" defer></script>
+  <script src="/js/viewer.js" defer></script>`,
+  })
+}
 
-    <h1 class="panel-title">${esc(m.title)}</h1>
-
-    <div class="panel-contents-wrapper">
-      <div class="panel-content">
-        <div class="details">${desc}</div>
-        <div class="routes">
-          <table class="route-table"></table>
-          <label class="toggle-checkbox">
-            <input type="checkbox" id="toggle-arrows" checked>
-            Show Direction of Travel
-          </label>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <noscript><p style="padding:1em">JavaScript is required to view the map.</p></noscript>
-
-  <script>window.MOTO = { metadataUrl: ${JSON.stringify(metadataUrl)} };</script>
+// Legacy Google shell, imported rides only. main.js reads window.MOTO rather
+// than window.TB, so it gets its globals through `scripts`. Retires in Phase 4.
+function viewHtml(m: RideRow, gmapsKey: string, user: UserRow | null): string {
+  return page({
+    title: m.title,
+    user,
+    variant: 'map',
+    noscript: VIEWER_NOSCRIPT,
+    body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
+    scripts: `${jsonScript('MOTO', { metadataUrl: `/api/public/maps/${m.slug}` })}
   <script src="/js/main.js" defer></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=${esc(gmapsKey)}&v=beta&libraries=maps,geometry&callback=initMap"
-    onerror="console.error('Maps API failed to load')"></script>
-</body>
-</html>`
+    onerror="console.error('Maps API failed to load')"></script>`,
+  })
 }
 
 type CardRow = { ride: RideRow; color: string | null }
@@ -338,8 +316,9 @@ function rideCards(rows: CardRow[], showViews = false): string {
 
 function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {
   return page({
-    title: 'Home — tankbag',
+    title: 'Home',
     user,
+    navKey: 'home',
     body: `<main class="home">
       <h1>Welcome back, ${esc(user.displayName)}</h1>
       <p><a class="btn" href="/builder">Plan a ride</a></p>
@@ -352,5 +331,5 @@ function homeHtml(recentCards: string, popularCards: string, user: UserRow): str
 }
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`tankbag dev → http://127.0.0.1:${info.port}`)
+  console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
 })

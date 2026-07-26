@@ -1,0 +1,36 @@
+@use "tokens" as *;
+
+// Chrome typography is the default; map pages re-tighten it. The variant class
+// sits on <html> rather than <body> on purpose: `main.scss` historically set the
+// root font to 14px, so `.panel-title { font-size: 3rem }` renders at 42px. Set
+// the override anywhere below <html> and every rem on a map page silently grows
+// 14%.
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font: 400 16px/1.5 $font, system-ui, sans-serif;
+  color: $text;
+}
+
+html.map-page,
+html.map-page body {
+  font: 400 14px/1.1em $font;
+}
+
+a {
+  color: $url;
+}
+
+// Bare, underline-free links read well over a map panel but not in body copy,
+// so this stays scoped to map pages — before the split it applied globally and
+// only ever reached map pages by accident.
+html.map-page a {
+  &:link {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  &:hover {
+    text-decoration: underline;
+  }
+}
