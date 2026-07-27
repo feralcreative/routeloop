@@ -21,6 +21,7 @@ import { mapFilePath } from './maps/storage'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
+import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { esc, jsonScript, MAPBOX_CSS_LINK, page, panelShell } from './views/layout'
 import { GMAPS_KEY, MAPBOX_GL_VERSION, MAPBOX_TOKEN, PORT } from './config'
@@ -88,11 +89,15 @@ app.route('/', authRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
+app.route('/', profileRoutes)
 
 // Signed-in home: the rider's latest work alongside public community picks.
+// The gate is hand-rolled rather than requireActive because this route reads the
+// user afterwards; keep the two branches in step with that middleware.
 app.get('/', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
+  if (user.status !== 'active') return c.redirect('/welcome', 302)
 
   const selectCards = () =>
     db

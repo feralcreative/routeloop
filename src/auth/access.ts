@@ -3,6 +3,7 @@
 // ride ownership continues to work throughout the app.
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { OWNER_EMAIL } from '../config'
 import { db } from '../db/index'
 import { userIdentities, users, type UserRow } from '../db/schema'
 
@@ -25,9 +26,15 @@ function displayNameFromEmail(email: string): string {
   return local ? local.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Rider'
 }
 
-// The Access policy has already verified and authorized this address. Link to
-// an existing verified-email user where possible so the migration preserves
-// ride ownership; otherwise create a new local account.
+// The Access policy has verified this address, but it no longer *authorizes* it:
+// the policy admits any Google account, so authorization is users.status and a
+// brand-new account starts 'pending'. Link to an existing verified-email user
+// where possible so the migration preserves ride ownership; otherwise create a
+// new local account.
+//
+// Only the insert below sets status. The link-by-email branch deliberately
+// leaves it alone — an existing rider must not be demoted to pending by signing
+// in again.
 export async function resolveAccessUser(email: string): Promise<UserRow> {
   const [identity] = await db
     .select({ user: users })
@@ -48,7 +55,12 @@ export async function resolveAccessUser(email: string): Promise<UserRow> {
       (
         await tx
           .insert(users)
-          .values({ email, displayName: displayNameFromEmail(email), lastLoginAt: new Date() })
+          .values({
+            email,
+            displayName: displayNameFromEmail(email),
+            status: email === OWNER_EMAIL ? 'active' : 'pending',
+            lastLoginAt: new Date(),
+          })
           .returning()
       )[0]
 

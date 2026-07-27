@@ -6,6 +6,11 @@ import 'dotenv/config'
 
 export const PORT = Number(process.env.PORT ?? 6686)
 
+// The one account that is never left waiting for approval. Both databases have
+// been rebuilt from empty before, and without this the owner would come back
+// 'pending' after the next rebuild with nobody able to approve them.
+export const OWNER_EMAIL = (process.env.OWNER_EMAIL ?? 'ziad@feralcreative.co').trim().toLowerCase()
+
 export const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN ?? ''
 export const MAPBOX_GL_VERSION = 'v3.10.0'
 

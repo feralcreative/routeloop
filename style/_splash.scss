@@ -70,6 +70,26 @@
   max-width: 480px;
 }
 
+// Sign in and sign up are the same Cloudflare Access request; only the framing
+// differs, so the secondary path is a text link rather than a second button.
+.provider-alt {
+  max-width: 320px;
+  margin: 0;
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+// The pending-approval holding page.
+.welcome-links {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-weight: 700;
+}
+
 // --- The video layer -------------------------------------------------------
 
 // `fixed` rather than `absolute` so the clip escapes .page-wrap's 960px cap and
@@ -188,6 +208,18 @@ body.splash-page {
       border-color: transparent;
       background: #f4f4f4;
     }
+  }
+
+  .provider-alt {
+    color: rgba(255, 255, 255, 0.85);
+
+    a {
+      color: $accent;
+    }
+  }
+
+  .welcome-links a {
+    color: $accent;
   }
 }
 

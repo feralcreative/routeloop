@@ -602,6 +602,16 @@
 
     state.map = initMap("map");
     state.map.on("load", () => {
+      // The server only sends TB.home on the new-ride route, so this cannot fire
+      // while editing. Guarding on stops.length as well means a reload of a
+      // half-built ride does not stack a second home stop on the first. It runs
+      // here rather than earlier in init() because addStop() renders markers,
+      // which needs the map to exist; the renders below then pick up the role.
+      if (window.TB.home && !state.rideId && state.route.stops.length === 0) {
+        addStop(window.TB.home.lng, window.TB.home.lat, "Home");
+        state.route.stops[0].roles = ["home"];
+      }
+
       rebuildLayers();
       renderMarkers();
       renderList();

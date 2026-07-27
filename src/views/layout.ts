@@ -32,7 +32,7 @@ export function jsonScript(varName: string, value: unknown): string {
 export const MAPBOX_CSS_LINK = `<link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">`
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'rides' | 'builder' | 'places'
+export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile'
 
 export type PageOpts = {
   /** Without the " — routeloop" suffix; page() appends it. */
@@ -67,6 +67,7 @@ const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'home', href: '/', label: 'Home' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
+  { key: 'profile', href: '/profile', label: 'Your profile' },
 ]
 
 function navLink(item: { key: NavKey; href: string; label: string }, navKey?: NavKey): string {

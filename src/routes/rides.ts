@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import {
@@ -14,10 +14,11 @@ import {
   routes as routesTable,
   points as pointsTable,
   routeLegs,
+  userProfiles,
   type RideRow,
   type UserRow,
 } from '../db/schema'
-import { currentUser, requireAuth, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
   METERS_PER_MILE,
   distFromStartAlongTrack,
@@ -225,7 +226,7 @@ async function parseRideBody(
 
 const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'payload too large' }, 413) })
 
-rideRoutes.post('/api/rides', requireAuthApi, requireSameOrigin, jsonLimit, async (c) => {
+rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
 
   // Same bot gate as import: enforced once Turnstile keys are set. The token
@@ -262,7 +263,7 @@ rideRoutes.post('/api/rides', requireAuthApi, requireSameOrigin, jsonLimit, asyn
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
-rideRoutes.put('/api/rides/:id', requireAuthApi, requireSameOrigin, jsonLimit, async (c) => {
+rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
@@ -294,7 +295,7 @@ rideRoutes.put('/api/rides/:id', requireAuthApi, requireSameOrigin, jsonLimit, a
 })
 
 // Owner load for the builder — the same shape PUT accepts, vias included.
-rideRoutes.get('/api/rides/:id', requireAuthApi, async (c) => {
+rideRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
@@ -351,17 +352,33 @@ export async function loadRidePayload(ride: RideRow) {
 
 // --- Builder pages ---------------------------------------------------------
 
-rideRoutes.get('/builder', requireAuth, (c) => c.html(builderHtml(null, currentUser(c))))
+// The rider's saved home, but only if they asked for it and it geocoded. Gating
+// on the server rather than in builder.js is deliberate: the edit route below
+// never loads this, so an existing ride cannot grow a home stop on every save
+// even if the client logic were wrong.
+async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | null> {
+  const [p] = await db
+    .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng })
+    .from(userProfiles)
+    .where(and(eq(userProfiles.userId, userId), eq(userProfiles.addHomeToRides, true)))
+    .limit(1)
+  return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
+}
 
-rideRoutes.get('/builder/:id', requireAuth, async (c) => {
+rideRoutes.get('/builder', requireActive, async (c) => {
+  const user = currentUser(c)
+  return c.html(builderHtml(null, user, await homeSeed(user.id)))
+})
+
+rideRoutes.get('/builder/:id', requireActive, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.text('Not found', 404)
   if (ride.source !== 'native') return c.text('Imported rides are not editable yet', 409)
-  return c.html(builderHtml(ride.id, user))
+  return c.html(builderHtml(ride.id, user, null))
 })
 
-function builderHtml(rideId: number | null, user: UserRow): string {
+function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; lng: number } | null): string {
   const contents = `        <div class="ride-meta">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
@@ -407,7 +424,7 @@ function builderHtml(rideId: number | null, user: UserRow): string {
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { token: MAPBOX_TOKEN, roles: ROLE_META, rideId },
+    tb: { token: MAPBOX_TOKEN, roles: ROLE_META, rideId, home },
     scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
   <script src="/js/map-common.js" defer></script>
   <script src="/js/builder.js" defer></script>`,

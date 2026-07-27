@@ -1,0 +1,110 @@
+@use "tokens" as *;
+
+// The app's first real form. Everything before this was either a fetch+JSON
+// panel in the builder or the single logout button, so there was no input,
+// fieldset, label or validation styling to inherit.
+
+.profile-form {
+  max-width: 560px;
+
+  fieldset {
+    margin: 0 0 2rem;
+    padding: 1.25rem 1.5rem 1.5rem;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 12px;
+
+    // A disabled fieldset is how the alpha-gated sections read as present but
+    // closed, rather than being hidden and unexplained.
+    &[disabled] {
+      background: #fafafa;
+      color: #888;
+    }
+  }
+
+  legend {
+    padding: 0 0.4rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    color: #777;
+  }
+}
+
+.field {
+  margin: 0 0 1.1rem;
+
+  label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-weight: 700;
+    font-size: 0.92rem;
+  }
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    font: inherit;
+    color: $text;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 8px;
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+      border-color: $brand;
+    }
+  }
+
+  &.has-error input {
+    border-color: $kml;
+  }
+}
+
+// Paired with aria-describedby on the input, so this text is announced rather
+// than being colour-only information.
+.field-error {
+  display: block;
+  margin-top: 0.3rem;
+  color: $kml;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.3rem;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.9rem 0 0;
+  font-size: 0.92rem;
+  cursor: pointer;
+
+  input {
+    accent-color: $brand;
+  }
+}
+
+.notice {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(67, 160, 71, 0.12);
+  border: 1px solid rgba(67, 160, 71, 0.35);
+  color: darken($gpx, 12%);
+  font-weight: 700;
+
+  &.is-error {
+    background: rgba(211, 47, 47, 0.1);
+    border-color: rgba(211, 47, 47, 0.35);
+    color: darken($kml, 8%);
+  }
+}

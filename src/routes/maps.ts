@@ -14,7 +14,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { rides, routes, points, routeLegs, users as usersTable } from '../db/schema'
-import { currentUser, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
   GPX_MAX_BYTES,
   KML_MAX_BYTES,
@@ -80,7 +80,7 @@ export const firstIssue = (e: z.ZodError): string => {
 
 mapsRoutes.post(
   '/api/maps',
-  requireAuthApi,
+  requireActiveApi,
   requireSameOrigin,
   bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'upload too large' }, 413) }),
   async (c) => {
@@ -236,7 +236,7 @@ export async function ownRide(userId: number, idParam: string) {
   return r
 }
 
-mapsRoutes.patch('/api/maps/:id', requireAuthApi, requireSameOrigin, async (c) => {
+mapsRoutes.patch('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
@@ -270,7 +270,7 @@ mapsRoutes.patch('/api/maps/:id', requireAuthApi, requireSameOrigin, async (c) =
   return c.json({ id: updated.id, slug: updated.slug, title: updated.title, visibility: updated.visibility })
 })
 
-mapsRoutes.delete('/api/maps/:id', requireAuthApi, requireSameOrigin, async (c) => {
+mapsRoutes.delete('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)

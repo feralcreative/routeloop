@@ -20,6 +20,9 @@ import {
 // Google/GitHub are retained for existing identity rows. New sign-ins arrive
 // through Cloudflare Access, which owns the upstream identity-provider flow.
 export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare'])
+// Cloudflare Access authenticates; this authorizes. Access admits any Google
+// account, so a new rider lands 'pending' and waits for approval.
+export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
@@ -45,16 +48,67 @@ export const waypointRoleEnum = pgEnum('waypoint_role', [
   'wtf',
 ])
 
-export const users = pgTable('users', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  email: varchar('email', { length: 255 }).unique(),
-  displayName: varchar('display_name', { length: 255 }).notNull(),
-  avatarUrl: varchar('avatar_url', { length: 512 }),
-  quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(262144000), // 250 MB
-  usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0), // denormalized cache
+// Only what authorization and the page chrome need on every request — see
+// user_profiles below for the rest, which deliberately stays off this row.
+export const users = pgTable(
+  'users',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    email: varchar('email', { length: 255 }).unique(),
+    displayName: varchar('display_name', { length: 255 }).notNull(),
+    username: varchar('username', { length: 30 }), // null until the rider picks one
+    avatarUrl: varchar('avatar_url', { length: 512 }),
+    // Defaulting to 'active' is load-bearing, not an oversight: drizzle-kit push
+    // stamps the default onto every existing row, so a 'pending' default would
+    // flip the owner's own account to pending and lock them out of the app that
+    // does the approving. resolveAccessUser() writes 'pending' explicitly on the
+    // insert path instead.
+    status: userStatusEnum('status').notNull().default('active'),
+    canManageRiders: boolean('can_manage_riders').notNull().default(false),
+    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(262144000), // 250 MB
+    usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0), // denormalized cache
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    lastLoginAt: timestamp('last_login_at'),
+  },
+  (t) => [
+    index('idx_user_status').on(t.status),
+    // Case-insensitive: "Ziad" and "ziad" are the same handle.
+    uniqueIndex('uq_username_lower').on(sql`lower(${t.username})`),
+  ],
+)
+
+// The profile record. Separate from `users` on purpose: withSession() selects
+// the whole users row on every request and jsonScript() serializes arbitrary
+// objects into page HTML, so keeping a street address and four payment handles
+// off that row means a careless `tb: { user }` can never leak them to a client.
+// Only the profile page loads this table.
+export const userProfiles = pgTable('user_profiles', {
+  // The FK is the PK — one profile per user, no surrogate id to keep in sync.
+  userId: bigint('user_id', { mode: 'number' })
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  firstName: varchar('first_name', { length: 80 }),
+  lastName: varchar('last_name', { length: 80 }),
+  addressLine: varchar('address_line', { length: 255 }),
+  city: varchar('city', { length: 120 }),
+  // Free text, not a US state list — the labels are US-shaped but nothing here
+  // should reject a rider outside it.
+  state: varchar('state', { length: 80 }),
+  postalCode: varchar('postal_code', { length: 20 }),
+  // Geocoded from the address on the client so the builder never has to. Null
+  // whenever the address did not resolve; a failed lookup must not block a save.
+  homeLat: doublePrecision('home_lat'),
+  homeLng: doublePrecision('home_lng'),
+  shareLastName: boolean('share_last_name').notNull().default(false),
+  addHomeToRides: boolean('add_home_to_rides').notNull().default(false),
+  sharePaymentHandles: boolean('share_payment_handles').notNull().default(false),
+  cashApp: varchar('cash_app', { length: 120 }),
+  venmo: varchar('venmo', { length: 120 }),
+  paypal: varchar('paypal', { length: 120 }),
+  zelle: varchar('zelle', { length: 120 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  lastLoginAt: timestamp('last_login_at'),
 })
 
 // One user may retain legacy OAuth identities alongside Cloudflare Access.
@@ -199,6 +253,7 @@ export const routeLegs = pgTable(
 )
 
 export type UserRow = typeof users.$inferSelect
+export type UserProfileRow = typeof userProfiles.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type RouteRow = typeof routes.$inferSelect
