@@ -85,6 +85,35 @@ There is exactly one reusable Access **group** in the account (`vmc`); the
 six-address "ZR Personal Projects" list on `print.ezzat.com` is an inline policy,
 not a group, so it cannot simply be referenced from here.
 
+## Authentication at the edge, authorization in the app
+
+As of Sprint 2 the two are separate concerns, and the split matters for anyone
+changing either half.
+
+Access answers *who is this* — a verified Google address. `users.status`
+(`pending` | `active` | `blocked`) answers *may they use routeloop*.
+[resolveAccessUser](../src/auth/access.ts) creates every genuinely new account as
+`pending`; only `OWNER_EMAIL` is created `active`, and linking an existing
+same-email user never changes an existing status. `requireActive` and
+`requireActiveApi` ([src/auth/middleware.ts](../src/auth/middleware.ts)) gate
+every signed-in page and every owner API, sending pending riders to `/welcome`
+and returning **403** rather than 401 to API callers — a pending rider holds a
+perfectly valid session, so 401 would loop them through a pointless re-login.
+
+`status` defaults to `'active'` on purpose. `drizzle-kit push` stamps a NOT NULL
+default onto every existing row, so a `'pending'` default would demote the owner
+and lock them out of the app that does the approving.
+
+This is what makes widening the allowlist safe: the edge can admit anyone while
+the app still admits nobody new. **The app-side gate must ship and be verified
+before the policy below is widened** — in the window between, the app is open.
+
+Approving a rider is one statement until the Sprint 3 admin panel exists:
+
+```sql
+UPDATE users SET status = 'active' WHERE email = 'rider@example.com';
+```
+
 ## The allowlist
 
 Exactly one address can sign in, on both prod and stage. Anyone else is denied

@@ -281,7 +281,7 @@ committing the tree) are independent of it. Phase work:
    pre-pivot rides; `/m/:slug` always Mapbox; delete `main.js`, the legacy
    metadata endpoint, and `GMAPS_KEY`; add the dashboard import UI.
 3. **Phase 5 — Trip features.** Multi-day rides + the timeline slider.
-4. **Near-term UX** from [\_PLANS/changes-260724T0250Z.md](../_PLANS/changes-260724T0250Z.md):
+4. **Near-term UX** from [\_PLANS/changes-260724T0250Z.md](../_PLANS/sprint-00-260724T0250Z.md):
    title-as-placeholder, role multi-select dropdown, splash/login + home page
    (recent 10 + popular 10 rides), logo.
 

@@ -4,14 +4,14 @@ import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable } from '../db/schema'
-import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { esc, page } from '../views/layout'
 
 export const dashboardRoutes = new Hono<AuthEnv>()
 
 const MB = 1024 * 1024
 
-dashboardRoutes.get('/dashboard', requireAuth, async (c) => {
+dashboardRoutes.get('/dashboard', requireActive, async (c) => {
   const user = currentUser(c)
 
   const rows = await db
