@@ -1,8 +1,40 @@
 # Cloudflare Access
 
-**Updated:** 2026-07-25
-**State:** implemented and enforcing on **prod and stage**, open to one address —
-`ziad@feralcreative.co`, via Google only.
+**Updated:** 2026-07-26
+**State:** ⚠️ **being retired.** Still enforcing on prod and stage, open to one
+address (`ziad@feralcreative.co`) via Google only — but the application code that
+consumes it has already been deleted on `refactor/google-maps-and-auth`.
+
+## Why this is going away
+
+Cloudflare Zero Trust is billed **per seat**: free to 50 users, then $7/user/month
+applied to *every* user, with no partial billing. That is $700/month at 100 riders
+and $70,000 at 10,000. It is an employee-access product, and it cannot survive
+opening signups — see
+[decisions-auth-and-search.md](decisions-auth-and-search.md).
+
+It is replaced by Google OAuth plus an emailed magic link, both owned by the app.
+`users.status` continues to do the authorization that the Access allowlist used
+to do, which is the part worth keeping: approving a rider is now a column you
+control rather than a dashboard edit in two places.
+
+## The decommissioning order, which matters
+
+`src/auth/access.ts` and its trust of the `Cf-Access-Authenticated-User-Email`
+header are **already deleted in the working tree**. That header was safe only
+because Access sat in front of `/auth/cloudflare` and controlled it.
+
+1. Ship the new auth code to an environment.
+2. Confirm Google sign-in and magic link both work there.
+3. **Only then** remove that environment's Access policy and application.
+
+Reverse those and there is a window where the *deployed* build still trusts the
+header while nothing sets it — anyone who can reach the origin mints a session
+for any address. Prod and stage are separate policy objects and must be done
+independently.
+
+Everything below documents the system as it currently stands, for as long as it
+stands. It stops being true once step 3 runs.
 
 routeloop uses Cloudflare Access for authentication while keeping authorization
 and sessions in the application. Only the login bridge is protected, so public
@@ -11,11 +43,11 @@ and unlisted ride links stay reachable without an Access session.
 ## How it works
 
 Access authenticates at the edge and injects
-`Cf-Access-Authenticated-User-Email`. The application
-([src/auth/access.ts](../src/auth/access.ts)) normalizes and validates that
-address, links it to an existing user with the same verified email when one
-exists, adds a `cloudflare` row to `user_identities`, and creates the normal
-routeloop session. Missing or malformed identity headers fail closed.
+`Cf-Access-Authenticated-User-Email`. The application — in `src/auth/access.ts`,
+now deleted — normalized and validated that address, linked it to an existing
+user with the same verified email when one existed, added a `cloudflare` row to
+`user_identities`, and created the normal routeloop session. Missing or malformed
+identity headers failed closed.
 `/auth/cloudflare` ([src/routes/auth.ts](../src/routes/auth.ts)) is the only path
 that needs a policy.
 
@@ -90,9 +122,10 @@ not a group, so it cannot simply be referenced from here.
 As of Sprint 2 the two are separate concerns, and the split matters for anyone
 changing either half.
 
-Access answers *who is this* — a verified Google address. `users.status`
-(`pending` | `active` | `blocked`) answers *may they use routeloop*.
-[resolveAccessUser](../src/auth/access.ts) creates every genuinely new account as
+Whatever authenticates — Access before, Google OAuth and magic link after —
+answers *who is this*. `users.status` (`pending` | `active` | `blocked`) answers
+*may they use routeloop*, and that half is unchanged by the migration.
+[resolveUser](../src/auth/identity.ts) creates every genuinely new account as
 `pending`; only `OWNER_EMAIL` is created `active`, and linking an existing
 same-email user never changes an existing status. `requireActive` and
 `requireActiveApi` ([src/auth/middleware.ts](../src/auth/middleware.ts)) gate
@@ -104,9 +137,9 @@ perfectly valid session, so 401 would loop them through a pointless re-login.
 default onto every existing row, so a `'pending'` default would demote the owner
 and lock them out of the app that does the approving.
 
-This is what makes widening the allowlist safe: the edge can admit anyone while
-the app still admits nobody new. **The app-side gate must ship and be verified
-before the policy below is widened** — in the window between, the app is open.
+This separation is what makes removing Access survivable at all: the edge stops
+being the gate, and the app was already the one deciding. It is also why the
+allowlist below never needs widening — it gets deleted instead.
 
 Approving a rider is one statement until the Sprint 3 admin panel exists:
 

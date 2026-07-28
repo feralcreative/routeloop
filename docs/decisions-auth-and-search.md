@@ -114,7 +114,7 @@ commit:
 This one is worth stating on its own because it is a full authentication bypass
 if missed.
 
-`accessEmail()` in [src/auth/access.ts](../src/auth/access.ts) trusts the
+`accessEmail()` in `src/auth/access.ts` (deleted) trusts the
 inbound `Cf-Access-Authenticated-User-Email` header. That is safe *only* because
 Cloudflare Access sits in front of `/auth/cloudflare` and strips or sets it. The
 moment Access stops protecting that route, anyone who can reach the origin can

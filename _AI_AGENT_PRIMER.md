@@ -1,21 +1,21 @@
 # AI Agent Primer: routeloop
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-26
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (routeloop.app)
-**Status:** Mid-pivot and **live in production**. The product moved from "upload
-KML files" to "**plan rides in-app on Mapbox**"; Phases 0–2 are built and
-verified, Phase 3 is next. Since the last update the app was renamed
-`tankbag` → `routeloop`, auth was rebuilt on Cloudflare Access, and the stack was
-deployed fresh to the NAS serving `routeloop.app`. Sign-in is restricted to the
-single address `ziad@feralcreative.co` by an Access policy. **Nothing is
-committed:** the pivot, the rename, and the auth work all live in the working
-tree on branch `feat/auth`.
+**Status:** **Live in production**, and mid-migration on two axes at once. The
+product moved from "upload KML files" to "plan rides in-app"; that pivot, the
+`tankbag` → `routeloop` rename, and Sprint 2's user profiles are all committed
+and merged. On branch `refactor/google-maps-and-auth` two replacements are
+underway: **Cloudflare Access → Google OAuth + magic link** (code complete,
+uncommitted, waiting on credentials) and **Mapbox → Google Maps** (not started).
 
-This document orients an AI agent working on the codebase. Read it before making
-changes, then read the governing plan
-[\_PLANS/routeloop-route-builder-pivot.md](_PLANS/routeloop-route-builder-pivot.md)
-and the session handoff
-[\_PLANS/routeloop-pivot-handoff.md](_PLANS/routeloop-pivot-handoff.md).
+This document orients an AI agent working on the codebase. Read it first, then
+[docs/STATUS.md](docs/STATUS.md) for exactly where things stand — that file moves
+faster than this one and wins where they disagree.
+
+> **Read this before trusting any "Mapbox" or "Cloudflare Access" detail below.**
+> Both are being replaced. Sections describing them are accurate for what is
+> currently in `main`, and are marked where the branch diverges.
 
 > **Historical baggage.** The `app/` directory (a prior PHP/MySQL build) and
 > `utils/schema.sql` (MySQL) are **superseded** reference material. Older plans
@@ -62,15 +62,24 @@ From `docs/ideas.md`:
 - **Backend** — TypeScript on **Hono**, run by Node (`tsx` in dev, Docker in
   prod); portable to Cloudflare Workers. **PostgreSQL** via **Drizzle ORM**.
   **Zod** for payload validation.
-- **Maps** — **Mapbox GL JS** (rendering) + **Mapbox Directions API** (per-leg
-  road routing) + **Mapbox Geocoding v6** (place search). Called client-side
-  with a URL-restricted public token. Loaded from the Mapbox CDN via a
-  `<script>` tag — the frontend has **no bundler**.
-- **Auth** — Cloudflare Access at the edge, bridged to hand-rolled server
-  sessions (SHA-256-hashed tokens). Cloudflare **Turnstile** guards uploads/saves
-  (feature-flagged off until keys are set). See
-  [docs/cloudflare-access.md](docs/cloudflare-access.md) for the live
-  application IDs and the steps left to open sign-in.
+- **Maps** — **being replaced.** Today: Mapbox GL JS (rendering) + Mapbox
+  Directions (per-leg routing) + Mapbox Geocoding v6 (place search), all
+  client-side with a public token, loaded by `<script>` tag — the frontend has
+  **no bundler**. Moving to Google Maps JavaScript API + Places (New) +
+  **Routes API** (not Directions, which is closed to new projects). The driver is
+  place-search quality; the reason it is a whole-engine swap rather than a search
+  swap is that Google's terms forbid Places content on a non-Google map.
+- **Auth** — **being replaced.** Today on `main`: Cloudflare Access at the edge
+  bridged to local sessions. On this branch: Google OAuth (via `arctic`) plus an
+  emailed magic link, both resolving through
+  [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server
+  sessions (SHA-256-hashed tokens). Access is billed **per seat**, which is why
+  it could not stay. Cloudflare **Turnstile** still guards uploads/saves,
+  feature-flagged off until keys are set.
+- **Authorization is separate from authentication.** `users.status`
+  (`pending` | `active` | `blocked`) decides who may use the app; every new
+  account starts `pending`. This is the capacity gate for a NAS-hosted alpha and
+  is unaffected by either migration.
 - **Frontend** — vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
 - **Hosting** — Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the
   edge. Prod is `routeloop.app → localhost:16703`, stage is
@@ -85,16 +94,38 @@ There are currently **two** viewers, on purpose:
 
 1. **Legacy Google Maps viewer** — `public/js/main.js` (uses `google.maps.*`).
    Serves **imported** rides only, via the `viewHtml` shell in `src/index.ts`
-   (which injects `GMAPS_KEY` + the `maps.googleapis.com` script). This is
-   scheduled for deletion in Phase 4.
-2. **New Mapbox engine** — `public/js/map-common.js` (shared) plus
+   (which injects `GMAPS_KEY` + the `maps.googleapis.com` script).
+2. **Mapbox engine** — `public/js/map-common.js` (shared) plus
    `public/js/viewer.js` (read-only) and `public/js/builder.js` (editing).
-   Serves **native** rides today; will serve everything after Phase 4.
+   Serves **native** rides.
 
 The Mapbox marker/tooltip/mileage behavior in `map-common.js` is a faithful port
 of the legacy viewer's hard-won logic (colored `currentColor` SVG icons, the
 `From Start / From Gas / From Charge` tooltip columns, direction arrows,
-per-route hover-dim). When Phase 4 lands, `main.js` and `GMAPS_KEY` are removed.
+per-route hover-dim).
+
+**The plan for these two reversed on 2026-07-26.** It used to be "delete
+`main.js`, unify on Mapbox." It is now "unify on Google and delete the Mapbox
+engine" — so `main.js` is a **reference implementation, not dead code**. It is
+1,135 lines of working `google.maps` covering exactly the behavior that has to be
+rebuilt: `Polyline` with `SymbolPath.FORWARD` arrows, `InfoWindow` tooltips,
+bounds fitting, and the mileage columns. Read it before writing the new engine.
+
+Three things make the swap smaller than it looks:
+
+- Only six of `map-common.js`'s thirteen exports touch `mapboxgl`. The rest —
+  `markerElement`, `popupHtml`, `stopMileages`, `iconSvg`, `esc`,
+  `hydratePopupIcons`, `initPanelToggle` — are pure DOM and arithmetic and port
+  unchanged.
+- The stylesheet has **no** `mapboxgl-*` selectors. `_map.scss` still carries
+  `.gm-ui-hover-effect` and `.waypoint-tooltip` from the Google era.
+- Routes API accepts `polylineEncoding: GEO_JSON_LINESTRING`, so
+  `route_legs.geometry` keeps its `[lng,lat][]` shape. **No stored ride needs
+  migrating.**
+
+The one thing that will bite: Mapbox is `[lng, lat]`, Google is `{lat, lng}`, and
+the database stores Mapbox order. Reversed coordinates still render — just in the
+wrong hemisphere, or subtly off. Route every conversion through one helper.
 
 <!--| PAGE-BREAK -->
 
@@ -105,7 +136,8 @@ per-route hover-dim). When Phase 4 lands, `main.js` and `GMAPS_KEY` are removed.
 post-deploy hook runs the same push).
 
 - **`users`** — identity, `quota_bytes`, denormalized `used_bytes`.
-- **`user_identities`** — links a user to Cloudflare Access; legacy Google and
+- **`user_identities`** — one row per login method, so a rider can arrive by
+  Google or by magic link and land on the same account. Legacy Google and
   GitHub identity rows remain valid.
 - **`sessions`** — PK is the SHA-256 hash of the browser token, never the token.
 - **`rides`** — `owner_id`, unguessable `slug`, `title`, `description`,
@@ -172,7 +204,7 @@ private owner-only, else 404):
 - `GET /api/public/rides/:slug/ride.json` — normalized viewer contract (both
   sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`
 - `GET /api/public/maps/:slug` — **legacy** metadata array (Google viewer only;
-  retires in Phase 4)
+  retires with the Mapbox engine)
 - `GET /api/public/maps/:slug/kml` · `/gpx` — gated file streams (imported
   originals)
 
@@ -223,7 +255,7 @@ Ported from the PHP era and preserved — re-derive, never drop these:
 - **Visibility gate** — unknown/forbidden slugs return 404, never confirming a
   ride exists.
 - **CSRF** — `requireSameOrigin` checks the `Origin` header via `isAllowedOrigin`
-  (`src/auth/access.ts`).
+  (`src/config.ts`).
 
 <!--| PAGE-BREAK -->
 
@@ -237,7 +269,8 @@ src/
     schema.ts         Drizzle schema — SOURCE OF TRUTH
     index.ts          DB connection (pg Pool + Drizzle)
     seed.ts           Dev seed: user #1 + sample ride (structured rows)
-  auth/               session.ts, middleware.ts, access.ts (+ isAllowedOrigin)
+  auth/               session.ts, middleware.ts (gates), identity.ts,
+                      google.ts, magic.ts, mailer.ts
   maps/
     roles.ts          Canonical 17-role taxonomy (parse/format)
     kml.ts            XXE-safe parse, extraction, sanitize, processGpx
@@ -248,7 +281,7 @@ src/
     maps.ts           Import API + edit/delete (exports fields/ownRide/firstIssue)
     rides.ts          Builder API + /builder pages
     dashboard.ts      Owner's ride list
-    auth.ts           Cloudflare Access session bridge, login, logout
+    auth.ts           Google OAuth + magic link, /welcome, logout
   views/layout.ts     Shared chrome shell (esc, page)
 public/
   js/main.js          LEGACY Google Maps viewer (imported rides only)
@@ -286,10 +319,10 @@ npm run dev                              # tsx watch → :6686
   this wrinkle may not currently bite. Treat that as a loose end to confirm in
   the Mapbox dashboard, not as license to ship an unrestricted prod token.
 - The **legacy Google** viewer's key is referrer-restricted to `127.0.0.1`, so
-  imported-ride viewing may want `127.0.0.1`. This split disappears in Phase 4
+  imported-ride viewing may want `127.0.0.1`. This split disappears once the
   when Google goes away.
 - `APP_ORIGIN` is `http://127.0.0.1:6686`, but `isAllowedOrigin`
-  (`src/auth/access.ts`) accepts **both** localhost and 127.0.0.1 on the dev port,
+  (`src/config.ts`) accepts **both** localhost and 127.0.0.1 on the dev port,
   so the CSRF gate passes from either. Production is a single `https` origin, so
   none of this applies there.
 
@@ -300,7 +333,9 @@ npm run dev                              # tsx watch → :6686
 ```text
 PORT=6686
 MAPBOX_TOKEN=pk.<public token, URL-restricted to localhost in dev>
-GMAPS_KEY=<legacy Google key — imported viewer only, removed in Phase 4>
+GMAPS_KEY=<Google browser key — referrer-restricted, ships in page source>
+GMAPS_SERVER_KEY=<Google server key — IP-restricted, Routes/Geocoding>
+GMAPS_MAP_ID=<required for Advanced Markers>
 STORAGE_PATH=./moto-storage
 DATABASE_URL=postgresql://routeloop:routeloop_dev_pw@127.0.0.1:5432/routeloop
 APP_ORIGIN=http://127.0.0.1:6686
@@ -309,36 +344,46 @@ APP_ORIGIN=http://127.0.0.1:6686
 
 ## Phases
 
-- **Auth — Cloudflare Access** ✅ done and working. Direct Google/GitHub OAuth
-  was removed (`src/auth/oauth.ts` deleted, `arctic` uninstalled) and replaced
-  with the Access email-header bridge in `src/auth/access.ts` +
-  `src/routes/auth.ts`. The Access application allows exactly one address,
-  `ziad@feralcreative.co`; everyone else is denied at the edge. See
-  [docs/cloudflare-access.md](docs/cloudflare-access.md).
+Done and merged:
+
 - **Rename + production cutover** ✅ `tankbag` → `routeloop` everywhere;
-  deployed fresh to the NAS; `tankbag.app` 301s to `routeloop.app`.
-- **Phase 0 — Mapbox setup** ✅ token in `.env` (localhost-restricted).
-- **Phase 1 — Data model + roles + structured import** ✅ verified. `rides` /
-  `routes` / `points` / `route_legs`, `roles.ts`, import produces structured
-  rows.
-- **Phase 2 — Builder MVP + native viewer** ✅ built & verified. Ride API
-  (curl-tested: gating, validation, CSRF), the Mapbox builder (click/search to
-  add stops, per-leg routing, roles, save), and the native Mapbox viewer. Save
-  round-trip confirmed in a real browser.
-- **Phase 3 — Via-point shaping + server exports** ⬜ NEXT. Drag-to-shape legs
-  (`route_legs.via_points`); `src/maps/export.ts` (`buildKml`/`buildGpx` via
-  `formatRoleName`); make `/kml` + `/gpx` source-aware (native = generated) and
-  flip native `kmlUrl`/`gpxUrl` in `ride.json` from null to real URLs.
-- **Phase 4 — Unify viewer, import UI, retire Google** ⬜ backfill script for
-  pre-pivot rides; `/m/:slug` always Mapbox; delete `main.js`, the legacy
-  metadata endpoint, and `GMAPS_KEY`; dashboard import form.
-- **Phase 5 — Trip phase** ⬜ multi-day rides (route tabs, per-route
-  datetimes) + the timeline slider from `docs/ideas.md`.
-- **Phase 6 / backlog** ⬜ bikes + rider profiles, KMZ/CSV import, autosave,
-  drag-reorder, per-leg off-road mode, PostGIS. Plus the near-term UX requests
-  in `_PLANS/changes-260724T0250Z.md` (title-as-placeholder, role
-  multi-select dropdown, splash/login + home page with recent & popular rides,
-  logo).
+  `tankbag.app` 301s to `routeloop.app`.
+- **Phase 1 — Data model + roles + structured import** ✅ `rides` / `routes` /
+  `points` / `route_legs`, `roles.ts`, import produces structured rows.
+- **Phase 2 — Builder MVP + native viewer** ✅ ride API (gating, validation,
+  CSRF), the builder, the native viewer. Save round-trip confirmed in a browser.
+- **Unified shell + SCSS split** ✅ one `page()` for every surface, global nav,
+  alpha modal, SCSS partials, sign-in splash with background clip.
+- **Sprint 2 — user profiles** ✅ `users.status` authorization,
+  `user_profiles`, `/profile`, `/welcome`, home-address seeding.
+
+In flight on `refactor/google-maps-and-auth`:
+
+- **Auth — Google OAuth + magic link** 🔄 code complete and verified locally,
+  uncommitted. Waiting on an OAuth client and an SMTP app password. Cloudflare
+  Access is deleted from the codebase; **do not remove the Access policy until
+  this ships**, or the deployed build is open.
+- **Maps — Mapbox → Google** ⬜ not started. See the transition section above.
+
+Deferred, with reasons:
+
+- **Phase 3 — Via-point shaping + server exports** ⬜ drag-to-shape legs into
+  `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`.
+  Deferred behind the two migrations — building leg-shaping against a routing
+  engine that is being replaced would be wasted work.
+- **Places (saved locations)** ⬜ designed in
+  [_PLANS/sprint-01-260725T2320Z.md](_PLANS/sprint-01-260725T2320Z.md) Phase B,
+  never built. Cut from Sprint 2 because it is two tables, seven endpoints,
+  marker-group primitives and builder integration — larger than the rest of that
+  sprint combined. The profile reserves a section for it.
+- **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by
+  email or phone is a user-enumeration surface and wants rate limiting before it
+  exists.
+- **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
+- **Phase 5 — Trip features** ⬜ multi-day rides + the timeline slider.
+- **Backlog** ⬜ bikes, KMZ/CSV import, autosave, drag-reorder, per-leg off-road
+  mode, PostGIS, public profile pages (`username` is reserved and unique so this
+  stays possible).
 
 ## Deployment state (2026-07-24)
 

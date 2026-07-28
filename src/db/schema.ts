@@ -19,7 +19,10 @@ import {
 
 // Google/GitHub are retained for existing identity rows. New sign-ins arrive
 // through Cloudflare Access, which owns the upstream identity-provider flow.
-export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare'])
+// 'google' is the OAuth flow and 'email' is the magic link. 'github' and
+// 'cloudflare' are retained so historical identity rows stay valid; nothing
+// issues them any more.
+export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare', 'email'])
 // Cloudflare Access authenticates; this authorizes. Access admits any Google
 // account, so a new rider lands 'pending' and waits for approval.
 export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
@@ -61,7 +64,7 @@ export const users = pgTable(
     // Defaulting to 'active' is load-bearing, not an oversight: drizzle-kit push
     // stamps the default onto every existing row, so a 'pending' default would
     // flip the owner's own account to pending and lock them out of the app that
-    // does the approving. resolveAccessUser() writes 'pending' explicitly on the
+    // does the approving. resolveUser() writes 'pending' explicitly on the
     // insert path instead.
     status: userStatusEnum('status').notNull().default('active'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
@@ -141,6 +144,30 @@ export const sessions = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [index('idx_session_user').on(t.userId), index('idx_session_expires').on(t.expiresAt)],
+)
+
+// Magic-link tokens, following the sessions table above exactly: the primary key
+// is the SHA-256 hash of the token that was emailed, never the token itself, so
+// a leaked table yields nothing redeemable.
+//
+// Keyed on email rather than user id on purpose — a link can be requested for an
+// address with no account yet, and that is the signup path.
+export const loginTokens = pgTable(
+  'login_tokens',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(), // hex sha256 of the token
+    email: varchar('email', { length: 255 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    // Set inside the same transaction that creates the session. Single use is
+    // what stops a forwarded email being a replayable credential.
+    consumedAt: timestamp('consumed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Rate limiting counts recent rows per address; expiry sweeps read the other.
+    index('idx_login_token_email').on(t.email, t.createdAt),
+    index('idx_login_token_expires').on(t.expiresAt),
+  ],
 )
 
 // The shareable package (docs/ideas.md): a ride holds many routes over many
@@ -254,6 +281,7 @@ export const routeLegs = pgTable(
 
 export type UserRow = typeof users.$inferSelect
 export type UserProfileRow = typeof userProfiles.$inferSelect
+export type LoginTokenRow = typeof loginTokens.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type RouteRow = typeof routes.$inferSelect

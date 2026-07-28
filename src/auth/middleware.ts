@@ -2,7 +2,7 @@
 // and the owner API.
 import type { Context, MiddlewareHandler } from 'hono'
 import type { UserRow } from '../db/schema'
-import { isAllowedOrigin } from './access'
+import { isAllowedOrigin } from '../config'
 import { readSessionCookie, validateSessionToken } from './session'
 
 // Typed access to c.get('user') / c.get('sessionId') across the app.

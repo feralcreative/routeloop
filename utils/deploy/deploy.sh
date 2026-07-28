@@ -75,6 +75,14 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
+# Deliberately a warning, not a hard failure: nothing reads GMAPS_SERVER_KEY
+# until server-side Routes/Geocoding land, and blocking a deploy over a key with
+# no consumer would be wrong. Promote it into MISSING above on the day something
+# depends on it.
+if [ -z "${GMAPS_SERVER_KEY:-}" ]; then
+  log_warning "GMAPS_SERVER_KEY is unset — server-side Routes/Geocoding will fail if used."
+fi
+
 # The password is interpolated into a postgresql:// URL; reserved characters
 # would silently corrupt it, so reject them up front.
 case "$DB_PASSWORD" in
@@ -202,6 +210,7 @@ printf '%s\n' \
   "APP_UID=${APP_UID}" \
   "APP_GID=${APP_GID}" \
   "GMAPS_KEY=${GMAPS_KEY}" \
+  "GMAPS_SERVER_KEY=${GMAPS_SERVER_KEY:-}" \
   "MAPBOX_TOKEN=${MAPBOX_TOKEN}" \
   "DB_PASSWORD=${DB_PASSWORD}" \
   "APP_ORIGIN=${APP_ORIGIN}" \

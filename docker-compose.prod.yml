@@ -22,7 +22,11 @@ services:
     environment:
       PORT: 6686
       STORAGE_PATH: /app/moto-storage
+      # Referrer-restricted, ships to the browser.
       GMAPS_KEY: ${GMAPS_KEY}
+      # IP-restricted to this host's egress address; server-side calls only.
+      # Blank until server-side Routes/Geocoding exist, which is a valid state.
+      GMAPS_SERVER_KEY: ${GMAPS_SERVER_KEY}
       MAPBOX_TOKEN: ${MAPBOX_TOKEN}
       DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
       # Cloudflare Access supplies identity at the edge. APP_ORIGIN also decides

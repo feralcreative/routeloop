@@ -1,300 +1,219 @@
-# Status and Handoff
+# Status and handoff
 
-**Updated:** 2026-07-24
-**Repo:** `/Users/ziad/www/moto/routeloop` on branch `feat/auth` (source of
-truth — everything below is uncommitted)
-**For:** the next agent picking up development
+**Updated:** 2026-07-26
+**Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`
+**For:** the next agent, or the owner returning cold
 
-Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) first for architecture, then
-this doc for where things stand. The current build plan is
-[\_PLANS/routeloop-route-builder-pivot.md](../_PLANS/routeloop-route-builder-pivot.md);
-the live session handoff (most precise resume point) is
-[\_PLANS/routeloop-pivot-handoff.md](../_PLANS/routeloop-pivot-handoff.md).
+Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this
+for where things actually stand. This document is the one that gets stale
+fastest; if it disagrees with the code, the code is right.
 
 ## TL;DR
 
-routeloop is a ride **planning / sharing / organizing** app (not navigation). It
-pivoted from "upload KML files" to "**plan rides in-app on Mapbox**"; upload is
-now an import path.
+routeloop is a ride **planning / sharing / organizing** app, not navigation. It
+is live at `routeloop.app` on a Synology NAS behind Cloudflare Tunnel.
 
-- **Stack:** TypeScript + Hono + PostgreSQL (Drizzle), Zod. Node in Docker.
-- **Maps:** Mapbox GL JS + Directions + Geocoding, client-side, public token.
-- **Hosting:** Synology NAS (`feral-nas`) behind Cloudflare Tunnel.
+Two migrations are in flight on this branch, both decided on 2026-07-26:
 
-**State of the pivot (uncommitted — the entire pivot, the rename, and the auth
-rebuild are all in the working tree on `feat/auth`):**
+| | Was | Is becoming | State |
+| --- | --- | --- | --- |
+| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **code done**, uncommitted, needs credentials |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **not started** |
 
-- **Auth** — done (Cloudflare Access → local server sessions). Sign-in is open to
-  `ziad@feralcreative.co` only; everyone else is denied at the edge. See "Where
-  we left off" below.
-- **Phase 1** (data model + roles + structured import) — done, verified.
-- **Phase 2** (Mapbox ride builder + native viewer + ride API) — done, verified
-  in a real browser: plan a snapped route, classify stops, save, view.
-- **Phase 3** (drag-to-shape + KML/GPX export) — next.
+Everything through Sprint 2 (user profiles) is committed and merged. Everything
+described under "In flight" below is uncommitted working tree.
 
-## Where we left off (2026-07-24, session ended on a quota error)
+## Why these two migrations
 
-The last session did four things beyond the pivot, in this order. Read this
-before assuming anything in the older sections is still accurate.
+Both are recorded in full in
+[decisions-auth-and-search.md](decisions-auth-and-search.md); the short version:
 
-**1. Auth was rebuilt on Cloudflare Access.** Direct Google/GitHub OAuth is gone
-— `src/auth/oauth.ts` deleted, `arctic` uninstalled, `.env.example`,
-`docker-compose.prod.yml`, and `utils/deploy/deploy.sh` cleaned of the OAuth
-variables. New code is `src/auth/access.ts` (email-header bridge, dev fallback,
-`isAllowedOrigin`) and a rewritten `src/routes/auth.ts`. The `provider` enum
-gained `cloudflare`.
+**Auth.** Cloudflare Access is billed per seat — $7/user/month for *every* user
+once you pass 50, with no partial billing. That is $700/month at 100 users and
+$70,000 at 10,000. It is an employee-access product, and it cannot survive
+opening signups. The migration was never optional, only deferred.
 
-**2. The app was renamed `tankbag` → `routeloop`.** Every in-repo reference,
-filename, cookie name, package/deploy/database identifier, plan filename, and
-brand asset. The local directory is now
-`/Users/ziad/www/moto/routeloop`. The owner renames the git remote separately.
+**Maps.** Place search on Mapbox Geocoding is not good enough for finding
+businesses. Google's terms forbid displaying Places content on a non-Google map,
+so "keep Mapbox rendering, use Google search" is not available — it is the whole
+engine or nothing. Cost is close between the two at scale (~20% apart at 100,000
+users); the argument against Google is the one-way migration, not the bill.
 
-**3. Production was cut over by replacement, not migration.** A stray leftover
-"rootloop" Express app was occupying `routeloop.app` on `:16703`. Both it and the
-old tankbag stack were composed down and archived to
-`/volume1/web/_retired/*-20260724T205817`, and this repo was deployed fresh.
-This is why the `maps` → `rides` landmine no longer applies to prod: the
-database is new and empty.
+<!--| PAGE-BREAK -->
 
-```text
-container   routeloop            healthy, 127.0.0.1:16703 + :6686  → :6686
-container   routeloop-db         healthy, EMPTY at cutover
-container   routeloop-stage      healthy, 127.0.0.1:6687  + :16687 → :6686
-container   routeloop-stage-db   healthy, schema applied
-tunnel      routeloop.app        → localhost:16703
-tunnel      tankbag.app          → localhost:6686    (same container; 301s away)
-tunnel      stage.routeloop.app  → localhost:6687
-tunnel      stage.tankbag.app    → localhost:16687   (same container; 301s away)
-DNS         routeloop.app        proxied CNAME → feral-nas tunnel
-DNS         stage.routeloop.app  proxied CNAME → feral-nas tunnel
-```
+## Done and committed
 
-Verified live: `/` → 302 → `/login` (200); `tankbag.app/m/abc?x=1` → 301 →
-`routeloop.app/m/abc?x=1`; favicon, manifest, and Mapbox all serve correctly.
+**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2),
+the `tankbag` → `routeloop` rename with production cutover, the unified page
+shell and SCSS partial split, the sign-in splash with its background clip, and
+Sprint 2's user profiles.
 
-**4. The Cloudflare Access application was created.** The session hit a quota
-error before the API response could be confirmed, but **it did land.**
-Application `RouteLoop Login`, id `252ee150-1024-4c0a-b3ae-2a9592af25ea`,
-destination `routeloop.app/auth/cloudflare`, 24h session. Confirmed enforcing:
-that URL 302s to `feralcreative.cloudflareaccess.com` and a forged
-`Cf-Access-Authenticated-User-Email` never reaches the origin. It was created
-with no policy at first; see the allowlist section below.
+**Sprint 2 specifically** ([_PLANS/sprint-02-260726T1731Z.md](../_PLANS/sprint-02-260726T1731Z.md)):
 
-### Sign-in is open to one address (2026-07-24)
+- `users.status` (`pending` | `active` | `blocked`) — the authorization gate, and
+  the thing that lets the audience stay small on a NAS while the door is open.
+  `requireActive` / `requireActiveApi` in
+  [src/auth/middleware.ts](../src/auth/middleware.ts) enforce it; a pending rider
+  gets `/welcome` and a **403** from the API, never a 401.
+- `user_profiles` — names, address, geocoded home point, payment handles,
+  sharing toggles. Kept off the `users` row deliberately: `withSession` selects
+  that row on every request and `jsonScript` serializes objects into page HTML,
+  so a street address and four payment handles have no business on the hot path.
+- `/profile` as an HTML form POST with inline errors, `/welcome` as the holding
+  page, and a home-address stop the builder seeds on new rides only.
 
-The application was briefly left with **no** policy, which default-denied
-everyone — including the owner, who then could not sign in with
-`ziad@feralcreative.co`. That was the empty policy list working as configured,
-not a fault. An Allow policy now exists:
+**Deferred from Sprint 2, deliberately:** Places (the saved-locations feature) is
+still unbuilt — it was a whole phase of its own and would have doubled the
+sprint. The rider list is a capability flag with no implementation behind it,
+because lookup by email or phone is a user-enumeration surface that wants rate
+limiting before it exists.
 
-```text
-Policy   RouteLoop Owner  ·  c353c663-f8b3-45d8-b4db-b64cb4721c10
-Include  email = ziad@feralcreative.co
-```
+## In flight — uncommitted on this branch
 
-That is the entire allowlist. Widening it means adding addresses to that
-policy's `include` array; `print.ezzat.com` carries the fuller "ZR Personal
-Projects" list and is the natural template. See
-[cloudflare-access.md](cloudflare-access.md).
+### Auth: done in code, blocked on credentials
 
-The project's contact address is a separate, still-undecided question ("some
-other email"). No code depends on it: there is no `mailto:`, contact link, or
-support address in the app today, and the only email in the source is the local
-dev seed user.
+Cloudflare Access is **gone from the codebase**. `src/auth/access.ts` is deleted
+along with the `Cf-Access-Authenticated-User-Email` trust and the
+`DEV_AUTH_EMAIL` fallback.
 
-### The remaining open items
+New modules:
 
-1. **Widen the Cloudflare API token.** It can manage Access apps, tunnel config,
-   and DNS, but `access/identity_providers` returns `10000 Authentication
-   error`, so the Google login method was never confirmed. Add **Access:
-   Organizations, Identity Providers, and Groups — Read**. Worth doing now so the
-   information is on hand whenever sign-in is opened.
-2. ~~Decide what to do about stage.~~ **Done 2026-07-25.** The old
-   `tankbag-stage` stack was composed down and archived to
-   `/volume1/web/_retired/stage.tankbag.app-20260724T222421` (it held 1 user,
-   1 map, 376K of storage — seed-grade), freeing `:6687`. A full routeloop stage
-   was then scaffolded: DNS, tunnel ingress, Access app + policy, and a deployed
-   stack with the schema applied.
-3. **Re-check the Mapbox token restrictions** (see Known risks — it currently
-   answers every origin).
-4. **Commit.** Nothing here is committed, the tree is large, and production was
-   deployed from it with `--force`. Ask first.
+- [src/auth/identity.ts](../src/auth/identity.ts) — `resolveUser()`, provider-
+  agnostic. Links to an existing verified-email user where one exists, creates as
+  `pending` otherwise, `OWNER_EMAIL` as `active`, and never demotes an existing
+  account. Takes an optional transaction handle.
+- [src/auth/google.ts](../src/auth/google.ts) — Arctic OAuth, state + PKCE in
+  `SameSite=Lax` cookies. Rejects an id token whose email is not verified, which
+  is load-bearing because `resolveUser` links accounts by email.
+- [src/auth/magic.ts](../src/auth/magic.ts) — emailed links. Only the SHA-256
+  hash is stored, single-use, 15-minute expiry, rate limited per address and per
+  IP.
+- [src/auth/mailer.ts](../src/auth/mailer.ts) — nodemailer over SMTP.
 
-None of these block Phase 3, which can be picked up now.
+Both methods are **feature-flagged by omission**: with no credentials the
+controls are not rendered at all, rather than offered and broken.
 
-## What is built
+Verified against the running app: the forged-header regression test (no session,
+no cookie), magic-link single-use and expiry, pending gating, and cross-provider
+linking — one address arriving by Google and by email produces one user with two
+identities, still `active`.
 
-Backend is the Hono app in [src/index.ts](../src/index.ts) plus route modules in
-[src/routes/](../src/routes/); schema is
-[src/db/schema.ts](../src/db/schema.ts) (source of truth). Data model:
-`users`, `user_identities`, `sessions`, `rides`, `routes`, `points`,
-`route_legs` (see the primer for columns).
+### Maps: not started
 
-Public read path:
+`map-common.js`, `viewer.js`, `builder.js` and `profile.js` are still Mapbox. The
+plan and its findings are in the plan file; the short version is that the
+migration is smaller than it looks — only six of `map-common.js`'s thirteen
+exports touch `mapboxgl`, the stylesheet has zero `mapboxgl-*` selectors, and
+Routes API can return GeoJSON so `route_legs.geometry` needs no migration.
 
-- `GET /` — public ride listing
-- `GET /m/:slug` — viewer (native → Mapbox shell; imported → legacy Google shell)
-- `GET /api/public/rides/:slug/ride.json` — normalized viewer contract
-- `GET /api/public/maps/:slug` + `/kml` + `/gpx` — legacy metadata + gated file
-  streams (imported rides; retire in Phase 4)
+<!--| PAGE-BREAK -->
 
-Owner path (`requireAuthApi` + `requireSameOrigin`): `POST /api/maps` (import),
-`POST`/`PUT`/`GET /api/rides` (builder), `PATCH`/`DELETE /api/maps/:id`, plus the
-`/builder` pages.
+## Blocked on you, in the console
 
-Security invariants carried from the PHP build and still enforced: XXE-safe KML
-parse (reject `<!DOCTYPE>`), text sanitization at rest, transactional quota
-(413), the visibility gate returning 404 for private/unknown slugs, integer-id
-containment-checked file paths, and the `Origin` CSRF gate.
+Nothing below can be done from code — Google publishes no API for OAuth clients,
+and gcloud's tokens on this machine have expired.
+
+1. **OAuth client + consent screen.** Scopes must be exactly
+   `openid` + `email` + `profile`; anything sensitive or restricted caps the app
+   at 100 users pending review. → `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+2. **A Gmail app password** for magic-link SMTP, on an account **separate from
+   the OAuth client**. → `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`.
+3. **A Map ID** (vector). Advanced Markers do not render without one — they fail
+   with a console warning and no marker, which reads as a data bug. →
+   `GMAPS_MAP_ID`.
+4. **The browser API key**, referrer-restricted. → reuse `GMAPS_KEY`.
+5. **The server API key**, IP-restricted to the NAS egress address. →
+   `GMAPS_SERVER_KEY`.
+6. Privacy policy and terms pages — required fields for a published external
+   consent screen, and neither exists.
+7. Per-API daily quota caps. A budget alert reports the money after it is spent.
+
+Full instructions in [google-cloud-setup.md](google-cloud-setup.md).
+
+### The sequencing that matters
+
+**Deploy the new auth code before removing the Cloudflare Access policy.** In the
+window between pulling the policy and shipping the code that stops trusting the
+injected header, the deployed build is wide open — anyone who can reach the
+origin can mint a session for any address. The order is not a preference.
+
+## Known risks
+
+- **Coordinate order** is the likeliest bug in the maps migration. Mapbox is
+  `[lng, lat]`, Google is `{lat, lng}`, and `route_legs.geometry` stores Mapbox
+  order. Getting it backwards still renders — just in the wrong place, or subtly
+  off. Route every conversion through one named helper.
+- **Google's free tiers are much smaller.** Dynamic Maps is 10,000 loads/month
+  against Mapbox's 50,000; Routes is 10,000 against Directions' 100,000. Quota
+  caps before traffic, not after.
+- **The Mapbox token still appears unrestricted.** A style request with `Referer`
+  set to four different hosts returned 200 for all four. Irrelevant once Mapbox
+  is gone, but it is billable to this account until then.
+- **The NAS egress IP.** The server key's IP restriction assumes it is static.
+  Cloudflare Tunnel means inbound does not need one, which makes it easy to
+  forget outbound still does. On a residential line an IP change silently breaks
+  server-side Routes and Geocoding while the browser key keeps working.
+- **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a
+  consumer account. Fine for an alpha, a wall later.
+- **Schema is push-only.** No `drizzle/` directory, no generated migrations. Run
+  `npx drizzle-kit push` without `--force` and read the statement list first —
+  riders now hold data that cannot be rebuilt from an uploaded file.
+
+<!--| PAGE-BREAK -->
 
 ## Local development
-
-Postgres runs in Docker; the app runs on the host with hot reload.
 
 ```bash
 cd /Users/ziad/www/moto/routeloop
 npm install
-cp .env.example .env          # fill in MAPBOX_TOKEN (+ GMAPS_KEY for imports, DEV_AUTH_EMAIL)
+cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
-npx drizzle-kit push          # apply schema
-npx tsx src/db/seed.ts        # demo user + sample ride (structured rows)
+npx drizzle-kit push
+npx tsx src/db/seed.ts        # demo user + sample ride
 npm run dev                   # http://localhost:6686
 ```
 
-Port 6686 is this project's designated port — kill and reuse it if busy, never
-switch ports.
+Port 6686 is this project's port — kill and reuse it, never switch.
 
-Notes:
+- There is a shared tmux session named `shared` for terminal work. The dev server
+  runs in its own window (`Ctrl-b 1`); backgrounding it in the main window gets it
+  **suspended on tty input**, where it holds the port and answers nothing. If
+  requests hang with the port bound, that is the cause — `kill -CONT` then
+  `kill -9`, since SIGTERM never reaches a stopped process.
+- Browse at `localhost`, not `127.0.0.1`, while Mapbox is still in place.
+  `isAllowedOrigin` accepts both, so CSRF passes either way.
+- `public/style/main.min.css` is a gitignored build artifact — `npm run sass`.
+- `.prettierrc` exists now: width 120, single quotes and no semicolons for
+  `src/`, with overrides so `public/js` keeps its double quotes and semicolons
+  and SCSS keeps double-quoted strings. It was measured against the tree, not
+  guessed, but the repo was never uniformly formatted so a few files will shift
+  on first save.
 
-- **Browse dev at `http://localhost:6686`, not `127.0.0.1`** — the Mapbox dev
-  token is `localhost`-restricted; tiles/Directions/geocoding 403 from the raw
-  IP. `APP_ORIGIN` stays `127.0.0.1`, but `isAllowedOrigin` accepts both dev
-  hosts, so the CSRF gate passes either way. (Imported-ride viewing still uses
-  the Google key, referrer-locked to `127.0.0.1` — a wrinkle that dies in
-  Phase 4.)
-- Root [docker-compose.yml](../docker-compose.yml) is **local-dev only**
-  (Postgres). The deployed stack is `docker-compose.prod.yml`.
-- The seed reads `moto-storage/1/1.{kml,gpx}` and extracts structured rows from
-  the KML.
-- `public/style/main.min.css` is a gitignored build artifact — run
-  `npm run sass` locally, or let the Docker build compile it.
-- npm is used in practice (`package-lock.json`), not pnpm.
-
-## Deploy — NAS + Cloudflare Tunnel
-
-Deploy tooling follows **archetype B (Docker-on-NAS templated)** from
-`.claude/docs/DEPLOY_SCRIPT_INSTRUCTIONS.md`.
+## Deploy
 
 ```bash
-./utils/deploy/prod.sh --dry-run    # preview
-./utils/deploy/prod.sh              # routeloop.app :16703 (+ :6686 alias)
-./utils/deploy/stage.sh             # stage.routeloop.app :6687 (+ :16687 alias)
+./utils/deploy/stage.sh --dry-run
+./utils/deploy/stage.sh             # stage.routeloop.app
+./utils/deploy/prod.sh              # routeloop.app
 ```
 
-`deploy.config` now carries an **alias port** per environment
-(`PROD_ALIAS_HOST_PORT=6686`, `STAGE_ALIAS_HOST_PORT=16687`) so one container can
-answer both its own tunnel route and the surviving legacy one. `MAPBOX_TOKEN` was
-added to the deploy env plumbing (`.env` → remote `.env` →
-`docker-compose.prod.yml`) at the same time; it was missing before and would have
-shipped a broken map.
+Prod refuses a dirty tree or a non-`main` branch; `--force` bypasses both gates
+at once but never the confirmation. Stage has neither gate, so it works from a
+feature branch — that is the one to use for this branch.
 
-- [deploy.config](../deploy.config) — committed, secret-free, selects prod vs
-  stage values.
-- `.env` — secrets (`MAPBOX_TOKEN`, `GMAPS_KEY`, `PROD_DB_PASSWORD`,
-  `STAGE_DB_PASSWORD`, Cloudflare token). Gitignored; see
-  [.env.example](../.env.example). The prod Mapbox token must be URL-restricted
-  to `routeloop.app` / `stage.routeloop.app`.
-- [docker-compose.prod.yml](../docker-compose.prod.yml) — app + Postgres,
-  published on `127.0.0.1` only. `deploy.sh` ships it to the NAS as
-  `docker-compose.yml` plus a chmod-600 `.env`.
-- [utils/deploy/deploy-utils.sh](../utils/deploy/deploy-utils.sh) — `logs`,
-  `status`, `restart`, `psql`, `migrate`, `db-backup`, `backup`. Prefix with
-  `DEPLOY_ENV=stage` for staging.
+Unlike the last handoff, **production now corresponds to a commit**: the whole
+pivot was committed in seven commits on 2026-07-26 and merged. The deploy is
+reproducible again.
 
-The tunnel routes `routeloop.app` → `localhost:16703` and the legacy
-`tankbag.app` → `localhost:6686` (both the same container); there is no
-`stage.routeloop.app` route yet. cloudflared runs natively on the Synology host.
-The deploy
-scripts never touch tunnel config.
+The container runs as the host uid (`APP_UID`/`APP_GID` in `deploy.config`)
+because the Synology ACL grants nothing to uid 1000. The symptom if that
+regresses: a working ride list with silently 404-ing route files.
 
-**The app container runs as the host uid, not the image's `node` user.**
-`data/storage` lives on a Synology share whose ACL grants rwx to `ziad` (1026)
-and r-x to `users` (100), but nothing to uid 1000 — so the container could
-stream metadata yet returned 404 for every KML/GPX read. Synology's
-`synoacltool` refuses to add an ACE for a bare numeric uid with no passwd
-record, so the fix is `user: "${APP_UID}:${APP_GID}"` in
-`docker-compose.prod.yml`, fed from `APP_UID`/`APP_GID` in `deploy.config`. The
-symptom if NAS permissions change: a working ride list with silently 404-ing
-route files.
+## Conventions
 
-The prod deploy refuses a dirty tree or a non-`main` branch (`--force` overrides
-the gates but never the confirmation prompt). The 2026-07-24 production deploy
-used `--force`, because the whole pivot is uncommitted on `feat/auth` — so
-**what is running in production does not correspond to any commit.** Committing
-this tree is the only thing that makes the deploy reproducible.
-
-### Known risks in the deploy path
-
-- **`maps` → `rides` rename — fully resolved.** The post-deploy `drizzle-kit
-  push` runs non-interactively and cannot resolve a table rename; it needs a TTY
-  prompt and will hang/fail. Both environments dodged it by being deployed onto
-  brand-new empty databases rather than migrated, and the old stacks that held a
-  `maps` table are archived under `/volume1/web/_retired/`. Only relevant again
-  if one of those archives is ever restored — drop the table first.
-- The Docker image runs `tsx` (a devDependency) as its entrypoint, so it
-  installs dev dependencies deliberately. `--omit=dev` would not boot.
-- Schema is applied with `drizzle-kit push --force`, not generated migrations —
-  no `drizzle/` directory. The post-deploy hook is non-fatal; re-run with
-  `deploy-utils.sh migrate`.
-- The Postgres password is read only when the data volume first initialises.
-  Changing it later requires `ALTER USER` in the db container.
-- A fresh deploy has an **empty database** — a working but empty ride list until
-  seeded.
-- The verify step runs **before** the post-deploy schema push, so a first-ever
-  deploy logs `App not responding yet` and a Postgres "relation does not exist"
-  error before recovering. Cosmetic.
-- Prod and stage share one DB password; both volumes are initialised, so
-  changing it means `ALTER USER` in each container.
-- **Mapbox deploy plumbing — done (2026-07-24).** `MAPBOX_TOKEN` now flows
-  `.env` → remote `.env` → `docker-compose.prod.yml`, mirroring `GMAPS_KEY`, and
-  `deploy.sh` fails fast if it is missing.
-- **The Mapbox token appears to have no URL restrictions.** A style request made
-  with `Referer` set to `localhost`, `routeloop.app`, `stage.routeloop.app`, and
-  `tankbag.app` returned **200 for all four** — so the token being shipped to the
-  browser is usable from any site, and Mapbox usage is billable to this account.
-  (Both prior notes claiming it was `localhost`-restricted are stale.) Confirm in
-  the Mapbox dashboard and restrict it to `routeloop.app` +
-  `stage.routeloop.app`, with a separate `localhost` token for dev. This is
-  low-severity but real; it is not blocking anything.
-
-## Next up
-
-Sign-in works for the owner now, so nothing there gates the phase work. The
-loose ends in "Where we left off" (token scope, stage, Mapbox restrictions,
-committing the tree) are independent of it. Phase work:
-
-1. **Phase 3 — Shaping + export.** Drag-to-shape legs into `route_legs.via_points`;
-   `src/maps/export.ts` (`buildKml` / `buildGpx` via `formatRoleName`);
-   source-aware `/kml` + `/gpx` (native = generated); flip native
-   `kmlUrl`/`gpxUrl` in `ride.json` from null to real URLs.
-2. **Phase 4 — Unify viewer + retire Google.** Backfill structured rows for
-   pre-pivot rides; `/m/:slug` always Mapbox; delete `main.js`, the legacy
-   metadata endpoint, and `GMAPS_KEY`; add the dashboard import UI.
-3. **Phase 5 — Trip features.** Multi-day rides + the timeline slider.
-4. **Near-term UX** from [\_PLANS/changes-260724T0250Z.md](../_PLANS/sprint-00-260724T0250Z.md):
-   title-as-placeholder, role multi-select dropdown, splash/login + home page
-   (recent 10 + popular 10 rides), logo.
-
-## Conventions and guardrails
-
-- **Never commit, push, or deploy without the owner's explicit permission.**
-  Hand over a terse commit message instead. No AI co-author attribution.
-- **SCSS** compiles with `npm run sass` (the `sass` CLI), never an IDE
-  extension. Source `style/main.scss` → `public/style/main.min.css`.
-- **Utility scripts** go in `utils/`; **docs** (besides README and primer) in
-  `docs/`.
-- **Don't re-couple viewers to the filesystem.** Native rides render from
-  `ride.json`; the legacy viewer reads its API seams.
-- Preserve the security invariants listed above when adding write paths.
-- Follow the owner's markdown rules: fenced blocks need a language, no `---`
-  horizontal rules, blank lines around headings, lists, and code.
+- **Never commit, push, or deploy without explicit permission.** Hand over a
+  commit message instead. No AI co-author attribution, ever.
+- SCSS compiles with `npm run sass`, never an IDE extension.
+- Utility scripts in `utils/`; docs other than the README and primer in `docs/`.
+- Markdown: fenced blocks need a language, no `---` rules, blank lines around
+  headings, lists and code.
