@@ -1,34 +1,14 @@
 # routeloop
 
-routeloop (routeloop.app) is a web app for **planning, organizing, and sharing**
-motorcycle rides and car road trips. Riders build a route on an interactive
-Mapbox map — dropping stops, classifying them (gas, food, camp, lodging,
-scenic…), with the road route snapped between them — then manage it, share it by
-link, and export it. Existing route files (KML, GPX) can be imported to migrate
-in.
+routeloop (routeloop.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive Mapbox map — dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them — then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation
-app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route
-per layer and can't be used to navigate — routeloop has no such limits and gives a
-holistic view of an entire multi-day trip. For deep technical onboarding see
-[\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in
-[docs/ideas.md](docs/ideas.md); the build plan is
-[\_PLANS/routeloop-route-builder-pivot.md](_PLANS/routeloop-route-builder-pivot.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate — routeloop has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the build plan is [\_PLANS/routeloop-route-builder-pivot.md](_PLANS/routeloop-route-builder-pivot.md).
 
 ## Status
 
-Active build on a **TypeScript + Hono + PostgreSQL** stack with a **Mapbox**
-front end, hosted on a Synology NAS behind a Cloudflare Tunnel. The product
-recently pivoted from "upload KML files" to "plan rides in-app"; upload is now an
-import path.
+Active build on a **TypeScript + Hono + PostgreSQL** stack with a **Mapbox** front end, hosted on a Synology NAS behind a Cloudflare Tunnel. The product recently pivoted from "upload KML files" to "plan rides in-app"; upload is now an import path.
 
-**Live at [routeloop.app](https://routeloop.app), with sign-in restricted to a
-single owner account** via a Cloudflare Access policy — everyone else is denied
-at the edge, and the production database starts empty. Public and unlisted ride
-links stay reachable without signing in. The former domain `tankbag.app`
-permanently redirects here and will be dropped after a year. See
-[docs/STATUS.md](docs/STATUS.md) for the precise state and
-[docs/cloudflare-access.md](docs/cloudflare-access.md) for the auth design.
+**Live at [routeloop.app](https://routeloop.app), with sign-in restricted to a single owner account** via a Cloudflare Access policy — everyone else is denied at the edge, and the production database starts empty. Public and unlisted ride links stay reachable without signing in. The former domain `tankbag.app` permanently redirects here and will be dropped after a year. See [docs/STATUS.md](docs/STATUS.md) for the precise state and [docs/cloudflare-access.md](docs/cloudflare-access.md) for the auth design.
 
 Delivered in phases:
 
@@ -44,35 +24,22 @@ Delivered in phases:
 
 ## What it does
 
-- **Plan** — build a route on a Mapbox map: click or search to add stops, and
-  the road route is snapped between them. Classify each stop with the 17-role
-  taxonomy (gas, food, camp, meet, scenic…).
-- **Organize** — a ride packages one or more routes (days/sessions); stops,
-  points of interest, and ephemeral shaping waypoints are distinct.
+- **Plan** — build a route on a Mapbox map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
+- **Organize** — a ride packages one or more routes (days/sessions); stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share** — public, unlisted, or private visibility, shareable by link.
-- **Import** — bring in existing `.kml` / `.gpx` to migrate from other tools
-  _(KMZ, CSV later)_.
-- **Export** — download a ride as KML/GPX for other apps / round-tripping
-  _(next phase)_.
-- **Accounts** — sign in through Cloudflare Access; each account has a storage quota
-  for imported files.
+- **Import** — bring in existing `.kml` / `.gpx` to migrate from other tools _(KMZ, CSV later)_.
+- **Export** — download a ride as KML/GPX for other apps / round-tripping _(next phase)_.
+- **Accounts** — sign in through Cloudflare Access; each account has a storage quota for imported files.
 
 ## Tech stack
 
-- **Backend** — TypeScript on Hono (Node in Docker; portable to Cloudflare
-  Workers), PostgreSQL via Drizzle ORM, Zod validation.
+- **Backend** — TypeScript on Hono (Node in Docker; portable to Cloudflare Workers), PostgreSQL via Drizzle ORM, Zod validation.
 - **Maps** — Mapbox GL JS (rendering) + Mapbox Directions (per-leg road routing)
-  + Mapbox Geocoding v6 (search), called client-side with a URL-restricted
-  public token. Loaded from the Mapbox CDN — the front end has no bundler.
-- **Auth** — Cloudflare Access authenticates at the edge; the app links the
-  verified email to a local user and uses SHA-256-hashed server sessions.
-  Cloudflare Turnstile guards uploads/saves (feature-flagged).
-- **Hosting** — Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS at the
-  Cloudflare edge.
+  + Mapbox Geocoding v6 (search), called client-side with a URL-restricted public token. Loaded from the Mapbox CDN — the front end has no bundler.
+- **Auth** — Cloudflare Access authenticates at the edge; the app links the verified email to a local user and uses SHA-256-hashed server sessions. Cloudflare Turnstile guards uploads/saves (feature-flagged).
+- **Hosting** — Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS at the Cloudflare edge.
 
-> A legacy Google Maps viewer (`public/js/main.js`) still renders **imported**
-> rides during the transition; it and its `GMAPS_KEY` are removed once the
-> Mapbox viewer is unified across both sources.
+> A legacy Google Maps viewer (`public/js/main.js`) still renders **imported** rides during the transition; it and its `GMAPS_KEY` are removed once the Mapbox viewer is unified across both sources.
 
 ## Local development
 
@@ -91,8 +58,7 @@ Delivered in phases:
    docker compose up -d --wait db
    ```
 
-2. Create a git-ignored `.env` from `.env.example` and fill it in. The essential
-   dev keys:
+2. Create a git-ignored `.env` from `.env.example` and fill it in. The essential dev keys:
 
    ```text
    PORT=6686
@@ -102,11 +68,7 @@ Delivered in phases:
    APP_ORIGIN=http://127.0.0.1:6686
    ```
 
-   The Mapbox public token needs only the default public scopes (styles, fonts);
-   Directions and Geocoding work on any public token. In dev, either leave its
-   URL restrictions empty or restrict to `localhost` (Mapbox rejects IP
-   addresses). For production, restrict it to `routeloop.app` and
-   `stage.routeloop.app`.
+   The Mapbox public token needs only the default public scopes (styles, fonts); Directions and Geocoding work on any public token. In dev, either leave its URL restrictions empty or restrict to `localhost` (Mapbox rejects IP addresses). For production, restrict it to `routeloop.app` and `stage.routeloop.app`.
 
 3. Apply the schema and seed a sample ride:
 
@@ -127,12 +89,7 @@ Delivered in phases:
 npm run dev
 ```
 
-Then open <http://localhost:6686>. **Use `localhost`, not `127.0.0.1`** — the
-Mapbox dev token is restricted to `localhost`, and Mapbox tiles/Directions/
-geocoding return 403 from the raw IP. (The one exception: viewing an *imported*
-ride uses the legacy Google viewer, whose key is referrer-locked to `127.0.0.1`.
-This split goes away when the Google viewer is retired.) The seed ride is at
-`/m/sample-route-one`; the builder is at `/builder`.
+Then open <http://localhost:6686>. **Use `localhost`, not `127.0.0.1`** — the Mapbox dev token is restricted to `localhost`, and Mapbox tiles/Directions/ geocoding return 403 from the raw IP. (The one exception: viewing an *imported* ride uses the legacy Google viewer, whose key is referrer-locked to `127.0.0.1`. This split goes away when the Google viewer is retired.) The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
 ## Project structure
 
@@ -160,28 +117,18 @@ _PLANS/               Plans + session handoff
 app/, utils/schema.sql  Legacy PHP/MySQL (superseded; reference only)
 ```
 
-Imported files live in a private `STORAGE_PATH` **outside** the web root, served
-only through an ownership / visibility check. Native rides are pure database
-rows.
+Imported files live in a private `STORAGE_PATH` **outside** the web root, served only through an ownership / visibility check. Native rides are pure database rows.
 
 ## The data model
 
 - **Ride** — the shareable package (slug, visibility, title): holds many routes.
-- **Route** — one day/session: an ordered list of stops joined by road-snapped
-  legs, with an optional start/end date-time.
-- **Points** come in two kinds: **Stops** (ordered routing anchors, can carry a
-  duration) and **POIs** (unordered annotations that don't affect routing).
-  Ephemeral **shaping waypoints** are stored on the leg, not as points.
-- **Legs** carry the snapped geometry and Directions distance/duration between
-  consecutive stops. Imported rides are stored as one route with a single
-  full-track leg, so imported and native rides render through one code path.
+- **Route** — one day/session: an ordered list of stops joined by road-snapped legs, with an optional start/end date-time.
+- **Points** come in two kinds: **Stops** (ordered routing anchors, can carry a duration) and **POIs** (unordered annotations that don't affect routing). Ephemeral **shaping waypoints** are stored on the leg, not as points.
+- **Legs** carry the snapped geometry and Directions distance/duration between consecutive stops. Imported rides are stored as one route with a single full-track leg, so imported and native rides render through one code path.
 
 ## Waypoint roles (classification, import & export)
 
-Stops and POIs are classified with a 17-role taxonomy defined canonically in
-`src/maps/roles.ts`. In the builder you pick roles from icons; on **import** the
-`ROLE - Name` name-prefix convention is parsed into roles, and on **export** it
-is written back so files round-trip through other tools (Google Earth, etc.).
+Stops and POIs are classified with a 17-role taxonomy defined canonically in `src/maps/roles.ts`. In the builder you pick roles from icons; on **import** the `ROLE - Name` name-prefix convention is parsed into roles, and on **export** it is written back so files round-trip through other tools (Google Earth, etc.).
 
 Prefix a name with a type, and combine up to four with `/`:
 
@@ -212,20 +159,13 @@ Supported types and the alternate words that map to them:
 | POI     | icon-poi.svg     | STOP                                |
 | WTF     | icon-wtf.svg     | WEIRD, RANDOM                       |
 
-Icons live in `public/img/icons/`, designed in
-[this Figma document](https://www.figma.com/design/pFQck3CUIa5twKqMu1IxD5/moto-router).
-Their fill is `currentColor` so each icon tints to match its route color.
+Icons live in `public/img/icons/`, designed in [this Figma document](https://www.figma.com/design/pFQck3CUIa5twKqMu1IxD5/moto-router). Their fill is `currentColor` so each icon tints to match its route color.
 
 ## Deployment
 
-Target host is a Synology NAS. The app runs as a Docker container behind a
-Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at
-Cloudflare's edge and no inbound ports are open on the NAS.
+Target host is a Synology NAS. The app runs as a Docker container behind a Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at Cloudflare's edge and no inbound ports are open on the NAS.
 
-Production serves `routeloop.app` from `localhost:16703` and staging serves
-`stage.routeloop.app` from `localhost:6687`. Each container also publishes an
-alias port so the surviving legacy `tankbag.app` / `stage.tankbag.app` tunnel
-routes reach the same app and get redirected to the canonical host.
+Production serves `routeloop.app` from `localhost:16703` and staging serves `stage.routeloop.app` from `localhost:6687`. Each container also publishes an alias port so the surviving legacy `tankbag.app` / `stage.tankbag.app` tunnel routes reach the same app and get redirected to the canonical host.
 
 ```bash
 ./utils/deploy/stage.sh --dry-run   # preview
@@ -233,16 +173,8 @@ routes reach the same app and get redirected to the canonical host.
 ./utils/deploy/prod.sh              # routeloop.app
 ```
 
-> **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push`
-> runs non-interactively and cannot resolve a table rename. Production sidestepped
-> this by being redeployed onto a fresh, empty database, so it is settled there.
-> Any older database that still has a `maps` table needs
-> `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
+> **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push` runs non-interactively and cannot resolve a table rename. Production sidestepped this by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
 
 ## Provenance
 
-routeloop reuses the client-side map engine from the original Moto-Rooter static
-viewer, recovered from git history. The backend was rebuilt PHP/MySQL →
-TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the
-in-app Mapbox ride builder. The rendering behavior, mileage math, and waypoint
-taxonomy were ported forward; the upload path survives as import.
+routeloop reuses the client-side map engine from the original Moto-Rooter static viewer, recovered from git history. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app Mapbox ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.

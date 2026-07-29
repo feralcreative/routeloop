@@ -23,6 +23,7 @@ import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
+import { routingRoutes } from './routes/routing'
 import { esc, jsonScript, MAPBOX_CSS_LINK, page, panelShell } from './views/layout'
 import { GMAPS_KEY, MAPBOX_GL_VERSION, MAPBOX_TOKEN, PORT } from './config'
 
@@ -90,6 +91,7 @@ app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', profileRoutes)
+app.route('/', routingRoutes)
 
 // Signed-in home: the rider's latest work alongside public community picks.
 // The gate is hand-rolled rather than requireActive because this route reads the

@@ -203,6 +203,11 @@ dmypy.json
 .env.production.local
 .env.*.local
 
+# Backups taken before editing .env hold the same live credentials as .env
+# itself, and the patterns above do not match a `.env.bak-<timestamp>` suffix.
+.env.bak*
+.env.backup*
+
 # Testing and Coverage
 coverage/
 .nyc_output/

@@ -1,0 +1,167 @@
+// Server-side proxy for Google Routes API.
+//
+// This exists because the Routes key is IP-restricted rather than referrer-
+// restricted: a browser cannot use it, and making it public would hand out a
+// billable credential. The builder therefore asks the origin for a leg and the
+// origin asks Google.
+//
+// It also gives the leg cache somewhere to live. A rider dragging a stop
+// re-routes the same pair of coordinates over and over, and Routes bills per
+// call.
+import { Hono } from 'hono'
+import { z } from 'zod'
+import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { GMAPS_SERVER_KEY } from '../config'
+
+export const routingRoutes = new Hono<AuthEnv>()
+
+const ROUTES_ENDPOINT = 'https://routes.googleapis.com/directions/v2:computeRoutes'
+
+// Ask for nothing beyond the three values a leg is made of. The field mask is
+// what Google prices this call on, so every extra field is money.
+const FIELD_MASK = 'routes.polyline.geoJsonLinestring,routes.distanceMeters,routes.duration'
+
+// DRIVE, not TWO_WHEELER. TWO_WHEELER is only served in a handful of South and
+// Southeast Asian markets; in the US it returns `{}` — an empty 200 with no
+// route and no error — which would read as "no road route" for every leg.
+// Verified 2026-07-28: identical request routed in Jakarta and returned empty
+// in California.
+const TRAVEL_MODE = 'DRIVE'
+
+// Routes accepts more, but a leg with 25 shaping points is already pathological
+// and the cap keeps one request from becoming an expensive one.
+const MAX_VIAS = 25
+
+// The whole app stores and speaks [lng, lat] — GeoJSON order, which is what
+// Mapbox used and what `route_legs.geometry` holds. Google speaks {latitude,
+// longitude}. Reversed coordinates still produce a valid-looking route, just in
+// the wrong place, so the conversion happens here and only here.
+type LngLat = [number, number]
+
+function toGoogleWaypoint([lng, lat]: LngLat) {
+  return { location: { latLng: { latitude: lat, longitude: lng } } }
+}
+
+const coord = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
+
+const routeRequest = z.object({
+  origin: coord,
+  destination: coord,
+  vias: z.array(coord).max(MAX_VIAS).optional(),
+})
+
+// Google returns duration as a string of seconds — "1234s", not 1234.
+function parseDuration(d: unknown): number {
+  if (typeof d !== 'string') return 0
+  const n = Number.parseFloat(d.replace(/s$/, ''))
+  return Number.isFinite(n) ? Math.round(n) : 0
+}
+
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6
+
+// Small bounded cache. Editing a ride re-requests the same leg constantly, and
+// a plain Map with a cap is enough — this is per-process and deliberately not
+// shared state.
+const CACHE_MAX = 500
+const cache = new Map<string, RouteLeg>()
+
+type RouteLeg = { geometry: LngLat[]; distanceM: number; durationS: number }
+
+function cacheKey(origin: LngLat, destination: LngLat, vias: LngLat[]): string {
+  const pt = ([lng, lat]: LngLat) => `${round6(lng)},${round6(lat)}`
+  return [origin, ...vias, destination].map(pt).join(';')
+}
+
+function remember(key: string, leg: RouteLeg): RouteLeg {
+  if (cache.size >= CACHE_MAX) {
+    // Oldest insertion first — Map preserves insertion order.
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+  cache.set(key, leg)
+  return leg
+}
+
+routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
+  if (!GMAPS_SERVER_KEY) {
+    return c.json({ error: 'routing is not configured' }, 503)
+  }
+
+  const parsed = routeRequest.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return c.json({ error: 'origin and destination are required as [lng, lat]' }, 400)
+  }
+
+  const origin = parsed.data.origin as LngLat
+  const destination = parsed.data.destination as LngLat
+  const vias = (parsed.data.vias ?? []) as LngLat[]
+
+  const key = cacheKey(origin, destination, vias)
+  const hit = cache.get(key)
+  if (hit) return c.json(hit)
+
+  let res: Response
+  try {
+    res = await fetch(ROUTES_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GMAPS_SERVER_KEY,
+        'X-Goog-FieldMask': FIELD_MASK,
+      },
+      body: JSON.stringify({
+        origin: toGoogleWaypoint(origin),
+        destination: toGoogleWaypoint(destination),
+        intermediates: vias.map(toGoogleWaypoint),
+        travelMode: TRAVEL_MODE,
+        polylineEncoding: 'GEO_JSON_LINESTRING',
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch (err) {
+    // A timeout or a DNS failure is ours, not the rider's.
+    console.error('[routing] Routes API unreachable:', err instanceof Error ? err.stack : err)
+    return c.json({ error: 'routing service unavailable' }, 502)
+  }
+
+  if (!res.ok) {
+    // The body can carry the key back in an error echo, so log the status and
+    // Google's message but never the request.
+    const detail = await res.text().catch(() => '')
+    console.error(`[routing] Routes API ${res.status}: ${detail.slice(0, 300)}`)
+    return c.json({ error: 'routing service rejected the request' }, 502)
+  }
+
+  const data = (await res.json().catch(() => null)) as {
+    routes?: { polyline?: { geoJsonLinestring?: { coordinates?: unknown } }; distanceMeters?: number; duration?: unknown }[]
+  } | null
+
+  const route = data?.routes?.[0]
+  const rawCoords = route?.polyline?.geoJsonLinestring?.coordinates
+
+  // An empty `routes` array is how Routes reports "no path", with HTTP 200.
+  if (!route || !Array.isArray(rawCoords) || rawCoords.length < 2) {
+    return c.json({ error: 'no road route between those points' }, 422)
+  }
+
+  const geometry: LngLat[] = []
+  for (const p of rawCoords) {
+    if (!Array.isArray(p) || p.length < 2) continue
+    const lng = Number(p[0])
+    const lat = Number(p[1])
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue
+    geometry.push([round6(lng), round6(lat)])
+  }
+
+  if (geometry.length < 2) {
+    return c.json({ error: 'no road route between those points' }, 422)
+  }
+
+  const leg: RouteLeg = {
+    geometry,
+    distanceM: Math.round(Number(route.distanceMeters) || 0),
+    durationS: parseDuration(route.duration),
+  }
+
+  return c.json(remember(key, leg))
+})
