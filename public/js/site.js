@@ -6,7 +6,7 @@
 
   // Bump to re-show the splash for everyone who already dismissed it.
   const ALPHA_SPLASH_VERSION = "1";
-  const ALPHA_KEY = "routeloop.alphaSplash";
+  const ALPHA_KEY = "tankbag.alphaSplash";
 
   // Private-mode Safari throws on storage access. A failure has to read as
   // "not dismissed" rather than taking the page down with it.

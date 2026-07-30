@@ -1,6 +1,6 @@
 {
-  "name": "RouteLoop",
-  "short_name": "RLoop",
+  "name": "tankbag",
+  "short_name": "tankbag",
   "id": "/",
   "start_url": "/",
   "scope": "/",

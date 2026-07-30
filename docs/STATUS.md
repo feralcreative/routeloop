@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Updated:** 2026-07-27
+**Updated:** 2026-07-29
 **Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`
 **For:** the next agent, or the owner returning cold
 
@@ -8,7 +8,7 @@ Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this 
 
 ## TL;DR
 
-routeloop is a ride **planning / sharing / organizing** app, not navigation. It is live at `routeloop.app` on a Synology NAS behind Cloudflare Tunnel.
+tankbag is a ride **planning / sharing / organizing** app, not navigation. It is live at `tankbag.app` on a Synology NAS behind Cloudflare Tunnel.
 
 Two migrations are in flight on this branch:
 
@@ -16,6 +16,21 @@ Two migrations are in flight on this branch:
 | --- | --- | --- | --- |
 | Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **committed** in `17de208`; needs credentials to run |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **started** — Phase 0 passed, routing proxy landed, engine not yet ported |
+
+## Renamed back to tankbag, 2026-07-29
+
+The `routeloop` name lasted five days. `tankbag.app` is canonical again, `routeloop.app` 301s to it, and the reasoning is that a tank bag is the thing with the map pocket on top—the pre-GPS object that held your route. The known cost is SEO: "tank bag" is a generic luggage category, so the name competes with Nelson-Rigg and Givi for its own search results.
+
+Done in the repo: the canonical/legacy host map reversed, cookies (`tankbag_session`, `tankbag_oauth_state`, `tankbag_oauth_verifier`), the alpha-splash localStorage key, Postgres role and database, container/image/network names, deploy config, page titles, magic-link email copy, and eight new logo files replacing the old set. Typecheck and the SCSS build both pass.
+
+**Not done, and none of it is scriptable from the repo:**
+
+1. ~~**Browser Maps key referrers.**~~ **Done 2026-07-29**—the allow-list now carries the tankbag hosts alongside the routeloop ones, verified per origin. See "Console work" below.
+2. **OAuth client**—not yet created, so nothing to correct. Its redirect URIs must use the tankbag hosts; the list further down is already written that way.
+3. **Favicons.** `public/img/favicon.{svg,ico,png}`, `favicon-96x96.png` and `apple-touch-icon.png` are RealFaviconGenerator output carrying the **old routeloop mark**. They were not part of the new logo set and cannot be faithfully regenerated from it here—re-run the generator against the new artwork.
+4. **The repo directory** is still `/Users/ziad/www/moto/routeloop`, and every absolute path in these docs points there. Renaming it is a separate step that invalidates those paths, IDE workspaces and any shell history.
+5. **SonarCloud project key** in `.vscode/settings.json` is still `feralcreative_routeloop-app`. Left alone deliberately: it must match a project that actually exists in SonarCloud, so rename it there first. Note the GitHub repo itself was never renamed—it is still `feralcreative/tankbag-app`.
+6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the *previous* rename; rewriting it would turn a record of what happened into fiction.
 
 ## Phase 0—settled, 2026-07-27
 
@@ -42,7 +57,7 @@ Barstow -> Victorville, CA        Jakarta, Indonesia
 
 ## Done and committed
 
-**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover, the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
+**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover (since reverted — see below), the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
 
 **`17de208`—auth replacement.** Cloudflare Access is gone from the codebase: `src/auth/access.ts` deleted along with the `Cf-Access-Authenticated-User-Email` trust and the `DEV_AUTH_EMAIL` fallback. New modules are [identity.ts](../src/auth/identity.ts) (provider-agnostic `resolveUser`), [google.ts](../src/auth/google.ts) (Arctic OAuth, state + PKCE, rejects unverified emails), [magic.ts](../src/auth/magic.ts) (hash-only storage, single-use, 15-minute expiry, rate limited) and [mailer.ts](../src/auth/mailer.ts). Both methods are feature-flagged by omission—with no credentials the controls are not rendered rather than offered and broken.
 
@@ -74,11 +89,23 @@ Nothing calls it yet. The builder still uses Mapbox Directions; pointing `direct
 
 ## Console work completed 2026-07-27
 
+Names in this section are **live Google Cloud console values and are deliberately not renamed**. The rename back to tankbag changed this repo only; nothing in the console moved, and a console object called `routeloop` is still called `routeloop`.
+
 The project behind the Maps keys is **`routeloop-503503`** (display name `routeloop`). This was not written down anywhere before and is easy to get wrong—there are four plausible projects (`tankbag`, `routeloop-app-stage`, `feralcreative-routeloop-prod` all exist and none of them owns the key).
 
 - **All required APIs were already enabled**—Maps JavaScript, Places (New), Routes, Geocoding. The old checklist item to enable five APIs was stale.
-- **Server key created** → `GMAPS_SERVER_KEY`. Display name "routeloop server (Routes + Geocoding, IP-restricted)", uid `a321c95b-05e3-4f11-82db-25baa39a9c55`. Restricted to IP `69.209.26.137` and to Routes + Geocoding only. Verified working for both.
+- **Server key created** → `GMAPS_SERVER_KEY`. Display name "routeloop server (Routes + Geocoding, IP-restricted)", uid `a321c95b-05e3-4f11-82db-25baa39a9c55`. Restricted to IP `69.209.26.137` and to Routes + Geocoding only. Verified working for both. IP-restricted, so the domain rename does not affect it.
 - **Browser key locked down** → uid `010d908a-9158-4169-b5cb-98d8f08f6b16`. It previously had **no** referrer restriction and was authorized for 35 APIs. It now allows only `routeloop.app`, `www.routeloop.app`, `stage.routeloop.app`, `127.0.0.1:6686` and `localhost:6686`, and only Maps JavaScript + Places. Verified per origin, including that propagation actually landed—`evil.example.com` went from ALLOWED to BLOCKED—and confirmed in a real browser that tiles and Places still work.
+
+  **Updated for the rename, 2026-07-29.** The list now also carries `tankbag.app`, `www.tankbag.app` and `stage.tankbag.app`, verified per origin. The routeloop entries were kept deliberately until the 301s are retired, because the redirect only fires after the page's own scripts have already loaded on whichever host was requested. Left undone, the browser key would have been **blocked on its own site**—Maps and Places failing with `RefererNotAllowedMapError` while everything else worked.
+
+  The command, for when the list changes again. Note that mutating an API key trips Workspace reauthentication: gcloud prompts in-terminal for the active account's password rather than opening a browser, which is easy to mistake for an ssh or sudo prompt.
+
+  ```bash
+  gcloud services api-keys update 010d908a-9158-4169-b5cb-98d8f08f6b16 \
+    --project=routeloop-503503 \
+    --allowed-referrers="https://tankbag.app/*,https://www.tankbag.app/*,https://stage.tankbag.app/*,https://routeloop.app/*,https://www.routeloop.app/*,https://stage.routeloop.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
+  ```
 
 **The NAS and the workstation share one egress IP, `69.209.26.137`.** They are on the same residential line. That is convenient now and is exactly the fragility to watch: an ISP lease change silently breaks server-side Routes and Geocoding while the browser key keeps working, so it presents as a routing bug rather than a credentials one.
 
@@ -86,10 +113,12 @@ The project behind the Maps keys is **`routeloop-503503`** (display name `routel
 
 Run this when routing starts failing for no visible reason, or after any change in the Cloud console. It is the same check used when the restrictions were applied. The first line must report BLOCKED—if it reports ALLOWED, the key is open again.
 
+Both domains are listed on purpose and both must now report ALLOWED—confirmed 2026-07-29 after the allow-list was updated. `evil.example.com` must report BLOCKED in every case.
+
 ```bash
 cd /Users/ziad/www/moto/routeloop
 KEY=$(grep -E '^GMAPS_KEY=' .env | cut -d= -f2-)
-for ref in "https://evil.example.com/" "https://routeloop.app/" "http://localhost:6686/"; do
+for ref in "https://evil.example.com/" "https://tankbag.app/" "https://routeloop.app/" "http://localhost:6686/"; do
   printf '%-30s ' "$ref"
   curl -s -X POST "https://places.googleapis.com/v1/places:autocomplete" \
     -H "Content-Type: application/json" -H "X-Goog-Api-Key: $KEY" -H "Referer: $ref" \
@@ -116,8 +145,8 @@ Ordered by what it unblocks. Items 1 and 2 have no API and cannot be scripted.
 
    ```text
    http://127.0.0.1:6686/auth/google/callback
-   https://stage.routeloop.app/auth/google/callback
-   https://routeloop.app/auth/google/callback
+   https://stage.tankbag.app/auth/google/callback
+   https://tankbag.app/auth/google/callback
    ```
 
 3. **A Gmail app password** → `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`. On an account separate from the OAuth client, which needs 2FA enabled first.
@@ -129,7 +158,7 @@ Until 2 and 3 exist there is **no way to sign in locally**—the Access bypass i
 ```bash
 # from the repo root, with the dev DB up
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
-# then send it as: Cookie: routeloop_session=<token>
+# then send it as: Cookie: tankbag_session=<token>
 ```
 
 ## Next steps, in order
@@ -176,11 +205,41 @@ Port 6686 is this project's port—kill and reuse it, never switch.
 
 ```bash
 ./utils/deploy/stage.sh --dry-run
-./utils/deploy/stage.sh             # stage.routeloop.app
-./utils/deploy/prod.sh              # routeloop.app
+./utils/deploy/stage.sh             # stage.tankbag.app
+./utils/deploy/prod.sh              # tankbag.app
 ```
 
 Prod refuses a dirty tree or a non-`main` branch; `--force` bypasses both gates but never the confirmation. Stage has neither gate, so it works from a feature branch—that is the one to use for this branch.
+
+### First deploy after the tankbag rename—read this or lose the stack
+
+`NAS_DEPLOY_PATH` is derived from `$DOMAIN`, which is now `tankbag.app`. Deploying without preparation does **not** rename the live stack; it builds a second, empty one at `/volume1/web/tankbag.app` and leaves the running `routeloop.app` stack orphaned beside it. Two things fail to follow on their own:
+
+- `./data/storage`, holding every imported KML and GPX, is a bind mount under the old deploy directory.
+- The `db-data` volume is namespaced by the Compose project name, which Compose derives from the deploy directory. A plain `mv` of the directory changes that name, so the database does **not** come with it.
+
+The prod database was empty at cutover and may still be; stage may not be. Check before assuming. The order that works, per environment, with the stack stopped:
+
+```bash
+# 1. Back up first — this is the only step that cannot be redone later.
+./utils/deploy/deploy-utils.sh db-dump          # writes a local .sql.gz
+
+# 2. On the NAS: stop the old stack and move the directory (carries ./data/storage).
+ssh -p 33725 ziad@nas.feralcreative.co
+cd /volume1/web/routeloop.app && /usr/local/bin/docker compose down
+mv /volume1/web/routeloop.app /volume1/web/tankbag.app
+
+# 3. Deploy. This creates tankbag* containers and a fresh, empty db-data volume,
+#    then the post-deploy hook applies the schema.
+./utils/deploy/prod.sh
+
+# 4. Restore the dump if step 1 found any data. The dump names the old role, so
+#    rewrite it — POSTGRES_USER is 'tankbag' now.
+gunzip -c dump.sql.gz | sed 's/\brouteloop\b/tankbag/g' \
+  | /usr/local/bin/docker exec -i tankbag-db psql -U tankbag -d tankbag
+```
+
+The old `routeloopapp_db-data` volume is left in place deliberately — do not prune it until the new stack is verified. No tunnel or DNS change is needed: all four hostnames already route to these containers.
 
 The container runs as the host uid (`APP_UID`/`APP_GID` in `deploy.config`) because the Synology ACL grants nothing to uid 1000. The symptom if that regresses: a working ride list with silently 404-ing route files.
 

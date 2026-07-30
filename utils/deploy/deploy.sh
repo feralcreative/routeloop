@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ################################################################################
-# routeloop — shared deploy logic (Docker-on-NAS, templated archetype).
+# tankbag — shared deploy logic (Docker-on-NAS, templated archetype).
 #
 # Don't run directly — use prod.sh or stage.sh, which set DEPLOY_ENV.
 #

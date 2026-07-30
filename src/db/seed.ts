@@ -14,7 +14,7 @@ async function main() {
 
   const [u] = await db
     .insert(users)
-    .values({ displayName: 'Demo Rider', email: 'demo@routeloop.app' })
+    .values({ displayName: 'Demo Rider', email: 'demo@tankbag.app' })
     .returning()
 
   const kml = processKml(await readFile('moto-storage/1/1.kml', 'utf8'))

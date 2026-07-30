@@ -17,7 +17,7 @@ export const IS_HTTPS_ORIGIN = APP_ORIGIN.startsWith('https://')
 //
 // This lives here rather than in an auth module because the CSRF gate, the OAuth
 // redirect and the cookie flags all need it, and the module it used to live in
-// (auth/access.ts) is being deleted with Cloudflare Access.
+// (auth/access.ts) was deleted along with Cloudflare Access.
 const ALLOWED_ORIGINS: ReadonlySet<string> = (() => {
   const set = new Set<string>([APP_ORIGIN])
   if (!IS_HTTPS_ORIGIN) {
@@ -92,6 +92,6 @@ export const MAGIC_LINK_ENABLED = Boolean(SMTP_USER && SMTP_PASS && MAIL_FROM)
 // to the deploy plumbing. Env still overrides, and setting one to an empty
 // string omits that link rather than rendering a dead one.
 export const ALPHA_GITHUB_URL =
-  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
+  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/tankbag-app/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'

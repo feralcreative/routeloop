@@ -54,13 +54,19 @@ const app = new Hono<AuthEnv>()
 
 // Keep the former domains alive during the one-year transition, but make the
 // canonical host unambiguous for cookies, sharing, and search engines. Each
-// legacy host maps to its own environment so staging never lands on prod. This
-// also runs ahead of every route, which is what keeps a legacy hostname from
-// reaching /auth/cloudflare — only the canonical host is Access-protected.
+// legacy host maps to its own environment so staging never lands on prod. It
+// runs ahead of every route, so a request arriving on a legacy hostname is
+// redirected before any auth handler sees it.
+//
+// The direction reversed on 2026-07-29: tankbag.app is canonical again and the
+// routeloop.app names now redirect to it. Both hostnames still resolve to the
+// same container over their own tunnel routes, so no tunnel change is needed —
+// only which name wins.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
-  'tankbag.app': 'routeloop.app',
-  'www.tankbag.app': 'routeloop.app',
-  'stage.tankbag.app': 'stage.routeloop.app',
+  'routeloop.app': 'tankbag.app',
+  'www.routeloop.app': 'tankbag.app',
+  'stage.routeloop.app': 'stage.tankbag.app',
+  'www.tankbag.app': 'tankbag.app',
 }
 
 app.use('*', async (c, next) => {
@@ -338,5 +344,5 @@ function homeHtml(recentCards: string, popularCards: string, user: UserRow): str
 }
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
+  console.log(`tankbag dev → http://127.0.0.1:${info.port}`)
 })

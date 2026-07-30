@@ -1,18 +1,18 @@
-# AI Agent Primer: routeloop
+# AI Agent Primer: tankbag
 
-**Last Updated:** 2026-07-27
-**Project:** Motorcycle/road-trip ride planning, sharing & organizing app (routeloop.app)
-**Status:** **Live in production**, and mid-migration on two axes at once. The product moved from "upload KML files" to "plan rides in-app"; that pivot, the `tankbag` → `routeloop` rename, and Sprint 2's user profiles are all committed and merged. On branch `refactor/google-maps-and-auth` two replacements are underway: **Cloudflare Access → Google OAuth + magic link** (committed in `17de208`, waiting on credentials) and **Mapbox → Google Maps** (started 2026-07-27: keys done, routing proxy done, engine still Mapbox).
+**Last Updated:** 2026-07-29
+**Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
+**Status:** **Live in production**, and mid-migration on two axes at once. The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are committed and merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**; `routeloop.app` now 301s to `tankbag.app`. On branch `refactor/google-maps-and-auth` two replacements are underway: **Cloudflare Access → Google OAuth + magic link** (committed in `17de208`, waiting on credentials) and **Mapbox → Google Maps** (started 2026-07-27: keys done, routing proxy done, engine still Mapbox).
 
 This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand — that file moves faster than this one and wins where they disagree.
 
 > **Read this before trusting any "Mapbox" or "Cloudflare Access" detail below.** Both are being replaced. Sections describing them are accurate for what is currently in `main`, and are marked where the branch diverges.
 
-> **Historical baggage.** The `app/` directory (a prior PHP/MySQL build) and `utils/schema.sql` (MySQL) are **superseded** reference material. Older plans (`_PLANS/multi-tenant-rebuild.md`, `_PLANS/routeloop-hono-rebuild.md`, `_PLANS/routeloop-phase2-auth.md`) describe earlier stages and are historical. The live backend is the TypeScript/Hono code under `src/`.
+> **Historical baggage.** The `app/` directory (a prior PHP/MySQL build) and `utils/schema.sql` (MySQL) are **superseded** reference material. Older plans (`_PLANS/multi-tenant-rebuild.md`, `_PLANS/tankbag-hono-rebuild.md`, `_PLANS/tankbag-phase2-auth.md`) describe earlier stages and are historical. The live backend is the TypeScript/Hono code under `src/`.
 
 ## What this project is
 
-routeloop lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a Mapbox map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool — explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate — "the worst of both worlds." routeloop has no such limits.
+tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a Mapbox map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool — explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate — "the worst of both worlds." tankbag has no such limits.
 
 Importing existing files (KML, GPX; later KMZ, CSV) is a **migration path**, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
@@ -34,7 +34,7 @@ From `docs/ideas.md`:
 - **Auth** — **being replaced.** Today on `main`: Cloudflare Access at the edge bridged to local sessions. On this branch: Google OAuth (via `arctic`) plus an emailed magic link, both resolving through [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server sessions (SHA-256-hashed tokens). Access is billed **per seat**, which is why it could not stay. Cloudflare **Turnstile** still guards uploads/saves, feature-flagged off until keys are set.
 - **Authorization is separate from authentication.** `users.status` (`pending` | `active` | `blocked`) decides who may use the app; every new account starts `pending`. This is the capacity gate for a NAS-hosted alpha and is unaffected by either migration.
 - **Frontend** — vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
-- **Hosting** — Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Prod is `routeloop.app → localhost:16703`, stage is `stage.routeloop.app → localhost:6687`. Each container also publishes an **alias port** (`:6686` prod, `:16687` stage) so the surviving legacy `tankbag.app` / `stage.tankbag.app` tunnel routes hit the same app and get 301'd to the canonical host for that environment.
+- **Hosting** — Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Each container publishes **two** host ports and answers on both, which is what lets the canonical name change without touching tunnel config. Prod: `tankbag.app → localhost:6686` (canonical) and `routeloop.app → localhost:16703` (301s away). Stage: `stage.tankbag.app → localhost:16687` (canonical) and `stage.routeloop.app → localhost:6687` (301s away).
 
 ## Two map engines during the transition
 
@@ -88,7 +88,7 @@ The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the 
 
 ## Entry points and routes (`src/index.ts` + `src/routes/*`)
 
-A host middleware runs **first**, ahead of every route: requests for `tankbag.app` / `www.tankbag.app` get a **301 to the same path and query on `routeloop.app`**. The old domain is forwarded for a year, then dropped. This also means the legacy tunnel route cannot be used to reach `/auth/cloudflare` with a forged identity header — the redirect fires before any auth code runs.
+A host middleware runs **first**, ahead of every route: requests for `routeloop.app` / `www.routeloop.app` / `stage.routeloop.app`, plus `www.tankbag.app`, get a **301 to the same path and query on the canonical host** (`tankbag.app`, or `stage.tankbag.app` for the staging pair). The redirect direction reversed on 2026-07-29 when the name went back to tankbag; before that it pointed the other way. Because it runs ahead of every route, a request arriving on a non-canonical hostname is redirected before any auth handler sees it.
 
 Public (gated by `getViewable(slug, viewer)` — public/unlisted for anyone, private owner-only, else 404):
 
@@ -103,8 +103,9 @@ Owner API (all `requireAuthApi` + `requireSameOrigin`):
 - Import — `POST /api/maps` (multipart KML+optional GPX → one imported ride with structured rows; full XXE-safe pipeline + transactional quota). In `src/routes/maps.ts`.
 - Builder — `POST /api/rides`, `PUT /api/rides/:id` (full-replace), `GET /api/rides/:id` (owner load). In `src/routes/rides.ts`.
 - Edit/delete — `PATCH /api/maps/:id`, `DELETE /api/maps/:id` (owner-scoped; serve both sources). In `src/routes/maps.ts`.
+- Routing — `POST /api/route` (also `requireActiveApi`): `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted and unusable from a browser, and caches computed legs because editing re-requests the same pair constantly. In `src/routes/routing.ts`. **Nothing calls it yet** — the builder is still on Mapbox Directions.
 
-Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, native-only) in `src/routes/rides.ts`; `GET /dashboard` in `src/routes/dashboard.ts`; auth routes in `src/routes/auth.ts`.
+Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, native-only) in `src/routes/rides.ts`; `GET /dashboard` in `src/routes/dashboard.ts`; `GET`/`POST /profile` in `src/routes/profile.ts`; auth routes in `src/routes/auth.ts`.
 
 ### The ride payload (save = load shape)
 
@@ -154,20 +155,26 @@ src/
   routes/
     maps.ts           Import API + edit/delete (exports fields/ownRide/firstIssue)
     rides.ts          Builder API + /builder pages
+    routing.ts        POST /api/route — Google Routes proxy + leg cache
     dashboard.ts      Owner's ride list
+    profile.ts        /profile form POST, username reservations
     auth.ts           Google OAuth + magic link, /welcome, logout
   views/layout.ts     Shared chrome shell (esc, page)
 public/
-  js/main.js          LEGACY Google Maps viewer (imported rides only)
-  js/map-common.js    Shared Mapbox engine (window.TBMap)
+  js/main.js          Google Maps viewer (imported rides) — REFERENCE for the port
+  js/map-common.js    Shared Mapbox engine (window.TBMap) — being replaced
   js/viewer.js        Native ride viewer (reads ride.json)
   js/builder.js       The ride builder
+  js/profile.js       Profile page (address geocoding)
+  js/site.js          Global chrome behavior
   style/main.min.css  Compiled CSS (build output)
   img/icons/          17 role SVGs (currentColor) + UI icons
 style/main.scss       SCSS source
 moto-storage/         Imported originals (git-ignored) — {owner}/{ride}.{ext}
+docs/STATUS.md        Current state + next steps — READ THIS SECOND
 docs/ideas.md         The product vision
-_PLANS/               Plans + handoff (route-builder-pivot is current)
+_PLANS/               Plans + handoff (google-auth-and-maps-migration + its
+                      AMENDMENTS file are current)
 app/, utils/schema.sql  LEGACY PHP/MySQL (reference only)
 ```
 
@@ -197,10 +204,10 @@ npm run dev                              # tsx watch → :6686
 PORT=6686
 MAPBOX_TOKEN=pk.<public token, URL-restricted to localhost in dev>
 GMAPS_KEY=<Google browser key — referrer-restricted, ships in page source>
-GMAPS_SERVER_KEY=<Google server key — IP-restricted, Routes/Geocoding>
-GMAPS_MAP_ID=<required for Advanced Markers>
+GMAPS_SERVER_KEY=<Google server key — IP-restricted, Routes/Geocoding. SET>
+GMAPS_MAP_ID=<vector Map ID, required for Advanced Markers. STILL EMPTY>
 STORAGE_PATH=./moto-storage
-DATABASE_URL=postgresql://routeloop:routeloop_dev_pw@127.0.0.1:5432/routeloop
+DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
 APP_ORIGIN=http://127.0.0.1:6686
 # Local auth identity + deploy vars: see .env.example
 ```
@@ -209,7 +216,7 @@ APP_ORIGIN=http://127.0.0.1:6686
 
 Done and merged:
 
-- **Rename + production cutover** ✅ `tankbag` → `routeloop` everywhere; `tankbag.app` 301s to `routeloop.app`.
+- **Rename + production cutover** ✅ `tankbag` → `routeloop` everywhere, with a full production cutover on 2026-07-24. **Reverted on 2026-07-29:** the name is `tankbag` again and `routeloop.app` 301s to `tankbag.app`.
 - **Phase 1 — Data model + roles + structured import** ✅ `rides` / `routes` / `points` / `route_legs`, `roles.ts`, import produces structured rows.
 - **Phase 2 — Builder MVP + native viewer** ✅ ride API (gating, validation, CSRF), the builder, the native viewer. Save round-trip confirmed in a browser.
 - **Unified shell + SCSS split** ✅ one `page()` for every surface, global nav, alpha modal, SCSS partials, sign-in splash with background clip.
@@ -217,7 +224,7 @@ Done and merged:
 
 In flight on `refactor/google-maps-and-auth`:
 
-- **Auth — Google OAuth + magic link** 🔄 code complete and verified locally, uncommitted. Waiting on an OAuth client and an SMTP app password. Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships**, or the deployed build is open.
+- **Auth — Google OAuth + magic link** 🔄 committed in `17de208` and verified locally. Waiting on an OAuth client and an SMTP app password; both methods hide themselves when unconfigured, so **there is currently no way to sign in locally** — mint a session directly (see [docs/STATUS.md](docs/STATUS.md)). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships**, or the deployed build is open.
 - **Maps — Mapbox → Google** 🔄 started 2026-07-27. The Phase 0 search-quality gate passed decisively; the Maps keys are created and restricted; and `POST /api/route` (Routes API proxy, `src/routes/routing.ts`) is built and verified but not yet called by anything. The engine itself — `map-common.js`, `viewer.js`, `builder.js` — is still Mapbox. See [docs/STATUS.md](docs/STATUS.md) for ordered next steps and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong — notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
 
 Deferred, with reasons:
@@ -229,22 +236,28 @@ Deferred, with reasons:
 - **Phase 5 — Trip features** ⬜ multi-day rides + the timeline slider.
 - **Backlog** ⬜ bikes, KMZ/CSV import, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
 
-## Deployment state (2026-07-24)
+## Deployment state
 
-Production was cut over by **replacing** the old stacks rather than migrating them, so the `maps` → `rides` rename landmine is **resolved for prod**: the old `routeloop.app` (an unrelated leftover "rootloop" Express app on `:16703`) and the old `tankbag.app` stack were composed down and archived to `/volume1/web/_retired/*-20260724T205817`, and this repo was deployed into a fresh, empty database. Live now:
+Production was cut over on 2026-07-24 by **replacing** the old stacks rather than migrating them, so the `maps` → `rides` rename landmine is **resolved for prod**: the old `routeloop.app` (an unrelated leftover "rootloop" Express app on `:16703`) and the old `tankbag.app` stack were composed down and archived to `/volume1/web/_retired/*-20260724T205817`, and this repo was deployed into a fresh, empty database.
+
+**What is live on the NAS right now still carries the `routeloop` names** — the 2026-07-29 rename changed this repo only, and nothing has been deployed since:
 
 ```text
 container   routeloop            healthy, 127.0.0.1:16703 + :6686  → :6686
 container   routeloop-db         healthy, empty at cutover
 container   routeloop-stage      healthy, 127.0.0.1:6687  + :16687 → :6686
 container   routeloop-stage-db   healthy, schema applied
-tunnel      routeloop.app        → localhost:16703
-tunnel      tankbag.app          → localhost:6686    (same container; 301s away)
-tunnel      stage.routeloop.app  → localhost:6687
-tunnel      stage.tankbag.app    → localhost:16687   (same container; 301s away)
+tunnel      tankbag.app          → localhost:6686     (now canonical)
+tunnel      routeloop.app        → localhost:16703    (same container; will 301 away)
+tunnel      stage.tankbag.app    → localhost:16687    (now canonical)
+tunnel      stage.routeloop.app  → localhost:6687     (same container; will 301 away)
+DNS         tankbag.app          proxied CNAME → the feral-nas tunnel
 DNS         routeloop.app        proxied CNAME → the feral-nas tunnel
+DNS         stage.tankbag.app    proxied CNAME → the feral-nas tunnel
 DNS         stage.routeloop.app  proxied CNAME → the feral-nas tunnel
 ```
+
+All four tunnel routes already exist and reach the same containers, so the rename needs **no tunnel or DNS change** — only a deploy. The container, image, database and deploy-directory names all move to `tankbag` on that deploy, which is not a rename of the running stack but a replacement of it. Read the cutover procedure in [docs/STATUS.md](docs/STATUS.md) before deploying, or the deploy silently builds a new empty stack beside the live one.
 
 Stage was scaffolded on 2026-07-25; the old `tankbag-stage` stack that occupied `:6687` is archived under `/volume1/web/_retired/`. Both environments were deployed onto brand-new empty databases, which is why the `maps` → `rides` rename landmine never had to be resolved.
 

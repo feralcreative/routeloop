@@ -16,7 +16,10 @@ $font: lato;
 // link color — so new work should reach for `$brand`.
 $brand: $url;
 
-// The logo's yellow, and the only accent legible on the sign-in clip.
+// Chosen as the only accent legible over the sign-in clip. It used to be lifted
+// from the routeloop wordmark; the tankbag artwork carries no yellow, so this is
+// now a standalone accent. The mark's own accents are #cc2000 and #009245 if the
+// palette should be re-derived from it.
 $accent: #ffdd00;
 
 // Base for the dark, full-bleed sign-in page: what shows under the video before

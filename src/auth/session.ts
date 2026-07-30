@@ -10,7 +10,7 @@ import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { sessions, users, type UserRow } from '../db/schema'
 
-export const SESSION_COOKIE = 'routeloop_session'
+export const SESSION_COOKIE = 'tankbag_session'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SESSION_TTL_MS = 30 * DAY_MS

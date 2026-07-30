@@ -1,6 +1,7 @@
-# Google Cloud setup for routeloop
+# Google Cloud setup for tankbag
 
 **Written:** 2026-07-26
+**Updated:** 2026-07-27 — both API keys now exist; see the checklist for what is left
 **Covers:** the single Google Cloud project backing Sign in with Google and the Google Maps engine, following the decision to drop Apple and move off Mapbox.
 
 Everything below is configuration in the Cloud console, not code. Two findings are worth reading before you start, because both are easy to walk into and expensive to walk back out of.
@@ -75,8 +76,8 @@ The server-side flow means only redirect URIs matter; JavaScript origins are not
 ```text
 http://localhost:6686/auth/google/callback
 http://127.0.0.1:6686/auth/google/callback
-https://stage.routeloop.app/auth/google/callback
-https://routeloop.app/auth/google/callback
+https://stage.tankbag.app/auth/google/callback
+https://tankbag.app/auth/google/callback
 ```
 
 Both localhost forms are listed deliberately — `isAllowedOrigin` in [src/config.ts](../src/config.ts) already accepts either in development, and the two are not interchangeable to Google.
@@ -86,8 +87,8 @@ Both localhost forms are listed deliberately — `isAllowedOrigin` in [src/confi
 Publishing status **In production**, user type **External**. With only non-sensitive scopes this needs no review. Fill in:
 
 - App name, user support email, developer contact email
-- App logo — use `logo-routeloop-vert@2x.png`
-- Authorized domains: `routeloop.app`
+- App logo — use `logo-tankbag-vert-light@2x.png`
+- Authorized domains: `tankbag.app`
 - A privacy policy URL and terms URL. These are required fields for a published external app, and neither exists yet. Two static pages.
 
 <!--| PAGE-BREAK -->
@@ -101,7 +102,7 @@ Create **two**, and never let the server key reach the browser.
 Used by Maps JavaScript API and any Places call made from the page.
 
 - Application restriction: **HTTP referrers**
-- Referrers: `https://routeloop.app/*`, `https://stage.routeloop.app/*`, `http://localhost:6686/*`
+- Referrers: `https://tankbag.app/*`, `https://www.tankbag.app/*`, `https://stage.tankbag.app/*`, `http://localhost:6686/*`, plus the matching `routeloop.app` hosts until the 301s are retired
 - API restriction: Maps JavaScript API, Places API (New)
 
 A browser key is public by definition — it ships in the page source. Referrer restriction is the only thing standing between it and someone else's bill, so it is not optional.
@@ -148,29 +149,45 @@ The existing `GMAPS_KEY` belongs to the legacy Google viewer that Phase 4 retire
 
 ## Checklist
 
+Status as of 2026-07-27. The project is **`routeloop-503503`** (display name `routeloop`) — worth stating plainly, because `tankbag`, `routeloop-app-stage` and `feralcreative-routeloop-prod` all exist and none of them owns the Maps keys.
+
 ```text
-[ ] Create or choose the Cloud project
-[ ] Attach billing, set a budget alert
-[ ] Enable: Maps JavaScript, Places (New), Routes, Geocoding, Maps Static
-[ ] Set daily quota caps on each
-[ ] Create the OAuth client (Web application)
-[ ] Add the four redirect URIs
+[x] Create or choose the Cloud project        routeloop-503503
+[x] Attach billing                            billingAccounts/011AE1-146DA6-11525A
+[ ] Set a budget alert
+[x] Enable: Maps JavaScript, Places (New), Routes, Geocoding, Maps Static
+[ ] Set daily quota caps on each               <- still open, and the one that
+                                                  bounds the downside
+[ ] Create the OAuth client (Web application)  <- blocks all sign-in
+[ ] Add the redirect URIs
 [ ] Consent screen: External, In production, logo, privacy policy, terms
 [ ] Confirm the scope list is exactly openid + email + profile
-[ ] Create the browser key, restrict by referrer and API
-[ ] Create the server key, restrict by IP and API
-[ ] Put all four values in .env and the NAS .env
-[ ] Choose a magic-link sender on a separate credential
+[x] Create the browser key, restrict by referrer and API
+[x] Create the server key, restrict by IP and API
+[ ] Create a vector Map ID                     <- blocks Advanced Markers
+[~] Put the values in .env and the NAS .env    GMAPS_KEY + GMAPS_SERVER_KEY are
+                                               in the local .env; MAP_ID and the
+                                               OAuth pair are not, and nothing
+                                               has been put on the NAS yet
+[ ] Create the magic-link sender credential
 ```
 
-## Open question — magic-link delivery
+### What the keys ended up as
 
-You said you would add magic link "through them", which I can read two ways and which changes what gets built:
+- **Browser key** — uid `010d908a-9158-4169-b5cb-98d8f08f6b16`. It was created with **no referrer restriction at all** and authorization for 35 APIs, which is how it shipped in page source for a while. It is now limited to `tankbag.app`, `www.tankbag.app`, `stage.tankbag.app`, `127.0.0.1:6686`, `localhost:6686`, and to Maps JavaScript + Places only.
+- **Server key** — uid `a321c95b-05e3-4f11-82db-25baa39a9c55`, "routeloop server (Routes + Geocoding, IP-restricted)". Limited to IP `69.209.26.137` and to Routes + Geocoding. The NAS and the development workstation share that one residential address, so a lease change breaks server-side calls while the browser key keeps working.
+- **Map ID** — not created. This is console-only despite appearances: `mapmanagement.googleapis.com` is enabled and appears in the key's API target list, but every REST path returns 404 and there is no `gcloud maps` command group. `DEMO_MAP_ID` works for local development and must not ship.
 
-- **Google Identity Platform / Firebase Auth email-link sign-in.** Google handles both Google sign-in and passwordless email links, and sends the mail itself. No Gmail scope, no sender to run. It replaces the hand-rolled OAuth flow rather than sitting beside it, so it is a different implementation from the Arctic approach.
-- **Rolling the magic link yourself and sending through Google** — Workspace SMTP relay or an app password. Keeps the app's own session model exactly as it is today, and reuses the `sessions` table pattern. Watch the sending limits: roughly 2,000 recipients per day on Workspace, 500 on a consumer account.
+## Settled — magic-link delivery
 
-Nothing in this document changes either way — the scopes, keys and APIs above are identical. Worth settling before the auth code is written.
+This was an open question when the document was written; it is decided and built. The app **rolls its own magic link and sends it over Google SMTP** with an app password, rather than handing sign-in to Google Identity Platform / Firebase. That keeps the existing session model and the `sessions` table pattern intact, and it keeps Google OAuth as one identity provider among several rather than the whole auth system.
+
+Two consequences to remember:
+
+- The SMTP credential must live on an account **separate** from the OAuth client, and that account needs 2FA before an app password can be generated.
+- Gmail sending caps at roughly 2,000 recipients per day on Workspace and 500 on a consumer account. Fine for an alpha; a wall later.
+
+The implementation is [src/auth/magic.ts](../src/auth/magic.ts) (issue, send, redeem — hash-only storage, single use, 15-minute expiry, rate limited per address and per IP) and [src/auth/mailer.ts](../src/auth/mailer.ts) (nodemailer over SMTP).
 
 ## Confidence
 

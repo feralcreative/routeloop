@@ -21,17 +21,17 @@ Reverse those and there is a window where the *deployed* build still trusts the 
 
 Everything below documents the system as it currently stands, for as long as it stands. It stops being true once step 3 runs.
 
-routeloop uses Cloudflare Access for authentication while keeping authorization and sessions in the application. Only the login bridge is protected, so public and unlisted ride links stay reachable without an Access session.
+tankbag uses Cloudflare Access for authentication while keeping authorization and sessions in the application. Only the login bridge is protected, so public and unlisted ride links stay reachable without an Access session.
 
 ## How it works
 
-Access authenticates at the edge and injects `Cf-Access-Authenticated-User-Email`. The application — in `src/auth/access.ts`, now deleted — normalized and validated that address, linked it to an existing user with the same verified email when one existed, added a `cloudflare` row to `user_identities`, and created the normal routeloop session. Missing or malformed identity headers failed closed. `/auth/cloudflare` ([src/routes/auth.ts](../src/routes/auth.ts)) is the only path that needs a policy.
+Access authenticates at the edge and injects `Cf-Access-Authenticated-User-Email`. The application — in `src/auth/access.ts`, now deleted — normalized and validated that address, linked it to an existing user with the same verified email when one existed, added a `cloudflare` row to `user_identities`, and created the normal tankbag session. Missing or malformed identity headers failed closed. `/auth/cloudflare` ([src/routes/auth.ts](../src/routes/auth.ts)) is the only path that needs a policy.
 
 Direct Google/GitHub OAuth was removed in this work — `src/auth/oauth.ts` is deleted and the `arctic` dependency is uninstalled. Cloudflare owns the upstream login and the allowlist; the app owns users, sessions, and ride ownership.
 
 Trusting an inbound header is only safe because the origin is unreachable except through the tunnel. Two guards back that up:
 
-- The Access application intercepts `routeloop.app/auth/cloudflare` at the edge, so an external request carrying a forged header never reaches the origin.
+- The Access application intercepts `tankbag.app/auth/cloudflare` at the edge, so an external request carrying a forged header never reaches the origin.
 - The legacy `tankbag.app` / `stage.tankbag.app` tunnel routes reach the **same containers**, and those paths are *not* covered by the Access applications — so the `LEGACY_HOSTS` middleware in [src/index.ts](../src/index.ts) 301s each legacy host to its own canonical host before any auth code runs. Verified on both: a forged `Cf-Access-Authenticated-User-Email` gets the redirect, not a session. Note that stage maps to *stage*, not prod — a legacy host must never redirect across environments.
 
 If another hostname is ever pointed at either container, it must get its own Access application or an entry in `LEGACY_HOSTS`. Treat that as a standing invariant: an unprotected hostname on an Access-trusting origin is a full auth bypass.
@@ -43,15 +43,15 @@ Team domain: `feralcreative.cloudflareaccess.com`
 One self-hosted application per environment, both identical in shape:
 
 ```text
-Application   RouteLoop Login                 RouteLoop Login (stage)
+Application   tankbag Login                 tankbag Login (stage)
 ID            252ee150-1024-4c0a-…-2a9592af25ea   ca61b858-9c6e-470e-…-afb9cc847cb5
-Destination   routeloop.app/auth/cloudflare   stage.routeloop.app/auth/cloudflare
+Destination   tankbag.app/auth/cloudflare   stage.tankbag.app/auth/cloudflare
 AUD           4d8d1f15839331605…dbe875b       (see dashboard)
 Session       24h                             24h
 Launcher      hidden                          hidden
 Allowed IdP   Google only                     Google only
 Auto-redirect on                              on
-Policy        RouteLoop Owner (allow)         RouteLoop Owner (allow)
+Policy        tankbag Owner (allow)         tankbag Owner (allow)
               c353c663-f8b3-45d8-…            949969b4-ba43-4e2b-…
 ```
 
@@ -66,7 +66,7 @@ eb8c3be3-b566-4ba3-9ec9-aebeb6faff50   Google        (type: google)
 9cfb8432-fbcb-497f-b6c9-dc524923e451   One-time PIN  (type: onetimepin)
 ```
 
-Both routeloop apps set `allowed_idps` to **Google only**, with `auto_redirect_to_identity` on so the login-method chooser is skipped. This matters: leaving `allowed_idps` empty means Access offers *every* configured method, and one-time PIN emails a code to the address in the policy — a second way in that bypasses Google SSO and whatever 2FA sits behind it. Keep the IdP pinned.
+Both tankbag apps set `allowed_idps` to **Google only**, with `auto_redirect_to_identity` on so the login-method chooser is skipped. This matters: leaving `allowed_idps` empty means Access offers *every* configured method, and one-time PIN emails a code to the address in the policy — a second way in that bypasses Google SSO and whatever 2FA sits behind it. Keep the IdP pinned.
 
 There is exactly one reusable Access **group** in the account (`vmc`); the six-address "ZR Personal Projects" list on `print.ezzat.com` is an inline policy, not a group, so it cannot simply be referenced from here.
 
@@ -74,7 +74,7 @@ There is exactly one reusable Access **group** in the account (`vmc`); the six-a
 
 As of Sprint 2 the two are separate concerns, and the split matters for anyone changing either half.
 
-Whatever authenticates — Access before, Google OAuth and magic link after — answers *who is this*. `users.status` (`pending` | `active` | `blocked`) answers *may they use routeloop*, and that half is unchanged by the migration. [resolveUser](../src/auth/identity.ts) creates every genuinely new account as `pending`; only `OWNER_EMAIL` is created `active`, and linking an existing same-email user never changes an existing status. `requireActive` and `requireActiveApi` ([src/auth/middleware.ts](../src/auth/middleware.ts)) gate every signed-in page and every owner API, sending pending riders to `/welcome` and returning **403** rather than 401 to API callers — a pending rider holds a perfectly valid session, so 401 would loop them through a pointless re-login.
+Whatever authenticates — Access before, Google OAuth and magic link after — answers *who is this*. `users.status` (`pending` | `active` | `blocked`) answers *may they use tankbag*, and that half is unchanged by the migration. [resolveUser](../src/auth/identity.ts) creates every genuinely new account as `pending`; only `OWNER_EMAIL` is created `active`, and linking an existing same-email user never changes an existing status. `requireActive` and `requireActiveApi` ([src/auth/middleware.ts](../src/auth/middleware.ts)) gate every signed-in page and every owner API, sending pending riders to `/welcome` and returning **403** rather than 401 to API callers — a pending rider holds a perfectly valid session, so 401 would loop them through a pointless re-login.
 
 `status` defaults to `'active'` on purpose. `drizzle-kit push` stamps a NOT NULL default onto every existing row, so a `'pending'` default would demote the owner and lock them out of the app that does the approving.
 
@@ -91,7 +91,7 @@ UPDATE users SET status = 'active' WHERE email = 'rider@example.com';
 Exactly one address can sign in, on both prod and stage. Anyone else is denied at the edge.
 
 ```text
-Policy   RouteLoop Owner
+Policy   tankbag Owner
 Decision allow
 Include  email = ziad@feralcreative.co
 Prod     c353c663-f8b3-45d8-b4db-b64cb4721c10
@@ -102,9 +102,9 @@ The two policies are separate objects and must be edited in both places.
 
 The app was briefly configured with **no** policy at all, which default-denied everyone including the owner. That is what an empty `policies` array means — it is not a partially-configured allowlist, it is a closed door. If sign-in ever needs to be shut again, removing this policy is sufficient.
 
-To widen the list later, add addresses to the `include` array of that policy. `print.ezzat.com` carries the fuller "ZR Personal Projects" list (the two gmail, two feralcreative.co, and two cannonballcreative.agency addresses) and is the natural template if routeloop should match it.
+To widen the list later, add addresses to the `include` array of that policy. `print.ezzat.com` carries the fuller "ZR Personal Projects" list (the two gmail, two feralcreative.co, and two cannonballcreative.agency addresses) and is the natural template if tankbag should match it.
 
-The contact address for the project is still **undecided** and unrelated to this allowlist — it will be some address other than the ones in use today. Nothing in the codebase depends on it yet: there is no `mailto:`, contact link, or support address anywhere in the app, and the only email in the source is the local dev seed user (`demo@routeloop.app` in [src/db/seed.ts](../src/db/seed.ts)).
+The contact address for the project is still **undecided** and unrelated to this allowlist — it will be some address other than the ones in use today. Nothing in the codebase depends on it yet: there is no `mailto:`, contact link, or support address anywhere in the app, and the only email in the source is the local dev seed user (`demo@tankbag.app` in [src/db/seed.ts](../src/db/seed.ts)).
 
 ## API token scopes
 
@@ -114,7 +114,7 @@ The contact address for the project is still **undecided** and unrelated to this
 ✅ Access: Apps and Policies — Edit      created both apps + policies
 ✅ Access: Organizations, IdPs, Groups   enumerated IdPs and groups
 ✅ Cloudflare Tunnel — Read/Edit         rewrote tunnel ingress (v2 → v3)
-✅ Zone / DNS — Read/Edit                created the stage.routeloop.app CNAME
+✅ Zone / DNS — Read/Edit                created the stage.tankbag.app CNAME
 ✅ Cache Purge                           deploy hook purges successfully
 ```
 
@@ -139,4 +139,4 @@ Set `DEV_AUTH_EMAIL` in `.env`, open `/login`, and select **Continue with Google
 4. Confirm the successful request creates one local session and links an existing same-email user instead of duplicating it.
 5. Confirm private rides remain visible to their owner and public ride links still work while signed out.
 6. Confirm `tankbag.app/auth/cloudflare` still 301s instead of authenticating.
-7. Sign out and confirm both the routeloop session and the Cloudflare Access application cookie are cleared.
+7. Sign out and confirm both the tankbag session and the Cloudflare Access application cookie are cleared.

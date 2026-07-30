@@ -17,11 +17,9 @@ import {
   check,
 } from 'drizzle-orm/pg-core'
 
-// Google/GitHub are retained for existing identity rows. New sign-ins arrive
-// through Cloudflare Access, which owns the upstream identity-provider flow.
-// 'google' is the OAuth flow and 'email' is the magic link. 'github' and
-// 'cloudflare' are retained so historical identity rows stay valid; nothing
-// issues them any more.
+// 'google' is the OAuth flow and 'email' is the magic link — the two ways a
+// rider can arrive. 'github' and 'cloudflare' are retained only so historical
+// identity rows stay valid; nothing issues them any more.
 export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare', 'email'])
 // Cloudflare Access authenticates; this authorizes. Access admits any Google
 // account, so a new rider lands 'pending' and waits for approval.

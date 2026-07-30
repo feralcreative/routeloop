@@ -224,8 +224,7 @@ body.splash-page {
       0 1px 16px rgba(6, 10, 12, 0.55);
   }
 
-  // The yellow is lifted from the logo artwork; $url is far too dark to sit on
-  // the footage.
+  // $accent, not $url — the latter is far too dark to sit on the footage.
   .eyebrow {
     color: $accent;
   }

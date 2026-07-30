@@ -35,7 +35,7 @@ export type PageVariant = 'chrome' | 'map' | 'splash'
 export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile'
 
 export type PageOpts = {
-  /** Without the " — routeloop" suffix; page() appends it. */
+  /** Without the " — tankbag" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -84,7 +84,7 @@ function siteHeader(user: UserRow | null, navKey?: NavKey): string {
     : `${navLink(NAV_LINKS[0], navKey)}<a href="/login">Sign in</a>`
 
   return `<header class="site-header" id="site-header">
-  <a class="site-logo" href="/"><img src="/img/logo-routeloop-horiz.svg" alt="routeloop" width="849" height="104"></a>
+  <a class="site-logo" href="/"><img src="/img/logo-tankbag-horiz-light.svg" alt="tankbag" width="1414" height="426"></a>
   <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
     <span class="nav-bars" aria-hidden="true"></span>
   </button>
@@ -124,7 +124,7 @@ export function page(opts: PageOpts): string {
   ]
     .filter(Boolean)
     .join(' ')
-  const title = `${esc(opts.title)} — routeloop`
+  const title = `${esc(opts.title)} — tankbag`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n</div>`
 
   return `<!doctype html>
@@ -136,7 +136,7 @@ export function page(opts: PageOpts): string {
   ${SITE_ICON_LINKS}
   <meta property="og:title" content="${title}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="/img/logo-routeloop-horiz@2x.png">
+  <meta property="og:image" content="/img/logo-tankbag-horiz-light@2x.png">
   <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
   <link rel="stylesheet" href="/style/main.min.css">${opts.head ? `\n  ${opts.head}` : ''}

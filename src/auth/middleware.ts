@@ -22,8 +22,8 @@ export const withSession: MiddlewareHandler<AuthEnv> = async (c, next) => {
   await next()
 }
 
-// Session only. Cloudflare Access admits any Google account, so having a session
-// no longer means being allowed to use the app — almost every page wants
+// Session only. Anyone can sign in with Google or a magic link, so having a
+// session does not mean being allowed to use the app — almost every page wants
 // requireActive below. This gate exists for the two routes a pending rider must
 // still reach: /welcome and /logout.
 export const requireAuth: MiddlewareHandler<AuthEnv> = async (c, next) => {

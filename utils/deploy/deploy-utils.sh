@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ################################################################################
-# routeloop — post-deploy management for the NAS stack.
+# tankbag — post-deploy management for the NAS stack.
 #
 # Defaults to production. For staging, prefix with DEPLOY_ENV=stage:
 #   DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh logs
@@ -82,7 +82,7 @@ cmd_shell() {
 cmd_psql() {
   check_ssh_key
   $(get_ssh_cmd) -t "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec -it ${DB_CONTAINER_NAME} psql -U routeloop -d routeloop"
+    "/usr/local/bin/docker exec -it ${DB_CONTAINER_NAME} psql -U tankbag -d tankbag"
 }
 cmd_migrate() {
   check_ssh_key
@@ -97,7 +97,7 @@ cmd_db_backup() {
   local f="${CONTAINER_NAME}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
   log_info "Dumping database to $f"
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U routeloop -d routeloop | gzip" > "./$f"
+    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U tankbag -d tankbag | gzip" > "./$f"
   log_success "Database backup saved to ./$f"
 }
 # User-uploaded KML/GPX from the mounted storage volume.
