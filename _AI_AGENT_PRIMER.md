@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-07-29
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
-**Status:** **Live in production**, and mid-migration on two axes at once. The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are committed and merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**; `routeloop.app` now 301s to `tankbag.app`. On branch `refactor/google-maps-and-auth` two replacements are underway: **Cloudflare Access → Google OAuth + magic link** (committed in `17de208`, waiting on credentials) and **Mapbox → Google Maps** (started 2026-07-27: keys done, routing proxy done, engine still Mapbox).
+**Status:** **Live in production**, and mid-migration on two axes at once. The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are committed and merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**; `routeloop.app` now 301s to `tankbag.app`. On branch `refactor/google-maps-and-auth` two replacements are underway: **Cloudflare Access → Google OAuth + magic link** (committed in `17de208`; credentials now in place on the `tankbag` GCP project and both methods verified locally 2026-07-30 — still needs a prod deploy) and **Mapbox → Google Maps** (started 2026-07-27: keys + Map ID done, routing proxy done, engine still Mapbox).
 
 This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand — that file moves faster than this one and wins where they disagree.
 
@@ -203,9 +203,9 @@ npm run dev                              # tsx watch → :6686
 ```text
 PORT=6686
 MAPBOX_TOKEN=pk.<public token, URL-restricted to localhost in dev>
-GMAPS_KEY=<Google browser key — referrer-restricted, ships in page source>
+GMAPS_KEY=<Google browser key — referrer-restricted, ships in page source. SET>
 GMAPS_SERVER_KEY=<Google server key — IP-restricted, Routes/Geocoding. SET>
-GMAPS_MAP_ID=<vector Map ID, required for Advanced Markers. STILL EMPTY>
+GMAPS_MAP_ID=<vector Map ID, required for Advanced Markers. SET>
 STORAGE_PATH=./moto-storage
 DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
 APP_ORIGIN=http://127.0.0.1:6686
@@ -224,8 +224,8 @@ Done and merged:
 
 In flight on `refactor/google-maps-and-auth`:
 
-- **Auth — Google OAuth + magic link** 🔄 committed in `17de208` and verified locally. Waiting on an OAuth client and an SMTP app password; both methods hide themselves when unconfigured, so **there is currently no way to sign in locally** — mint a session directly (see [docs/STATUS.md](docs/STATUS.md)). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships**, or the deployed build is open.
-- **Maps — Mapbox → Google** 🔄 started 2026-07-27. The Phase 0 search-quality gate passed decisively; the Maps keys are created and restricted; and `POST /api/route` (Routes API proxy, `src/routes/routing.ts`) is built and verified but not yet called by anything. The engine itself — `map-common.js`, `viewer.js`, `builder.js` — is still Mapbox. See [docs/STATUS.md](docs/STATUS.md) for ordered next steps and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong — notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
+- **Auth — Google OAuth + magic link** 🔄 committed in `17de208`; **credentials now in place and both methods verified locally (2026-07-30)** — OAuth client (External consent screen), Vector Map ID, and a Gmail app password, all on the `tankbag` GCP project (`976935115789`). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships to prod**, or the deployed build is open. Still needs the prod deploy, in the correct order (deploy new auth, then pull the Access policy).
+- **Maps — Mapbox → Google** 🔄 started 2026-07-27. The Phase 0 search-quality gate passed decisively; the Maps keys + Vector Map ID are created and restricted (migrated to the `tankbag` GCP project on 2026-07-30); and `POST /api/route` (Routes API proxy, `src/routes/routing.ts`) is built and verified but not yet called by anything. The engine itself — `map-common.js`, `viewer.js`, `builder.js` — is still Mapbox. See [docs/STATUS.md](docs/STATUS.md) for ordered next steps and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong — notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
 
 Deferred, with reasons:
 

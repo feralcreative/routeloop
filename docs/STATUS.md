@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Updated:** 2026-07-29
+**Updated:** 2026-07-30
 **Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`
 **For:** the next agent, or the owner returning cold
 
@@ -14,8 +14,8 @@ Two migrations are in flight on this branch:
 
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **committed** in `17de208`; needs credentials to run |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **started** — Phase 0 passed, routing proxy landed, engine not yet ported |
+| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally** — credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **started** — Phase 0 passed, routing proxy landed, all keys + Map ID in place, engine not yet ported |
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -26,9 +26,9 @@ Done in the repo: the canonical/legacy host map reversed, cookies (`tankbag_sess
 **Not done, and none of it is scriptable from the repo:**
 
 1. ~~**Browser Maps key referrers.**~~ **Done 2026-07-29**—the allow-list now carries the tankbag hosts alongside the routeloop ones, verified per origin. See "Console work" below.
-2. **OAuth client**—not yet created, so nothing to correct. Its redirect URIs must use the tankbag hosts; the list further down is already written that way.
-3. **Favicons.** `public/img/favicon.{svg,ico,png}`, `favicon-96x96.png` and `apple-touch-icon.png` are RealFaviconGenerator output carrying the **old routeloop mark**. They were not part of the new logo set and cannot be faithfully regenerated from it here—re-run the generator against the new artwork.
-4. **The repo directory** is still `/Users/ziad/www/moto/routeloop`, and every absolute path in these docs points there. Renaming it is a separate step that invalidates those paths, IDE workspaces and any shell history.
+2. ~~**OAuth client.**~~ **Done 2026-07-30**—created on the tankbag GCP project with an External consent screen and the three tankbag redirect URIs. See "Google Cloud migrated to the tankbag project" below.
+3. **Favicons.** `public/img/favicon.{svg,ico,png}`, `favicon-96x96.png` and `apple-touch-icon.png` are RealFaviconGenerator output carrying the **old routeloop mark**. They were not part of the new logo set and cannot be faithfully regenerated from it here—re-run the generator against the new artwork. (The web manifest name was corrected to `tankbag` on 2026-07-30; the favicon *artwork* still carries the old mark.)
+4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. The `cd` paths in this document were updated to match; older `_PLANS/` files and shell history still point at the old path.
 5. **SonarCloud project key** in `.vscode/settings.json` is still `feralcreative_routeloop-app`. Left alone deliberately: it must match a project that actually exists in SonarCloud, so rename it there first. Note the GitHub repo itself was never renamed—it is still `feralcreative/tankbag-app`.
 6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the *previous* rename; rewriting it would turn a record of what happened into fiction.
 
@@ -116,7 +116,7 @@ Run this when routing starts failing for no visible reason, or after any change 
 Both domains are listed on purpose and both must now report ALLOWED—confirmed 2026-07-29 after the allow-list was updated. `evil.example.com` must report BLOCKED in every case.
 
 ```bash
-cd /Users/ziad/www/moto/routeloop
+cd /Users/ziad/www/moto/tankbag
 KEY=$(grep -E '^GMAPS_KEY=' .env | cut -d= -f2-)
 for ref in "https://evil.example.com/" "https://tankbag.app/" "https://routeloop.app/" "http://localhost:6686/"; do
   printf '%-30s ' "$ref"
@@ -136,24 +136,29 @@ Note the shell quoting hazard that produced a false result the first time this w
 
 <!--| PAGE-BREAK -->
 
+## Google Cloud migrated to the tankbag project — 2026-07-30
+
+The Maps keys and OAuth client used to live on `routeloop-503503` (display name `routeloop`). They now live on the pre-existing **`tankbag` project (number `976935115789`)**, so the console name matches the product again. What was done, all verified:
+
+- **Enabled five APIs** on `tankbag` (it had none of them): Maps JavaScript, Places (New), Routes, Geocoding, Map Management.
+- **Browser key** → `GMAPS_KEY`. uid `53e9a638-bafb-4604-9346-282dd8c25d80`. Referrer-restricted to the tankbag + routeloop hosts and both dev origins (`127.0.0.1:6686`, `localhost:6686`), and to Maps JavaScript + Places only. Verified: `evil.example.com` BLOCKED, real hosts ALLOWED.
+- **Server key** → `GMAPS_SERVER_KEY`. uid `3a3d4f70-1838-45f7-86bf-18023c32592e`. IP-restricted to `69.209.26.137`, Routes + Geocoding only. Verified against a live Routes call.
+- **Vector Map ID** → `GMAPS_MAP_ID` = `a8979f770ff370036c0c516d`. Type **JavaScript / Vector**, with **tilt and rotation enabled** deliberately—riders want to see terrain relief; the map still opens flat and north-up, the 3D camera is opt-in via gesture.
+- **OAuth client + External consent screen** → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, scopes exactly `openid email profile`. Redirect URIs are the three tankbag hosts below. Verified: `/auth/google` 302s to Google with the right client, scope and PKCE.
+- **Gmail app password** → `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` (`tankbag.app@gmail.com`). Verified with `transporter.verify()`.
+
+**The old `routeloop-503503` keys are now orphaned but must stay alive** until the new `.env` is deployed to prod—the *live* prod build still uses them. Delete them only after the prod cutover, or the imported-ride viewer breaks in production.
+
+The re-verify script above still names `routeloop-503503` and the old browser-key uid; when you next touch it, point it at the `tankbag` project and uid `53e9a638`.
+
 ## Still blocked on you, in the console
 
-Ordered by what it unblocks. Items 1 and 2 have no API and cannot be scripted.
+The credential items (Map ID, OAuth client, SMTP) are **done** as of 2026-07-30—see the section above. What remains:
 
-1. **A vector Map ID** → `GMAPS_MAP_ID`, currently empty. Maps Platform → Map management → create, type **Vector**. Advanced Markers render nothing without one, failing with a console warning and no marker, which reads as a data bug. Confirmed console-only: `mapmanagement.googleapis.com` is enabled and appears in the key's API targets, but every REST path 404s and there is no `gcloud maps` command group. `DEMO_MAP_ID` works for local development and must not ship.
-2. **OAuth client + consent screen** → `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Scopes exactly `openid` + `email` + `profile`; anything sensitive or restricted caps the app at 100 users pending review. Authorized redirect URIs, which [src/config.ts:75](../src/config.ts#L75) builds as `${APP_ORIGIN}/auth/google/callback`:
+1. **Privacy policy and terms pages.** Required to *publish* the External consent screen past its 100-user testing cap; neither page exists. Not needed for the alpha (the `users.status` gate limits real usage), but a wall once you want more than a hand-listed 100 testers. Can be drafted in-repo whenever.
+2. **Per-API daily quota caps** on the `tankbag` project. Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k. A budget alert reports the money after it is gone; a quota cap prevents it.
 
-   ```text
-   http://127.0.0.1:6686/auth/google/callback
-   https://stage.tankbag.app/auth/google/callback
-   https://tankbag.app/auth/google/callback
-   ```
-
-3. **A Gmail app password** → `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`. On an account separate from the OAuth client, which needs 2FA enabled first.
-4. **Privacy policy and terms pages.** Required fields to publish an external consent screen; neither page exists. These can be drafted in-repo whenever you want them.
-5. **Per-API daily quota caps.** Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k. A budget alert reports the money after it is gone; a quota cap prevents it.
-
-Until 2 and 3 exist there is **no way to sign in locally**—the Access bypass is deleted and both new methods are flagged off without credentials. To test an authenticated endpoint before then, mint a session directly:
+**Sign-in now works locally**—both Google and magic link are wired and verified. The direct-session mint below is still handy for scripting an authenticated request without a browser round-trip:
 
 ```bash
 # from the repo root, with the dev DB up
@@ -181,11 +186,12 @@ Do not start step 1 in fragments. A half-ported engine leaves the branch unable 
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
 - **Schema is push-only.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first—riders now hold data that cannot be rebuilt from an uploaded file.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
+- **DNS is not the blocker; the un-deployed rename is.** All tankbag hostnames already resolve through the tunnel. As of 2026-07-30 the *live* prod build predates the rename, so `tankbag.app` still 301s to `routeloop.app`—the correct routeloop→tankbag redirect lands only on the next deploy, not via any DNS change. **One real gap:** `www.tankbag.app` has **no DNS record** (`www.routeloop.app` does); add a proxied CNAME to the same tunnel, or the browser key's `www.tankbag.app` referrer entry is moot and the host won't resolve.
 
 ## Local development
 
 ```bash
-cd /Users/ziad/www/moto/routeloop
+cd /Users/ziad/www/moto/tankbag
 npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
