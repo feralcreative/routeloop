@@ -185,6 +185,12 @@
     }
     .row-roles {
       display: grid;
+      // A class selector outranks the UA's `[hidden] { display: none }`, so the
+      // picker rendered permanently open — every stop showing all 17 roles. The
+      // markup has always set the attribute; only the CSS ignored it.
+      &[hidden] {
+        display: none;
+      }
       gap: 0.2em;
       max-height: 16em;
       margin: 0.35em 0 0.2em 1.9em;
