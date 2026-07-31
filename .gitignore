@@ -263,3 +263,7 @@ config.local.php
 moto-config/
 moto-storage/
 /public/style/*.css.map
+
+# Cached Routes API responses for utils/seed-demo-rides.ts. Regenerable, and
+# large enough to be noise in a diff.
+utils/.demo-route-cache.json

@@ -14,12 +14,12 @@ Two replacements are in flight on the `refactor/google-maps-and-auth` branch. Bo
 
 | | Being replaced | Replacement | State |
 | --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + emailed magic link, owned by the app | Committed; needs an OAuth client and SMTP credentials before it can run |
+| Auth | Cloudflare Access | Google OAuth + emailed magic link, owned by the app | **Deployed to stage and production 2026-07-30** and signing in; the Access policy still has to be removed |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | Engine ported and verified 2026-07-30; only `profile.js` geocoding and dead config remain |
 
 Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
-**The deployed build still uses Cloudflare Access**, restricted to a single owner address, and the production database starts empty. The Access policy must not be removed until the new auth code is deployed, or the running app would be left open.
+**The new auth code is now deployed to production**, so the Cloudflare Access policy is the next thing to remove—it is redundant, not protective, since the app no longer reads the header it injects. Do it in that order and never the reverse: pulling the policy before the code shipped would have left the running app open.
 
 Delivered in phases:
 
@@ -37,7 +37,7 @@ Delivered in phases:
 ## What it does
 
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
-- **Organize**—a ride packages one or more routes (days/sessions); stops, points of interest, and ephemeral shaping waypoints are distinct.
+- **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
 - **Import**—bring in existing `.kml` / `.gpx` to migrate from other tools _(KMZ, CSV later)_.
 - **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
@@ -103,11 +103,22 @@ npm run dev
 
 Then open <http://localhost:6686>. The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
+One seeded ride is not enough to judge how the dashboard or the viewer read. To fill dev with varied, genuinely road-routed rides:
+
+```bash
+npx tsx utils/seed-demo-rides.ts                 # ~12 rides
+npx tsx utils/seed-demo-rides.ts --reset         # replace the previous set
+npx tsx utils/seed-demo-rides.ts --straight      # skip the API, straight legs
+npx tsx utils/seed-demo-rides.ts --owner=you@example.com
+```
+
+Legs come from the real Routes API so tracks follow actual roads, cached in a gitignored file so re-runs cost nothing. The RNG is seeded, so the same rides come back every time and a UI change is never confused with new data. It refuses to run unless `DATABASE_URL` is local.
+
 Either `localhost` or `127.0.0.1` works. The browser key allows both on port 6686 and `isAllowedOrigin` accepts both, so the CSRF gate passes either way. (An older note preferring `localhost` was a Mapbox token restriction and no longer applies.)
 
 Port 6686 belongs to this project. If it is already bound, kill the process and reuse the port rather than starting on a different one.
 
-Until the OAuth client and SMTP credentials exist there is **no way to sign in locally**: the old Cloudflare Access bypass is deleted, and both new sign-in methods hide themselves when unconfigured rather than offering a broken button. To exercise an authenticated route before then, mint a session directly:
+Sign-in works locally once the Google OAuth client and SMTP credentials are in `.env`; both methods hide themselves when unconfigured rather than offering a broken button, and the old Cloudflare Access bypass is deleted. To script an authenticated request without a browser round trip, mint a session directly:
 
 ```bash
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
@@ -133,11 +144,15 @@ public/
   js/main.js          Legacy Google viewer, imported rides—retires in Phase 4
   js/map-common.js    Shared Google engine—ONLY file touching google.maps
   js/viewer.js        Native ride viewer
-  js/builder.js       The ride builder
+  js/builder.js       The ride builder—multi-day, one map, day focus slider
   js/profile.js       Profile page (address geocoding)
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
   img/icons/          17 role SVGs (currentColor) + UI icons
 style/main.scss       SCSS source
+utils/
+  seed-demo-rides.ts  Generates varied, road-routed demo rides in dev
+  deploy/             deploy.sh, prod.sh, stage.sh, deploy-utils.sh (ops +
+                      env-to-env cloning), hooks/post-deploy.sh
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
 docs/                 STATUS.md (current state), ideas.md (vision),
@@ -204,7 +219,19 @@ Each container publishes two host ports and answers on both. Production serves `
 ./utils/deploy/prod.sh              # tankbag.app
 ```
 
-Production refuses a dirty tree or a non-`main` branch. Staging has neither gate, so it is the one to use from a feature branch.
+Production refuses a dirty tree or a non-`main` branch; `--force` bypasses both but never the confirmation. Staging has neither gate, so it is the one to use from a feature branch. Both build the image from the **working tree**, not from git, so uncommitted changes ship.
+
+### Moving data between environments
+
+```bash
+./utils/deploy/deploy-utils.sh db-clone prod dev     # pull production to your laptop
+./utils/deploy/deploy-utils.sh db-clone prod stage   # refresh staging
+DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
+```
+
+`db-clone` handles all three environments, local dev included, and syncs the KML/GPX storage alongside the database—a cloned database without those files 404s every imported ride. The destination is dropped and replaced, so it is backed up first and the undo command is printed. Prod as a *destination* additionally requires `--force`; every destination requires typing its name.
+
+> **Compose derives its project name from the directory it runs in**, and the volume prefix from that. Renaming a checkout therefore orphans the database: the stack comes back up on a brand-new empty volume while the rows sit in the old one, and the container name collides rather than failing cleanly. `docker-compose.yml` pins `name: tankbag` so the local prefix no longer depends on the path. The deployed stacks set `COMPOSE_PROJECT_NAME` explicitly for the same reason—which also means a stale volume from an earlier era can be silently adopted by a fresh deploy. Check `docker volume ls` before assuming a new environment is empty.
 
 > **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push` runs non-interactively and cannot resolve a table rename. Production sidestepped this by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
 

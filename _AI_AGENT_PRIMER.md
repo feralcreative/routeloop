@@ -2,11 +2,11 @@
 
 **Last Updated:** 2026-07-30
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
-**Status:** **Live in production**, and mid-migration on two axes at once. The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are committed and merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**; `routeloop.app` now 301s to `tankbag.app`. On branch `refactor/google-maps-and-auth` two replacements are underway: **Cloudflare Access → Google OAuth + magic link** (committed in `17de208`; credentials in place on the `tankbag` GCP project and both methods verified locally 2026-07-30—still needs a prod deploy) and **Mapbox → Google Maps** (**engine ported and browser-verified 2026-07-30** in `942e1d9`; only `profile.js` geocoding and dead config remain).
+**Status:** **Live in production on the new stack.** The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**. Both migrations that defined branch `refactor/google-maps-and-auth` are now **done and deployed**: **Cloudflare Access → Google OAuth + magic link**, and **Mapbox → Google Maps**. The builder gained **multi-day rides on a single map** on 2026-07-30, which is the feature the whole product model was designed around. See "Where things stand" at the end of this document before starting anything.
 
 This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand — that file moves faster than this one and wins where they disagree.
 
-> **Read this before trusting any "Cloudflare Access" detail below.** It is still being replaced, and sections describing it are accurate for what is currently in `main`, marked where the branch diverges. **Mapbox is no longer the rendering engine**—where this document still names it, it is describing history or the one remaining call in `profile.js`.
+> **Neither Cloudflare Access nor Mapbox is live any more.** Where this document names them it is describing history, or the one remaining Mapbox call in `profile.js`. The Access *policy* still exists at the Cloudflare edge and should be removed—it is redundant, not protective, since the deployed app no longer reads the header it injects.
 
 > **Historical baggage.** The `app/` directory (a prior PHP/MySQL build) and `utils/schema.sql` (MySQL) are **superseded** reference material. Older plans (`_PLANS/multi-tenant-rebuild.md`, `_PLANS/tankbag-hono-rebuild.md`, `_PLANS/tankbag-phase2-auth.md`) describe earlier stages and are historical. The live backend is the TypeScript/Hono code under `src/`.
 
@@ -21,7 +21,7 @@ Importing existing files (KML, GPX; later KMZ, CSV) is a **migration path**, not
 From `docs/ideas.md`:
 
 - **Ride** — the shareable package (has the slug, visibility, title). Holds many routes across many days/sessions — the holistic view of an entire trip.
-- **Route** — one session/day within a ride: an ordered list of stops joined by routed legs, with a start/end date-time (time model exists in the schema; the timeline-slider UI is a later phase).
+- **Route**—one session/day within a ride: an ordered list of stops joined by routed legs, with a start/end date-time. The builder edits several routes per ride as of 2026-07-30; the date-time fields exist in the schema and load into state but nothing sets them yet.
 - **Three kinds of dots:**
   - **Waypoint** — an ephemeral shaping point that just keeps the route on course. Modeled as **leg via-points** (`route_legs.via_points`), *not* rows in `points`.
   - **POI** — an interesting place near the route that does *not* affect routing. `points.kind = 'poi'`, unordered.
@@ -31,7 +31,7 @@ From `docs/ideas.md`:
 
 - **Backend** — TypeScript on **Hono**, run by Node (`tsx` in dev, Docker in prod); portable to Cloudflare Workers. **PostgreSQL** via **Drizzle ORM**. **Zod** for payload validation.
 - **Maps**—**Google Maps JavaScript API** (rendering, via the inline bootstrap loader that defines `google.maps.importLibrary`), **Places (New)** `AutocompleteSuggestion` for search, and the **Routes API** for per-leg routing—proxied server-side through `POST /api/route`, because the Routes key is IP-restricted and unusable from a browser. The frontend has **no bundler**; libraries are imported on demand at runtime. The driver for the migration was place-search quality; the reason it was a whole-engine swap rather than a search swap is that each provider's terms tie their search results to their own basemap. One Mapbox call survives, in `profile.js`—see the phases below.
-- **Auth** — **being replaced.** Today on `main`: Cloudflare Access at the edge bridged to local sessions. On this branch: Google OAuth (via `arctic`) plus an emailed magic link, both resolving through [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server sessions (SHA-256-hashed tokens). Access is billed **per seat**, which is why it could not stay. Cloudflare **Turnstile** still guards uploads/saves, feature-flagged off until keys are set.
+- **Auth**—Google OAuth (via `arctic`) plus an emailed magic link, both resolving through [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server sessions (SHA-256-hashed tokens). Deployed to stage and prod on 2026-07-30. It replaced Cloudflare Access, which is billed **per seat** and so could not survive open signups. Cloudflare **Turnstile** still guards uploads/saves, feature-flagged off until keys are set.
 - **Authorization is separate from authentication.** `users.status` (`pending` | `active` | `blocked`) decides who may use the app; every new account starts `pending`. This is the capacity gate for a NAS-hosted alpha and is unaffected by either migration.
 - **Frontend** — vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
 - **Hosting** — Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Each container publishes **two** host ports and answers on both, which is what lets the canonical name change without touching tunnel config. Prod: `tankbag.app → localhost:6686` (canonical) and `routeloop.app → localhost:16703` (301s away). Stage: `stage.tankbag.app → localhost:16687` (canonical) and `stage.routeloop.app → localhost:6687` (301s away).
@@ -55,6 +55,20 @@ Two things to know before editing the engine:
 Retiring `main.js` means teaching the current engine to render an imported ride's single-leg track—which `ride.json` already serves identically for both sources.
 
 <!--| PAGE-BREAK -->
+
+## The builder is multi-day, on one map
+
+This is the feature the product model was designed around, and until 2026-07-30 it was the one thing missing: the schema, the API (`MAX_ROUTES = 31`) and the viewer all handled several routes per ride, while the builder held a single `state.route`, hardcoded route index `0` on the map layer, and loaded `ride.routes[0]` while warning that saving would drop the rest. A multi-day ride was effectively read-only.
+
+**The rule that shapes the UI: every route is drawn at once, always.** Seeing the whole trip on a single map is the point of the app, so the day slider is a *focus* control and never a navigation one—sliding to a day dims the others via `setRouteDim` (the same call the viewer's legend hover uses) and hides nothing. Position 0 is "all days" and dims nothing at all.
+
+Consequences worth knowing before editing `public/js/builder.js`:
+
+- **Edits always target exactly one day.** `editIndex()` is the focused day, or the *last* day when the slider sits on "all"—that being the day you are extending. The label says which (`All days · editing Day 3`) so the color swatch is never ambiguous.
+- **Clicking a marker on a dimmed day focuses that day first**, otherwise the row it scrolls to would not be in the rendered list.
+- **A new day is seeded with the previous day's last stop**, because a day begins where the last one ended.
+- **Layers are keyed by route index**, so a delete or reorder invalidates every key at or after it. `rebuildLayers()` tears down and re-adds all of them rather than patching—O(routes) on a list capped at 31, and it removes a whole class of stale-layer bug.
+- **Empty days are dropped at save time.** The API requires `stops.min(1)` per route, so a day added but never filled would fail validation for the entire ride; `payload()` filters them and `save()` says how many went.
 
 ## Data model (PostgreSQL via Drizzle)
 
@@ -164,7 +178,7 @@ public/
   js/map-common.js    Shared Google engine (window.TBMap)—ONLY file
                       that touches google.maps
   js/viewer.js        Native ride viewer (reads ride.json)
-  js/builder.js       The ride builder
+  js/builder.js       The ride builder — multi-day, one map, focus slider
   js/profile.js       Profile page (address geocoding)
   js/site.js          Global chrome behavior
   style/main.min.css  Compiled CSS (build output)
@@ -173,6 +187,11 @@ style/main.scss       SCSS source
 moto-storage/         Imported originals (git-ignored) — {owner}/{ride}.{ext}
 docs/STATUS.md        Current state + next steps — READ THIS SECOND
 docs/ideas.md         The product vision
+utils/
+  seed-demo-rides.ts  Varied road-routed demo rides for dev (seeded RNG,
+                      cached Routes calls, refuses a non-local DATABASE_URL)
+  deploy/             deploy.sh + prod/stage wrappers, deploy-utils.sh
+                      (ops + env-to-env db-clone), hooks/post-deploy.sh
 _PLANS/               Plans + handoff (google-auth-and-maps-migration + its
                       AMENDMENTS file are current)
 app/, utils/schema.sql  LEGACY PHP/MySQL (reference only)
@@ -228,44 +247,104 @@ Done and merged:
 In flight on `refactor/google-maps-and-auth`:
 
 - **Auth — Google OAuth + magic link** 🔄 committed in `17de208`; **credentials now in place and both methods verified locally (2026-07-30)** — OAuth client (External consent screen), Vector Map ID, and a Gmail app password, all on the `tankbag` GCP project (`976935115789`). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships to prod**, or the deployed build is open. Still needs the prod deploy, in the correct order (deploy new auth, then pull the Access policy).
-- **Maps—Mapbox → Google** 🔄 **engine done 2026-07-30** (`942e1d9`), browser-verified end to end. `map-common.js`, `viewer.js` and `builder.js` all run on `google.maps`; the builder routes through `POST /api/route` and searches with Places `AutocompleteSuggestion`. Keys + Vector Map ID live on the `tankbag` GCP project. **Two things remain:** `profile.js` still calls Mapbox Geocoding and wants a server proxy (Geocoding is on the IP-restricted server key), and Phase 4 retires `main.js` plus the dead `MAPBOX_*` config. See [docs/STATUS.md](docs/STATUS.md) for the port's details and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
+- **Maps—Mapbox → Google** ✅ **done and deployed 2026-07-30** (`942e1d9`), browser-verified end to end. `map-common.js`, `viewer.js` and `builder.js` all run on `google.maps`; the builder routes through `POST /api/route` and searches with Places `AutocompleteSuggestion`. Keys + Vector Map ID live on the `tankbag` GCP project. **Two things remain:** `profile.js` still calls Mapbox Geocoding and wants a server proxy (Geocoding is on the IP-restricted server key), and Phase 4 retires `main.js` plus the dead `MAPBOX_*` config. See [docs/STATUS.md](docs/STATUS.md) for the port's details and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
 
 Deferred, with reasons:
 
-- **Phase 3 — Via-point shaping + server exports** ⬜ drag-to-shape legs into `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`. Deferred behind the two migrations — building leg-shaping against a routing engine that is being replaced would be wasted work.
+- **Phase 3 — Via-point shaping + server exports** ⬜ drag-to-shape legs into `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`. It was deferred behind the two migrations because building leg-shaping against a routing engine that was about to be replaced would have been wasted work. **That reason has now expired** — the engine is settled, so this is unblocked whenever it is wanted. `route_legs.via_points` already round-trips through the API and the builder clears it on any anchor move.
 - **Places (saved locations)** ⬜ designed in [_PLANS/sprint-01-260725T2320Z.md](_PLANS/sprint-01-260725T2320Z.md) Phase B, never built. Cut from Sprint 2 because it is two tables, seven endpoints, marker-group primitives and builder integration — larger than the rest of that sprint combined. The profile reserves a section for it.
 - **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by email or phone is a user-enumeration surface and wants rate limiting before it exists.
 - **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
-- **Phase 5 — Trip features** ⬜ multi-day rides + the timeline slider.
+- **Phase 5—Trip features** 🔄 **multi-day editing done 2026-07-30**; the date/time half is not started. `routes.start_at` / `end_at` exist in the schema and load into builder state, but nothing sets them and there is no date-time UI, so the timeline slider proper is still ahead.
 - **Backlog** ⬜ bikes, KMZ/CSV import, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
 
 ## Deployment state
 
-Production was cut over on 2026-07-24 by **replacing** the old stacks rather than migrating them, so the `maps` → `rides` rename landmine is **resolved for prod**: the old `routeloop.app` (an unrelated leftover "rootloop" Express app on `:16703`) and the old `tankbag.app` stack were composed down and archived to `/volume1/web/_retired/*-20260724T205817`, and this repo was deployed into a fresh, empty database.
-
-**What is live on the NAS right now still carries the `routeloop` names** — the 2026-07-29 rename changed this repo only, and nothing has been deployed since:
+Production and staging both run the **tankbag** stacks as of 2026-07-30. The old `routeloop`-named containers, images, volumes and networks are gone; their deploy directories (`/volume1/web/routeloop.app`, `/volume1/web/stage.routeloop.app`) still sit on disk, stopped, and can be deleted whenever.
 
 ```text
-container   routeloop            healthy, 127.0.0.1:16703 + :6686  → :6686
-container   routeloop-db         healthy, empty at cutover
-container   routeloop-stage      healthy, 127.0.0.1:6687  + :16687 → :6686
-container   routeloop-stage-db   healthy, schema applied
-tunnel      tankbag.app          → localhost:6686     (now canonical)
-tunnel      routeloop.app        → localhost:16703    (same container; will 301 away)
-tunnel      stage.tankbag.app    → localhost:16687    (now canonical)
-tunnel      stage.routeloop.app  → localhost:6687     (same container; will 301 away)
-DNS         tankbag.app          proxied CNAME → the feral-nas tunnel
-DNS         routeloop.app        proxied CNAME → the feral-nas tunnel
-DNS         stage.tankbag.app    proxied CNAME → the feral-nas tunnel
-DNS         stage.routeloop.app  proxied CNAME → the feral-nas tunnel
+container   tankbag              healthy, 127.0.0.1:6686  + :16703 → :6686
+container   tankbag-db           healthy, schema current, 1 ride
+container   tankbag-stage        healthy, 127.0.0.1:16687 + :6687  → :6686
+container   tankbag-stage-db     healthy, schema current
+tunnel      tankbag.app          → localhost:6686     (canonical)
+tunnel      routeloop.app        → localhost:16703    (same container; 301s away)
+tunnel      stage.tankbag.app    → localhost:16687    (canonical)
+tunnel      stage.routeloop.app  → localhost:6687     (same container; 301s away)
+DNS         www.tankbag.app      record exists, but NO tunnel route — 404s
 ```
 
-All four tunnel routes already exist and reach the same containers, so the rename needs **no tunnel or DNS change** — only a deploy. The container, image, database and deploy-directory names all move to `tankbag` on that deploy, which is not a rename of the running stack but a replacement of it. Read the cutover procedure in [docs/STATUS.md](docs/STATUS.md) before deploying, or the deploy silently builds a new empty stack beside the live one.
+Each container publishes two host ports and answers on both, which is what let the canonical name change without touching tunnel config.
 
-Stage was scaffolded on 2026-07-25; the old `tankbag-stage` stack that occupied `:6687` is archived under `/volume1/web/_retired/`. Both environments were deployed onto brand-new empty databases, which is why the `maps` → `rides` rename landmine never had to be resolved.
+**Two traps this deploy actually hit, both worth knowing before the next one:**
 
-The prod database being empty is expected, not a bug: a fresh deploy has no rides until someone can sign in and make one.
+- **The old stack holds the ports.** `tankbag` wants `:6686` and `:16703`, exactly what `routeloop` had. Compose fails with `port is already allocated` rather than anything descriptive. Bring the old stack down first.
+- **A stale volume gets adopted silently.** Volumes are namespaced by `COMPOSE_PROJECT_NAME`, not by the deploy directory, so `tankbag-prod_db-data` and `tankbag-stage_db-data` from 2026-07-20 were still around and a "fresh" deploy came up on them—carrying a pre-pivot schema with a `maps` table and no `rides`. The symptom is a healthy container that 500s on sign-in with `column users.username does not exist`. `docker compose down -v` then re-run the post-deploy hook. **Check `docker volume ls` before assuming a new environment is empty.**
+
+`www.tankbag.app` has a DNS record but no tunnel route, so it returns a bare Cloudflare 404. The app already 301s `www` → apex in `LEGACY_HOSTS`; it just never receives the request. Add the public hostname to the tunnel.
 
 ## Provenance
 
 The map engine was recovered from the original Moto-Rooter viewer and rewired. The server was rebuilt PHP/MySQL → TypeScript/Hono/Postgres, then the product pivoted from file-upload to an in-app ride builder on Mapbox, which was replaced by Google Maps five weeks later when place-search quality proved decisive. The legacy Google viewer's taxonomy and tooltip behavior survived both moves by being ported forward each time; the file-upload path survives as import.
+
+<!--| PAGE-BREAK -->
+
+## Where things stand—end of 2026-07-30
+
+The section to read first when picking this up cold. Everything above describes how the code works; this describes what was just done to it and what is waiting.
+
+### What landed today
+
+Branch `refactor/google-maps-and-auth`, pushed, six commits:
+
+| | |
+| --- | --- |
+| `4a0a89d` | Repointed GitHub references at `feralcreative/tankbag` — the repo was renamed and the local remote still used the redirect |
+| `942e1d9` | **The map engine port**, Mapbox GL → `google.maps`, across the engine, both consumers, both shells and the marker CSS |
+| `728fd0b` | Role picker rendered permanently open — `[hidden]` was losing on specificity to a class selector |
+| `8b39424` | Splash clip slowed to half speed in the encode, re-cut from the ProRes master with interpolated frames |
+| `691b018` | **Deploy shipped none of the Google Maps or sign-in credentials** — the most important fix of the day; see below |
+
+Uncommitted at end of day, all verified but not yet in a commit:
+
+- **Multi-day builder** (`builder.js`, `rides.ts`, `_builder.scss`)—the day slider, per-day controls, add/delete/reorder, multi-route save and load.
+- **`config.ts` empty-env fix**—`env()` now treats `''` as unset. This was a real bug: the deploy writes every optional variable whether or not it has a value, so `OWNER_EMAIL=` defeated its own default and the owner's account was created `pending` with nobody able to approve it.
+- **`db-clone` / `db-restore`** in `deploy-utils.sh`.
+- **`utils/seed-demo-rides.ts`** and the `.gitignore` entry for its cache.
+- **`.panel-title`** dropped 3rem → 2.1rem with `line-height: 1.15`.
+
+### Deployed, and what that cost
+
+Stage and prod both run the new code. Getting there surfaced three things that are now documented but were not obvious:
+
+1. **The deploy shipped `GMAPS_MAP_ID`, `GOOGLE_CLIENT_*` and the `SMTP_*` set nowhere.** Without them the container starts, passes its healthcheck, and is useless—no markers render and *neither sign-in method exists*, because both hide themselves when unconfigured and Cloudflare Access no longer backs them up. `deploy.sh` now hard-fails on the ones that matter.
+2. **A stale 2026-07-20 volume was silently adopted** by a "fresh" deploy, carrying a pre-pivot schema. Symptom: healthy container, 500 on sign-in, `column users.username does not exist`.
+3. **The old stack holds the ports.** Bring it down before deploying the new one.
+
+The same volume-namespace trap hit the *local* dev database first, which is why `docker-compose.yml` now pins `name: tankbag`.
+
+### Pick up here
+
+**Loose ends from today, small:**
+
+- Commit the uncommitted work above.
+- **`db-clone` has never actually run.** Its guards are verified; the dump/load path is not. Try `db-clone stage dev` first—both sides disposable.
+- The day-slider tick labels are evenly spaced, not aligned to thumb positions. Deliberate (exact alignment is not achievable in CSS because the thumb is inset half its width at each end) but worth a look.
+
+**Then, roughly in order of what is actually in the way:**
+
+1. **Remove the Cloudflare Access policy.** The code that stopped trusting it is deployed, so the policy is now pure redundancy. This was gated on the deploy and the deploy is done.
+2. **Add the `www.tankbag.app` tunnel route.** DNS exists; nothing routes it.
+3. **An admin panel.** Approving a rider is currently a hand-written `UPDATE users SET status='active'` over SSH, which the owner described in exactly the terms it deserves. `users.status` and `can_manage_riders` already exist; this is one owner-only route and a template. Smallest thing with the biggest effect on daily use.
+4. **`profile.js` geocoding → a server proxy.** The last Mapbox call in the app and the only reason `MAPBOX_TOKEN` still has to be set.
+5. **Phase 4—retire Mapbox and `main.js`.** Teach the current engine to draw an imported ride's single-leg track (`ride.json` already serves both sources identically), collapse the two viewer shells, then delete `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`.
+6. **Phase 5's other half—the timeline.** `routes.start_at` / `end_at` are in the schema and load into builder state; nothing sets them. Multi-day editing is done, dates are not.
+
+**Still open, not urgent:** favicons carry the old routeloop mark; privacy policy and terms are required to publish the OAuth consent screen past 100 users; per-API quota caps are unset on the `tankbag` GCP project; the SonarCloud key still says `feralcreative_routeloop-app`; and `/volume1/web/routeloop.app` plus `stage.routeloop.app` are stopped but still on disk.
+
+**One caution.** `utils/` is **not** in `tsconfig.json`'s `include`, so `npm run typecheck` does not check it. A bad import in `seed-demo-rides.ts` passed a clean typecheck and would only have failed at runtime. Check those files explicitly:
+
+```bash
+npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution Bundler \
+  --types node --esModuleInterop --skipLibCheck utils/seed-demo-rides.ts
+```

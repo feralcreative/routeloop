@@ -154,7 +154,10 @@
 
   .panel-title {
     transition: font-size 0.4s cubic-bezier(0.77, 0, 0.175, 1);
-    font-size: 3rem;
+    font-size: 2.1rem;
+    // Without this the title inherits the body's 1.5, which on a two-line ride
+    // name opens a gap wider than the descenders and reads as two headings.
+    line-height: 1.15;
     font-weight: 500;
     color: $text;
     max-width: 500px !important;

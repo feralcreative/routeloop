@@ -29,6 +29,116 @@
       resize: vertical;
     }
   }
+  // The day scrubber. It focuses a day rather than switching to one — every
+  // route stays drawn on the map and only the emphasis moves, so this is a
+  // slider and not a tab strip.
+  .day-scrub {
+    margin: 0.5em 0 0.6em;
+  }
+  .day-scrub-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-bottom: 0.2em;
+  }
+  .day-scrub-label {
+    font-size: 0.85em;
+    font-weight: 700;
+    color: $text;
+  }
+  .day-add {
+    font: inherit;
+    font-size: 0.8em;
+    padding: 0.25em 0.6em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: $white;
+    color: $text;
+    cursor: pointer;
+    &:hover {
+      border-color: $url;
+      color: $url;
+    }
+  }
+  .day-slider {
+    width: 100%;
+    margin: 0;
+    accent-color: $url;
+    cursor: pointer;
+    &:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+  }
+  // Labels sit under the track: "All" at the left, then one per day. Spread
+  // rather than positioned — the thumb's inset makes exact alignment a lie at
+  // any width, and an evenly spaced row reads correctly regardless.
+  .day-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7em;
+    color: $text;
+    opacity: 0.75;
+    padding: 0 0.1em;
+  }
+  .day-tick {
+    position: relative;
+    padding-top: 0.35em;
+    &[style*="--tick-color"]::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 6px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--tick-color);
+    }
+  }
+
+  // Controls for the one day edits land on, which is the focused day, or the
+  // last day while the slider sits on "all".
+  .day-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin-bottom: 0.6em;
+    #route-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      font: inherit;
+      font-size: 0.9em;
+      padding: 0.35em 0.5em;
+      border: 1px solid $grey;
+      border-radius: 6px;
+    }
+    .day-actions {
+      display: flex;
+      gap: 0.15em;
+      button {
+        font: inherit;
+        font-size: 0.85em;
+        line-height: 1;
+        padding: 0.35em 0.45em;
+        border: 1px solid $grey;
+        border-radius: 6px;
+        background: $white;
+        color: $text;
+        cursor: pointer;
+        &:disabled {
+          opacity: 0.35;
+          cursor: default;
+        }
+        &:not(:disabled):hover {
+          border-color: $url;
+          color: $url;
+        }
+      }
+    }
+  }
+
   .meta-row {
     display: flex;
     align-items: center;
@@ -102,6 +212,18 @@
     font-weight: 700;
     margin-bottom: 0.5em;
     min-height: 1em;
+    // Two lines once there are several days: the trip total leads, because on a
+    // multi-day ride that is the number being planned against, and the focused
+    // day's own figures sit under it.
+    .totals-trip,
+    .totals-day {
+      display: block;
+    }
+    .totals-day {
+      font-weight: 400;
+      font-size: 0.85em;
+      opacity: 0.8;
+    }
   }
 
   .poi-head {
