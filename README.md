@@ -2,7 +2,7 @@
 
 TankBag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—TankBag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—TankBag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -158,8 +158,9 @@ utils/
                       env-to-env cloning), hooks/post-deploy.sh
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
-docs/                 STATUS.md (current state), ideas.md (vision),
-                      decisions-auth-and-search.md, google-cloud-setup.md
+docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
+                      ideas.md (vision), decisions-auth-and-search.md,
+                      google-cloud-setup.md
 _PLANS/               Plans + session handoff
 app/, utils/schema.sql  Legacy PHP/MySQL (superseded; reference only)
 ```
