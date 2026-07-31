@@ -143,6 +143,12 @@
 
     video.src = src;
 
+    // The clip is slowed in the file itself, not via playbackRate. Halving
+    // playbackRate on the 25fps master would have shown 12.5fps — the browser
+    // holds each frame longer rather than generating new ones, so it reads as
+    // choppy. The encode interpolates the intermediate frames instead and stays
+    // a true 25fps. See docs/STATUS.md.
+    //
     // The autoplay attribute normally covers this; the explicit call catches
     // the cases it doesn't (iOS Low Power Mode among them). A refusal is the
     // poster frame, not an error worth surfacing.
