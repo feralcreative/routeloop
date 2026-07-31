@@ -51,7 +51,7 @@ export function googleMapsLoader(key: string): string {
 }
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile'
+export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile' | 'admin'
 
 export type PageOpts = {
   /** Without the " — tankbag" suffix; page() appends it. */
@@ -95,8 +95,13 @@ function navLink(item: { key: NavKey; href: string; label: string }, navKey?: Na
 }
 
 function siteHeader(user: UserRow | null, navKey?: NavKey): string {
+  // Rider management is the only nav item that is capability-gated rather than
+  // shown to every signed-in rider, so it is appended here instead of living in
+  // the static NAV_LINKS list.
+  const adminLink =
+    user?.canManageRiders ? navLink({ key: 'admin', href: '/admin', label: 'Riders' }, navKey) : ''
   const links = user
-    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}
+    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}${adminLink}
       <hr>
       <span class="nav-user">${esc(user.displayName)}</span>
       <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>`

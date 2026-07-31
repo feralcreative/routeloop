@@ -74,9 +74,12 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
           .values({
             email,
             displayName,
-            // The only account never left waiting. Everyone else is approved by
-            // hand — that is the NAS capacity gate, not a Cloudflare policy.
+            // The only account never left waiting, and the one that does the
+            // waiting-list clearing: the owner lands active AND able to manage
+            // riders, so /admin has a way in from the very first login. Everyone
+            // else is approved by hand — the NAS capacity gate, not a policy.
             status: email === OWNER_EMAIL ? 'active' : 'pending',
+            canManageRiders: email === OWNER_EMAIL,
             lastLoginAt: new Date(),
           })
           .returning()

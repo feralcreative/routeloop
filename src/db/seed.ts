@@ -14,7 +14,9 @@ async function main() {
 
   const [u] = await db
     .insert(users)
-    .values({ displayName: 'Demo Rider', email: 'demo@tankbag.app' })
+    // The dev owner: active (the schema default) and able to manage riders, so
+    // /admin is reachable locally without a hand-written UPDATE.
+    .values({ displayName: 'Demo Rider', email: 'demo@tankbag.app', canManageRiders: true })
     .returning()
 
   const kml = processKml(await readFile('moto-storage/1/1.kml', 'utf8'))

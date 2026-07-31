@@ -18,6 +18,7 @@ import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { ROLE_META } from './maps/roles'
 import { mapFilePath } from './maps/storage'
+import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
@@ -93,6 +94,7 @@ app.use('/favicon.ico', serveStatic({ path: './public/img/favicon.ico' }))
 app.use('*', withSession)
 
 app.route('/', authRoutes)
+app.route('/', adminRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)

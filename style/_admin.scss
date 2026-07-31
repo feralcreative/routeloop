@@ -1,0 +1,111 @@
+@use "tokens" as *;
+
+// The rider list reuses ul.cards (white rows, soft shadow) from _chrome.scss; only
+// the row internals and the status/action treatments are admin-specific.
+
+.rider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  flex-wrap: wrap;
+}
+
+.rider-id {
+  color: #bbb;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.rider-main {
+  flex: 1 1 16rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.rider-name {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rider-email {
+  color: #777;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.rider-meta {
+  color: #999;
+  font-size: 0.8em;
+}
+
+.rider-status {
+  flex: 0 0 auto;
+}
+
+.rider-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex: 0 0 auto;
+
+  form {
+    margin: 0;
+  }
+}
+
+.rider-you {
+  color: #aaa;
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+// Compact variants of the shared .btn for the per-row actions.
+.btn.btn-sm {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85em;
+}
+
+.btn.btn-approve {
+  background: $gpx;
+
+  &:hover {
+    background: darken($gpx, 8%);
+  }
+}
+
+.btn.btn-danger {
+  background: $kml;
+
+  &:hover {
+    background: darken($kml, 8%);
+  }
+}
+
+// Status pills, tinted from the same tokens the buttons use so color reads
+// consistently across the page.
+.pill.is-active {
+  background: rgba($gpx, 0.15);
+  color: darken($gpx, 12%);
+}
+
+.pill.is-pending {
+  background: rgba($pending, 0.16);
+  color: $pending;
+}
+
+.pill.is-blocked {
+  background: rgba($kml, 0.14);
+  color: darken($kml, 6%);
+}
+
+.pill.is-manager {
+  background: rgba($brand, 0.14);
+  color: darken($brand, 6%);
+}

@@ -8,6 +8,9 @@ $kml: #d32f2f;
 $white: #fff;
 $grey: #ddd;
 $text: #333;
+// Rider-approval "waiting" state on the admin panel. Amber reads as attention-
+// needed without the alarm of $kml, and stays legible as dark-on-tint.
+$pending: #b26a00;
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
 $font: lato;

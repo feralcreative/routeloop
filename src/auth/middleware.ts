@@ -41,6 +41,18 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
   await next()
 }
 
+// Rider management. Active plus the capability flag. A page gate, so a signed-in
+// rider who lacks the flag is sent to their own dashboard rather than shown a
+// 403 — the surface simply is not theirs, and the account is already known-good
+// (active), so this is authorization on top of authentication, not either alone.
+export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/login', 302)
+  if (user.status !== 'active') return c.redirect('/welcome', 302)
+  if (!user.canManageRiders) return c.redirect('/dashboard', 302)
+  await next()
+}
+
 // API flavor: a fetch() caller wants a 401, not a redirect to an HTML page.
 export const requireAuthApi: MiddlewareHandler<AuthEnv> = async (c, next) => {
   if (!c.get('user')) return c.json({ error: 'authentication required' }, 401)
