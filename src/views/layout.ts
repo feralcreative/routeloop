@@ -9,10 +9,10 @@ import { alphaSplash } from './splash'
 export { esc } from './esc'
 import { esc } from './esc'
 
-export const SITE_ICON_LINKS = `<link rel="icon" type="image/png" href="/img/favicon-96x96.png" sizes="96x96">
-  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+export const SITE_ICON_LINKS = `<link rel="icon" type="image/png" href="/img/favicon/favicon-96x96.png" sizes="96x96">
+  <link rel="icon" type="image/svg+xml" href="/img/favicon/favicon.svg">
   <link rel="shortcut icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/img/favicon/apple-touch-icon.png">
   <link rel="manifest" href="/img/site.webmanifest">`
 
 // Inlining JSON into a <script> is only safe if the payload cannot close the

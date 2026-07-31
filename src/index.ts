@@ -87,7 +87,7 @@ app.use('/js/*', serveStatic({ root: './public' }))
 app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
-app.use('/favicon.ico', serveStatic({ path: './public/img/favicon.ico' }))
+app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
 
 // Resolves the session once per request so every template can render the right
 // header. Mounted after the static assets so they skip the database entirely.
