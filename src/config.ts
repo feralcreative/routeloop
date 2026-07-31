@@ -92,6 +92,6 @@ export const MAGIC_LINK_ENABLED = Boolean(SMTP_USER && SMTP_PASS && MAIL_FROM)
 // to the deploy plumbing. Env still overrides, and setting one to an empty
 // string omits that link rather than rendering a dead one.
 export const ALPHA_GITHUB_URL =
-  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/tankbag-app/issues'
+  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/tankbag/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'
