@@ -12,10 +12,10 @@ Active build on a **TypeScript + Hono + PostgreSQL** stack, hosted on a Synology
 
 Two replacements drove the `refactor/google-maps-and-auth` branch; both are now deployed to production, with only cleanup remaining. Both are described precisely in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
 
-| | Being replaced | Replacement | State |
-| --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + emailed magic link, owned by the app | **Deployed to stage and production 2026-07-30** and signing in; the Access policy still has to be removed |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | **Ported, verified and deployed 2026-07-30**; only `profile.js` geocoding and dead Mapbox config remain to retire |
+|      | Being replaced                     | Replacement                                         | State                                                                                                             |
+| ---- | ---------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed to stage and production 2026-07-30** and signing in; the Access policy still has to be removed         |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Ported, verified and deployed 2026-07-30**; only `profile.js` geocoding and dead Mapbox config remain to retire |
 
 Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
@@ -232,7 +232,7 @@ Production refuses a dirty tree or a non-`main` branch; `--force` bypasses both 
 DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 ```
 
-`db-clone` handles all three environments, local dev included, and syncs the KML/GPX storage alongside the database—a cloned database without those files 404s every imported ride. The destination is dropped and replaced, so it is backed up first and the undo command is printed. Prod as a *destination* additionally requires `--force`; every destination requires typing its name.
+`db-clone` handles all three environments, local dev included, and syncs the KML/GPX storage alongside the database—a cloned database without those files 404s every imported ride. The destination is dropped and replaced, so it is backed up first and the undo command is printed. Prod as a _destination_ additionally requires `--force`; every destination requires typing its name.
 
 > **Compose derives its project name from the directory it runs in**, and the volume prefix from that. Renaming a checkout therefore orphans the database: the stack comes back up on a brand-new empty volume while the rows sit in the old one, and the container name collides rather than failing cleanly. `docker-compose.yml` pins `name: tankbag` so the local prefix no longer depends on the path. The deployed stacks set `COMPOSE_PROJECT_NAME` explicitly for the same reason—which also means a stale volume from an earlier era can be silently adopted by a fresh deploy. Check `docker volume ls` before assuming a new environment is empty.
 
@@ -240,4 +240,4 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 ## Provenance
 
-TankBag reuses the client-side map engine from the original Moto-Rooter static viewer, recovered from git history. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
+TankBag reuses the client-side map engine from the original [Moto-Rooter](https://github.com/feralcreative/moto-rooter) static viewer. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
