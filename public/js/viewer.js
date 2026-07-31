@@ -1,10 +1,22 @@
-// The unified ride viewer: renders ride.json (window.TB.rideUrl) on Mapbox GL.
+// The unified ride viewer: renders ride.json (window.TB.rideUrl) on Google Maps.
 // Ports the legacy legend/route-table behavior: per-route visibility
 // checkboxes, mileage, hover highlight/dim, download buttons, arrow toggle.
 (function () {
   "use strict";
-  const { esc, initMap, fitTo, addRouteLayers, setRouteVisible, setRouteDim, markerElement, popupHtml, attachPopup, stopMileages, initPanelToggle } =
-    window.TBMap;
+  const {
+    esc,
+    initMap,
+    fitTo,
+    addRouteLayers,
+    setRouteVisible,
+    setRouteDim,
+    addMarker,
+    markerElement,
+    popupHtml,
+    attachPopup,
+    stopMileages,
+    initPanelToggle,
+  } = window.TBMap;
 
   initPanelToggle();
 
@@ -12,7 +24,10 @@
     map: null,
     ride: null,
     arrowsOn: true,
-    routes: [], // per route: { visible, markers: mapboxgl.Marker[] }
+    // per route: { visible, markers: [{ marker, el }] } — the element is kept
+    // alongside the marker because dimming and hiding are CSS on our own DOM,
+    // not map state.
+    routes: [],
   };
 
   function allTrackPoints() {
@@ -24,6 +39,13 @@
     return pts;
   }
 
+  function place(route, point, kind, mileage) {
+    const el = markerElement(point, route.color, kind);
+    const marker = addMarker(state.map, [point.lng, point.lat], el, { title: point.name || "" });
+    attachPopup(state.map, marker, popupHtml(point, route.color, mileage));
+    return { marker, el };
+  }
+
   function renderRoute(i, route) {
     const rs = { visible: true, markers: [] };
     state.routes[i] = rs;
@@ -31,30 +53,18 @@
 
     const mileages = stopMileages(route.stops);
     route.stops.forEach((stop, si) => {
-      const marker = new mapboxgl.Marker({ element: markerElement(stop, route.color, "stop"), anchor: "center" })
-        .setLngLat([stop.lng, stop.lat])
-        .addTo(state.map);
-      attachPopup(state.map, marker, popupHtml(stop, route.color, mileages[si]));
-      rs.markers.push(marker);
+      rs.markers.push(place(route, stop, "stop", mileages[si]));
     });
     route.pois.forEach((poi) => {
-      const marker = new mapboxgl.Marker({ element: markerElement(poi, route.color, "poi"), anchor: "center" })
-        .setLngLat([poi.lng, poi.lat])
-        .addTo(state.map);
-      attachPopup(
-        state.map,
-        marker,
-        popupHtml(poi, route.color, { fromStartMi: poi.distFromStartMi, showCharge: false }),
-      );
-      rs.markers.push(marker);
+      rs.markers.push(place(route, poi, "poi", { fromStartMi: poi.distFromStartMi, showCharge: false }));
     });
   }
 
   function setVisible(i, visible) {
     state.routes[i].visible = visible;
     setRouteVisible(state.map, i, visible, state.arrowsOn);
-    state.routes[i].markers.forEach((m) => {
-      m.getElement().style.display = visible ? "" : "none";
+    state.routes[i].markers.forEach(({ el }) => {
+      el.style.display = visible ? "" : "none";
     });
   }
 
@@ -62,8 +72,8 @@
     state.ride.routes.forEach((_, j) => {
       const dim = i !== null && j !== i;
       setRouteDim(state.map, j, dim);
-      state.routes[j].markers.forEach((m) => {
-        m.getElement().style.opacity = dim ? "0.3" : "";
+      state.routes[j].markers.forEach(({ el }) => {
+        el.style.opacity = dim ? "0.3" : "";
       });
     });
   }
@@ -111,33 +121,31 @@
     });
   }
 
-  function init() {
-    fetch(window.TB.rideUrl)
-      .then((r) => {
-        if (!r.ok) throw new Error("ride fetch failed: " + r.status);
-        return r.json();
-      })
-      .then((ride) => {
-        state.ride = ride;
-        state.map = initMap("map");
-        state.map.on("load", () => {
-          ride.routes.forEach((route, i) => renderRoute(i, route));
-          fitTo(state.map, allTrackPoints());
-          buildLegend();
-          const arrowToggle = document.getElementById("toggle-arrows");
-          if (arrowToggle) {
-            arrowToggle.addEventListener("change", () => {
-              state.arrowsOn = arrowToggle.checked;
-              ride.routes.forEach((_, i) => setRouteVisible(state.map, i, state.routes[i].visible, state.arrowsOn));
-            });
-          }
+  async function init() {
+    try {
+      const res = await fetch(window.TB.rideUrl);
+      if (!res.ok) throw new Error("ride fetch failed: " + res.status);
+      const ride = await res.json();
+
+      state.ride = ride;
+      state.map = await initMap("map");
+
+      ride.routes.forEach((route, i) => renderRoute(i, route));
+      fitTo(state.map, allTrackPoints());
+      buildLegend();
+
+      const arrowToggle = document.getElementById("toggle-arrows");
+      if (arrowToggle) {
+        arrowToggle.addEventListener("change", () => {
+          state.arrowsOn = arrowToggle.checked;
+          ride.routes.forEach((_, i) => setRouteVisible(state.map, i, state.routes[i].visible, state.arrowsOn));
         });
-      })
-      .catch((e) => {
-        console.error("[viewer]", e);
-        const panel = document.querySelector(".panel-content");
-        if (panel) panel.innerHTML = '<p class="empty">Could not load this ride.</p>';
-      });
+      }
+    } catch (e) {
+      console.error("[viewer]", e);
+      const panel = document.querySelector(".panel-content");
+      if (panel) panel.innerHTML = '<p class="empty">Could not load this ride.</p>';
+    }
   }
 
   init();

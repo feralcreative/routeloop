@@ -28,14 +28,33 @@ export function jsonScript(varName: string, value: unknown): string {
 }
 
 // Mapbox pages pass this as `head`. Kept here so the version stays pinned to
-// the same constant the <script> tag uses.
+// the same constant the <script> tag uses. Nothing uses it since the Google
+// port; it goes with MAPBOX_TOKEN in Phase 4.
 export const MAPBOX_CSS_LINK = `<link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">`
 
+// Google's inline bootstrap loader, verbatim from their docs, which defines
+// google.maps.importLibrary() and nothing else. Map pages emit this instead of
+// a plain <script src=…&callback=…> because the engine imports "maps", "marker"
+// and "places" separately and on demand — the marker library in particular is
+// what Advanced Markers need and what the old callback form could not defer.
+//
+// The key is public by design (it ships in page source; the referrer allow-list
+// is the only control on it), but it still goes through JSON.stringify so a
+// malformed value cannot break out of the string literal.
+export function googleMapsLoader(key: string): string {
+  return `<script>
+  (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=\`https://maps.\${c}apis.com/maps/api/js?\`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+    key: ${JSON.stringify(key).replace(/</g, '\\u003c')},
+    v: "weekly",
+  });
+  </script>`
+}
+
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile'
+export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile' | 'admin'
 
 export type PageOpts = {
-  /** Without the " — routeloop" suffix; page() appends it. */
+  /** Without the " — TankBag" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -76,15 +95,20 @@ function navLink(item: { key: NavKey; href: string; label: string }, navKey?: Na
 }
 
 function siteHeader(user: UserRow | null, navKey?: NavKey): string {
+  // Rider management is the only nav item that is capability-gated rather than
+  // shown to every signed-in rider, so it is appended here instead of living in
+  // the static NAV_LINKS list.
+  const adminLink =
+    user?.canManageRiders ? navLink({ key: 'admin', href: '/admin', label: 'Riders' }, navKey) : ''
   const links = user
-    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}
+    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}${adminLink}
       <hr>
       <span class="nav-user">${esc(user.displayName)}</span>
       <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>`
     : `${navLink(NAV_LINKS[0], navKey)}<a href="/login">Sign in</a>`
 
   return `<header class="site-header" id="site-header">
-  <a class="site-logo" href="/"><img src="/img/logo-routeloop-horiz.svg" alt="routeloop" width="849" height="104"></a>
+  <a class="site-logo" href="/"><img src="/img/logo-tankbag-horiz-light.svg" alt="TankBag" width="1414" height="426"></a>
   <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
     <span class="nav-bars" aria-hidden="true"></span>
   </button>
@@ -124,7 +148,7 @@ export function page(opts: PageOpts): string {
   ]
     .filter(Boolean)
     .join(' ')
-  const title = `${esc(opts.title)} — routeloop`
+  const title = `${esc(opts.title)} — TankBag`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n</div>`
 
   return `<!doctype html>
@@ -136,7 +160,7 @@ export function page(opts: PageOpts): string {
   ${SITE_ICON_LINKS}
   <meta property="og:title" content="${title}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="/img/logo-routeloop-horiz@2x.png">
+  <meta property="og:image" content="/img/logo-tankbag-horiz-light@2x.png">
   <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
   <link rel="stylesheet" href="/style/main.min.css">${opts.head ? `\n  ${opts.head}` : ''}

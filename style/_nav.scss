@@ -16,10 +16,14 @@
   display: block;
   line-height: 0;
 
+  // 34px, not the 24px the old wordmark used. The tankbag lockup is 3.3:1 where
+  // the routeloop one was 8.2:1 — most of the new height is the bag icon, so at
+  // 24px the word itself came out around 8px tall. This restores the wordmark to
+  // roughly its former size and still clears the 40px nav toggle beside it.
   img {
     display: block;
     width: auto;
-    height: 24px;
+    height: 34px;
   }
 }
 
@@ -172,8 +176,10 @@ html.map-page {
     pointer-events: auto;
   }
 
-  // The logo artwork is a hardcoded #333, so it needs a light backing to stay
-  // legible over outdoors and satellite tiles.
+  // The light-variant artwork is black on transparent, so it needs a light
+  // backing to stay legible over outdoors and satellite tiles. Swapping to
+  // logo-tankbag-horiz-dark.svg here instead would drop the backing, but the
+  // mark would then vanish over pale terrain — the backing is the safer default.
   .site-logo {
     padding: 0.35rem 0.6rem;
     background: $panel-bg;
@@ -181,7 +187,7 @@ html.map-page {
     box-shadow: 0 2px 8px $panel-shadow;
 
     img {
-      height: 22px;
+      height: 30px;
     }
   }
 

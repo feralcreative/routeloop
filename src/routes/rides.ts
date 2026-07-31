@@ -27,8 +27,8 @@ import {
   type Track,
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
-import { MAPBOX_CSS_LINK, page, panelShell } from '../views/layout'
-import { MAPBOX_GL_VERSION, MAPBOX_TOKEN } from '../config'
+import { googleMapsLoader, page, panelShell } from '../views/layout'
+import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { fields, firstIssue, ownRide } from './maps'
@@ -379,11 +379,13 @@ rideRoutes.get('/builder/:id', requireActive, async (c) => {
 })
 
 function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; lng: number } | null): string {
+  // The day slider is a focus control, not a navigation one: every day stays
+  // drawn on the map at all times and the slider only changes which one is
+  // emphasised. Seeing the whole trip on one map is the product.
   const contents = `        <div class="ride-meta">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
-            <input id="route-color" name="route-color" type="color" value="#0066cc" title="Route color">
             <select id="ride-visibility" name="visibility" title="Visibility">
               <option value="private" selected>Private</option>
               <option value="unlisted">Unlisted</option>
@@ -394,6 +396,26 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
               <button type="button" class="mode-btn" data-mode="poi">+ POI</button>
             </div>
           </div>
+        </div>
+
+        <div class="day-scrub" id="day-scrub">
+          <div class="day-scrub-head">
+            <span class="day-scrub-label" id="day-label">All days</span>
+            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
+          </div>
+          <input id="day-slider" class="day-slider" type="range" min="0" max="0" step="1" value="0"
+                 aria-label="Focus a day, or all days" title="Drag to focus one day">
+          <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
+        </div>
+
+        <div class="day-head" id="day-head" hidden>
+          <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
+          <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
+          <span class="day-actions">
+            <button type="button" id="day-up" title="Move day earlier">↑</button>
+            <button type="button" id="day-down" title="Move day later">↓</button>
+            <button type="button" id="day-del" title="Delete this day">✕</button>
+          </span>
         </div>
 
         <div class="search-wrap">
@@ -416,7 +438,6 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
     user,
     variant: 'map',
     bodyClass: 'builder-page',
-    head: MAPBOX_CSS_LINK,
     navKey: 'builder',
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
@@ -424,8 +445,8 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { token: MAPBOX_TOKEN, roles: ROLE_META, rideId, home },
-    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
+    scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="/js/map-common.js" defer></script>
   <script src="/js/builder.js" defer></script>`,
   })

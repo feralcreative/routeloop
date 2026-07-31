@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ################################################################################
-# routeloop — shared deploy logic (Docker-on-NAS, templated archetype).
+# tankbag — shared deploy logic (Docker-on-NAS, templated archetype).
 #
 # Don't run directly — use prod.sh or stage.sh, which set DEPLOY_ENV.
 #
@@ -69,9 +69,41 @@ MISSING=""
 [ -n "${GMAPS_KEY:-}" ]  || MISSING="${MISSING} GMAPS_KEY"
 [ -n "${MAPBOX_TOKEN:-}" ] || MISSING="${MISSING} MAPBOX_TOKEN"
 [ -n "${DB_PASSWORD}" ]  || MISSING="${MISSING} $([ "$DEPLOY_ENV" = "prod" ] && echo PROD_DB_PASSWORD || echo STAGE_DB_PASSWORD)"
+
+# Promoted to hard failures when the Google migrations landed, because without
+# them the container starts, passes its healthcheck, and is useless:
+#
+#   GMAPS_MAP_ID          Advanced Markers render NOTHING without a Map ID — no
+#                         error, no marker, just an empty map.
+#   GOOGLE_CLIENT_ID/     Both sign-in methods feature-flag themselves off when
+#   GOOGLE_CLIENT_SECRET  unconfigured, and Cloudflare Access no longer backs
+#   SMTP_* / MAIL_FROM    them up — so an omission here ships a site that NOBODY,
+#                         including the owner, can sign in to.
+#
+# These used never to be shipped at all. That was survivable only while Access
+# was still authenticating at the edge; it is not survivable now.
+[ -n "${GMAPS_MAP_ID:-}" ] || MISSING="${MISSING} GMAPS_MAP_ID"
+[ -n "${GOOGLE_CLIENT_ID:-}" ] || MISSING="${MISSING} GOOGLE_CLIENT_ID"
+[ -n "${GOOGLE_CLIENT_SECRET:-}" ] || MISSING="${MISSING} GOOGLE_CLIENT_SECRET"
+[ -n "${GMAPS_SERVER_KEY:-}" ] || MISSING="${MISSING} GMAPS_SERVER_KEY"
+
 if [ -n "$MISSING" ]; then
   log_error "Missing required value(s) in .env:${MISSING}"
   log_error "See .env.example. Aborting rather than deploying a broken container."
+  exit 1
+fi
+
+# Magic link is genuinely optional — Google OAuth alone is a working sign-in —
+# so an incomplete SMTP triple warns rather than blocks. All three or none:
+# a partial set is the case that looks configured and fails at send time.
+SMTP_SET=0
+[ -n "${SMTP_USER:-}" ] && SMTP_SET=$((SMTP_SET + 1))
+[ -n "${SMTP_PASS:-}" ] && SMTP_SET=$((SMTP_SET + 1))
+[ -n "${MAIL_FROM:-}" ] && SMTP_SET=$((SMTP_SET + 1))
+if [ "$SMTP_SET" -eq 0 ]; then
+  log_warning "SMTP_USER/SMTP_PASS/MAIL_FROM unset — magic-link sign-in will be hidden; Google OAuth only."
+elif [ "$SMTP_SET" -lt 3 ]; then
+  log_error "SMTP is partially configured ($SMTP_SET/3). Set all of SMTP_USER, SMTP_PASS, MAIL_FROM, or none."
   exit 1
 fi
 
@@ -202,9 +234,19 @@ printf '%s\n' \
   "APP_UID=${APP_UID}" \
   "APP_GID=${APP_GID}" \
   "GMAPS_KEY=${GMAPS_KEY}" \
+  "GMAPS_SERVER_KEY=${GMAPS_SERVER_KEY:-}" \
+  "GMAPS_MAP_ID=${GMAPS_MAP_ID}" \
   "MAPBOX_TOKEN=${MAPBOX_TOKEN}" \
   "DB_PASSWORD=${DB_PASSWORD}" \
   "APP_ORIGIN=${APP_ORIGIN}" \
+  "OWNER_EMAIL=${OWNER_EMAIL:-}" \
+  "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
+  "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \
+  "SMTP_HOST=${SMTP_HOST:-}" \
+  "SMTP_PORT=${SMTP_PORT:-}" \
+  "SMTP_USER=${SMTP_USER:-}" \
+  "SMTP_PASS=${SMTP_PASS:-}" \
+  "MAIL_FROM=${MAIL_FROM:-}" \
   | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
 
 # --------------------------------------------------------------- deploy ------

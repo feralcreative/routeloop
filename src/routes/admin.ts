@@ -1,0 +1,141 @@
+// Rider management for accounts holding users.can_manage_riders. Every new
+// account starts `pending` (resolveUser writes it on the insert path) and cannot
+// use the app until someone here flips it to `active`; before this page that was
+// a hand-written `UPDATE users SET status='active'` over SSH.
+//
+// Plain HTML form POSTs, not the fetch+JSON APIs the ride surface uses — the same
+// reasoning as profile.ts: an owner-only settings page should not stop working
+// without JavaScript, and a form plus one re-render is less code than an endpoint
+// and a client script. requireSameOrigin still guards the write because changing
+// a rider's status is privileged in a way saving your own profile is not.
+import { Hono } from 'hono'
+import { desc, eq, sql } from 'drizzle-orm'
+import { z } from 'zod'
+import { db } from '../db/index'
+import { users } from '../db/schema'
+import { currentUser, requireManageRiders, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { esc, page } from '../views/layout'
+
+export const adminRoutes = new Hono<AuthEnv>()
+
+// The two transitions the UI can drive. `pending` is only ever set by the signup
+// path, never here — a manager approves or blocks, they do not un-approve back to
+// a limbo state.
+const statusSchema = z.object({ status: z.enum(['active', 'blocked']) })
+
+type RiderRow = {
+  id: number
+  email: string | null
+  displayName: string
+  username: string | null
+  status: 'pending' | 'active' | 'blocked'
+  canManageRiders: boolean
+  createdAt: Date
+  lastLoginAt: Date | null
+}
+
+const fmtDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '—')
+
+// A single status-changing button, as its own form so it works without script.
+function actionForm(id: number, status: 'active' | 'blocked', label: string, cls: string): string {
+  return `<form method="post" action="/admin/riders/${id}">
+      <input type="hidden" name="status" value="${status}">
+      <button class="btn btn-sm ${cls}" type="submit">${esc(label)}</button>
+    </form>`
+}
+
+// The actions offered depend on where the rider currently is. A pending rider can
+// be approved or blocked; an active rider blocked; a blocked rider reinstated.
+function actionsFor(r: RiderRow): string {
+  switch (r.status) {
+    case 'pending':
+      return actionForm(r.id, 'active', 'Approve', 'btn-approve') + actionForm(r.id, 'blocked', 'Block', 'btn-danger')
+    case 'active':
+      return actionForm(r.id, 'blocked', 'Block', 'btn-danger')
+    case 'blocked':
+      return actionForm(r.id, 'active', 'Reinstate', 'btn-approve')
+  }
+}
+
+function riderRow(r: RiderRow, meId: number): string {
+  const isMe = r.id === meId
+  const badge = r.canManageRiders ? '<span class="pill is-manager">manager</span>' : ''
+  const handle = r.username ? `@${esc(r.username)}` : ''
+  // A manager never gets action buttons on their own row: the page exists to keep
+  // at least one active manager, so self-blocking is not an option to offer.
+  const actions = isMe ? '<span class="rider-you">you</span>' : actionsFor(r)
+
+  return `<li class="rider">
+      <span class="rider-id">#${r.id}</span>
+      <span class="rider-main">
+        <span class="rider-name">${esc(r.displayName)} ${badge}</span>
+        <span class="rider-email">${esc(r.email ?? '—')}${handle ? ` &middot; ${handle}` : ''}</span>
+        <span class="rider-meta">joined ${fmtDate(r.createdAt)} &middot; last seen ${fmtDate(r.lastLoginAt)}</span>
+      </span>
+      <span class="rider-status"><span class="pill is-${r.status}">${esc(r.status)}</span></span>
+      <span class="rider-actions">${actions}</span>
+    </li>`
+}
+
+function notice(query: (k: string) => string | undefined): string {
+  if (query('updated') === '1') return '<p class="notice">Rider updated.</p>'
+  if (query('error') === 'self') return '<p class="notice is-error">You can’t change your own account here.</p>'
+  if (query('error') === 'bad') return '<p class="notice is-error">That action wasn’t recognized.</p>'
+  return ''
+}
+
+adminRoutes.get('/admin', requireManageRiders, async (c) => {
+  const me = currentUser(c)
+
+  // Pending first (they are the ones waiting on an action), then active, then
+  // blocked; newest within each group.
+  const riders: RiderRow[] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      username: users.username,
+      status: users.status,
+      canManageRiders: users.canManageRiders,
+      createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
+    })
+    .from(users)
+    .orderBy(
+      sql`case ${users.status} when 'pending' then 0 when 'active' then 1 else 2 end`,
+      desc(users.createdAt),
+    )
+
+  const pending = riders.filter((r) => r.status === 'pending').length
+  const rows = riders.map((r) => riderRow(r, me.id)).join('')
+
+  const body = `<h1>Riders</h1>
+    <div class="sub">${riders.length} account${riders.length === 1 ? '' : 's'}${
+      pending ? ` &middot; ${pending} waiting for approval` : ''
+    }</div>
+    ${notice((k) => c.req.query(k))}
+    ${riders.length ? `<ul class="cards rider-list">${rows}</ul>` : '<p class="empty">No riders yet.</p>'}`
+
+  return c.html(page({ title: 'Riders', user: me, navKey: 'admin', body }))
+})
+
+adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, async (c) => {
+  const me = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
+
+  // Guard self-lockout before touching the body: whatever was posted, a manager
+  // cannot flip their own status here.
+  if (id === me.id) return c.redirect('/admin?error=self', 302)
+
+  const parsed = statusSchema.safeParse(await c.req.parseBody())
+  if (!parsed.success) return c.redirect('/admin?error=bad', 302)
+
+  const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1)
+  if (!target) return c.notFound()
+
+  await db.update(users).set({ status: parsed.data.status, updatedAt: new Date() }).where(eq(users.id, id))
+
+  // Redirect rather than re-render so a refresh cannot resubmit the change.
+  return c.redirect('/admin?updated=1', 302)
+})

@@ -18,13 +18,15 @@ import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { ROLE_META } from './maps/roles'
 import { mapFilePath } from './maps/storage'
+import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
-import { esc, jsonScript, MAPBOX_CSS_LINK, page, panelShell } from './views/layout'
-import { GMAPS_KEY, MAPBOX_GL_VERSION, MAPBOX_TOKEN, PORT } from './config'
+import { routingRoutes } from './routes/routing'
+import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
+import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -53,13 +55,19 @@ const app = new Hono<AuthEnv>()
 
 // Keep the former domains alive during the one-year transition, but make the
 // canonical host unambiguous for cookies, sharing, and search engines. Each
-// legacy host maps to its own environment so staging never lands on prod. This
-// also runs ahead of every route, which is what keeps a legacy hostname from
-// reaching /auth/cloudflare — only the canonical host is Access-protected.
+// legacy host maps to its own environment so staging never lands on prod. It
+// runs ahead of every route, so a request arriving on a legacy hostname is
+// redirected before any auth handler sees it.
+//
+// The direction reversed on 2026-07-29: tankbag.app is canonical again and the
+// routeloop.app names now redirect to it. Both hostnames still resolve to the
+// same container over their own tunnel routes, so no tunnel change is needed —
+// only which name wins.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
-  'tankbag.app': 'routeloop.app',
-  'www.tankbag.app': 'routeloop.app',
-  'stage.tankbag.app': 'stage.routeloop.app',
+  'routeloop.app': 'tankbag.app',
+  'www.routeloop.app': 'tankbag.app',
+  'stage.routeloop.app': 'stage.tankbag.app',
+  'www.tankbag.app': 'tankbag.app',
 }
 
 app.use('*', async (c, next) => {
@@ -86,10 +94,12 @@ app.use('/favicon.ico', serveStatic({ path: './public/img/favicon.ico' }))
 app.use('*', withSession)
 
 app.route('/', authRoutes)
+app.route('/', adminRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', profileRoutes)
+app.route('/', routingRoutes)
 
 // Signed-in home: the rider's latest work alongside public community picks.
 // The gate is hand-rolled rather than requireActive because this route reads the
@@ -115,8 +125,8 @@ app.get('/', async (c) => {
   return c.html(homeHtml(rideCards(recent), rideCards(popular, true), user))
 })
 
-// Viewer page. Native rides render on the Mapbox shell from structured rows;
-// imported rides stay on the legacy Google shell until Phase 4 unifies them.
+// Viewer page. Native rides render on the ported engine from structured rows;
+// imported rides stay on the legacy main.js shell until Phase 4 unifies them.
 app.get('/m/:slug', async (c) => {
   const viewer = c.get('user') ?? null
   const m = await getViewable(c.req.param('slug'), viewer)
@@ -270,21 +280,22 @@ function viewerPanel(m: RideRow): string {
 
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
-// The unified Mapbox viewer shell (native rides now; everything in Phase 4).
+// The unified viewer shell (native rides now; imported rides join it when
+// main.js retires in Phase 4).
 function nativeViewHtml(m: RideRow, user: UserRow | null): string {
   return page({
     title: m.title,
     user,
     variant: 'map',
-    head: MAPBOX_CSS_LINK,
     noscript: VIEWER_NOSCRIPT,
     body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
-      token: MAPBOX_TOKEN,
+      gmapsKey: GMAPS_KEY,
+      mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
     },
-    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+    scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="/js/map-common.js" defer></script>
   <script src="/js/viewer.js" defer></script>`,
   })
@@ -336,5 +347,5 @@ function homeHtml(recentCards: string, popularCards: string, user: UserRow): str
 }
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
+  console.log(`tankbag dev → http://127.0.0.1:${info.port}`)
 })

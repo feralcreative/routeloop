@@ -22,10 +22,10 @@ export function alphaSplash(): string {
 
   return `<div class="modal-backdrop" id="alpha-splash" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="alpha-title" aria-describedby="alpha-body">
-    <img class="modal-logo" src="/img/logo-routeloop-vert.svg" alt="" width="368" height="208">
+    <img class="modal-logo" src="/img/logo-tankbag-vert-light.svg" alt="" width="864" height="618">
     <h2 id="alpha-title">This is an alpha</h2>
     <div id="alpha-body" class="modal-body">
-      <p>routeloop is an early build of something I'm making. Expect rough edges,
+      <p>TankBag is an early build of something I'm making. Expect rough edges,
          missing pieces, and the occasional data reset. Feedback is the whole point.</p>
       ${links ? `<ul class="modal-links">${links}</ul>` : ''}
     </div>

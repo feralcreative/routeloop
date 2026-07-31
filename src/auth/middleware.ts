@@ -2,7 +2,7 @@
 // and the owner API.
 import type { Context, MiddlewareHandler } from 'hono'
 import type { UserRow } from '../db/schema'
-import { isAllowedOrigin } from './access'
+import { isAllowedOrigin } from '../config'
 import { readSessionCookie, validateSessionToken } from './session'
 
 // Typed access to c.get('user') / c.get('sessionId') across the app.
@@ -22,8 +22,8 @@ export const withSession: MiddlewareHandler<AuthEnv> = async (c, next) => {
   await next()
 }
 
-// Session only. Cloudflare Access admits any Google account, so having a session
-// no longer means being allowed to use the app — almost every page wants
+// Session only. Anyone can sign in with Google or a magic link, so having a
+// session does not mean being allowed to use the app — almost every page wants
 // requireActive below. This gate exists for the two routes a pending rider must
 // still reach: /welcome and /logout.
 export const requireAuth: MiddlewareHandler<AuthEnv> = async (c, next) => {
@@ -38,6 +38,18 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
+  await next()
+}
+
+// Rider management. Active plus the capability flag. A page gate, so a signed-in
+// rider who lacks the flag is sent to their own dashboard rather than shown a
+// 403 — the surface simply is not theirs, and the account is already known-good
+// (active), so this is authorization on top of authentication, not either alone.
+export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/login', 302)
+  if (user.status !== 'active') return c.redirect('/welcome', 302)
+  if (!user.canManageRiders) return c.redirect('/dashboard', 302)
   await next()
 }
 

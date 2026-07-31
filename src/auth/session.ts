@@ -6,10 +6,11 @@
 import { eq, lt } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
+import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { sessions, users, type UserRow } from '../db/schema'
 
-export const SESSION_COOKIE = 'routeloop_session'
+export const SESSION_COOKIE = 'tankbag_session'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SESSION_TTL_MS = 30 * DAY_MS
@@ -18,8 +19,9 @@ const SESSION_TTL_MS = 30 * DAY_MS
 const RENEW_WHEN_UNDER_MS = 15 * DAY_MS
 
 // APP_ORIGIN decides the Secure flag: dev runs on plain http at 127.0.0.1, and a
-// Secure cookie there would simply never be sent back.
-const SECURE_COOKIES = (process.env.APP_ORIGIN ?? '').startsWith('https://')
+// Secure cookie there would simply never be sent back. Exported because the
+// OAuth state and PKCE cookies must be flagged identically.
+export const SECURE_COOKIES = IS_HTTPS_ORIGIN
 
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')

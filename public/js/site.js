@@ -6,7 +6,7 @@
 
   // Bump to re-show the splash for everyone who already dismissed it.
   const ALPHA_SPLASH_VERSION = "1";
-  const ALPHA_KEY = "routeloop.alphaSplash";
+  const ALPHA_KEY = "tankbag.alphaSplash";
 
   // Private-mode Safari throws on storage access. A failure has to read as
   // "not dismissed" rather than taking the page down with it.
@@ -143,6 +143,12 @@
 
     video.src = src;
 
+    // The clip is slowed in the file itself, not via playbackRate. Halving
+    // playbackRate on the 25fps master would have shown 12.5fps — the browser
+    // holds each frame longer rather than generating new ones, so it reads as
+    // choppy. The encode interpolates the intermediate frames instead and stays
+    // a true 25fps. See docs/STATUS.md.
+    //
     // The autoplay attribute normally covers this; the explicit call catches
     // the cases it doesn't (iOS Low Power Mode among them). A refusal is the
     // poster frame, not an error worth surfacing.

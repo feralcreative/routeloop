@@ -8,6 +8,9 @@ $kml: #d32f2f;
 $white: #fff;
 $grey: #ddd;
 $text: #333;
+// Rider-approval "waiting" state on the admin panel. Amber reads as attention-
+// needed without the alarm of $kml, and stays legible as dark-on-tint.
+$pending: #b26a00;
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
 $font: lato;
@@ -16,7 +19,10 @@ $font: lato;
 // link color — so new work should reach for `$brand`.
 $brand: $url;
 
-// The logo's yellow, and the only accent legible on the sign-in clip.
+// Chosen as the only accent legible over the sign-in clip. It used to be lifted
+// from the routeloop wordmark; the tankbag artwork carries no yellow, so this is
+// now a standalone accent. The mark's own accents are #cc2000 and #009245 if the
+// palette should be re-derived from it.
 $accent: #ffdd00;
 
 // Base for the dark, full-bleed sign-in page: what shows under the video before
