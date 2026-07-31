@@ -59,7 +59,7 @@ authRoutes.get('/login', (c) => {
       variant: 'splash',
       body: `${SPLASH_MEDIA}
        <main class="splash">
-       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="tankbag" width="864" height="618">
+       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="TankBag" width="864" height="618">
        <p class="eyebrow">Plan the whole ride</p>
        <h1>Every stop. Every day. One map.</h1>
        <p class="splash-copy">Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with the group.</p>
@@ -164,10 +164,10 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       splash: false,
       body: `${SPLASH_MEDIA}
        <main class="splash">
-       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="tankbag" width="864" height="618">
+       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="TankBag" width="864" height="618">
        <p class="eyebrow">You're on the list</p>
        <h1>Hang tight.</h1>
-       <p class="splash-copy">tankbag is in a closed alpha, so accounts are approved by hand. Yours is waiting — you'll be able to sign in and start planning once it's through.</p>
+       <p class="splash-copy">TankBag is in a closed alpha, so accounts are approved by hand. Yours is waiting — you'll be able to sign in and start planning once it's through.</p>
        <ul class="welcome-links">${links}</ul>
        <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>
        </main>`,

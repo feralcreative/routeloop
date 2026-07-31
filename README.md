@@ -1,8 +1,8 @@
-# tankbag
+# TankBag
 
-tankbag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
+TankBag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—tankbag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—TankBag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -10,12 +10,12 @@ Active build on a **TypeScript + Hono + PostgreSQL** stack, hosted on a Synology
 
 **Live at [tankbag.app](https://tankbag.app).** The app briefly shipped as `routeloop.app` in July 2026; that name was reverted on 2026-07-29 and `routeloop.app` now permanently redirects here. Public and unlisted ride links are reachable without signing in.
 
-Two replacements are in flight on the `refactor/google-maps-and-auth` branch. Both are described precisely in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
+Two replacements drove the `refactor/google-maps-and-auth` branch; both are now deployed to production, with only cleanup remaining. Both are described precisely in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
 
 | | Being replaced | Replacement | State |
 | --- | --- | --- | --- |
 | Auth | Cloudflare Access | Google OAuth + emailed magic link, owned by the app | **Deployed to stage and production 2026-07-30** and signing in; the Access policy still has to be removed |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | Engine ported and verified 2026-07-30; only `profile.js` geocoding and dead config remain |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | **Ported, verified and deployed 2026-07-30**; only `profile.js` geocoding and dead Mapbox config remain to retire |
 
 Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
@@ -28,11 +28,13 @@ Delivered in phases:
 - [x] **Ride builder**—plan a road-snapped route, classify stops, save
 - [x] **Native viewer**—shared rides render from the database
 - [x] **User profiles**—`users.status` authorization, profile page, home-address seeding
-- [x] **Auth replacement**—Google OAuth + magic link _(code complete; awaiting credentials)_
-- [ ] **Maps migration**—move rendering, search and routing to Google _(in progress)_
+- [x] **Auth replacement**—Google OAuth + magic link _(deployed to production 2026-07-30)_
+- [x] **Maps migration**—rendering, search and routing on Google _(deployed 2026-07-30)_
+- [x] **Multi-day builder**—every day of a trip drawn on one map, with a day-focus slider
+- [x] **Admin panel**—owner approves, blocks and reinstates rider accounts
 - [ ] **Shaping + export**—drag routes into shape; export KML/GPX
-- [ ] **Trip features**—multi-day rides and the timeline slider
-- [ ] **Later**—bikes, saved places, admin panel, more import formats, PostGIS
+- [ ] **Trip timeline**—per-day date-times and the timeline slider
+- [ ] **Later**—bikes, saved places, more import formats, PostGIS
 
 ## What it does
 
@@ -41,7 +43,7 @@ Delivered in phases:
 - **Share**—public, unlisted, or private visibility, shareable by link.
 - **Import**—bring in existing `.kml` / `.gpx` to migrate from other tools _(KMZ, CSV later)_.
 - **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
-- **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved before it can use the app; each account has a storage quota for imported files.
+- **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
 
 ## Tech stack
 
@@ -137,8 +139,9 @@ src/                  TypeScript app (Hono)
                       identity.ts (provider-agnostic user resolution),
                       session.ts, middleware.ts (auth + status gates)
   maps/               roles.ts, kml.ts, storage.ts, slug.ts, turnstile.ts
-  routes/             maps.ts (import), rides.ts (builder), routing.ts
-                      (Routes API proxy), dashboard.ts, profile.ts, auth.ts
+  routes/             maps.ts (import), rides.ts (builder), routing.ts (Routes
+                      API proxy), admin.ts (rider approval), dashboard.ts,
+                      profile.ts, auth.ts
   views/layout.ts     Shared chrome shell
 public/
   js/main.js          Legacy Google viewer, imported rides—retires in Phase 4
@@ -237,4 +240,4 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 ## Provenance
 
-tankbag reuses the client-side map engine from the original Moto-Rooter static viewer, recovered from git history. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
+TankBag reuses the client-side map engine from the original Moto-Rooter static viewer, recovered from git history. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
