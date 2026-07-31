@@ -1,7 +1,7 @@
 # Status and handoff
 
 **Updated:** 2026-07-30
-**Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`
+**Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`, currently at `8b39424`
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -15,7 +15,7 @@ Two migrations are in flight on this branch:
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
 | Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally** — credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **started** — Phase 0 passed, routing proxy landed, all keys + Map ID in place, engine not yet ported |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **engine ported and verified in a browser (2026-07-30)**. Builder, viewer and search all run on Google. Only `profile.js` geocoding and the dead Mapbox config remain |
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -63,9 +63,48 @@ Barstow -> Victorville, CA        Jakarta, Indonesia
 
 Note this corrects the previous handoff, which described the auth work as uncommitted. It is committed; the tree is clean.
 
-## Uncommitted on this branch right now
+**`942e1d9`—the map engine port.** Mapbox GL out, `google.maps` in, across `map-common.js`, `viewer.js`, `builder.js`, both page shells and the marker CSS. Detailed below.
 
-**`POST /api/route`**—[src/routes/routing.ts](../src/routes/routing.ts), new, registered in [src/index.ts](../src/index.ts). Server-side proxy to the Routes API, gated by `requireAuthApi` + `requireActiveApi` + `requireSameOrigin`. It exists because the Routes key is IP-restricted and so cannot be used from a browser. It carries a bounded in-process cache of computed legs, which matters because a rider dragging a stop re-requests the same pair constantly and Routes bills per call.
+**`728fd0b`—role picker.** A pre-existing CSS bug the port surfaced: `.builder-panel .point-list .row-roles { display: grid }` outranks the UA's `[hidden] { display: none }`, so every stop rendered its category picker permanently open, all 17 roles. The markup had always set the attribute; only the CSS ignored it.
+
+**`8b39424`—splash clip at half speed.** Re-encoded from the ProRes master in `_assets/`, not from the published mp4—lossy-to-lossy compounds artifacts. The slowdown is baked into the file with **interpolated** intermediate frames, because `playbackRate = 0.5` on a 25fps source shows 12.5fps and reads as choppy; the browser holds each frame longer rather than generating new ones. 1280×720, 25fps, 21.96s, 3.0 MB.
+
+```bash
+ffmpeg -i _assets/video/routeloop-intro.mov \
+  -filter:v "scale=1280:720:flags=lanczos,setpts=2*PTS,minterpolate=fps=25:mi_mode=mci:mc_mode=aobmc:vsbmc=1,format=yuv420p" \
+  -an -c:v libx264 -crf 33 -preset slow -movflags +faststart public/video/tankbag-intro.mp4
+```
+
+Scale before interpolating—interpolating at 4K first is dramatically slower for no visible gain.
+
+## The engine port—done 2026-07-30
+
+The Mapbox engine is gone from the rendering path. `map-common.js` was rewritten against `google.maps`, and both consumers moved with it in the same commit, because a half-ported engine renders nothing.
+
+**The shape of the change.** `map-common.js` is now the only file that touches `google.maps`. The Mapbox version left marker construction to its callers, so `viewer.js` and `builder.js` each reached for `new mapboxgl.Marker` directly—which is exactly why swapping engines touched three files instead of one. They now go through `addMarker` / `removeMarker` / `onMarkerDragEnd` / `searchPlaces` and name no vendor API at all. Keep it that way.
+
+What went where:
+
+| Mapbox | Google |
+| --- | --- |
+| `mapboxgl.Map` + `NavigationControl` | `Maps.Map` with `mapId`, `zoomControl` bottom-right |
+| `LngLatBounds` + `fitBounds(maxZoom)` | `LatLngBounds`; **no** maxZoom option, so a one-off `idle` listener clamps it |
+| `addSource` / `addLayer` line + symbol | one `Polyline` per route, held in a `WeakMap` keyed by map |
+| `ensureArrowImage` (canvas triangle) | **deleted**—`Polyline.icons` + `FORWARD_CLOSED_ARROW` |
+| `mapboxgl.Marker({element})` | `AdvancedMarkerElement({content})` |
+| `mapboxgl.Popup` | `InfoWindow` with `headerDisabled` |
+| Geocoding v6 forward | Places `AutocompleteSuggestion` + session tokens |
+| `map.on('load')` | nothing—the map is usable when the constructor resolves |
+
+**Three things worth knowing before you touch it again:**
+
+- **`.tb-marker` is deliberately `0×0`** ([style/\_map.scss](../style/_map.scss)). An `AdvancedMarkerElement` anchors its content at the content's *bottom-center*; a zero-size box puts that anchor exactly on the point, so the legacy negative-margin offsets keep working. Size that wrapper to its contents and every marker drifts up and to the right of its own coordinates.
+- **Coordinate order stays confined to `toLatLng` / `fromLatLng`.** Same discipline as `toGoogleWaypoint` in [routing.ts](../src/routes/routing.ts). Verified live: a leg round-trips as `[-117.022799, 34.895831]`, lng first.
+- **Search had to move too.** It was not scope creep: each provider's terms tie their search results to their own basemap, so Mapbox Geocoding drawn on a Google map breaks Mapbox's terms just as Places on a Mapbox map breaks Google's.
+
+Verified in a browser with zero console messages on both pages: Places autocomplete returns split main/secondary text, picking a result adds a named stop, a second stop routes through `/api/route` and draws real road geometry with arrows, save round-trips, and the viewer renders markers, mileage tooltips, the visibility checkbox, hover-dim and the arrow toggle.
+
+**`POST /api/route`**—[src/routes/routing.ts](../src/routes/routing.ts), registered in [src/index.ts](../src/index.ts). Server-side proxy to the Routes API, gated by `requireAuthApi` + `requireActiveApi` + `requireSameOrigin`. It exists because the Routes key is IP-restricted and so cannot be used from a browser. It carries a bounded in-process cache of computed legs, which matters because a rider dragging a stop re-requests the same pair constantly and Routes bills per call. The builder calls it now.
 
 Verified end to end against the live API:
 
@@ -80,8 +119,6 @@ Verified end to end against the live API:
 | Unroutable pair (mid-Pacific) | 422 |
 | Server key present in `/`, `/builder`, `/login` source | 0 occurrences |
 | Cache | 256 ms cold, 5 ms warm |
-
-Nothing calls it yet. The builder still uses Mapbox Directions; pointing `directions()` in [public/js/builder.js](../public/js/builder.js) at this endpoint is the next step.
 
 **`.env`** gained `GMAPS_SERVER_KEY` and a placeholder `GMAPS_MAP_ID`, and lost a comment that falsely claimed `GMAPS_KEY` was referrer-restricted. A timestamped `.env.bak-*` sits beside it.
 
@@ -128,11 +165,21 @@ done
 # Has the egress IP drifted away from what the server key allows?
 curl -s https://ifconfig.me; echo
 ssh -p 33725 ziad@nas.feralcreative.co 'curl -s https://ifconfig.me'; echo
-gcloud services api-keys describe a321c95b-05e3-4f11-82db-25baa39a9c55 \
-  --project=routeloop-503503 --format='value(restrictions.serverKeyRestrictions.allowedIps)'
+gcloud services api-keys describe 3a3d4f70-1838-45f7-86bf-18023c32592e \
+  --project=tankbag --format='value(restrictions.serverKeyRestrictions.allowedIps)'
 ```
 
 Note the shell quoting hazard that produced a false result the first time this was run: building the `-H "Referer: …"` argument conditionally through a variable expansion mangles the header, and every origin then reports BLOCKED—which reads as "the restriction works" when in fact nothing was sent. Pass the header literally, as above.
+
+**When every origin reports BLOCKED, read the response body before believing the allow-list is correct.** On 2026-07-30 the browser key rejected *every* referrer including `tankbag.app`, which this document had recorded as verified hours earlier. That looks exactly like the quoting hazard above, and it was not—the body said `API_KEY_HTTP_REFERRER_BLOCKED` against `projects/976935115789`, so the restriction really had been lost between the project migration and the next test. Re-applying the allow-list fixed it. `grep -q suggestions` cannot tell "blocked" from "malformed request"; the body can:
+
+```bash
+curl -s -X POST "https://places.googleapis.com/v1/places:autocomplete" \
+  -H "Content-Type: application/json" -H "X-Goog-Api-Key: $KEY" \
+  -H "Referer: https://tankbag.app/" -d '{"input":"chevron barstow"}'
+```
+
+The browser-side symptom is `RefererNotAllowedMapError` in the console and a map that never draws.
 
 <!--| PAGE-BREAK -->
 
@@ -168,20 +215,19 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 ## Next steps, in order
 
-1. **Port the map engine.** Rewrite the six `mapboxgl`-touching exports in [public/js/map-common.js](../public/js/map-common.js)—`initMap`, `fitTo`, `addRouteLayers`, `removeRouteLayers`/`updateRouteTrack`, `setRouteVisible`/`setRouteDim`, `attachPopup`, all between lines 16 and 127. Everything from line 129 down is pure DOM and ports unchanged. `ensureArrowImage` gets deleted outright: it draws a triangle to a canvas only because Mapbox has no line symbol, and `Polyline.icons` with `FORWARD_CLOSED_ARROW` does it natively. Read [public/js/main.js](../public/js/main.js) first—it is 1,135 lines of working `google.maps` covering this exact behavior, so much of this is an un-port.
-2. **Point `directions()` at `/api/route`.** [public/js/builder.js](../public/js/builder.js)—the endpoint is built and tested; this is a small change. Its return shape already matches what the builder expects.
-3. **Port [viewer.js](../public/js/viewer.js)** (three `mapboxgl` references, all through `TBMap`) then swap the shells in [src/index.ts](../src/index.ts) and `MAPBOX_CSS_LINK` in [src/views/layout.ts](../src/views/layout.ts).
-4. **Move `profile.js` geocoding** to a server proxy alongside `/api/route`, since Geocoding is on the server key.
-5. **Phase 4—retire Mapbox.** Delete `main.js`, collapse `viewHtml`/`nativeViewHtml` into one, drop `MAPBOX_TOKEN` and `MAPBOX_GL_VERSION` from config, `.env.example`, `docker-compose.prod.yml` and the deploy guard in `utils/deploy/deploy.sh`.
+Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
 
-Do not start step 1 in fragments. A half-ported engine leaves the branch unable to render anything, and the Mapbox path currently works.
+1. **Move `profile.js` geocoding** to a server proxy alongside `/api/route`, since Geocoding is on the server key. This is the last Mapbox call in the app and the only reason `MAPBOX_TOKEN` still has to be set. It is a non-map page, so no basemap-terms conflict forced it to move with the engine.
+2. **Phase 4—retire Mapbox.** Delete `main.js`, collapse `viewHtml`/`nativeViewHtml` into one, drop `MAPBOX_TOKEN` and `MAPBOX_GL_VERSION` from config, `MAPBOX_CSS_LINK` from [layout.ts](../src/views/layout.ts) (already unused), `.env.example`, `docker-compose.prod.yml` and the deploy guard in `utils/deploy/deploy.sh`.
+
+`main.js` is still the legacy Google viewer for **imported** rides and still the only thing rendering them. Collapsing the two shells means teaching the ported engine to render an imported ride's single-leg track, which `ride.json` already serves identically for both sources—so this is smaller than it looks.
 
 <!--| PAGE-BREAK -->
 
 ## Known risks
 
-- **Coordinate order** stays the likeliest bug. Mapbox is `[lng, lat]`, Google is `{lat, lng}`, and `route_legs.geometry` stores Mapbox order. Getting it backwards still renders, just in the wrong place. Confirmed good news: Routes API with `polylineEncoding: GEO_JSON_LINESTRING` returns `[lng, lat]`, so **no stored ride needs migrating**. `toGoogleWaypoint` in [src/routes/routing.ts](../src/routes/routing.ts) is the only place the routing path reorders a pair; keep it that way in the engine port.
-- **The Mapbox token is still unrestricted** and billable to that account until Mapbox is gone.
+- **Coordinate order** stays the likeliest bug. The app stores and speaks `[lng, lat]`; google.maps speaks `{lat, lng}`. Getting it backwards still renders, just in the wrong place. Routes API with `polylineEncoding: GEO_JSON_LINESTRING` returns `[lng, lat]`, so **no stored ride ever needed migrating**. Two functions do the conversion and only two: `toGoogleWaypoint` in [src/routes/routing.ts](../src/routes/routing.ts) on the server, and `toLatLng`/`fromLatLng` in [public/js/map-common.js](../public/js/map-common.js) on the client. Keep it that way.
+- **The Mapbox token is still unrestricted** and billable to that account until `profile.js` moves and Mapbox is gone.
 - **The shared residential egress IP**—see above. Both environments and the workstation ride on one address.
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
 - **Schema is push-only.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first—riders now hold data that cannot be rebuilt from an uploaded file.
@@ -202,10 +248,22 @@ npm run dev                   # http://localhost:6686
 
 Port 6686 is this project's port—kill and reuse it, never switch.
 
-- There is a shared tmux session named `shared`; the dev server runs in its own window. Backgrounding it in the main window gets it **suspended on tty input**, where it holds the port and answers nothing. Two such zombies were found and cleared on 2026-07-27, in state `TN`. If requests hang with the port bound, that is the cause—`kill -CONT` then `kill -9`, since SIGTERM never reaches a stopped process.
-- Browse at `localhost`, not `127.0.0.1`, while Mapbox is still in place. `isAllowedOrigin` accepts both, so CSRF passes either way.
+- There is a shared tmux session named `shared`; the dev server runs in its own window. Backgrounding it in the main window gets it **suspended on tty input**, where it holds the port and answers nothing. Two such zombies were found and cleared on 2026-07-27, in state `TN`. If requests hang with the port bound, that is the cause—`kill -CONT` then `kill -9`, since SIGTERM never reaches a stopped process. Orphaned `npm run dev` trees also survive a directory rename with their cwd pointing at the old path; three were cleared on 2026-07-30.
+- **Either `localhost` or `127.0.0.1` works.** The old advice to prefer `localhost` was a Mapbox token restriction and no longer applies—the Google browser key allows both on port 6686, and `isAllowedOrigin` accepts both so the CSRF gate passes either way.
 - `public/style/main.min.css` is a gitignored build artifact—`npm run sass`.
 - `.prettierrc`: width 120, single quotes and no semicolons for `src/`, with overrides so `public/js` keeps its double quotes and semicolons.
+
+### The Compose project name is pinned, and why
+
+[docker-compose.yml](../docker-compose.yml) declares `name: tankbag`. Compose otherwise derives the project name—and therefore the **volume prefix**—from whatever directory it runs in, so renaming the checkout orphaned the data volume: `docker compose up` built a new empty `tankbag_tankbag-db-data` while every row sat in `routeloop_tankbag-db-data`, and the container name collided rather than failing cleanly. This is the identical trap `deploy.config` warns about on the NAS, and it fired locally first.
+
+Migrated on 2026-07-30 by copying the volume rather than dump/restore, which keeps the cluster byte-identical:
+
+```bash
+docker run --rm -v OLD_VOLUME:/from:ro -v NEW_VOLUME:/to alpine sh -c 'cd /from && cp -a . /to/'
+```
+
+All `routeloop`-named Docker objects—two volumes, a network, and the `routeloop:latest` / `routeloop:stage` images—were removed the same day. Nothing named `routeloop` remains in Docker.
 
 ## Deploy
 

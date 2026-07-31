@@ -15,9 +15,9 @@ Two replacements are in flight on the `refactor/google-maps-and-auth` branch. Bo
 | | Being replaced | Replacement | State |
 | --- | --- | --- | --- |
 | Auth | Cloudflare Access | Google OAuth + emailed magic link, owned by the app | Committed; needs an OAuth client and SMTP credentials before it can run |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | In progress; keys and the routing proxy are done, the render engine is still Mapbox |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes | Engine ported and verified 2026-07-30; only `profile.js` geocoding and dead config remain |
 
-Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps is changing because place search on Mapbox Geocoding is not good enough for finding businesses, and Google's terms forbid showing Places results on a non-Google map—so it is the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
+Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
 **The deployed build still uses Cloudflare Access**, restricted to a single owner address, and the production database starts empty. The Access policy must not be removed until the new auth code is deployed, or the running app would be left open.
 
@@ -46,11 +46,11 @@ Delivered in phases:
 ## Tech stack
 
 - **Backend**—TypeScript on Hono (Node in Docker; portable to Cloudflare Workers), PostgreSQL via Drizzle ORM, Zod validation.
-- **Maps**—Mapbox GL JS (rendering) + Mapbox Directions (per-leg road routing) + Mapbox Geocoding v6 (search), called client-side and loaded from the Mapbox CDN. The front end has no bundler. **Being replaced** by the Google Maps JavaScript API, Places (New) for search, and the Routes API for road routing. Routing already goes through a server-side proxy at `POST /api/route`, because the Routes key is IP-restricted and cannot be used from a browser.
+- **Maps**—Google Maps JavaScript API for rendering, Places (New) `AutocompleteSuggestion` for search, and the Routes API for per-leg road routing. The front end has no bundler; the inline bootstrap loader defines `google.maps.importLibrary` and libraries load on demand. Routing goes through a server-side proxy at `POST /api/route`, because the Routes key is IP-restricted and cannot be used from a browser. `public/js/map-common.js` is the only file that touches `google.maps`—the viewer and builder go through the handles it returns.
 - **Auth**—Google OAuth (via `arctic`) and an emailed magic link both resolve into the same hand-rolled server sessions, whose primary key is the SHA-256 hash of the browser token rather than the token itself. Authorization is separate: `users.status` (`pending` | `active` | `blocked`) decides who may actually use the app. Cloudflare Turnstile guards uploads and saves, feature-flagged off until keys are set.
 - **Hosting**—Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS terminates at the Cloudflare edge and no inbound ports are open on the NAS.
 
-> A legacy Google Maps viewer (`public/js/main.js`) renders **imported** rides. It used to be scheduled for deletion, but the direction reversed on 2026-07-26: since the app is moving to Google, that file is now the **reference implementation** for the new engine rather than dead code. It is 1,135 lines of working `google.maps` covering markers, polylines, arrows, tooltips and mileage. The Mapbox engine is what gets retired.
+> A legacy Google Maps viewer (`public/js/main.js`) still renders **imported** rides on its own shell. It survived the Mapbox era as the reference implementation for the port back to Google, and retires in Phase 4 once the current engine learns to draw an imported ride's single-leg track—which `ride.json` already serves identically for both sources.
 
 ## Local development
 
@@ -58,7 +58,7 @@ Delivered in phases:
 
 - Node.js 20+
 - Docker (to run PostgreSQL locally)
-- A Mapbox account with a public token, until the Google migration lands
+- Google Cloud credentials—a referrer-restricted browser key, an IP-restricted server key and a vector Map ID (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)). Without the Map ID, Advanced Markers render nothing at all, with no error
 
 ### Setup
 
@@ -73,14 +73,14 @@ Delivered in phases:
 
    ```text
    PORT=6686
-   MAPBOX_TOKEN=pk.<public token>
+   MAPBOX_TOKEN=pk.<public token—only profile.js still uses this>
    GMAPS_KEY=<Google browser key, referrer-restricted>
    STORAGE_PATH=./moto-storage
    DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
    APP_ORIGIN=http://127.0.0.1:6686
    ```
 
-   The Mapbox public token needs only the default public scopes; Directions and Geocoding work on any public token. For the Google keys—browser, server, OAuth client, Map ID—see [docs/google-cloud-setup.md](docs/google-cloud-setup.md).
+`MAPBOX_TOKEN` is now needed only by `public/js/profile.js`, which still geocodes the home address against Mapbox; it goes away once that moves to a server proxy. For the Google keys—browser, server, OAuth client, Map ID—see [docs/google-cloud-setup.md](docs/google-cloud-setup.md).
 
 3. Apply the schema and seed a sample ride:
 
@@ -103,7 +103,7 @@ npm run dev
 
 Then open <http://localhost:6686>. The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
-Use `localhost` rather than `127.0.0.1` while Mapbox is still in place—the Mapbox dev token has been restricted to `localhost` in the past, and tiles and Directions return 403 from the raw IP when it is. The Google browser key accepts both hosts on port 6686, and `isAllowedOrigin` accepts both, so the CSRF gate passes either way.
+Either `localhost` or `127.0.0.1` works. The browser key allows both on port 6686 and `isAllowedOrigin` accepts both, so the CSRF gate passes either way. (An older note preferring `localhost` was a Mapbox token restriction and no longer applies.)
 
 Port 6686 belongs to this project. If it is already bound, kill the process and reuse the port rather than starting on a different one.
 
@@ -118,7 +118,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 ```text
 src/                  TypeScript app (Hono)
-  index.ts            Home, viewer (native Mapbox / imported Google), ride.json,
+  index.ts            Home, viewer (native / legacy imported shells), ride.json,
                       legacy metadata + gated file streams
   config.ts           Env-derived config, allowed origins, CSRF helpers
   db/                 Drizzle schema (source of truth), connection, dev seed
@@ -130,8 +130,8 @@ src/                  TypeScript app (Hono)
                       (Routes API proxy), dashboard.ts, profile.ts, auth.ts
   views/layout.ts     Shared chrome shell
 public/
-  js/main.js          Legacy Google Maps viewer — reference for the new engine
-  js/map-common.js    Shared Mapbox engine (being replaced)
+  js/main.js          Legacy Google viewer, imported rides—retires in Phase 4
+  js/map-common.js    Shared Google engine—ONLY file touching google.maps
   js/viewer.js        Native ride viewer
   js/builder.js       The ride builder
   js/profile.js       Profile page (address geocoding)
@@ -155,7 +155,7 @@ Imported files live in a private `STORAGE_PATH` **outside** the web root, served
 - **Points** come in two kinds: **Stops** (ordered routing anchors, can carry a duration) and **POIs** (unordered annotations that don't affect routing). Ephemeral **shaping waypoints** are stored on the leg, not as points.
 - **Legs** carry the snapped geometry and the distance/duration between consecutive stops. Imported rides are stored as one route with a single full-track leg, so imported and native rides render through one code path.
 
-Geometry is stored as `[lng, lat]` pairs. Mapbox uses that order natively and the Google Routes API can return it too, so the migration needs no data backfill—but Google's own JavaScript objects use `{lat, lng}`, and getting the two confused still renders a map, just in the wrong place.
+Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns that order too when asked for `GEO_JSON_LINESTRING`, so the migration needed no data backfill. Google's own JavaScript objects use `{lat, lng}`, and getting the two confused still renders a map, just in the wrong place, so exactly two functions do the conversion: `toGoogleWaypoint` on the server and `toLatLng`/`fromLatLng` in `map-common.js` on the client.
 
 ## Waypoint roles (classification, import & export)
 

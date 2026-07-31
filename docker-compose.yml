@@ -4,9 +4,19 @@
 # The app service is added at deploy time (Phase 5).
 #
 # POSTGRES_USER/PASSWORD/DB only take effect when the cluster is initialised, so
-# the rename from routeloop to tankbag does not reach an existing volume. Recreate
-# it once: docker compose down -v && docker compose up -d --wait db, then
+# a rename never reaches an existing volume. Recreate it once:
+# docker compose down -v && docker compose up -d --wait db, then
 # npx drizzle-kit push && npx tsx src/db/seed.ts.
+
+# Pinned rather than inherited from the directory name. Compose derives the
+# project name—and therefore the volume prefix—from whatever directory it is
+# run in, so renaming the checkout silently orphaned the data volume: the stack
+# came back up against a brand-new empty `tankbag_tankbag-db-data` while every
+# row sat in `routeloop_tankbag-db-data`. This is the same trap deploy.config
+# warns about on the NAS. Naming it here makes the volume prefix independent of
+# the path on disk.
+name: tankbag
+
 services:
   db:
     image: postgres:17-alpine
