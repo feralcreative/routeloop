@@ -8,12 +8,17 @@ import { alphaSplash } from './splash'
 
 export { esc } from './esc'
 import { esc } from './esc'
+import { asset } from './assets'
 
-export const SITE_ICON_LINKS = `<link rel="icon" type="image/png" href="/img/favicon/favicon-96x96.png" sizes="96x96">
-  <link rel="icon" type="image/svg+xml" href="/img/favicon/favicon.svg">
+// A function rather than a const so each icon carries a fresh content hash. The
+// root /favicon.ico is requested by browsers directly and cannot be versioned.
+export function siteIconLinks(): string {
+  return `<link rel="icon" type="image/png" href="${asset('/img/favicon/favicon-96x96.png')}" sizes="96x96">
+  <link rel="icon" type="image/svg+xml" href="${asset('/img/favicon/favicon.svg')}">
   <link rel="shortcut icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" sizes="180x180" href="/img/favicon/apple-touch-icon.png">
-  <link rel="manifest" href="/img/site.webmanifest">`
+  <link rel="apple-touch-icon" sizes="180x180" href="${asset('/img/favicon/apple-touch-icon.png')}">
+  <link rel="manifest" href="${asset('/img/site.webmanifest')}">`
+}
 
 // Inlining JSON into a <script> is only safe if the payload cannot close the
 // tag. `</script>` inside any string would end the block and drop the rest of
@@ -157,13 +162,13 @@ export function page(opts: PageOpts): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
-  ${SITE_ICON_LINKS}
+  ${siteIconLinks()}
   <meta property="og:title" content="${title}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="/img/logo-tankbag-horiz-light@2x.png">
+  <meta property="og:image" content="${asset('/img/logo-tankbag-horiz-light@2x.png')}">
   <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
-  <link rel="stylesheet" href="/style/main.min.css">${opts.head ? `\n  ${opts.head}` : ''}
+  <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${variant === 'splash' ? '' : siteHeader(opts.user, opts.navKey)}
@@ -171,7 +176,7 @@ ${body}
 ${opts.splash === false ? '' : alphaSplash()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
 ${opts.tb ? jsonScript('TB', opts.tb) : ''}
-<script src="/js/site.js" defer></script>
+<script src="${asset('/js/site.js')}" defer></script>
 ${opts.scripts ?? ''}
 </body>
 </html>`
