@@ -27,8 +27,8 @@ import {
   type Track,
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
-import { MAPBOX_CSS_LINK, page, panelShell } from '../views/layout'
-import { MAPBOX_GL_VERSION, MAPBOX_TOKEN } from '../config'
+import { googleMapsLoader, page, panelShell } from '../views/layout'
+import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { fields, firstIssue, ownRide } from './maps'
@@ -416,7 +416,6 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
     user,
     variant: 'map',
     bodyClass: 'builder-page',
-    head: MAPBOX_CSS_LINK,
     navKey: 'builder',
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
@@ -424,8 +423,8 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { token: MAPBOX_TOKEN, roles: ROLE_META, rideId, home },
-    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
+    scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="/js/map-common.js" defer></script>
   <script src="/js/builder.js" defer></script>`,
   })

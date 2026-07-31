@@ -1,132 +1,297 @@
-// Shared Mapbox GL helpers for the tankbag viewer and builder.
+// Shared Google Maps helpers for the tankbag viewer and builder.
 // Ports the hard-won behavior of the legacy Google Maps viewer (main.js):
 // per-route colored tracks with direction arrows, role-icon markers tinted via
 // currentColor, and the waypoint tooltip with its mileage columns.
 //
-// Expects window.TB = { token, roles, ... } injected by the page shell, and
-// mapbox-gl.js loaded before this file. Exposes window.TBMap.
+// Expects window.TB = { gmapsKey, mapId, roles, ... } injected by the page shell
+// and the Maps bootstrap loader (which defines google.maps.importLibrary) to
+// have run. Exposes window.TBMap.
+//
+// This file is the ONLY one that touches google.maps. The viewer and the builder
+// go through the handles returned here — that boundary is what made replacing
+// Mapbox a rewrite of one file instead of three.
 (function () {
   "use strict";
 
   const esc = (s) =>
     String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+  // --- Coordinate order -----------------------------------------------------
+
+  // Every TBMap entry point speaks [lng, lat] — GeoJSON order, which is what
+  // route_legs.geometry stores and what /api/route returns. google.maps speaks
+  // {lat, lng}. These two functions are the ONLY place that conversion happens.
+  // Reversed pairs still render, just in the wrong hemisphere, so confining the
+  // swap to one place is the whole defense. Same reasoning as toGoogleWaypoint
+  // in src/routes/routing.ts — keep it that way.
+  const toLatLng = (lngLat) => ({ lat: lngLat[1], lng: lngLat[0] });
+
+  function fromLatLng(p) {
+    if (!p) return null;
+    // A marker's position comes back as LatLng (accessors) or LatLngLiteral
+    // (plain numbers) depending on how it was set.
+    const lat = typeof p.lat === "function" ? p.lat() : p.lat;
+    const lng = typeof p.lng === "function" ? p.lng() : p.lng;
+    return [lng, lat];
+  }
+
+  // --- Library handles ------------------------------------------------------
+
+  // Populated by initMap. Held here so the rest of the file reads like the
+  // Mapbox original instead of awaiting an import in every function.
+  let Maps = null; // google.maps.importLibrary("maps")
+  let Core = null; // ... ("core")
+  let Marker = null; // ... ("marker")
+
+  function requireInit(what) {
+    if (!Maps) throw new Error("TBMap: " + what + " called before initMap()");
+  }
+
   // --- Map init -------------------------------------------------------------
 
-  function initMap(container, opts) {
-    mapboxgl.accessToken = window.TB.token;
-    const map = new mapboxgl.Map(
+  const DEFAULT_CENTER = { lat: 37.3, lng: -119.5 };
+  const DEFAULT_ZOOM = 6;
+
+  // fitBounds has no maxZoom, unlike the Mapbox call this replaces. A ride with
+  // one stop would otherwise land at building zoom.
+  const MAX_FIT_ZOOM = 14;
+
+  async function initMap(container, opts) {
+    const el = typeof container === "string" ? document.getElementById(container) : container;
+    if (!el) throw new Error("TBMap: no map container");
+
+    [Core, Maps, Marker] = await Promise.all([
+      google.maps.importLibrary("core"),
+      google.maps.importLibrary("maps"),
+      google.maps.importLibrary("marker"),
+    ]);
+
+    return new Maps.Map(
+      el,
       Object.assign(
         {
-          container,
-          style: "mapbox://styles/mapbox/outdoors-v12",
-          center: [-119.5, 37.3],
-          zoom: 5.5,
-          attributionControl: true,
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
+          // Advanced Markers render nothing at all without a Map ID — no error,
+          // no marker, which reads as a data bug rather than a config one.
+          mapId: window.TB.mapId,
+          // Google's own POI pins open their own info windows and would fight
+          // the builder's click-to-add-a-stop.
+          clickableIcons: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          // The map is the page; scroll should zoom it without a modifier, which
+          // is how the Mapbox engine behaved.
+          gestureHandling: "greedy",
+          zoomControl: true,
+          zoomControlOptions: { position: Core.ControlPosition.RIGHT_BOTTOM },
         },
         opts || {},
       ),
     );
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "bottom-right");
-    return map;
   }
 
   function fitTo(map, lngLats, padding) {
+    requireInit("fitTo");
     if (!lngLats.length) return;
-    const bounds = new mapboxgl.LngLatBounds();
-    lngLats.forEach((p) => bounds.extend(p));
-    map.fitBounds(bounds, { padding: padding ?? { top: 60, bottom: 60, left: 380, right: 60 }, maxZoom: 14 });
+    const bounds = new Core.LatLngBounds();
+    lngLats.forEach((p) => bounds.extend(toLatLng(p)));
+    map.fitBounds(bounds, padding ?? { top: 60, bottom: 60, left: 380, right: 60 });
+    Core.event.addListenerOnce(map, "idle", () => {
+      if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM);
+    });
+  }
+
+  function onMapClick(map, fn) {
+    requireInit("onMapClick");
+    return map.addListener("click", (e) => {
+      if (e.latLng) fn(fromLatLng(e.latLng));
+    });
+  }
+
+  function panTo(map, lngLat, minZoom) {
+    map.panTo(toLatLng(lngLat));
+    if (minZoom != null && map.getZoom() < minZoom) map.setZoom(minZoom);
+  }
+
+  function mapBounds(map) {
+    const b = map.getBounds();
+    if (!b) return null;
+    const ne = b.getNorthEast();
+    const sw = b.getSouthWest();
+    return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
   // --- Track + arrow layers -------------------------------------------------
 
-  // One arrow image per color, drawn on canvas (reliable across fontstacks).
-  function ensureArrowImage(map, color) {
-    const id = "tb-arrow-" + color;
-    if (map.hasImage(id)) return id;
-    const size = 22;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    // Triangle pointing right (+x), the direction of travel along the line.
-    ctx.beginPath();
-    ctx.moveTo(size * 0.15, size * 0.2);
-    ctx.lineTo(size * 0.85, size * 0.5);
-    ctx.lineTo(size * 0.15, size * 0.8);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#ffffff";
-    ctx.stroke();
-    map.addImage(id, ctx.getImageData(0, 0, size, size), { pixelRatio: 2 });
-    return id;
+  const TRACK_OPACITY = 0.8;
+  const DIM_OPACITY = 0.25;
+
+  // Mapbox has no line symbol, so the engine this replaces drew a triangle to a
+  // canvas and registered it as an image (ensureArrowImage). Polyline.icons does
+  // it natively, so that whole function is gone.
+  function arrowIcons(color, dim) {
+    return [
+      {
+        icon: {
+          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 2.4,
+          strokeColor: color,
+          strokeOpacity: dim ? DIM_OPACITY : 1,
+          strokeWeight: 1.5,
+          fillColor: color,
+          fillOpacity: dim ? DIM_OPACITY : 1,
+        },
+        offset: "0%",
+        repeat: "120px",
+      },
+    ];
   }
 
-  const srcId = (id) => "tb-route-" + id;
+  // Mapbox addressed layers by string id against the style; a Polyline is a
+  // plain object we have to hold onto ourselves. Keyed off the map so two maps
+  // on one page could never collide.
+  const routeLayers = new WeakMap(); // map -> Map<id, entry>
 
-  // Adds (or replaces) the line + arrow layers for one route's track.
+  function layersOf(map) {
+    let m = routeLayers.get(map);
+    if (!m) routeLayers.set(map, (m = new Map()));
+    return m;
+  }
+
+  function paint(entry) {
+    entry.line.setOptions({
+      strokeColor: entry.color,
+      strokeOpacity: entry.dim ? DIM_OPACITY : TRACK_OPACITY,
+      zIndex: entry.dim ? 1 : 2,
+      icons: entry.visible && entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
+    });
+    entry.line.setVisible(entry.visible);
+  }
+
+  // Adds (or replaces) the line + arrows for one route's track.
   function addRouteLayers(map, id, track, color) {
+    requireInit("addRouteLayers");
     removeRouteLayers(map, id);
-    const arrowImage = ensureArrowImage(map, color);
-    map.addSource(srcId(id), {
-      type: "geojson",
-      data: { type: "Feature", geometry: { type: "LineString", coordinates: track }, properties: {} },
-    });
-    map.addLayer({
-      id: srcId(id) + "-line",
-      type: "line",
-      source: srcId(id),
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": color, "line-width": 4, "line-opacity": 0.8 },
-    });
-    map.addLayer({
-      id: srcId(id) + "-arrows",
-      type: "symbol",
-      source: srcId(id),
-      layout: {
-        "symbol-placement": "line",
-        "symbol-spacing": 120,
-        "icon-image": arrowImage,
-        "icon-size": 0.55,
-        "icon-rotation-alignment": "map",
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-      },
-    });
+    const entry = {
+      line: new Maps.Polyline({
+        map,
+        path: track.map(toLatLng),
+        strokeWeight: 4,
+        clickable: false,
+      }),
+      color,
+      visible: true,
+      arrowsOn: true,
+      dim: false,
+    };
+    paint(entry);
+    layersOf(map).set(id, entry);
   }
 
   function removeRouteLayers(map, id) {
-    for (const layer of [srcId(id) + "-line", srcId(id) + "-arrows"]) {
-      if (map.getLayer(layer)) map.removeLayer(layer);
-    }
-    if (map.getSource(srcId(id))) map.removeSource(srcId(id));
+    const layers = layersOf(map);
+    const entry = layers.get(id);
+    if (!entry) return;
+    entry.line.setMap(null);
+    layers.delete(id);
   }
 
   function updateRouteTrack(map, id, track) {
-    const src = map.getSource(srcId(id));
-    if (src) src.setData({ type: "Feature", geometry: { type: "LineString", coordinates: track }, properties: {} });
+    const entry = layersOf(map).get(id);
+    if (entry) entry.line.setPath(track.map(toLatLng));
   }
 
   function setRouteVisible(map, id, visible, arrowsOn) {
-    const v = visible ? "visible" : "none";
-    if (map.getLayer(srcId(id) + "-line")) map.setLayoutProperty(srcId(id) + "-line", "visibility", v);
-    if (map.getLayer(srcId(id) + "-arrows")) {
-      map.setLayoutProperty(srcId(id) + "-arrows", "visibility", visible && arrowsOn ? "visible" : "none");
-    }
+    const entry = layersOf(map).get(id);
+    if (!entry) return;
+    entry.visible = visible;
+    entry.arrowsOn = arrowsOn;
+    paint(entry);
   }
 
   function setRouteDim(map, id, dim) {
-    if (map.getLayer(srcId(id) + "-line")) {
-      map.setPaintProperty(srcId(id) + "-line", "line-opacity", dim ? 0.25 : 0.8);
-    }
-    if (map.getLayer(srcId(id) + "-arrows")) {
-      map.setPaintProperty(srcId(id) + "-arrows", "icon-opacity", dim ? 0.25 : 1);
-    }
+    const entry = layersOf(map).get(id);
+    if (!entry) return;
+    entry.dim = dim;
+    paint(entry);
   }
 
-  // --- Role icons + markers -------------------------------------------------
+  // --- Markers --------------------------------------------------------------
+
+  // The Mapbox engine left marker construction to the callers, so viewer.js and
+  // builder.js both reached for `new mapboxgl.Marker` directly and both had to
+  // change when the engine did. They go through these four functions now.
+
+  function addMarker(map, lngLat, element, opts) {
+    requireInit("addMarker");
+    const o = opts || {};
+    return new Marker.AdvancedMarkerElement({
+      map,
+      position: toLatLng(lngLat),
+      content: element,
+      gmpDraggable: !!o.draggable,
+      title: o.title || "",
+    });
+  }
+
+  function removeMarker(marker) {
+    marker.map = null;
+  }
+
+  function onMarkerDragEnd(marker, fn) {
+    marker.addListener("dragend", () => fn(fromLatLng(marker.position)));
+  }
+
+  // --- Place search ---------------------------------------------------------
+
+  // Replaces Mapbox Geocoding v6 forward search. The move was not optional once
+  // the map became Google: each provider's terms tie their search results to
+  // their own basemap, so a Mapbox geocode rendered on a Google map breaks the
+  // one and Google Places on a Mapbox map breaks the other.
+  let Places = null;
+
+  // Autocomplete keystrokes and the details lookup that resolves the pick are
+  // billed as one session when they share a token. The token is retired after
+  // each resolved pick — reusing it would merge unrelated searches.
+  let sessionToken = null;
+
+  async function placesLib() {
+    if (!Places) Places = await google.maps.importLibrary("places");
+    return Places;
+  }
+
+  async function searchPlaces(map, input) {
+    const { AutocompleteSuggestion, AutocompleteSessionToken } = await placesLib();
+    if (!sessionToken) sessionToken = new AutocompleteSessionToken();
+
+    const request = { input, sessionToken };
+    // Bias, not restrict: a rider planning from home still wants to find the
+    // far end of the trip.
+    const bounds = mapBounds(map);
+    if (bounds) request.locationBias = bounds;
+
+    const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+    return suggestions
+      .map((s) => s.placePrediction)
+      .filter(Boolean)
+      .map((prediction) => ({
+        name: prediction.mainText ? prediction.mainText.toString() : prediction.text.toString(),
+        context: prediction.secondaryText ? prediction.secondaryText.toString() : "",
+        // Deferred so coordinates are only fetched for the one result actually
+        // chosen — Place Details is billed per call, autocomplete is not.
+        resolve: async () => {
+          const place = prediction.toPlace();
+          await place.fetchFields({ fields: ["displayName", "location"] });
+          sessionToken = null;
+          if (!place.location) return null;
+          return { lngLat: fromLatLng(place.location), name: place.displayName || "" };
+        },
+      }));
+  }
+
+  // --- Role icons + marker DOM ----------------------------------------------
 
   const svgCache = {}; // icon file -> Promise<svg text>
   function iconSvg(iconFile) {
@@ -159,8 +324,13 @@
   ];
 
   // Builds the marker DOM element for a point. Role icons are inlined SVGs
-  // tinted through CSS currentColor — no data-URI recoloring. Role-less points
-  // render as the legacy white circle with a colored stroke.
+  // tinted through CSS currentColor — no data-URI recoloring, which is what the
+  // legacy viewer did and why it needed a two-entry cache per color. Role-less
+  // points render as the legacy white circle with a colored stroke.
+  //
+  // .tb-marker is a zero-size positioning context (see _map.scss), so an
+  // AdvancedMarkerElement's bottom-center anchor lands exactly on the point and
+  // the offsets below stay measured from the center.
   function markerElement(point, color, kind) {
     const el = document.createElement("div");
     el.className = "tb-marker tb-marker-" + (kind || "stop");
@@ -250,7 +420,7 @@
     );
   }
 
-  // Inline the tooltip's icon after the popup opens (same currentColor trick).
+  // Inline the tooltip's icon (same currentColor trick as the markers).
   function hydratePopupIcons(popupEl) {
     popupEl.querySelectorAll(".tb-inline-icon[data-icon]").forEach((span) => {
       iconSvg(span.getAttribute("data-icon")).then((svg) => {
@@ -260,30 +430,57 @@
   }
 
   // Attaches hover-open / click-pin popup behavior (legacy wasClicked port).
+  //
+  // The listeners go on the marker's own DOM content rather than through
+  // gmp-click, because the content is a real element in the overlay and the
+  // hover half of this behavior has no marker-level equivalent.
   function attachPopup(map, marker, html) {
-    const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, maxWidth: "280px" });
-    popup.setHTML(html);
-    let pinned = false;
-    const el = marker.getElement();
-    el.addEventListener("mouseenter", () => {
-      if (!popup.isOpen()) {
-        popup.setLngLat(marker.getLngLat()).addTo(map);
-        hydratePopupIcons(popup.getElement());
-      }
+    requireInit("attachPopup");
+
+    // A DOM element rather than an HTML string: the icons can then be inlined
+    // before the window ever opens, instead of racing the domready event.
+    const content = document.createElement("div");
+    content.className = "waypoint-tooltip";
+    content.innerHTML = html;
+    hydratePopupIcons(content);
+
+    const popup = new Maps.InfoWindow({
+      content,
+      disableAutoPan: true,
+      // Suppresses the close button and header. _map.scss also hides
+      // .gm-ui-hover-effect, which is what covered this before the option
+      // existed; between them the tooltip stays chrome-free either way.
+      headerDisabled: true,
     });
+
+    let open = false;
+    let pinned = false;
+    const el = marker.content;
+
+    function show() {
+      if (open) return;
+      popup.open({ map, anchor: marker });
+      open = true;
+    }
+    function hide() {
+      if (!open) return;
+      popup.close();
+      open = false;
+    }
+
+    el.addEventListener("mouseenter", show);
     el.addEventListener("mouseleave", () => {
-      if (!pinned) popup.remove();
+      if (!pinned) hide();
     });
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       pinned = !pinned;
-      if (pinned && !popup.isOpen()) {
-        popup.setLngLat(marker.getLngLat()).addTo(map);
-        hydratePopupIcons(popup.getElement());
-      }
+      if (pinned) show();
+      else hide();
     });
-    popup.on("close", () => {
+    Core.event.addListener(popup, "closeclick", () => {
       pinned = false;
+      open = false;
     });
     return popup;
   }
@@ -333,11 +530,17 @@
     esc,
     initMap,
     fitTo,
+    onMapClick,
+    panTo,
     addRouteLayers,
     removeRouteLayers,
     updateRouteTrack,
     setRouteVisible,
     setRouteDim,
+    addMarker,
+    removeMarker,
+    onMarkerDragEnd,
+    searchPlaces,
     markerElement,
     popupHtml,
     attachPopup,

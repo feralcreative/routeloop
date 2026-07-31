@@ -382,8 +382,17 @@ table.route-table {
   transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-// Mapbox markers (unified viewer + builder)
+// Role markers (unified viewer + builder)
+//
+// The wrapper is deliberately zero-size. An AdvancedMarkerElement anchors its
+// content at the content's bottom-center, so a 0×0 box puts that anchor exactly
+// on the point and every child below can be positioned from the center with the
+// negative margins the legacy viewer used. Sizing the wrapper to its contents
+// instead would hang each marker above and to the right of its own coordinates.
 .tb-marker {
+  position: relative;
+  width: 0;
+  height: 0;
   cursor: pointer;
 
   .tb-marker-icon {
@@ -399,6 +408,7 @@ table.route-table {
   }
 
   .tb-marker-dot {
+    position: absolute;
     width: 16px;
     height: 16px;
     margin: -8px 0 0 -8px;

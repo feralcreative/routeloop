@@ -1,10 +1,24 @@
 // The ride builder. State mirrors the /api/rides payload: ride meta + one
-// route of ordered stops, unordered POIs, and Directions-routed legs
+// route of ordered stops, unordered POIs, and road-routed legs
 // (legs[i] connects stops[i] → stops[i+1]). Multi-route editing arrives with
 // the trip phase; the API already accepts it.
 (function () {
   "use strict";
-  const { esc, initMap, fitTo, addRouteLayers, updateRouteTrack, markerElement, initPanelToggle } = window.TBMap;
+  const {
+    esc,
+    initMap,
+    fitTo,
+    onMapClick,
+    panTo,
+    addRouteLayers,
+    updateRouteTrack,
+    addMarker,
+    removeMarker,
+    onMarkerDragEnd,
+    searchPlaces,
+    markerElement,
+    initPanelToggle,
+  } = window.TBMap;
 
   initPanelToggle();
 
@@ -70,24 +84,24 @@
     return m;
   }
 
+  // Routes through our own origin rather than calling Google directly: the
+  // Routes key is IP-restricted, so it cannot be used from a browser at all.
+  // The proxy also caches, which matters because dragging a stop re-requests the
+  // same pair on every frame and Routes bills per call. See src/routes/routing.ts.
   async function directions(a, b, vias) {
-    const pts = [a, ...(vias || []), b];
-    const coords = pts.map((p) => p[0].toFixed(6) + "," + p[1].toFixed(6)).join(";");
-    const url =
-      "https://api.mapbox.com/directions/v5/mapbox/driving/" +
-      coords +
-      "?geometries=geojson&overview=full&steps=false&continue_straight=true&alternatives=false&access_token=" +
-      window.TB.token;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok || !data.routes || !data.routes.length) {
-      throw new Error(data.message || data.code || "no route found");
+    const res = await fetch("/api/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ origin: a, destination: b, vias: vias || [] }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((data && data.error) || "no route found (" + res.status + ")");
     }
-    const r = data.routes[0];
     return {
-      geometry: r.geometry.coordinates,
-      distanceM: Math.round(r.distance),
-      durationS: Math.round(r.duration),
+      geometry: data.geometry,
+      distanceM: data.distanceM,
+      durationS: data.durationS,
       viaPoints: vias || [],
     };
   }
@@ -138,7 +152,7 @@
   }
 
   function rebuildLayers() {
-    if (!state.map || !state.map.isStyleLoaded()) return;
+    if (!state.map) return;
     addRouteLayers(state.map, 0, fullTrack(), state.route.color);
     state.layersReady = true;
   }
@@ -149,13 +163,10 @@
       e.stopPropagation();
       focusRow("stop", i);
     });
-    const marker = new mapboxgl.Marker({ element: el, anchor: "center", draggable: true })
-      .setLngLat([stop.lng, stop.lat])
-      .addTo(state.map);
-    marker.on("dragend", () => {
-      const p = marker.getLngLat();
-      stop.lng = +p.lng.toFixed(6);
-      stop.lat = +p.lat.toFixed(6);
+    const marker = addMarker(state.map, [stop.lng, stop.lat], el, { draggable: true });
+    onMarkerDragEnd(marker, ([lng, lat]) => {
+      stop.lng = +lng.toFixed(6);
+      stop.lat = +lat.toFixed(6);
       // A moved anchor invalidates its shaping points.
       if (state.route.legs[i - 1]) state.route.legs[i - 1].viaPoints = [];
       if (state.route.legs[i]) state.route.legs[i].viaPoints = [];
@@ -171,21 +182,18 @@
       e.stopPropagation();
       focusRow("poi", i);
     });
-    const marker = new mapboxgl.Marker({ element: el, anchor: "center", draggable: true })
-      .setLngLat([poi.lng, poi.lat])
-      .addTo(state.map);
-    marker.on("dragend", () => {
-      const p = marker.getLngLat();
-      poi.lng = +p.lng.toFixed(6);
-      poi.lat = +p.lat.toFixed(6);
+    const marker = addMarker(state.map, [poi.lng, poi.lat], el, { draggable: true });
+    onMarkerDragEnd(marker, ([lng, lat]) => {
+      poi.lng = +lng.toFixed(6);
+      poi.lat = +lat.toFixed(6);
       markDirty();
     });
     return marker;
   }
 
   function renderMarkers() {
-    state.stopMarkers.forEach((m) => m.remove());
-    state.poiMarkers.forEach((m) => m.remove());
+    state.stopMarkers.forEach(removeMarker);
+    state.poiMarkers.forEach(removeMarker);
     state.stopMarkers = state.route.stops.map((s, i) => makeStopMarker(s, i));
     state.poiMarkers = state.route.pois.map((p, i) => makePoiMarker(p, i));
   }
@@ -408,9 +416,14 @@
     });
   }
 
-  // --- Search (Mapbox Geocoding v6 forward) ---------------------------------
+  // --- Search (Google Places autocomplete) ----------------------------------
+
+  // The whole reason the map moved to Google: place-search quality was the one
+  // thing Mapbox Geocoding was measurably worse at, and Google's terms forbid
+  // showing Places results on anyone else's basemap.
 
   let searchTimer = null;
+  let searchSeq = 0;
   function wireSearch() {
     const input = $("search");
     const results = $("search-results");
@@ -422,32 +435,30 @@
         return;
       }
       searchTimer = setTimeout(async () => {
+        // Predictions come back out of order often enough to matter; a slow
+        // early keystroke must not overwrite a fast later one.
+        const mine = ++searchSeq;
         try {
-          const center = state.map.getCenter();
-          const url =
-            "https://api.mapbox.com/search/geocode/v6/forward?q=" +
-            encodeURIComponent(q) +
-            "&autocomplete=true&limit=5&proximity=" +
-            center.lng.toFixed(4) + "," + center.lat.toFixed(4) +
-            "&access_token=" + window.TB.token;
-          const res = await fetch(url);
-          const data = await res.json();
-          const feats = (data && data.features) || [];
-          results.innerHTML = feats
+          const hits = await searchPlaces(state.map, q);
+          if (mine !== searchSeq) return;
+          results.innerHTML = hits
             .map(
-              (f, i) =>
-                '<li data-i="' + i + '"><strong>' + esc(f.properties.name || "") + "</strong> " +
-                '<span class="hit-ctx">' + esc(f.properties.place_formatted || "") + "</span></li>",
+              (h, i) =>
+                '<li data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+                '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
             )
             .join("");
-          results.hidden = feats.length === 0;
+          results.hidden = hits.length === 0;
           results.querySelectorAll("li").forEach((li) => {
-            li.addEventListener("click", () => {
-              const f = feats[Number(li.dataset.i)];
-              const [lng, lat] = f.geometry.coordinates;
-              if (state.addMode === "poi") addPoi(lng, lat, f.properties.name || "");
-              else addStop(lng, lat, f.properties.name || "");
-              state.map.flyTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 11) });
+            li.addEventListener("click", async () => {
+              // Coordinates are fetched only for the pick — Place Details bills
+              // per call, so resolving all five would cost five times as much.
+              const picked = await hits[Number(li.dataset.i)].resolve().catch(() => null);
+              if (!picked) return toast("Could not locate that place", true);
+              const [lng, lat] = picked.lngLat;
+              if (state.addMode === "poi") addPoi(lng, lat, picked.name);
+              else addStop(lng, lat, picked.name);
+              panTo(state.map, picked.lngLat, 11);
               input.value = "";
               results.hidden = true;
             });
@@ -580,10 +591,10 @@
   }
 
   async function init() {
-    if (!window.TB.token) {
+    if (!window.TB.gmapsKey || !window.TB.mapId) {
       document.body.insertAdjacentHTML(
         "afterbegin",
-        '<div class="tb-banner">Mapbox token not configured — set MAPBOX_TOKEN and restart.</div>',
+        '<div class="tb-banner">Maps are not configured — set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
       );
       return;
     }
@@ -600,28 +611,29 @@
       }
     }
 
-    state.map = initMap("map");
-    state.map.on("load", () => {
-      // The server only sends TB.home on the new-ride route, so this cannot fire
-      // while editing. Guarding on stops.length as well means a reload of a
-      // half-built ride does not stack a second home stop on the first. It runs
-      // here rather than earlier in init() because addStop() renders markers,
-      // which needs the map to exist; the renders below then pick up the role.
-      if (window.TB.home && !state.rideId && state.route.stops.length === 0) {
-        addStop(window.TB.home.lng, window.TB.home.lat, "Home");
-        state.route.stops[0].roles = ["home"];
-      }
+    // Unlike Mapbox, the map is usable as soon as the constructor resolves —
+    // there is no style to wait on, so the `load` handler this replaces is gone.
+    state.map = await initMap("map");
 
-      rebuildLayers();
-      renderMarkers();
-      renderList();
-      renderTotals();
-      const all = fullTrack();
-      if (all.length) fitTo(state.map, all);
-      state.map.on("click", (e) => {
-        if (state.addMode === "poi") addPoi(e.lngLat.lng, e.lngLat.lat, "");
-        else addStop(e.lngLat.lng, e.lngLat.lat, "");
-      });
+    // The server only sends TB.home on the new-ride route, so this cannot fire
+    // while editing. Guarding on stops.length as well means a reload of a
+    // half-built ride does not stack a second home stop on the first. It runs
+    // after the map exists because addStop() renders markers; the renders below
+    // then pick up the role.
+    if (window.TB.home && !state.rideId && state.route.stops.length === 0) {
+      addStop(window.TB.home.lng, window.TB.home.lat, "Home");
+      state.route.stops[0].roles = ["home"];
+    }
+
+    rebuildLayers();
+    renderMarkers();
+    renderList();
+    renderTotals();
+    const all = fullTrack();
+    if (all.length) fitTo(state.map, all);
+    onMapClick(state.map, ([lng, lat]) => {
+      if (state.addMode === "poi") addPoi(lng, lat, "");
+      else addStop(lng, lat, "");
     });
   }
 

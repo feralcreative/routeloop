@@ -28,8 +28,27 @@ export function jsonScript(varName: string, value: unknown): string {
 }
 
 // Mapbox pages pass this as `head`. Kept here so the version stays pinned to
-// the same constant the <script> tag uses.
+// the same constant the <script> tag uses. Nothing uses it since the Google
+// port; it goes with MAPBOX_TOKEN in Phase 4.
 export const MAPBOX_CSS_LINK = `<link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">`
+
+// Google's inline bootstrap loader, verbatim from their docs, which defines
+// google.maps.importLibrary() and nothing else. Map pages emit this instead of
+// a plain <script src=…&callback=…> because the engine imports "maps", "marker"
+// and "places" separately and on demand — the marker library in particular is
+// what Advanced Markers need and what the old callback form could not defer.
+//
+// The key is public by design (it ships in page source; the referrer allow-list
+// is the only control on it), but it still goes through JSON.stringify so a
+// malformed value cannot break out of the string literal.
+export function googleMapsLoader(key: string): string {
+  return `<script>
+  (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=\`https://maps.\${c}apis.com/maps/api/js?\`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+    key: ${JSON.stringify(key).replace(/</g, '\\u003c')},
+    v: "weekly",
+  });
+  </script>`
+}
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
 export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile'

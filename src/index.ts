@@ -24,8 +24,8 @@ import { mapsRoutes } from './routes/maps'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { routingRoutes } from './routes/routing'
-import { esc, jsonScript, MAPBOX_CSS_LINK, page, panelShell } from './views/layout'
-import { GMAPS_KEY, MAPBOX_GL_VERSION, MAPBOX_TOKEN, PORT } from './config'
+import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
+import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -123,8 +123,8 @@ app.get('/', async (c) => {
   return c.html(homeHtml(rideCards(recent), rideCards(popular, true), user))
 })
 
-// Viewer page. Native rides render on the Mapbox shell from structured rows;
-// imported rides stay on the legacy Google shell until Phase 4 unifies them.
+// Viewer page. Native rides render on the ported engine from structured rows;
+// imported rides stay on the legacy main.js shell until Phase 4 unifies them.
 app.get('/m/:slug', async (c) => {
   const viewer = c.get('user') ?? null
   const m = await getViewable(c.req.param('slug'), viewer)
@@ -278,21 +278,22 @@ function viewerPanel(m: RideRow): string {
 
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
-// The unified Mapbox viewer shell (native rides now; everything in Phase 4).
+// The unified viewer shell (native rides now; imported rides join it when
+// main.js retires in Phase 4).
 function nativeViewHtml(m: RideRow, user: UserRow | null): string {
   return page({
     title: m.title,
     user,
     variant: 'map',
-    head: MAPBOX_CSS_LINK,
     noscript: VIEWER_NOSCRIPT,
     body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
-      token: MAPBOX_TOKEN,
+      gmapsKey: GMAPS_KEY,
+      mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
     },
-    scripts: `<script src="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js"></script>
+    scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="/js/map-common.js" defer></script>
   <script src="/js/viewer.js" defer></script>`,
   })
