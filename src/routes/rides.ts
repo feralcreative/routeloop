@@ -419,6 +419,19 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
           </span>
         </div>
 
+        <div class="day-times" id="day-times">
+          <label class="day-time">
+            <span>Starts</span>
+            <input id="route-start" name="route-start" type="datetime-local">
+          </label>
+          <label class="day-time">
+            <span>Ends</span>
+            <input id="route-end" name="route-end" type="datetime-local"
+                   title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
+          </label>
+          <span class="day-times-note" id="day-times-note"></span>
+        </div>
+
         <div class="search-wrap">
           <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
           <ul id="search-results" hidden></ul>

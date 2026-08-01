@@ -50,6 +50,8 @@
     color: color || DAY_COLORS[0],
     startAt: null,
     endAt: null,
+    // Session-only: see inferEndManual(). Never part of payload().
+    endManual: false,
     stops: [],
     pois: [],
     legs: [],
@@ -166,7 +168,7 @@
     const vias = (route.legs[i] && route.legs[i].viaPoints) || [];
     route.legs[i] = straightLeg(a, b, vias);
     renderTrack(r);
-    renderTotals();
+    refreshDerived();
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
@@ -177,7 +179,7 @@
         if (state.legSeq[r][i] !== seq || !route.legs[i]) return;
         route.legs[i] = leg;
         renderTrack(r);
-        renderTotals();
+        refreshDerived();
       })
       .catch((e) => {
         console.warn("[builder] directions:", e.message);
@@ -310,7 +312,7 @@
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -345,7 +347,7 @@
     renderTrack(r);
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -382,7 +384,7 @@
     applyFocus();
     renderDayHead();
     renderList();
-    renderTotals();
+    refreshDerived();
   }
 
   function addDay() {
@@ -422,7 +424,7 @@
     rebuildLayers();
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -478,6 +480,102 @@
     $("day-up").disabled = r === 0;
     $("day-down").disabled = r === state.routes.length - 1;
     $("day-del").disabled = state.routes.length <= 1;
+  }
+
+  // --- Times ----------------------------------------------------------------
+
+  // How long a day actually occupies: riding plus every planned stop. This is
+  // what the end time is derived from — a two-hour lunch ends the day two hours
+  // later than the legs alone say. Deliberately not the same number as the
+  // server's routes.duration_s, which caches riding time only.
+  const routeElapsedS = (route) => {
+    const t = routeTotals(route);
+    return t.riding + t.stopped;
+  };
+
+  // <input type="datetime-local"> has no timezone: it reads and writes wall
+  // clock, which the platform parses as the builder's own zone. That is the
+  // zone we store from, so a ride planned in California reads back in
+  // California time even for its Nevada legs. A per-ride timezone is the real
+  // fix and is deliberately out of scope here.
+  const pad = (n) => String(n).padStart(2, "0");
+
+  function isoToLocalInput(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return (
+      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      "T" + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    );
+  }
+
+  function localInputToIso(value) {
+    if (!value) return null;
+    const d = new Date(value); // no offset in the string — parsed as local time
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const derivedEndIso = (route) =>
+    route.startAt ? new Date(new Date(route.startAt).getTime() + routeElapsedS(route) * 1000).toISOString() : null;
+
+  // Whether the rider typed this end themselves, held on the route as session
+  // state (it is not part of the save payload). Inferred once at load by
+  // comparing the stored end against what the day derives, then tracked
+  // directly. It has to be a flag rather than that same comparison run on every
+  // refresh: the moment a leg or stop changes, an end that *was* automatic no
+  // longer matches the new derivation, and comparing would freeze it as though
+  // the rider had typed it. Minute tolerance because the input's own resolution
+  // is a minute.
+  function inferEndManual(route) {
+    if (!route.startAt || !route.endAt) return false;
+    const derived = derivedEndIso(route);
+    if (!derived) return false;
+    return Math.abs(new Date(route.endAt).getTime() - new Date(derived).getTime()) > 60000;
+  }
+
+  // Called wherever a day's shape changes. An end the rider typed is left
+  // alone; anything else is kept in step with the legs and stops.
+  function syncEnd(route) {
+    // With no start there is nothing to derive from. An end already on the
+    // route is left as it is rather than discarded — the columns are
+    // independently nullable, and silently dropping a stored time on load
+    // would lose it on the next save.
+    if (!route.startAt || route.endManual) return;
+    route.endAt = derivedEndIso(route);
+  }
+
+  // Every figure the panel shows is derived from the legs and stops, so one
+  // call keeps them all honest. Ends sync across every day, not just the edited
+  // one — a marker on a dimmed day is still draggable, so any day's shape can
+  // change while another is in focus.
+  function refreshDerived() {
+    state.routes.forEach(syncEnd);
+    renderTotals();
+    renderTimes();
+  }
+
+  function renderTimes() {
+    const route = editRoute();
+    const start = $("route-start");
+    const end = $("route-end");
+    const note = $("day-times-note");
+
+    start.value = isoToLocalInput(route.startAt);
+    end.value = isoToLocalInput(route.endAt);
+    // Without a start there is nothing to derive an end from, and a lone end
+    // would be a time the timeline cannot place.
+    end.disabled = !route.startAt;
+
+    if (!route.startAt) {
+      note.textContent = route.endAt ? "add a start time to work the end out" : "";
+      return;
+    }
+    if (route.endManual) {
+      note.textContent = "end set by hand";
+    } else {
+      note.textContent = routeTotals(route).estimated ? "end estimated from the day" : "end from the day";
+    }
   }
 
   // --- Panel: list + totals -------------------------------------------------
@@ -629,7 +727,7 @@
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       if (e.target.classList.contains("row-dur")) {
         point.durationMin = e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value)));
-        renderTotals();
+        refreshDerived();
       }
       markDirty();
     });
@@ -808,10 +906,16 @@
       color: r.color || DAY_COLORS[i % DAY_COLORS.length],
       startAt: r.startAt || null,
       endAt: r.endAt || null,
+      endManual: false,
       stops: r.stops || [],
       pois: r.pois || [],
       legs: r.legs || [],
     }));
+    // Nothing has changed the day yet, so a stored end that matches what the
+    // day derives is one we wrote — anything else the rider chose themselves.
+    state.routes.forEach((r) => {
+      r.endManual = inferEndManual(r);
+    });
     if (state.routes.length === 0) state.routes = [newRoute()];
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
@@ -836,7 +940,21 @@
     $("route-title").addEventListener("input", (e) => {
       editRoute().title = e.target.value;
       $("day-label").textContent = state.focus === 0 ? "All days · editing " + dayLabel(editIndex()) : dayLabel(editIndex());
-      renderTotals();
+      refreshDerived();
+      markDirty();
+    });
+    $("route-start").addEventListener("change", (e) => {
+      editRoute().startAt = localInputToIso(e.target.value);
+      refreshDerived();
+      markDirty();
+    });
+    // Typing an end overrides the derivation; clearing it hands control back,
+    // and refreshDerived() refills the field from the day on the way out.
+    $("route-end").addEventListener("change", (e) => {
+      const route = editRoute();
+      route.endAt = localInputToIso(e.target.value);
+      route.endManual = route.endAt !== null;
+      refreshDerived();
       markDirty();
     });
   }
@@ -915,7 +1033,7 @@
     renderSlider();
     renderDayHead();
     renderList();
-    renderTotals();
+    refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
     onMapClick(state.map, ([lng, lat]) => {

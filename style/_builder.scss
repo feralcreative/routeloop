@@ -98,6 +98,43 @@
     }
   }
 
+  // Start and end for the day edits land on. Unlike .day-head this is never
+  // hidden — a single-day ride still wants a date on it.
+  .day-times {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5em;
+    margin-top: 0.5em;
+  }
+  .day-time {
+    display: flex;
+    flex: 1 1 10em;
+    flex-direction: column;
+    gap: 0.15em;
+    font-size: 0.75em;
+    opacity: 0.85;
+    input {
+      width: 100%;
+      padding: 0.3em;
+      border: 1px solid $grey;
+      border-radius: 4px;
+      font: inherit;
+      font-size: 1.15em;
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+  // Says where the end came from — derived, estimated, or typed by the rider.
+  .day-times-note {
+    flex: 1 0 100%;
+    font-size: 0.7em;
+    font-style: italic;
+    opacity: 0.7;
+  }
+
   // Controls for the one day edits land on, which is the focused day, or the
   // last day while the slider sits on "all".
   .day-head {
