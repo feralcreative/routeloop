@@ -468,6 +468,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
     tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
+  <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

@@ -385,6 +385,38 @@ table.route-table {
   transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
 }
 
+// Trip timeline (unified viewer + builder)
+//
+// Lives here rather than in _builder.scss because both panels carry it and the
+// builder's rules are all nested under .builder-panel, which the viewer's panel
+// is not. In the builder it sits under the day controls and goes inert without
+// dates; in the viewer it is hidden outright when a ride has none, since a
+// viewer cannot fix that by typing one.
+.trip-timeline {
+  margin-top: 0.6em;
+}
+
+.time-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: $brand;
+  cursor: pointer;
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+// Says both the moment and what is happening at it, so the map's highlight is
+// never the only explanation of what changed.
+.time-readout {
+  padding-top: 0.25em;
+  min-height: 1.2em;
+  font-size: 0.7em;
+  color: $text;
+  opacity: 0.8;
+}
+
 // Role markers (unified viewer + builder)
 //
 // The wrapper is deliberately zero-size. An AdvancedMarkerElement anchors its

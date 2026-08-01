@@ -29,16 +29,24 @@
 
   initPanelToggle();
 
+  // The trip's time model is shared with the viewer so the two can never
+  // disagree about what is happening at a given moment. See ride-time.js.
+  const {
+    legIsEstimated,
+    legDurationS,
+    routeIsEstimated,
+    routeStoppedS,
+    routeElapsedS,
+    routeStartS,
+    tripSpan,
+    activeAtMoment,
+    fmtMoment,
+  } = window.TBTime;
+
   const MILE = 1609.344;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
   const MAX_STOPS = 200;
   const MAX_POIS = 200;
-
-  // Fallback riding speed for a leg the router never answered for, matching the
-  // 20 m/s (~45 mph) the demo seeder uses. Rough twice over — it is applied to a
-  // haversine distance, which is shorter than the road — so anything derived
-  // from it is labelled an estimate rather than presented as a duration.
-  const NOMINAL_SPEED_MS = 20;
 
   // Same palette the legacy viewer used, so a multi-day trip gets visually
   // distinct days without the rider picking each one.
@@ -124,13 +132,6 @@
     const geometry = [a, ...(vias || []), b];
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
-
-  // A leg with distance but no duration never came back from the router, so its
-  // time is estimated from distance. Deriving this rather than storing a flag
-  // means a reloaded ride reports the same figures as the session that built it.
-  const legIsEstimated = (leg) => leg.durationS <= 0 && leg.distanceM > 0;
-  const legDurationS = (leg) =>
-    legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
 
   function haversineTrack(coords) {
     let m = 0;
@@ -542,15 +543,6 @@
 
   // --- Times ----------------------------------------------------------------
 
-  // How long a day actually occupies: riding plus every planned stop. This is
-  // what the end time is derived from — a two-hour lunch ends the day two hours
-  // later than the legs alone say. Deliberately not the same number as the
-  // server's routes.duration_s, which caches riding time only.
-  const routeElapsedS = (route) => {
-    const t = routeTotals(route);
-    return t.riding + t.stopped;
-  };
-
   // <input type="datetime-local"> has no timezone: it reads and writes wall
   // clock, which the platform parses as the builder's own zone. That is the
   // zone we store from, so a ride planned in California reads back in
@@ -640,87 +632,20 @@
 
   // --- Timeline -------------------------------------------------------------
 
-  const routeStartS = (route) => (route.startAt ? Math.floor(new Date(route.startAt).getTime() / 1000) : null);
-
-  // endAt is normally kept in step by syncEnd, but a route can carry a start
-  // with no end (a stored row we deliberately do not overwrite), so the elapsed
-  // figure is the fallback rather than treating the day as instantaneous.
-  function routeEndS(route) {
-    const start = routeStartS(route);
-    if (start == null) return null;
-    if (!route.endAt) return start + routeElapsedS(route);
-    const end = Math.floor(new Date(route.endAt).getTime() / 1000);
-    return Number.isNaN(end) ? start + routeElapsedS(route) : end;
-  }
-
-  // The trip's whole extent. Undated days sit outside it rather than stretching
-  // it — a rider who has dated day 2 only gets a timeline over day 2.
-  function tripSpan() {
-    let from = null;
-    let to = null;
-    state.routes.forEach((route) => {
-      const s = routeStartS(route);
-      if (s == null) return;
-      const e = routeEndS(route);
-      from = from == null ? s : Math.min(from, s);
-      to = to == null ? e : Math.max(to, e);
-    });
-    return from == null || to == null || to <= from ? null : { from, to };
-  }
-
-  // A day, as the timeline sees it: parked at stops[0], riding leg[0], parked
-  // at stops[1], riding leg[1], and so on. The two summed are routeElapsedS(),
-  // so this walk and the derived end time cannot drift apart.
-  //
-  // A moment spent at a stop is on no leg at all, and says so. Highlighting the
-  // leg just ridden (or the one about to be) would put a line on the map that
-  // claims the rider is somewhere they are not.
-  function activeAt(route, offsetS) {
-    let t = 0;
-    for (let i = 0; i < route.stops.length; i++) {
-      const dwell = (route.stops[i].durationMin || 0) * 60;
-      if (offsetS < t + dwell) return { legIndex: null, stopIndex: i };
-      t += dwell;
-      const leg = route.legs[i];
-      if (!leg) break;
-      const riding = legDurationS(leg);
-      if (offsetS < t + riding) return { legIndex: i, stopIndex: null };
-      t += riding;
-    }
-    // Past the end of the day: parked at the final stop.
-    return { legIndex: null, stopIndex: route.stops.length ? route.stops.length - 1 : null };
-  }
-
-  // Which day and leg a moment falls in. A moment in the gap between two days —
-  // the overnight — belongs to neither, and returns nulls rather than being
-  // rounded into the nearest day.
-  function activeAtMoment(momentS) {
-    for (let d = 0; d < state.routes.length; d++) {
-      const route = state.routes[d];
-      const start = routeStartS(route);
-      if (start == null) continue;
-      if (momentS < start || momentS > routeEndS(route)) continue;
-      const a = activeAt(route, momentS - start);
-      return { dayIndex: d, legIndex: a.legIndex, stopIndex: a.stopIndex };
-    }
-    return { dayIndex: null, legIndex: null, stopIndex: null };
-  }
-
-  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.moment));
-
-  const fmtMoment = (s) =>
-    new Date(s * 1000).toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.routes, state.moment));
 
   function renderTimeline() {
     const slider = $("time-slider");
     const readout = $("time-readout");
-    const span = tripSpan();
+    const span = tripSpan(state.routes);
+
+    // The slider's value is epoch seconds, which is what a screen reader would
+    // otherwise read out. aria-valuetext replaces that with the same sentence
+    // sighted users get.
+    const say = (text) => {
+      readout.textContent = text;
+      slider.setAttribute("aria-valuetext", text);
+    };
 
     // Same treatment the day slider gets below two days: it stays put and goes
     // inert rather than vanishing and reflowing the panel the moment a date is
@@ -730,7 +655,7 @@
       slider.min = "0";
       slider.max = "0";
       slider.value = "0";
-      readout.textContent = state.routes.some((r) => r.startAt) ? "" : "Give a day a start time to scrub the trip";
+      say(state.routes.some((r) => r.startAt) ? "" : "Give a day a start time to scrub the trip");
       return;
     }
 
@@ -739,10 +664,10 @@
     slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
 
     if (state.moment == null) {
-      readout.textContent = fmtMoment(span.from) + " – " + fmtMoment(span.to);
+      say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
     }
-    const a = activeAtMoment(state.moment);
+    const a = activeAtMoment(state.routes, state.moment);
     let what;
     if (a.dayIndex == null) {
       what = "between days";
@@ -752,14 +677,14 @@
       const stop = a.stopIndex == null ? null : state.routes[a.dayIndex].stops[a.stopIndex];
       what = dayLabel(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
     }
-    readout.textContent = fmtMoment(state.moment) + " · " + what;
+    say(fmtMoment(state.moment) + " · " + what);
   }
 
   // Moving the timeline is the primary gesture; the day slider follows it so
   // the two controls can never show different days.
   function setMoment(momentS) {
     state.moment = momentS;
-    const a = activeAtMoment(momentS);
+    const a = activeAtMoment(state.routes, momentS);
     // A moment between days leaves the day slider where it was — there is no
     // day to move it to, and snapping it somewhere arbitrary would be a lie.
     if (a.dayIndex != null) {
@@ -891,8 +816,8 @@
     return {
       meters: route.legs.reduce((n, l) => n + l.distanceM, 0),
       riding: route.legs.reduce((n, l) => n + legDurationS(l), 0),
-      stopped: route.stops.reduce((n, s) => n + (s.durationMin || 0) * 60, 0),
-      estimated: route.legs.some(legIsEstimated),
+      stopped: routeStoppedS(route),
+      estimated: routeIsEstimated(route),
     };
   }
 

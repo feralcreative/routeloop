@@ -257,6 +257,7 @@ Icon?
 **/_deprecated
 **/*.syncthing*
 **/*.sync-conflict*
+/docs/ops
 _reference
 
 # --- Moto-Rooter (LAMP rebuild) ---

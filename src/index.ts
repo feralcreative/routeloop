@@ -300,11 +300,22 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 
 // Both viewers render the same panel — only the engine below it differs — so the
 // markup lives in one place and the two shells just pick their scripts.
-function viewerPanel(m: RideRow): string {
+// `timeline` is opt-in rather than default because the legacy shell's main.js
+// knows nothing about it — rendering the control there would give an imported
+// ride a slider that does nothing. It goes away with main.js in Phase 4.
+function viewerPanel(m: RideRow, timeline = false): string {
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
+  const scrub = timeline
+    ? `
+        <div class="trip-timeline" id="trip-timeline" hidden>
+          <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
+                 aria-label="Move through the trip in time" title="Drag to move through the trip">
+          <div class="time-readout" id="time-readout"></div>
+        </div>`
+    : ''
   return panelShell({
     title: m.title,
-    contents: `        <div class="details">${desc}</div>
+    contents: `        <div class="details">${desc}</div>${scrub}
         <div class="routes">
           <table class="route-table"></table>
           <label class="toggle-checkbox">
@@ -325,7 +336,7 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
     user,
     variant: 'map',
     noscript: VIEWER_NOSCRIPT,
-    body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
+    body: `  <div id="map"></div>\n\n  ${viewerPanel(m, true)}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
       gmapsKey: GMAPS_KEY,
@@ -334,6 +345,7 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
+  <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }
