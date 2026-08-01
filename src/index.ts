@@ -160,18 +160,48 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       .where(eq(pointsTable.routeId, r.id))
       .orderBy(pointsTable.position)
     const legs = await db
-      .select({ geometry: routeLegs.geometry })
+      .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
       .where(eq(routeLegs.routeId, r.id))
       .orderBy(routeLegs.position)
 
-    // Concatenate leg geometries, dropping duplicated joints.
+    // Concatenate leg geometries and record where each leg lands in the result.
+    // Note this drops *any* consecutive duplicate, not just the shared joints
+    // between legs — imported tracks carry repeats mid-leg too, so a leg's span
+    // here is usually shorter than its stored geometry. That was harmless when
+    // the output was one flat line; it is load-bearing now that indices point
+    // into it. `track` stays exactly what it always was —
+    // every consumer renders it, and one concat path serving both imported and
+    // native rides is deliberate (see the route_legs comment in schema.ts). The
+    // index pairs are additive: without them a client receives a single flat
+    // line and cannot tell where one leg ends and the next begins, which is
+    // precisely what mapping a moment to a leg requires.
+    //
+    // Consecutive legs share their joint, so leg n+1's startIndex is leg n's
+    // endIndex rather than the point after it. That is the same continuity the
+    // geometry has: the next leg starts where the previous one ended.
     const track: Track = []
+    const legsOut: { distanceM: number; durationS: number; startIndex: number; endIndex: number }[] = []
     for (const leg of legs) {
+      // A leg with no geometry has nowhere on the track to point at. It cannot
+      // arise from the builder (the payload requires two points per leg) and an
+      // imported ride carries its whole track as one leg, so this guards a
+      // malformed row rather than a real shape.
+      if (leg.geometry.length === 0) continue
+      let startIndex = -1
       for (const pt of leg.geometry) {
         const last = track[track.length - 1]
         if (!last || last[0] !== pt[0] || last[1] !== pt[1]) track.push(pt)
+        // Whether or not the point was a duplicate, it now sits at the end of
+        // the track — so the first point's home is the same index either way.
+        if (startIndex < 0) startIndex = track.length - 1
       }
+      legsOut.push({
+        distanceM: leg.distanceM,
+        durationS: leg.durationS,
+        startIndex,
+        endIndex: track.length - 1,
+      })
     }
 
     const pointOut = (p: (typeof pts)[number]) => ({
@@ -186,8 +216,14 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
+      endAt: r.endAt?.toISOString() ?? null,
       distanceMi: Math.round((r.distanceM / METERS_PER_MILE) * 10) / 10,
       track,
+      // Each entry spans [startIndex, endIndex] of `track`. Note durationS is
+      // 0 for a leg the router never answered for, the same as it is in the
+      // builder — a client wanting a time for one of those estimates it from
+      // distanceM rather than treating the day as that much shorter.
+      legs: legsOut,
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
       pois: pts.filter((p) => p.kind === 'poi').map(pointOut),
     })
