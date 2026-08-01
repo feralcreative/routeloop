@@ -71,20 +71,32 @@
       opacity: 0.45;
     }
   }
-  // Labels sit under the track: "All" at the left, then one per day. Spread
-  // rather than positioned — the thumb's inset makes exact alignment a lie at
-  // any width, and an evenly spaced row reads correctly regardless.
+  // Labels sit under the track: "All" at the left, then one per day, each
+  // centred on the position its own value puts the thumb at.
+  //
+  // This used to be a `space-between` row, on the reasoning that the thumb's
+  // inset made exact alignment impossible anyway. Two things were wrong with
+  // that. The inset is knowable — a thumb centre never reaches either end, it
+  // travels between half a thumb from each, so the usable track is `100% -
+  // thumb` and every value sits at a computable point along it. And spreading
+  // aligned the labels' *edges*, not their centres, which drifted further off
+  // than the inset ever did. --thumb is the one approximation left: the UA
+  // picks the real width, and pinning it would mean restyling the control.
   .day-ticks {
-    display: flex;
-    justify-content: space-between;
+    --thumb: 16px;
+    position: relative;
+    height: 1.35em;
     font-size: 0.7em;
     color: $text;
     opacity: 0.75;
-    padding: 0 0.1em;
   }
   .day-tick {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--pos, 0));
+    transform: translateX(-50%);
     padding-top: 0.35em;
+    white-space: nowrap;
     &[style*="--tick-color"]::before {
       content: "";
       position: absolute;

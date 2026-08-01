@@ -514,11 +514,14 @@
     // A single day has nothing to scrub between; the slider stays but goes
     // inert rather than disappearing and reflowing the panel on the second day.
     slider.disabled = state.routes.length < 2;
+    // --pos is the tick's fraction of the slider's range, which the stylesheet
+    // turns into the point the thumb reaches at that value. Sent from here
+    // because only this side knows the day count.
+    const span = state.routes.length; // slider runs 0..span
+    const tick = (label, pos, color) =>
+      '<span class="day-tick" style="--pos:' + pos + (color ? ";--tick-color:" + esc(color) : "") + '">' + label + "</span>";
     $("day-ticks").innerHTML =
-      '<span class="day-tick">All</span>' +
-      state.routes
-        .map((_, r) => '<span class="day-tick" style="--tick-color:' + esc(state.routes[r].color) + '">' + (r + 1) + "</span>")
-        .join("");
+      tick("All", 0) + state.routes.map((route, r) => tick(String(r + 1), (r + 1) / span, route.color)).join("");
   }
 
   function renderDayHead() {
