@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-07-30
-**Branch:** `refactor/google-maps-and-auth`, based on `2a96dae`, currently at `8b39424`
+**Updated:** 2026-07-31
+**Branch:** `feat/trip-timeline-slider`, based on `7d0db74` (main), currently at `2732526`
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -10,7 +10,7 @@ Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this 
 
 tankbag is a ride **planning / sharing / organizing** app, not navigation. It is live at `tankbag.app` on a Synology NAS behind Cloudflare Tunnel.
 
-Two migrations are in flight on this branch:
+Two migrations drove the previous branch, `refactor/google-maps-and-auth`, which is now merged into `main`:
 
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
@@ -213,9 +213,40 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 # then send it as: Cookie: tankbag_session=<token>
 ```
 
+<!--| PAGE-BREAK -->
+
+## Trip timeline—in progress, 2026-07-31
+
+Current work. Branch `feat/trip-timeline-slider`, covering [issue #7](https://github.com/feralcreative/tankbag/issues/7) (ROADMAP item 2) and [issue #19](https://github.com/feralcreative/tankbag/issues/19), which is folded in because it is the same widget. The full plan is in `_PLANS/issue-7-trip-timeline.md`—local only, since `_PLANS` is gitignored as of `7d0db74`.
+
+**Most of the time model was already built.** `routes.start_at` / `end_at` exist, [rides.ts](../src/routes/rides.ts) already validates, persists and returns them, and builder state already carried them through `newRoute()`, `payload()` and `loadExisting()`. Nothing wrote them. So the first commit's worth of work was UI on a finished pipe, not plumbing.
+
+**Four decisions, settled with the owner and worth not relitigating:**
+
+1. **`routes.duration_s` stays riding-only.** It is already cached on saved rows and read in two places that expect that meaning. The end time is derived as start + riding + stop dwell at the point of use instead. Note the two columns already disagreed before this work: `rideTotals` counts dwell in the ride-level total, `routes.duration_s` does not.
+2. **A new day seeds its start at 08:00 the following morning**, not at the previous day's end instant—which would put day 2 starting at 6pm in a hotel lobby.
+3. **Times take the builder's own timezone.** `datetime-local` carries none, so a ride planned in California reads back in California time even for its Nevada legs. A per-ride timezone is the real fix and is deliberately a separate issue.
+4. **The timeline does not replace the day slider.** Both write one shared focus model. The day slider also decides where new stops land, and removing it would moot #19.
+
+**`b1e9188`—unrouted legs no longer count as zero time.** `straightLeg` still stores `durationS: 0`, because fabricating a number there would persist as though the router had returned it. Instead a leg with zero duration and non-zero distance is treated as unrouted and estimated from distance at 20 m/s (the figure `utils/seed-demo-rides.ts` already uses). That derivation survives a save/reload with no schema change, where a client-side flag would not—zod strips unknown keys, so an extra field on a leg is silently dropped on save. Anything built on it is labelled: totals prefix the riding figure with `~`.
+
+**`2732526`—the date-time UI.** Start and end fields per day. The end fills itself from the day and keeps up as legs and stop durations change; typing one overrides it; clearing it hands control back. A note says which of those is in play.
+
+**The bug that shaped it, because the design reads wrong otherwise.** Manual-ness was first inferred by comparing the stored end against the derived one, with no flag—which fails the moment the day changes, since an end that *was* automatic no longer matches the new derivation and freezes as though it had been typed. The comparison is only sound at load time, when nothing has changed yet. So `inferEndManual()` runs once on load and seeds a session-only `endManual` flag that is tracked directly from then on. It is not in `payload()` and needs no column.
+
+**Verified:** typecheck, SCSS build, and 18 assertions over the time logic, extracted from the real `builder.js` source rather than a retyped copy. That harness lives in a scratchpad, not the repo—it works by string-extracting functions, which is fine as a scratch check and a bad thing to enshrine while [#21](https://github.com/feralcreative/tankbag/issues/21) is open to set up a real runner.
+
+**Not verified: any of it in a browser.** `/builder` is auth-gated with no dev bypass, and the running server was `npm start` rather than `npm run dev`, so it was serving pre-change code. Layout and interaction still need a real look.
+
+**Remaining, in order:** seed the new day's start (decision 2); add `end_at` and a per-leg array to `ride.json`, which today concatenates every leg into one flat `track` and drops leg durations, so the viewer *cannot* map a moment to a leg; add a leg-highlight overlay to `map-common.js`, which has one `Polyline` per route and no leg-level dimming; then the slider itself in the builder and the viewer; then #19.
+
+On #19: the even tick spacing is deliberate, not an oversight—the comment in [\_builder.scss](../style/_builder.scss) argues the thumb inset makes exact alignment a lie at any width. It is achievable if the thumb width is pinned in CSS rather than left to the UA, but that comment needs replacing rather than quietly contradicting.
+
+<!--| PAGE-BREAK -->
+
 ## Next steps, in order
 
-Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
+These are the Mapbox-retirement track, separate from the timeline work above. Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
 
 1. **Move `profile.js` geocoding** to a server proxy alongside `/api/route`, since Geocoding is on the server key. This is the last Mapbox call in the app and the only reason `MAPBOX_TOKEN` still has to be set. It is a non-map page, so no basemap-terms conflict forced it to move with the engine.
 2. **Phase 4—retire Mapbox.** Delete `main.js`, collapse `viewHtml`/`nativeViewHtml` into one, drop `MAPBOX_TOKEN` and `MAPBOX_GL_VERSION` from config, `MAPBOX_CSS_LINK` from [layout.ts](../src/views/layout.ts) (already unused), `.env.example`, `docker-compose.prod.yml` and the deploy guard in `utils/deploy/deploy.sh`.
