@@ -66,8 +66,8 @@ authRoutes.get('/login', (c) => {
        ${notice ? `<p class="notice">Check your email — if that address has access, a sign-in link is on its way.</p>` : ''}
        ${failed ? `<p class="notice is-error">${esc(failed === 'link' ? 'That link is invalid, already used, or expired. Request a new one.' : 'Sign-in failed. Please try again.')}</p>` : ''}
        <div class="providers">
-         ${googleButton}
          ${magicForm}
+         ${googleButton}
          <p class="provider-alt">Not a member yet? Signing in creates your account.</p>
        </div>
        </main>`,

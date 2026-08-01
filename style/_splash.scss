@@ -49,13 +49,25 @@
 }
 
 .providers {
+  // One column width for everything in this stack, stated once. The two
+  // controls are supposed to measure the same and did not: both declared
+  // max-width: 320px, but .provider is content-box with 16px of padding and a
+  // 1px border either side, so it rendered 354px against the form's 320px.
+  // Every child below sets border-box, so the number here means the same thing
+  // to all of them.
+  --control-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
   margin: 2rem 0 1rem;
 }
 
 .provider {
   display: block;
-  max-width: 320px;
-  margin-bottom: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--control-width);
   padding: 0.85rem 1rem;
   text-align: center;
   background: $white;
@@ -79,18 +91,23 @@
 // Signing in and signing up are the same request; only the framing differs, so
 // the secondary line is explanatory text rather than a second button.
 .provider-alt {
-  max-width: 320px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--control-width);
   margin: 0;
   text-align: center;
   font-size: 0.92rem;
 }
 
-// The magic-link form sits under the Google button as the second way in.
+// The magic-link form leads: it is the way in that works without handing an
+// address to Google first.
 .magic-form {
   display: flex;
+  box-sizing: border-box;
   gap: 0.5rem;
-  max-width: 320px;
-  margin: 0 0 1rem;
+  width: 100%;
+  max-width: var(--control-width);
+  margin: 0;
 
   input {
     flex: 1;
