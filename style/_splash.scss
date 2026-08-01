@@ -166,6 +166,59 @@
   border: 0;
 }
 
+// The name-yourself step. Shares the sign-in column width so the page reads as
+// the same stack of controls the rider just came from.
+.name-form {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: var(--control-width);
+  margin: 1.5rem 0 1rem;
+
+  .btn {
+    width: 100%;
+  }
+}
+
+.name-field {
+  display: grid;
+  gap: 0.3rem;
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.85rem 0.9rem;
+    font: inherit;
+    color: $text;
+    background: $white;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+    &:focus-visible {
+      outline: 2px solid $accent;
+      outline-offset: 2px;
+    }
+
+    &[aria-invalid="true"] {
+      border-color: $kml;
+    }
+  }
+}
+
+.name-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+// Carries the field hint normally and its error when there is one, so a
+// validation message never adds a line and reflows the page under the rider.
+.name-hint {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
 // The pending-approval holding page.
 // Buttons rather than a row of bare links. Deliberately the .provider treatment
 // rather than the .modal-links one, even though these are the same three
@@ -368,6 +421,14 @@ body.splash-page {
   .provider-google:hover,
   .provider-google:focus-visible {
     border-color: $google-blue;
+  }
+
+  .name-label,
+  .name-hint {
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow:
+      0 1px 2px rgba(6, 10, 12, 0.6),
+      0 1px 16px rgba(6, 10, 12, 0.55);
   }
 
   .provider-alt {

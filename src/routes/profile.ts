@@ -13,30 +13,9 @@ import { MAPBOX_TOKEN } from '../config'
 import { sanitizeText } from '../maps/kml'
 import { esc, page } from '../views/layout'
 import { asset } from '../views/assets'
+import { usernameSchema } from '../auth/username'
 
 export const profileRoutes = new Hono<AuthEnv>()
-
-// Reserved because a username is the natural basis for a future public profile
-// URL, and because the rider-list lookup will accept usernames. Claiming "api"
-// or "builder" now would poison that later.
-const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
-  'admin',
-  'api',
-  'builder',
-  'dashboard',
-  'favicon',
-  'img',
-  'js',
-  'login',
-  'logout',
-  'm',
-  'places',
-  'profile',
-  'static',
-  'style',
-  'video',
-  'welcome',
-])
 
 // Same shape as `fields` in routes/maps.ts. A browser submits every text input
 // even when empty, but an absent field must mean "empty" rather than a 400 —
@@ -45,18 +24,9 @@ const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
 const optionalText = (max: number) => z.string().trim().max(max).default('')
 
 const profileFields = {
-  username: z
-    .union([
-      z.literal(''),
-      z
-        .string()
-        .trim()
-        .min(3, 'username must be at least 3 characters')
-        .max(30, 'username must be 30 characters or fewer')
-        .regex(/^[a-zA-Z0-9_]+$/, 'username may use only letters, numbers and underscores')
-        .refine((v) => !RESERVED_USERNAMES.has(v.toLowerCase()), 'that username is reserved'),
-    ])
-    .default(''),
+  // Rules live in auth/username.ts: the signup prompt applies the same ones, and
+  // two copies of the reserved list would drift.
+  username: z.union([z.literal(''), usernameSchema]).default(''),
   displayName: z.string().trim().min(1, 'display name is required').max(255),
   firstName: optionalText(80),
   lastName: optionalText(80),

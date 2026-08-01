@@ -10,7 +10,7 @@
 import { and, eq } from 'drizzle-orm'
 import { OWNER_EMAIL } from '../config'
 import { db } from '../db/index'
-import { userIdentities, users, type UserRow } from '../db/schema'
+import { userIdentities, userProfiles, users, type UserRow } from '../db/schema'
 
 export type Provider = 'google' | 'email'
 
@@ -28,7 +28,10 @@ export type VerifiedIdentity = {
   providerUserId: string
   /** Already verified by the provider. Callers must not pass an unverified one. */
   email: string
-  displayName?: string
+  /** Real name, where the provider supplies it. Goes to user_profiles, never to
+   *  users.display_name — see the seeding comment in create() below. */
+  firstName?: string
+  lastName?: string
 }
 
 function displayNameFromEmail(email: string): string {
@@ -38,7 +41,11 @@ function displayNameFromEmail(email: string): string {
 
 export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): Promise<UserRow> {
   const email = identity.email.trim().toLowerCase()
-  const displayName = identity.displayName?.trim() || displayNameFromEmail(email)
+  // Never the provider's name. display_name is notNull and the row has to exist
+  // before a rider can be shown anything, so this fills it from the address
+  // alone and the signup prompt overwrites it with a name they chose. The
+  // placeholder is visible only in the nav, between signing in and answering.
+  const displayName = displayNameFromEmail(email)
   const read = exec ?? db
 
   // Returning user on this exact provider — the common path.
@@ -91,6 +98,32 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
       providerUserId: identity.providerUserId,
       providerEmail: email,
     })
+
+    // First and last name are seeded from the provider where display_name is
+    // not, and the difference is entirely about where they surface. These live
+    // in user_profiles, which exists precisely so private fields never ride
+    // along on a row that reaches a client, and today nothing renders them to
+    // anyone but the rider themselves — share_last_name is written but has no
+    // reader anywhere in the app.
+    //
+    // What makes that acceptable rather than merely currently-harmless is that
+    // the profile form shows both fields as ordinary inputs directly above the
+    // toggle that would expose the last name. A rider flipping that switch can
+    // see exactly what it reveals. If those fields ever move somewhere less
+    // visible, this seeding stops being defensible and should go with them.
+    //
+    // Only on insert: an existing rider's profile is theirs, and a second
+    // sign-in method must not overwrite what they have typed.
+    if (!match && (identity.firstName || identity.lastName)) {
+      await tx
+        .insert(userProfiles)
+        .values({
+          userId: user.id,
+          firstName: identity.firstName?.trim() || null,
+          lastName: identity.lastName?.trim() || null,
+        })
+        .onConflictDoNothing()
+    }
 
     // Deliberately only lastLoginAt: an existing user's status, display name and
     // profile are theirs, and a new login method must not overwrite them.

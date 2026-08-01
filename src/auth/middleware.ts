@@ -37,6 +37,10 @@ export const requireAuth: MiddlewareHandler<AuthEnv> = async (c, next) => {
 export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
+  // Before status, because an unnamed rider carries a display name derived from
+  // their address rather than one they chose. /choose-name and /logout run on
+  // requireAuth, so neither can loop back into this.
+  if (!user.username) return c.redirect('/choose-name', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
   await next()
 }
@@ -48,6 +52,7 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
 export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
+  if (!user.username) return c.redirect('/choose-name', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
   if (!user.canManageRiders) return c.redirect('/dashboard', 302)
   await next()

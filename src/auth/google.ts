@@ -48,11 +48,23 @@ export function startGoogleLogin(c: Context): string {
 
 export class GoogleAuthError extends Error {}
 
+// `name` is deliberately absent and must not come back. Adopting a rider's real
+// name from Google and putting it on a surface they did not choose is the exact
+// thing the signup prompt exists to stop; display_name is theirs to pick.
+//
+// `picture` was never here for the same reason. Note that users.avatar_url
+// already exists and is never written, which makes wiring this claim to it look
+// like finishing an unfinished job rather than starting a privacy problem.
+//
+// given_name / family_name are different, and only because of where they land:
+// user_profiles, which is private and shown to nobody but the rider. See the
+// seeding comment in identity.ts for why that distinction holds.
 type GoogleClaims = {
   sub?: string
   email?: string
   email_verified?: boolean
-  name?: string
+  given_name?: string
+  family_name?: string
 }
 
 // The id token is a JWT signed by Google and delivered over a TLS connection to
@@ -105,6 +117,7 @@ export async function completeGoogleLogin(c: Context): Promise<VerifiedIdentity>
     provider: 'google',
     providerUserId: claims.sub,
     email,
-    displayName: claims.name,
+    firstName: claims.given_name,
+    lastName: claims.family_name,
   }
 }
