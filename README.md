@@ -176,20 +176,22 @@ Imported files live in a private `STORAGE_PATH` **outside** the web root, served
 
 Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns that order too when asked for `GEO_JSON_LINESTRING`, so the migration needed no data backfill. Google's own JavaScript objects use `{lat, lng}`, and getting the two confused still renders a map, just in the wrong place, so exactly two functions do the conversion: `toGoogleWaypoint` on the server and `toLatLng`/`fromLatLng` in `map-common.js` on the client.
 
-## Waypoint roles (classification, import & export)
+## The role taxonomy
 
-Stops and POIs are classified with a 17-role taxonomy defined canonically in `src/maps/roles.ts`. In the builder you pick roles from icons; on **import** the `ROLE - Name` name-prefix convention is parsed into roles, and on **export** it is written back so files round-trip through other tools (Google Earth, etc.).
+Every stop and POI carries one or more of 17 roles, defined canonically in `src/maps/roles.ts`. **In the builder you set them by clicking role icons**—roles are first-class enum values in the database, never encoded in a name.
 
-Prefix a name with a type, and combine up to four with `/`:
+The `ROLE - Name` name-prefix convention is **only an import detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—TankBag parses the prefix into roles on import. The same convention is designed to be written back out once server-side export is built (export is not built yet).
+
+So an _imported_ name may carry a prefix, combining up to four roles with `/`:
 
 ```text
 GAS - Chevron Station
 GAS/BREAK/FOOD - Roadside Stop
 ```
 
-Supported types and the alternate words that map to them:
+The 17 roles, and the alternate words each matches when parsing an imported name:
 
-| Type    | Icon file        | Also matches                        |
+| Role    | Icon file        | Also matches (on import)            |
 | ------- | ---------------- | ----------------------------------- |
 | START   | icon-start.svg   | BEGIN                               |
 | FINISH  | icon-finish.svg  | END                                 |

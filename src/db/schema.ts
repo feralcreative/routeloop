@@ -27,8 +27,8 @@ export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'block
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
-// The 17-category taxonomy carried over from the KML naming convention
-// (README "Waypoint Naming"); canonical metadata lives in src/maps/roles.ts.
+// The 17-category taxonomy carried over from the KML naming convention;
+// canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
   'start',
   'finish',
