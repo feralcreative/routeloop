@@ -432,6 +432,12 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
           <span class="day-times-note" id="day-times-note"></span>
         </div>
 
+        <div class="trip-timeline" id="trip-timeline">
+          <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
+                 aria-label="Move through the trip in time" title="Drag to move through the trip">
+          <div class="time-readout" id="time-readout"></div>
+        </div>
+
         <div class="search-wrap">
           <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
           <ul id="search-results" hidden></ul>
