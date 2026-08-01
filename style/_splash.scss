@@ -24,7 +24,13 @@
 .splash-logo {
   display: block;
   width: 100%;
-  max-width: 180px;
+  // The horizontal mark is 1456x426 (~3.4:1) against the vertical one's
+  // 871x618 (~1.4:1), so these widths are not the old ones nudged. They are
+  // picked so the mark lands on the same *height* the vertical one had —
+  // 420px wide is 123px tall, against the vertical's 128px at 180px wide —
+  // because height is what reads as the logo's weight beside the headline.
+  // Both breakpoints below hold the same ratio.
+  max-width: 420px;
   height: auto;
   margin-bottom: 1.5rem;
 }
@@ -294,7 +300,11 @@ body.splash-page {
 //@ Short viewports — laptop windows and landscape tablets
 @media (max-height: 760px) {
   .splash-logo {
-    max-width: 150px;
+    max-width: 350px;
+    // The taller mark spends the slack this layout had at ~700px high, and the
+    // page is meant not to scroll. Buying the 2px back from the gap under the
+    // logo rather than from its width, which is the thing being asked for.
+    margin-bottom: 1.25rem;
   }
 
   .splash h1 {
@@ -311,7 +321,7 @@ body.splash-page {
   }
 
   .splash-logo {
-    max-width: 120px;
+    max-width: 280px;
     margin-bottom: 0.75rem;
   }
 
