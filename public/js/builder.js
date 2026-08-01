@@ -32,6 +32,12 @@
   const MAX_STOPS = 200;
   const MAX_POIS = 200;
 
+  // Fallback riding speed for a leg the router never answered for, matching the
+  // 20 m/s (~45 mph) the demo seeder uses. Rough twice over — it is applied to a
+  // haversine distance, which is shorter than the road — so anything derived
+  // from it is labelled an estimate rather than presented as a duration.
+  const NOMINAL_SPEED_MS = 20;
+
   // Same palette the legacy viewer used, so a multi-day trip gets visually
   // distinct days without the rider picking each one.
   const DAY_COLORS = [
@@ -100,10 +106,20 @@
 
   function straightLeg(a, b, vias) {
     // Placeholder while the real route is in flight (and the NoRoute fallback
-    // the server accepts — its distance is the haversine truth).
+    // the server accepts — its distance is the haversine truth). durationS stays
+    // 0 because we genuinely do not know it: fabricating a number here would
+    // persist as though the router had returned it. legDurationS() estimates it
+    // at the point of use instead, which also survives a save/reload.
     const geometry = [a, ...(vias || []), b];
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
+
+  // A leg with distance but no duration never came back from the router, so its
+  // time is estimated from distance. Deriving this rather than storing a flag
+  // means a reloaded ride reports the same figures as the session that built it.
+  const legIsEstimated = (leg) => leg.durationS <= 0 && leg.distanceM > 0;
+  const legDurationS = (leg) =>
+    legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
 
   function haversineTrack(coords) {
     let m = 0;
@@ -165,7 +181,7 @@
       })
       .catch((e) => {
         console.warn("[builder] directions:", e.message);
-        toast("No road route for that leg — drawn straight for now", true);
+        toast("No road route for that leg — drawn straight, its time is estimated", true);
       });
   }
 
@@ -559,8 +575,9 @@
   function routeTotals(route) {
     return {
       meters: route.legs.reduce((n, l) => n + l.distanceM, 0),
-      riding: route.legs.reduce((n, l) => n + l.durationS, 0),
+      riding: route.legs.reduce((n, l) => n + legDurationS(l), 0),
       stopped: route.stops.reduce((n, s) => n + (s.durationMin || 0) * 60, 0),
+      estimated: route.legs.some(legIsEstimated),
     };
   }
 
@@ -571,8 +588,11 @@
       totalsEl.textContent = "";
       return;
     }
+    // "~" marks a riding figure that includes an estimated leg, so a number the
+    // router never produced is never shown as though it had.
     const line = (t) =>
-      (t.meters / MILE).toFixed(1) + " mi · " + hm(t.riding) + " riding" + (t.stopped ? " · " + hm(t.stopped) + " stopped" : "");
+      (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
+      (t.stopped ? " · " + hm(t.stopped) + " stopped" : "");
 
     if (state.routes.length === 1) {
       totalsEl.textContent = line(routeTotals(state.routes[0]));
@@ -584,9 +604,14 @@
     const trip = state.routes.reduce(
       (acc, r) => {
         const t = routeTotals(r);
-        return { meters: acc.meters + t.meters, riding: acc.riding + t.riding, stopped: acc.stopped + t.stopped };
+        return {
+          meters: acc.meters + t.meters,
+          riding: acc.riding + t.riding,
+          stopped: acc.stopped + t.stopped,
+          estimated: acc.estimated || t.estimated,
+        };
       },
-      { meters: 0, riding: 0, stopped: 0 },
+      { meters: 0, riding: 0, stopped: 0, estimated: false },
     );
     totalsEl.innerHTML =
       '<span class="totals-trip">' + state.routes.length + " days · " + line(trip) + "</span>" +
