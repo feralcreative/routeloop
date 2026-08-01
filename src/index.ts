@@ -26,6 +26,7 @@ import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { routingRoutes } from './routes/routing'
 import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
+import { asset } from './views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
@@ -296,8 +297,8 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
       roles: ROLE_META,
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
-  <script src="/js/map-common.js" defer></script>
-  <script src="/js/viewer.js" defer></script>`,
+  <script src="${asset('/js/map-common.js')}" defer></script>
+  <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }
 
@@ -311,7 +312,7 @@ function viewHtml(m: RideRow, gmapsKey: string, user: UserRow | null): string {
     noscript: VIEWER_NOSCRIPT,
     body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
     scripts: `${jsonScript('MOTO', { metadataUrl: `/api/public/maps/${m.slug}` })}
-  <script src="/js/main.js" defer></script>
+  <script src="${asset('/js/main.js')}" defer></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=${esc(gmapsKey)}&v=beta&libraries=maps,geometry&callback=initMap"
     onerror="console.error('Maps API failed to load')"></script>`,

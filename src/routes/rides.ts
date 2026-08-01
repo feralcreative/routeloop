@@ -28,6 +28,7 @@ import {
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { googleMapsLoader, page, panelShell } from '../views/layout'
+import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
@@ -447,7 +448,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
     })}`,
     tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
-  <script src="/js/map-common.js" defer></script>
-  <script src="/js/builder.js" defer></script>`,
+  <script src="${asset('/js/map-common.js')}" defer></script>
+  <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

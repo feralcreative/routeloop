@@ -12,6 +12,7 @@ import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { MAPBOX_TOKEN } from '../config'
 import { sanitizeText } from '../maps/kml'
 import { esc, page } from '../views/layout'
+import { asset } from '../views/assets'
 
 export const profileRoutes = new Hono<AuthEnv>()
 
@@ -215,7 +216,7 @@ function renderProfile({ user, values, errors, saved }: RenderArgs): string {
     // Only the token: profile.js geocodes the address so the builder can read
     // coordinates straight off the profile instead of looking them up per ride.
     tb: { token: MAPBOX_TOKEN },
-    scripts: '<script src="/js/profile.js" defer></script>',
+    scripts: `<script src="${asset('/js/profile.js')}" defer></script>`,
   })
 }
 
