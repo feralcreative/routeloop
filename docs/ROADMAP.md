@@ -80,12 +80,12 @@ The two big migrations (auth and maps) are deployed; what remains of them is cle
 **Work.**
 
 - [x] A date-time UI in the builder that writes `routes.start_at` / `routes.end_at` (the columns exist and already load into builder state; nothing sets them yet).
-- [ ] A timeline slider across the viewer and builder that maps a moment to the leg/section active then, dimming the rest without hiding anything.
-- [ ] Sensible defaults: derive a route's duration from its legs, and seed each day's start from the previous day's end. Duration derivation landed with the date-time UI; the day-start seeding has not.
+- [x] A timeline slider across the viewer and builder that maps a moment to the leg/section active then, dimming the rest without hiding anything.
+- [x] Sensible defaults: derive a route's duration from its legs, and seed each day's start from the previous day's end.
 
 **Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/rides.ts`, `src/index.ts` (the `ride.json` contract has to start carrying per-leg data — it currently flattens every leg into one track).
 
-**Status.** in progress on `feat/trip-timeline-slider` — multi-day editing and the date-time UI have landed; the slider itself has not. See docs/STATUS.md for the decisions behind it.
+**Status.** done on `feat/trip-timeline-slider`, closing #7 and #19. Duration is derived as legs **plus** stop dwell, and deliberately kept separate from `routes.duration_s`, which caches riding time only. `ride.json` now carries per-leg spans—the viewer could not map a moment to a leg without them. The time model is shared by both clients in `public/js/ride-time.js` so they cannot disagree. See docs/STATUS.md for the rest, including the two properties of leg spans that real data will break a naive assumption about.
 
 ### 3. Route shaping and server-side export
 
