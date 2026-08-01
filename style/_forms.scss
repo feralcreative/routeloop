@@ -108,3 +108,29 @@
     color: darken($kml, 8%);
   }
 }
+
+// Previously held usernames on the profile page. Sits under the username field
+// as supporting detail, so it is deliberately quieter than the inputs above it.
+.handle-history {
+  margin: -0.25rem 0 1rem;
+
+  ul {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  li {
+    font-size: 0.85rem;
+  }
+
+  .handle {
+    font-weight: 700;
+  }
+
+  .handle-dates {
+    opacity: 0.75;
+  }
+}
