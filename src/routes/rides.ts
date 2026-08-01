@@ -32,7 +32,7 @@ import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
-import { fields, firstIssue, ownRide } from './maps'
+import { canEditRide, fields, firstIssue, ownRide } from './maps'
 
 export const rideRoutes = new Hono<AuthEnv>()
 
@@ -375,7 +375,9 @@ rideRoutes.get('/builder/:id', requireActive, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.text('Not found', 404)
-  if (ride.source !== 'native') return c.text('Imported rides are not editable yet', 409)
+  // Same predicate the viewer's edit button reads, so the button and this gate
+  // cannot drift into offering an action that is then refused.
+  if (!canEditRide(ride, user)) return c.text('Imported rides are not editable yet', 409)
   return c.html(builderHtml(ride.id, user, null))
 })
 

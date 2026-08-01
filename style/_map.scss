@@ -525,3 +525,25 @@ table.route-table {
     background: darken($grey, 8%);
   }
 }
+
+// Shown in the viewer panel only to a rider who can open this ride in the
+// builder. Distinct from .route-dl-btn: those are file downloads, this changes
+// the ride, so it reads as an action rather than another grey chip.
+.panel-edit {
+  display: inline-block;
+  margin-top: 0.6em;
+  padding: 0.4em 0.9em;
+  border-radius: 6px;
+  background: $brand;
+  color: $white;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9em;
+
+  // brightness() rather than darken(): the latter is deprecated and slated for
+  // removal in Dart Sass 3.0, and this file already carries two calls that will
+  // need migrating. No reason to add a third.
+  &:hover {
+    filter: brightness(0.92);
+  }
+}

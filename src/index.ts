@@ -24,6 +24,7 @@ import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
+import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
 import { asset } from './views/assets'
@@ -303,8 +304,12 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 // `timeline` is opt-in rather than default because the legacy shell's main.js
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
-function viewerPanel(m: RideRow, timeline = false): string {
+function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null): string {
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
+  // Only rendered for a rider who can actually open the builder on this ride —
+  // see canEditRide. A viewer who cannot edit is shown nothing rather than a
+  // disabled control, since there is no action for them to enable.
+  const edit = editUrl ? `<a class="panel-edit" href="${esc(editUrl)}">Edit this ride</a>` : ''
   const scrub = timeline
     ? `
         <div class="trip-timeline" id="trip-timeline" hidden>
@@ -315,7 +320,7 @@ function viewerPanel(m: RideRow, timeline = false): string {
     : ''
   return panelShell({
     title: m.title,
-    contents: `        <div class="details">${desc}</div>${scrub}
+    contents: `        <div class="details">${desc}${edit}</div>${scrub}
         <div class="routes">
           <table class="route-table"></table>
           <label class="toggle-checkbox">
@@ -336,7 +341,7 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
     user,
     variant: 'map',
     noscript: VIEWER_NOSCRIPT,
-    body: `  <div id="map"></div>\n\n  ${viewerPanel(m, true)}`,
+    body: `  <div id="map"></div>\n\n  ${viewerPanel(m, true, canEditRide(m, user) ? `/builder/${m.id}` : null)}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
       gmapsKey: GMAPS_KEY,
