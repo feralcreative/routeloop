@@ -406,6 +406,15 @@
       });
     }
 
+    // And it begins the morning after the last one finished. Syncing the
+    // previous day first because its end may be derived, and reading a stale
+    // cache here would seed off the wrong evening. A previous day with no times
+    // seeds nothing — nothing invents a date for a ride the rider never dated.
+    if (prev) {
+      syncEnd(prev);
+      route.startAt = nextMorningAfter(prev.endAt);
+    }
+
     state.routes.push(route);
     renderSlider();
     setFocus(state.routes.length); // focus the new day
@@ -514,6 +523,26 @@
     if (!value) return null;
     const d = new Date(value); // no offset in the string — parsed as local time
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  // The hour a fresh day is assumed to start. Only ever a seed — the rider
+  // edits it, and nothing derives from it beyond the first suggestion.
+  const DAY_START_HOUR = 8;
+
+  // Where a new day's start comes from: the first DAY_START_HOUR o'clock
+  // strictly after the previous day ends. For a day finishing in the evening
+  // that is simply the next morning. Anchoring on the end *instant* rather than
+  // on its calendar date also keeps a day that runs past midnight sane — "the
+  // morning after the end date" would skip a day for a ride that finishes at
+  // 2am, this does not.
+  function nextMorningAfter(iso) {
+    if (!iso) return null;
+    const end = new Date(iso);
+    if (Number.isNaN(end.getTime())) return null;
+    const start = new Date(end);
+    start.setHours(DAY_START_HOUR, 0, 0, 0);
+    if (start <= end) start.setDate(start.getDate() + 1);
+    return start.toISOString();
   }
 
   const derivedEndIso = (route) =>
