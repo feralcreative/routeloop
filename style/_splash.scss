@@ -82,6 +82,33 @@
   }
 }
 
+// Squared off against the rounded email controls above it, so the two ways in
+// never read as the same control twice. The colour comes from Google's mark and
+// the hover edge rather than a fill: the email submit is the page's only filled
+// primary, and a second one would make the choice look weightier than it is.
+.provider-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 0;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $google-blue;
+  }
+}
+
+// Google's brand terms forbid recolouring, distorting or rebuilding the mark.
+// Height is set and width left auto for that reason — the artwork is 268x274,
+// so forcing it into an 18px square would squash it by 2%, which is small
+// enough to ship by accident and still a breach.
+.provider-mark {
+  flex: none;
+  height: 18px;
+  width: auto;
+}
+
 .note {
   color: #999;
   font-size: 0.9em;

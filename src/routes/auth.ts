@@ -37,8 +37,15 @@ authRoutes.get('/login', (c) => {
   const notice = c.req.query('sent') === '1'
   const failed = c.req.query('error')
 
+  // The mark is decorative — the button's own text carries the meaning — so it
+  // takes an empty alt rather than repeating "Google" to a screen reader. Its
+  // intrinsic size is the file's true viewBox, not a square: the artwork is
+  // 268x274, and claiming otherwise is what makes a squashed logo.
   const googleButton = GOOGLE_ENABLED
-    ? `<a class="provider" href="/auth/google">Sign in with Google</a>`
+    ? `<a class="provider provider-google" href="/auth/google">
+         <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274">
+         <span>Sign in with Google</span>
+       </a>`
     : `<p class="note">Google sign-in is not configured.</p>`
 
   // Offered only when a sender exists — a form that always fails is worse than
