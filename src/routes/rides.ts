@@ -419,6 +419,25 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
           </span>
         </div>
 
+        <div class="day-times" id="day-times">
+          <label class="day-time">
+            <span>Starts</span>
+            <input id="route-start" name="route-start" type="datetime-local">
+          </label>
+          <label class="day-time">
+            <span>Ends</span>
+            <input id="route-end" name="route-end" type="datetime-local"
+                   title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
+          </label>
+          <span class="day-times-note" id="day-times-note"></span>
+        </div>
+
+        <div class="trip-timeline" id="trip-timeline">
+          <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
+                 aria-label="Move through the trip in time" title="Drag to move through the trip">
+          <div class="time-readout" id="time-readout"></div>
+        </div>
+
         <div class="search-wrap">
           <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
           <ul id="search-results" hidden></ul>
@@ -449,6 +468,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
     tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
+  <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

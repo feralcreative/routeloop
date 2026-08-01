@@ -190,17 +190,25 @@
     layersOf(map).set(id, entry);
   }
 
+  // The leg highlight is a slice of a route's path, so anything that removes a
+  // route, repaths one, or hides one leaves it pointing at something that is no
+  // longer there. Dropping it here and letting the caller re-apply is the safe
+  // direction: a highlight that briefly disappears is a far smaller lie than
+  // one drawn over the wrong stretch of road. Both consumers re-apply on the
+  // same pass that triggers these.
   function removeRouteLayers(map, id) {
     const layers = layersOf(map);
     const entry = layers.get(id);
     if (!entry) return;
     entry.line.setMap(null);
     layers.delete(id);
+    clearLegHighlight(map);
   }
 
   function updateRouteTrack(map, id, track) {
     const entry = layersOf(map).get(id);
     if (entry) entry.line.setPath(track.map(toLatLng));
+    clearLegHighlight(map);
   }
 
   function setRouteVisible(map, id, visible, arrowsOn) {
@@ -209,6 +217,7 @@
     entry.visible = visible;
     entry.arrowsOn = arrowsOn;
     paint(entry);
+    if (!visible) clearLegHighlight(map);
   }
 
   function setRouteDim(map, id, dim) {
@@ -216,6 +225,66 @@
     if (!entry) return;
     entry.dim = dim;
     paint(entry);
+  }
+
+  // --- Leg highlight --------------------------------------------------------
+
+  // One spare Polyline per map, moved onto whichever leg is active and hidden
+  // when none is. Deliberately an overlay rather than a Polyline per leg: the
+  // layer ids here are route indices, and both consumers plus the export and
+  // navigation work depend on that shape. Splitting a route into per-leg lines
+  // to draw a highlight would change the contract for every caller of
+  // addRouteLayers / updateRouteTrack / setRouteVisible / setRouteDim.
+  //
+  // Its path is sliced from the route's own Polyline, so there is no second
+  // copy of the track to keep in step with updateRouteTrack.
+  const legHighlights = new WeakMap(); // map -> Polyline
+
+  function highlightOf(map) {
+    let line = legHighlights.get(map);
+    if (!line) {
+      line = new Maps.Polyline({
+        map,
+        strokeWeight: 7,
+        strokeOpacity: 1,
+        zIndex: 3, // above both painted states in paint()
+        clickable: false,
+        visible: false,
+      });
+      legHighlights.set(map, line);
+    }
+    return line;
+  }
+
+  // Draws the span [startIndex, endIndex] of route `id`'s track at full
+  // strength. Indices come from ride.json's per-leg spans and are clamped
+  // rather than trusted: an imported ride's leg count and its track can drift
+  // apart, and a bad slice would otherwise throw inside the renderer.
+  function setLegHighlight(map, id, startIndex, endIndex) {
+    const line = highlightOf(map);
+    const entry = layersOf(map).get(id);
+    if (!entry || !entry.visible || startIndex == null || endIndex == null) {
+      line.setVisible(false);
+      return;
+    }
+    const path = entry.line.getPath().getArray();
+    const from = Math.max(0, Math.min(startIndex, path.length - 1));
+    const to = Math.max(from, Math.min(endIndex, path.length - 1));
+    const slice = path.slice(from, to + 1);
+    // A single point is not a line — a degenerate leg highlights nothing rather
+    // than drawing a dot the rider cannot interpret.
+    if (slice.length < 2) {
+      line.setVisible(false);
+      return;
+    }
+    line.setOptions({ strokeColor: entry.color, icons: entry.arrowsOn ? arrowIcons(entry.color, false) : [] });
+    line.setPath(slice);
+    line.setVisible(true);
+  }
+
+  function clearLegHighlight(map) {
+    const line = legHighlights.get(map);
+    if (line) line.setVisible(false);
   }
 
   // --- Markers --------------------------------------------------------------
@@ -537,6 +606,8 @@
     updateRouteTrack,
     setRouteVisible,
     setRouteDim,
+    setLegHighlight,
+    clearLegHighlight,
     addMarker,
     removeMarker,
     onMarkerDragEnd,

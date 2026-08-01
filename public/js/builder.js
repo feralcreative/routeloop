@@ -17,6 +17,8 @@
     removeRouteLayers,
     updateRouteTrack,
     setRouteDim,
+    setLegHighlight,
+    clearLegHighlight,
     addMarker,
     removeMarker,
     onMarkerDragEnd,
@@ -26,6 +28,20 @@
   } = window.TBMap;
 
   initPanelToggle();
+
+  // The trip's time model is shared with the viewer so the two can never
+  // disagree about what is happening at a given moment. See ride-time.js.
+  const {
+    legIsEstimated,
+    legDurationS,
+    routeIsEstimated,
+    routeStoppedS,
+    routeElapsedS,
+    routeStartS,
+    tripSpan,
+    activeAtMoment,
+    fmtMoment,
+  } = window.TBTime;
 
   const MILE = 1609.344;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
@@ -44,6 +60,8 @@
     color: color || DAY_COLORS[0],
     startAt: null,
     endAt: null,
+    // Session-only: see inferEndManual(). Never part of payload().
+    endManual: false,
     stops: [],
     pois: [],
     legs: [],
@@ -57,6 +75,13 @@
     // Slider position: 0 means "all days", 1..N focuses that day. It is the
     // slider's value directly, so the two can never disagree.
     focus: 0,
+    // The timeline's position, in epoch seconds, or null for "no moment
+    // chosen". When it is set it is the single source of what is emphasised:
+    // the day containing it, and the leg being ridden at it. The day slider
+    // does not compete with this — moving it just picks a new moment (that
+    // day's start), so there is one model and two ways to drive it. Null falls
+    // back to plain day focus, which is what an undated ride always uses.
+    moment: null,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
     addMode: "stop",
@@ -100,7 +125,10 @@
 
   function straightLeg(a, b, vias) {
     // Placeholder while the real route is in flight (and the NoRoute fallback
-    // the server accepts — its distance is the haversine truth).
+    // the server accepts — its distance is the haversine truth). durationS stays
+    // 0 because we genuinely do not know it: fabricating a number here would
+    // persist as though the router had returned it. legDurationS() estimates it
+    // at the point of use instead, which also survives a save/reload.
     const geometry = [a, ...(vias || []), b];
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
@@ -150,7 +178,7 @@
     const vias = (route.legs[i] && route.legs[i].viaPoints) || [];
     route.legs[i] = straightLeg(a, b, vias);
     renderTrack(r);
-    renderTotals();
+    refreshDerived();
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
@@ -161,11 +189,11 @@
         if (state.legSeq[r][i] !== seq || !route.legs[i]) return;
         route.legs[i] = leg;
         renderTrack(r);
-        renderTotals();
+        refreshDerived();
       })
       .catch((e) => {
         console.warn("[builder] directions:", e.message);
-        toast("No road route for that leg — drawn straight for now", true);
+        toast("No road route for that leg — drawn straight, its time is estimated", true);
       });
   }
 
@@ -176,16 +204,32 @@
 
   // --- Map rendering --------------------------------------------------------
 
-  function fullTrack(r) {
+  // The concatenated track, plus where each leg lands in it. Deliberately the
+  // same walk the server does in src/index.ts, down to dropping *any*
+  // consecutive duplicate rather than only the joints between legs — otherwise
+  // a span computed here and one computed there would disagree on the same
+  // ride. spans[i] lines up with legs[i]; a leg with no geometry has no place
+  // on the track and gets null rather than shifting everything after it.
+  function trackAndSpans(r) {
     const track = [];
+    const spans = [];
     for (const leg of state.routes[r].legs) {
+      if (!leg.geometry || leg.geometry.length === 0) {
+        spans.push(null);
+        continue;
+      }
+      let startIndex = -1;
       for (const pt of leg.geometry) {
         const last = track[track.length - 1];
         if (!last || last[0] !== pt[0] || last[1] !== pt[1]) track.push(pt);
+        if (startIndex < 0) startIndex = track.length - 1;
       }
+      spans.push({ startIndex, endIndex: track.length - 1 });
     }
-    return track;
+    return { track, spans };
   }
+
+  const fullTrack = (r) => trackAndSpans(r).track;
 
   function renderTrack(r) {
     if (!state.layersReady) return;
@@ -208,10 +252,18 @@
 
   // The only thing focus does. Every route stays on the map; the unfocused ones
   // are dimmed, and "all days" (focus 0) dims nothing.
+  //
+  // With a moment chosen the timeline decides instead of the day slider: the
+  // day containing it stays lit and the leg being ridden at it is drawn over
+  // the top. A moment in the overnight gap belongs to no day, so everything
+  // dims and no leg is drawn — which is what "nobody is riding right now"
+  // honestly looks like.
   function applyFocus() {
-    const f = focusedIndex();
+    if (!state.map) return;
+    const a = activeNow();
+    const lit = a ? a.dayIndex : focusedIndex();
     state.routes.forEach((_, r) => {
-      const dim = f !== null && r !== f;
+      const dim = a ? r !== lit : lit !== null && r !== lit;
       setRouteDim(state.map, r, dim);
       const m = state.markers[r];
       if (!m) return;
@@ -219,6 +271,17 @@
         el.style.opacity = dim ? "0.35" : "";
       });
     });
+
+    // The engine drops the highlight whenever a track is repathed, so this is a
+    // re-apply rather than a set — see clearLegHighlight in map-common.js.
+    const leg = a && a.dayIndex != null && a.legIndex != null ? state.routes[a.dayIndex].legs[a.legIndex] : null;
+    if (!leg) {
+      clearLegHighlight(state.map);
+      return;
+    }
+    const span = trackAndSpans(a.dayIndex).spans[a.legIndex];
+    if (span) setLegHighlight(state.map, a.dayIndex, span.startIndex, span.endIndex);
+    else clearLegHighlight(state.map);
   }
 
   function clearMarkers() {
@@ -294,7 +357,7 @@
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -329,7 +392,7 @@
     renderTrack(r);
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -363,10 +426,15 @@
   function setFocus(v) {
     state.focus = Math.max(0, Math.min(state.routes.length, v));
     $("day-slider").value = String(state.focus);
+    // Picking a day picks that day's opening moment, so the timeline follows
+    // rather than competing. "All days" and any undated day mean no moment at
+    // all, which is what an undated ride uses throughout.
+    const route = state.focus === 0 ? null : state.routes[state.focus - 1];
+    state.moment = route ? routeStartS(route) : null;
     applyFocus();
     renderDayHead();
     renderList();
-    renderTotals();
+    refreshDerived();
   }
 
   function addDay() {
@@ -388,6 +456,15 @@
       });
     }
 
+    // And it begins the morning after the last one finished. Syncing the
+    // previous day first because its end may be derived, and reading a stale
+    // cache here would seed off the wrong evening. A previous day with no times
+    // seeds nothing — nothing invents a date for a ride the rider never dated.
+    if (prev) {
+      syncEnd(prev);
+      route.startAt = nextMorningAfter(prev.endAt);
+    }
+
     state.routes.push(route);
     renderSlider();
     setFocus(state.routes.length); // focus the new day
@@ -406,7 +483,7 @@
     rebuildLayers();
     renderMarkers();
     renderList();
-    renderTotals();
+    refreshDerived();
     markDirty();
   }
 
@@ -437,11 +514,14 @@
     // A single day has nothing to scrub between; the slider stays but goes
     // inert rather than disappearing and reflowing the panel on the second day.
     slider.disabled = state.routes.length < 2;
+    // --pos is the tick's fraction of the slider's range, which the stylesheet
+    // turns into the point the thumb reaches at that value. Sent from here
+    // because only this side knows the day count.
+    const span = state.routes.length; // slider runs 0..span
+    const tick = (label, pos, color) =>
+      '<span class="day-tick" style="--pos:' + pos + (color ? ";--tick-color:" + esc(color) : "") + '">' + label + "</span>";
     $("day-ticks").innerHTML =
-      '<span class="day-tick">All</span>' +
-      state.routes
-        .map((_, r) => '<span class="day-tick" style="--tick-color:' + esc(state.routes[r].color) + '">' + (r + 1) + "</span>")
-        .join("");
+      tick("All", 0) + state.routes.map((route, r) => tick(String(r + 1), (r + 1) / span, route.color)).join("");
   }
 
   function renderDayHead() {
@@ -462,6 +542,185 @@
     $("day-up").disabled = r === 0;
     $("day-down").disabled = r === state.routes.length - 1;
     $("day-del").disabled = state.routes.length <= 1;
+  }
+
+  // --- Times ----------------------------------------------------------------
+
+  // <input type="datetime-local"> has no timezone: it reads and writes wall
+  // clock, which the platform parses as the builder's own zone. That is the
+  // zone we store from, so a ride planned in California reads back in
+  // California time even for its Nevada legs. A per-ride timezone is the real
+  // fix and is deliberately out of scope here.
+  const pad = (n) => String(n).padStart(2, "0");
+
+  function isoToLocalInput(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return (
+      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      "T" + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    );
+  }
+
+  function localInputToIso(value) {
+    if (!value) return null;
+    const d = new Date(value); // no offset in the string — parsed as local time
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  // The hour a fresh day is assumed to start. Only ever a seed — the rider
+  // edits it, and nothing derives from it beyond the first suggestion.
+  const DAY_START_HOUR = 8;
+
+  // Where a new day's start comes from: the first DAY_START_HOUR o'clock
+  // strictly after the previous day ends. For a day finishing in the evening
+  // that is simply the next morning. Anchoring on the end *instant* rather than
+  // on its calendar date also keeps a day that runs past midnight sane — "the
+  // morning after the end date" would skip a day for a ride that finishes at
+  // 2am, this does not.
+  function nextMorningAfter(iso) {
+    if (!iso) return null;
+    const end = new Date(iso);
+    if (Number.isNaN(end.getTime())) return null;
+    const start = new Date(end);
+    start.setHours(DAY_START_HOUR, 0, 0, 0);
+    if (start <= end) start.setDate(start.getDate() + 1);
+    return start.toISOString();
+  }
+
+  const derivedEndIso = (route) =>
+    route.startAt ? new Date(new Date(route.startAt).getTime() + routeElapsedS(route) * 1000).toISOString() : null;
+
+  // Whether the rider typed this end themselves, held on the route as session
+  // state (it is not part of the save payload). Inferred once at load by
+  // comparing the stored end against what the day derives, then tracked
+  // directly. It has to be a flag rather than that same comparison run on every
+  // refresh: the moment a leg or stop changes, an end that *was* automatic no
+  // longer matches the new derivation, and comparing would freeze it as though
+  // the rider had typed it. Minute tolerance because the input's own resolution
+  // is a minute.
+  function inferEndManual(route) {
+    if (!route.startAt || !route.endAt) return false;
+    const derived = derivedEndIso(route);
+    if (!derived) return false;
+    return Math.abs(new Date(route.endAt).getTime() - new Date(derived).getTime()) > 60000;
+  }
+
+  // Called wherever a day's shape changes. An end the rider typed is left
+  // alone; anything else is kept in step with the legs and stops.
+  function syncEnd(route) {
+    // With no start there is nothing to derive from. An end already on the
+    // route is left as it is rather than discarded — the columns are
+    // independently nullable, and silently dropping a stored time on load
+    // would lose it on the next save.
+    if (!route.startAt || route.endManual) return;
+    route.endAt = derivedEndIso(route);
+  }
+
+  // Every figure the panel shows is derived from the legs and stops, so one
+  // call keeps them all honest. Ends sync across every day, not just the edited
+  // one — a marker on a dimmed day is still draggable, so any day's shape can
+  // change while another is in focus.
+  function refreshDerived() {
+    state.routes.forEach(syncEnd);
+    renderTotals();
+    renderTimes();
+    renderTimeline();
+    // Last, and not optional: the leg highlight is derived from the moment and
+    // the legs, and the engine drops it on every track repath. Anything that
+    // changes a day has to put it back, which is exactly this pass.
+    applyFocus();
+  }
+
+  // --- Timeline -------------------------------------------------------------
+
+  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.routes, state.moment));
+
+  function renderTimeline() {
+    const slider = $("time-slider");
+    const readout = $("time-readout");
+    const span = tripSpan(state.routes);
+
+    // The slider's value is epoch seconds, which is what a screen reader would
+    // otherwise read out. aria-valuetext replaces that with the same sentence
+    // sighted users get.
+    const say = (text) => {
+      readout.textContent = text;
+      slider.setAttribute("aria-valuetext", text);
+    };
+
+    // Same treatment the day slider gets below two days: it stays put and goes
+    // inert rather than vanishing and reflowing the panel the moment a date is
+    // typed.
+    slider.disabled = !span;
+    if (!span) {
+      slider.min = "0";
+      slider.max = "0";
+      slider.value = "0";
+      say(state.routes.some((r) => r.startAt) ? "" : "Give a day a start time to scrub the trip");
+      return;
+    }
+
+    slider.min = String(span.from);
+    slider.max = String(span.to);
+    slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
+
+    if (state.moment == null) {
+      say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
+      return;
+    }
+    const a = activeAtMoment(state.routes, state.moment);
+    let what;
+    if (a.dayIndex == null) {
+      what = "between days";
+    } else if (a.legIndex != null) {
+      what = dayLabel(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.routes[a.dayIndex].legs.length;
+    } else {
+      const stop = a.stopIndex == null ? null : state.routes[a.dayIndex].stops[a.stopIndex];
+      what = dayLabel(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
+    }
+    say(fmtMoment(state.moment) + " · " + what);
+  }
+
+  // Moving the timeline is the primary gesture; the day slider follows it so
+  // the two controls can never show different days.
+  function setMoment(momentS) {
+    state.moment = momentS;
+    const a = activeAtMoment(state.routes, momentS);
+    // A moment between days leaves the day slider where it was — there is no
+    // day to move it to, and snapping it somewhere arbitrary would be a lie.
+    if (a.dayIndex != null) {
+      state.focus = a.dayIndex + 1;
+      $("day-slider").value = String(state.focus);
+    }
+    applyFocus();
+    renderDayHead();
+    renderList();
+    refreshDerived();
+  }
+
+  function renderTimes() {
+    const route = editRoute();
+    const start = $("route-start");
+    const end = $("route-end");
+    const note = $("day-times-note");
+
+    start.value = isoToLocalInput(route.startAt);
+    end.value = isoToLocalInput(route.endAt);
+    // Without a start there is nothing to derive an end from, and a lone end
+    // would be a time the timeline cannot place.
+    end.disabled = !route.startAt;
+
+    if (!route.startAt) {
+      note.textContent = route.endAt ? "add a start time to work the end out" : "";
+      return;
+    }
+    if (route.endManual) {
+      note.textContent = "end set by hand";
+    } else {
+      note.textContent = routeTotals(route).estimated ? "end estimated from the day" : "end from the day";
+    }
   }
 
   // --- Panel: list + totals -------------------------------------------------
@@ -559,8 +818,9 @@
   function routeTotals(route) {
     return {
       meters: route.legs.reduce((n, l) => n + l.distanceM, 0),
-      riding: route.legs.reduce((n, l) => n + l.durationS, 0),
-      stopped: route.stops.reduce((n, s) => n + (s.durationMin || 0) * 60, 0),
+      riding: route.legs.reduce((n, l) => n + legDurationS(l), 0),
+      stopped: routeStoppedS(route),
+      estimated: routeIsEstimated(route),
     };
   }
 
@@ -571,8 +831,11 @@
       totalsEl.textContent = "";
       return;
     }
+    // "~" marks a riding figure that includes an estimated leg, so a number the
+    // router never produced is never shown as though it had.
     const line = (t) =>
-      (t.meters / MILE).toFixed(1) + " mi · " + hm(t.riding) + " riding" + (t.stopped ? " · " + hm(t.stopped) + " stopped" : "");
+      (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
+      (t.stopped ? " · " + hm(t.stopped) + " stopped" : "");
 
     if (state.routes.length === 1) {
       totalsEl.textContent = line(routeTotals(state.routes[0]));
@@ -584,9 +847,14 @@
     const trip = state.routes.reduce(
       (acc, r) => {
         const t = routeTotals(r);
-        return { meters: acc.meters + t.meters, riding: acc.riding + t.riding, stopped: acc.stopped + t.stopped };
+        return {
+          meters: acc.meters + t.meters,
+          riding: acc.riding + t.riding,
+          stopped: acc.stopped + t.stopped,
+          estimated: acc.estimated || t.estimated,
+        };
       },
-      { meters: 0, riding: 0, stopped: 0 },
+      { meters: 0, riding: 0, stopped: 0, estimated: false },
     );
     totalsEl.innerHTML =
       '<span class="totals-trip">' + state.routes.length + " days · " + line(trip) + "</span>" +
@@ -604,7 +872,7 @@
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       if (e.target.classList.contains("row-dur")) {
         point.durationMin = e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value)));
-        renderTotals();
+        refreshDerived();
       }
       markDirty();
     });
@@ -783,10 +1051,16 @@
       color: r.color || DAY_COLORS[i % DAY_COLORS.length],
       startAt: r.startAt || null,
       endAt: r.endAt || null,
+      endManual: false,
       stops: r.stops || [],
       pois: r.pois || [],
       legs: r.legs || [],
     }));
+    // Nothing has changed the day yet, so a stored end that matches what the
+    // day derives is one we wrote — anything else the rider chose themselves.
+    state.routes.forEach((r) => {
+      r.endManual = inferEndManual(r);
+    });
     if (state.routes.length === 0) state.routes = [newRoute()];
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
@@ -797,6 +1071,7 @@
 
   function wireDays() {
     $("day-slider").addEventListener("input", (e) => setFocus(Number(e.target.value)));
+    $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
     $("day-add").addEventListener("click", addDay);
     $("day-del").addEventListener("click", deleteDay);
     $("day-up").addEventListener("click", () => moveDay(-1));
@@ -811,7 +1086,21 @@
     $("route-title").addEventListener("input", (e) => {
       editRoute().title = e.target.value;
       $("day-label").textContent = state.focus === 0 ? "All days · editing " + dayLabel(editIndex()) : dayLabel(editIndex());
-      renderTotals();
+      refreshDerived();
+      markDirty();
+    });
+    $("route-start").addEventListener("change", (e) => {
+      editRoute().startAt = localInputToIso(e.target.value);
+      refreshDerived();
+      markDirty();
+    });
+    // Typing an end overrides the derivation; clearing it hands control back,
+    // and refreshDerived() refills the field from the day on the way out.
+    $("route-end").addEventListener("change", (e) => {
+      const route = editRoute();
+      route.endAt = localInputToIso(e.target.value);
+      route.endManual = route.endAt !== null;
+      refreshDerived();
       markDirty();
     });
   }
@@ -890,7 +1179,7 @@
     renderSlider();
     renderDayHead();
     renderList();
-    renderTotals();
+    refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
     onMapClick(state.map, ([lng, lat]) => {
