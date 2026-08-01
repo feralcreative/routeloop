@@ -21,6 +21,16 @@
   }
 }
 
+// One column width for every stacked control on a splash page, stated once and
+// shared by the sign-in stack and the holding page's links. The two sign-in
+// controls are supposed to measure the same and did not: both declared
+// max-width: 320px, but .provider is content-box with 16px of padding and a 1px
+// border either side, so it rendered 354px against the form's 320px. Everything
+// reading this sets border-box, so the number means the same thing to all of it.
+.splash {
+  --control-width: 320px;
+}
+
 .splash-logo {
   display: block;
   width: 100%;
@@ -49,13 +59,6 @@
 }
 
 .providers {
-  // One column width for everything in this stack, stated once. The two
-  // controls are supposed to measure the same and did not: both declared
-  // max-width: 320px, but .provider is content-box with 16px of padding and a
-  // 1px border either side, so it rendered 354px against the form's 320px.
-  // Every child below sets border-box, so the number here means the same thing
-  // to all of them.
-  --control-width: 320px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -92,11 +95,8 @@
   justify-content: center;
   gap: 0.6rem;
   border-radius: 0;
-
-  &:hover,
-  &:focus-visible {
-    border-color: $google-blue;
-  }
+  // The hover edge lives in the body.splash-page block, not here — see the
+  // comment there for why it cannot work from this rule.
 }
 
 // Google's brand terms forbid recolouring, distorting or rebuilding the mark.
@@ -170,14 +170,37 @@
 }
 
 // The pending-approval holding page.
+// Buttons rather than a row of bare links. Deliberately the .provider treatment
+// rather than the .modal-links one, even though these are the same three
+// destinations the alpha modal offers: that modal is a white panel where a grey
+// fill reads as a button, and this page is a dark video where it would not.
+// Consistency follows the surface, not the destination.
 .welcome-links {
   list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: var(--control-width);
   margin: 0 0 1.5rem;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  font-weight: 700;
+
+  a {
+    display: block;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: 700;
+    text-decoration: none;
+    color: $text;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 8px;
+
+    &:hover,
+    &:focus-visible {
+      border-color: #bbb;
+    }
+  }
 }
 
 // --- The video layer -------------------------------------------------------
@@ -289,14 +312,27 @@ body.splash-page {
     color: rgba(255, 255, 255, 0.78);
   }
 
-  .provider {
+  // Both are white buttons sitting on footage: the border disappears and a
+  // shadow does the lifting instead.
+  .provider,
+  .welcome-links a {
     border-color: transparent;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       border-color: transparent;
       background: #f4f4f4;
     }
+  }
+
+  // The one exception, and it has to live here rather than beside the rest of
+  // .provider-google: `body.splash-page .provider:hover` is (0,3,1) and a bare
+  // `.provider-google:hover` is (0,2,1), so the Google-blue edge declared there
+  // would simply never appear.
+  .provider-google:hover,
+  .provider-google:focus-visible {
+    border-color: $google-blue;
   }
 
   .provider-alt {
@@ -305,10 +341,6 @@ body.splash-page {
     a {
       color: $accent;
     }
-  }
-
-  .welcome-links a {
-    color: $accent;
   }
 
   // .notice comes from _forms.scss as a solid block, so it stays legible over
