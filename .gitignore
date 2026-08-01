@@ -244,6 +244,7 @@ serverless.yml.bak
 .claude
 .codex
 .DS_Store?
+_PLANS
 Icon?
 ._*
 .Spotlight-V100
