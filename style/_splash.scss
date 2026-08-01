@@ -11,6 +11,7 @@
 .splash {
   position: relative; // lifts the copy above the fixed video layer
   z-index: 1;
+  --control-width: 320px;
   padding: clamp(2rem, 9vh, 7rem) 0;
 
   h1 {
@@ -27,10 +28,6 @@
 // max-width: 320px, but .provider is content-box with 16px of padding and a 1px
 // border either side, so it rendered 354px against the form's 320px. Everything
 // reading this sets border-box, so the number means the same thing to all of it.
-.splash {
-  --control-width: 320px;
-}
-
 .splash-logo {
   display: block;
   width: 100%;
@@ -233,6 +230,44 @@
 // column and a shallow bottom vignette, both clearing to fully transparent so
 // the right two-thirds of the frame stays the actual footage. Legibility is
 // carried by the text-shadows below rather than by darkening the whole clip.
+// Sits above both the clip (z-index 0) and the copy (z-index 1). It is appended
+// to <body> by site.js rather than written into the markup: without JS the clip
+// never loads at all, so a control in the HTML would be a button that does
+// nothing on exactly the pages where nothing is playing.
+.video-toggle {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: $white;
+  background: rgba(6, 10, 12, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+
+  svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: currentColor;
+  }
+
+  &:hover {
+    background: rgba(6, 10, 12, 0.68);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
 .splash-media::after {
   content: "";
   position: absolute;
@@ -362,7 +397,45 @@ body.splash-page {
 //@ XS <576px — the copy spans the full width here, so the horizontal ramp stops
 // helping and the pass runs top-to-bottom instead.
 @media (max-width: 575px) {
-  .splash-media::after {
+  // Sits above both the clip (z-index 0) and the copy (z-index 1). It is appended
+// to <body> by site.js rather than written into the markup: without JS the clip
+// never loads at all, so a control in the HTML would be a button that does
+// nothing on exactly the pages where nothing is playing.
+.video-toggle {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: $white;
+  background: rgba(6, 10, 12, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+
+  svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: currentColor;
+  }
+
+  &:hover {
+    background: rgba(6, 10, 12, 0.68);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+.splash-media::after {
     background: linear-gradient(to top, rgba(6, 10, 12, 0.5) 0%, rgba(6, 10, 12, 0.18) 55%, rgba(6, 10, 12, 0.42) 100%);
   }
 }

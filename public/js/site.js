@@ -7,6 +7,7 @@
   // Bump to re-show the splash for everyone who already dismissed it.
   const ALPHA_SPLASH_VERSION = "1";
   const ALPHA_KEY = "tankbag.alphaSplash";
+  const VIDEO_KEY = "tankbag.splashVideo";
 
   // Private-mode Safari throws on storage access. A failure has to read as
   // "not dismissed" rather than taking the page down with it.
@@ -131,6 +132,16 @@
   // skips the download rather than hiding an already-fetched 19 MB file. CSS
   // paints the poster frame behind it, so doing nothing here degrades to a
   // still image instead of a blank panel.
+  // Play/pause for the background clip, remembered per browser.
+  //
+  // "Remembered" is stronger than restoring a toggle: a rider who paused it
+  // last time never has the file fetched again, which is the same ~3 MB saving
+  // the reduced-motion path already takes. src stays unset until the clip is
+  // actually wanted.
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>';
+  const ICON_PAUSE =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+
   function initSplashVideo() {
     const video = document.querySelector(".splash-video");
     if (!video) return;
@@ -138,10 +149,13 @@
     const src = video.getAttribute("data-src");
     if (!src) return;
 
+    // Reduced motion means no clip is fetched at all, so there is nothing to
+    // offer a control over — the button is not rendered rather than rendered
+    // inert.
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
     if (reduce && reduce.matches) return;
 
-    video.src = src;
+    let paused = readStore(VIDEO_KEY) === "paused";
 
     // The clip is slowed in the file itself, not via playbackRate. Halving
     // playbackRate on the 25fps master would have shown 12.5fps — the browser
@@ -152,8 +166,37 @@
     // The autoplay attribute normally covers this; the explicit call catches
     // the cases it doesn't (iOS Low Power Mode among them). A refusal is the
     // poster frame, not an error worth surfacing.
-    const started = video.play();
-    if (started && started.catch) started.catch(function () {});
+    function start() {
+      if (!video.src) video.src = src;
+      const started = video.play();
+      if (started && started.catch) started.catch(function () {});
+    }
+
+    // Deliberately a sibling of .splash-media rather than a child: that wrapper
+    // is aria-hidden and pointer-events: none, so a control inside it would be
+    // invisible to assistive tech and unclickable besides.
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "video-toggle";
+    document.body.appendChild(button);
+
+    function paint() {
+      const label = paused ? "Play the background video" : "Pause the background video";
+      button.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    }
+
+    button.addEventListener("click", function () {
+      paused = !paused;
+      if (paused) video.pause();
+      else start();
+      writeStore(VIDEO_KEY, paused ? "paused" : "playing");
+      paint();
+    });
+
+    if (!paused) start();
+    paint();
   }
 
   function init() {
