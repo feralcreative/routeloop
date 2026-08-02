@@ -62,16 +62,16 @@ The two big migrations (auth and maps) are deployed; what remains of them is cle
 **Work.**
 
 - [ ] Remove the Cloudflare Access policy at the edge (the app already ignores its header; the policy is now pure redundancy).
-- [ ] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
-- [ ] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`.
-- [ ] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
+- [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
+- [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
+- [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
 - [ ] Regenerate the favicons and social image from the current TankBag mark (they still carry the old routeloop artwork).
-- [ ] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
+- [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [ ] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill.
 
 **Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.ts`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
-**Status.** next. The maps and auth engines are settled, so all of this is unblocked.
+**Status.** nearly done. Mapbox is retired, the two viewer shells are one, and the legal pages shipped. What remains is not code: the favicons need the generator and the source artwork, the Cloudflare Access policy is removed at the edge, and the quota caps are set in the GCP console.
 
 ### 2. The trip timeline
 
@@ -283,6 +283,22 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 - Drag-to-reorder stops.
 - Keyboard shortcuts for the builder.
 - Usage analytics that respect privacy (self-hosted, no third-party trackers).
+
+## Non-goals
+
+Things deliberately not built, recorded so they do not get proposed twice. These are decisions, not backlog—if one changes, change it here rather than opening an issue.
+
+<!-- col-widths: 26% 74% -->
+
+| Not doing | Why |
+| --- | --- |
+| **Round-trip generators** | Scenic, Kurviger and Garmin all ship one and riders say all three pad the distance with junk roads—"many roads that are minor and not fast at all… just there to make up the total distance." Garmin's Adventurous Routing gets called a complete disaster. Shipped everywhere, good nowhere. |
+| **Turn-by-turn navigation** | Not a permanent vow, but a separate product with its own failure surface: freezing, battery drain, late voice cues, destructive recalculation. That is where every competitor's reputation actually fails. Nothing should be attempted here until the hand-off is excellent, and a companion app is a different conversation from bolting navigation onto the planner. |
+| **Curviness as the headline feature** | Kurviger picks single-track farm lanes because they carry a high speed limit; American riders call the result borderline useless. Curviness without road-width and speed-limit context produces routes nobody wants. Worth having (#28); not worth leading with. |
+| **Inventing new vocabulary** | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way *devices* name them, not the way the app thinks about them. |
+| **Paywalling export or sharing** | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not. |
+
+One wording correction that falls out of this: the vision above says TankBag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
 
 ## Good first contributions
 

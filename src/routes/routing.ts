@@ -165,3 +165,97 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
 
   return c.json(remember(key, leg))
 })
+
+// --- Geocoding --------------------------------------------------------------
+
+// Address to coordinates, for the two address blocks on the profile page.
+//
+// Here rather than in the browser for the same reason routing is: the key that
+// may call Geocoding is IP-restricted to the server, so a client-side call
+// cannot use it. This replaces the direct Mapbox call profile.js used to make,
+// which was the last thing keeping MAPBOX_TOKEN alive.
+const GEOCODE_ENDPOINT = 'https://maps.googleapis.com/maps/api/geocode/json'
+
+const geocodeRequest = z.object({
+  // Generous but bounded. Long enough for a full international address, short
+  // enough that the endpoint cannot be used to shovel data at Google on our key.
+  q: z.string().trim().min(4).max(300),
+})
+
+type GeocodeHit = { lat: number; lng: number; label: string }
+
+// Same shape and reasoning as the leg cache above: a rider tabbing between four
+// address fields re-submits the same string repeatedly, and Geocoding bills per
+// call. Keyed on the normalized query, so "  main st " and "Main St" share.
+const GEO_CACHE_MAX = 500
+const geoCache = new Map<string, GeocodeHit | null>()
+
+function rememberGeo(key: string, hit: GeocodeHit | null): GeocodeHit | null {
+  if (geoCache.size >= GEO_CACHE_MAX) {
+    const oldest = geoCache.keys().next().value
+    if (oldest !== undefined) geoCache.delete(oldest)
+  }
+  geoCache.set(key, hit)
+  return hit
+}
+
+routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
+  if (!GMAPS_SERVER_KEY) {
+    return c.json({ error: 'geocoding is not configured' }, 503)
+  }
+
+  const parsed = geocodeRequest.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return c.json({ error: 'an address is required' }, 400)
+  }
+
+  const q = parsed.data.q
+  const key = q.toLowerCase().replace(/\s+/g, ' ')
+
+  // A miss is cached too. Repeating a lookup that already failed costs the same
+  // as one that succeeds, and a half-typed address gets submitted a lot.
+  if (geoCache.has(key)) {
+    const hit = geoCache.get(key) ?? null
+    return hit ? c.json(hit) : c.json({ error: 'no match for that address' }, 404)
+  }
+
+  let res: Response
+  try {
+    const url = `${GEOCODE_ENDPOINT}?address=${encodeURIComponent(q)}&key=${encodeURIComponent(GMAPS_SERVER_KEY)}`
+    res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+  } catch (err) {
+    console.error('[geocode] Geocoding API unreachable:', err instanceof Error ? err.stack : err)
+    return c.json({ error: 'geocoding service unavailable' }, 502)
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    console.error(`[geocode] Geocoding API ${res.status}: ${detail.slice(0, 300)}`)
+    return c.json({ error: 'geocoding service rejected the request' }, 502)
+  }
+
+  const data = (await res.json().catch(() => null)) as {
+    status?: string
+    results?: { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }[]
+  } | null
+
+  // Geocoding reports "found nothing" as HTTP 200 with ZERO_RESULTS, the same
+  // way Routes reports "no path" as 200 with an empty array.
+  const top = data?.results?.[0]
+  const loc = top?.geometry?.location
+  if (data?.status !== 'OK' || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
+    if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.error(`[geocode] Geocoding API status ${data.status}`)
+    }
+    rememberGeo(key, null)
+    return c.json({ error: 'no match for that address' }, 404)
+  }
+
+  return c.json(
+    rememberGeo(key, {
+      lat: round6(Number(loc.lat)),
+      lng: round6(Number(loc.lng)),
+      label: top?.formatted_address ?? q,
+    })!,
+  )
+})

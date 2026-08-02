@@ -53,8 +53,6 @@ export function isAllowedOrigin(origin: string | undefined | null): boolean {
 // 'pending' after the next rebuild with nobody able to approve them.
 export const OWNER_EMAIL = env('OWNER_EMAIL', 'ziad@feralcreative.co').trim().toLowerCase()
 
-export const MAPBOX_TOKEN = env('MAPBOX_TOKEN', '')
-export const MAPBOX_GL_VERSION = 'v3.10.0'
 
 // Two Google Maps keys, and they are not interchangeable — the restriction types
 // are mutually exclusive. A referrer-restricted key cannot be used server-side

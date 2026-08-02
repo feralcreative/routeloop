@@ -27,7 +27,7 @@ import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
-import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
+import { esc, googleMapsLoader, page, panelShell } from './views/layout'
 import { asset } from './views/assets'
 import { rideCards, type CardRow } from './views/cards'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
@@ -42,17 +42,6 @@ async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRo
   if (r.visibility === 'public' || r.visibility === 'unlisted') return r
   if (viewer && viewer.id === r.ownerId) return r
   return undefined
-}
-
-// Color for listing swatches and the legacy metadata contract: the first
-// route's color (imports have exactly one route).
-async function firstRouteColor(rideId: number): Promise<string> {
-  const [r] = await db
-    .select({ color: routesTable.color })
-    .from(routesTable)
-    .where(and(eq(routesTable.rideId, rideId), eq(routesTable.position, 0)))
-    .limit(1)
-  return r?.color ?? '#0000cc'
 }
 
 const app = new Hono<AuthEnv>()
@@ -140,11 +129,15 @@ app.get('/m/:slug', async (c) => {
     .update(rides)
     .set({ viewCount: sql`${rides.viewCount} + 1` })
     .where(eq(rides.id, m.id))
-  return c.html(m.source === 'native' ? nativeViewHtml(m, viewer) : viewHtml(m, GMAPS_KEY, viewer))
+  // One shell for both sources. ride.json has served them identically since the
+  // timeline work added per-leg spans — an imported ride is one route with one
+  // leg — so the ported engine renders it without special-casing.
+  return c.html(viewHtml(m, viewer))
 })
 
-// The normalized public contract: everything the Mapbox viewer needs, for
-// both sources, derived from structured rows only.
+// The normalized public contract: everything the viewer needs, for both
+// sources, derived from structured rows only. One shape for imported and native
+// rides is what let the two shells collapse into one.
 app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
@@ -248,24 +241,6 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   })
 })
 
-// Seam 1: legacy metadata JSON for the Google-Maps viewer (one-element array —
-// the legend renders fine with one). Retires with main.js in Phase 4.
-app.get('/api/public/maps/:slug', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m) return c.json({ error: 'not found' }, 404)
-  return c.json([
-    {
-      name: m.title,
-      color: await firstRouteColor(m.id),
-      kmlUrl: `/api/public/maps/${m.slug}/kml`,
-      gpxUrl: m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
-      externalUrl: m.externalUrl || null,
-      gpxPresent: m.gpxPresent,
-      waypointCount: m.stopCount,
-      totalMiles: Number(m.totalMiles),
-    },
-  ])
-})
 
 // Seam 2 + GPX: gated file streams from outside-the-web-root storage.
 app.get('/api/public/maps/:slug/kml', async (c) => {
@@ -307,7 +282,7 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 // `timeline` is opt-in rather than default because the legacy shell's main.js
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
-function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null, clonable = false): string {
+function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false): string {
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
   // Only rendered for a rider who can actually open the builder on this ride —
   // see canEditRide. A viewer who cannot edit is shown nothing rather than a
@@ -318,14 +293,15 @@ function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null
   const clone = clonable
     ? `<button class="panel-clone" type="button" data-clone="${m.id}">Clone this ride</button>`
     : ''
-  const scrub = timeline
-    ? `
+  // Every ride gets the timeline now. It hides itself when a ride carries no
+  // dates, which is the same answer the opt-in used to give imported rides.
+  const scrub = `
         <div class="trip-timeline" id="trip-timeline" hidden>
           <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
                  aria-label="Move through the trip in time" title="Drag to move through the trip">
           <div class="time-readout" id="time-readout"></div>
         </div>`
-    : ''
+
   return panelShell({
     title: m.title,
     contents: `        <div class="details">${desc}${edit}${clone}</div>${scrub}
@@ -341,9 +317,8 @@ function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null
 
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
-// The unified viewer shell (native rides now; imported rides join it when
-// main.js retires in Phase 4).
-function nativeViewHtml(m: RideRow, user: UserRow | null): string {
+// The viewer shell, for every ride regardless of source.
+function viewHtml(m: RideRow, user: UserRow | null): string {
   return page({
     title: m.title,
     user,
@@ -351,7 +326,6 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
     noscript: VIEWER_NOSCRIPT,
     body: `  <div id="map"></div>\n\n  ${viewerPanel(
       m,
-      true,
       canEditRide(m, user) ? `/builder/${m.id}` : null,
       Boolean(user && user.status === 'active' && user.id !== m.ownerId && m.visibility === 'public'),
     )}`,
@@ -368,22 +342,6 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
   })
 }
 
-// Legacy Google shell, imported rides only. main.js reads window.MOTO rather
-// than window.TB, so it gets its globals through `scripts`. Retires in Phase 4.
-function viewHtml(m: RideRow, gmapsKey: string, user: UserRow | null): string {
-  return page({
-    title: m.title,
-    user,
-    variant: 'map',
-    noscript: VIEWER_NOSCRIPT,
-    body: `  <div id="map"></div>\n\n  ${viewerPanel(m)}`,
-    scripts: `${jsonScript('MOTO', { metadataUrl: `/api/public/maps/${m.slug}` })}
-  <script src="${asset('/js/main.js')}" defer></script>
-  <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=${esc(gmapsKey)}&v=beta&libraries=maps,geometry&callback=initMap"
-    onerror="console.error('Maps API failed to load')"></script>`,
-  })
-}
 
 function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {
   return page({

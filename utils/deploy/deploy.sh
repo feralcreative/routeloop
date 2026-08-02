@@ -67,7 +67,6 @@ fi
 
 MISSING=""
 [ -n "${GMAPS_KEY:-}" ]  || MISSING="${MISSING} GMAPS_KEY"
-[ -n "${MAPBOX_TOKEN:-}" ] || MISSING="${MISSING} MAPBOX_TOKEN"
 [ -n "${DB_PASSWORD}" ]  || MISSING="${MISSING} $([ "$DEPLOY_ENV" = "prod" ] && echo PROD_DB_PASSWORD || echo STAGE_DB_PASSWORD)"
 
 # Promoted to hard failures when the Google migrations landed, because without
@@ -236,7 +235,6 @@ printf '%s\n' \
   "GMAPS_KEY=${GMAPS_KEY}" \
   "GMAPS_SERVER_KEY=${GMAPS_SERVER_KEY:-}" \
   "GMAPS_MAP_ID=${GMAPS_MAP_ID}" \
-  "MAPBOX_TOKEN=${MAPBOX_TOKEN}" \
   "DB_PASSWORD=${DB_PASSWORD}" \
   "APP_ORIGIN=${APP_ORIGIN}" \
   "OWNER_EMAIL=${OWNER_EMAIL:-}" \

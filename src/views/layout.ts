@@ -2,7 +2,6 @@
 // documents separately — four near-identical heads, two disjoint stylesheets,
 // and no header at all on the builder or viewer, which is why there was no way
 // back to the site from a map. `variant` is what that split collapses into.
-import { MAPBOX_GL_VERSION } from '../config'
 import type { UserRow } from '../db/schema'
 import { alphaSplash } from './splash'
 
@@ -31,11 +30,6 @@ export function jsonScript(varName: string, value: unknown): string {
     .replace(/\u2029/g, '\\u2029')
   return `<script>window.${varName} = ${json};</script>`
 }
-
-// Mapbox pages pass this as `head`. Kept here so the version stays pinned to
-// the same constant the <script> tag uses. Nothing uses it since the Google
-// port; it goes with MAPBOX_TOKEN in Phase 4.
-export const MAPBOX_CSS_LINK = `<link href="https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css" rel="stylesheet">`
 
 // Google's inline bootstrap loader, verbatim from their docs, which defines
 // google.maps.importLibrary() and nothing else. Map pages emit this instead of
@@ -72,9 +66,8 @@ export type PageOpts = {
   bodyClass?: string
   navKey?: NavKey
   /**
-   * Extra <link>/<meta> for the head. Engine-specific assets belong here, not
-   * behind `variant` — the legacy Google viewer is a map page that must not
-   * load the Mapbox stylesheet. Use MAPBOX_CSS_LINK for the Mapbox pages.
+   * Extra <link>/<meta> for the head, for anything a single page needs and the
+   * rest do not.
    */
   head?: string
   /** Extra <script> tags, emitted last. */
