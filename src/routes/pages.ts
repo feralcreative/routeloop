@@ -13,7 +13,7 @@ import type { Context } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
-import { esc, page } from '../views/layout'
+import { esc, page, type NavKey } from '../views/layout'
 import { rideCards } from '../views/cards'
 import type { AuthEnv } from '../auth/middleware'
 
@@ -261,8 +261,54 @@ const termsBody = `<h1>Terms</h1>
 <h2>Getting in touch</h2>
 <p>Questions about any of this go to <a href="https://github.com/feralcreative/tankbag/issues">the issue tracker</a>, or the contact route you signed up through.</p>`
 
-const render = (c: Context, title: string, body: string, bodyClass: string) =>
-  c.html(page({ title, user: c.get('user') ?? null, bodyClass, body }))
+const render = (c: Context, title: string, body: string, bodyClass: string, navKey?: NavKey) =>
+  c.html(page({ title, user: c.get('user') ?? null, bodyClass, body, navKey }))
+
+// Browsable gallery of public rides.
+//
+// Paged rather than unbounded: this is the one query in the app whose row count
+// grows with the whole userbase rather than with one rider's data, so a bare
+// SELECT here is a slow page the day it matters. 24 a page, offset paging —
+// keyset would be better under real load but needs a stable tiebreak, and at
+// alpha scale offset is honest and simple.
+const PER_PAGE = 24
+
+pageRoutes.get('/explore', async (c) => {
+  const sort = c.req.query('sort') === 'new' ? 'new' : 'popular'
+  const page_ = Math.max(1, Number(c.req.query('page') ?? 1) || 1)
+  const offset = (page_ - 1) * PER_PAGE
+
+  const order = sort === 'new' ? [desc(rides.createdAt)] : [desc(rides.viewCount), desc(rides.createdAt)]
+
+  // One extra row answers "is there a next page" without a second count query.
+  const rows = await db
+    .select({ ride: rides, color: routesTable.color })
+    .from(rides)
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+    .where(eq(rides.visibility, 'public'))
+    .orderBy(...order)
+    .limit(PER_PAGE + 1)
+    .offset(offset)
+
+  const hasNext = rows.length > PER_PAGE
+  const cards = rows.slice(0, PER_PAGE)
+
+  const tab = (key: string, label: string) =>
+    `<a class="explore-tab${sort === key ? ' is-on' : ''}" href="/explore?sort=${key}">${label}</a>`
+  const pageLink = (n: number, label: string) =>
+    `<a class="explore-page" href="/explore?sort=${sort}&page=${n}">${label}</a>`
+
+  const body = `<h1>Explore</h1>
+<p class="lede">Public rides other people have planned. Open one, or clone it as a starting point for your own.</p>
+<nav class="explore-tabs">${tab('popular', 'Most viewed')}${tab('new', 'Newest')}</nav>
+${rideCards(cards, sort === 'popular')}
+<nav class="explore-pager">
+  ${page_ > 1 ? pageLink(page_ - 1, '← Newer page') : ''}
+  ${hasNext ? pageLink(page_ + 1, 'Older page →') : ''}
+</nav>`
+
+  return render(c, 'Explore', body, 'content-page explore-page', 'explore')
+})
 
 // Public rider profile at /@handle.
 //

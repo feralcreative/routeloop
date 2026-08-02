@@ -227,3 +227,34 @@ a.card {
     border-top: 1px solid $grey;
   }
 }
+
+// Explore: sort tabs and pager.
+.explore-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  a {
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid transparent;
+    color: #666;
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  .is-on {
+    color: $text;
+    border-bottom-color: $brand;
+  }
+}
+
+.explore-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+
+  a {
+    font-weight: 700;
+  }
+}
