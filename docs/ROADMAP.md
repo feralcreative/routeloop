@@ -62,16 +62,16 @@ The two big migrations (auth and maps) are deployed; what remains of them is cle
 **Work.**
 
 - [ ] Remove the Cloudflare Access policy at the edge (the app already ignores its header; the policy is now pure redundancy).
-- [ ] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
-- [ ] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`.
-- [ ] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
+- [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
+- [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
+- [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
 - [ ] Regenerate the favicons and social image from the current TankBag mark (they still carry the old routeloop artwork).
-- [ ] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
+- [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [ ] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill.
 
 **Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.ts`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
-**Status.** next. The maps and auth engines are settled, so all of this is unblocked.
+**Status.** nearly done. Mapbox is retired, the two viewer shells are one, and the legal pages shipped. What remains is not code: the favicons need the generator and the source artwork, the Cloudflare Access policy is removed at the edge, and the quota caps are set in the GCP console.
 
 ### 2. The trip timeline
 

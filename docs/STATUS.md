@@ -1,8 +1,8 @@
 # Status and handoff
 
 **Updated:** 2026-08-01
-**Branch:** `feat/legal-and-faq-pages`, based on `origin/main` (`9194e15`), at `389c178`—eight commits
-**Note:** sprint 4 (UX and the naming model) is merged into `main`. This branch adds the public surfaces: profiles, gallery, roster, clone, and the legal pages.
+**Branch:** `refactor/retire-mapbox-and-legacy-viewer`, based on `origin/main`, at `b223175`—five commits
+**Note:** the public-surfaces work merged as PR #47. A local `main` that has not been pulled since will make `git log main..HEAD` look like it carries two sprints. Pull first.
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -360,6 +360,54 @@ Pinning the charset to the username rule means a malformed handle 404s at the ro
 ### The FAQ said things that were not true
 
 `docs/ops/faq.md` promised **"No limit"** on stops, days and miles in three places. The real caps are 31 days, 200 stops a day, 200 POIs and 200k points a ride. The published copy carries the real numbers, which argue better anyway: 200 stops a day against Google My Maps' ten is checkable, and "unlimited" is a promise the app breaks at the wall. Also corrected "a dozen" stop roles to the actual 17.
+
+## Mapbox and the second viewer are gone—2026-08-01
+
+Branch `refactor/retire-mapbox-and-legacy-viewer`, five commits. ROADMAP item 1. Closes #20, most of #6, and #21.
+
+### The finding that resized the sprint
+
+Item 1 said "teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells." **The first half was already done.** Forcing the ported shell for every ride and loading `sample-route-one` rendered it completely—all 5,743 track points, 26 role markers, mileage, GPX and KML buttons—with **zero console messages**.
+
+`ride.json` has served both sources identically since the timeline work added per-leg spans; an imported ride is simply one route with one leg. So the work was flipping a conditional and deleting **1,135 lines**, not porting a renderer. Worth checking assumptions like that before scoping: this one turned the sprint's biggest item into one of its smallest.
+
+### What went
+
+- **`public/js/main.js`**, the legacy Google shell, and `viewHtml`'s twin.
+- **`/api/public/maps/:slug`**, the legacy metadata JSON, and `firstRouteColor`, its only caller. **`/kml` and `/gpx` under the same prefix stayed**—those are the file downloads `ride.json` still points at, and deleting them would break every imported ride's download buttons.
+- **`viewerPanel`'s `timeline` flag.** It existed only because the legacy shell could not wire the control. With one shell it is unconditional, so imported rides get the timeline as soon as they carry dates.
+- **`MAPBOX_TOKEN`, `MAPBOX_GL_VERSION`, `MAPBOX_CSS_LINK`** and every config, compose, deploy-guard and `.env.example` reference. Remaining mentions in the tree are historical comments explaining why things are shaped as they are; those are worth keeping.
+
+Note the NAS `.env` still carries `MAPBOX_TOKEN`. Nothing reads it and the deploy script no longer requires it, so it can go next time that file is touched.
+
+### `POST /api/geocode`
+
+The last Mapbox call, moved server-side beside `POST /api/route` and for the same reason: the key that may call Geocoding is IP-restricted to the server, so a browser cannot use it.
+
+Two things worth knowing. **A miss is cached as well as a hit**—a half-typed address gets resubmitted constantly and a failed lookup bills the same as a successful one. And Geocoding reports "found nothing" as **HTTP 200 with `ZERO_RESULTS`**, the same shape as Routes reporting "no path" as 200 with an empty array; both are handled explicitly rather than falling through as success.
+
+### Tests exist now
+
+`vitest`, 43 tests, `npm test`. Deliberately narrow: the pure logic that had been hand-verified more than once across three sprints—the trip time model, the username rules, the prose tightener. Anything needing a database or a browser stays out and is still checked by hand.
+
+**Both suites were verified by breaking the code they cover**, because a suite that passes on broken code is worthless. Switching `publicIdFor` from UTC to local time failed three tests; removing the tightener's inline-code masking failed two.
+
+### The hook ate its own test file
+
+Committing `test/em-dashes.test.ts` ran the pre-commit tightener over it, and it rewrote the **fixtures**: `fix('a — b')` became `fix('a—b')`, so half the assertions compared a string to itself. It committed reporting 43 passing while testing nothing.
+
+Fixed twice over, on purpose:
+
+1. Every fixture is built from escapes (`const EM = '\u2014'`), so no literal spaced em dash exists in the source and no formatter can reach them.
+2. `utils/tighten-em-dashes.mjs` skips `test/` and `*.test.ts`.
+
+**The general shape of this is worth remembering:** anything the hook rewrites in place can corrupt data that merely looks like prose. Snapshot files and sample documents would want the same exclusion.
+
+### Left for you
+
+- **Favicons** still carry the old routeloop mark, including the `og:image` social card. Needs the generator and the source artwork, so it is not scriptable from the repo. Filed separately rather than holding this branch.
+- **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
+- **Set per-API daily quota caps** on the GCP project. Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k.
 
 ## Next steps, in order
 
