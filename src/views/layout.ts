@@ -123,8 +123,7 @@ function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): strin
   <nav class="site-nav" id="site-nav" hidden>
     ${links}
     <hr>
-    ${siteLinkRow()}
-    <button type="button" class="linkbtn" data-open-alpha>About this alpha</button>
+    ${navAboutMenu()}
   </nav>
 </header>`
 }
@@ -159,12 +158,27 @@ const SITE_LINKS: { href: string; label: string }[] = [
 const siteLinkRow = (): string =>
   SITE_LINKS.map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('')
 
+// The same three links plus the alpha modal, folded into one disclosure. The
+// nav was a flat run of nine items where the last four are all "about this
+// thing" rather than "go somewhere in the app"; grouping them puts the rider's
+// own pages at the top and keeps the menu one screen tall.
+//
+// <details> rather than a JS menu: it is a disclosure, and the platform already
+// handles the keyboard and the ARIA for one.
+const navAboutMenu = (): string => `<details class="nav-sub">
+      <summary>About</summary>
+      <div class="nav-sub-items">
+        <button type="button" class="linkbtn" data-open-alpha>About this app</button>
+        ${siteLinkRow()}
+      </div>
+    </details>`
+
 function siteFooter(splash: boolean): string {
   // The splash is a signed-out landing page over video: it gets the links and
   // nothing else. A closing note there would compete with the sign-in controls.
   return `<footer class="site-footer${splash ? ' is-splash' : ''}">
   <nav class="site-footer-links">${siteLinkRow()}</nav>
-  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha. Plans change; roads more so.</p>'}
+  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha.</p>'}
 </footer>`
 }
 

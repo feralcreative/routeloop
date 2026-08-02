@@ -148,6 +148,60 @@
     border: 0;
     border-top: 1px solid $grey;
   }
+
+  // The About disclosure. Its summary is styled to match the links above it so
+  // the menu reads as one list rather than a list with a widget stuck on the
+  // end; only the marker says it opens.
+  .nav-sub {
+    summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5em;
+      padding: 0.5em 0.65em;
+      border-radius: 6px;
+      cursor: pointer;
+      color: $text;
+      font-weight: 600;
+      // Suppress the platform triangle so the caret below is the only marker —
+      // ::marker covers Firefox, ::-webkit-details-marker older Safari.
+      list-style: none;
+
+      &::marker,
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
+
+      // The caret, drawn rather than typed so it can rotate on open.
+      &::after {
+        content: "";
+        width: 0.45em;
+        height: 0.45em;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg) translate(-0.1em, -0.1em);
+        transition: transform 0.15s ease;
+      }
+    }
+
+    &[open] summary::after {
+      transform: rotate(-135deg) translate(-0.15em, -0.15em);
+    }
+
+    .nav-sub-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      // Indented against the rule so the nesting is visible without a box.
+      margin-left: 0.65em;
+      padding-left: 0.5em;
+      border-left: 1px solid $grey;
+    }
+  }
 }
 
 .nav-user {
