@@ -235,7 +235,7 @@ rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, as
   if (turnstileEnabled()) {
     const token = c.req.header('X-Turnstile-Token') ?? ''
     if (!(await verifyTurnstile(token, c.req.header('CF-Connecting-IP')))) {
-      return c.json({ error: 'bot check failed — reload and try again' }, 403)
+      return c.json({ error: 'bot check failed—reload and try again' }, 403)
     }
   }
 
@@ -269,7 +269,7 @@ rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit,
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
   if (ride.source !== 'native') {
-    return c.json({ error: 'imported rides are not editable yet — re-import or plan a new ride' }, 409)
+    return c.json({ error: 'imported rides are not editable yet—re-import or plan a new ride' }, 409)
   }
 
   const body = await parseRideBody(c)
@@ -366,9 +366,28 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | 
   return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
 }
 
+// The public starting point, sent to every builder page rather than only the
+// new-ride one: an existing ride can be made public at any time, and that is
+// exactly when the swap is offered.
+//
+// Unlike homeSeed this is not gated on a preference — it is not seeding
+// anything, only standing by in case a home-started ride is about to be shared.
+type PublicStart = { lat: number; lng: number; label: string }
+
+async function publicStart(userId: number): Promise<PublicStart | null> {
+  const [p] = await db
+    .select({ lat: userProfiles.startLat, lng: userProfiles.startLng, label: userProfiles.startLabel })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1)
+  if (p?.lat == null || p?.lng == null) return null
+  return { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' }
+}
+
 rideRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
-  return c.html(builderHtml(null, user, await homeSeed(user.id)))
+  const [home, start] = await Promise.all([homeSeed(user.id), publicStart(user.id)])
+  return c.html(builderHtml(null, user, home, start))
 })
 
 rideRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -378,10 +397,15 @@ rideRoutes.get('/builder/:id', requireActive, async (c) => {
   // Same predicate the viewer's edit button reads, so the button and this gate
   // cannot drift into offering an action that is then refused.
   if (!canEditRide(ride, user)) return c.text('Imported rides are not editable yet', 409)
-  return c.html(builderHtml(ride.id, user, null))
+  return c.html(builderHtml(ride.id, user, null, await publicStart(user.id)))
 })
 
-function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; lng: number } | null): string {
+function builderHtml(
+  rideId: number | null,
+  user: UserRow,
+  home: { lat: number; lng: number } | null,
+  publicStart: PublicStart | null,
+): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
   // emphasised. Seeing the whole trip on one map is the product.
@@ -467,7 +491,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
+    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home, publicStart },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>

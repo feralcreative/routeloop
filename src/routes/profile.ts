@@ -58,6 +58,13 @@ const profileSchema = z.object({
   ...profileFields,
   homeLat: coord(-90, 90),
   homeLng: coord(-180, 180),
+  startLabel: optionalText(120),
+  startAddressLine: optionalText(255),
+  startCity: optionalText(120),
+  startState: optionalText(80),
+  startPostalCode: optionalText(20),
+  startLat: coord(-90, 90),
+  startLng: coord(-180, 180),
   shareLastName: checkbox,
   addHomeToRides: checkbox,
   sharePaymentHandles: checkbox,
@@ -180,6 +187,20 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
       </fieldset>
 
       <fieldset>
+        <legend>Public starting point</legend>
+        <p class="field-hint">Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you would not mind strangers seeing on a map &mdash; a gas station, a coffee shop, a trailhead, a supermarket car park. Somewhere you can actually meet people is ideal.</p>
+        <p class="field-hint">Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on it.</p>
+        ${field({ name: 'startLabel', label: 'Name it', values: v, errors, hint: 'What it shows up as. "Chevron on Main", "Peet\'s at the plaza".' })}
+        ${field({ name: 'startAddressLine', label: 'Address', values: v, errors, autocomplete: 'off' })}
+        ${field({ name: 'startCity', label: 'City', values: v, errors, autocomplete: 'off' })}
+        ${field({ name: 'startState', label: 'State or region', values: v, errors, autocomplete: 'off' })}
+        ${field({ name: 'startPostalCode', label: 'Postal code', values: v, errors, autocomplete: 'off' })}
+        <input type="hidden" name="startLat" id="f-startLat" value="${esc(v.startLat == null ? '' : String(v.startLat))}">
+        <input type="hidden" name="startLng" id="f-startLng" value="${esc(v.startLng == null ? '' : String(v.startLng))}">
+        <p class="field-hint" id="start-geocode-status" role="status"></p>
+      </fieldset>
+
+      <fieldset>
         <legend>Splitting costs</legend>
         <p class="field-hint">Optional. For settling up on hotels, gas and meals along a trip.</p>
         ${field({ name: 'cashApp', label: 'Cash App', values: v, errors })}
@@ -193,7 +214,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
         <legend>Your riders</legend>
         ${
           user.canManageRiders
-            ? '<p class="field-hint">Rider management is enabled for your account — <a href="/admin">approve and manage riders</a>.</p>'
+            ? '<p class="field-hint">Rider management is enabled for your account—<a href="/admin">approve and manage riders</a>.</p>'
             : '<p class="field-hint">Adding riders is closed during the alpha.</p>'
         }
       </fieldset>
@@ -293,6 +314,13 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         postalCode: text(p.postalCode),
         homeLat: p.homeLat,
         homeLng: p.homeLng,
+        startLabel: text(p.startLabel),
+        startAddressLine: text(p.startAddressLine),
+        startCity: text(p.startCity),
+        startState: text(p.startState),
+        startPostalCode: text(p.startPostalCode),
+        startLat: p.startLat,
+        startLng: p.startLng,
         shareLastName: p.shareLastName,
         addHomeToRides: p.addHomeToRides,
         sharePaymentHandles: p.sharePaymentHandles,

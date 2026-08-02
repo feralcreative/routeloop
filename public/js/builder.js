@@ -88,7 +88,7 @@
     dirty: false,
     layersReady: false,
     layerCount: 0, // how many route layers are currently on the map
-    legSeq: [], // legSeq[r][i] — stale routing responses are dropped
+    legSeq: [], // legSeq[r][i]—stale routing responses are dropped
   };
 
   const $ = (id) => document.getElementById(id);
@@ -193,7 +193,7 @@
       })
       .catch((e) => {
         console.warn("[builder] directions:", e.message);
-        toast("No road route for that leg — drawn straight, its time is estimated", true);
+        toast("No road route for that leg—drawn straight, its time is estimated", true);
       });
   }
 
@@ -565,7 +565,7 @@
 
   function localInputToIso(value) {
     if (!value) return null;
-    const d = new Date(value); // no offset in the string — parsed as local time
+    const d = new Date(value); // no offset in the string—parsed as local time
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }
 
@@ -1105,6 +1105,46 @@
     });
   }
 
+  // Sharing a ride that begins at the rider's front door puts a pin on their
+  // house — and moving the pin would not be enough, because the first leg is
+  // *drawn* from there. The line points at the building whatever the marker
+  // says. So the swap happens here, while planning, and re-routes leg 0.
+  //
+  // Offered rather than applied: the rider may well have meant to share it, and
+  // silently redrawing a route they already planned is worse than asking.
+  function offerPublicStart() {
+    const shared = state.meta.visibility === "public" || state.meta.visibility === "unlisted";
+    const start = window.TB.publicStart;
+    const route = state.routes[0];
+    const first = route && route.stops[0];
+    if (!shared || !start || !first || !(first.roles || []).includes("home")) return;
+    if (state.startSwapDeclined) return;
+
+    const ok = window.confirm(
+      "This ride starts at your home address, and a shared map would show a pin on it.\n\n" +
+        "Replace the start with your public starting point (" + start.label + ")?",
+    );
+    if (!ok) {
+      // Asked once per session. Nagging on every visibility change would train
+      // the rider to dismiss it without reading.
+      state.startSwapDeclined = true;
+      return;
+    }
+
+    first.lat = +start.lat.toFixed(6);
+    first.lng = +start.lng.toFixed(6);
+    first.name = start.label;
+    first.roles = (first.roles || []).filter((r) => r !== "home");
+    // The leg out of the old start is meaningless now, shaping points included.
+    if (route.legs[0]) route.legs[0].viaPoints = [];
+    computeLegsAround(0, [0]);
+    renderMarkers();
+    renderList();
+    refreshDerived();
+    markDirty();
+    toast("Start swapped to " + start.label);
+  }
+
   function wireMeta() {
     $("ride-title").addEventListener("input", (e) => {
       state.meta.title = e.target.value;
@@ -1117,6 +1157,7 @@
     $("ride-visibility").addEventListener("change", (e) => {
       state.meta.visibility = e.target.value;
       markDirty();
+      offerPublicStart();
     });
     document.querySelectorAll(".mode-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1144,7 +1185,7 @@
     if (!window.TB.gmapsKey || !window.TB.mapId) {
       document.body.insertAdjacentHTML(
         "afterbegin",
-        '<div class="tb-banner">Maps are not configured — set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
+        '<div class="tb-banner">Maps are not configured—set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
       );
       return;
     }

@@ -13,12 +13,27 @@
   if (!form) return;
 
   const token = (window.TB && window.TB.token) || "";
-  const status = document.getElementById("geocode-status");
-  const latEl = document.getElementById("f-homeLat");
-  const lngEl = document.getElementById("f-homeLng");
-  const parts = ["addressLine", "city", "state", "postalCode"].map((n) => document.getElementById("f-" + n));
+  if (!token) return;
 
-  if (!token || !status || !latEl || !lngEl || parts.some((el) => !el)) return;
+  // Two addresses now: home, and the public starting point a shared ride begins
+  // from instead. They geocode identically, so the whole thing is a factory
+  // rather than two copies that drift.
+  const BLOCKS = [
+    { fields: ["addressLine", "city", "state", "postalCode"], lat: "f-homeLat", lng: "f-homeLng", status: "geocode-status" },
+    {
+      fields: ["startAddressLine", "startCity", "startState", "startPostalCode"],
+      lat: "f-startLat",
+      lng: "f-startLng",
+      status: "start-geocode-status",
+    },
+  ];
+
+  function wire(block) {
+  const status = document.getElementById(block.status);
+  const latEl = document.getElementById(block.lat);
+  const lngEl = document.getElementById(block.lng);
+  const parts = block.fields.map((n) => document.getElementById("f-" + n));
+  if (!status || !latEl || !lngEl || parts.some((el) => !el)) return;
 
   // The address the current coordinates belong to. Lets an untouched form keep
   // the saved coordinates instead of re-fetching them on every page load.
@@ -99,4 +114,7 @@
   form.addEventListener("submit", function () {
     clearTimeout(timer);
   });
+  }
+
+  BLOCKS.forEach(wire);
 })();
