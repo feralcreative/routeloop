@@ -92,25 +92,46 @@
 }
 
 #info-panel {
+  // The three numbers this panel is built from, stated once.
+  //
+  // --panel-width is the fix for the panel resizing on every edit. It used to be
+  // `width: auto !important`, which is shrink-to-fit over max-content, so a long
+  // stop name or the multi-day totals line growing to two moved the right edge
+  // while the rider typed. (Day ticks look like they would too, but they are
+  // absolutely positioned and so contribute nothing to intrinsic width.)
+  //
+  // 380px was checked in the browser rather than derived: it is the narrowest
+  // round number at which .day-times still lays its two datetime fields on one
+  // row, and it leaves most of the map visible. Below roughly 390 they wrap,
+  // which is stable but taller.
+  //
+  // --panel-top-clearance reserves room for the floating header. Measured at
+  // 1440x900 the header's bottom edge sits at 109px — a 92px logo between two
+  // 0.6rem pads, on a map page where the root font is 14px — so 120px clears it
+  // with 11px to spare.
+  --panel-inset: 2vw;
+  --panel-width: 380px;
+  --panel-top-clearance: 120px;
+
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
-  flex: 0 0 auto !important;
-  align-self: flex-start !important;
   position: fixed;
   z-index: 1000;
-  bottom: 2vw;
-  left: 2vw;
+  bottom: var(--panel-inset);
+  left: var(--panel-inset);
   box-shadow: 0 2px 12px $panel-shadow;
   box-sizing: border-box;
-  width: auto !important;
-  min-width: 0;
-  max-width: calc(95vw - 50px);
+  width: var(--panel-width);
+  max-width: calc(100vw - var(--panel-inset) * 2);
   min-height: 42px;
-  max-height: 90vh;
+  // Anchored bottom-left and growing upward, so the top edge sits at
+  // 100vh - inset - height. The inset therefore has to come out of the budget
+  // alongside the clearance, or the top lands under the logo by exactly that
+  // much — 2vw is ~29px at a 1440px viewport, which is most of the margin.
+  max-height: calc(100vh - var(--panel-top-clearance) - var(--panel-inset));
   padding: 18px 18px 14px 18px;
-  transition: max-width 0.5s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
   background: $panel-bg;
   border-radius: 12px;
 
@@ -195,10 +216,23 @@
     width: auto !important;
   }
 
+  // The scroller, rather than #info-panel itself: .collapse-toggle is absolutely
+  // positioned against the panel, so if the panel scrolled the close button
+  // would slide away with the content. Scrolling here keeps the title and the
+  // toggle put.
   .panel-contents-wrapper {
     pointer-events: auto;
     visibility: visible;
     opacity: 1;
+    // Load-bearing, and the reason a bare `overflow-y: auto` here does nothing:
+    // a flex item will not shrink below its content without it, so the wrapper
+    // would stay full height and the panel's max-height would clip instead of
+    // scroll.
+    min-height: 0;
+    overflow-y: auto;
+    // Without this, scrolling past the end of the list chains to the map behind
+    // and zooms it.
+    overscroll-behavior: contain;
     transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), visibility 0.4s cubic-bezier(0.77, 0, 0.175, 1);
   }
 
@@ -379,10 +413,8 @@ table.route-table {
 }
 
 .panel-content {
-  will-change: opacity, max-height;
   opacity: 1;
-  max-height: 2000px;
-  transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), max-height 0.5s cubic-bezier(0.77, 0, 0.175, 1);
+  transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 // Trip timeline (unified viewer + builder)

@@ -978,9 +978,44 @@
 
   let searchTimer = null;
   let searchSeq = 0;
+
+  // #search-results is `position: fixed` so it can escape the panel's scroll
+  // box, which means its coordinates are this function's job rather than the
+  // stylesheet's. Sized to the field, opening downward unless the bottom of the
+  // viewport is closer than the list is tall, in which case it flips above.
+  function placeResults(input, results) {
+    const f = input.getBoundingClientRect();
+    const GAP = 2;
+    results.style.left = f.left + "px";
+    results.style.width = f.width + "px";
+
+    // Measure the list where it will actually sit, so a flip decision is made
+    // against its real height rather than its max-height.
+    results.style.top = f.bottom + GAP + "px";
+    results.style.bottom = "auto";
+    const h = results.getBoundingClientRect().height;
+
+    if (f.bottom + GAP + h > window.innerHeight && f.top - GAP - h > 0) {
+      results.style.top = "auto";
+      results.style.bottom = window.innerHeight - f.top + GAP + "px";
+    }
+  }
+
   function wireSearch() {
     const input = $("search");
     const results = $("search-results");
+
+    // A fixed dropdown does not travel with the field, so anything that moves
+    // the field dismisses it rather than leaving it stranded. Scrolling the
+    // panel is the case that actually happens; the map page itself never
+    // scrolls, so a resize is the only other way the field moves.
+    const wrapper = document.querySelector(".panel-contents-wrapper");
+    const dismiss = () => {
+      if (!results.hidden) results.hidden = true;
+    };
+    if (wrapper) wrapper.addEventListener("scroll", dismiss, { passive: true });
+    window.addEventListener("resize", dismiss);
+
     input.addEventListener("input", () => {
       clearTimeout(searchTimer);
       const q = input.value.trim();
@@ -1003,6 +1038,7 @@
             )
             .join("");
           results.hidden = hits.length === 0;
+          if (!results.hidden) placeResults(input, results);
           results.querySelectorAll("li").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills

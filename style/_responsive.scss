@@ -2,10 +2,6 @@
 
 //@ MD >768px
 @media (min-width: 768px) {
-  #info-panel {
-    max-width: 550px;
-  }
-
   table.route-table {
     table.route-table:has(.route-label:hover) .route-label {
       opacity: 0.3;

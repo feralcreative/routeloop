@@ -174,6 +174,13 @@
   // Controls for the one day edits land on, which is the focused day, or the
   // last day while the slider sits on "all".
   .day-head {
+    // builder.js hides this for a single untitled day, but the `display` below
+    // outranks the UA sheet's `[hidden] { display: none }`, so without the
+    // explicit rule it never actually hid. Same trap as .row-roles.
+    &[hidden] {
+      display: none;
+    }
+
     display: flex;
     align-items: center;
     gap: 0.4em;
@@ -252,12 +259,22 @@
     #search {
       width: 100%;
     }
+    // Fixed, not absolute, and positioned from JS — see placeResults() in
+    // builder.js. Absolute made this a descendant of the panel's scroll box, so
+    // the moment .panel-contents-wrapper gained overflow the dropdown was
+    // clipped at the panel's bottom edge: three visible rows out of eight, on
+    // the control used to add every stop. Fixed escapes the clip because nothing
+    // in the chain establishes a containing block for it.
+    //
+    // The cost is that JS owns left/top/width and has to keep them current,
+    // which is why the panel scrolling closes the dropdown rather than trying to
+    // track it.
     #search-results {
-      position: absolute;
+      position: fixed;
       z-index: 20;
-      left: 0;
-      right: 0;
-      top: 100%;
+      // JS sets width from the field's border box, so this has to measure the
+      // same way or the 1px border either side makes the list 2px wider.
+      box-sizing: border-box;
       margin: 2px 0 0;
       padding: 0;
       list-style: none;
@@ -267,6 +284,9 @@
       box-shadow: 0 4px 12px $panel-shadow;
       max-height: 240px;
       overflow-y: auto;
+      // Otherwise scrolling past the last result chains into the panel, and the
+      // panel scrolling is what closes this list.
+      overscroll-behavior: contain;
       li {
         padding: 0.45em 0.6em;
         cursor: pointer;
