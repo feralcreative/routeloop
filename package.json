@@ -11,7 +11,9 @@
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",
     "sass:watch": "sass --watch style/main.scss public/style/main.min.css",
     "fix:dashes": "node utils/tighten-em-dashes.mjs --write",
-    "check:dashes": "node utils/tighten-em-dashes.mjs --check"
+    "check:dashes": "node utils/tighten-em-dashes.mjs --check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -31,6 +33,7 @@
     "drizzle-kit": "^0.31.10",
     "sass": "^1.83.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }
