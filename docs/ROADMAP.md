@@ -65,13 +65,13 @@ The two big migrations (auth and maps) are deployed; what remains of them is cle
 - [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
 - [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
 - [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
-- [ ] Regenerate the favicons and social image from the current TankBag mark (they still carry the old routeloop artwork).
+- [x] Regenerate the favicons and social image from the current TankBag mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [ ] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill.
 
 **Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.ts`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
-**Status.** nearly done. Mapbox is retired, the two viewer shells are one, and the legal pages shipped. What remains is not code: the favicons need the generator and the source artwork, the Cloudflare Access policy is removed at the edge, and the quota caps are set in the GCP console.
+**Status.** code complete. Mapbox is retired, the two viewer shells are one, the legal pages shipped and the favicons were regenerated on 2026-07-31. What remains is console work: remove the Cloudflare Access policy at the edge, and set the per-API quota caps on the GCP project.
 
 ### 2. The trip timeline
 
@@ -304,7 +304,6 @@ One wording correction that falls out of this: the vision above says TankBag is 
 
 Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These map directly to _good first issue_ labels.
 
-- **Regenerate favicons and the social image** from the current TankBag mark (item 1). Pure asset work; no app logic.
 - **Add privacy and terms pages** (item 1). Two static pages through the existing `page()` shell.
 - **Align the day-slider tick labels** to the thumb positions in the builder (a known cosmetic nit in STATUS.md).
 - **`profile.js` geocoding → server proxy** (item 1). A self-contained endpoint modeled on `POST /api/route`, plus a small client change.
