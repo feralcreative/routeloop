@@ -234,7 +234,9 @@
     // Without this, scrolling past the end of the list chains to the map behind
     // and zooms it.
     overscroll-behavior: contain;
-    transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1), visibility 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+    transition:
+      opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1),
+      visibility 0.4s cubic-bezier(0.77, 0, 0.175, 1);
   }
 
   &.collapsed {
@@ -353,7 +355,9 @@ table.route-table {
       align-items: center;
       width: 30%;
       padding: 0 0.5em;
-      transition: background 0.2s, border 0.2s;
+      transition:
+        background 0.2s,
+        border 0.2s;
       cursor: pointer;
       border: 1px solid $grey;
       border-radius: 5px;
@@ -444,8 +448,9 @@ table.route-table {
 // never the only explanation of what changed.
 .time-readout {
   padding-top: 0.25em;
+  padding-bottom: 1em;
   min-height: 1.2em;
-  font-size: 0.7em;
+  font-size: 0.8em;
   color: $text;
   opacity: 0.8;
 }
