@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // Google Maps overrides (imported rides still render on Google until Phase 4).
@@ -319,7 +320,7 @@ table.route-table {
   // Ensure hover/focus effect always applies to div.route-label
   .route-label:hover,
   .route-label:focus {
-    background: var(--route-color-bg, lighten($url, 43%));
+    background: var(--route-color-bg, color.adjust($url, $lightness: 43%));
   }
 
   // Route table line icon
@@ -373,11 +374,11 @@ table.route-table {
       }
       &.btn.gpx-btn {
         background: $gpx;
-        border-color: darken($gpx, 20%);
+        border-color: color.adjust($gpx, $lightness: -20%);
         color: $white;
         &:hover {
-          background: darken($gpx, 15%);
-          border-color: darken($gpx, 20%);
+          background: color.adjust($gpx, $lightness: -15%);
+          border-color: color.adjust($gpx, $lightness: -20%);
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
@@ -385,11 +386,11 @@ table.route-table {
       }
       &.btn.kml-btn {
         background-color: $kml;
-        border-color: darken($kml, 20%);
+        border-color: color.adjust($kml, $lightness: -20%);
         color: $white;
         &:hover {
-          background: darken($kml, 10%);
-          border-color: darken($kml, 20%);
+          background: color.adjust($kml, $lightness: -10%);
+          border-color: color.adjust($kml, $lightness: -20%);
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
@@ -397,11 +398,11 @@ table.route-table {
       }
       &.btn.url-btn {
         background-color: $url;
-        border-color: darken($url, 20%);
+        border-color: color.adjust($url, $lightness: -20%);
         color: $white;
         &:hover {
-          background: darken($url, 10%);
-          border-color: darken($url, 20%);
+          background: color.adjust($url, $lightness: -10%);
+          border-color: color.adjust($url, $lightness: -20%);
         }
         &::before {
           content: "";
@@ -554,7 +555,7 @@ table.route-table {
   font-weight: 700;
   font-size: 0.85em;
   &:hover {
-    background: darken($grey, 8%);
+    background: color.adjust($grey, $lightness: -8%);
   }
 }
 
@@ -595,9 +596,9 @@ table.route-table {
   font-weight: 700;
   font-size: 0.9em;
 
-  // brightness() rather than darken(): the latter is deprecated and slated for
-  // removal in Dart Sass 3.0, and this file already carries two calls that will
-  // need migrating. No reason to add a third.
+  // brightness() rather than a Sass colour function: the button's background is
+  // whatever --route-color happens to be at runtime, so there is no compile-time
+  // value to adjust in the first place.
   &:hover {
     filter: brightness(0.92);
   }

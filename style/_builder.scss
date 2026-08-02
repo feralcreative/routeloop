@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // Builder
@@ -294,7 +295,7 @@
           background: rgba(0, 0, 0, 0.05);
         }
         .hit-ctx {
-          color: lighten($text, 35%);
+          color: color.adjust($text, $lightness: 35%);
           font-size: 0.85em;
         }
       }
@@ -330,7 +331,7 @@
     padding: 0;
 
     .empty-hint {
-      color: lighten($text, 35%);
+      color: color.adjust($text, $lightness: 35%);
       padding: 0.5em 0;
     }
 
@@ -350,7 +351,7 @@
       flex: 0 0 1.5em;
       text-align: center;
       font-weight: 700;
-      color: lighten($text, 25%);
+      color: color.adjust($text, $lightness: 25%);
       &.poi-dot::before {
         content: "◦";
       }
@@ -388,7 +389,7 @@
         border: 0;
         background: none;
         cursor: pointer;
-        color: lighten($text, 25%);
+        color: color.adjust($text, $lightness: 25%);
         padding: 0.2em 0.3em;
         &:hover {
           color: $text;
@@ -470,7 +471,7 @@
     }
     .save-status {
       font-size: 0.9em;
-      color: lighten($text, 25%);
+      color: color.adjust($text, $lightness: 25%);
     }
   }
 }
