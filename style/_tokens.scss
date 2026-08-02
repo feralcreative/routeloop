@@ -19,6 +19,11 @@ $font: lato;
 // link color — so new work should reach for `$brand`.
 $brand: $url;
 
+// Google Blue, for the sign-in button's hover and focus edge. Sourced from
+// Google's own brand palette rather than picked by eye, because it sits beside
+// their mark and an approximation reads as a knock-off.
+$google-blue: #4285f4;
+
 // Chosen as the only accent legible over the sign-in clip. It used to be lifted
 // from the routeloop wordmark; the tankbag artwork carries no yellow, so this is
 // now a standalone accent. The mark's own accents are #cc2000 and #009245 if the

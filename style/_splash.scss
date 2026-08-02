@@ -11,6 +11,7 @@
 .splash {
   position: relative; // lifts the copy above the fixed video layer
   z-index: 1;
+  --control-width: 320px;
   padding: clamp(2rem, 9vh, 7rem) 0;
 
   h1 {
@@ -21,10 +22,22 @@
   }
 }
 
+// One column width for every stacked control on a splash page, stated once and
+// shared by the sign-in stack and the holding page's links. The two sign-in
+// controls are supposed to measure the same and did not: both declared
+// max-width: 320px, but .provider is content-box with 16px of padding and a 1px
+// border either side, so it rendered 354px against the form's 320px. Everything
+// reading this sets border-box, so the number means the same thing to all of it.
 .splash-logo {
   display: block;
   width: 100%;
-  max-width: 180px;
+  // The horizontal mark is 1456x426 (~3.4:1) against the vertical one's
+  // 871x618 (~1.4:1), so these widths are not the old ones nudged. They are
+  // picked so the mark lands on the same *height* the vertical one had —
+  // 420px wide is 123px tall, against the vertical's 128px at 180px wide —
+  // because height is what reads as the logo's weight beside the headline.
+  // Both breakpoints below hold the same ratio.
+  max-width: 420px;
   height: auto;
   margin-bottom: 1.5rem;
 }
@@ -43,13 +56,18 @@
 }
 
 .providers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
   margin: 2rem 0 1rem;
 }
 
 .provider {
   display: block;
-  max-width: 320px;
-  margin-bottom: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--control-width);
   padding: 0.85rem 1rem;
   text-align: center;
   background: $white;
@@ -64,6 +82,30 @@
   }
 }
 
+// Squared off against the rounded email controls above it, so the two ways in
+// never read as the same control twice. The colour comes from Google's mark and
+// the hover edge rather than a fill: the email submit is the page's only filled
+// primary, and a second one would make the choice look weightier than it is.
+.provider-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 0;
+  // The hover edge lives in the body.splash-page block, not here — see the
+  // comment there for why it cannot work from this rule.
+}
+
+// Google's brand terms forbid recolouring, distorting or rebuilding the mark.
+// Height is set and width left auto for that reason — the artwork is 268x274,
+// so forcing it into an 18px square would squash it by 2%, which is small
+// enough to ship by accident and still a breach.
+.provider-mark {
+  flex: none;
+  height: 18px;
+  width: auto;
+}
+
 .note {
   color: #999;
   font-size: 0.9em;
@@ -73,18 +115,23 @@
 // Signing in and signing up are the same request; only the framing differs, so
 // the secondary line is explanatory text rather than a second button.
 .provider-alt {
-  max-width: 320px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--control-width);
   margin: 0;
   text-align: center;
   font-size: 0.92rem;
 }
 
-// The magic-link form sits under the Google button as the second way in.
+// The magic-link form leads: it is the way in that works without handing an
+// address to Google first.
 .magic-form {
   display: flex;
+  box-sizing: border-box;
   gap: 0.5rem;
-  max-width: 320px;
-  margin: 0 0 1rem;
+  width: 100%;
+  max-width: var(--control-width);
+  margin: 0;
 
   input {
     flex: 1;
@@ -119,15 +166,91 @@
   border: 0;
 }
 
+// The name-yourself step. Shares the sign-in column width so the page reads as
+// the same stack of controls the rider just came from.
+.name-form {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: var(--control-width);
+  margin: 1.5rem 0 1rem;
+
+  .btn {
+    width: 100%;
+  }
+}
+
+.name-field {
+  display: grid;
+  gap: 0.3rem;
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.85rem 0.9rem;
+    font: inherit;
+    color: $text;
+    background: $white;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+    &:focus-visible {
+      outline: 2px solid $accent;
+      outline-offset: 2px;
+    }
+
+    &[aria-invalid="true"] {
+      border-color: $kml;
+    }
+  }
+}
+
+.name-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+// Carries the field hint normally and its error when there is one, so a
+// validation message never adds a line and reflows the page under the rider.
+.name-hint {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
 // The pending-approval holding page.
+// Buttons rather than a row of bare links. Deliberately the .provider treatment
+// rather than the .modal-links one, even though these are the same three
+// destinations the alpha modal offers: that modal is a white panel where a grey
+// fill reads as a button, and this page is a dark video where it would not.
+// Consistency follows the surface, not the destination.
 .welcome-links {
   list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: var(--control-width);
   margin: 0 0 1.5rem;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  font-weight: 700;
+
+  a {
+    display: block;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: 700;
+    text-decoration: none;
+    color: $text;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 8px;
+
+    &:hover,
+    &:focus-visible {
+      border-color: #bbb;
+    }
+  }
 }
 
 // --- The video layer -------------------------------------------------------
@@ -160,6 +283,44 @@
 // column and a shallow bottom vignette, both clearing to fully transparent so
 // the right two-thirds of the frame stays the actual footage. Legibility is
 // carried by the text-shadows below rather than by darkening the whole clip.
+// Sits above both the clip (z-index 0) and the copy (z-index 1). It is appended
+// to <body> by site.js rather than written into the markup: without JS the clip
+// never loads at all, so a control in the HTML would be a button that does
+// nothing on exactly the pages where nothing is playing.
+.video-toggle {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: $white;
+  background: rgba(6, 10, 12, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+
+  svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: currentColor;
+  }
+
+  &:hover {
+    background: rgba(6, 10, 12, 0.68);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
 .splash-media::after {
   content: "";
   position: absolute;
@@ -239,14 +400,35 @@ body.splash-page {
     color: rgba(255, 255, 255, 0.78);
   }
 
-  .provider {
+  // Both are white buttons sitting on footage: the border disappears and a
+  // shadow does the lifting instead.
+  .provider,
+  .welcome-links a {
     border-color: transparent;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       border-color: transparent;
       background: #f4f4f4;
     }
+  }
+
+  // The one exception, and it has to live here rather than beside the rest of
+  // .provider-google: `body.splash-page .provider:hover` is (0,3,1) and a bare
+  // `.provider-google:hover` is (0,2,1), so the Google-blue edge declared there
+  // would simply never appear.
+  .provider-google:hover,
+  .provider-google:focus-visible {
+    border-color: $google-blue;
+  }
+
+  .name-label,
+  .name-hint {
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow:
+      0 1px 2px rgba(6, 10, 12, 0.6),
+      0 1px 16px rgba(6, 10, 12, 0.55);
   }
 
   .provider-alt {
@@ -255,10 +437,6 @@ body.splash-page {
     a {
       color: $accent;
     }
-  }
-
-  .welcome-links a {
-    color: $accent;
   }
 
   // .notice comes from _forms.scss as a solid block, so it stays legible over
@@ -280,7 +458,45 @@ body.splash-page {
 //@ XS <576px — the copy spans the full width here, so the horizontal ramp stops
 // helping and the pass runs top-to-bottom instead.
 @media (max-width: 575px) {
-  .splash-media::after {
+  // Sits above both the clip (z-index 0) and the copy (z-index 1). It is appended
+// to <body> by site.js rather than written into the markup: without JS the clip
+// never loads at all, so a control in the HTML would be a button that does
+// nothing on exactly the pages where nothing is playing.
+.video-toggle {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: $white;
+  background: rgba(6, 10, 12, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+
+  svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: currentColor;
+  }
+
+  &:hover {
+    background: rgba(6, 10, 12, 0.68);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+.splash-media::after {
     background: linear-gradient(to top, rgba(6, 10, 12, 0.5) 0%, rgba(6, 10, 12, 0.18) 55%, rgba(6, 10, 12, 0.42) 100%);
   }
 }
@@ -294,7 +510,11 @@ body.splash-page {
 //@ Short viewports — laptop windows and landscape tablets
 @media (max-height: 760px) {
   .splash-logo {
-    max-width: 150px;
+    max-width: 350px;
+    // The taller mark spends the slack this layout had at ~700px high, and the
+    // page is meant not to scroll. Buying the 2px back from the gap under the
+    // logo rather than from its width, which is the thing being asked for.
+    margin-bottom: 1.25rem;
   }
 
   .splash h1 {
@@ -311,7 +531,7 @@ body.splash-page {
   }
 
   .splash-logo {
-    max-width: 120px;
+    max-width: 280px;
     margin-bottom: 0.75rem;
   }
 

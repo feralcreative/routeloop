@@ -225,6 +225,23 @@ mapsRoutes.post(
 
 // Owner-scoped lookup: someone else's ride id (or an unknown one) is a plain
 // 404 — never confirm that the ride exists.
+// Who may edit a ride. Ownership today; shared and invited editing is #32, and
+// this is the one place that has to change when it lands — the viewer's button
+// and the builder's gate must never disagree about the answer, or the app
+// offers an action it then refuses.
+//
+// Imported rides are excluded because the builder genuinely cannot open one yet:
+// the /builder/:id route answers 409 for them. Offering the button there would
+// be a link straight to an error page.
+export function canEditRide(
+  ride: { ownerId: number; source: string },
+  viewer: { id: number; status: string } | null,
+): boolean {
+  if (!viewer || viewer.status !== 'active') return false
+  if (ride.source !== 'native') return false
+  return ride.ownerId === viewer.id
+}
+
 export async function ownRide(userId: number, idParam: string) {
   const id = Number(idParam)
   if (!Number.isInteger(id) || id <= 0) return undefined

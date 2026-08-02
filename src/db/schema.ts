@@ -58,6 +58,17 @@ export const users = pgTable(
     email: varchar('email', { length: 255 }).unique(),
     displayName: varchar('display_name', { length: 255 }).notNull(),
     username: varchar('username', { length: 30 }), // null until the rider picks one
+    // The rider's stable public handle: `{first-username}-{YYMMDDTHHMMZ}`, e.g.
+    // `ziad-260801T2220Z`. Written once, when a username is first chosen, and
+    // never again — a later username change deliberately does not touch it, so
+    // anything that has ever referred to this rider keeps resolving.
+    //
+    // Not a UUID and not named one. It is derived, so it cannot exist before
+    // the username does, which is why this is nullable: rows created before the
+    // signup prompt get theirs on the rider's next visit. Uniqueness holds by
+    // construction — usernames are unique at any instant, so a name plus the
+    // minute it was claimed cannot collide.
+    publicId: varchar('public_id', { length: 64 }).unique(),
     avatarUrl: varchar('avatar_url', { length: 512 }),
     // Defaulting to 'active' is load-bearing, not an oversight: drizzle-kit push
     // stamps the default onto every existing row, so a 'pending' default would
@@ -111,6 +122,35 @@ export const userProfiles = pgTable('user_profiles', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// Every username a rider has held, current one included. Two jobs: showing them
+// their own history, and keeping a released name out of anyone else's hands for
+// a cooling-off period so a change of mind is recoverable.
+//
+// The window cannot be an index — "unavailable unless you are the rider who
+// released it" is not something a unique constraint can express — so it is an
+// application check, and uq_username_lower on users remains the hard guard
+// against two riders holding the same name at once.
+export const usernameHistory = pgTable(
+  'username_history',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    username: varchar('username', { length: 30 }).notNull(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+    // Null means this is the name the rider holds right now. Set on the way out,
+    // and the cooling-off window is measured from it.
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('idx_username_history_user').on(t.userId),
+    // The availability check looks a name up case-insensitively, matching how
+    // uq_username_lower treats them: "Ziad" and "ziad" are the same handle.
+    index('idx_username_history_name').on(sql`lower(${t.username})`),
+  ],
+)
 
 // One user may retain legacy OAuth identities alongside Cloudflare Access.
 export const userIdentities = pgTable(
@@ -279,6 +319,7 @@ export const routeLegs = pgTable(
 
 export type UserRow = typeof users.$inferSelect
 export type UserProfileRow = typeof userProfiles.$inferSelect
+export type UsernameHistoryRow = typeof usernameHistory.$inferSelect
 export type LoginTokenRow = typeof loginTokens.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
 export type RideRow = typeof rides.$inferSelect

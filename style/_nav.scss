@@ -8,7 +8,13 @@
   align-items: center;
   gap: 1rem;
   max-width: 960px;
-  margin: 0 auto 2rem;
+  // The horizontal padding is 2rem to match .page-wrap, and that matters: both
+  // are content-box at max-width 960, so the logo and the content below it line
+  // up only while the two paddings agree. Adding top padding alone would have
+  // shifted the logo 32px left of everything under it. The map variant resets
+  // all of this — see html.map-page.
+  margin: 0 auto 1.5rem;
+  padding: 1.5rem 2rem 0;
   position: relative;
 }
 
@@ -176,18 +182,18 @@ html.map-page {
     pointer-events: auto;
   }
 
-  // The light-variant artwork is black on transparent, so it needs a light
-  // backing to stay legible over outdoors and satellite tiles. Swapping to
-  // logo-tankbag-horiz-dark.svg here instead would drop the backing, but the
-  // mark would then vanish over pale terrain — the backing is the safer default.
+  // The mark sits bare on the map — no backing panel, no shadow, no glow.
   .site-logo {
-    padding: 0.35rem 0.6rem;
-    background: $panel-bg;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px $panel-shadow;
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
 
+    // The stacked mark, and deliberately much taller than the 30px the
+    // horizontal lockup used here: most of its height is the bag icon sitting
+    // above the wordmark, so the word needs the extra to stay readable.
     img {
-      height: 30px;
+      height: 92px;
     }
   }
 

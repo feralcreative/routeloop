@@ -13,30 +13,11 @@ import { MAPBOX_TOKEN } from '../config'
 import { sanitizeText } from '../maps/kml'
 import { esc, page } from '../views/layout'
 import { asset } from '../views/assets'
+import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAYS } from '../auth/username'
+import { usernameSchema } from '../auth/username'
+import type { UsernameHistoryRow } from '../db/schema'
 
 export const profileRoutes = new Hono<AuthEnv>()
-
-// Reserved because a username is the natural basis for a future public profile
-// URL, and because the rider-list lookup will accept usernames. Claiming "api"
-// or "builder" now would poison that later.
-const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
-  'admin',
-  'api',
-  'builder',
-  'dashboard',
-  'favicon',
-  'img',
-  'js',
-  'login',
-  'logout',
-  'm',
-  'places',
-  'profile',
-  'static',
-  'style',
-  'video',
-  'welcome',
-])
 
 // Same shape as `fields` in routes/maps.ts. A browser submits every text input
 // even when empty, but an absent field must mean "empty" rather than a 400 —
@@ -45,18 +26,9 @@ const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
 const optionalText = (max: number) => z.string().trim().max(max).default('')
 
 const profileFields = {
-  username: z
-    .union([
-      z.literal(''),
-      z
-        .string()
-        .trim()
-        .min(3, 'username must be at least 3 characters')
-        .max(30, 'username must be 30 characters or fewer')
-        .regex(/^[a-zA-Z0-9_]+$/, 'username may use only letters, numbers and underscores')
-        .refine((v) => !RESERVED_USERNAMES.has(v.toLowerCase()), 'that username is reserved'),
-    ])
-    .default(''),
+  // Rules live in auth/username.ts: the signup prompt applies the same ones, and
+  // two copies of the reserved list would drift.
+  username: z.union([z.literal(''), usernameSchema]).default(''),
   displayName: z.string().trim().min(1, 'display name is required').max(255),
   firstName: optionalText(80),
   lastName: optionalText(80),
@@ -121,6 +93,9 @@ type RenderArgs = {
   values: Record<string, unknown>
   errors?: FieldErrors
   saved?: boolean
+  // Absent on the error paths, which re-render from submitted values without
+  // another round trip. The block simply does not draw.
+  history?: UsernameHistoryRow[]
 }
 
 function field(o: {
@@ -153,7 +128,29 @@ function check(o: { name: string; label: string; values: Record<string, unknown>
   </label>`
 }
 
-function renderProfile({ user, values, errors, saved }: RenderArgs): string {
+// Previously held names, newest first, with anything still inside its window
+// saying when it frees up — that date is the only reason the hold exists, so
+// showing the list without it would be showing the wrong half.
+function historyBlock(rows: UsernameHistoryRow[]): string {
+  if (rows.length < 2) return '' // nothing to show a rider who has only ever had one
+  const now = Date.now()
+  const day = (d: Date) => d.toISOString().slice(0, 10)
+  const items = rows
+    .filter((r) => r.releasedAt)
+    .map((r) => {
+      const until = new Date(r.releasedAt!.getTime() + USERNAME_HOLD_DAYS * 86400000)
+      const held = until.getTime() > now
+      return `<li><span class="handle">@${esc(r.username)}</span> <span class="handle-dates">${esc(day(r.claimedAt))} – ${esc(day(r.releasedAt!))}${held ? ` · yours to reclaim until ${esc(day(until))}` : ''}</span></li>`
+    })
+    .join('')
+  if (!items) return ''
+  return `<div class="handle-history">
+        <p class="field-hint">Names you have used before. A name you release is held for ${USERNAME_HOLD_DAYS} days, so nobody else can take it while you think it over.</p>
+        <ul>${items}</ul>
+      </div>`
+}
+
+function renderProfile({ user, values, errors, saved, history }: RenderArgs): string {
   const v = values
   const body = `<h1>Your profile</h1>
     ${saved ? '<p class="notice">Profile saved.</p>' : ''}
@@ -163,7 +160,8 @@ function renderProfile({ user, values, errors, saved }: RenderArgs): string {
       <fieldset>
         <legend>Who you are</legend>
         ${field({ name: 'displayName', label: 'Display name', values: v, errors, autocomplete: 'nickname' })}
-        ${field({ name: 'username', label: 'Username', values: v, errors, hint: 'Letters, numbers and underscores. Leave blank to skip.' })}
+        ${field({ name: 'username', label: 'Username', values: v, errors, hint: `Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.` })}
+        ${historyBlock(history ?? [])}
         ${field({ name: 'firstName', label: 'First name', values: v, errors, autocomplete: 'given-name' })}
         ${field({ name: 'lastName', label: 'Last name', values: v, errors, autocomplete: 'family-name' })}
         ${check({ name: 'shareLastName', label: 'Show my last name to other riders', values: v })}
@@ -231,6 +229,7 @@ profileRoutes.get('/profile', requireActive, async (c) => {
       user,
       saved: c.req.query('saved') === '1',
       values: { ...profile, username: user.username ?? '', displayName: user.displayName },
+      history: await usernameHistoryFor(user.id),
     }),
   )
 })
@@ -250,20 +249,22 @@ profileRoutes.post('/profile', requireActive, async (c) => {
   const text = (s: string) => sanitizeText(s) || null
   const username = p.username ? sanitizeText(p.username) : null
 
+  // Only a real change goes through the claim path: re-saving the form with the
+  // same name must not release and re-take it, which would reset the hold and
+  // litter the history with a row per save.
+  const changing = username !== null && username.toLowerCase() !== (user.username ?? '').toLowerCase()
+
   // Checked before the write so the rider gets a field error instead of a 500
   // from uq_username_lower. Still racy under simultaneous signups, which is why
-  // the insert below is also wrapped — the index stays the real authority.
-  if (username) {
-    const [clash] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(sql`lower(${users.username}) = lower(${username}) and ${ne(users.id, user.id)}`)
-      .limit(1)
-    if (clash) {
-      return c.html(
-        renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }),
-        400,
-      )
+  // the write below is also wrapped — the index stays the real authority.
+  if (changing) {
+    const free = await checkAvailability(username, user.id)
+    if (!free.ok) {
+      const message =
+        free.reason === 'taken'
+          ? 'that username is taken'
+          : `that username was released recently and is held until ${free.until.toISOString().slice(0, 10)}`
+      return c.html(renderProfile({ user, values: raw, errors: { username: message } }), 400)
     }
   }
 
@@ -271,8 +272,17 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     await db.transaction(async (tx) => {
       await tx
         .update(users)
-        .set({ displayName: sanitizeText(p.displayName), username, updatedAt: new Date() })
+        .set({ displayName: sanitizeText(p.displayName), updatedAt: new Date() })
         .where(eq(users.id, user.id))
+
+      // claimUsername owns the history: it closes out the outgoing name and
+      // opens the incoming one in this same transaction, so users.username and
+      // username_history can never disagree. Clearing the field is deliberately
+      // not a claim — there is nothing to record and nothing to hold.
+      if (changing) await claimUsername(tx, user, username)
+      else if (username === null && user.username) {
+        await tx.update(users).set({ username: null }).where(eq(users.id, user.id))
+      }
 
       const profile = {
         firstName: text(p.firstName),

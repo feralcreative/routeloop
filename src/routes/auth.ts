@@ -17,6 +17,12 @@ import {
   isAllowedOrigin,
 } from '../config'
 import { esc, page } from '../views/layout'
+import { db } from '../db/index'
+import { eq } from 'drizzle-orm'
+import { users } from '../db/schema'
+import { checkAvailability, claimUsername, usernameSchema } from '../auth/username'
+import { z } from 'zod'
+import { sanitizeText } from '../maps/kml'
 
 export const authRoutes = new Hono<AuthEnv>()
 
@@ -37,8 +43,15 @@ authRoutes.get('/login', (c) => {
   const notice = c.req.query('sent') === '1'
   const failed = c.req.query('error')
 
+  // The mark is decorative — the button's own text carries the meaning — so it
+  // takes an empty alt rather than repeating "Google" to a screen reader. Its
+  // intrinsic size is the file's true viewBox, not a square: the artwork is
+  // 268x274, and claiming otherwise is what makes a squashed logo.
   const googleButton = GOOGLE_ENABLED
-    ? `<a class="provider" href="/auth/google">Sign in with Google</a>`
+    ? `<a class="provider provider-google" href="/auth/google">
+         <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274">
+         <span>Sign in with Google</span>
+       </a>`
     : `<p class="note">Google sign-in is not configured.</p>`
 
   // Offered only when a sender exists — a form that always fails is worse than
@@ -59,15 +72,15 @@ authRoutes.get('/login', (c) => {
       variant: 'splash',
       body: `${SPLASH_MEDIA}
        <main class="splash">
-       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="TankBag" width="864" height="618">
+       <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="TankBag" width="1456" height="426">
        <p class="eyebrow">Plan the whole ride</p>
        <h1>Every stop. Every day. One map.</h1>
        <p class="splash-copy">Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with the group.</p>
        ${notice ? `<p class="notice">Check your email — if that address has access, a sign-in link is on its way.</p>` : ''}
        ${failed ? `<p class="notice is-error">${esc(failed === 'link' ? 'That link is invalid, already used, or expired. Request a new one.' : 'Sign-in failed. Please try again.')}</p>` : ''}
        <div class="providers">
-         ${googleButton}
          ${magicForm}
+         ${googleButton}
          <p class="provider-alt">Not a member yet? Signing in creates your account.</p>
        </div>
        </main>`,
@@ -138,10 +151,109 @@ authRoutes.get('/auth/magic/:token', async (c) => {
   }
 })
 
+// --- Choose a name ----------------------------------------------------------
+
+// Every rider names themselves; nothing is inherited from the provider they
+// signed in with. Both fields start blank on purpose — a prefilled real name is
+// the thing this page exists to avoid.
+//
+// The path has a hyphen, which is why it needs no entry in RESERVED_USERNAMES:
+// the username charset is letters, numbers and underscores, so no rider can
+// ever claim a name that shadows it.
+const nameFields = z.object({
+  username: usernameSchema,
+  displayName: z.string().trim().min(1, 'display name is required').max(255),
+})
+
+function chooseNameHtml(
+  user: { displayName: string },
+  values: { username: string; displayName: string },
+  errors: Record<string, string>,
+): string {
+  const field = (name: 'username' | 'displayName', label: string, hint: string, max: number): string => `
+       <label class="name-field">
+         <span class="name-label">${esc(label)}</span>
+         <input name="${name}" type="text" maxlength="${max}" autocomplete="off" required
+                value="${esc(values[name])}"${errors[name] ? ' aria-invalid="true"' : ''}>
+         <span class="name-hint">${esc(errors[name] || hint)}</span>
+       </label>`
+
+  return page({
+    title: 'Choose your name',
+    user: null, // the nav would otherwise show the placeholder name this page replaces
+    variant: 'splash',
+    splash: false,
+    body: `${SPLASH_MEDIA}
+       <main class="splash">
+       <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="TankBag" width="1456" height="426">
+       <p class="eyebrow">One more thing</p>
+       <h1>What should we call you?</h1>
+       <p class="splash-copy">Pick a handle and the name you want other riders to see. Both are yours to change later.</p>
+       <form class="name-form" method="post" action="/choose-name">
+         ${field('username', 'Username', 'Letters, numbers and underscores. This is your handle.', 30)}
+         ${field('displayName', 'Display name', 'Shown to other riders. Spaces are fine.', 255)}
+         <button class="btn" type="submit">Continue</button>
+       </form>
+       </main>`,
+  })
+}
+
+authRoutes.get('/choose-name', requireAuth, (c) => {
+  const user = currentUser(c)
+  if (user.username) return c.redirect('/', 302)
+  return c.html(chooseNameHtml(user, { username: '', displayName: '' }, {}))
+})
+
+authRoutes.post('/choose-name', requireAuth, async (c) => {
+  const origin = c.req.header('Origin')
+  if (origin && !isAllowedOrigin(origin)) return c.text('Bad origin', 403)
+
+  const user = currentUser(c)
+  if (user.username) return c.redirect('/', 302)
+
+  const raw = Object.fromEntries(await c.req.formData()) as Record<string, string>
+  const values = { username: String(raw.username ?? ''), displayName: String(raw.displayName ?? '') }
+  const parsed = nameFields.safeParse(values)
+  if (!parsed.success) {
+    const errors: Record<string, string> = {}
+    for (const issue of parsed.error.issues) errors[String(issue.path[0])] = issue.message
+    return c.html(chooseNameHtml(user, values, errors))
+  }
+
+  const free = await checkAvailability(parsed.data.username, user.id)
+  if (!free.ok) {
+    const message =
+      free.reason === 'taken'
+        ? 'that username is taken'
+        : `that username was recently released and is held until ${free.until.toISOString().slice(0, 10)}`
+    return c.html(chooseNameHtml(user, values, { username: message }))
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      await claimUsername(tx, user, parsed.data.username)
+      await tx
+        .update(users)
+        .set({ displayName: sanitizeText(parsed.data.displayName), updatedAt: new Date() })
+        .where(eq(users.id, user.id))
+    })
+  } catch (err) {
+    // uq_username_lower is the real guard: checkAvailability above is advisory
+    // and two riders can clear it in the same instant. Only one wins the write.
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('uq_username_lower')) {
+      return c.html(chooseNameHtml(user, values, { username: 'that username was just taken' }))
+    }
+    throw err
+  }
+  return c.redirect('/', 302)
+})
+
 // --- Holding page -----------------------------------------------------------
 
 authRoutes.get('/welcome', requireAuth, (c) => {
   const user = currentUser(c)
+  if (!user.username) return c.redirect('/choose-name', 302)
   if (user.status === 'active') return c.redirect('/', 302)
 
   const links = [
@@ -164,7 +276,7 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       splash: false,
       body: `${SPLASH_MEDIA}
        <main class="splash">
-       <img class="splash-logo" src="/img/logo-tankbag-vert-dark.svg" alt="TankBag" width="864" height="618">
+       <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="TankBag" width="1456" height="426">
        <p class="eyebrow">You're on the list</p>
        <h1>Hang tight.</h1>
        <p class="splash-copy">TankBag is in a closed alpha, so accounts are approved by hand. Yours is waiting — you'll be able to sign in and start planning once it's through.</p>
