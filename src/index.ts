@@ -22,6 +22,7 @@ import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
+import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { canEditRide } from './routes/maps'
@@ -100,6 +101,7 @@ app.route('/', adminRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
+app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
 

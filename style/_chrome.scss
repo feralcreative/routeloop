@@ -138,3 +138,92 @@ a.card {
 
 // The sign-in splash used to live here. It moved to _splash.scss when the page
 // gained its own dark, full-bleed treatment.
+
+// Site footer. Chrome pages get it inside the reading column; the splash gets
+// the links alone, over video, where a closing note would compete with the
+// sign-in controls.
+.site-footer {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid $grey;
+  font-size: 0.85rem;
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+
+  a {
+    color: $text;
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover {
+      color: $brand;
+      text-decoration: underline;
+    }
+  }
+}
+
+.site-footer-note {
+  margin: 0.5rem 0 0;
+  color: #777;
+}
+
+.site-footer.is-splash {
+  margin-top: 2rem;
+  padding-top: 0;
+  border-top: 0;
+
+  a {
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow:
+      0 1px 2px rgba(6, 10, 12, 0.6),
+      0 1px 16px rgba(6, 10, 12, 0.55);
+
+    &:hover {
+      color: $white;
+    }
+  }
+}
+
+// Long-form reading pages: FAQ, privacy, terms.
+.content-page {
+  .page-wrap {
+    max-width: 44rem; // measure, not layout width — ~75 characters a line
+  }
+
+  h2 {
+    margin-top: 2.5rem;
+  }
+
+  h3 {
+    margin-bottom: 0.35rem;
+  }
+
+  li {
+    margin-bottom: 0.35rem;
+  }
+}
+
+.lede {
+  font-size: 1.15rem;
+  color: #555;
+}
+
+.effective {
+  margin-top: -0.5rem;
+  color: #777;
+  font-size: 0.9rem;
+}
+
+// One question and its answer. The rule sits above rather than below so the
+// last one does not leave a line hanging under the page.
+.qa {
+  padding-top: 1.5rem;
+
+  + .qa {
+    border-top: 1px solid $grey;
+  }
+}

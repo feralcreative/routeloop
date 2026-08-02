@@ -9,7 +9,9 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",
-    "sass:watch": "sass --watch style/main.scss public/style/main.min.css"
+    "sass:watch": "sass --watch style/main.scss public/style/main.min.css",
+    "fix:dashes": "node utils/tighten-em-dashes.mjs --write",
+    "check:dashes": "node utils/tighten-em-dashes.mjs --check"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

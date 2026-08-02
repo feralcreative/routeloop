@@ -15,7 +15,7 @@ Two migrations drove the previous branch, `refactor/google-maps-and-auth`, which
 
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally** — credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
+| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally**—credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **engine ported and verified in a browser (2026-07-30)**. Builder, viewer and search all run on Google. Only `profile.js` geocoding and the dead Mapbox config remain |
 
 ## Renamed back to tankbag, 2026-07-29
@@ -58,7 +58,7 @@ Barstow -> Victorville, CA        Jakarta, Indonesia
 
 ## Done and committed
 
-**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover (since reverted — see below), the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
+**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover (since reverted—see below), the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
 
 **`17de208`—auth replacement.** Cloudflare Access is gone from the codebase: `src/auth/access.ts` deleted along with the `Cf-Access-Authenticated-User-Email` trust and the `DEV_AUTH_EMAIL` fallback. New modules are [identity.ts](../src/auth/identity.ts) (provider-agnostic `resolveUser`), [google.ts](../src/auth/google.ts) (Arctic OAuth, state + PKCE, rejects unverified emails), [magic.ts](../src/auth/magic.ts) (hash-only storage, single-use, 15-minute expiry, rate limited) and [mailer.ts](../src/auth/mailer.ts). Both methods are feature-flagged by omission—with no credentials the controls are not rendered rather than offered and broken.
 
@@ -111,12 +111,12 @@ Verified end to end against the live API:
 
 | Case | Result |
 | --- | --- |
-| Barstow → Victorville | 71,316 m / 3,059 s / 218 points — identical to a direct API call |
+| Barstow → Victorville | 71,316 m / 3,059 s / 218 points—identical to a direct API call |
 | Two via points | 200 |
 | No session | 401 |
 | Foreign `Origin` | 403 |
 | Malformed body | 400 |
-| Coordinates passed as `[lat, lng]` | 400 — caught by range validation, not silently routed |
+| Coordinates passed as `[lat, lng]` | 400—caught by range validation, not silently routed |
 | Unroutable pair (mid-Pacific) | 422 |
 | Server key present in `/`, `/builder`, `/login` source | 0 occurrences |
 | Cache | 256 ms cold, 5 ms warm |
@@ -184,7 +184,7 @@ The browser-side symptom is `RefererNotAllowedMapError` in the console and a map
 
 <!--| PAGE-BREAK -->
 
-## Google Cloud migrated to the tankbag project — 2026-07-30
+## Google Cloud migrated to the tankbag project—2026-07-30
 
 The Maps keys and OAuth client used to live on `routeloop-503503` (display name `routeloop`). They now live on the pre-existing **`tankbag` project (number `976935115789`)**, so the console name matches the product again. What was done, all verified:
 
@@ -403,7 +403,7 @@ gunzip -c dump.sql.gz | sed 's/\brouteloop\b/tankbag/g' \
   | /usr/local/bin/docker exec -i tankbag-db psql -U tankbag -d tankbag
 ```
 
-The old `routeloopapp_db-data` volume is left in place deliberately — do not prune it until the new stack is verified. No tunnel or DNS change is needed: all four hostnames already route to these containers.
+The old `routeloopapp_db-data` volume is left in place deliberately—do not prune it until the new stack is verified. No tunnel or DNS change is needed: all four hostnames already route to these containers.
 
 The container runs as the host uid (`APP_UID`/`APP_GID` in `deploy.config`) because the Synology ACL grants nothing to uid 1000. The symptom if that regresses: a working ride list with silently 404-ing route files.
 
