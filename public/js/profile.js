@@ -1,19 +1,17 @@
-// Resolves the home address to coordinates so the builder never has to geocode.
-// The form works fine without this: a failed or skipped lookup just leaves the
-// hidden coordinate fields empty, and the server stores the address as text.
+// Resolves both address blocks to coordinates so the builder never has to
+// geocode. The form works fine without this: a failed or skipped lookup just
+// leaves the hidden coordinate fields empty, and the server stores the address
+// as text.
 //
-// The forward-geocode call duplicates the one in builder.js — that file is a
-// closed IIFE which exports nothing, and map-common.js is the wrong home because
-// it assumes Mapbox GL is loaded, which this page has no reason to do. Worth
-// extracting into a shared helper if a third caller ever appears.
+// Goes through POST /api/geocode rather than calling a provider directly. The
+// key that may call Geocoding is IP-restricted to the server, so a browser
+// cannot use it — the same reason POST /api/route exists. This is what retired
+// the last Mapbox dependency.
 (function () {
   "use strict";
 
   const form = document.querySelector(".profile-form");
   if (!form) return;
-
-  const token = (window.TB && window.TB.token) || "";
-  if (!token) return;
 
   // Two addresses now: home, and the public starting point a shared ride begins
   // from instead. They geocode identically, so the whole thing is a factory
@@ -72,28 +70,29 @@
     status.textContent = "Looking up address…";
 
     try {
-      const url =
-        "https://api.mapbox.com/search/geocode/v6/forward?q=" +
-        encodeURIComponent(q) +
-        "&limit=1&access_token=" +
-        token;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("geocode failed: " + res.status);
-      const data = await res.json();
+      const res = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: q }),
+      });
       if (mine !== seq) return;
 
-      const hit = data && data.features && data.features[0];
-      if (!hit || !hit.geometry || !hit.geometry.coordinates) {
+      // 404 is "no match", which is a normal answer rather than a failure: the
+      // address is still saved as text and the rider is told so.
+      if (res.status === 404) {
         resolvedFor = q;
         clearCoords("Could not place that address. It will still be saved as text.");
         return;
       }
+      if (!res.ok) throw new Error("geocode failed: " + res.status);
 
-      const coords = hit.geometry.coordinates;
-      lngEl.value = String(coords[0]);
-      latEl.value = String(coords[1]);
+      const hit = await res.json();
+      if (mine !== seq) return;
+
+      lngEl.value = String(hit.lng);
+      latEl.value = String(hit.lat);
       resolvedFor = q;
-      status.textContent = "Matched: " + ((hit.properties && hit.properties.full_address) || q);
+      status.textContent = "Matched: " + (hit.label || q);
     } catch (e) {
       if (mine !== seq) return;
       resolvedFor = q;
