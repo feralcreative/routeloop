@@ -796,6 +796,19 @@
       .join("");
   }
 
+  // Mirrors faqLink() in src/views/layout.ts, for the panel markup this file
+  // builds itself rather than receiving from the server.
+  //
+  // Used once, on the twistiness label. It was briefly on the role picker too
+  // and came straight back out: .row-roles is rendered for every point row, so
+  // one link there is one link per stop — seven on a short ride, two hundred on
+  // a long one, all identical, to explain a picker that already labels all
+  // seventeen options in words. The dot-kinds link at the top of the panel
+  // covers the question that actually needs answering.
+  const faqLink = (anchor, what) =>
+    '<a class="faq-link" href="/faq#' + anchor + '" target="_blank" rel="noopener"' +
+    ' title="What is ' + esc(what) + '?" aria-label="What is ' + esc(what) + '? Opens the questions page in a new tab">?</a>';
+
   function rolePickerHtml(point) {
     return Object.keys(window.TB.roles)
       .map((r) => {
@@ -907,9 +920,9 @@
     // a number nobody plans around, where what the road is actually like is. The
     // dwell figures still drive the end times and the timeline, they are just not
     // worth a slot in a 380px panel.
-    const line = (t) =>
+    const line = (t, withLink) =>
       (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
-      (t.twist ? " · " + twistLabel(t.twist.dpm) : "");
+      (t.twist ? " · " + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
 
     // The label alone on the line; the numbers behind it on hover. "252°/mi"
     // means nothing to a rider, but it is the thing to check when the label
@@ -927,7 +940,10 @@
 
     if (state.routes.length === 1) {
       const t = routeTotals(state.routes[0]);
-      totalsEl.textContent = line(t);
+      // innerHTML, not textContent: line() now carries the twistiness "?" link.
+      // Nothing user-supplied reaches it — the mileage and the label are both
+      // computed here — so there is no injection surface.
+      totalsEl.innerHTML = line(t, true);
       totalsEl.title = twistTitle(t);
       return;
     }
@@ -969,9 +985,9 @@
     totalsEl.title = "";
     totalsEl.innerHTML =
       '<span class="totals-trip" title="' + esc(twistTitle(trip)) + '">' +
-      state.routes.length + " days · " + line(trip) + "</span>" +
+      state.routes.length + " days · " + line(trip, true) + "</span>" +
       '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
-      esc(dayLabel(editIndex())) + ": " + line(dayT) + "</span>";
+      esc(dayLabel(editIndex())) + ": " + line(dayT, false) + "</span>";
   }
 
   // Delegated events for both lists.

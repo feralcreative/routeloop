@@ -28,7 +28,7 @@ import {
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
-import { googleMapsLoader, page, panelShell } from '../views/layout'
+import { faqLink, googleMapsLoader, page, panelShell } from '../views/layout'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -524,11 +524,11 @@ function builderHtml(
               <option value="private" selected>Private</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
-            </select>
+            </select>${faqLink('visibility', 'private, unlisted and public')}
             <div class="add-mode" role="radiogroup" title="What a map click adds">
               <button type="button" class="mode-btn active" data-mode="stop">+ Stop</button>
               <button type="button" class="mode-btn" data-mode="poi">+ POI</button>
-            </div>
+            </div>${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
           </div>
         </div>
 
