@@ -112,6 +112,22 @@ export const userProfiles = pgTable('user_profiles', {
   // whenever the address did not resolve; a failed lookup must not block a save.
   homeLat: doublePrecision('home_lat'),
   homeLng: doublePrecision('home_lng'),
+  // The public starting point: where a shared ride begins instead of the
+  // rider's front door. Mirrors the home block above field for field so both
+  // geocode and edit the same way.
+  //
+  // This exists because moving the *pin* is not enough — a route seeded from
+  // home is drawn from home, and the first leg points at the house whatever the
+  // marker says. Swapping the start has to happen while planning, not while
+  // rendering, which is why this is a stored place rather than a display rule.
+  // A gas station, coffee shop or trailhead a few minutes away is the intent.
+  startLabel: varchar('start_label', { length: 120 }),
+  startAddressLine: varchar('start_address_line', { length: 255 }),
+  startCity: varchar('start_city', { length: 120 }),
+  startState: varchar('start_state', { length: 80 }),
+  startPostalCode: varchar('start_postal_code', { length: 20 }),
+  startLat: doublePrecision('start_lat'),
+  startLng: doublePrecision('start_lng'),
   shareLastName: boolean('share_last_name').notNull().default(false),
   addHomeToRides: boolean('add_home_to_rides').notNull().default(false),
   sharePaymentHandles: boolean('share_payment_handles').notNull().default(false),
