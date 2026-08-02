@@ -29,6 +29,7 @@ import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { esc, googleMapsLoader, jsonScript, page, panelShell } from './views/layout'
 import { asset } from './views/assets'
+import { rideCards, type CardRow } from './views/cards'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
@@ -372,18 +373,6 @@ function viewHtml(m: RideRow, gmapsKey: string, user: UserRow | null): string {
     src="https://maps.googleapis.com/maps/api/js?key=${esc(gmapsKey)}&v=beta&libraries=maps,geometry&callback=initMap"
     onerror="console.error('Maps API failed to load')"></script>`,
   })
-}
-
-type CardRow = { ride: RideRow; color: string | null }
-
-function rideCards(rows: CardRow[], showViews = false): string {
-  if (rows.length === 0) return '<p class="empty">No rides yet.</p>'
-  return `<ul class="cards">${rows
-    .map(
-      ({ ride: m, color }) =>
-        `<li><a class="card" href="/m/${esc(m.slug)}"><span class="swatch" style="background:${esc(color ?? '#0000cc')}"></span><span>${esc(m.title)}</span><span class="meta">${m.stopCount} stops &middot; ${Number(m.totalMiles)} mi${showViews ? ` &middot; ${m.viewCount} views` : ''}</span></a></li>`,
-    )
-    .join('')}</ul>`
 }
 
 function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {

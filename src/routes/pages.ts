@@ -10,7 +10,11 @@
 // should go back to that file.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { page } from '../views/layout'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import { db } from '../db/index'
+import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
+import { esc, page } from '../views/layout'
+import { rideCards } from '../views/cards'
 import type { AuthEnv } from '../auth/middleware'
 
 export const pageRoutes = new Hono<AuthEnv>()
@@ -259,6 +263,60 @@ const termsBody = `<h1>Terms</h1>
 
 const render = (c: Context, title: string, body: string, bodyClass: string) =>
   c.html(page({ title, user: c.get('user') ?? null, bodyClass, body }))
+
+// Public rider profile at /@handle.
+//
+// What appears here is the whole privacy decision made visible, so the rule is
+// written as one list rather than scattered through the template:
+//
+//   shown        username, display name, public rides
+//   opt-in       last name, and only via share_last_name
+//   never        first name, email, home address, coordinates, payment handles
+//
+// Payment handles are "never" rather than "opt-in" on purpose. They are for
+// settling up with people you are actually riding with, which is a relationship
+// this app does not model yet (#12). A handle on a public page is a payment
+// request open to strangers.
+// Hono does not match `/@:username` — a literal prefix in front of a param is
+// not something its router handles, and the route simply never fires. A regex
+// param does work, and pinning the charset to the username rule means a bad
+// handle 404s at the router instead of reaching a query.
+pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
+  const handle = c.req.param('handle').slice(1) // drop the @
+  const [row] = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      username: users.username,
+      status: users.status,
+      lastName: userProfiles.lastName,
+      shareLastName: userProfiles.shareLastName,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .where(sql`lower(${users.username}) = lower(${handle})`)
+    .limit(1)
+
+  // A pending or blocked account has no public presence. Same 404 as a handle
+  // that was never claimed, so the page cannot be used to probe account states.
+  if (!row?.username || row.status !== 'active') return c.text('Not found', 404)
+
+  const cards = await db
+    .select({ ride: rides, color: routesTable.color })
+    .from(rides)
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+    .where(and(eq(rides.ownerId, row.id), eq(rides.visibility, 'public')))
+    .orderBy(desc(rides.viewCount), desc(rides.createdAt))
+    .limit(50)
+
+  const surname = row.shareLastName && row.lastName ? ` ${esc(row.lastName)}` : ''
+  const body = `<h1 class="profile-name">${esc(row.displayName)}${surname}</h1>
+<p class="profile-handle">@${esc(row.username)}</p>
+<h2>Public rides</h2>
+${rideCards(cards)}`
+
+  return render(c, row.displayName, body, 'content-page profile-page')
+})
 
 pageRoutes.get('/faq', (c) => render(c, 'Questions', faqBody, 'content-page faq-page'))
 pageRoutes.get('/privacy', (c) => render(c, 'Privacy', privacyBody, 'content-page'))
