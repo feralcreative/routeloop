@@ -203,13 +203,13 @@ The two big migrations (auth and maps) are deployed; what remains of them is cle
 
 **Work.**
 
-- [ ] Public profile pages at `/@username` (usernames are already reserved and unique).
-- [ ] A browsable gallery of public rides, sorted by recency and popularity (`rides.view_count` exists).
-- [ ] "Clone this ride" so a public ride can seed a new plan.
+- [x] Public profile pages at `/@username` (usernames are already reserved and unique).
+- [x] A browsable gallery of public rides, sorted by recency and popularity (`rides.view_count` exists).
+- [x] "Clone this ride" so a public ride can seed a new plan.
 
 **Touches.** `src/routes/*`, `src/views/layout.ts`, `src/db/schema.ts`.
 
-**Status.** planned.
+**Status.** done on `feat/legal-and-faq-pages`, closing #14 and #26. What a public surface may show is stated once in `pages.ts` rather than decided per template: username, display name and public rides are shown; last name is opt-in; first name, email, address, coordinates and payment handles never. Clone drops descriptions and times and lands private. See docs/STATUS.md for the Hono routing gotcha that makes `/@username` work.
 
 ### 10. Rich stop details
 
