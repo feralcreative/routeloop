@@ -264,6 +264,106 @@ rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, as
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
+// Clone a public ride into the caller's account as a private draft.
+//
+// Reads the stored graph and rebuilds it through the same insertRideGraph the
+// builder's save uses, so a clone is a first-class native ride rather than a
+// second representation that drifts.
+//
+// Deliberately dropped:
+//   - descriptions, on the ride and on every stop. Those are the author's
+//     writing, and stop notes are where "gate code 4417, park behind the barn"
+//     lives. Copying them hands one rider's private notes to a stranger.
+//   - visibility. A clone lands private no matter what the original was; making
+//     it public is a decision the new owner takes deliberately.
+//   - via points, which are shaping for a route the cloner will now edit.
+rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
+
+  const [src] = await db.select().from(rides).where(eq(rides.id, id)).limit(1)
+  // Only public rides are clonable, and only native ones can be rebuilt: an
+  // imported ride's graph exists, but the builder cannot open the result.
+  if (!src || src.visibility !== 'public' || src.source !== 'native') {
+    return c.json({ error: 'not found' }, 404)
+  }
+
+  const srcRoutes = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, src.id))
+    .orderBy(routesTable.position)
+
+  const payloadRoutes = []
+  for (const r of srcRoutes) {
+    const pts = await db
+      .select()
+      .from(pointsTable)
+      .where(eq(pointsTable.routeId, r.id))
+      .orderBy(pointsTable.position)
+    const legs = await db
+      .select()
+      .from(routeLegs)
+      .where(eq(routeLegs.routeId, r.id))
+      .orderBy(routeLegs.position)
+
+    const point = (p: (typeof pts)[number]) => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      description: '',
+      roles: p.roles,
+    })
+
+    payloadRoutes.push({
+      title: r.title,
+      color: r.color,
+      // Times belong to the trip the author planned, not to whenever the cloner
+      // rides it. The timeline re-derives from legs and stops either way.
+      startAt: null,
+      endAt: null,
+      stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
+      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      legs: legs.map((l) => ({
+        geometry: l.geometry,
+        distanceM: l.distanceM,
+        durationS: l.durationS,
+        viaPoints: [],
+      })),
+    })
+  }
+
+  const p: RidePayload = {
+    title: src.title,
+    description: '',
+    visibility: 'private',
+    external_url: '',
+    routes: payloadRoutes,
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [ride] = await tx
+      .insert(rides)
+      .values({
+        ownerId: user.id,
+        slug: generateSlug(),
+        title: p.title,
+        description: null,
+        visibility: 'private',
+        source: 'native',
+        externalUrl: null,
+        ...rideTotals(p),
+      })
+      .returning()
+    await insertRideGraph(tx, ride.id, p)
+    return ride
+  })
+
+  console.log(`[rides] user ${user.id} cloned ride ${src.id} -> ${created.id}`)
+  return c.json({ id: created.id, slug: created.slug }, 201)
+})
+
 rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))

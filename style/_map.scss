@@ -529,6 +529,29 @@ table.route-table {
 // Shown in the viewer panel only to a rider who can open this ride in the
 // builder. Distinct from .route-dl-btn: those are file downloads, this changes
 // the ride, so it reads as an action rather than another grey chip.
+.panel-clone {
+  display: inline-block;
+  margin-top: 0.6em;
+  padding: 0.4em 0.9em;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  background: $white;
+  color: $text;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.9em;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #bbb;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
 .panel-edit {
   display: inline-block;
   margin-top: 0.6em;

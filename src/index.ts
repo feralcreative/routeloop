@@ -307,12 +307,17 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 // `timeline` is opt-in rather than default because the legacy shell's main.js
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
-function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null): string {
+function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null, clonable = false): string {
   const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
   // Only rendered for a rider who can actually open the builder on this ride —
   // see canEditRide. A viewer who cannot edit is shown nothing rather than a
   // disabled control, since there is no action for them to enable.
   const edit = editUrl ? `<a class="panel-edit" href="${esc(editUrl)}">Edit this ride</a>` : ''
+  // Offered to a signed-in rider who does not own this public ride — cloning
+  // your own is what the builder is for.
+  const clone = clonable
+    ? `<button class="panel-clone" type="button" data-clone="${m.id}">Clone this ride</button>`
+    : ''
   const scrub = timeline
     ? `
         <div class="trip-timeline" id="trip-timeline" hidden>
@@ -323,7 +328,7 @@ function viewerPanel(m: RideRow, timeline = false, editUrl: string | null = null
     : ''
   return panelShell({
     title: m.title,
-    contents: `        <div class="details">${desc}${edit}</div>${scrub}
+    contents: `        <div class="details">${desc}${edit}${clone}</div>${scrub}
         <div class="routes">
           <table class="route-table"></table>
           <label class="toggle-checkbox">
@@ -344,7 +349,12 @@ function nativeViewHtml(m: RideRow, user: UserRow | null): string {
     user,
     variant: 'map',
     noscript: VIEWER_NOSCRIPT,
-    body: `  <div id="map"></div>\n\n  ${viewerPanel(m, true, canEditRide(m, user) ? `/builder/${m.id}` : null)}`,
+    body: `  <div id="map"></div>\n\n  ${viewerPanel(
+      m,
+      true,
+      canEditRide(m, user) ? `/builder/${m.id}` : null,
+      Boolean(user && user.status === 'active' && user.id !== m.ownerId && m.visibility === 'public'),
+    )}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
       gmapsKey: GMAPS_KEY,
