@@ -111,9 +111,15 @@
     }
   }
 
-  // Start and end for the day edits land on. Unlike .day-head this is never
-  // hidden — a single-day ride still wants a date on it.
+  // Start and end for the day edits land on. Hidden along with the rest of the
+  // day section while the slider is on "All", so it needs the same explicit
+  // rule .day-head does — the `display` below outranks the UA sheet's
+  // `[hidden] { display: none }`.
   .day-times {
+    &[hidden] {
+      display: none;
+    }
+
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
@@ -218,6 +224,29 @@
         }
       }
     }
+  }
+
+  // Stands in for the whole day-editing section while the slider is on "All".
+  // Deliberately a plain sentence rather than a disabled-looking block: nothing
+  // is broken, the rider is just looking at the trip instead of a day.
+  .day-pick-hint {
+    margin: 0.75em 0;
+    padding: 0.9em 0.75em;
+    border: 1px dashed $grey;
+    border-radius: 6px;
+    color: $text;
+    opacity: 0.7;
+    font-size: 0.85em;
+    text-align: center;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .mode-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   // A "?" beside a control the FAQ defines. Sized and coloured to sit under

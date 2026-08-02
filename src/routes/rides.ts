@@ -572,6 +572,8 @@ function builderHtml(
           <div class="time-readout" id="time-readout"></div>
         </div>
 
+        <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
+
         <div class="search-wrap">
           <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
           <ul id="search-results" hidden></ul>

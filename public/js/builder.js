@@ -99,11 +99,24 @@
 
   const $ = (id) => document.getElementById(id);
 
-  // With the slider on "all days" there is still exactly one route that edits
-  // land on, and the last day is the one you are almost certainly extending.
-  const editIndex = () => (state.focus === 0 ? state.routes.length - 1 : state.focus - 1);
+  // Which day edits land on, or null for "none — the rider is looking at the
+  // whole trip".
+  //
+  // This used to return `state.routes.length - 1` on "All", so edits silently
+  // landed on the LAST day for no stated reason and with no control that
+  // changed it. The panel announced "All days · editing Day 4" as though that
+  // had been asked for. The slider is the only control here, so it decides one
+  // thing: which day you are working on. "All" is a view.
+  //
+  // The single-day case is the exception and not a special case: with one day,
+  // "All" and "Day 1" are the same view of the same thing, and renderSlider
+  // already disables the slider below two days.
+  const editIndex = () => (state.focus === 0 ? (state.routes.length > 1 ? null : 0) : state.focus - 1);
   const focusedIndex = () => (state.focus === 0 ? null : state.focus - 1);
-  const editRoute = () => state.routes[editIndex()];
+  const editRoute = () => {
+    const r = editIndex();
+    return r == null ? null : state.routes[r];
+  };
 
   // --- Toast + status -------------------------------------------------------
 
@@ -120,6 +133,14 @@
     el.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
+  }
+
+  // Reached only when something slipped past the disabled controls — a stale
+  // keyboard shortcut, a double-click landing after the slider moved. The real
+  // defence is that these controls are inert on "All"; this is the backstop that
+  // says why rather than doing nothing.
+  function pickADayFirst() {
+    toast("Pick a day on the slider first", true);
   }
 
   function markDirty() {
@@ -366,6 +387,7 @@
 
   function addStop(lng, lat, name) {
     const r = editIndex();
+    if (r == null) return pickADayFirst();
     const route = state.routes[r];
     if (route.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
     route.stops.push({
@@ -386,6 +408,7 @@
 
   function addPoi(lng, lat, name) {
     const r = editIndex();
+    if (r == null) return pickADayFirst();
     const route = state.routes[r];
     if (route.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
     route.pois.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), name: name || "", description: "", roles: [] });
@@ -396,6 +419,7 @@
 
   function deleteStop(i) {
     const r = editIndex();
+    if (r == null) return;
     const route = state.routes[r];
     route.stops.splice(i, 1);
     // Remove the legs that touched stop i, then bridge the gap (if any).
@@ -420,7 +444,9 @@
   }
 
   function deletePoi(i) {
-    state.routes[editIndex()].pois.splice(i, 1);
+    const r = editIndex();
+    if (r == null) return;
+    state.routes[r].pois.splice(i, 1);
     renderMarkers();
     renderList();
     markDirty();
@@ -428,6 +454,7 @@
 
   function moveStop(i, dir) {
     const r = editIndex();
+    if (r == null) return;
     const route = state.routes[r];
     const j = i + dir;
     if (j < 0 || j >= route.stops.length) return;
@@ -499,6 +526,7 @@
   function deleteDay() {
     if (state.routes.length <= 1) return toast("A ride needs at least one day", true);
     const r = editIndex();
+    if (r == null) return pickADayFirst();
     state.routes.splice(r, 1);
     state.legSeq.splice(r, 1);
     renderSlider();
@@ -520,6 +548,7 @@
   // That costs one Routes call per leg, which is why a long day asks first.
   function reverseDay() {
     const r = editIndex();
+    if (r == null) return pickADayFirst();
     const route = state.routes[r];
     if (route.stops.length < 2) return toast("Nothing to reverse yet", true);
 
@@ -551,6 +580,7 @@
 
   function moveDay(dir) {
     const r = editIndex();
+    if (r == null) return pickADayFirst();
     const j = r + dir;
     if (j < 0 || j >= state.routes.length) return;
     const a = state.routes;
@@ -586,18 +616,39 @@
       tick("All", 0) + state.routes.map((route, r) => tick(String(r + 1), (r + 1) / span, route.color)).join("");
   }
 
+  // Shows or hides everything that belongs to one day, in one place, so the
+  // panel cannot end up half in each state.
+  //
+  // On "All" with several days there is no day to edit, so the day controls, the
+  // times, the search box and the point list all go and a single line takes
+  // their place. Nothing is disabled-but-visible here: unlike the sliders, these
+  // are not controls whose absence would reflow anything the rider is aiming at.
+  function renderDayEditing() {
+    const editing = editIndex() != null;
+    ["day-head", "day-times", "stop-list", "poi-head", "poi-list"].forEach((id) => {
+      const el = $(id);
+      if (el) el.hidden = !editing;
+    });
+    const search = document.querySelector(".search-wrap");
+    if (search) search.hidden = !editing;
+    $("day-pick-hint").hidden = editing;
+    // Adding by map click needs a day to add to, so the mode buttons say so
+    // rather than accepting a click that would have to be refused.
+    document.querySelectorAll(".mode-btn").forEach((b) => {
+      b.disabled = !editing;
+    });
+  }
+
   function renderDayHead() {
-    const head = $("day-head");
     const r = editIndex();
+    $("day-label").textContent = r == null ? "All days" : dayLabel(r);
+    renderDayEditing();
+    if (r == null) return;
+
     const route = state.routes[r];
-    // The header edits one specific day, so it names that day even while the
-    // slider sits on "all" — otherwise the color swatch would be ambiguous.
-    $("day-label").textContent =
-      state.focus === 0
-        ? state.routes.length > 1
-          ? "All days · editing " + dayLabel(r)
-          : "All days"
-        : dayLabel(r);
+    const head = $("day-head");
+    // Still hidden for a lone untitled day: there is nothing to reorder, delete
+    // or distinguish, so the controls would be four disabled buttons.
     head.hidden = state.routes.length < 2 && !route.title;
     $("route-color").value = route.color;
     $("route-title").value = route.title;
@@ -764,6 +815,7 @@
 
   function renderTimes() {
     const route = editRoute();
+    if (!route) return; // the times block is hidden on "All"
     const start = $("route-start");
     const end = $("route-end");
     const note = $("day-times-note");
@@ -859,6 +911,7 @@
   function pointOf(row) {
     const i = Number(row.dataset.i);
     const route = editRoute();
+    if (!route) return null;
     return row.dataset.kind === "stop" ? route.stops[i] : route.pois[i];
   }
 
@@ -866,6 +919,14 @@
     const stopList = $("stop-list");
     const poiList = $("poi-list");
     const route = editRoute();
+    // Nothing to list on "All". renderDayEditing() has already hidden these, but
+    // leaving the last day's stops sitting in the DOM behind that would make the
+    // next render flash the wrong day's rows.
+    if (!route) {
+      stopList.innerHTML = "";
+      poiList.innerHTML = "";
+      return;
+    }
     stopList.innerHTML = route.stops.map((s, i) => pointRowHtml("stop", s, i)).join("");
     poiList.innerHTML = route.pois.map((p, i) => pointRowHtml("poi", p, i)).join("");
     $("poi-head").hidden = route.pois.length === 0;
@@ -981,13 +1042,18 @@
             bestMiles: trip.twistBestMiles,
           }
         : null;
-    const dayT = routeTotals(editRoute());
+    // The per-day line only exists when a day is selected. On "All" the trip
+    // figures stand alone, which is exactly what "All" means.
+    const r = editIndex();
+    const dayT = r == null ? null : routeTotals(state.routes[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
       '<span class="totals-trip" title="' + esc(twistTitle(trip)) + '">' +
       state.routes.length + " days · " + line(trip, true) + "</span>" +
-      '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
-      esc(dayLabel(editIndex())) + ": " + line(dayT, false) + "</span>";
+      (dayT
+        ? '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
+          esc(dayLabel(r)) + ": " + line(dayT, false) + "</span>"
+        : "");
   }
 
   // Delegated events for both lists.
@@ -1244,20 +1310,26 @@
     $("day-up").addEventListener("click", () => moveDay(-1));
     $("day-down").addEventListener("click", () => moveDay(1));
     $("route-color").addEventListener("input", (e) => {
-      editRoute().color = e.target.value;
+      const route = editRoute();
+      if (!route) return;
+      route.color = e.target.value;
       renderSlider();
       rebuildLayers();
       renderMarkers();
       markDirty();
     });
     $("route-title").addEventListener("input", (e) => {
-      editRoute().title = e.target.value;
-      $("day-label").textContent = state.focus === 0 ? "All days · editing " + dayLabel(editIndex()) : dayLabel(editIndex());
+      const route = editRoute();
+      if (!route) return;
+      route.title = e.target.value;
+      $("day-label").textContent = dayLabel(editIndex());
       refreshDerived();
       markDirty();
     });
     $("route-start").addEventListener("change", (e) => {
-      editRoute().startAt = localInputToIso(e.target.value);
+      const route = editRoute();
+      if (!route) return;
+      route.startAt = localInputToIso(e.target.value);
       refreshDerived();
       markDirty();
     });
@@ -1265,6 +1337,7 @@
     // and refreshDerived() refills the field from the day on the way out.
     $("route-end").addEventListener("change", (e) => {
       const route = editRoute();
+      if (!route) return;
       route.endAt = localInputToIso(e.target.value);
       route.endManual = route.endAt !== null;
       refreshDerived();
@@ -1328,6 +1401,7 @@
     });
     document.querySelectorAll(".mode-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
         document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
         state.addMode = btn.dataset.mode;
