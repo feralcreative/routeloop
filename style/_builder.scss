@@ -147,6 +147,30 @@
     opacity: 0.7;
   }
 
+  // Deliberately quieter than .btn: discarding is destructive but it is not the
+  // action the rider came here for, and two equally weighted buttons beside each
+  // other is how the wrong one gets pressed.
+  .btn-quiet {
+    padding: 0.5em 0.9em;
+    background: none;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    color: $text;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $kml;
+      color: $kml;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+
   // Controls for the one day edits land on, which is the focused day, or the
   // last day while the slider sits on "all".
   .day-head {

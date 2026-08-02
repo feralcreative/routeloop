@@ -539,6 +539,7 @@ function builderHtml(
           <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
           <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
           <span class="day-actions">
+            <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
             <button type="button" id="day-up" title="Move day earlier">↑</button>
             <button type="button" id="day-down" title="Move day later">↓</button>
             <button type="button" id="day-del" title="Delete this day">✕</button>
@@ -576,6 +577,7 @@ function builderHtml(
 
         <div class="builder-actions">
           <button id="save" class="btn" type="button">Save ride</button>
+          <button id="discard" class="btn-quiet" type="button" disabled>Discard changes</button>
           <span id="save-status" class="save-status"></span>
         </div>`
 

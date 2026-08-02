@@ -119,6 +119,23 @@
   function markDirty() {
     state.dirty = true;
     $("save-status").textContent = "unsaved changes";
+    $("discard").disabled = false;
+  }
+
+  // Throws the working copy away and reloads the saved one. A reload rather than
+  // an in-place rebuild because that is the only version guaranteed to match
+  // what the server holds — reconstructing state by hand is how a "discard"
+  // quietly keeps something. For a ride that was never saved there is nothing to
+  // fetch, so the reload lands on an empty builder, which is the same answer.
+  //
+  // state.dirty is cleared first or beforeunload asks a second time, one line
+  // after the rider already confirmed.
+  function discardChanges() {
+    if (!state.dirty) return;
+    const saved = state.rideId ? "the last saved version" : "an empty ride";
+    if (!window.confirm("Discard every unsaved change and go back to " + saved + "?\n\nThis cannot be undone.")) return;
+    state.dirty = false;
+    window.location.reload();
   }
 
   // --- Routing --------------------------------------------------------------
@@ -485,6 +502,45 @@
     renderList();
     refreshDerived();
     markDirty();
+  }
+
+  // Ride the day backwards.
+  //
+  // Every leg has to be re-requested, not reversed in place: a leg's geometry is
+  // directional, and the way back is frequently not the way out drawn backwards.
+  // One-way streets, divided carriageways and turn restrictions all mean the
+  // router has to answer the question again.
+  //
+  // That costs one Routes call per leg, which is why a long day asks first.
+  function reverseDay() {
+    const r = editIndex();
+    const route = state.routes[r];
+    if (route.stops.length < 2) return toast("Nothing to reverse yet", true);
+
+    const legCount = Math.max(0, route.stops.length - 1);
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
+
+    route.stops.reverse();
+
+    // A stop tagged as the start is the finish now. Nothing else about a role
+    // has a direction — a gas stop is a gas stop either way round.
+    route.stops.forEach((s) => {
+      s.roles = (s.roles || []).map((role) => (role === "start" ? "finish" : role === "finish" ? "start" : role));
+    });
+
+    // Not reversed: legs and their shaping points are both directional and both
+    // stale. Dropping them wholesale is cheaper than reasoning about which
+    // survive, and computeLeg refills them from the new stop order.
+    route.legs = [];
+    state.legSeq[r] = [];
+
+    renderTrack(r);
+    renderMarkers();
+    renderList();
+    computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    refreshDerived();
+    markDirty();
+    toast(dayLabel(r) + " reversed");
   }
 
   function moveDay(dir) {
@@ -1024,6 +1080,7 @@
         history.replaceState(null, "", "/builder/" + data.id);
       }
       state.dirty = false;
+      $("discard").disabled = true;
       $("save-status").innerHTML = 'saved ✓ · <a href="/m/' + esc(data.slug || "") + '">view</a>';
     } catch (e) {
       toast(e.message, true);
@@ -1074,6 +1131,7 @@
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
     $("day-add").addEventListener("click", addDay);
     $("day-del").addEventListener("click", deleteDay);
+    $("day-rev").addEventListener("click", reverseDay);
     $("day-up").addEventListener("click", () => moveDay(-1));
     $("day-down").addEventListener("click", () => moveDay(1));
     $("route-color").addEventListener("input", (e) => {
@@ -1167,6 +1225,7 @@
       });
     });
     $("save").addEventListener("click", save);
+    $("discard").addEventListener("click", discardChanges);
     window.addEventListener("beforeunload", (e) => {
       if (state.dirty) e.preventDefault();
     });
