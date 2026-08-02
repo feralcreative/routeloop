@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-01
-**Branch:** `refactor/retire-mapbox-and-legacy-viewer`, based on `origin/main`, at `b223175`—five commits
+**Updated:** 2026-08-02
+**Branch:** `fix/editor-interface-sizing`, based on `origin/main`—nine commits
 **Note:** the public-surfaces work merged as PR #47. A local `main` that has not been pulled since will make `git log main..HEAD` look like it carries two sprints. Pull first.
 **For:** the next agent, or the owner returning cold
 
@@ -16,7 +16,7 @@ Two migrations drove the previous branch, `refactor/google-maps-and-auth`, which
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
 | Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally**—credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **engine ported and verified in a browser (2026-07-30)**. Builder, viewer and search all run on Google. Only `profile.js` geocoding and the dead Mapbox config remain |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02, because this row claimed otherwise for a day after it stopped being true |
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -409,14 +409,67 @@ Fixed twice over, on purpose:
 - **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
 - **Set per-API daily quota caps** on the GCP project. Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k.
 
+## Sprint 07: the editing panel, and twistiness—2026-08-02
+
+Branch `fix/editor-interface-sizing`. All eleven items from `_PLANS/sprint-07-260802T1618Z.md`, seven commits, 88 tests.
+
+### What went in
+
+| Item | Result |
+| --- | --- |
+| 1 | The day slider picks the working day; "All" is a view |
+| 2 | POIs interleaved by distance, and they carry a duration |
+| 3, 7 | Panel grouped into ride / trip / day bands, day icons tinted its colour |
+| 4, 5 | Time stopped replaced by **twistiness**, with an FAQ entry |
+| 6 | Panel terms link to their FAQ answers |
+| 8 | Nav's last four items folded into an About submenu |
+| 9 | FAQ is an accordion with stable anchors |
+| 10, 11 | Bio years computed at render; tagline removed |
+
+Plus one unplanned commit: the 24 `darken()`/`lighten()` calls became `color.adjust()`, so the SCSS build is silent rather than emitting 38 deprecation warnings that had been getting waved through.
+
+### Twistiness, and why its first spec was wrong
+
+Degrees of heading change per mile, computed from geometry alone—so it works on imported rides, which never touch the router and could never have a turn count. Stored on `routes` as `twistiness_dpm` and `twistiness_best_dpm`, both nullable, because null ("not measured") is a different claim from 0 ("straight").
+
+The thresholds were measured against the dev corpus twice, and the first set was badly wrong in a way only synthetic fixtures exposed:
+
+- **A 5° deadband discarded every sweeper.** A magnitude threshold at 25m spacing silently zeroes any curve gentler than `R = 25 x 57.3 / deadband`—286m at 5°. A continuous 400m-radius arc, which geometry says must score 231°/mi, came out as **0**. So did 800m and 1500m. Comparing rides to each other never caught it because they all lost their sweepers equally. It is 1° now, and the metric tracks true curvature from R=800m down to R=50m.
+- **A 5-mile "best stretch" window finds towns, not roads.** Street corners are denser than any road bend, so every day in the corpus scored 122–1010°/mi—desert interstates included—and the number discriminated nothing. At 20 miles the desert days fall to 35–63 while genuinely twisty ones hold 300–493.
+- **100m spacing is disqualified at the other end**: a 100m chord across a 50m hairpin is wider than the corner, so a switchback scores zero.
+
+The builder computes it live rather than reading the stored figure, because the stored one is stale the moment a stop moves. That means two implementations, so `test/twist-client.test.ts` runs both over ten named fixtures and asserts integer equality—the same arrangement `ride-time.js` has.
+
+### The bug that made the panel feel broken
+
+`editIndex()` was `state.focus === 0 ? state.routes.length - 1 : state.focus - 1`. On "All", edits landed on the **last** day, for no stated reason, with no control that changed it—and the panel announced "All days · editing Day 4" as though that had been asked for. It returns `null` now and the day section is replaced by a prompt. With one day, "All" and "Day 1" are the same view, so editing stays on.
+
+### POI dwell rewrote the time model
+
+A POI is not a routing anchor, so a pause at one falls *inside* a leg rather than between two of them. The old `activeAt` alternated stop-dwell and leg-riding and had nowhere to put that. `routeSchedule()` in [ride-time.js](../public/js/ride-time.js) emits the day as a list of segments instead, which is both expressible and testable—the suite now asserts that the schedule's total always equals `routeElapsedS` (which every stored end time and the timeline slider depend on) and that it never emits a gap or an overlap.
+
+### Three bugs the work surfaced
+
+1. **The twistiness cache was already broken when it shipped.** It keyed on the `route.legs` array identity, but the builder mutates in place—`route.legs[i] = leg` on a reroute, `legs.splice()` on a delete—so identity never changes and it would have served pre-reroute figures forever. Both caches use content signatures now.
+2. **`/api/rides/:id` did not return POI `durationMin`**, so a saved dwell would have vanished on the next load. Caught by round-tripping through the API rather than by reading the code.
+3. **The clone path dropped it too**, caught by `tsc` when the payload type gained the field. Cloning would have quietly shortened every day.
+
+### Left for you
+
+- **Favicons** still carry the old routeloop mark, including the `og:image` card. Needs the generator and the source artwork.
+- **The twistiness bands need real rides.** They are calibrated on machine-generated demo rides across California, not rides anyone chose for being good, so real trips will skew twistier. One exported const in [twist.ts](../src/maps/twist.ts).
+
+<!--| PAGE-BREAK -->
+
 ## Next steps, in order
 
-These are the Mapbox-retirement track, separate from the timeline work above. Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
+**The Mapbox track that used to live here is finished** and its steps were removed on 2026-08-02 because they described work already done. Checked against the code rather than taken on trust: `public/js/main.js` does not exist, `nativeViewHtml` is gone and `viewHtml` is the only shell, no `MAPBOX_*` value is read anywhere (only historical comments remain), and `profile.js` geocoding already goes through `POST /api/geocode`. If you find a claim in this file that the code disagrees with, the code is right—that is what happened here, and it had already caused one bogus GitHub issue to be filed.
 
-1. **Move `profile.js` geocoding** to a server proxy alongside `/api/route`, since Geocoding is on the server key. This is the last Mapbox call in the app and the only reason `MAPBOX_TOKEN` still has to be set. It is a non-map page, so no basemap-terms conflict forced it to move with the engine.
-2. **Phase 4—retire Mapbox.** Delete `main.js`, collapse `viewHtml`/`nativeViewHtml` into one, drop `MAPBOX_TOKEN` and `MAPBOX_GL_VERSION` from config, `MAPBOX_CSS_LINK` from [layout.ts](../src/views/layout.ts) (already unused), `.env.example`, `docker-compose.prod.yml` and the deploy guard in `utils/deploy/deploy.sh`.
+What is actually next:
 
-`main.js` is still the legacy Google viewer for **imported** rides and still the only thing rendering them. Collapsing the two shells means teaching the ported engine to render an imported ride's single-leg track, which `ride.json` already serves identically for both sources—so this is smaller than it looks.
+1. **Sprint 08, written up in `_PLANS/sprint-08-260802T1929Z.md`.** Get the HTML out of the TypeScript. Part 1 moves the 412 lines of static prose in `pages.ts` into `src/content/*.html` and stands alone; Part 2 is the optional JSX conversion of the dynamic views.
+2. **Set per-API daily quota caps** on the GCP project. Google's free tiers are far smaller than Mapbox's were—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k.
+3. **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
 
 <!--| PAGE-BREAK -->
 
