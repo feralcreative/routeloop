@@ -92,6 +92,17 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
+# The inverse check: a variable that must be ABSENT. DEV_LOGIN_EMAIL turns on a
+# route that hands out a session with no password. The app gates it three more
+# ways and would refuse to register it on the NAS anyway — this exists for the
+# case where a dev .env is copied to a server and one of those gates is later
+# loosened by someone who does not know this route is behind them.
+if [ -n "${DEV_LOGIN_EMAIL:-}" ]; then
+  log_error "DEV_LOGIN_EMAIL is set in .env. That is the passwordless dev sign-in."
+  log_error "Comment it out before deploying. Refusing to continue."
+  exit 1
+fi
+
 # Magic link is genuinely optional — Google OAuth alone is a working sign-in —
 # so an incomplete SMTP triple warns rather than blocks. All three or none:
 # a partial set is the case that looks configured and fails at send time.

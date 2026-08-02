@@ -13,6 +13,8 @@ import {
   ALPHA_DISCORD_URL,
   ALPHA_GITHUB_URL,
   ALPHA_SIGNAL_URL,
+  DEV_LOGIN_EMAIL,
+  DEV_LOGIN_ENABLED,
   MAGIC_LINK_ENABLED,
   isAllowedOrigin,
 } from '../config'
@@ -308,3 +310,46 @@ authRoutes.post('/logout', async (c) => {
   // this app's own cookie.
   return c.redirect('/login', 302)
 })
+
+// --- Dev sign-in ------------------------------------------------------------
+//
+// GET /dev/login signs in as the account named by DEV_LOGIN_EMAIL, no password
+// and no mail round-trip. It exists because checking /builder, /welcome or a
+// profile page otherwise means minting a session token from a script and pasting
+// a cookie by hand, several times an hour.
+//
+// Three of the four gates are environmental and are checked once, at import, by
+// DEV_LOGIN_ENABLED. They decide whether this route is *registered at all* —
+// absent from the routing table beats present-and-refusing, because a route that
+// refuses still tells a prober it is there. The fourth gate is per-request and
+// lives in the handler.
+//
+// It mints a session through the same createSession/setSessionCookie pair the
+// Google and magic-link callbacks use. A parallel path would be free to drift
+// from the real one and then this would be testing something nobody ships.
+if (DEV_LOGIN_ENABLED) {
+  console.warn(`[auth] DEV SIGN-IN IS ON: GET /dev/login signs in as ${DEV_LOGIN_EMAIL}`)
+
+  authRoutes.get('/dev/login', async (c) => {
+    // Gate four: the request has to come from this machine. Host carries the
+    // name the browser asked for, and it is attacker-controlled — but the three
+    // gates above have already established this is a dev box against a local
+    // database, so all this has to stop is a request that arrived over the LAN
+    // by IP or hostname.
+    const host = (c.req.header('Host') ?? '').split(':')[0].toLowerCase()
+    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '[::1]') return c.notFound()
+
+    const [user] = await db.select().from(users).where(eq(users.email, DEV_LOGIN_EMAIL)).limit(1)
+
+    // Deliberately does not create the account. A backdoor that mints users is a
+    // second, quieter signup path, and the seeders already make accounts.
+    if (!user) {
+      console.warn(`[auth] dev sign-in: no account for ${DEV_LOGIN_EMAIL}`)
+      return c.text(`No account for ${DEV_LOGIN_EMAIL}. Create it first, or seed the database.`, 404)
+    }
+
+    setSessionCookie(c, await createSession(user.id))
+    console.warn(`[auth] DEV SIGN-IN as ${user.email} (#${user.id}, ${user.status})`)
+    return c.redirect('/', 302)
+  })
+}

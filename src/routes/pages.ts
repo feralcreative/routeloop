@@ -24,53 +24,79 @@ export const pageRoutes = new Hono<AuthEnv>()
 // reader deciding whether anything changed since they last looked.
 const EFFECTIVE = '1 August 2026'
 
-const qa = (q: string, a: string): string => `
-  <section class="qa">
-    <h3>${q}</h3>
-    ${a}
-  </section>`
+// Two spans that used to be written as the years they started, which quietly
+// went stale every January. Stated as durations and worked out at render time
+// instead. Computed on the server rather than in the browser so there is no
+// flash of the wrong number and the page still reads correctly with JS off.
+const yearsSince = (year: number): number => new Date().getFullYear() - year
+const RIDING_YEARS = yearsSince(1999)
+const WEB_YEARS = yearsSince(1993)
+
+// One question, collapsed. <details> rather than a scripted accordion: the
+// platform already gets the keyboard, the ARIA and find-in-page right, and a
+// reader with no JS still sees every answer.
+//
+// The id is passed rather than slugged from the question, and that is
+// deliberate. These ids are a public contract — other pages link to them (see
+// faqLink in layout.ts) and so does anyone who shares a link. Deriving them
+// from the wording would silently break every one of those the first time a
+// question is rephrased.
+const qa = (id: string, q: string, a: string): string => `
+  <details class="qa" id="${id}">
+    <summary>${q}</summary>
+    <div class="qa-answer">${a}</div>
+  </details>`
 
 const faqBody = `<h1>Questions</h1>
 <p class="lede">What TankBag is, what it is not, and what happens to your trips. If something is missing, ask—the list grows from what people actually want to know.</p>
+<p class="faq-controls"><button type="button" class="linkbtn" data-faq-toggle-all aria-expanded="false">Expand all</button></p>
 
 <h2>About the name</h2>
 ${qa(
+  'tank-bag',
   "What's a tank bag?",
   `<p>A tank bag straps to the fuel tank of a motorcycle, right in front of the rider. Most of them have a clear pocket on top, and before GPS that pocket is where your route lived—a folded paper map, angled so you could read the next turn without stopping.</p>
    <p>That's the job this does. The bag held the plan. So does this.</p>`,
 )}
 ${qa(
+  'need-a-motorcycle',
   'Do I need a motorcycle to use this?',
   `<p>No. I built it for riding and it shows in the vocabulary, but a route is a route. A long trip with a lot of stops is the same problem on two wheels or four—where you're sleeping, how far you can go before fuel, which road is actually worth taking.</p>
    <p>The router is in car mode regardless. Google's motorcycle routing only works in a handful of Asian markets, so every route TankBag builds is already computed for four wheels.</p>`,
 )}
 ${qa(
+  'luggage-brands',
   'Is TankBag related to Nelson-Rigg, Givi, or any luggage brand?',
   `<p>No. A tank bag is a generic category of motorcycle luggage, the same way "backpack" is. The name is a nod to the object, not to anyone who makes them.</p>`,
 )}
 
 <h2>What it is</h2>
 ${qa(
+  'is-it-navigation',
   'Is this a navigation app?',
   `<p>No. TankBag is for planning, organizing and sharing a trip before you leave, and for handing the finished plan to whatever you navigate with.</p>
    <p>You already have an app or a device you like, and you like it for reasons that are yours—how it handles with gloves on, how readable it is at speed, whether it sends you on side-quests when you just want to get somewhere. I'm not trying to talk you out of it. I'm trying to make it follow your plan.</p>`,
 )}
 ${qa(
+  'turn-by-turn',
   'Will it give me turn-by-turn directions?',
   `<p>No, and that's a decision rather than a gap.</p>
    <p>Turn-by-turn is a solved problem with several good answers already installed on your phone. What isn't solved is getting your actual plan into one of them intact. Doing both badly would be worse than doing one properly.</p>`,
 )}
 ${qa(
+  'gps-ignores-route',
   'Why does my GPS ignore the route I planned?',
   `<p>Because it isn't following your line—it's re-routing between your stops. Give a navigation app two points a long way apart and it picks its own way between them, usually the fast way and rarely the good one. Miss a turn and it can throw out the rest of the day.</p>
    <p>The fix is to leave it no room. Put enough intermediate points along the route and there's never a stretch long enough for the app to form an opinion. Doing that by hand is miserable, which is why TankBag does it for you.</p>`,
 )}
 ${qa(
+  'vs-google-maps',
   'How is this different from Google Maps?',
   `<p>Google My Maps caps at about ten waypoints and one route per layer, and you can't navigate from a custom map. Google Maps proper will reroute you onto whatever it considers efficient, which is rarely the road you wanted.</p>
    <p>TankBag gives you 200 stops a day across 31 days, no layers to fight, and no opinion about your route. Whatever you plan is visible on one map at once, all of it, however many days it runs.</p>`,
 )}
 ${qa(
+  'vs-other-planners',
   'How is this different from the other route planners?',
   `<p>Most of them are navigation apps with a planner bolted on, and the planning is usually fine. Where they fall down is the hand-off—the moment you dump a GPX into your device and it does something else entirely.</p>
    <p>That's the part TankBag is built around. Beyond it: stop counts in the hundreds rather than the low teens, the whole multi-day trip on one map instead of one route at a time, and share links that open for someone with no account.</p>`,
@@ -78,12 +104,14 @@ ${qa(
 
 <h2>Planning a trip</h2>
 ${qa(
+  'limits',
   'How many stops, days or miles can one trip have?',
   `<p>Up to 31 days, 200 stops a day, and no cap on distance.</p>
    <p>Those are the real numbers, and I'd rather give you them than say "unlimited" and have you find the wall. A month of riding at two hundred stops a day is not a trip anyone takes—the caps exist so one runaway import can't take the site down, not to ration what you plan.</p>
    <p>For comparison: Google My Maps stops you at about ten waypoints.</p>`,
 )}
 ${qa(
+  'waypoint-poi-stop',
   "What's the difference between a waypoint, a POI and a stop?",
   `<p>Three kinds of dot, because they do three different jobs.</p>
    <ul>
@@ -94,30 +122,45 @@ ${qa(
    <p>The distinction matters when the plan leaves TankBag: exports can carry stops and shaping points differently, and getting it wrong is how routes arrive on a GPS looking nothing like what you planned.</p>`,
 )}
 ${qa(
+  'stop-categories',
   'Can I say what kind of stop it is?',
   `<p>Yes. Seventeen roles—fuel, food, coffee, drinks, hotel, camp, grocery, viewpoint, meeting point and the rest—so a day reads at a glance instead of being seventeen identical pins.</p>
    <p>They earn their keep on export too: a stop tagged as fuel can be treated differently from a scenic detour by whatever you hand the file to.</p>`,
 )}
 ${qa(
+  'twistiness',
+  'What does "Twisty" mean on my ride?',
+  `<p>It's a rough measure of how much the road bends, worked out from the shape of your route.</p>
+   <p>TankBag walks the line every 25 metres and adds up how far the direction changes. A road that runs dead straight adds nothing. A road that turns constantly adds a lot. Divide by the miles and you get one number, which becomes one of five words: <strong>Straight</strong>, <strong>Mostly straight</strong>, <strong>Some curves</strong>, <strong>Twisty</strong> or <strong>Very twisty</strong>. Hover the label to see the number behind it.</p>
+   <p>It counts <em>bends</em>, not junctions. Turning left at a crossroads onto another straight road barely registers; a mountain pass that never stops curving registers a lot.</p>
+   <p>A whole day gets averaged, which can be unfair to a good road—forty brilliant miles and two hundred of motorway average out to something dull. So the hover also tells you about the best twenty-mile stretch of the day, when that stretch is meaningfully better than the rest of it. That second number is usually the one worth paying attention to.</p>
+   <p>Because it comes from the shape of the line and nothing else, it works on rides you imported as well as ones you built here.</p>`,
+)}
+${qa(
+  'import-a-route',
   'Can I import a route I already have?',
   `<p>Yes—KML and GPX both.</p>
    <p>What you get back is an editable trip, not a picture of one. The file is pulled apart into stops and legs you can drag, rename, reorder and add days to. Most tools import a track as a single frozen line; if that's all you needed you could have kept the file.</p>`,
 )}
 ${qa(
+  'on-a-phone',
   'Can I plan on my phone?',
   `<p>It runs in a phone browser, and a shared trip reads fine on one. Building a multi-day route is a big-screen job today.</p>`,
 )}
 ${qa(
+  'outside-the-us',
   'Does it work outside the US?',
   `<p>The maps, search and routing are global, so in principle yes. Testing has been US-centric, so expect rougher edges elsewhere—and tell me when you find them.</p>`,
 )}
 
 <h2>Sharing</h2>
 ${qa(
+  'share-without-account',
   "Can I share a trip with someone who doesn't have an account?",
   `<p>Yes. Every trip has a link, and public and unlisted links open for anyone—no account, no sign-up, no app to install. That's deliberate; a plan nobody can open isn't a plan.</p>`,
 )}
 ${qa(
+  'visibility',
   'Can I keep a trip private?',
   `<p>Yes, and it already is—every trip starts private and stays that way until you change it.</p>
    <p>Three settings, and the difference is who can find it rather than who can open it:</p>
@@ -130,37 +173,44 @@ ${qa(
 
 <h2>Your data</h2>
 ${qa(
+  'what-happens-to-my-data',
   'What do you do with my location and trip data?',
   `<p>It stays yours, and it is not sold, shared or mined. The full account is on the <a href="/privacy">privacy page</a>; the short version:</p>
    <p>Your routes and stops are stored so the app can show them to you and to whoever you share a link with. Nothing else reads them. There is no advertising business here to feed them to.</p>
    <p>Two outside services see fragments in the course of doing their job: Google draws the map, finds the places you search for, and computes the roads between your stops; if you sign in by email, Gmail carries the link. Neither gets a copy of your trips.</p>`,
 )}
 ${qa(
+  'google-name',
   'Do you take my name from my Google account?',
   `<p>No. You pick your own name and handle when you sign up, and neither is inherited from Google.</p>
    <p>Google does hand over your first and last name when you sign in with it, and those land on your profile where only you can see them. They are not shown to anyone else unless you turn that on yourself.</p>`,
 )}
 ${qa(
+  'home-address',
   'What about my home address?',
   `<p>It is stored so new rides can start from your door without you searching for it every time, and it is shown to nobody but you. Not on shared trips, not on a profile, not to riders you plan with. You can leave it blank; the only thing you lose is that shortcut.</p>`,
 )}
 
 <h2>Access and status</h2>
 ${qa(
+  'invites',
   'Why do I need an invite?',
   `<p>TankBag is in a closed alpha and accounts are approved by hand. That's not scarcity marketing—it's a small app run by one person, and letting it grow slowly is how it stays working.</p>`,
 )}
 ${qa(
+  'alpha-data-loss',
   "It's an alpha. Am I going to lose my trips?",
   `<p>Possibly. Expect rough edges, missing pieces and the occasional data reset. Anything you'd be upset to lose, export or keep a copy of.</p>`,
 )}
 ${qa(
+  'is-it-free',
   'Is it free?',
   `<p>Yes, and there is no paid plan and no advertising. If that ever has to change so the thing can keep running, I'll say so here before it does.</p>`,
 )}
 ${qa(
+  'who-builds-this',
   "Who's building this?",
-  `<p>One person. I've been riding since 1999—hundreds of thousands of miles, most of them across the western US and Mexico—and building things for the web since 1993.</p>
+  `<p>One person. I've been riding for ${RIDING_YEARS} years—hundreds of thousands of miles, most of them across the western US and Mexico—and building things for the web for ${WEB_YEARS} years.</p>
    <p>I built this because every planning tool I tried had the same shape: something clever I didn't need and couldn't turn off, sitting on top of something basic that didn't work. Stop times, waypoint counts, import and export that survives contact with a real device. I wanted the tool without the first part and with all of the second, so I'm making it.</p>`,
 )}`
 

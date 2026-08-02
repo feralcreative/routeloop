@@ -278,6 +278,19 @@ export const routes = pgTable(
     endAt: timestamp('end_at', { withTimezone: true }),
     distanceM: integer('distance_m').notNull().default(0),
     durationS: integer('duration_s').notNull().default(0),
+    // How twisty the day's roads are, in degrees of heading change per mile.
+    // See src/maps/twist.ts. Computed from geometry at write time in both the
+    // builder save and the KML/GPX import, so imported rides get one too.
+    //
+    // Nullable on purpose, and null is NOT the same as 0: 0 claims the road is
+    // straight, null says nothing has measured it. Every row predating this
+    // column is null until utils/backfill-twistiness.ts runs, and a route with
+    // no legs stays null forever.
+    twistinessDpm: integer('twistiness_dpm'),
+    // The same figure over the twistiest 20-mile stretch of the day, which is
+    // the number that actually tells a rider whether to go — a day average
+    // buries 40 good miles under 200 of slab.
+    twistinessBestDpm: integer('twistiness_best_dpm'),
   },
   (t) => [uniqueIndex('uq_route_ride_pos').on(t.rideId, t.position)],
 )

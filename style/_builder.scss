@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // Builder
@@ -15,11 +16,40 @@
     box-sizing: border-box;
   }
 
-  .ride-meta {
+  // Three bands, one per scope: the ride, the trip across its days, and the one
+  // day being edited. The panel used to be a flat run of divs where nothing said
+  // whether a control changed one day or everything.
+  //
+  // Tint and an accent rather than captions and rules. At 380px a horizontal
+  // rule reads as clutter and three extra label lines are three lines of the
+  // vertical budget — the grouping itself carries the meaning, and the day band
+  // names its own scope through the colour it is accented in.
+  .panel-band {
+    padding: 0.7em 0.75em;
+    border-radius: 8px;
+
+    + .panel-band,
+    + .day-pick-hint,
+    .day-pick-hint + & {
+      margin-top: 0.6em;
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // The ride's own fields sit at the top of the panel under its title, so they
+  // need no container of their own — a tint here would box in the whole panel.
+  //
+  // This block was .ride-meta before the bands; the class was folded into the
+  // band rather than nested inside it, so the rules move here with it.
+  .panel-band--ride {
     display: flex;
     flex-direction: column;
     gap: 0.5em;
-    margin-bottom: 0.75em;
+    padding: 0;
+
     #ride-title {
       font-weight: 700;
       width: 100%;
@@ -29,6 +59,36 @@
       resize: vertical;
     }
   }
+
+  .panel-band--trip {
+    background: rgba(0, 0, 0, 0.035);
+  }
+
+  // Accented in the day's own colour, which is also what every role icon inside
+  // it inherits. --route-color is set from renderDayHead(); the fallback covers
+  // the first paint before any day is selected.
+  .panel-band--day {
+    background: rgba(0, 0, 0, 0.035);
+    border-left: 3px solid var(--route-color, #{$grey});
+
+    // The icons are SVGs drawn with fill="currentColor", so one `color` here
+    // tints every one of them — role chips, the picker, the stop numbers and
+    // the POI dots. Scoped to this band on purpose: the collapse toggle and any
+    // other panel chrome must stay as they are.
+    color: var(--route-color, #{$text});
+
+    // Text is not tinted — a whole panel of coloured prose is unreadable, and
+    // the point is the icons.
+    input,
+    textarea,
+    .row-name,
+    .day-time,
+    .day-times-note,
+    .empty-hint {
+      color: $text;
+    }
+  }
+
   // The day scrubber. It focuses a day rather than switching to one — every
   // route stays drawn on the map and only the emphasis moves, so this is a
   // slider and not a tab strip.
@@ -110,9 +170,15 @@
     }
   }
 
-  // Start and end for the day edits land on. Unlike .day-head this is never
-  // hidden — a single-day ride still wants a date on it.
+  // Start and end for the day edits land on. Hidden along with the rest of the
+  // day section while the slider is on "All", so it needs the same explicit
+  // rule .day-head does — the `display` below outranks the UA sheet's
+  // `[hidden] { display: none }`.
   .day-times {
+    &[hidden] {
+      display: none;
+    }
+
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
@@ -174,6 +240,13 @@
   // Controls for the one day edits land on, which is the focused day, or the
   // last day while the slider sits on "all".
   .day-head {
+    // builder.js hides this for a single untitled day, but the `display` below
+    // outranks the UA sheet's `[hidden] { display: none }`, so without the
+    // explicit rule it never actually hid. Same trap as .row-roles.
+    &[hidden] {
+      display: none;
+    }
+
     display: flex;
     align-items: center;
     gap: 0.4em;
@@ -209,6 +282,61 @@
           color: $url;
         }
       }
+    }
+  }
+
+  // Stands in for the whole day-editing section while the slider is on "All".
+  // Deliberately a plain sentence rather than a disabled-looking block: nothing
+  // is broken, the rider is just looking at the trip instead of a day.
+  .day-pick-hint {
+    margin: 0.75em 0;
+    padding: 0.9em 0.75em;
+    border: 1px dashed $grey;
+    border-radius: 6px;
+    color: $text;
+    opacity: 0.7;
+    font-size: 0.85em;
+    text-align: center;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .mode-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  // A "?" beside a control the FAQ defines. Sized and coloured to sit under
+  // everything around it: this is a thing you look for when you are stuck, not
+  // a thing that should be competing with the controls in a 380px panel. It
+  // only earns full contrast on hover.
+  .faq-link {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    flex: 0 0 auto;
+    width: 1.25em;
+    height: 1.25em;
+    margin-left: 0.3em;
+    border: 1px solid $grey;
+    border-radius: 50%;
+    color: $text;
+    opacity: 0.45;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    // Superscript-ish without shifting the line box it sits in.
+    vertical-align: super;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+      border-color: $url;
+      color: $url;
+      text-decoration: none;
     }
   }
 
@@ -252,12 +380,22 @@
     #search {
       width: 100%;
     }
+    // Fixed, not absolute, and positioned from JS — see placeResults() in
+    // builder.js. Absolute made this a descendant of the panel's scroll box, so
+    // the moment .panel-contents-wrapper gained overflow the dropdown was
+    // clipped at the panel's bottom edge: three visible rows out of eight, on
+    // the control used to add every stop. Fixed escapes the clip because nothing
+    // in the chain establishes a containing block for it.
+    //
+    // The cost is that JS owns left/top/width and has to keep them current,
+    // which is why the panel scrolling closes the dropdown rather than trying to
+    // track it.
     #search-results {
-      position: absolute;
+      position: fixed;
       z-index: 20;
-      left: 0;
-      right: 0;
-      top: 100%;
+      // JS sets width from the field's border box, so this has to measure the
+      // same way or the 1px border either side makes the list 2px wider.
+      box-sizing: border-box;
       margin: 2px 0 0;
       padding: 0;
       list-style: none;
@@ -267,6 +405,9 @@
       box-shadow: 0 4px 12px $panel-shadow;
       max-height: 240px;
       overflow-y: auto;
+      // Otherwise scrolling past the last result chains into the panel, and the
+      // panel scrolling is what closes this list.
+      overscroll-behavior: contain;
       li {
         padding: 0.45em 0.6em;
         cursor: pointer;
@@ -274,7 +415,7 @@
           background: rgba(0, 0, 0, 0.05);
         }
         .hit-ctx {
-          color: lighten($text, 35%);
+          color: color.adjust($text, $lightness: 35%);
           font-size: 0.85em;
         }
       }
@@ -299,18 +440,13 @@
     }
   }
 
-  .poi-head {
-    font-weight: 700;
-    margin: 0.75em 0 0.25em;
-  }
-
   .point-list {
     list-style: none;
     margin: 0;
     padding: 0;
 
     .empty-hint {
-      color: lighten($text, 35%);
+      color: color.adjust($text, $lightness: 35%);
       padding: 0.5em 0;
     }
 
@@ -326,11 +462,13 @@
       align-items: center;
       gap: 0.4em;
     }
+    // Inherits the band's --route-color rather than carrying its own grey: the
+    // stop number and the POI dot are markers, and a marker should say which
+    // day it belongs to.
     .row-num {
       flex: 0 0 1.5em;
       text-align: center;
       font-weight: 700;
-      color: lighten($text, 25%);
       &.poi-dot::before {
         content: "◦";
       }
@@ -344,6 +482,10 @@
     }
     .row-roles-btn {
       font: inherit;
+      // Without this the chips inside stay black: the UA sheet gives every
+      // <button> `color: buttontext`, and no author rule was overriding it, so
+      // the band's --route-color never reached the currentColor in the SVGs.
+      color: inherit;
       display: flex;
       align-items: center;
       gap: 2px;
@@ -368,7 +510,7 @@
         border: 0;
         background: none;
         cursor: pointer;
-        color: lighten($text, 25%);
+        color: color.adjust($text, $lightness: 25%);
         padding: 0.2em 0.3em;
         &:hover {
           color: $text;
@@ -406,19 +548,21 @@
         padding: 0.45em 0.55em;
         text-align: left;
         cursor: pointer;
+        // Same button-resets-colour trap as .row-roles-btn above.
+        color: inherit;
         .tb-inline-icon {
           width: 18px;
           height: 18px;
           display: block;
           flex: 0 0 18px;
-          color: $text;
         }
+        // Selected. The tint used to be $url regardless of the day, which now
+        // fights the band's colour — the highlight is the background, and the
+        // icon keeps the day's colour like every other icon here.
         &.on {
-          border-color: $url;
-          background: rgba(21, 101, 192, 0.12);
-          .tb-inline-icon {
-            color: $url;
-          }
+          border-color: currentColor;
+          background: rgba(0, 0, 0, 0.06);
+          font-weight: 700;
         }
       }
     }
@@ -450,7 +594,7 @@
     }
     .save-status {
       font-size: 0.9em;
-      color: lighten($text, 25%);
+      color: color.adjust($text, $lightness: 25%);
     }
   }
 }

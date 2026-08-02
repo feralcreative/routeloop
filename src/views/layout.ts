@@ -123,8 +123,7 @@ function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): strin
   <nav class="site-nav" id="site-nav" hidden>
     ${links}
     <hr>
-    ${siteLinkRow()}
-    <button type="button" class="linkbtn" data-open-alpha>About this alpha</button>
+    ${navAboutMenu()}
   </nav>
 </header>`
 }
@@ -156,15 +155,45 @@ const SITE_LINKS: { href: string; label: string }[] = [
   { href: '/terms', label: 'Terms' },
 ]
 
+// A "?" beside a control, linking to the answer that defines it.
+//
+// The FAQ already explains what a POI is and what "unlisted" means; before this
+// the only way to find that out was to guess the FAQ had an answer, leave the
+// builder, and go looking. The ids in pages.ts are a deliberate contract for
+// exactly this — see the qa() helper there.
+//
+// Opens in a new tab, always. Every one of these currently sits in the builder,
+// where following a link means abandoning an unsaved ride: the beforeunload
+// guard would catch it, but making someone answer "are you sure" to read a
+// definition is a bad trade.
+export const faqLink = (anchor: string, what: string): string =>
+  `<a class="faq-link" href="/faq#${anchor}" target="_blank" rel="noopener"` +
+  ` title="What is ${esc(what)}?" aria-label="What is ${esc(what)}? Opens the questions page in a new tab">?</a>`
+
 const siteLinkRow = (): string =>
   SITE_LINKS.map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('')
+
+// The same three links plus the alpha modal, folded into one disclosure. The
+// nav was a flat run of nine items where the last four are all "about this
+// thing" rather than "go somewhere in the app"; grouping them puts the rider's
+// own pages at the top and keeps the menu one screen tall.
+//
+// <details> rather than a JS menu: it is a disclosure, and the platform already
+// handles the keyboard and the ARIA for one.
+const navAboutMenu = (): string => `<details class="nav-sub">
+      <summary>About</summary>
+      <div class="nav-sub-items">
+        <button type="button" class="linkbtn" data-open-alpha>About this app</button>
+        ${siteLinkRow()}
+      </div>
+    </details>`
 
 function siteFooter(splash: boolean): string {
   // The splash is a signed-out landing page over video: it gets the links and
   // nothing else. A closing note there would compete with the sign-in controls.
   return `<footer class="site-footer${splash ? ' is-splash' : ''}">
   <nav class="site-footer-links">${siteLinkRow()}</nav>
-  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha. Plans change; roads more so.</p>'}
+  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha.</p>'}
 </footer>`
 }
 

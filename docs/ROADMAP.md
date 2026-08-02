@@ -50,8 +50,9 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Auth**—Google OAuth + emailed magic link, replacing Cloudflare Access.
 - **Maps**—rendering, search (Places New) and routing (Routes API) all on Google.
 - **Admin panel**—the owner approves, blocks and reinstates rider accounts.
+- **Twistiness**—each day carries a measure of how much its roads bend, derived from geometry so imported rides get one too. Shown as a word in the builder and the viewer legend.
 
-The two big migrations (auth and maps) are deployed; what remains of them is cleanup, captured in item 1 below.
+The two big migrations (auth and maps) are **done in the code**; what remains of them is console work on the Google Cloud project and removing the Cloudflare Access policy at the edge—neither scriptable from the repo.
 
 ## Roadmap
 

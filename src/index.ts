@@ -215,14 +215,22 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       startAt: r.startAt?.toISOString() ?? null,
       endAt: r.endAt?.toISOString() ?? null,
       distanceMi: Math.round((r.distanceM / METERS_PER_MILE) * 10) / 10,
+      // Degrees of heading change per mile, and the same over the twistiest
+      // 20-mile stretch. Null on any route stored before the column existed, or
+      // one with no geometry at all — a client must not render null as 0.
+      twistinessDpm: r.twistinessDpm,
+      twistinessBestDpm: r.twistinessBestDpm,
       track,
       // Each entry spans [startIndex, endIndex] of `track`. Note durationS is
       // 0 for a leg the router never answered for, the same as it is in the
       // builder — a client wanting a time for one of those estimates it from
       // distanceM rather than treating the day as that much shorter.
       legs: legsOut,
+      // Both kinds carry durationMin now. A POI is still not a routing anchor,
+      // but time spent at one is time spent, and the timeline has to account
+      // for it — see the schedule in ride-time.js.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map(pointOut),
+      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
     })
   }
 
@@ -338,6 +346,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
+  <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }

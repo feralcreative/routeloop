@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // The rider list reuses ul.cards (white rows, soft shadow) from _chrome.scss; only
@@ -76,7 +77,7 @@
   background: $gpx;
 
   &:hover {
-    background: darken($gpx, 8%);
+    background: color.adjust($gpx, $lightness: -8%);
   }
 }
 
@@ -84,7 +85,7 @@
   background: $kml;
 
   &:hover {
-    background: darken($kml, 8%);
+    background: color.adjust($kml, $lightness: -8%);
   }
 }
 
@@ -92,7 +93,7 @@
 // consistently across the page.
 .pill.is-active {
   background: rgba($gpx, 0.15);
-  color: darken($gpx, 12%);
+  color: color.adjust($gpx, $lightness: -12%);
 }
 
 .pill.is-pending {
@@ -102,10 +103,10 @@
 
 .pill.is-blocked {
   background: rgba($kml, 0.14);
-  color: darken($kml, 6%);
+  color: color.adjust($kml, $lightness: -6%);
 }
 
 .pill.is-manager {
   background: rgba($brand, 0.14);
-  color: darken($brand, 6%);
+  color: color.adjust($brand, $lightness: -6%);
 }

@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // The app's first real form. Everything before this was either a fetch+JSON
@@ -99,13 +100,13 @@
   border-radius: 8px;
   background: rgba(67, 160, 71, 0.12);
   border: 1px solid rgba(67, 160, 71, 0.35);
-  color: darken($gpx, 12%);
+  color: color.adjust($gpx, $lightness: -12%);
   font-weight: 700;
 
   &.is-error {
     background: rgba(211, 47, 47, 0.1);
     border-color: rgba(211, 47, 47, 0.35);
-    color: darken($kml, 8%);
+    color: color.adjust($kml, $lightness: -8%);
   }
 }
 

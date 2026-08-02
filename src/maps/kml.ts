@@ -30,13 +30,13 @@ export type ExtractedPoint = {
 }
 
 export type ExtractedRoute = {
-  points: ExtractedPoint[] // Placemark/wpt order — becomes stop order
+  points: ExtractedPoint[] // Placemark/wpt order—becomes stop order
   track: Track // the longest line in the file, 6-decimal rounded
   trackMeters: number // haversine length of track
 }
 
 export type KmlResult = ExtractedRoute & {
-  storedKml: string // sanitized, re-serialized document — what gets written to disk
+  storedKml: string // sanitized, re-serialized document—what gets written to disk
 }
 
 // One strict parse used for both formats. xmldom's default onError only throws
@@ -69,7 +69,7 @@ const round6 = (n: number): number => Math.round(n * 1e6) / 1e6
 
 export const METERS_PER_MILE = 1609.344
 
-function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const rad = Math.PI / 180
   const dLat = (lat2 - lat1) * rad
   const dLon = (lon2 - lon1) * rad

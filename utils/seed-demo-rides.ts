@@ -22,7 +22,7 @@ import { and, eq, inArray, like } from 'drizzle-orm'
 import { db } from '../src/db/index'
 import { users, rides, routes, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
 import { generateSlug } from '../src/maps/slug'
-import { GMAPS_SERVER_KEY, OWNER_EMAIL } from '../src/config'
+import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl } from '../src/config'
 
 // schema.ts exports row types but not the role union, so derive it from the
 // enum itself — that way adding a role in one place cannot drift from this file.
@@ -42,12 +42,11 @@ type Leg = { geometry: LngLat[]; distanceM: number; durationS: number }
 // ---------------------------------------------------------------- guard ------
 
 // A generator that TRUNCATEs and inserts a dozen fake rides must never point at
-// a deployed database. Checked against the connection string rather than
-// NODE_ENV, which nothing else in this project sets.
+// a deployed database. The test itself lives in config.ts, because the dev
+// sign-in route needs the same answer and two copies of it could drift.
 function assertLocal(): void {
   const url = process.env.DATABASE_URL ?? ''
-  const local = /@(127\.0\.0\.1|localhost|host\.docker\.internal)[:/]/.test(url)
-  if (!local) {
+  if (!isLocalDatabaseUrl(url)) {
     console.error('Refusing to run: DATABASE_URL does not look local.')
     console.error(`  ${url.replace(/:\/\/[^@]*@/, '://***@')}`)
     process.exit(1)
@@ -141,7 +140,7 @@ const DESCRIPTIONS = [
   'Mostly twisties, one long straight in the middle to stretch.',
   'Fuel before you leave, the middle section has nothing for 80 miles.',
   'Cold in the morning, layer up. Great pavement the whole way.',
-  'Slow going in places — gravel on the corners after the last storm.',
+  'Slow going in places—gravel on the corners after the last storm.',
   'The classic. Ridden it a dozen times and it never gets old.',
   'Backroad alternative to the usual slab route. Adds an hour, worth it.',
   '',

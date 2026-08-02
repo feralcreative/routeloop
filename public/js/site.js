@@ -199,10 +199,55 @@
     paint();
   }
 
+  // --- FAQ accordion -------------------------------------------------------
+  // The questions are <details>, so opening and closing is the platform's job.
+  // Two things it does not do for us:
+  //
+  //   1. Expand all, for reading the whole page top to bottom.
+  //   2. Reliable deep-linking. Chrome auto-expands a <details> when you
+  //      navigate to a fragment inside it; Firefox and Safari do not, so a
+  //      /faq#some-id link from elsewhere in the app would land on a collapsed
+  //      question and look broken. That is the whole reason this exists — the
+  //      links from the builder are useless without it.
+  function initFaq() {
+    const items = Array.from(document.querySelectorAll("details.qa"));
+    if (items.length === 0) return;
+
+    const toggle = document.querySelector("[data-faq-toggle-all]");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        // Read the button's own state rather than the items', so a page where
+        // the rider has opened a few by hand still has one predictable next
+        // action instead of flipping on a majority vote.
+        const open = toggle.getAttribute("aria-expanded") !== "true";
+        items.forEach((d) => {
+          d.open = open;
+        });
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.textContent = open ? "Collapse all" : "Expand all";
+      });
+    }
+
+    function openFromHash() {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (!id) return;
+      const target = document.getElementById(id);
+      if (!target || !target.classList.contains("qa")) return;
+      target.open = true;
+      // The browser already tried to scroll here before the element was open,
+      // so it landed short. Do it again now the answer has height.
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+  }
+
   function init() {
     initNav();
     initSplash();
     initSplashVideo();
+    initFaq();
   }
 
   // `defer` normally guarantees DOM readiness, but this file is also safe to

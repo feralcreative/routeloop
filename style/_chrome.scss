@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
@@ -54,7 +55,7 @@ h1 {
   cursor: pointer;
 
   &:hover {
-    background: darken($url, 8%);
+    background: color.adjust($url, $lightness: -8%);
   }
 
   &:disabled {
@@ -218,13 +219,112 @@ a.card {
   font-size: 0.9rem;
 }
 
-// One question and its answer. The rule sits above rather than below so the
-// last one does not leave a line hanging under the page.
+// FAQ section labels. On a page of collapsed questions these were competing
+// with the questions themselves — both were just bold text, one a few px
+// larger — so they are re-cast as a different KIND of thing rather than a
+// bigger one: small, uppercase, tracked out, and riding on a rule. Nothing
+// about them reads as "a question", which is the whole job.
+.faq-page h2 {
+  margin: 2rem 0 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid $text;
+  color: $text;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+
+  // The first one follows the expand-all control, which already spaces itself.
+  &:first-of-type {
+    margin-top: 0;
+  }
+}
+
+// Expand all / collapse all. Quiet, because it is a convenience rather than
+// the way the page is meant to be read.
+.faq-controls {
+  margin: -0.5rem 0 1.25rem;
+
+  .linkbtn {
+    padding: 0;
+    color: $url;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+// One question and its answer.
+//
+// The whole point of collapsing these is that the page becomes a scannable list
+// of questions, so a collapsed row has to be a LIST ROW — one line, tight — not
+// a heading with air around it. The generous padding this had first meant 23
+// questions still ran several screens, which defeated the exercise.
 .qa {
-  padding-top: 1.5rem;
+  padding: 0;
 
   + .qa {
     border-top: 1px solid $grey;
+  }
+
+  summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    padding: 0.55rem 0;
+    cursor: pointer;
+    // Deliberately NOT heading-sized. These were <h3> before and inherited that
+    // weight, which made them compete with the <h2> section labels; the labels
+    // now win on treatment rather than on size, so a question can sit at body
+    // size and read as an item within a section.
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    // The platform triangle is replaced by the caret below, and hiding it takes
+    // both of these: ::marker for Firefox and current Chrome, the -webkit rule
+    // for older Safari.
+    list-style: none;
+
+    &::marker,
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      color: $url;
+    }
+
+    // Drawn rather than typed so it can rotate, and ordered first so every
+    // question starts at the same left edge whatever its length.
+    &::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 0.38em;
+      height: 0.38em;
+      // Nudged off the baseline: the box has no descender to sit on.
+      transform: translateY(-0.1em) rotate(45deg);
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transition: transform 0.15s ease;
+    }
+  }
+
+  &[open] summary::before {
+    transform: translateY(0.05em) rotate(-135deg);
+  }
+
+  // Indented to clear the caret so the answer hangs off its question rather
+  // than starting back at the section margin.
+  .qa-answer {
+    padding: 0 0 1rem 1.55em;
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
   }
 }
 

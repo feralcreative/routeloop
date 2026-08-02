@@ -27,7 +27,8 @@ import {
   type Track,
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
-import { googleMapsLoader, page, panelShell } from '../views/layout'
+import { twistiness } from '../maps/twist'
+import { faqLink, googleMapsLoader, page, panelShell } from '../views/layout'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -61,7 +62,11 @@ const stopSchema = z.object({
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
   durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
 })
-const poiSchema = stopSchema.omit({ durationMin: true })
+// A POI carries a duration now, the same as a stop. It is still not a routing
+// anchor — the router never sees it and it splits no leg — but a rider who
+// spends half an hour at a viewpoint has spent half an hour, and the day's end
+// time has to say so.
+const poiSchema = stopSchema
 
 const legSchema = z.object({
   geometry: z.array(lngLat).min(2).max(MAX_PTS_PER_LEG),
@@ -133,6 +138,7 @@ function rideTotals(p: RidePayload) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
     seconds += r.stops.reduce((n, s) => n + (s.durationMin ?? 0) * 60, 0)
+    seconds += r.pois.reduce((n, p) => n + (p.durationMin ?? 0) * 60, 0)
     stops += r.stops.length
   }
   return { totalMiles: (meters / METERS_PER_MILE).toFixed(1), totalDurationS: seconds, stopCount: stops }
@@ -145,6 +151,10 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
   for (let ri = 0; ri < p.routes.length; ri++) {
     const r = p.routes[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
+    // The same concatenation the POI projection below uses, hoisted so the
+    // track is walked once for both.
+    const track = r.legs.flatMap((l) => l.geometry) as Track
+    const twist = twistiness(track)
     const [route] = await tx
       .insert(routesTable)
       .values({
@@ -156,6 +166,9 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
         endAt: r.endAt ? new Date(r.endAt) : null,
         distanceM: legDistM.reduce((a, b) => a + b, 0),
         durationS: r.legs.reduce((n, l) => n + l.durationS, 0),
+        // null rather than 0 for a day with nothing to measure — see schema.ts.
+        twistinessDpm: twist?.dpm ?? null,
+        twistinessBestDpm: twist?.bestDpm ?? null,
       })
       .returning()
 
@@ -175,8 +188,7 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
       distFromStartM: prefix[Math.min(i, prefix.length - 1)],
     }))
 
-    // POIs: projected onto the route's concatenated track.
-    const track = r.legs.flatMap((l) => l.geometry) as Track
+    // POIs: projected onto the route's concatenated track (built above).
     const poiDists = distFromStartAlongTrack(track, r.pois)
     const poiRows = r.pois.map((s, i) => ({
       routeId: route.id,
@@ -187,7 +199,7 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
       name: s.name,
       description: s.description || null,
       roles: s.roles,
-      durationMin: null,
+      durationMin: s.durationMin,
       distFromStartM: poiDists[i],
     }))
 
@@ -323,8 +335,10 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
       // rides it. The timeline re-derives from legs and stops either way.
       startAt: null,
       endAt: null,
+      // Both kinds carry a duration, so a clone keeps the POI dwell too —
+      // dropping it would quietly shorten every cloned day.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...point(p), durationMin: p.durationMin })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -439,7 +453,16 @@ export async function loadRidePayload(ride: RideRow) {
         })),
       pois: pts
         .filter((p) => p.kind === 'poi')
-        .map((p) => ({ lat: p.lat, lng: p.lng, name: p.name, description: p.description ?? '', roles: p.roles })),
+        .map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          name: p.name,
+          description: p.description ?? '',
+          roles: p.roles,
+          // Same shape as a stop now. Omitting this is how a saved POI dwell
+          // silently disappears on the next load.
+          durationMin: p.durationMin,
+        })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -509,7 +532,15 @@ function builderHtml(
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
   // emphasised. Seeing the whole trip on one map is the product.
-  const contents = `        <div class="ride-meta">
+  // Three bands, each naming the scope of what it holds: the ride, the trip
+  // across all its days, and the one day being edited. Before this the panel was
+  // a flat run of divs and nothing said whether a given control changed one day
+  // or the whole ride — the day scrubber sat next to the day's own colour
+  // picker, and the trip timeline sat between two day-level blocks.
+  //
+  // The order changed with the grouping: the timeline and the totals moved up
+  // into the trip band, which is where they always belonged.
+  const contents = `        <div class="panel-band panel-band--ride">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
@@ -517,63 +548,68 @@ function builderHtml(
               <option value="private" selected>Private</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
-            </select>
+            </select>${faqLink('visibility', 'private, unlisted and public')}
             <div class="add-mode" role="radiogroup" title="What a map click adds">
               <button type="button" class="mode-btn active" data-mode="stop">+ Stop</button>
               <button type="button" class="mode-btn" data-mode="poi">+ POI</button>
+            </div>${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
+          </div>
+        </div>
+
+        <div class="panel-band panel-band--trip">
+          <div class="day-scrub" id="day-scrub">
+            <div class="day-scrub-head">
+              <span class="day-scrub-label" id="day-label">All days</span>
+              <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
             </div>
+            <input id="day-slider" class="day-slider" type="range" min="0" max="0" step="1" value="0"
+                   aria-label="Focus a day, or all days" title="Drag to focus one day">
+            <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
           </div>
-        </div>
 
-        <div class="day-scrub" id="day-scrub">
-          <div class="day-scrub-head">
-            <span class="day-scrub-label" id="day-label">All days</span>
-            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
+          <div class="trip-timeline" id="trip-timeline">
+            <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
+                   aria-label="Move through the trip in time" title="Drag to move through the trip">
+            <div class="time-readout" id="time-readout"></div>
           </div>
-          <input id="day-slider" class="day-slider" type="range" min="0" max="0" step="1" value="0"
-                 aria-label="Focus a day, or all days" title="Drag to focus one day">
-          <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
+
+          <div class="totals" id="totals"></div>
         </div>
 
-        <div class="day-head" id="day-head" hidden>
-          <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
-          <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
-          <span class="day-actions">
-            <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
-            <button type="button" id="day-up" title="Move day earlier">↑</button>
-            <button type="button" id="day-down" title="Move day later">↓</button>
-            <button type="button" id="day-del" title="Delete this day">✕</button>
-          </span>
-        </div>
+        <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
 
-        <div class="day-times" id="day-times">
-          <label class="day-time">
-            <span>Starts</span>
-            <input id="route-start" name="route-start" type="datetime-local">
-          </label>
-          <label class="day-time">
-            <span>Ends</span>
-            <input id="route-end" name="route-end" type="datetime-local"
-                   title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
-          </label>
-          <span class="day-times-note" id="day-times-note"></span>
-        </div>
+        <div class="panel-band panel-band--day" id="day-band">
+          <div class="day-head" id="day-head" hidden>
+            <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
+            <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
+            <span class="day-actions">
+              <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
+              <button type="button" id="day-up" title="Move day earlier">↑</button>
+              <button type="button" id="day-down" title="Move day later">↓</button>
+              <button type="button" id="day-del" title="Delete this day">✕</button>
+            </span>
+          </div>
 
-        <div class="trip-timeline" id="trip-timeline">
-          <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
-                 aria-label="Move through the trip in time" title="Drag to move through the trip">
-          <div class="time-readout" id="time-readout"></div>
-        </div>
+          <div class="day-times" id="day-times">
+            <label class="day-time">
+              <span>Starts</span>
+              <input id="route-start" name="route-start" type="datetime-local">
+            </label>
+            <label class="day-time">
+              <span>Ends</span>
+              <input id="route-end" name="route-end" type="datetime-local"
+                     title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
+            </label>
+            <span class="day-times-note" id="day-times-note"></span>
+          </div>
 
-        <div class="search-wrap">
-          <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
-          <ul id="search-results" hidden></ul>
-        </div>
+          <div class="search-wrap">
+            <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
+            <ul id="search-results" hidden></ul>
+          </div>
 
-        <div class="totals" id="totals"></div>
-        <ol class="point-list" id="stop-list"></ol>
-        <div class="poi-head" id="poi-head" hidden>Points of interest</div>
-        <ul class="point-list" id="poi-list"></ul>
+          <ol class="point-list" id="stop-list"></ol>
+        </div>
 
         <div class="builder-actions">
           <button id="save" class="btn" type="button">Save ride</button>
@@ -597,6 +633,7 @@ function builderHtml(
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
+  <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

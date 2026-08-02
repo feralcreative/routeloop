@@ -24,6 +24,10 @@
   // moment in both. See ride-time.js.
   const { tripSpan, activeAtMoment, fmtMoment } = window.TBTime;
 
+  // Only the label lookup — the viewer reads stored figures rather than
+  // computing them, so it never touches window.TBTwist.twistiness itself.
+  const { twistLabel } = window.TBTwist;
+
   initPanelToggle();
 
   const state = {
@@ -153,6 +157,11 @@
       what = "between days";
     } else if (a.legIndex != null) {
       what = dayName(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.ride.routes[a.dayIndex].legs.length;
+    } else if (a.poiIndex != null) {
+      // The viewer passes no distances: a published ride carries distFromStartMi
+      // for every POI already, and ride-time.js falls back to it.
+      const poi = state.ride.routes[a.dayIndex].pois[a.poiIndex];
+      what = dayName(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
       const stop = a.stopIndex == null ? null : state.ride.routes[a.dayIndex].stops[a.stopIndex];
       what = dayName(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
@@ -176,6 +185,17 @@
     );
   }
 
+  // The numbers behind the label, on hover. The best stretch is only mentioned
+  // when it is meaningfully better than the day as a whole — on a uniformly
+  // twisty road it is the same figure twice.
+  function twistDetail(r) {
+    let s = r.twistinessDpm + "°/mi of heading change";
+    if (r.twistinessBestDpm && r.twistinessBestDpm > r.twistinessDpm * 1.25) {
+      s += ", best 20 mi at " + r.twistinessBestDpm;
+    }
+    return s;
+  }
+
   function buildLegend() {
     const table = document.querySelector(".route-table");
     if (!table) return;
@@ -183,11 +203,22 @@
     table.innerHTML = state.ride.routes
       .map((r, i) => {
         const name = r.title || (multi ? "Day " + (i + 1) : state.ride.title);
+        // Read from the ride rather than recomputed: a published ride is not
+        // being edited, so the stored figure is current by definition. The
+        // builder does the opposite, and twist.js says why.
+        //
+        // Null means nothing has measured this route — a row stored before the
+        // column existed, or one with no geometry. Rendering null as "Straight"
+        // would be a claim the data does not support, so it says nothing.
+        const twist = twistLabel(r.twistinessDpm)
+          ? '<span class="route-twist" title="' + esc(twistDetail(r)) + '">' +
+            esc(twistLabel(r.twistinessDpm)) + "</span>"
+          : "";
         return (
           '<tr class="route-row" data-i="' + i + '">' +
           '<td><label class="route-toggle" style="--route-color:' + esc(r.color) + '">' +
           '<input type="checkbox" checked data-i="' + i + '">' +
-          '<span class="route-name">' + esc(name) + "</span></label></td>" +
+          '<span class="route-name">' + esc(name) + "</span></label>" + twist + "</td>" +
           '<td class="route-miles">' + Number(r.distanceMi).toFixed(1) + " mi</td></tr>"
         );
       })
