@@ -284,6 +284,22 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 - Keyboard shortcuts for the builder.
 - Usage analytics that respect privacy (self-hosted, no third-party trackers).
 
+## Non-goals
+
+Things deliberately not built, recorded so they do not get proposed twice. These are decisions, not backlog—if one changes, change it here rather than opening an issue.
+
+<!-- col-widths: 26% 74% -->
+
+| Not doing | Why |
+| --- | --- |
+| **Round-trip generators** | Scenic, Kurviger and Garmin all ship one and riders say all three pad the distance with junk roads—"many roads that are minor and not fast at all… just there to make up the total distance." Garmin's Adventurous Routing gets called a complete disaster. Shipped everywhere, good nowhere. |
+| **Turn-by-turn navigation** | Not a permanent vow, but a separate product with its own failure surface: freezing, battery drain, late voice cues, destructive recalculation. That is where every competitor's reputation actually fails. Nothing should be attempted here until the hand-off is excellent, and a companion app is a different conversation from bolting navigation onto the planner. |
+| **Curviness as the headline feature** | Kurviger picks single-track farm lanes because they carry a high speed limit; American riders call the result borderline useless. Curviness without road-width and speed-limit context produces routes nobody wants. Worth having (#28); not worth leading with. |
+| **Inventing new vocabulary** | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way *devices* name them, not the way the app thinks about them. |
+| **Paywalling export or sharing** | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not. |
+
+One wording correction that falls out of this: the vision above says TankBag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
+
 ## Good first contributions
 
 Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These map directly to _good first issue_ labels.
