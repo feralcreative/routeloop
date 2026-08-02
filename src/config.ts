@@ -53,6 +53,39 @@ export function isAllowedOrigin(origin: string | undefined | null): boolean {
 // 'pending' after the next rebuild with nobody able to approve them.
 export const OWNER_EMAIL = env('OWNER_EMAIL', 'ziad@feralcreative.co').trim().toLowerCase()
 
+// "Is this a real database or a throwaway one?", asked of the connection string
+// rather than of NODE_ENV, which nothing in this project sets. Anything that
+// TRUNCATEs, seeds, or hands out a session without a password checks this first.
+// It began as a private guard inside utils/seed-demo-rides.ts; it lives here now
+// so the dev sign-in below and the seeders cannot disagree about what "local"
+// means.
+export function isLocalDatabaseUrl(url: string): boolean {
+  return /@(127\.0\.0\.1|localhost|host\.docker\.internal)[:/]/.test(url)
+}
+
+export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? '')
+
+// --- Dev sign-in -------------------------------------------------------------
+//
+// A way into a signed-in page without a password. This is a loaded gun, so it is
+// gated four ways and every gate has to hold before the route is even registered
+// — see src/routes/auth.ts. Note that this codebase had something like it before
+// (DEV_AUTH_EMAIL, deleted along with Cloudflare Access) and its removal was
+// deliberate; this is a considered re-add, not a restoration.
+//
+// The gates, weakest to strongest:
+//
+//   1. DEV_LOGIN_EMAIL names an existing account. Read through env(), so an
+//      empty value from a deploy counts as unset.
+//   2. The database is local.
+//   3. APP_ORIGIN is not https. This is the strongest of the four: stage and
+//      prod must set it correctly or OAuth redirects and the cookie Secure flag
+//      break, so it cannot be quietly wrong without sign-in failing loudly.
+//   4. The request itself came from localhost — checked per request, not here.
+export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
+
+export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
+
 
 // Two Google Maps keys, and they are not interchangeable — the restriction types
 // are mutually exclusive. A referrer-restricted key cannot be used server-side

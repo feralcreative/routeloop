@@ -444,6 +444,19 @@ npm run dev                   # http://localhost:6686
 
 Port 6686 is this project's port—kill and reuse it, never switch.
 
+**Signing in without signing in: `DEV_LOGIN_EMAIL`.** Set it in `.env` to an address that already has an account and `http://127.0.0.1:6686/dev/login` puts you straight into a session as that user. It exists because checking `/builder`, `/welcome` or a profile page otherwise means minting a session token from a script and pasting a cookie by hand, several times an hour.
+
+The app had something like this before—`DEV_AUTH_EMAIL`, deleted along with Cloudflare Access—so this is a considered re-add rather than a restoration. It is gated four ways and when any gate fails the route is **not registered at all**, making `/dev/login` a plain 404 rather than a refusal that confirms it exists:
+
+| Gate | Where |
+| --- | --- |
+| `DEV_LOGIN_EMAIL` names an existing account (it will not create one) | `config.ts`, through `env()` so a deploy's empty string counts as unset |
+| `DATABASE_URL` is 127.0.0.1, localhost or host.docker.internal | `isLocalDatabaseUrl()`, shared with the seeders' `assertLocal()` |
+| `APP_ORIGIN` is not https | `IS_HTTPS_ORIGIN`—the strongest gate, since stage and prod break OAuth and cookie `Secure` if they get it wrong |
+| The request's `Host` is 127.0.0.1 or localhost, not the LAN address | per request, in the handler |
+
+`utils/deploy/deploy.sh` refuses to deploy while `DEV_LOGIN_EMAIL` is set—the backstop for a dev `.env` reaching a server.
+
 **Rebuilding the local dataset: `utils/seed-dev.sh`.** Run this rather than the two seeders by hand. `src/db/seed.ts` opens with `TRUNCATE rides, user_identities, users RESTART IDENTITY CASCADE` and, unlike `utils/seed-demo-rides.ts`, carries **no check that the database is local**—so running it straight after a `db-clone prod dev` silently destroys every account you just pulled down. The script applies that missing guard, carries the accounts across the truncate and restores them by email (identity rows are not restored and are not needed: `resolveUser` falls back to matching on email, so signing in re-links each account), and only then generates rides—`seed-demo-rides.ts` looks its owner up by email, so run in the other order every ride lands on the demo user and is invisible from the account you sign in with. `--straight` skips the Routes API, which otherwise bills one call per leg.
 
 **`db-clone prod dev` costs you the demo data.** Prod is nearly empty; dev is where the interesting rides live. One clone took the local corpus from 16 rides / 21 routes / 71 legs to a single one-leg ride, taking `sample-route-one`—the only *imported* ride, and therefore the only local test case for the single-leg track path that Phase 4 and #6 both turn on—with it. `utils/seed-dev.sh` puts it back.
