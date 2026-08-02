@@ -27,6 +27,7 @@ import {
   type Track,
 } from '../maps/kml'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
+import { twistiness } from '../maps/twist'
 import { googleMapsLoader, page, panelShell } from '../views/layout'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
@@ -145,6 +146,10 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
   for (let ri = 0; ri < p.routes.length; ri++) {
     const r = p.routes[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
+    // The same concatenation the POI projection below uses, hoisted so the
+    // track is walked once for both.
+    const track = r.legs.flatMap((l) => l.geometry) as Track
+    const twist = twistiness(track)
     const [route] = await tx
       .insert(routesTable)
       .values({
@@ -156,6 +161,9 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
         endAt: r.endAt ? new Date(r.endAt) : null,
         distanceM: legDistM.reduce((a, b) => a + b, 0),
         durationS: r.legs.reduce((n, l) => n + l.durationS, 0),
+        // null rather than 0 for a day with nothing to measure — see schema.ts.
+        twistinessDpm: twist?.dpm ?? null,
+        twistinessBestDpm: twist?.bestDpm ?? null,
       })
       .returning()
 
@@ -175,8 +183,7 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
       distFromStartM: prefix[Math.min(i, prefix.length - 1)],
     }))
 
-    // POIs: projected onto the route's concatenated track.
-    const track = r.legs.flatMap((l) => l.geometry) as Track
+    // POIs: projected onto the route's concatenated track (built above).
     const poiDists = distFromStartAlongTrack(track, r.pois)
     const poiRows = r.pois.map((s, i) => ({
       routeId: route.id,
@@ -597,6 +604,7 @@ function builderHtml(
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
+  <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

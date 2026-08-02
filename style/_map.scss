@@ -535,6 +535,17 @@ table.route-table {
       accent-color: var(--route-color, $url);
     }
   }
+  // Sits under the route name rather than beside it: the legend cell is already
+  // narrow and the mileage owns the right-hand column. Indented to clear the
+  // checkbox so it reads as a note on the route above it.
+  .route-twist {
+    display: block;
+    margin-left: 1.6em;
+    color: $text;
+    opacity: 0.6;
+    font-size: 0.8em;
+    cursor: help;
+  }
   .route-miles {
     text-align: right;
     color: $text;

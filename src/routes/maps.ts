@@ -25,6 +25,7 @@ import {
   validateGpx,
 } from '../maps/kml'
 import { generateSlug } from '../maps/slug'
+import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 
@@ -91,7 +92,7 @@ mapsRoutes.post(
     if (turnstileEnabled()) {
       const token = typeof body['cf-turnstile-response'] === 'string' ? body['cf-turnstile-response'] : ''
       if (!(await verifyTurnstile(token, c.req.header('CF-Connecting-IP')))) {
-        return c.json({ error: 'bot check failed — reload and try again' }, 403)
+        return c.json({ error: 'bot check failed—reload and try again' }, 403)
       }
     }
 
@@ -167,9 +168,20 @@ mapsRoutes.post(
           })
           .returning()
 
+        // An imported ride never touches the router, so this is the only shape
+        // information it will ever have — which is exactly why twistiness is
+        // computed from geometry rather than from routing maneuvers.
+        const twist = twistiness(kml.track)
         const [route] = await tx
           .insert(routes)
-          .values({ rideId: ride.id, position: 0, color: meta.color, distanceM: distM })
+          .values({
+            rideId: ride.id,
+            position: 0,
+            color: meta.color,
+            distanceM: distM,
+            twistinessDpm: twist?.dpm ?? null,
+            twistinessBestDpm: twist?.bestDpm ?? null,
+          })
           .returning()
 
         if (kml.points.length > 0) {

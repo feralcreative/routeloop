@@ -128,6 +128,15 @@ ${qa(
    <p>They earn their keep on export too: a stop tagged as fuel can be treated differently from a scenic detour by whatever you hand the file to.</p>`,
 )}
 ${qa(
+  'twistiness',
+  'What does "Twisty" mean on my ride?',
+  `<p>It's a rough measure of how much the road bends, worked out from the shape of your route.</p>
+   <p>TankBag walks the line every 25 metres and adds up how far the direction changes. A road that runs dead straight adds nothing. A road that turns constantly adds a lot. Divide by the miles and you get one number, which becomes one of five words: <strong>Straight</strong>, <strong>Mostly straight</strong>, <strong>Some curves</strong>, <strong>Twisty</strong> or <strong>Very twisty</strong>. Hover the label to see the number behind it.</p>
+   <p>It counts <em>bends</em>, not junctions. Turning left at a crossroads onto another straight road barely registers; a mountain pass that never stops curving registers a lot.</p>
+   <p>A whole day gets averaged, which can be unfair to a good road—forty brilliant miles and two hundred of motorway average out to something dull. So the hover also tells you about the best twenty-mile stretch of the day, when that stretch is meaningfully better than the rest of it. That second number is usually the one worth paying attention to.</p>
+   <p>Because it comes from the shape of the line and nothing else, it works on rides you imported as well as ones you built here.</p>`,
+)}
+${qa(
   'import-a-route',
   'Can I import a route I already have?',
   `<p>Yes—KML and GPX both.</p>

@@ -43,6 +43,12 @@
     fmtMoment,
   } = window.TBTime;
 
+  // Twistiness, computed here rather than read from the ride: the stored figure
+  // is whatever the geometry looked like at the last save, and this panel has to
+  // be right while the rider is still moving stops around. See twist.js for why
+  // there are two implementations and what keeps them honest.
+  const { routeTwistiness, twistLabel } = window.TBTwist;
+
   const MILE = 1609.344;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
   const MAX_STOPS = 200;
@@ -875,8 +881,15 @@
     return {
       meters: route.legs.reduce((n, l) => n + l.distanceM, 0),
       riding: route.legs.reduce((n, l) => n + legDurationS(l), 0),
+      // Still computed although it is no longer displayed: routeElapsedS is
+      // riding plus stopped, and every derived end time and the whole timeline
+      // slider are built on it.
       stopped: routeStoppedS(route),
       estimated: routeIsEstimated(route),
+      // Live rather than the value stored at last save, which would be stale the
+      // moment a stop moves. window.TBTwist caches on the legs array, so this is
+      // free until the router answers again.
+      twist: routeTwistiness(route),
     };
   }
 
@@ -889,17 +902,43 @@
     }
     // "~" marks a riding figure that includes an estimated leg, so a number the
     // router never produced is never shown as though it had.
+    //
+    // Time stopped used to sit at the end of this line and no longer does: it is
+    // a number nobody plans around, where what the road is actually like is. The
+    // dwell figures still drive the end times and the timeline, they are just not
+    // worth a slot in a 380px panel.
     const line = (t) =>
       (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
-      (t.stopped ? " · " + hm(t.stopped) + " stopped" : "");
+      (t.twist ? " · " + twistLabel(t.twist.dpm) : "");
+
+    // The label alone on the line; the numbers behind it on hover. "252°/mi"
+    // means nothing to a rider, but it is the thing to check when the label
+    // looks wrong, so it should be reachable without being in the way.
+    const twistTitle = (t) => {
+      if (!t.twist) return "";
+      let s = t.twist.dpm + "°/mi of heading change";
+      // Only worth saying when the best stretch is meaningfully better than the
+      // day as a whole. On a uniformly twisty day it is the same number twice.
+      if (t.twist.bestDpm && t.twist.bestDpm > t.twist.dpm * 1.25) {
+        s += ", best " + t.twist.bestMiles + " mi at " + t.twist.bestDpm;
+      }
+      return s;
+    };
 
     if (state.routes.length === 1) {
-      totalsEl.textContent = line(routeTotals(state.routes[0]));
+      const t = routeTotals(state.routes[0]);
+      totalsEl.textContent = line(t);
+      totalsEl.title = twistTitle(t);
       return;
     }
 
     // With several days the trip total is the number that matters; the focused
     // day's own figures sit under it.
+    //
+    // Twistiness across days is a distance-weighted mean, not an average of the
+    // days' figures: it is degrees over miles, so the trip's value is the sum of
+    // the degrees over the sum of the miles. Averaging the per-day numbers would
+    // let a 30-mile breakfast ride count as much as a 300-mile transit day.
     const trip = state.routes.reduce(
       (acc, r) => {
         const t = routeTotals(r);
@@ -908,13 +947,31 @@
           riding: acc.riding + t.riding,
           stopped: acc.stopped + t.stopped,
           estimated: acc.estimated || t.estimated,
+          twistDeg: acc.twistDeg + (t.twist ? (t.twist.dpm * t.meters) / MILE : 0),
+          twistMeters: acc.twistMeters + (t.twist ? t.meters : 0),
+          // The trip's best stretch is the best any single day has, not a sum:
+          // "somewhere in this trip there are twenty miles like that".
+          twistBest: Math.max(acc.twistBest, (t.twist && t.twist.bestDpm) || 0),
+          twistBestMiles: t.twist && t.twist.bestDpm > acc.twistBest ? t.twist.bestMiles : acc.twistBestMiles,
         };
       },
-      { meters: 0, riding: 0, stopped: 0, estimated: false },
+      { meters: 0, riding: 0, stopped: 0, estimated: false, twistDeg: 0, twistMeters: 0, twistBest: 0, twistBestMiles: 0 },
     );
+    trip.twist =
+      trip.twistMeters > 0
+        ? {
+            dpm: Math.round(trip.twistDeg / (trip.twistMeters / MILE)),
+            bestDpm: trip.twistBest,
+            bestMiles: trip.twistBestMiles,
+          }
+        : null;
+    const dayT = routeTotals(editRoute());
+    totalsEl.title = "";
     totalsEl.innerHTML =
-      '<span class="totals-trip">' + state.routes.length + " days · " + line(trip) + "</span>" +
-      '<span class="totals-day">' + esc(dayLabel(editIndex())) + ": " + line(routeTotals(editRoute())) + "</span>";
+      '<span class="totals-trip" title="' + esc(twistTitle(trip)) + '">' +
+      state.routes.length + " days · " + line(trip) + "</span>" +
+      '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
+      esc(dayLabel(editIndex())) + ": " + line(dayT) + "</span>";
   }
 
   // Delegated events for both lists.
