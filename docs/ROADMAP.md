@@ -52,7 +52,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Admin panel**—the owner approves, blocks and reinstates rider accounts.
 - **Twistiness**—each day carries a measure of how much its roads bend, derived from geometry so imported rides get one too. Shown as a word in the builder and the viewer legend.
 
-The two big migrations (auth and maps) are **done in the code**; what remains of them is console work on the Google Cloud project and removing the Cloudflare Access policy at the edge—neither scriptable from the repo.
+The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
 ## Roadmap
 
@@ -68,11 +68,12 @@ The two big migrations (auth and maps) are **done in the code**; what remains of
 - [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
 - [x] Regenerate the favicons and social image from the current TankBag mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
-- [ ] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill.
+- [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
+- [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
 
 **Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.ts`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
-**Status.** code complete. Mapbox is retired, the two viewer shells are one, the legal pages shipped and the favicons were regenerated on 2026-07-31. What remains is console work: remove the Cloudflare Access policy at the edge, and set the per-API quota caps on the GCP project.
+**Status.** Done, bar one thing. Mapbox is retired, the two viewer shells are one, the legal pages shipped, the favicons were regenerated on 2026-07-31, and the GCP console work landed 2026-08-02 (quota caps applied, 23 unused Maps APIs disabled). The tracking issue #6 is closed; the single remaining item—removing the Cloudflare Access policy at the edge—moved to #58, because it is gated on a verified prod deploy and nothing in this repo will ever tick it.
 
 ### 2. The trip timeline
 

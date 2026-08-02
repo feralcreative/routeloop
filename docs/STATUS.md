@@ -139,9 +139,11 @@ The project behind the Maps keys is **`routeloop-503503`** (display name `routel
 
   The command, for when the list changes again. Note that mutating an API key trips Workspace reauthentication: gcloud prompts in-terminal for the active account's password rather than opening a browser, which is easy to mistake for an ssh or sudo prompt.
 
+  **Corrected 2026-08-02**—this command named the retired `routeloop-503503` project and its browser-key uid, so running it as written would have edited a key nothing uses. The live pair is the `tankbag` project and uid `53e9a638`:
+
   ```bash
-  gcloud services api-keys update 010d908a-9158-4169-b5cb-98d8f08f6b16 \
-    --project=routeloop-503503 \
+  gcloud services api-keys update 53e9a638-bafb-4604-9346-282dd8c25d80 \
+    --project=tankbag \
     --allowed-referrers="https://tankbag.app/*,https://www.tankbag.app/*,https://stage.tankbag.app/*,https://routeloop.app/*,https://www.routeloop.app/*,https://stage.routeloop.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
   ```
 
@@ -197,14 +199,48 @@ The Maps keys and OAuth client used to live on `routeloop-503503` (display name 
 
 **The old `routeloop-503503` keys are now orphaned but must stay alive** until the new `.env` is deployed to prod—the *live* prod build still uses them. Delete them only after the prod cutover, or the imported-ride viewer breaks in production.
 
-The re-verify script above still names `routeloop-503503` and the old browser-key uid; when you next touch it, point it at the `tankbag` project and uid `53e9a638`.
+Both the referrer-update command and the re-verify block now name the `tankbag` project and the live key uids, corrected 2026-08-02.
 
-## Still blocked on you, in the console
+## Console hardening—done 2026-08-02
 
-The credential items (Map ID, OAuth client, SMTP) are **done** as of 2026-07-30—see the section above. What remains:
+The credential items (Map ID, OAuth client, SMTP) landed 2026-07-30. Everything else that was listed here is now done too, and both items this section used to carry were **already stale when they were read**—the same rot that let issue #6 sit with seven unchecked boxes when five were finished.
 
-1. **Privacy policy and terms pages.** Required to *publish* the External consent screen past its 100-user testing cap; neither page exists. Not needed for the alpha (the `users.status` gate limits real usage), but a wall once you want more than a hand-listed 100 testers. Can be drafted in-repo whenever.
-2. **Per-API daily quota caps** on the `tankbag` project. Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k. A budget alert reports the money after it is gone; a quota cap prevents it.
+### Daily quota caps, applied
+
+Overrides on the `tankbag` project (`976935115789`), verified as overrides rather than defaults:
+
+| metric | daily cap | previously |
+| --- | --- | --- |
+| `maps-backend/billable_default` (map loads) | 500 | unlimited |
+| `routes/compute_routes_requests` | 500 | unlimited |
+| `places/AutocompletePlacesRequest` | 500 | 175,000 |
+| `places/GetPlaceRequest` | 300 | 125,000 |
+| `geocoding-backend/billable_default` | 100 | unlimited |
+
+Five metrics, not four APIs: Places bills autocomplete and place-details separately and the builder calls both—autocomplete per keystroke burst, details once per stop actually picked.
+
+The values sit above the ~330/day free-tier break-even deliberately. Dev traffic hits this same project, so a cap that stops a runaway but also stops you working is the wrong trade.
+
+**Two things that will bite whoever changes these next.** `gcloud alpha services quota update` **requires `--force`**: Google refuses any decrease over 10%, and "unlimited" reports as `-1`, so every cap here trips that guard and fails with `COMMON_QUOTA_UNSAFE_OVERRIDE`. And the unit must be quoted—`--unit='1/d/{project}'`—or zsh eats the braces. The first attempt at this failed both ways and the output scrolled past unread.
+
+```bash
+gcloud alpha services quota update --consumer=projects/976935115789 \
+  --service=routes.googleapis.com \
+  --metric=routes.googleapis.com/compute_routes_requests \
+  --unit='1/d/{project}' --value=500 --force
+```
+
+### 23 of 27 Maps APIs disabled
+
+The project had **27** Maps-family APIs enabled; the app uses **four**. Street View, Solar, Pollen, Air Quality, Aerial View, the Android/iOS SDKs, legacy Directions and Distance Matrix, legacy Places, Elevation, Roads, Time Zone and the rest are all off. What remains is exactly what the two keys target: Maps JavaScript, Places (New), Routes, Geocoding.
+
+This is defence in depth rather than a live hole—both keys are API-restricted, so none of the 23 was reachable. It matters because **the browser key's referrer restriction was silently lost once already** during the project migration (see the `API_KEY_HTTP_REFERRER_BLOCKED` note above). Disabling shrinks what a repeat would expose.
+
+`mapsplatformdatasets` was the one genuinely in doubt, since it looked like it might back the Vector Map ID. It does not: after disabling, the vector map still renders with `a8979f770ff370036c0c516d`, Places returns suggestions, Routes returns geometry and Geocoding resolves. All four verified in a browser against the running app.
+
+### Privacy policy and terms
+
+**Done**—`/privacy` and `/terms` shipped 2026-08-01. This section listed them as missing for a day after they existed. They were the blocker on publishing the External consent screen past its 100-user testing cap, so that gate is open whenever you want it.
 
 **Sign-in now works locally**—both Google and magic link are wired and verified. The direct-session mint below is still handy for scripting an authenticated request without a browser round-trip:
 
