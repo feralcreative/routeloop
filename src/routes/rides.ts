@@ -235,7 +235,7 @@ rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, as
   if (turnstileEnabled()) {
     const token = c.req.header('X-Turnstile-Token') ?? ''
     if (!(await verifyTurnstile(token, c.req.header('CF-Connecting-IP')))) {
-      return c.json({ error: 'bot check failed — reload and try again' }, 403)
+      return c.json({ error: 'bot check failed—reload and try again' }, 403)
     }
   }
 
@@ -264,12 +264,112 @@ rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, as
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
+// Clone a public ride into the caller's account as a private draft.
+//
+// Reads the stored graph and rebuilds it through the same insertRideGraph the
+// builder's save uses, so a clone is a first-class native ride rather than a
+// second representation that drifts.
+//
+// Deliberately dropped:
+//   - descriptions, on the ride and on every stop. Those are the author's
+//     writing, and stop notes are where "gate code 4417, park behind the barn"
+//     lives. Copying them hands one rider's private notes to a stranger.
+//   - visibility. A clone lands private no matter what the original was; making
+//     it public is a decision the new owner takes deliberately.
+//   - via points, which are shaping for a route the cloner will now edit.
+rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
+
+  const [src] = await db.select().from(rides).where(eq(rides.id, id)).limit(1)
+  // Only public rides are clonable, and only native ones can be rebuilt: an
+  // imported ride's graph exists, but the builder cannot open the result.
+  if (!src || src.visibility !== 'public' || src.source !== 'native') {
+    return c.json({ error: 'not found' }, 404)
+  }
+
+  const srcRoutes = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, src.id))
+    .orderBy(routesTable.position)
+
+  const payloadRoutes = []
+  for (const r of srcRoutes) {
+    const pts = await db
+      .select()
+      .from(pointsTable)
+      .where(eq(pointsTable.routeId, r.id))
+      .orderBy(pointsTable.position)
+    const legs = await db
+      .select()
+      .from(routeLegs)
+      .where(eq(routeLegs.routeId, r.id))
+      .orderBy(routeLegs.position)
+
+    const point = (p: (typeof pts)[number]) => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      description: '',
+      roles: p.roles,
+    })
+
+    payloadRoutes.push({
+      title: r.title,
+      color: r.color,
+      // Times belong to the trip the author planned, not to whenever the cloner
+      // rides it. The timeline re-derives from legs and stops either way.
+      startAt: null,
+      endAt: null,
+      stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
+      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      legs: legs.map((l) => ({
+        geometry: l.geometry,
+        distanceM: l.distanceM,
+        durationS: l.durationS,
+        viaPoints: [],
+      })),
+    })
+  }
+
+  const p: RidePayload = {
+    title: src.title,
+    description: '',
+    visibility: 'private',
+    external_url: '',
+    routes: payloadRoutes,
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [ride] = await tx
+      .insert(rides)
+      .values({
+        ownerId: user.id,
+        slug: generateSlug(),
+        title: p.title,
+        description: null,
+        visibility: 'private',
+        source: 'native',
+        externalUrl: null,
+        ...rideTotals(p),
+      })
+      .returning()
+    await insertRideGraph(tx, ride.id, p)
+    return ride
+  })
+
+  console.log(`[rides] user ${user.id} cloned ride ${src.id} -> ${created.id}`)
+  return c.json({ id: created.id, slug: created.slug }, 201)
+})
+
 rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
   if (ride.source !== 'native') {
-    return c.json({ error: 'imported rides are not editable yet — re-import or plan a new ride' }, 409)
+    return c.json({ error: 'imported rides are not editable yet—re-import or plan a new ride' }, 409)
   }
 
   const body = await parseRideBody(c)
@@ -366,9 +466,28 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | 
   return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
 }
 
+// The public starting point, sent to every builder page rather than only the
+// new-ride one: an existing ride can be made public at any time, and that is
+// exactly when the swap is offered.
+//
+// Unlike homeSeed this is not gated on a preference — it is not seeding
+// anything, only standing by in case a home-started ride is about to be shared.
+type PublicStart = { lat: number; lng: number; label: string }
+
+async function publicStart(userId: number): Promise<PublicStart | null> {
+  const [p] = await db
+    .select({ lat: userProfiles.startLat, lng: userProfiles.startLng, label: userProfiles.startLabel })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1)
+  if (p?.lat == null || p?.lng == null) return null
+  return { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' }
+}
+
 rideRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
-  return c.html(builderHtml(null, user, await homeSeed(user.id)))
+  const [home, start] = await Promise.all([homeSeed(user.id), publicStart(user.id)])
+  return c.html(builderHtml(null, user, home, start))
 })
 
 rideRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -378,10 +497,15 @@ rideRoutes.get('/builder/:id', requireActive, async (c) => {
   // Same predicate the viewer's edit button reads, so the button and this gate
   // cannot drift into offering an action that is then refused.
   if (!canEditRide(ride, user)) return c.text('Imported rides are not editable yet', 409)
-  return c.html(builderHtml(ride.id, user, null))
+  return c.html(builderHtml(ride.id, user, null, await publicStart(user.id)))
 })
 
-function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; lng: number } | null): string {
+function builderHtml(
+  rideId: number | null,
+  user: UserRow,
+  home: { lat: number; lng: number } | null,
+  publicStart: PublicStart | null,
+): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
   // emphasised. Seeing the whole trip on one map is the product.
@@ -415,6 +539,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
           <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
           <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
           <span class="day-actions">
+            <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
             <button type="button" id="day-up" title="Move day earlier">↑</button>
             <button type="button" id="day-down" title="Move day later">↓</button>
             <button type="button" id="day-del" title="Delete this day">✕</button>
@@ -452,6 +577,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
 
         <div class="builder-actions">
           <button id="save" class="btn" type="button">Save ride</button>
+          <button id="discard" class="btn-quiet" type="button" disabled>Discard changes</button>
           <span id="save-status" class="save-status"></span>
         </div>`
 
@@ -467,7 +593,7 @@ function builderHtml(rideId: number | null, user: UserRow, home: { lat: number; 
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home },
+    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home, publicStart },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>

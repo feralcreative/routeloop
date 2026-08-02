@@ -1,8 +1,8 @@
 # Status and handoff
 
 **Updated:** 2026-08-01
-**Branch:** `style/ui-tweaks-and-cleanup`, based on `origin/main` (`8e10634`), at `5323e83`—nine commits
-**Note:** the trip-timeline work is merged and lives in `origin/main`. A local `main` that has not been pulled still sits at `7d0db74`, which makes `git log main..HEAD` look like it carries two sprints. Pull first.
+**Branch:** `feat/legal-and-faq-pages`, based on `origin/main` (`9194e15`), at `389c178`—eight commits
+**Note:** sprint 4 (UX and the naming model) is merged into `main`. This branch adds the public surfaces: profiles, gallery, roster, clone, and the legal pages.
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -15,7 +15,7 @@ Two migrations drove the previous branch, `refactor/google-maps-and-auth`, which
 
 | | Was | Is becoming | State |
 | --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally** — credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
+| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally**—credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **engine ported and verified in a browser (2026-07-30)**. Builder, viewer and search all run on Google. Only `profile.js` geocoding and the dead Mapbox config remain |
 
 ## Renamed back to tankbag, 2026-07-29
@@ -58,7 +58,7 @@ Barstow -> Victorville, CA        Jakarta, Indonesia
 
 ## Done and committed
 
-**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover (since reverted — see below), the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
+**Through `2a96dae`:** the pivot from file-upload to in-app planning (Phases 0–2), the `tankbag` → `routeloop` rename with production cutover (since reverted—see below), the unified page shell and SCSS partial split, the sign-in splash, and Sprint 2's user profiles.
 
 **`17de208`—auth replacement.** Cloudflare Access is gone from the codebase: `src/auth/access.ts` deleted along with the `Cf-Access-Authenticated-User-Email` trust and the `DEV_AUTH_EMAIL` fallback. New modules are [identity.ts](../src/auth/identity.ts) (provider-agnostic `resolveUser`), [google.ts](../src/auth/google.ts) (Arctic OAuth, state + PKCE, rejects unverified emails), [magic.ts](../src/auth/magic.ts) (hash-only storage, single-use, 15-minute expiry, rate limited) and [mailer.ts](../src/auth/mailer.ts). Both methods are feature-flagged by omission—with no credentials the controls are not rendered rather than offered and broken.
 
@@ -111,12 +111,12 @@ Verified end to end against the live API:
 
 | Case | Result |
 | --- | --- |
-| Barstow → Victorville | 71,316 m / 3,059 s / 218 points — identical to a direct API call |
+| Barstow → Victorville | 71,316 m / 3,059 s / 218 points—identical to a direct API call |
 | Two via points | 200 |
 | No session | 401 |
 | Foreign `Origin` | 403 |
 | Malformed body | 400 |
-| Coordinates passed as `[lat, lng]` | 400 — caught by range validation, not silently routed |
+| Coordinates passed as `[lat, lng]` | 400—caught by range validation, not silently routed |
 | Unroutable pair (mid-Pacific) | 422 |
 | Server key present in `/`, `/builder`, `/login` source | 0 occurrences |
 | Cache | 256 ms cold, 5 ms warm |
@@ -184,7 +184,7 @@ The browser-side symptom is `RefererNotAllowedMapError` in the console and a map
 
 <!--| PAGE-BREAK -->
 
-## Google Cloud migrated to the tankbag project — 2026-07-30
+## Google Cloud migrated to the tankbag project—2026-07-30
 
 The Maps keys and OAuth client used to live on `routeloop-503503` (display name `routeloop`). They now live on the pre-existing **`tankbag` project (number `976935115789`)**, so the console name matches the product again. What was done, all verified:
 
@@ -309,6 +309,58 @@ Existing accounts created before this sprint have `username = NULL`. `requireAct
 
 The **"Sign out" link on the holding page** is `$url` blue directly over the video: 2.94:1 against bright gravel, 2.33:1 against dark foliage. Both fail WCAG AA. It is a form submit styled as a link and genuinely a lighter action than the three resource buttons beside it, so it should not become a fourth button—but it does need a colour that survives the footage. One line, not done.
 
+## Public surfaces—2026-08-01
+
+Branch `feat/legal-and-faq-pages`, eight commits. Closes [#45](https://github.com/feralcreative/tankbag/issues/45), [#14](https://github.com/feralcreative/tankbag/issues/14) and [#26](https://github.com/feralcreative/tankbag/issues/26); takes half of [#12](https://github.com/feralcreative/tankbag/issues/12) and the two pages [#18](https://github.com/feralcreative/tankbag/issues/18) wanted.
+
+### The home-address exposure—read this before touching ride starts
+
+A rider with `add_home_to_rides` on gets a first stop seeded at their house, named **"Home"**, carrying the `home` role, at six-decimal precision. `ride.json` sends `lat`/`lng`/`name`/`roles` to anyone with a share link. **Sharing such a ride publishes a map pin on your front door.**
+
+**Moving the pin does not fix it, and this is the part that is easy to get wrong.** The first leg is *drawn* from the house: the line points at the building whatever the marker says. Relabelling or nudging the marker leaves the geometry intact. The substitution has to happen while planning, and leg 0 has to re-route.
+
+So `user_profiles` gained a second address—`start_label`, `start_address_line`, `start_city`, `start_state`, `start_postal_code`, `start_lat`, `start_lng`—mirroring the home block field for field. When a ride whose first stop carries the `home` role is switched to public or unlisted, the builder **offers** the swap, then rewrites the stop, drops the `home` role, clears shaping points and recomputes leg 0. Offered rather than applied: the rider may have meant to share it, and silently redrawing a planned route is worse than asking. Declining is remembered for the session.
+
+The profile copy pushes a gas station, coffee shop or trailhead—somewhere you could actually meet people.
+
+**Still open:** rides already shared are unchanged. This only helps from the next visibility change onward.
+
+### What is public, stated once
+
+Every public surface reads the same rule. It is written out in `pages.ts` so it is not reconstructed per template:
+
+| | |
+| --- | --- |
+| shown | username, display name, public rides |
+| opt-in | last name, and only via `share_last_name` |
+| never | first name, email, home address, coordinates, payment handles |
+
+Payment handles are **never**, not opt-in, even though `share_payment_handles` exists. They are for settling up with people you are riding with, which is a relationship the app does not model yet (#12). A handle on a public page is a payment request open to strangers. Verified by seeding a profile with everything filled in and grepping the rendered page for each field.
+
+### Routing gotcha
+
+**Hono does not match `/@:username`.** A literal prefix in front of a param never fires and the route 404s silently. A regex param does work:
+
+```text
+pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', …)
+```
+
+Pinning the charset to the username rule means a malformed handle 404s at the router rather than reaching a query, and `/faq`, `/login` and the rest are unaffected.
+
+### The rest of it
+
+- **`/explore`**—public ride gallery, sorted by views or recency, 24 a page. Offset paging with `LIMIT PER_PAGE + 1` so "is there a next page" costs no second query. This is the only query in the app whose row count grows with the whole userbase.
+- **Clone**—`POST /api/rides/:id/clone` rebuilds a public native ride through the same `insertRideGraph` the builder uses, so a clone is a first-class ride rather than a second representation. **Drops** every description (stop notes are where "gate code 4417" lives), start and end times, and via points; lands **private** regardless of the source. Private and imported rides 404 rather than 403, so the endpoint confirms nothing.
+- **`/riders`**—read-only roster, same fields as a public profile because it is the same question in bulk. Signed-in only: the data is already public, but an anonymous list of every account is a scraping target with no upside.
+- **`auth/ratelimit.ts`**—one sliding-window counter, extracted from the inline guard that was magic.ts's alone. Three callers now, including `POST /choose-name`, which sprint 4 shipped as an unlimited enumeration surface. **In-memory and per-process**: honest for one container, not a distributed limiter. magic.ts keeps its database-backed per-email count, which has to survive a restart.
+- **`views/cards.ts`**—`rideCards` moved out of `index.ts`, which had become a circular import once `pages.ts` needed it. It only worked because the call was deferred to request time.
+- **FAQ, privacy and terms** at `/faq`, `/privacy`, `/terms`, all readable signed out. `/privacy` has to be: Google's consent screen review fetches it anonymously, and the screen cannot be published past its 100-user cap until it resolves. A site footer carries all three; map pages get them from the nav instead.
+- **`utils/tighten-em-dashes.mjs`** plus a `core.hooksPath` hook. Em dashes are tight everywhere now, with no table exemption—use a spaced en dash when a line needs air.
+
+### The FAQ said things that were not true
+
+`docs/ops/faq.md` promised **"No limit"** on stops, days and miles in three places. The real caps are 31 days, 200 stops a day, 200 POIs and 200k points a ride. The published copy carries the real numbers, which argue better anyway: 200 stops a day against Google My Maps' ten is checkable, and "unlimited" is a promise the app breaks at the wall. Also corrected "a dozen" stop roles to the actual 17.
+
 ## Next steps, in order
 
 These are the Mapbox-retirement track, separate from the timeline work above. Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
@@ -403,7 +455,7 @@ gunzip -c dump.sql.gz | sed 's/\brouteloop\b/tankbag/g' \
   | /usr/local/bin/docker exec -i tankbag-db psql -U tankbag -d tankbag
 ```
 
-The old `routeloopapp_db-data` volume is left in place deliberately — do not prune it until the new stack is verified. No tunnel or DNS change is needed: all four hostnames already route to these containers.
+The old `routeloopapp_db-data` volume is left in place deliberately—do not prune it until the new stack is verified. No tunnel or DNS change is needed: all four hostnames already route to these containers.
 
 The container runs as the host uid (`APP_UID`/`APP_GID` in `deploy.config`) because the Synology ACL grants nothing to uid 1000. The symptom if that regresses: a working ride list with silently 404-ing route files.
 

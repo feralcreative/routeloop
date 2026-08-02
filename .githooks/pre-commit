@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+#
+# Tightens spaced em dashes in staged prose, then re-stages what changed.
+#
+# Fixes rather than blocks: the correction is mechanical and unambiguous, so
+# stopping the commit to make someone retype a dash is friction for no gain.
+# A line that genuinely wants air around its dash should use an en dash, which
+# the script leaves alone.
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(md|ts|js|mjs)$')
+[ -z "$staged" ] && exit 0
+
+# shellcheck disable=SC2086
+node utils/tighten-em-dashes.mjs --write $staged || exit 0
+
+# Only re-stage files that were already staged and that the script actually
+# changed — never sweep up unrelated edits sitting in the working tree.
+for f in $staged; do
+  if [ -f "$f" ] && ! git diff --quiet -- "$f"; then
+    git add -- "$f"
+  fi
+done
+exit 0

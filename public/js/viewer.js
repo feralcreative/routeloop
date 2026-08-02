@@ -228,6 +228,27 @@
       renderTimeline();
       wireTimeline();
 
+      const cloneBtn = document.querySelector("[data-clone]");
+      if (cloneBtn) {
+        cloneBtn.addEventListener("click", async () => {
+          cloneBtn.disabled = true;
+          cloneBtn.textContent = "Cloning…";
+          try {
+            const res = await fetch("/api/rides/" + cloneBtn.dataset.clone + "/clone", { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "clone failed");
+            // Straight into the builder on the copy: the point of cloning is to
+            // change something, so landing on a read-only view would be a step
+            // short of what was asked for.
+            window.location.href = "/builder/" + data.id;
+          } catch (e) {
+            cloneBtn.disabled = false;
+            cloneBtn.textContent = "Clone this ride";
+            console.warn("[viewer] clone:", e);
+          }
+        });
+      }
+
       const arrowToggle = document.getElementById("toggle-arrows");
       if (arrowToggle) {
         arrowToggle.addEventListener("change", () => {

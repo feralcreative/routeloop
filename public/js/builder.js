@@ -88,7 +88,7 @@
     dirty: false,
     layersReady: false,
     layerCount: 0, // how many route layers are currently on the map
-    legSeq: [], // legSeq[r][i] — stale routing responses are dropped
+    legSeq: [], // legSeq[r][i]—stale routing responses are dropped
   };
 
   const $ = (id) => document.getElementById(id);
@@ -119,6 +119,23 @@
   function markDirty() {
     state.dirty = true;
     $("save-status").textContent = "unsaved changes";
+    $("discard").disabled = false;
+  }
+
+  // Throws the working copy away and reloads the saved one. A reload rather than
+  // an in-place rebuild because that is the only version guaranteed to match
+  // what the server holds — reconstructing state by hand is how a "discard"
+  // quietly keeps something. For a ride that was never saved there is nothing to
+  // fetch, so the reload lands on an empty builder, which is the same answer.
+  //
+  // state.dirty is cleared first or beforeunload asks a second time, one line
+  // after the rider already confirmed.
+  function discardChanges() {
+    if (!state.dirty) return;
+    const saved = state.rideId ? "the last saved version" : "an empty ride";
+    if (!window.confirm("Discard every unsaved change and go back to " + saved + "?\n\nThis cannot be undone.")) return;
+    state.dirty = false;
+    window.location.reload();
   }
 
   // --- Routing --------------------------------------------------------------
@@ -193,7 +210,7 @@
       })
       .catch((e) => {
         console.warn("[builder] directions:", e.message);
-        toast("No road route for that leg — drawn straight, its time is estimated", true);
+        toast("No road route for that leg—drawn straight, its time is estimated", true);
       });
   }
 
@@ -487,6 +504,45 @@
     markDirty();
   }
 
+  // Ride the day backwards.
+  //
+  // Every leg has to be re-requested, not reversed in place: a leg's geometry is
+  // directional, and the way back is frequently not the way out drawn backwards.
+  // One-way streets, divided carriageways and turn restrictions all mean the
+  // router has to answer the question again.
+  //
+  // That costs one Routes call per leg, which is why a long day asks first.
+  function reverseDay() {
+    const r = editIndex();
+    const route = state.routes[r];
+    if (route.stops.length < 2) return toast("Nothing to reverse yet", true);
+
+    const legCount = Math.max(0, route.stops.length - 1);
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
+
+    route.stops.reverse();
+
+    // A stop tagged as the start is the finish now. Nothing else about a role
+    // has a direction — a gas stop is a gas stop either way round.
+    route.stops.forEach((s) => {
+      s.roles = (s.roles || []).map((role) => (role === "start" ? "finish" : role === "finish" ? "start" : role));
+    });
+
+    // Not reversed: legs and their shaping points are both directional and both
+    // stale. Dropping them wholesale is cheaper than reasoning about which
+    // survive, and computeLeg refills them from the new stop order.
+    route.legs = [];
+    state.legSeq[r] = [];
+
+    renderTrack(r);
+    renderMarkers();
+    renderList();
+    computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    refreshDerived();
+    markDirty();
+    toast(dayLabel(r) + " reversed");
+  }
+
   function moveDay(dir) {
     const r = editIndex();
     const j = r + dir;
@@ -565,7 +621,7 @@
 
   function localInputToIso(value) {
     if (!value) return null;
-    const d = new Date(value); // no offset in the string — parsed as local time
+    const d = new Date(value); // no offset in the string—parsed as local time
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }
 
@@ -1024,6 +1080,7 @@
         history.replaceState(null, "", "/builder/" + data.id);
       }
       state.dirty = false;
+      $("discard").disabled = true;
       $("save-status").innerHTML = 'saved ✓ · <a href="/m/' + esc(data.slug || "") + '">view</a>';
     } catch (e) {
       toast(e.message, true);
@@ -1074,6 +1131,7 @@
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
     $("day-add").addEventListener("click", addDay);
     $("day-del").addEventListener("click", deleteDay);
+    $("day-rev").addEventListener("click", reverseDay);
     $("day-up").addEventListener("click", () => moveDay(-1));
     $("day-down").addEventListener("click", () => moveDay(1));
     $("route-color").addEventListener("input", (e) => {
@@ -1105,6 +1163,46 @@
     });
   }
 
+  // Sharing a ride that begins at the rider's front door puts a pin on their
+  // house — and moving the pin would not be enough, because the first leg is
+  // *drawn* from there. The line points at the building whatever the marker
+  // says. So the swap happens here, while planning, and re-routes leg 0.
+  //
+  // Offered rather than applied: the rider may well have meant to share it, and
+  // silently redrawing a route they already planned is worse than asking.
+  function offerPublicStart() {
+    const shared = state.meta.visibility === "public" || state.meta.visibility === "unlisted";
+    const start = window.TB.publicStart;
+    const route = state.routes[0];
+    const first = route && route.stops[0];
+    if (!shared || !start || !first || !(first.roles || []).includes("home")) return;
+    if (state.startSwapDeclined) return;
+
+    const ok = window.confirm(
+      "This ride starts at your home address, and a shared map would show a pin on it.\n\n" +
+        "Replace the start with your public starting point (" + start.label + ")?",
+    );
+    if (!ok) {
+      // Asked once per session. Nagging on every visibility change would train
+      // the rider to dismiss it without reading.
+      state.startSwapDeclined = true;
+      return;
+    }
+
+    first.lat = +start.lat.toFixed(6);
+    first.lng = +start.lng.toFixed(6);
+    first.name = start.label;
+    first.roles = (first.roles || []).filter((r) => r !== "home");
+    // The leg out of the old start is meaningless now, shaping points included.
+    if (route.legs[0]) route.legs[0].viaPoints = [];
+    computeLegsAround(0, [0]);
+    renderMarkers();
+    renderList();
+    refreshDerived();
+    markDirty();
+    toast("Start swapped to " + start.label);
+  }
+
   function wireMeta() {
     $("ride-title").addEventListener("input", (e) => {
       state.meta.title = e.target.value;
@@ -1117,6 +1215,7 @@
     $("ride-visibility").addEventListener("change", (e) => {
       state.meta.visibility = e.target.value;
       markDirty();
+      offerPublicStart();
     });
     document.querySelectorAll(".mode-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1126,6 +1225,7 @@
       });
     });
     $("save").addEventListener("click", save);
+    $("discard").addEventListener("click", discardChanges);
     window.addEventListener("beforeunload", (e) => {
       if (state.dirty) e.preventDefault();
     });
@@ -1144,7 +1244,7 @@
     if (!window.TB.gmapsKey || !window.TB.mapId) {
       document.body.insertAdjacentHTML(
         "afterbegin",
-        '<div class="tb-banner">Maps are not configured — set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
+        '<div class="tb-banner">Maps are not configured—set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
       );
       return;
     }

@@ -56,7 +56,7 @@ export function googleMapsLoader(key: string): string {
 }
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'rides' | 'builder' | 'places' | 'profile' | 'admin'
+export type NavKey = 'home' | 'explore' | 'riders' | 'rides' | 'builder' | 'places' | 'profile' | 'admin'
 
 export type PageOpts = {
   /** Without the " — TankBag" suffix; page() appends it. */
@@ -89,6 +89,8 @@ export type PageOpts = {
 
 const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'home', href: '/', label: 'Home' },
+  { key: 'explore', href: '/explore', label: 'Explore' },
+  { key: 'riders', href: '/riders', label: 'Riders' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
   { key: 'profile', href: '/profile', label: 'Your profile' },
@@ -128,6 +130,7 @@ function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): strin
   <nav class="site-nav" id="site-nav" hidden>
     ${links}
     <hr>
+    ${siteLinkRow()}
     <button type="button" class="linkbtn" data-open-alpha>About this alpha</button>
   </nav>
 </header>`
@@ -150,6 +153,28 @@ ${o.contents}
   </div>`
 }
 
+// Legal and help links. Rendered on chrome pages as a footer and on the splash
+// as a single quiet row — a map page has no room and gets them from the nav
+// menu instead. /privacy in particular has to be reachable without signing in:
+// Google's consent screen review fetches it anonymously.
+const SITE_LINKS: { href: string; label: string }[] = [
+  { href: '/faq', label: 'Questions' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
+]
+
+const siteLinkRow = (): string =>
+  SITE_LINKS.map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('')
+
+function siteFooter(splash: boolean): string {
+  // The splash is a signed-out landing page over video: it gets the links and
+  // nothing else. A closing note there would compete with the sign-in controls.
+  return `<footer class="site-footer${splash ? ' is-splash' : ''}">
+  <nav class="site-footer-links">${siteLinkRow()}</nav>
+  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha. Plans change; roads more so.</p>'}
+</footer>`
+}
+
 export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
@@ -162,7 +187,9 @@ export function page(opts: PageOpts): string {
     .filter(Boolean)
     .join(' ')
   const title = `${esc(opts.title)} — TankBag`
-  const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n</div>`
+  const body = isMap
+    ? opts.body
+    : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
 <html lang="en-US"${htmlClass}>

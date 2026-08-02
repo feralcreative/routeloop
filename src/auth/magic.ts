@@ -13,6 +13,7 @@ import { resolveUser } from './identity'
 import { sendMail } from './mailer'
 import { generateSessionToken, hashToken } from './session'
 import type { UserRow } from '../db/schema'
+import { allow } from './ratelimit'
 
 const TOKEN_TTL_MS = 15 * 60 * 1000
 
@@ -30,23 +31,10 @@ export function normalizeEmail(raw: string): string | null {
   return email
 }
 
-// In-memory and therefore per-process, which is fine for one container but is
-// not a distributed limiter. The per-email limit below is database-backed and is
-// the one that actually protects other people's inboxes; this is a cheap guard
-// on top.
-const ipHits = new Map<string, number[]>()
-
-function ipAllowed(ip: string): boolean {
-  const now = Date.now()
-  const recent = (ipHits.get(ip) ?? []).filter((t) => now - t < HOUR_MS)
-  recent.push(now)
-  ipHits.set(ip, recent)
-  // Unbounded growth otherwise: every distinct address would keep an entry.
-  if (ipHits.size > 5000) {
-    for (const [k, v] of ipHits) if (!v.some((t) => now - t < HOUR_MS)) ipHits.delete(k)
-  }
-  return recent.length <= MAX_PER_IP_PER_HOUR
-}
+// The per-IP guard now comes from auth/ratelimit.ts. The per-email limit below
+// stays database-backed and is the one that actually protects other people's
+// inboxes — it has to survive a restart, which an in-memory counter does not.
+const ipAllowed = (ip: string): boolean => allow('magic-link', ip, { max: MAX_PER_IP_PER_HOUR, windowMs: HOUR_MS })
 
 async function emailAllowed(email: string): Promise<boolean> {
   const [row] = await db

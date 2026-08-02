@@ -10,17 +10,17 @@ Two questions, both of which turn out to have a single dominant factor rather th
 
 ## Summary
 
-**Auth.** Cloudflare Access cannot be the long-term answer at any price you would accept — it is billed per seat, at $7/user/month for *every* user once you pass 50. It is an employee-access product being used as a consumer identity system. Move authentication into the app now, keep `users.status` as the capacity lever, and delete the Access trust path in the same change.
+**Auth.** Cloudflare Access cannot be the long-term answer at any price you would accept—it is billed per seat, at $7/user/month for *every* user once you pass 50. It is an employee-access product being used as a consumer identity system. Move authentication into the app now, keep `users.status` as the capacity lever, and delete the Access trust path in the same change.
 
-**Search.** Google Places is not a drop-in upgrade: Google's terms forbid displaying Places content on a non-Google map, so "keep Mapbox rendering, use Google search" is not an option. The realistic choices are switching the whole map engine to Google, or fixing the search quality inside Mapbox by moving from the Geocoding API to the Search Box API — which is the product actually designed for business and POI search, and is almost certainly the real cause of your dissatisfaction.
+**Search.** Google Places is not a drop-in upgrade: Google's terms forbid displaying Places content on a non-Google map, so "keep Mapbox rendering, use Google search" is not an option. The realistic choices are switching the whole map engine to Google, or fixing the search quality inside Mapbox by moving from the Geocoding API to the Search Box API—which is the product actually designed for business and POI search, and is almost certainly the real cause of your dissatisfaction.
 
 <!--| PAGE-BREAK -->
 
-## Part 1 — Auth
+## Part 1—Auth
 
 ### The cost that decides it
 
-Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go plan is **$7 per user per month applied to all users** — there is no partial billing, so user 51 moves the whole roster onto the paid rate.
+Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go plan is **$7 per user per month applied to all users**—there is no partial billing, so user 51 moves the whole roster onto the paid rate.
 
 | Users | Cloudflare Access | App-level auth (Arctic + magic link) |
 | --- | --- | --- |
@@ -36,16 +36,16 @@ App-level auth has no per-user licence cost. The only variable is transactional 
 
 More than it looks like. The pieces for this were built and then half removed:
 
-- `sessions` — server sessions keyed by the SHA-256 hash of the browser token. Provider-agnostic already; nothing about it assumes Cloudflare.
-- `user_identities` — a `(provider, provider_user_id)` unique index with a `provider` enum. This table exists specifically so one user can hold several login methods. It needs two new enum values, `apple` and `email`, and nothing else.
-- `users.status` — built this sprint. This is your audience-size control, and it is independent of *how* someone authenticates. Keep it regardless of what you choose here.
-- `arctic` — the OAuth2 client library that was uninstalled when Access landed. It covers Google, Apple, GitHub, Microsoft and others behind one interface.
+- `sessions`—server sessions keyed by the SHA-256 hash of the browser token. Provider-agnostic already; nothing about it assumes Cloudflare.
+- `user_identities`—a `(provider, provider_user_id)` unique index with a `provider` enum. This table exists specifically so one user can hold several login methods. It needs two new enum values, `apple` and `email`, and nothing else.
+- `users.status`—built this sprint. This is your audience-size control, and it is independent of *how* someone authenticates. Keep it regardless of what you choose here.
+- `arctic`—the OAuth2 client library that was uninstalled when Access landed. It covers Google, Apple, GitHub, Microsoft and others behind one interface.
 
 So the work is: reinstate Arctic, add an Apple provider, add a magic-link table and two routes, and delete the Access bridge. The user model does not change.
 
 ### Magic link
 
-One new table, following the `sessions` pattern exactly — store the hash, never the token:
+One new table, following the `sessions` pattern exactly—store the hash, never the token:
 
 ```text
 login_tokens
@@ -69,7 +69,7 @@ Sign in with Apple is the fiddliest of the three, and worth knowing before you c
 
 - The client secret is a **signed JWT you generate**, not a static string, and Apple caps its lifetime at six months. That is a recurring calendar item, and a silent total auth outage when it lapses. Generate it at boot from a stored private key rather than pasting a literal into `.env`.
 - Apple returns the user's **name only on the very first authorization**, never again. Miss it and it is gone for that account permanently.
-- Apple posts back with `response_mode=form_post`, so the callback is a POST, not a GET like Google's. Your CSRF `requireSameOrigin` gate will reject it as written — it needs an explicit exemption on that one route.
+- Apple posts back with `response_mode=form_post`, so the callback is a POST, not a GET like Google's. Your CSRF `requireSameOrigin` gate will reject it as written—it needs an explicit exemption on that one route.
 - Apple's private relay hands you a `@privaterelay.appleid.com` address. Treat it as a real address; do not try to match it against a Google identity by email.
 
 ### The migration hazard
@@ -82,19 +82,19 @@ This one is worth stating on its own because it is a full authentication bypass 
 
 ### Recommendation
 
-Build it now, as you suggested. The reasoning is not that Access is bad — it is that Access is billed per seat, so the migration is not optional, only delayed. Doing it now costs a sprint. Doing it after you open signups means migrating live accounts across an identity boundary, which is materially harder.
+Build it now, as you suggested. The reasoning is not that Access is bad—it is that Access is billed per seat, so the migration is not optional, only delayed. Doing it now costs a sprint. Doing it after you open signups means migrating live accounts across an identity boundary, which is materially harder.
 
 Keep `users.status` as the gate. That is what lets you open signups on your own schedule without touching auth again: the NAS capacity limit becomes a policy you enforce in a column, not a licence you buy.
 
 <!--| PAGE-BREAK -->
 
-## Part 2 — Place search
+## Part 2—Place search
 
 ### The constraint that comes before cost
 
 Google Maps Platform terms prohibit using Google Maps Core Services with, or near, a non-Google map. Displaying Places content on a Mapbox map is explicitly called out as not permitted.
 
-That removes the option you were probably considering — keeping Mapbox GL for rendering and calling Google Places for the search box. The real choices are:
+That removes the option you were probably considering—keeping Mapbox GL for rendering and calling Google Places for the search box. The real choices are:
 
 1. Stay on Mapbox and fix search quality with the right Mapbox product.
 2. Move the entire map engine to Google: rendering, search and directions.
@@ -103,9 +103,9 @@ There is no supported middle path.
 
 ### You may be comparing the wrong Mapbox product
 
-The builder currently calls the **Geocoding v6 forward** endpoint ([public/js/builder.js:428](../public/js/builder.js#L428)). Geocoding is an address-resolution service — it is built to turn "1600 Pennsylvania Ave" into a coordinate, not to find "coffee near this pass."
+The builder currently calls the **Geocoding v6 forward** endpoint ([public/js/builder.js:428](../public/js/builder.js#L428)). Geocoding is an address-resolution service—it is built to turn "1600 Pennsylvania Ave" into a coordinate, not to find "coffee near this pass."
 
-Mapbox's product for business and POI search is the **Search Box API**, which is session-based, POI-aware and interactive-autocomplete oriented. Before concluding Mapbox loses to Google on quality, it is worth trying the product that is actually aimed at the thing you are doing. This is a contained experiment — one endpoint swap in one file.
+Mapbox's product for business and POI search is the **Search Box API**, which is session-based, POI-aware and interactive-autocomplete oriented. Before concluding Mapbox loses to Google on quality, it is worth trying the product that is actually aimed at the thing you are doing. This is a contained experiment—one endpoint swap in one file.
 
 ### Cost model
 
@@ -113,9 +113,9 @@ Cost scales with **usage, not user count**, so everything below rests on an assu
 
 Per active user per month:
 
-- **16 place searches** — two rides planned, eight searched stops each
-- **10 map loads** — builder plus viewer sessions
-- **40 Directions requests** — seven legs, re-routed as stops are edited
+- **16 place searches**—two rides planned, eight searched stops each
+- **10 map loads**—builder plus viewer sessions
+- **40 Directions requests**—seven legs, re-routed as stops are edited
 
 | Users | Searches / mo | Map loads / mo | Directions / mo |
 | --- | --- | --- | --- |
@@ -132,11 +132,11 @@ Per active user per month:
 | **1,000 users** | **$0** | **~$155** | **~$180** |
 | **10,000 users** | **~$895** | **~$2,660** | **~$3,330** |
 | **100,000 users** | **~$9,400** | **~$21,000** | **~$25,000–35,000** |
-| Search quality for POIs | Weakest — address-oriented | Purpose-built for POI | Best available |
+| Search quality for POIs | Weakest—address-oriented | Purpose-built for POI | Best available |
 | Free tier, search | 100k geocodes | 2,500 sessions | Autocomplete sessions free |
 | Free tier, map loads | 50,000 | 50,000 | 10,000 |
 | Free tier, directions | 100,000 | 100,000 | 10,000 |
-| Can keep current renderer | Yes | Yes | **No — full rewrite** |
+| Can keep current renderer | Yes | Yes | **No—full rewrite** |
 | Terms allow mixing | n/a | n/a | **No** |
 | Migration cost | None, it is live | One endpoint | Both viewers, builder, all client JS |
 
@@ -151,19 +151,19 @@ Unit rates behind those figures:
 
 ### Reading the table
 
-**Below roughly 1,000 users none of this matters.** Every option is free or close to it. Choosing on cost at your current scale is optimising a rounding error — choose on quality and on migration risk.
+**Below roughly 1,000 users none of this matters.** Every option is free or close to it. Choosing on cost at your current scale is optimising a rounding error—choose on quality and on migration risk.
 
 **Google is not dramatically more expensive at scale**, which is the surprise. It is ~20% above Mapbox-with-Search-Box at 100,000 users. Google's free tiers are much smaller, but its session-based autocomplete is genuinely free, which offsets most of the difference. Cost is not the argument against Google.
 
 **The argument against Google is the switching cost and the lock-in.** It means rewriting both viewers, the builder, and every piece of client JS that touches `mapboxgl`, then being unable to mix providers afterwards. The terms make that a one-way door.
 
-**The Place Details tier is the biggest unknown in the Google column.** If the fields you need (display name, formatted address) fall in Pro rather than Essentials, that line goes from $5 to $17 per 1,000 — roughly $19,000/month more at 100,000 users. Verify the field tiers before taking Google seriously.
+**The Place Details tier is the biggest unknown in the Google column.** If the fields you need (display name, formatted address) fall in Pro rather than Essentials, that line goes from $5 to $17 per 1,000—roughly $19,000/month more at 100,000 users. Verify the field tiers before taking Google seriously.
 
 ### Recommendation
 
 Try Search Box before switching engines. It is one endpoint in one file, it keeps every option open, and it directly tests the hypothesis that the quality gap is Google-versus-Mapbox rather than geocoder-versus-search-product. If Search Box closes the gap, you keep a cheaper stack, a renderer you already know, and the freedom to change your mind later.
 
-If Search Box still disappoints, then the Google question becomes real — and it should be decided as "do we move the whole map engine to Google", because that is what the terms require, not as a search-provider swap.
+If Search Box still disappoints, then the Google question becomes real—and it should be decided as "do we move the whole map engine to Google", because that is what the terms require, not as a search-provider swap.
 
 <!--| PAGE-BREAK -->
 

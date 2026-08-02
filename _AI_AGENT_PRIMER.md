@@ -4,7 +4,7 @@
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
 **Status:** **Live in production on the new stack.** The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**. Both migrations that defined branch `refactor/google-maps-and-auth` are now **done and deployed**: **Cloudflare Access → Google OAuth + magic link**, and **Mapbox → Google Maps**. The builder gained **multi-day rides on a single map** on 2026-07-30, which is the feature the whole product model was designed around. See "Where things stand" at the end of this document before starting anything.
 
-This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand — that file moves faster than this one and wins where they disagree.
+This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand—that file moves faster than this one and wins where they disagree.
 
 > **Neither Cloudflare Access nor Mapbox is live any more.** Where this document names them it is describing history, or the one remaining Mapbox call in `profile.js`. The Access *policy* still exists at the Cloudflare edge and should be removed—it is redundant, not protective, since the deployed app no longer reads the header it injects.
 
@@ -20,21 +20,21 @@ Importing existing files (KML, GPX; later KMZ, CSV) is a **migration path**, not
 
 From `docs/ideas.md`:
 
-- **Ride** — the shareable package (has the slug, visibility, title). Holds many routes across many days/sessions — the holistic view of an entire trip.
+- **Ride**—the shareable package (has the slug, visibility, title). Holds many routes across many days/sessions—the holistic view of an entire trip.
 - **Route**—one session/day within a ride: an ordered list of stops joined by routed legs, with a start/end date-time. The builder edits several routes per ride as of 2026-07-30; the date-time fields exist in the schema and load into state but nothing sets them yet.
 - **Three kinds of dots:**
-  - **Waypoint** — an ephemeral shaping point that just keeps the route on course. Modeled as **leg via-points** (`route_legs.via_points`), *not* rows in `points`.
-  - **POI** — an interesting place near the route that does *not* affect routing. `points.kind = 'poi'`, unordered.
-  - **Stop** — a real stop (gas, food, hotel…); always has a duration; "ends" are stops with no duration. `points.kind = 'stop'`, ordered — these are the routing anchors.
+  - **Waypoint**—an ephemeral shaping point that just keeps the route on course. Modeled as **leg via-points** (`route_legs.via_points`), *not* rows in `points`.
+  - **POI**—an interesting place near the route that does *not* affect routing. `points.kind = 'poi'`, unordered.
+  - **Stop**—a real stop (gas, food, hotel…); always has a duration; "ends" are stops with no duration. `points.kind = 'stop'`, ordered—these are the routing anchors.
 
 ## Architecture and stack
 
-- **Backend** — TypeScript on **Hono**, run by Node (`tsx` in dev, Docker in prod); portable to Cloudflare Workers. **PostgreSQL** via **Drizzle ORM**. **Zod** for payload validation.
+- **Backend**—TypeScript on **Hono**, run by Node (`tsx` in dev, Docker in prod); portable to Cloudflare Workers. **PostgreSQL** via **Drizzle ORM**. **Zod** for payload validation.
 - **Maps**—**Google Maps JavaScript API** (rendering, via the inline bootstrap loader that defines `google.maps.importLibrary`), **Places (New)** `AutocompleteSuggestion` for search, and the **Routes API** for per-leg routing—proxied server-side through `POST /api/route`, because the Routes key is IP-restricted and unusable from a browser. The frontend has **no bundler**; libraries are imported on demand at runtime. The driver for the migration was place-search quality; the reason it was a whole-engine swap rather than a search swap is that each provider's terms tie their search results to their own basemap. One Mapbox call survives, in `profile.js`—see the phases below.
 - **Auth**—Google OAuth (via `arctic`) plus an emailed magic link, both resolving through [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server sessions (SHA-256-hashed tokens). Deployed to stage and prod on 2026-07-30. It replaced Cloudflare Access, which is billed **per seat** and so could not survive open signups. Cloudflare **Turnstile** still guards uploads/saves, feature-flagged off until keys are set.
 - **Authorization is separate from authentication.** `users.status` (`pending` | `active` | `blocked`) decides who may use the app; every new account starts `pending`. This is the capacity gate for a NAS-hosted alpha and is unaffected by either migration.
-- **Frontend** — vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
-- **Hosting** — Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Each container publishes **two** host ports and answers on both, which is what lets the canonical name change without touching tunnel config. Prod: `tankbag.app → localhost:6686` (canonical) and `routeloop.app → localhost:16703` (301s away). Stage: `stage.tankbag.app → localhost:16687` (canonical) and `stage.routeloop.app → localhost:6687` (301s away).
+- **Frontend**—vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
+- **Hosting**—Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Each container publishes **two** host ports and answers on both, which is what lets the canonical name change without touching tunnel config. Prod: `tankbag.app → localhost:6686` (canonical) and `routeloop.app → localhost:16703` (301s away). Stage: `stage.tankbag.app → localhost:16687` (canonical) and `stage.routeloop.app → localhost:6687` (301s away).
 
 ## Two map engines, both now Google
 
@@ -72,19 +72,19 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 ## Data model (PostgreSQL via Drizzle)
 
-`src/db/schema.ts` is the **source of truth**. Schema is applied with `npx drizzle-kit push` (declarative — there are no migration files; the NAS post-deploy hook runs the same push).
+`src/db/schema.ts` is the **source of truth**. Schema is applied with `npx drizzle-kit push` (declarative—there are no migration files; the NAS post-deploy hook runs the same push).
 
-- **`users`** — identity, `quota_bytes`, denormalized `used_bytes`.
-- **`user_identities`** — one row per login method, so a rider can arrive by Google or by magic link and land on the same account. Legacy Google and GitHub identity rows remain valid.
-- **`sessions`** — PK is the SHA-256 hash of the browser token, never the token.
-- **`rides`** — `owner_id`, unguessable `slug`, `title`, `description`, `visibility` (public/unlisted/private), **`source`** (native | imported), `external_url`, byte columns + generated `size_bytes` (imported originals + quota), and caches `total_miles`, `total_duration_s`, `stop_count`.
-- **`routes`** — `ride_id`, `position`, `title`, **`color`** (per-route, feeds the legend), `start_at`/`end_at` (nullable; timeline model), `distance_m`, `duration_s`.
-- **`points`** — `route_id`, `kind` (stop | poi), `position` (stop order; null for POIs), `lat`/`lng`, `name`, `description`, **`roles waypoint_role[]`** (≤ 4, DB-checked), `duration_min` (null = no duration), `dist_from_start_m` (server-computed).
-- **`route_legs`** — `route_id`, `position` (leg i = stop i → i+1), `geometry jsonb` (`[lng,lat][]`, 6-decimal), `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
+- **`users`**—identity, `quota_bytes`, denormalized `used_bytes`.
+- **`user_identities`**—one row per login method, so a rider can arrive by Google or by magic link and land on the same account. Legacy Google and GitHub identity rows remain valid.
+- **`sessions`**—PK is the SHA-256 hash of the browser token, never the token.
+- **`rides`**—`owner_id`, unguessable `slug`, `title`, `description`, `visibility` (public/unlisted/private), **`source`** (native | imported), `external_url`, byte columns + generated `size_bytes` (imported originals + quota), and caches `total_miles`, `total_duration_s`, `stop_count`.
+- **`routes`**—`ride_id`, `position`, `title`, **`color`** (per-route, feeds the legend), `start_at`/`end_at` (nullable; timeline model), `distance_m`, `duration_s`.
+- **`points`**—`route_id`, `kind` (stop | poi), `position` (stop order; null for POIs), `lat`/`lng`, `name`, `description`, **`roles waypoint_role[]`** (≤ 4, DB-checked), `duration_min` (null = no duration), `dist_from_start_m` (server-computed).
+- **`route_legs`**—`route_id`, `position` (leg i = stop i → i+1), `geometry jsonb` (`[lng,lat][]`, 6-decimal), `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
 
-**One rendering path for both sources.** An **imported** ride is stored as one route with a single leg at `position 0` holding the whole track; a **native** ride has one leg per pair of stops. Viewers always render `concat(legs)` per route — so imported and native rides render identically.
+**One rendering path for both sources.** An **imported** ride is stored as one route with a single leg at `position 0` holding the whole track; a **native** ride has one leg per pair of stops. Viewers always render `concat(legs)` per route—so imported and native rides render identically.
 
-**Enums:** `provider`, `visibility`, `ride_source`, `point_kind`, `waypoint_role` (the 17 roles — keep in sync with `src/maps/roles.ts`).
+**Enums:** `provider`, `visibility`, `ride_source`, `point_kind`, `waypoint_role` (the 17 roles—keep in sync with `src/maps/roles.ts`).
 
 **File storage.** Imported originals live at `{STORAGE_PATH}/{owner_id}/{ride_id}.kml` (and `.gpx`), paths built only from integer ids and containment-checked. Native rides have no files. Quota applies to imported bytes only.
 
@@ -93,7 +93,7 @@ Consequences worth knowing before editing `public/js/builder.js`:
 `src/maps/roles.ts` is the **single source of truth** for the 17 waypoint roles (start, finish, home, meet, split, gas, charge, break, camp, hotel, food, coffee, drinks, grocery, view, poi, wtf). It unifies the three divergent alias tables that existed in the legacy viewer and fixes their bugs (WTF now matches "WTF"; CHARGE matches "CHARGER"). It exports:
 
 - `ROLES`, `ROLE_META` (`{ title, icon, aliases }` per role)
-- `canonicalRole(term)` — alias → role
+- `canonicalRole(term)`—alias → role
 - `parseRoleName("GAS/FOOD - Chevron")` → `{ roles: ['gas','food'], name: 'Chevron' }`
 - `formatRoleName(['gas'], 'Chevron')` → `"GAS - Chevron"` (for export/round-trip)
 
@@ -103,19 +103,19 @@ The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the 
 
 A host middleware runs **first**, ahead of every route: requests for `routeloop.app` / `www.routeloop.app` / `stage.routeloop.app`, plus `www.tankbag.app`, get a **301 to the same path and query on the canonical host** (`tankbag.app`, or `stage.tankbag.app` for the staging pair). The redirect direction reversed on 2026-07-29 when the name went back to tankbag; before that it pointed the other way. Because it runs ahead of every route, a request arriving on a non-canonical hostname is redirected before any auth handler sees it.
 
-Public (gated by `getViewable(slug, viewer)` — public/unlisted for anyone, private owner-only, else 404):
+Public (gated by `getViewable(slug, viewer)`—public/unlisted for anyone, private owner-only, else 404):
 
-- `GET /` — public ride listing
+- `GET /`—public ride listing
 - `GET /m/:slug`—viewer page; **native → current engine shell**, **imported → legacy `main.js` shell**
-- `GET /api/public/rides/:slug/ride.json` — normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`
+- `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`
 - `GET /api/public/maps/:slug`—**legacy** metadata array (`main.js` only; retires with it)
-- `GET /api/public/maps/:slug/kml` · `/gpx` — gated file streams (imported originals)
+- `GET /api/public/maps/:slug/kml` · `/gpx`—gated file streams (imported originals)
 
 Owner API (all `requireAuthApi` + `requireSameOrigin`):
 
-- Import — `POST /api/maps` (multipart KML+optional GPX → one imported ride with structured rows; full XXE-safe pipeline + transactional quota). In `src/routes/maps.ts`.
-- Builder — `POST /api/rides`, `PUT /api/rides/:id` (full-replace), `GET /api/rides/:id` (owner load). In `src/routes/rides.ts`.
-- Edit/delete — `PATCH /api/maps/:id`, `DELETE /api/maps/:id` (owner-scoped; serve both sources). In `src/routes/maps.ts`.
+- Import—`POST /api/maps` (multipart KML+optional GPX → one imported ride with structured rows; full XXE-safe pipeline + transactional quota). In `src/routes/maps.ts`.
+- Builder—`POST /api/rides`, `PUT /api/rides/:id` (full-replace), `GET /api/rides/:id` (owner load). In `src/routes/rides.ts`.
+- Edit/delete—`PATCH /api/maps/:id`, `DELETE /api/maps/:id` (owner-scoped; serve both sources). In `src/routes/maps.ts`.
 - Routing—`POST /api/route` (also `requireActiveApi`): `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted and unusable from a browser, and caches computed legs because editing re-requests the same pair constantly. In `src/routes/routing.ts`. The builder's `directions()` calls it.
 
 Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, native-only) in `src/routes/rides.ts`; `GET /dashboard` in `src/routes/dashboard.ts`; `GET`/`POST /profile` in `src/routes/profile.ts`; auth routes in `src/routes/auth.ts`.
@@ -136,14 +136,14 @@ Server-side integrity on save (`src/routes/rides.ts`): all text is sanitized, co
 
 ## The security pipeline (imports)
 
-Ported from the PHP era and preserved — re-derive, never drop these:
+Ported from the PHP era and preserved—re-derive, never drop these:
 
-- **XXE-safe XML parse** (`src/maps/kml.ts`) — reject any `<!DOCTYPE>` before parsing; `@xmldom/xmldom` does no network or entity resolution.
-- **Server-side extraction** — waypoint roles parsed from name prefixes; the route track is the longest coordinate line; mileage is authoritative.
-- **Sanitization** — `sanitizeText` strips tags and defuses `javascript:` / `data:` schemes in every name/description, at rest; the viewer's `esc()` is the second layer.
-- **Transactional quota** — `SELECT … FOR UPDATE`, HTTP 413 over quota.
-- **Visibility gate** — unknown/forbidden slugs return 404, never confirming a ride exists.
-- **CSRF** — `requireSameOrigin` checks the `Origin` header via `isAllowedOrigin` (`src/config.ts`).
+- **XXE-safe XML parse** (`src/maps/kml.ts`)—reject any `<!DOCTYPE>` before parsing; `@xmldom/xmldom` does no network or entity resolution.
+- **Server-side extraction**—waypoint roles parsed from name prefixes; the route track is the longest coordinate line; mileage is authoritative.
+- **Sanitization**—`sanitizeText` strips tags and defuses `javascript:` / `data:` schemes in every name/description, at rest; the viewer's `esc()` is the second layer.
+- **Transactional quota**—`SELECT … FOR UPDATE`, HTTP 413 over quota.
+- **Visibility gate**—unknown/forbidden slugs return 404, never confirming a ride exists.
+- **CSRF**—`requireSameOrigin` checks the `Origin` header via `isAllowedOrigin` (`src/config.ts`).
 
 <!--| PAGE-BREAK -->
 
@@ -239,20 +239,20 @@ APP_ORIGIN=http://127.0.0.1:6686
 Done and merged:
 
 - **Rename + production cutover** ✅ `tankbag` → `routeloop` everywhere, with a full production cutover on 2026-07-24. **Reverted on 2026-07-29:** the name is `tankbag` again and `routeloop.app` 301s to `tankbag.app`.
-- **Phase 1 — Data model + roles + structured import** ✅ `rides` / `routes` / `points` / `route_legs`, `roles.ts`, import produces structured rows.
-- **Phase 2 — Builder MVP + native viewer** ✅ ride API (gating, validation, CSRF), the builder, the native viewer. Save round-trip confirmed in a browser.
+- **Phase 1—Data model + roles + structured import** ✅ `rides` / `routes` / `points` / `route_legs`, `roles.ts`, import produces structured rows.
+- **Phase 2—Builder MVP + native viewer** ✅ ride API (gating, validation, CSRF), the builder, the native viewer. Save round-trip confirmed in a browser.
 - **Unified shell + SCSS split** ✅ one `page()` for every surface, global nav, alpha modal, SCSS partials, sign-in splash with background clip.
-- **Sprint 2 — user profiles** ✅ `users.status` authorization, `user_profiles`, `/profile`, `/welcome`, home-address seeding.
+- **Sprint 2—user profiles** ✅ `users.status` authorization, `user_profiles`, `/profile`, `/welcome`, home-address seeding.
 
 In flight on `refactor/google-maps-and-auth`:
 
-- **Auth — Google OAuth + magic link** 🔄 committed in `17de208`; **credentials now in place and both methods verified locally (2026-07-30)** — OAuth client (External consent screen), Vector Map ID, and a Gmail app password, all on the `tankbag` GCP project (`976935115789`). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships to prod**, or the deployed build is open. Still needs the prod deploy, in the correct order (deploy new auth, then pull the Access policy).
+- **Auth—Google OAuth + magic link** 🔄 committed in `17de208`; **credentials now in place and both methods verified locally (2026-07-30)**—OAuth client (External consent screen), Vector Map ID, and a Gmail app password, all on the `tankbag` GCP project (`976935115789`). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships to prod**, or the deployed build is open. Still needs the prod deploy, in the correct order (deploy new auth, then pull the Access policy).
 - **Maps—Mapbox → Google** ✅ **done and deployed 2026-07-30** (`942e1d9`), browser-verified end to end. `map-common.js`, `viewer.js` and `builder.js` all run on `google.maps`; the builder routes through `POST /api/route` and searches with Places `AutocompleteSuggestion`. Keys + Vector Map ID live on the `tankbag` GCP project. **Two things remain:** `profile.js` still calls Mapbox Geocoding and wants a server proxy (Geocoding is on the IP-restricted server key), and Phase 4 retires `main.js` plus the dead `MAPBOX_*` config. See [docs/STATUS.md](docs/STATUS.md) for the port's details and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
 
 Deferred, with reasons:
 
-- **Phase 3 — Via-point shaping + server exports** ⬜ drag-to-shape legs into `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`. It was deferred behind the two migrations because building leg-shaping against a routing engine that was about to be replaced would have been wasted work. **That reason has now expired** — the engine is settled, so this is unblocked whenever it is wanted. `route_legs.via_points` already round-trips through the API and the builder clears it on any anchor move.
-- **Places (saved locations)** ⬜ designed in [_PLANS/sprint-01-260725T2320Z.md](_PLANS/sprint-01-260725T2320Z.md) Phase B, never built. Cut from Sprint 2 because it is two tables, seven endpoints, marker-group primitives and builder integration — larger than the rest of that sprint combined. The profile reserves a section for it.
+- **Phase 3—Via-point shaping + server exports** ⬜ drag-to-shape legs into `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`. It was deferred behind the two migrations because building leg-shaping against a routing engine that was about to be replaced would have been wasted work. **That reason has now expired**—the engine is settled, so this is unblocked whenever it is wanted. `route_legs.via_points` already round-trips through the API and the builder clears it on any anchor move.
+- **Places (saved locations)** ⬜ designed in [_PLANS/sprint-01-260725T2320Z.md](_PLANS/sprint-01-260725T2320Z.md) Phase B, never built. Cut from Sprint 2 because it is two tables, seven endpoints, marker-group primitives and builder integration—larger than the rest of that sprint combined. The profile reserves a section for it.
 - **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by email or phone is a user-enumeration surface and wants rate limiting before it exists.
 - **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
 - **Phase 5—Trip features** 🔄 **multi-day editing done 2026-07-30**; the date/time half is not started. `routes.start_at` / `end_at` exist in the schema and load into builder state, but nothing sets them and there is no date-time UI, so the timeline slider proper is still ahead.
@@ -299,11 +299,11 @@ Branch `refactor/google-maps-and-auth`, pushed, six commits:
 
 | | |
 | --- | --- |
-| `4a0a89d` | Repointed GitHub references at `feralcreative/tankbag` — the repo was renamed and the local remote still used the redirect |
+| `4a0a89d` | Repointed GitHub references at `feralcreative/tankbag`—the repo was renamed and the local remote still used the redirect |
 | `942e1d9` | **The map engine port**, Mapbox GL → `google.maps`, across the engine, both consumers, both shells and the marker CSS |
-| `728fd0b` | Role picker rendered permanently open — `[hidden]` was losing on specificity to a class selector |
+| `728fd0b` | Role picker rendered permanently open—`[hidden]` was losing on specificity to a class selector |
 | `8b39424` | Splash clip slowed to half speed in the encode, re-cut from the ProRes master with interpolated frames |
-| `691b018` | **Deploy shipped none of the Google Maps or sign-in credentials** — the most important fix of the day; see below |
+| `691b018` | **Deploy shipped none of the Google Maps or sign-in credentials**—the most important fix of the day; see below |
 
 Uncommitted at end of day, all verified but not yet in a commit:
 
