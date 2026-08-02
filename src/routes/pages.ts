@@ -15,7 +15,8 @@ import { db } from '../db/index'
 import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
 import { esc, page, type NavKey } from '../views/layout'
 import { rideCards } from '../views/cards'
-import type { AuthEnv } from '../auth/middleware'
+import { requireActive, type AuthEnv } from '../auth/middleware'
+import { allow, clientIp } from '../auth/ratelimit'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -308,6 +309,57 @@ ${rideCards(cards, sort === 'popular')}
 </nav>`
 
   return render(c, 'Explore', body, 'content-page explore-page', 'explore')
+})
+
+// The rider roster.
+//
+// Shows exactly what a public profile shows and nothing more — display name and
+// handle — because it is the same question asked in bulk. Anything a rider has
+// not chosen to publish stays off both. In particular no email, which is what
+// separates this from /admin.
+//
+// Signed-in only. That is not because the data is sensitive (it is all on the
+// public profiles already) but because an anonymous bulk list of every account
+// is a scraping target with no upside.
+pageRoutes.get('/riders', requireActive, async (c) => {
+  if (!allow('roster', clientIp(c.req.raw.headers), { max: 60 })) {
+    return c.text('Slow down a moment.', 429)
+  }
+
+  const q = (c.req.query('q') ?? '').trim().slice(0, 30)
+
+  const rows = await db
+    .select({ displayName: users.displayName, username: users.username })
+    .from(users)
+    .where(
+      q
+        ? sql`${users.status} = 'active' and ${users.username} is not null
+              and (lower(${users.username}) like lower(${'%' + q + '%'})
+                   or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
+        : sql`${users.status} = 'active' and ${users.username} is not null`,
+    )
+    .orderBy(users.displayName)
+    .limit(200)
+
+  const list = rows.length
+    ? `<ul class="rider-list">${rows
+        .map(
+          (r) =>
+            `<li><a href="/@${esc(r.username!)}"><span class="rider-display">${esc(r.displayName)}</span><span class="rider-handle">@${esc(r.username!)}</span></a></li>`,
+        )
+        .join('')}</ul>`
+    : '<p class="empty">Nobody matches that.</p>'
+
+  const body = `<h1>Riders</h1>
+<p class="lede">Everyone planning here. Names and handles only &mdash; anything else is on a rider's own profile, and only if they put it there.</p>
+<form class="rider-search" method="get" action="/riders">
+  <label class="visually-hidden" for="rider-q">Search riders</label>
+  <input id="rider-q" name="q" type="search" maxlength="30" placeholder="Search by name or handle" value="${esc(q)}">
+  <button class="btn" type="submit">Search</button>
+</form>
+${list}`
+
+  return render(c, 'Riders', body, 'content-page riders-page', 'riders')
 })
 
 // Public rider profile at /@handle.

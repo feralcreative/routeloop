@@ -21,6 +21,7 @@ import { db } from '../db/index'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
 import { checkAvailability, claimUsername, usernameSchema } from '../auth/username'
+import { allow, clientIp } from '../auth/ratelimit'
 import { z } from 'zod'
 import { sanitizeText } from '../maps/kml'
 
@@ -211,6 +212,12 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
   const user = currentUser(c)
   if (user.username) return c.redirect('/', 302)
 
+  // Username availability is an enumeration surface: each submission reveals
+  // whether a handle is taken or held. Cheap to walk without this.
+  if (!allow('username-check', clientIp(c.req.raw.headers), { max: 30 })) {
+    return c.html(chooseNameHtml(user, { username: '', displayName: '' }, { username: 'too many tries—wait a few minutes' }))
+  }
+
   const raw = Object.fromEntries(await c.req.formData()) as Record<string, string>
   const values = { username: String(raw.username ?? ''), displayName: String(raw.displayName ?? '') }
   const parsed = nameFields.safeParse(values)
@@ -279,7 +286,7 @@ authRoutes.get('/welcome', requireAuth, (c) => {
        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="TankBag" width="1456" height="426">
        <p class="eyebrow">You're on the list</p>
        <h1>Hang tight.</h1>
-       <p class="splash-copy">TankBag is in a closed alpha, so accounts are approved by hand. Yours is waiting — you'll be able to sign in and start planning once it's through.</p>
+       <p class="splash-copy">TankBag is in a closed alpha, so accounts are approved by hand. Yours is waiting—you'll be able to sign in and start planning once it's through.</p>
        <ul class="welcome-links">${links}</ul>
        <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>
        </main>`,

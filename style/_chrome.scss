@@ -258,3 +258,51 @@ a.card {
     font-weight: 700;
   }
 }
+
+// Rider roster.
+.rider-search {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.6em 0.7em;
+    font: inherit;
+    border: 1px solid $grey;
+    border-radius: 6px;
+  }
+}
+
+.rider-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+
+  a {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.65em 0.8em;
+    background: $white;
+    border-radius: 8px;
+    text-decoration: none;
+    color: $text;
+
+    &:hover {
+      background: #f0f0f0;
+    }
+  }
+}
+
+.rider-display {
+  font-weight: 700;
+}
+
+.rider-handle {
+  color: #777;
+  font-size: 0.9em;
+}
