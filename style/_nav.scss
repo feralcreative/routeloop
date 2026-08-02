@@ -182,21 +182,18 @@ html.map-page {
     pointer-events: auto;
   }
 
-  // The light-variant artwork is black on transparent, so it needs a light
-  // backing to stay legible over outdoors and satellite tiles. Swapping to
-  // logo-tankbag-horiz-dark.svg here instead would drop the backing, but the
-  // mark would then vanish over pale terrain — the backing is the safer default.
+  // The mark sits bare on the map — no backing panel, no shadow, no glow.
   .site-logo {
-    padding: 0.35rem 0.5rem;
-    background: $panel-bg;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px $panel-shadow;
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
 
-    // The stacked mark, so taller than the 30px the horizontal lockup used
-    // here — most of its height is the bag icon sitting above the wordmark, and
-    // at 30px the word underneath would be illegible.
+    // The stacked mark, and deliberately much taller than the 30px the
+    // horizontal lockup used here: most of its height is the bag icon sitting
+    // above the wordmark, so the word needs the extra to stay readable.
     img {
-      height: 46px;
+      height: 92px;
     }
   }
 
