@@ -16,11 +16,40 @@
     box-sizing: border-box;
   }
 
-  .ride-meta {
+  // Three bands, one per scope: the ride, the trip across its days, and the one
+  // day being edited. The panel used to be a flat run of divs where nothing said
+  // whether a control changed one day or everything.
+  //
+  // Tint and an accent rather than captions and rules. At 380px a horizontal
+  // rule reads as clutter and three extra label lines are three lines of the
+  // vertical budget — the grouping itself carries the meaning, and the day band
+  // names its own scope through the colour it is accented in.
+  .panel-band {
+    padding: 0.7em 0.75em;
+    border-radius: 8px;
+
+    + .panel-band,
+    + .day-pick-hint,
+    .day-pick-hint + & {
+      margin-top: 0.6em;
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // The ride's own fields sit at the top of the panel under its title, so they
+  // need no container of their own — a tint here would box in the whole panel.
+  //
+  // This block was .ride-meta before the bands; the class was folded into the
+  // band rather than nested inside it, so the rules move here with it.
+  .panel-band--ride {
     display: flex;
     flex-direction: column;
     gap: 0.5em;
-    margin-bottom: 0.75em;
+    padding: 0;
+
     #ride-title {
       font-weight: 700;
       width: 100%;
@@ -30,6 +59,37 @@
       resize: vertical;
     }
   }
+
+  .panel-band--trip {
+    background: rgba(0, 0, 0, 0.035);
+  }
+
+  // Accented in the day's own colour, which is also what every role icon inside
+  // it inherits. --route-color is set from renderDayHead(); the fallback covers
+  // the first paint before any day is selected.
+  .panel-band--day {
+    background: rgba(0, 0, 0, 0.035);
+    border-left: 3px solid var(--route-color, #{$grey});
+
+    // The icons are SVGs drawn with fill="currentColor", so one `color` here
+    // tints every one of them — role chips, the picker, the stop numbers and
+    // the POI dots. Scoped to this band on purpose: the collapse toggle and any
+    // other panel chrome must stay as they are.
+    color: var(--route-color, #{$text});
+
+    // Text is not tinted — a whole panel of coloured prose is unreadable, and
+    // the point is the icons.
+    input,
+    textarea,
+    .row-name,
+    .day-time,
+    .day-times-note,
+    .poi-head,
+    .empty-hint {
+      color: $text;
+    }
+  }
+
   // The day scrubber. It focuses a day rather than switching to one — every
   // route stays drawn on the map and only the emphasis moves, so this is a
   // slider and not a tab strip.
@@ -408,11 +468,13 @@
       align-items: center;
       gap: 0.4em;
     }
+    // Inherits the band's --route-color rather than carrying its own grey: the
+    // stop number and the POI dot are markers, and a marker should say which
+    // day it belongs to.
     .row-num {
       flex: 0 0 1.5em;
       text-align: center;
       font-weight: 700;
-      color: color.adjust($text, $lightness: 25%);
       &.poi-dot::before {
         content: "◦";
       }
@@ -426,6 +488,10 @@
     }
     .row-roles-btn {
       font: inherit;
+      // Without this the chips inside stay black: the UA sheet gives every
+      // <button> `color: buttontext`, and no author rule was overriding it, so
+      // the band's --route-color never reached the currentColor in the SVGs.
+      color: inherit;
       display: flex;
       align-items: center;
       gap: 2px;
@@ -488,19 +554,21 @@
         padding: 0.45em 0.55em;
         text-align: left;
         cursor: pointer;
+        // Same button-resets-colour trap as .row-roles-btn above.
+        color: inherit;
         .tb-inline-icon {
           width: 18px;
           height: 18px;
           display: block;
           flex: 0 0 18px;
-          color: $text;
         }
+        // Selected. The tint used to be $url regardless of the day, which now
+        // fights the band's colour — the highlight is the background, and the
+        // icon keeps the day's colour like every other icon here.
         &.on {
-          border-color: $url;
-          background: rgba(21, 101, 192, 0.12);
-          .tb-inline-icon {
-            color: $url;
-          }
+          border-color: currentColor;
+          background: rgba(0, 0, 0, 0.06);
+          font-weight: 700;
         }
       }
     }

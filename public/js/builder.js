@@ -625,12 +625,7 @@
   // are not controls whose absence would reflow anything the rider is aiming at.
   function renderDayEditing() {
     const editing = editIndex() != null;
-    ["day-head", "day-times", "stop-list", "poi-head", "poi-list"].forEach((id) => {
-      const el = $(id);
-      if (el) el.hidden = !editing;
-    });
-    const search = document.querySelector(".search-wrap");
-    if (search) search.hidden = !editing;
+    $("day-band").hidden = !editing;
     $("day-pick-hint").hidden = editing;
     // Adding by map click needs a day to add to, so the mode buttons say so
     // rather than accepting a click that would have to be refused.
@@ -646,6 +641,11 @@
     if (r == null) return;
 
     const route = state.routes[r];
+    // The band's accent and every role icon inside it read this. The icons are
+    // SVGs whose disc is fill="currentColor", so tinting them is a matter of
+    // setting `color` on an ancestor — no per-icon work, and it follows the
+    // colour picker live because this runs on its input event.
+    $("day-band").style.setProperty("--route-color", route.color);
     const head = $("day-head");
     // Still hidden for a lone untitled day: there is nothing to reorder, delete
     // or distinguish, so the controls would be four disabled buttons.
@@ -1313,6 +1313,7 @@
       const route = editRoute();
       if (!route) return;
       route.color = e.target.value;
+      renderDayHead();
       renderSlider();
       rebuildLayers();
       renderMarkers();
