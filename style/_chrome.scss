@@ -218,13 +218,82 @@ a.card {
   font-size: 0.9rem;
 }
 
-// One question and its answer. The rule sits above rather than below so the
-// last one does not leave a line hanging under the page.
+// Expand all / collapse all. Quiet, because it is a convenience rather than
+// the way the page is meant to be read.
+.faq-controls {
+  margin: -0.5rem 0 1.5rem;
+
+  .linkbtn {
+    padding: 0;
+    color: $url;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+// One question and its answer, collapsed. The rule sits above rather than below
+// so the last one does not leave a line hanging under the page.
 .qa {
-  padding-top: 1.5rem;
+  padding: 1.5rem 0 0;
 
   + .qa {
     border-top: 1px solid $grey;
+  }
+
+  summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    padding-bottom: 1.5rem;
+    cursor: pointer;
+    // These were <h3> before, so the type has to carry over or the page loses
+    // its scan-the-headings shape — which is most of what a collapsed FAQ is
+    // for.
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.3;
+    // The platform triangle is replaced by the caret below, and hiding it takes
+    // both of these: ::marker for Firefox and current Chrome, the -webkit rule
+    // for older Safari.
+    list-style: none;
+
+    &::marker,
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      color: $url;
+    }
+
+    // Drawn rather than typed so it can rotate, and ordered first so the
+    // question text starts at a consistent left edge whatever its length.
+    &::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 0.4em;
+      height: 0.4em;
+      // Nudged down off the baseline: the box has no descender to sit on.
+      transform: translateY(-0.1em) rotate(45deg);
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transition: transform 0.15s ease;
+    }
+  }
+
+  &[open] summary::before {
+    transform: translateY(0.05em) rotate(-135deg);
+  }
+
+  // The padding lives on the summary so a collapsed question keeps its rhythm;
+  // the answer therefore starts flush and only needs its own bottom margin.
+  .qa-answer {
+    padding-bottom: 0.5rem;
+
+    > :first-child {
+      margin-top: 0;
+    }
   }
 }
 
