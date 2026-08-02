@@ -9,7 +9,6 @@ import { z } from 'zod'
 import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
-import { MAPBOX_TOKEN } from '../config'
 import { sanitizeText } from '../maps/kml'
 import { esc, page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -234,7 +233,6 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
     body,
     // Only the token: profile.js geocodes the address so the builder can read
     // coordinates straight off the profile instead of looking them up per ride.
-    tb: { token: MAPBOX_TOKEN },
     scripts: `<script src="${asset('/js/profile.js')}" defer></script>`,
   })
 }

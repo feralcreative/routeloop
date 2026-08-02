@@ -31,7 +31,6 @@ services:
       # Vector Map ID. Advanced Markers render NOTHING without it — no error,
       # no marker, an empty map that looks like a data bug.
       GMAPS_MAP_ID: ${GMAPS_MAP_ID}
-      MAPBOX_TOKEN: ${MAPBOX_TOKEN}
       DATABASE_URL: postgresql://tankbag:${DB_PASSWORD}@db:5432/tankbag
       # Set from $DOMAIN by deploy.sh. APP_ORIGIN decides the Secure flag on the
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it

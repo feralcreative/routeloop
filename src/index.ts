@@ -135,8 +135,9 @@ app.get('/m/:slug', async (c) => {
   return c.html(viewHtml(m, viewer))
 })
 
-// The normalized public contract: everything the Mapbox viewer needs, for
-// both sources, derived from structured rows only.
+// The normalized public contract: everything the viewer needs, for both
+// sources, derived from structured rows only. One shape for imported and native
+// rides is what let the two shells collapse into one.
 app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
