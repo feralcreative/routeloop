@@ -84,7 +84,6 @@
     .row-name,
     .day-time,
     .day-times-note,
-    .poi-head,
     .empty-hint {
       color: $text;
     }
@@ -439,11 +438,6 @@
       font-size: 0.85em;
       opacity: 0.8;
     }
-  }
-
-  .poi-head {
-    font-weight: 700;
-    margin: 0.75em 0 0.25em;
   }
 
   .point-list {

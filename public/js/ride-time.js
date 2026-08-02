@@ -29,7 +29,13 @@
     legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
 
   const routeRidingS = (route) => route.legs.reduce((n, l) => n + legDurationS(l), 0);
-  const routeStoppedS = (route) => route.stops.reduce((n, s) => n + (s.durationMin || 0) * 60, 0);
+  // Stops AND POIs. A POI is not a routing anchor and never splits a leg, but a
+  // rider who spends forty minutes at a viewpoint has spent forty minutes, and
+  // the day ends forty minutes later. Most POIs carry no duration at all — you
+  // rode past — and contribute nothing.
+  const dwellS = (p) => (p.durationMin || 0) * 60;
+  const routeStoppedS = (route) =>
+    route.stops.reduce((n, s) => n + dwellS(s), 0) + (route.pois || []).reduce((n, p) => n + dwellS(p), 0);
   const routeIsEstimated = (route) => route.legs.some(legIsEstimated);
 
   // How long a day actually occupies: riding plus every planned stop. This is
@@ -66,42 +72,118 @@
     return from == null || to == null || to <= from ? null : { from, to };
   }
 
-  // A day, as the timeline sees it: parked at stops[0], riding legs[0], parked
-  // at stops[1], riding legs[1], and so on. The two summed are routeElapsedS(),
-  // so this walk and the derived end time cannot drift apart.
+  // The day as an ordered list of segments: parked at a stop, riding part of a
+  // leg, paused at a POI, riding the rest of that leg, and so on.
   //
-  // A moment spent at a stop is on no leg at all, and says so. Highlighting the
-  // leg just ridden (or the one about to be) would put a line on the map that
-  // claims the rider is somewhere they are not.
-  function activeAt(route, offsetS) {
+  // This used to be a walk that alternated stop-dwell and leg-riding, which had
+  // no place to put a POI. A POI is not a routing anchor — it splits no leg and
+  // the router never sees it — so a pause at one falls *inside* a leg, at
+  // whatever fraction of the way along it the POI sits. Building the day as data
+  // rather than as control flow is what makes that expressible, and it is
+  // testable in a way the walk was not.
+  //
+  // POI distances are supplied by the caller because the two callers know them
+  // differently: the viewer reads distFromStartMi straight out of ride.json,
+  // while the builder computes them live from the current geometry (see
+  // routePoiDistances in twist.js). Omitting the argument falls back to the
+  // stored value, which is what the viewer wants.
+  //
+  // A POI with no duration is left out entirely: riding past something changes
+  // nothing about when the day ends.
+  function routeSchedule(route, poiDistsM) {
+    const segs = [];
+    const prefix = [0];
+    for (const l of route.legs) prefix.push(prefix[prefix.length - 1] + (l.distanceM || 0));
+
+    const stops = (route.pois || [])
+      .map((p, i) => ({
+        i,
+        dur: dwellS(p),
+        d: poiDistsM
+          ? poiDistsM[i] || 0
+          : p.distFromStartMi != null
+            ? p.distFromStartMi * 1609.344
+            : 0,
+      }))
+      .filter((p) => p.dur > 0)
+      .sort((a, b) => a.d - b.d);
+
     let t = 0;
+    let poiIdx = 0;
     for (let i = 0; i < route.stops.length; i++) {
-      const dwell = (route.stops[i].durationMin || 0) * 60;
-      if (offsetS < t + dwell) return { legIndex: null, stopIndex: i };
+      const dwell = dwellS(route.stops[i]);
+      if (dwell > 0) segs.push({ kind: "stop", index: i, start: t, end: t + dwell });
       t += dwell;
+
       const leg = route.legs[i];
       if (!leg) break;
       const riding = legDurationS(leg);
-      if (offsetS < t + riding) return { legIndex: i, stopIndex: null };
-      t += riding;
+      const from = prefix[i];
+      const span = prefix[i + 1] - from;
+
+      // Emit the leg in pieces, pausing wherever a POI falls inside it.
+      let ridden = 0;
+      while (poiIdx < stops.length && stops[poiIdx].d < prefix[i + 1]) {
+        const p = stops[poiIdx];
+        const frac = span > 0 ? Math.max(0, Math.min(1, (p.d - from) / span)) : 0;
+        const at = riding * frac;
+        if (at > ridden) {
+          segs.push({ kind: "leg", index: i, start: t, end: t + (at - ridden) });
+          t += at - ridden;
+          ridden = at;
+        }
+        segs.push({ kind: "poi", index: p.i, start: t, end: t + p.dur });
+        t += p.dur;
+        poiIdx++;
+      }
+      if (riding > ridden) {
+        segs.push({ kind: "leg", index: i, start: t, end: t + (riding - ridden) });
+        t += riding - ridden;
+      }
+    }
+
+    // A POI projected past the end of the last leg — off-route, or on a day
+    // whose track stops short. It still takes its time; it takes it at the end.
+    while (poiIdx < stops.length) {
+      const p = stops[poiIdx++];
+      segs.push({ kind: "poi", index: p.i, start: t, end: t + p.dur });
+      t += p.dur;
+    }
+
+    return segs;
+  }
+
+  // Where the rider is at a given offset into the day.
+  //
+  // A moment spent at a stop or a POI is on no leg at all, and says so.
+  // Highlighting the leg just ridden (or the one about to be) would put a line
+  // on the map claiming the rider is somewhere they are not.
+  function activeAt(route, offsetS, poiDistsM) {
+    const none = { legIndex: null, stopIndex: null, poiIndex: null };
+    for (const seg of routeSchedule(route, poiDistsM)) {
+      if (offsetS < seg.end) {
+        if (seg.kind === "leg") return { ...none, legIndex: seg.index };
+        if (seg.kind === "stop") return { ...none, stopIndex: seg.index };
+        return { ...none, poiIndex: seg.index };
+      }
     }
     // Past the end of the day: parked at the final stop.
-    return { legIndex: null, stopIndex: route.stops.length ? route.stops.length - 1 : null };
+    return { ...none, stopIndex: route.stops.length ? route.stops.length - 1 : null };
   }
 
   // Which day and leg a moment falls in. A moment in the gap between two days —
   // the overnight — belongs to neither, and returns nulls rather than being
   // rounded into the nearest day.
-  function activeAtMoment(routes, momentS) {
+  function activeAtMoment(routes, momentS, poiDistsM) {
     for (let d = 0; d < routes.length; d++) {
       const route = routes[d];
       const start = routeStartS(route);
       if (start == null) continue;
       if (momentS < start || momentS > routeEndS(route)) continue;
-      const a = activeAt(route, momentS - start);
-      return { dayIndex: d, legIndex: a.legIndex, stopIndex: a.stopIndex };
+      const a = activeAt(route, momentS - start, poiDistsM && poiDistsM[d]);
+      return { dayIndex: d, legIndex: a.legIndex, stopIndex: a.stopIndex, poiIndex: a.poiIndex };
     }
-    return { dayIndex: null, legIndex: null, stopIndex: null };
+    return { dayIndex: null, legIndex: null, stopIndex: null, poiIndex: null };
   }
 
   const fmtMoment = (s) =>
@@ -123,6 +205,7 @@
     routeElapsedS,
     routeStartS,
     routeEndS,
+    routeSchedule,
     tripSpan,
     activeAt,
     activeAtMoment,

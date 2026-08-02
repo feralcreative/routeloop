@@ -8,7 +8,8 @@ import { readFileSync } from 'node:fs'
 
 type Leg = { durationS: number; distanceM: number }
 type Stop = { name?: string; durationMin: number | null }
-type Route = { startAt: string | null; endAt: string | null; stops: Stop[]; legs: Leg[] }
+type Poi = { name?: string; durationMin: number | null; distFromStartMi?: number }
+type Route = { startAt: string | null; endAt: string | null; stops: Stop[]; pois?: Poi[]; legs: Leg[] }
 
 let T: any
 
@@ -26,6 +27,7 @@ const day = (): Route => ({
   startAt: at('2026-08-01T09:00'),
   endAt: null,
   stops: [stop('Home'), stop('Lunch', 120), stop('Motel')],
+  pois: [],
   legs: [leg(3600), leg(1800)],
 })
 
@@ -66,20 +68,20 @@ describe('walking a day', () => {
   const walk = (minutes: number) => T.activeAt(day(), minutes * 60)
 
   it('starts on the first leg', () => {
-    expect(walk(0)).toEqual({ legIndex: 0, stopIndex: null })
+    expect(walk(0)).toEqual({ legIndex: 0, stopIndex: null, poiIndex: null })
   })
 
   it('is parked at the stop once the leg is done', () => {
-    expect(walk(60)).toEqual({ legIndex: null, stopIndex: 1 })
-    expect(walk(119)).toEqual({ legIndex: null, stopIndex: 1 })
+    expect(walk(60)).toEqual({ legIndex: null, stopIndex: 1, poiIndex: null })
+    expect(walk(119)).toEqual({ legIndex: null, stopIndex: 1, poiIndex: null })
   })
 
   it('rides again when the dwell ends', () => {
-    expect(walk(180)).toEqual({ legIndex: 1, stopIndex: null })
+    expect(walk(180)).toEqual({ legIndex: 1, stopIndex: null, poiIndex: null })
   })
 
   it('parks at the final stop past the end of the day', () => {
-    expect(walk(999)).toEqual({ legIndex: null, stopIndex: 2 })
+    expect(walk(999)).toEqual({ legIndex: null, stopIndex: 2, poiIndex: null })
   })
 
   it('reports no leg at all while parked', () => {
@@ -115,6 +117,7 @@ describe('placing a moment across days', () => {
       dayIndex: null,
       legIndex: null,
       stopIndex: null,
+      poiIndex: null,
     })
   })
 })
@@ -130,18 +133,90 @@ describe('trip span', () => {
   })
 
   it('is nothing at all for an undated ride', () => {
-    expect(T.tripSpan([{ startAt: null, endAt: null, stops: [], legs: [] }])).toBeNull()
+    expect(T.tripSpan([{ startAt: null, endAt: null, stops: [], pois: [], legs: [] }])).toBeNull()
   })
 
   it('does not let an undated day stretch it', () => {
     const d = day()
     d.endAt = new Date((T.routeStartS(d) + T.routeElapsedS(d)) * 1000).toISOString()
-    const undated = { startAt: null, endAt: null, stops: [stop('X')], legs: [] }
+    const undated = { startAt: null, endAt: null, stops: [stop('X')], pois: [], legs: [] }
     expect(T.tripSpan([d, undated])).toEqual(T.tripSpan([d]))
   })
 
   it('falls back to elapsed when a day has a start but no stored end', () => {
     const d = day()
     expect(T.tripSpan([d])!.to).toBe(T.routeStartS(d) + T.routeElapsedS(d))
+  })
+})
+
+describe('a POI you stop at', () => {
+  // 40km of leg 0 then 20km of leg 1, so a POI at 20km sits halfway along the
+  // first leg — 30 minutes into an hour of riding.
+  const withPoi = (durationMin: number | null, mi: number): Route => ({
+    startAt: at('2026-08-01T09:00'),
+    endAt: null,
+    stops: [stop('Home'), stop('Lunch', 120), stop('Motel')],
+    pois: [{ name: 'Vista', durationMin, distFromStartMi: mi }],
+    legs: [{ durationS: 3600, distanceM: 40000 }, { durationS: 1800, distanceM: 20000 }],
+  })
+  const MI = 1609.344
+
+  it('adds its dwell to the day, so the day ends later', () => {
+    const without = T.routeElapsedS(withPoi(null, 20000 / MI))
+    expect(T.routeElapsedS(withPoi(30, 20000 / MI))).toBe(without + 1800)
+  })
+
+  it('costs nothing when you ride past without stopping', () => {
+    expect(T.routeStoppedS(withPoi(null, 20000 / MI))).toBe(7200)
+    expect(T.routeStoppedS(withPoi(0, 20000 / MI))).toBe(7200)
+  })
+
+  it('interrupts the leg it falls in, rather than waiting for the next stop', () => {
+    const r = withPoi(30, 20000 / MI)
+    // Half of leg 0 is 1800s of riding, then the POI holds for 1800s.
+    expect(T.activeAt(r, 1799).legIndex).toBe(0)
+    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, stopIndex: null, poiIndex: 0 })
+    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, stopIndex: null, poiIndex: 0 })
+    // ...and then the rest of leg 0 resumes.
+    expect(T.activeAt(r, 3600).legIndex).toBe(0)
+  })
+
+  it('sits where its distance says, not where its array index does', () => {
+    const early = withPoi(30, 5000 / MI)
+    const late = withPoi(30, 35000 / MI)
+    // 1/8 of the way along leg 0 versus 7/8 of the way.
+    expect(T.activeAt(early, 500).poiIndex).toBe(0)
+    expect(T.activeAt(late, 500).legIndex).toBe(0)
+    expect(T.activeAt(late, 3200).poiIndex).toBe(0)
+  })
+
+  it('takes its time at the end when it projects past the last leg', () => {
+    const r = withPoi(30, 999)
+    expect(T.routeElapsedS(r)).toBe(3600 + 1800 + 7200 + 1800)
+  })
+})
+
+describe('the schedule and the elapsed time cannot disagree', () => {
+  // routeElapsedS drives every stored end time and the whole timeline slider,
+  // while routeSchedule drives what the map highlights. If they ever diverge the
+  // slider would run off the end of the day, so this is the invariant that
+  // matters most in this file.
+  const cases: Route[] = [
+    day(),
+    { ...day(), pois: [{ durationMin: 45, distFromStartMi: 10 }] },
+    { ...day(), pois: [{ durationMin: 20, distFromStartMi: 0 }, { durationMin: 20, distFromStartMi: 99 }] },
+    { ...day(), pois: [{ durationMin: null, distFromStartMi: 5 }] },
+    { startAt: null, endAt: null, stops: [stop('Only')], pois: [], legs: [] },
+  ]
+
+  it.each(cases.map((c, i) => [i, c] as const))('holds for case %i', (_i, route) => {
+    const segs = T.routeSchedule(route)
+    const total = segs.length ? segs[segs.length - 1].end : 0
+    expect(total).toBeCloseTo(T.routeElapsedS(route), 6)
+  })
+
+  it('never emits a gap or an overlap', () => {
+    const segs = T.routeSchedule(cases[2])
+    for (let i = 1; i < segs.length; i++) expect(segs[i].start).toBeCloseTo(segs[i - 1].end, 6)
   })
 })

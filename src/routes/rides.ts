@@ -62,7 +62,11 @@ const stopSchema = z.object({
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
   durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
 })
-const poiSchema = stopSchema.omit({ durationMin: true })
+// A POI carries a duration now, the same as a stop. It is still not a routing
+// anchor — the router never sees it and it splits no leg — but a rider who
+// spends half an hour at a viewpoint has spent half an hour, and the day's end
+// time has to say so.
+const poiSchema = stopSchema
 
 const legSchema = z.object({
   geometry: z.array(lngLat).min(2).max(MAX_PTS_PER_LEG),
@@ -134,6 +138,7 @@ function rideTotals(p: RidePayload) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
     seconds += r.stops.reduce((n, s) => n + (s.durationMin ?? 0) * 60, 0)
+    seconds += r.pois.reduce((n, p) => n + (p.durationMin ?? 0) * 60, 0)
     stops += r.stops.length
   }
   return { totalMiles: (meters / METERS_PER_MILE).toFixed(1), totalDurationS: seconds, stopCount: stops }
@@ -194,7 +199,7 @@ async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<
       name: s.name,
       description: s.description || null,
       roles: s.roles,
-      durationMin: null,
+      durationMin: s.durationMin,
       distFromStartM: poiDists[i],
     }))
 
@@ -330,8 +335,10 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
       // rides it. The timeline re-derives from legs and stops either way.
       startAt: null,
       endAt: null,
+      // Both kinds carry a duration, so a clone keeps the POI dwell too —
+      // dropping it would quietly shorten every cloned day.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...point(p), durationMin: p.durationMin })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -446,7 +453,16 @@ export async function loadRidePayload(ride: RideRow) {
         })),
       pois: pts
         .filter((p) => p.kind === 'poi')
-        .map((p) => ({ lat: p.lat, lng: p.lng, name: p.name, description: p.description ?? '', roles: p.roles })),
+        .map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          name: p.name,
+          description: p.description ?? '',
+          roles: p.roles,
+          // Same shape as a stop now. Omitting this is how a saved POI dwell
+          // silently disappears on the next load.
+          durationMin: p.durationMin,
+        })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -593,8 +609,6 @@ function builderHtml(
           </div>
 
           <ol class="point-list" id="stop-list"></ol>
-          <div class="poi-head" id="poi-head" hidden>Points of interest</div>
-          <ul class="point-list" id="poi-list"></ul>
         </div>
 
         <div class="builder-actions">

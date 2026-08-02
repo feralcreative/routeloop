@@ -123,21 +123,95 @@ window.TBTwist = (function () {
     };
   }
 
-  // Walking every vertex of a multi-day trip costs real time — roughly 19,000
-  // samples for a 300-mile day — and renderTotals() runs on every keystroke. The
-  // legs array is replaced wholesale whenever the router answers, so identity is
-  // a sound cache key: same array object means the same geometry.
+  // Both figures below are expensive enough to need caching — roughly 19,000
+  // samples for a 300-mile day, recomputed by renderTotals() on every keystroke
+  // — and both are invalidated by a *signature* rather than by array identity.
+  //
+  // Identity looked like the obvious key and is wrong here: the builder mutates
+  // these arrays in place (`route.legs[i] = leg` when the router answers,
+  // `legs.splice()` on a delete, `pois.push()` on an add), so the array object
+  // never changes and a cache keyed on it would serve the pre-reroute answer
+  // forever. The signatures are O(n) over the leg or POI list, which is nothing
+  // beside the walk they are protecting.
+  const legsSignature = (route) => {
+    let sig = route.legs.length + ":";
+    for (const l of route.legs) sig += (l.distanceM || 0) + "," + ((l.geometry && l.geometry.length) || 0) + ";";
+    return sig;
+  };
+
   const cache = new WeakMap();
   function routeTwistiness(route) {
     if (!route || !route.legs || route.legs.length === 0) return null;
-    const hit = cache.get(route.legs);
-    if (hit !== undefined) return hit;
+    const sig = legsSignature(route);
+    const hit = cache.get(route);
+    if (hit && hit.sig === sig) return hit.value;
     const track = [];
     for (const leg of route.legs) for (const p of leg.geometry || []) track.push(p);
     const value = twistiness(track);
-    cache.set(route.legs, value);
+    cache.set(route, { sig, value });
     return value;
   }
 
-  return { twistiness, twistLabel, routeTwistiness, SPACING_M, DEADBAND_DEG, WINDOW_MI, BANDS };
+  // Where each POI falls along the day, in metres from the start.
+  //
+  // A port of distFromStartAlongTrack() in src/maps/kml.ts, and pinned to it by
+  // test/twist-client.test.ts for the same reason twistiness() is: the server
+  // computes this at save time, but the builder has to order the list while the
+  // rider is still adding stops, when the stored figure does not exist yet.
+  //
+  // Nearest *vertex*, not nearest segment — matching the server exactly matters
+  // more here than the fraction of a metre a proper projection would gain, and
+  // the ordering is unaffected either way.
+  function distFromStartAlongTrack(track, pts) {
+    if (!track || track.length === 0) return pts.map(() => 0);
+    const prefix = new Array(track.length);
+    prefix[0] = 0;
+    for (let i = 1; i < track.length; i++) {
+      prefix[i] = prefix[i - 1] + haversineM(track[i - 1][1], track[i - 1][0], track[i][1], track[i][0]);
+    }
+    return pts.map((p) => {
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < track.length; i++) {
+        // Squared degrees, not metres: only the ordering of the comparison
+        // matters, and this is the cheap version the server also uses.
+        const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      }
+      return Math.round(prefix[best]);
+    });
+  }
+
+  // O(track x pois): about 380,000 comparisons for a long day with twenty POIs.
+  // Depends on the POI positions as well as the track, so the signature covers
+  // both — dragging a POI marker changes neither array's identity nor its
+  // length.
+  const poiCache = new WeakMap();
+  function routePoiDistances(route) {
+    if (!route || !route.pois || route.pois.length === 0) return [];
+    let sig = legsSignature(route) + "|" + route.pois.length + ":";
+    for (const p of route.pois) sig += p.lng + "," + p.lat + ";";
+    const hit = poiCache.get(route);
+    if (hit && hit.sig === sig) return hit.dists;
+    const track = [];
+    for (const leg of route.legs || []) for (const p of leg.geometry || []) track.push(p);
+    const dists = distFromStartAlongTrack(track, route.pois);
+    poiCache.set(route, { sig, dists });
+    return dists;
+  }
+
+  return {
+    twistiness,
+    twistLabel,
+    routeTwistiness,
+    distFromStartAlongTrack,
+    routePoiDistances,
+    SPACING_M,
+    DEADBAND_DEG,
+    WINDOW_MI,
+    BANDS,
+  };
 })();

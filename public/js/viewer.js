@@ -157,6 +157,11 @@
       what = "between days";
     } else if (a.legIndex != null) {
       what = dayName(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.ride.routes[a.dayIndex].legs.length;
+    } else if (a.poiIndex != null) {
+      // The viewer passes no distances: a published ride carries distFromStartMi
+      // for every POI already, and ride-time.js falls back to it.
+      const poi = state.ride.routes[a.dayIndex].pois[a.poiIndex];
+      what = dayName(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
       const stop = a.stopIndex == null ? null : state.ride.routes[a.dayIndex].stops[a.stopIndex];
       what = dayName(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));

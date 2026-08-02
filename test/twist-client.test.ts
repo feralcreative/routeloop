@@ -10,6 +10,7 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { twistiness as serverTwistiness, twistLabel as serverLabel, TWIST_BANDS } from '../src/maps/twist'
+import { distFromStartAlongTrack as serverDistFromStart } from '../src/maps/kml'
 import type { Track } from '../src/maps/kml'
 
 let C: any
@@ -101,9 +102,71 @@ describe('routeTwistiness', () => {
     expect(C.routeTwistiness(null)).toBeNull()
   })
 
-  it('caches on the legs array, which the builder replaces wholesale on reroute', () => {
-    const r = route([{ geometry: arc(200, 180) }])
+  it('caches when nothing changed', () => {
+    const r = route([{ geometry: arc(200, 180), distanceM: 100 }])
     const first = C.routeTwistiness(r)
     expect(C.routeTwistiness(r)).toBe(first) // same object, not merely equal
+  })
+
+  it('recomputes when the legs are mutated IN PLACE, which is what the builder does', () => {
+    // The whole reason the cache is keyed on a signature and not on the legs
+    // array's identity. `route.legs[i] = leg` when the router answers, and
+    // `legs.splice()` on a delete, both leave the array object untouched — an
+    // identity-keyed cache would serve the pre-reroute figure forever.
+    const r: any = route([{ geometry: arc(600, 180), distanceM: 1000 }])
+    const before = C.routeTwistiness(r).dpm
+    r.legs[0] = { geometry: arc(80, 180), distanceM: 200 }
+    const after = C.routeTwistiness(r).dpm
+    expect(after).not.toBe(before)
+    expect(after).toBe(serverTwistiness(arc(80, 180))!.dpm)
+  })
+})
+
+describe('POI distances agree with the server', () => {
+  const straightTrack = straight(20000, 50)
+  // Three points sitting on the line at roughly 25%, 50% and 75% along.
+  const at = (f: number) => {
+    const p = straightTrack[Math.floor((straightTrack.length - 1) * f)]
+    return { lng: p[0], lat: p[1] }
+  }
+
+  it('matches distFromStartAlongTrack exactly', () => {
+    const pts = [at(0.25), at(0.5), at(0.75)]
+    expect(C.distFromStartAlongTrack(straightTrack, pts)).toEqual(
+      serverDistFromStart(straightTrack, pts),
+    )
+  })
+
+  it('matches on a curved track, and off it', () => {
+    const curve = arc(300, 270)
+    // Deliberately off-route: nearest-vertex has to pick the same vertex in
+    // both implementations or ordering could differ between builder and server.
+    const off = curve.map((p) => ({ lng: p[0] + 0.01, lat: p[1] - 0.01 })).filter((_, i) => i % 40 === 0)
+    expect(C.distFromStartAlongTrack(curve, off)).toEqual(serverDistFromStart(curve, off))
+  })
+
+  it('matches on an empty track', () => {
+    const pts = [{ lng: -120, lat: 37 }]
+    expect(C.distFromStartAlongTrack([], pts)).toEqual(serverDistFromStart([], pts))
+  })
+
+  it('orders POIs along the route, which is what the interleaved list needs', () => {
+    const r: any = {
+      legs: [{ geometry: straightTrack, distanceM: 20000 }],
+      pois: [at(0.75), at(0.25), at(0.5)],
+    }
+    const d = C.routePoiDistances(r)
+    expect(d[1]).toBeLessThan(d[2])
+    expect(d[2]).toBeLessThan(d[0])
+  })
+
+  it('recomputes when a POI moves, which changes neither array length nor identity', () => {
+    const r: any = {
+      legs: [{ geometry: straightTrack, distanceM: 20000 }],
+      pois: [at(0.25)],
+    }
+    const before = C.routePoiDistances(r)[0]
+    r.pois[0] = at(0.9)
+    expect(C.routePoiDistances(r)[0]).toBeGreaterThan(before)
   })
 })

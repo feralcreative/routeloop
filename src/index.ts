@@ -226,8 +226,11 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // builder — a client wanting a time for one of those estimates it from
       // distanceM rather than treating the day as that much shorter.
       legs: legsOut,
+      // Both kinds carry durationMin now. A POI is still not a routing anchor,
+      // but time spent at one is time spent, and the timeline has to account
+      // for it — see the schedule in ride-time.js.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map(pointOut),
+      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
     })
   }
 

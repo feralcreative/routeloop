@@ -47,7 +47,7 @@
   // is whatever the geometry looked like at the last save, and this panel has to
   // be right while the rider is still moving stops around. See twist.js for why
   // there are two implementations and what keeps them honest.
-  const { routeTwistiness, twistLabel } = window.TBTwist;
+  const { routeTwistiness, twistLabel, routePoiDistances } = window.TBTwist;
 
   const MILE = 1609.344;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
@@ -411,7 +411,17 @@
     if (r == null) return pickADayFirst();
     const route = state.routes[r];
     if (route.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
-    route.pois.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), name: name || "", description: "", roles: [] });
+    // durationMin present from the start, matching a stop: blank means "rode
+    // past", which is the common case, and the field has to exist for the row to
+    // round-trip through save and reload.
+    route.pois.push({
+      lat: +lat.toFixed(6),
+      lng: +lng.toFixed(6),
+      name: name || "",
+      description: "",
+      roles: [],
+      durationMin: null,
+    });
     renderMarkers();
     renderList();
     markDirty();
@@ -748,7 +758,13 @@
 
   // --- Timeline -------------------------------------------------------------
 
-  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.routes, state.moment));
+  // Live POI distances, one array per day, for the time model. The builder's
+  // POIs carry no stored distFromStartMi — it does not exist until save — so the
+  // timeline would otherwise place every POI at the start of its day.
+  const allPoiDists = () => state.routes.map((r) => routePoiDistances(r));
+
+  const activeNow = () =>
+    state.moment == null ? null : activeAtMoment(state.routes, state.moment, allPoiDists());
 
   function renderTimeline() {
     const slider = $("time-slider");
@@ -783,12 +799,15 @@
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
     }
-    const a = activeAtMoment(state.routes, state.moment);
+    const a = activeAtMoment(state.routes, state.moment, allPoiDists());
     let what;
     if (a.dayIndex == null) {
       what = "between days";
     } else if (a.legIndex != null) {
       what = dayLabel(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.routes[a.dayIndex].legs.length;
+    } else if (a.poiIndex != null) {
+      const poi = state.routes[a.dayIndex].pois[a.poiIndex];
+      what = dayLabel(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
       const stop = a.stopIndex == null ? null : state.routes[a.dayIndex].stops[a.stopIndex];
       what = dayLabel(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
@@ -800,7 +819,7 @@
   // the two controls can never show different days.
   function setMoment(momentS) {
     state.moment = momentS;
-    const a = activeAtMoment(state.routes, momentS);
+    const a = activeAtMoment(state.routes, momentS, allPoiDists());
     // A moment between days leaves the day slider where it was — there is no
     // day to move it to, and snapping it somewhere arbitrary would be a lie.
     if (a.dayIndex != null) {
@@ -889,10 +908,12 @@
       '<div class="row-main">' +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
-      (isStop
-        ? '<input class="row-dur" name="stop-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="Stop duration (minutes)" value="' +
-          (point.durationMin ?? "") + '">'
-        : "") +
+      // POIs get the same minutes field now. Blank means "rode past without
+      // stopping", which is the common case and why it stays a placeholder
+      // rather than a zero.
+      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="' +
+      (isStop ? "Stop duration (minutes)" : "How long you stop here, if you stop (minutes)") + '" value="' +
+      (point.durationMin ?? "") + '">' +
       '<button type="button" class="row-roles-btn" title="Categories">' + (roleIconsHtml(point) || "+") + "</button>" +
       '<span class="row-actions">' +
       (isStop
@@ -915,26 +936,57 @@
     return row.dataset.kind === "stop" ? route.stops[i] : route.pois[i];
   }
 
+  // Stops and POIs in the order you would meet them, which is the order the day
+  // actually happens in.
+  //
+  // They were two lists before, POIs below the stops, which said a POI came
+  // after every stop — it does not, it sits between two of them. Stops carry
+  // their position; POIs are placed by projecting them onto the day's track (see
+  // routePoiDistances), so a POI 40 miles in lands between the stops at 30 and
+  // 60.
+  //
+  // The two index spaces stay separate: a row keeps `data-kind` and its index
+  // within its own array, so pointOf(), moveStop() and deleteStop() are
+  // unchanged by the merge. Stops keep their numbers and POIs keep the dot, so
+  // the distinction survives being interleaved.
+  function orderedRows(route) {
+    const prefix = [0];
+    for (const l of route.legs) prefix.push(prefix[prefix.length - 1] + (l.distanceM || 0));
+    const rows = route.stops.map((s, i) => ({
+      kind: "stop",
+      point: s,
+      i,
+      // A stop with no leg after it (the last one) reuses the final prefix.
+      dist: prefix[Math.min(i, prefix.length - 1)],
+    }));
+    const poiDists = routePoiDistances(route);
+    route.pois.forEach((p, i) => {
+      rows.push({ kind: "poi", point: p, i, dist: poiDists[i] ?? 0 });
+    });
+    // Stable ties broken toward the stop: arriving somewhere is the anchor, and
+    // a POI at the same spot reads as being *at* that stop rather than before it.
+    rows.sort((a, b) => a.dist - b.dist || (a.kind === b.kind ? a.i - b.i : a.kind === "stop" ? -1 : 1));
+    return rows;
+  }
+
   function renderList() {
-    const stopList = $("stop-list");
-    const poiList = $("poi-list");
+    const list = $("stop-list");
     const route = editRoute();
-    // Nothing to list on "All". renderDayEditing() has already hidden these, but
-    // leaving the last day's stops sitting in the DOM behind that would make the
-    // next render flash the wrong day's rows.
+    // Nothing to list on "All". renderDayEditing() has already hidden this, but
+    // leaving the last day's stops in the DOM behind it would make the next
+    // render flash the wrong day's rows.
     if (!route) {
-      stopList.innerHTML = "";
-      poiList.innerHTML = "";
+      list.innerHTML = "";
       return;
     }
-    stopList.innerHTML = route.stops.map((s, i) => pointRowHtml("stop", s, i)).join("");
-    poiList.innerHTML = route.pois.map((p, i) => pointRowHtml("poi", p, i)).join("");
-    $("poi-head").hidden = route.pois.length === 0;
-    hydrateIcons(stopList);
-    hydrateIcons(poiList);
     if (route.stops.length === 0 && route.pois.length === 0) {
-      stopList.innerHTML = '<li class="empty-hint">Click the map or search to add your first stop.</li>';
+      list.innerHTML = '<li class="empty-hint">Click the map or search to add your first stop.</li>';
+      return;
     }
+    list.innerHTML = orderedRows(route)
+      .map((r) => pointRowHtml(r.kind, r.point, r.i))
+      .join("");
+    hydrateIcons(list);
   }
 
   function focusRow(kind, i) {
@@ -1435,7 +1487,6 @@
     wireMeta();
     wireDays();
     wireList($("stop-list"));
-    wireList($("poi-list"));
     wireSearch();
 
     if (state.rideId) {
