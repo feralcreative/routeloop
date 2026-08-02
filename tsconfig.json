@@ -10,7 +10,17 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+
+    // JSX for the view layer. Hono ships its own runtime, so there is no React
+    // and no bundler involved — tsx compiles .tsx directly and `npm run start`
+    // is unchanged.
+    //
+    // The reason for it is escaping: esc() is manual discipline across ~50 call
+    // sites and nothing checks that a given interpolation got one. JSX escapes
+    // by default, which turns "remember to" into "opt out on purpose" via raw().
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
   },
   "include": ["src"]
 }
