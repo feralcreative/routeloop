@@ -99,7 +99,15 @@ function navLink(item: { key: NavKey; href: string; label: string }, navKey?: Na
   return `<a href="${item.href}"${current}>${esc(item.label)}</a>`
 }
 
-function siteHeader(user: UserRow | null, navKey?: NavKey): string {
+function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): string {
+  // A map page gives the header a floating badge in the corner rather than a
+  // full-width bar, and the stacked mark suits that shape: at a legible height
+  // it is 62px wide against the horizontal lockup's 102px, so it takes less of
+  // the map. Both are the light (black-on-transparent) artwork, which is what
+  // the panel backing in _nav.scss exists to keep legible over terrain.
+  const logo = isMap
+    ? { src: '/img/logo-tankbag-vert-light.svg', w: 871, h: 618 }
+    : { src: '/img/logo-tankbag-horiz-light.svg', w: 1414, h: 426 }
   // Rider management is the only nav item that is capability-gated rather than
   // shown to every signed-in rider, so it is appended here instead of living in
   // the static NAV_LINKS list.
@@ -113,7 +121,7 @@ function siteHeader(user: UserRow | null, navKey?: NavKey): string {
     : `${navLink(NAV_LINKS[0], navKey)}<a href="/login">Sign in</a>`
 
   return `<header class="site-header" id="site-header">
-  <a class="site-logo" href="/"><img src="/img/logo-tankbag-horiz-light.svg" alt="TankBag" width="1414" height="426"></a>
+  <a class="site-logo" href="/"><img src="${logo.src}" alt="TankBag" width="${logo.w}" height="${logo.h}"></a>
   <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
     <span class="nav-bars" aria-hidden="true"></span>
   </button>
@@ -171,7 +179,7 @@ export function page(opts: PageOpts): string {
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
-${variant === 'splash' ? '' : siteHeader(opts.user, opts.navKey)}
+${variant === 'splash' ? '' : siteHeader(opts.user, opts.navKey, isMap)}
 ${body}
 ${opts.splash === false ? '' : alphaSplash()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
