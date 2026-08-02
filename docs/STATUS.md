@@ -1,7 +1,8 @@
 # Status and handoff
 
 **Updated:** 2026-08-01
-**Branch:** `feat/trip-timeline-slider`, based on `7d0db74` (main), complete at `260ad98`—ten commits, merging to `main` by PR
+**Branch:** `style/ui-tweaks-and-cleanup`, based on `origin/main` (`8e10634`), at `5323e83`—nine commits
+**Note:** the trip-timeline work is merged and lives in `origin/main`. A local `main` that has not been pulled still sits at `7d0db74`, which makes `git log main..HEAD` look like it carries two sprints. Pull first.
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -259,6 +260,55 @@ On #19: the even tick spacing is deliberate, not an oversight—the comment in [
 
 <!--| PAGE-BREAK -->
 
+## Sprint 4: UX and the naming model—2026-08-01
+
+Branch `style/ui-tweaks-and-cleanup`, nine commits, from `_PLANS/sprint-04-260801T2122Z.md`. Five commits are splash-page styling; four change how a rider gets named.
+
+### The point of the naming work
+
+**No rider's real name is adopted from Google and shown anywhere they did not choose.** That is the whole intent, and the code carries it in comments because the code alone will not survive a well-meaning edit:
+
+- **`name` is gone from `GoogleClaims`** ([google.ts](../src/auth/google.ts)) and must not come back. It used to flow straight into `users.display_name`, which is what the nav, the dashboard greeting and the admin rider list all render—so signing in with Google silently published whatever Google held.
+- **`picture` was never added, for the same reason.** Note `users.avatar_url` exists and is never written, which makes wiring that claim to it look like finishing an unfinished job rather than opening a hole. The comment on the type says so.
+- **`given_name` / `family_name` *are* read**, and go to `user_profiles.first_name` / `last_name`. The distinction is where they surface: that table exists precisely so private fields never ride along on a row reaching a client, and nothing renders them to anyone but the rider. `share_last_name` is written but has **no reader anywhere in the app**.
+- **What makes that acceptable rather than merely currently-harmless** is that the profile form shows both names as ordinary inputs directly above the toggle that would expose the last name, so a rider flipping it can see what it reveals. Move those fields somewhere less visible and the seeding stops being defensible. That reasoning is in [identity.ts](../src/auth/identity.ts) next to the code.
+
+### The model, settled after two reversals
+
+**`username` and `display_name` stay discrete.** They were briefly going to merge, until the cost surfaced: `username` is `[a-zA-Z0-9_]`, so a merged field means no spaces in the name anyone sees. `display_name` is free-form and stays what gets rendered; `username` is the handle.
+
+**Neither is prefilled.** Both are blank and required at `/choose-name`. `display_name` is `notNull` and the row must exist before a rider can be shown anything, so `resolveUser` fills it from the email address alone and the prompt overwrites it—that placeholder is visible only in the nav, between signing in and answering.
+
+**`users.public_id` is `{first-username}-{YYMMDDTHHMMZ}`**, e.g. `ziad-260801T2220Z`. Deliberately **not** called a UUID, because it is not one. Written once when a username is first chosen and never again, so a later change leaves every existing reference resolving. Built from explicit UTC getters: `users.created_at` is `timestamp` *without* time zone, so the `Z` is a promise the server's clock zone must not get to break.
+
+**A released username is held for 30 days**—but never against the rider who released it, which is the entire feature. `username_history` records every name held; `uq_username_lower` stays the hard guard, since "unavailable unless you are the one who let it go" is not something an index can express. The hold is therefore an application check and the unique-violation catch is still the real backstop.
+
+**Everything about usernames lives in [auth/username.ts](../src/auth/username.ts)**—reserved list, schema, availability, `publicIdFor`, `claimUsername`. Two callers now (the prompt and the profile form) and they must not drift.
+
+### Read this before the next `drizzle-kit push`
+
+Adding a nullable column and a table sounds harmless. The push offered to destroy the users table to do it:
+
+```text
+· You're about to add users_public_id_unique unique constraint to the table,
+  which contains 4 items. If this statement fails, you will receive an error
+  from the database. Do you want to truncate users table?
+```
+
+**`--force` auto-answers prompts like that.** It would have wiped every account to make room for a constraint that did not need it—existing `public_id` was NULL everywhere, and NULLs never collide in a unique constraint. The correct answer is no.
+
+The DDL was applied by hand in a transaction instead, matching drizzle's own naming, and a follow-up `push` reported no changes, which is how you confirm the names line up. Do that rather than gambling on a prompt default you cannot see in a non-TTY.
+
+### What a returning rider will hit
+
+Existing accounts created before this sprint have `username = NULL`. `requireActive` and `requireManageRiders` now redirect those to `/choose-name`, so **every current account gets the prompt on its next visit**. That is intended, not a migration gap—there is no sensible name to invent for them, which is the point.
+
+`/choose-name` and `/logout` run on `requireAuth` rather than `requireActive`, which is what keeps the gate from looping.
+
+### Left undone, deliberately
+
+The **"Sign out" link on the holding page** is `$url` blue directly over the video: 2.94:1 against bright gravel, 2.33:1 against dark foliage. Both fail WCAG AA. It is a form submit styled as a link and genuinely a lighter action than the three resource buttons beside it, so it should not become a fourth button—but it does need a colour that survives the footage. One line, not done.
+
 ## Next steps, in order
 
 These are the Mapbox-retirement track, separate from the timeline work above. Steps 1–3 (port the engine, point `directions()` at `/api/route`, port the viewer and swap the shells) landed together on 2026-07-30—see "The engine port" above. What is left:
@@ -276,7 +326,7 @@ These are the Mapbox-retirement track, separate from the timeline work above. St
 - **The Mapbox token is still unrestricted** and billable to that account until `profile.js` moves and Mapbox is gone.
 - **The shared residential egress IP**—see above. Both environments and the workstation ride on one address.
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
-- **Schema is push-only.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first—riders now hold data that cannot be rebuilt from an uploaded file.
+- **Schema is push-only, and `--force` is genuinely dangerous.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first—riders now hold data that cannot be rebuilt from an uploaded file. This is not theoretical: adding a nullable column plus a unique constraint on 2026-08-01 produced a prompt offering to **truncate the users table**, which `--force` would have accepted. See the sprint 4 section for what to do instead.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
 - **DNS is not the blocker; the un-deployed rename is.** All tankbag hostnames already resolve through the tunnel. As of 2026-07-30 the *live* prod build predates the rename, so `tankbag.app` still 301s to `routeloop.app`—the correct routeloop→tankbag redirect lands only on the next deploy, not via any DNS change. **One real gap:** `www.tankbag.app` has **no DNS record** (`www.routeloop.app` does); add a proxied CNAME to the same tunnel, or the browser key's `www.tankbag.app` referrer entry is moot and the host won't resolve.
 
