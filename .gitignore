@@ -138,6 +138,10 @@ storybook-static/
 
 # Database files
 *.sql
+# ...except hand-written migrations, which are the opposite of a dump: they are
+# the record of how a deployed database was brought back in line with the schema
+# and have to be readable by whoever hits the same drift next.
+!utils/deploy/sql/*.sql
 # Compressed dumps too. deploy-utils.sh writes its safety backups to the repo
 # root — db-backup as <container>-db-<ts>.sql.gz, db-clone as
 # <env>-db-before-clone-<ts>.sql.gz — so a bare `git add -A` after a clone would
