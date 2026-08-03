@@ -18,6 +18,10 @@ export const GPX_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 // carries overlays and imagery that get skipped; the KML pulled out of it is
 // still held to KML_MAX_BYTES, measured after decompression. See kmz.ts.
 export const KMZ_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+// GeoJSON spends more bytes per coordinate than KML does (brackets, commas and
+// full precision rather than a packed string), so the same route is a larger
+// file. See geojson.ts.
+export const GEOJSON_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
 // User-caused rejection (bad file), as opposed to a server fault.
 export class RouteFileError extends Error {}
@@ -25,7 +29,7 @@ export class RouteFileError extends Error {}
 // The formats the import pipeline accepts, stated once. The import page builds
 // its `accept` attribute and its copy from this, and the upload handler gates
 // on it, so the form cannot offer something the server refuses.
-export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx'] as const
+export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx', 'geojson', 'json'] as const
 export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
 export const isSupportedFormat = (ext: string): ext is SupportedFormat =>
   (SUPPORTED_FORMATS as readonly string[]).includes(ext)
@@ -37,6 +41,10 @@ export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string;
   kml: { label: 'KML', note: 'Google Earth, My Maps, most planners', maxBytes: KML_MAX_BYTES },
   kmz: { label: 'KMZ', note: 'Google Earth saves these by default—a zipped KML', maxBytes: KMZ_MAX_BYTES },
   gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS', maxBytes: GPX_MAX_BYTES },
+  geojson: { label: 'GeoJSON', note: 'geojson.io, QGIS, anything mapping-adjacent', maxBytes: GEOJSON_MAX_BYTES },
+  // Same parser, different extension. Plenty of tools save GeoJSON as .json and
+  // making a rider rename the file to get it accepted would be theatre.
+  json: { label: 'JSON', note: 'GeoJSON saved under the plainer extension', maxBytes: GEOJSON_MAX_BYTES },
 }
 
 // A [lng, lat] polyline — the storage/GeoJSON axis order.
@@ -48,6 +56,15 @@ export type ExtractedPoint = {
   name: string
   description: string | null
   roles: Role[]
+  // Only a format that can actually carry the distinction sets this. KML and
+  // GPX cannot — a Placemark and a <wpt> are the same thing whatever we meant
+  // by them — so their extractors leave it undefined and every point becomes a
+  // stop, which is the behaviour those formats have always had. GeoJSON writes
+  // its own properties, so a ride exported and re-imported keeps its POIs.
+  kind?: 'stop' | 'poi'
+  // Same reasoning as `kind`: only a format that can carry it sets it. Neither
+  // KML nor GPX has anywhere to put "we stopped here for 20 minutes".
+  durationMin?: number | null
 }
 
 export type ExtractedRoute = {
@@ -86,7 +103,11 @@ function elements(scope: Document | Element, localName: string): Element[] {
 // --- Geometry --------------------------------------------------------------
 
 const EARTH_RADIUS_M = 6371008.8
-const round6 = (n: number): number => Math.round(n * 1e6) / 1e6
+// ~11 cm, which is finer than any consumer GPS and keeps stored tracks small.
+// Exported so every format rounds identically — a format that rounded
+// differently would fail the round-trip tests for a reason that had nothing to
+// do with the format.
+export const round6 = (n: number): number => Math.round(n * 1e6) / 1e6
 
 export const METERS_PER_MILE = 1609.344
 

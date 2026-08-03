@@ -41,7 +41,7 @@ Delivered in phases:
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
 - **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
-- **Import**—bring in existing `.kml` / `.kmz` / `.gpx` to migrate from other tools _(CSV, GeoJSON later)_.
+- **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` to migrate from other tools _(CSV later)_.
 - **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
 

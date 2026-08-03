@@ -99,7 +99,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [ ] Persist the pulled points into `route_legs.via_points` (the column already round-trips through the API). On drop, re-request only the affected leg through `POST /api/route` with the new via list; the anchor stops stay fixed.
 - [ ] Via-points are themselves draggable and removable after creation, and render distinctly from stops and POIs—smaller and clearly ephemeral—so the routing anchors stay legible.
 - [ ] Moving or reordering a stop invalidates that leg's shaping and clears its via-points (already the builder's behavior); keep that so a stale shaping point can't fight a new route.
-- [ ] `src/maps/export.ts`—build KML and GPX from stored rows.
+- [x] `src/maps/export.ts`—generate from stored rows. GeoJSON done; KML and GPX still to come.
 - [ ] Source-aware `/kml` and `/gpx` endpoints that serve native rides from the database and imported rides from their original file.
 - [ ] Round-trip the `ROLE - Name` convention on export so files reopen correctly in Google Earth and elsewhere.
 
@@ -192,13 +192,13 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [ ] **Native TankBag JSON export/import**—expose the existing save=load ride payload for lossless backup and round-trip. Nearly free, since the shape already exists, and it is the only format that preserves point kind and stop duration exactly (everything else flattens them—see item 4).
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the *decompressed* size.
 - [ ] Import CSV.
-- [ ] Import/export GeoJSON.
+- [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
 - [ ] Export GPX flavors that load cleanly on Garmin and other devices.
 - [ ] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** in progress—KMZ landed 2026-08-03; native JSON is the cheapest of what remains, and CSV and GeoJSON are the nearest of the interchange formats.
+**Status.** in progress—KMZ and GeoJSON landed 2026-08-03. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
 
 ### 9. Discovery and public profiles
 

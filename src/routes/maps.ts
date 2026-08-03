@@ -29,6 +29,7 @@ import {
   validateGpx,
   type ExtractedRoute,
 } from '../maps/kml'
+import { processGeoJson } from '../maps/geojson'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { generateSlug } from '../maps/slug'
 import { twistiness } from '../maps/twist'
@@ -156,12 +157,27 @@ mapsRoutes.post(
     // A KMZ becomes its inner KML and is stored as one — the archive itself is
     // a container, not content, and keeping it would mean a second stored form
     // of the same route that nothing can render.
+    //
+    // GeoJSON stores nothing, and that is a decision rather than an omission.
+    // The original is kept for the other formats because they carry more than
+    // this app models — KML has styling and folders, GPX has per-point time and
+    // elevation — so the file is the only lossless copy. GeoJSON carries a
+    // geometry and a properties bag, both of which land in the database whole,
+    // so a stored copy would be a second, staler version of rows we already
+    // have. A ride with no file is a shape the app already handles: every
+    // native ride built in the builder has none, and costs no quota for the
+    // same reason. The one thing given up is unmodelled `properties` keys,
+    // which no part of the app has ever read.
     let extracted: ExtractedRoute
-    let storedExt: 'kml' | 'gpx'
-    let storedBuf: Buffer
+    let storedExt: 'kml' | 'gpx' | null
+    let storedBuf: Buffer | null
     let gpxBuf: Buffer | undefined
     try {
-      if (ext === 'gpx') {
+      if (ext === 'geojson' || ext === 'json') {
+        extracted = processGeoJson(await upload.text())
+        storedExt = null
+        storedBuf = null
+      } else if (ext === 'gpx') {
         const text = await upload.text()
         extracted = processGpx(text)
         storedExt = 'gpx'
@@ -190,8 +206,12 @@ mapsRoutes.post(
     }
 
     // A GPX-only import stores one file, so its bytes are counted once even
-    // though storedBuf and gpxBuf point at the same buffer.
-    const incoming = storedBuf.byteLength + (storedExt === 'kml' ? (gpxBuf?.byteLength ?? 0) : 0)
+    // though storedBuf and gpxBuf point at the same buffer. A format that
+    // stores nothing counts nothing, which keeps this in step with the
+    // `size_bytes` the delete path subtracts — they are computed by different
+    // sides (app on the way in, generated column on the way out) and quota
+    // drifts permanently if they ever disagree.
+    const incoming = (storedBuf?.byteLength ?? 0) + (storedExt === 'kml' ? (gpxBuf?.byteLength ?? 0) : 0)
     const distM = Math.round(extracted.trackMeters)
     const totalMiles = (extracted.trackMeters / METERS_PER_MILE).toFixed(1)
     const stopDists = distFromStartAlongTrack(extracted.track, extracted.points)
@@ -220,10 +240,10 @@ mapsRoutes.post(
             source: 'imported',
             externalUrl: meta.external_url || null,
             gpxPresent: Boolean(gpxBuf),
-            kmlBytes: storedExt === 'kml' ? storedBuf.byteLength : 0,
-            gpxBytes: storedExt === 'gpx' ? storedBuf.byteLength : (gpxBuf?.byteLength ?? 0),
+            kmlBytes: storedExt === 'kml' ? (storedBuf?.byteLength ?? 0) : 0,
+            gpxBytes: storedExt === 'gpx' ? (storedBuf?.byteLength ?? 0) : (gpxBuf?.byteLength ?? 0),
             totalMiles,
-            stopCount: extracted.points.length,
+            stopCount: extracted.points.filter((p) => p.kind !== 'poi').length,
           })
           .returning()
 
@@ -244,18 +264,26 @@ mapsRoutes.post(
           .returning()
 
         if (extracted.points.length > 0) {
+          // Stops carry a position and POIs carry null, matching what the
+          // builder writes — a POI is not a routing anchor and has no place in
+          // the stop order. So the counter advances only for stops.
+          let stopPos = 0
           await tx.insert(points).values(
-            extracted.points.map((p, i) => ({
-              routeId: route.id,
-              kind: 'stop' as const,
-              position: i,
-              lat: p.lat,
-              lng: p.lng,
-              name: p.name,
-              description: p.description,
-              roles: p.roles,
-              distFromStartM: stopDists[i],
-            })),
+            extracted.points.map((p, i) => {
+              const isPoi = p.kind === 'poi'
+              return {
+                routeId: route.id,
+                kind: isPoi ? ('poi' as const) : ('stop' as const),
+                position: isPoi ? null : stopPos++,
+                lat: p.lat,
+                lng: p.lng,
+                name: p.name,
+                description: p.description,
+                roles: p.roles,
+                durationMin: p.durationMin ?? null,
+                distFromStartM: stopDists[i],
+              }
+            }),
           )
         }
         if (extracted.track.length > 0) {
@@ -264,9 +292,11 @@ mapsRoutes.post(
             .values({ routeId: route.id, position: 0, geometry: extracted.track, distanceM: distM })
         }
 
-        fileRideId = ride.id
-        await writeMapFile(user.id, ride.id, storedExt, storedBuf)
-        if (storedExt === 'kml' && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
+        if (storedExt && storedBuf) {
+          fileRideId = ride.id
+          await writeMapFile(user.id, ride.id, storedExt, storedBuf)
+          if (storedExt === 'kml' && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
+        }
 
         await tx
           .update(usersTable)

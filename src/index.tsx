@@ -17,6 +17,7 @@ import {
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { ROLE_META } from './maps/roles'
+import { buildGeoJson, loadRideForExport } from './maps/export'
 import { mapFilePath } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -237,8 +238,10 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     })
   }
 
-  // Downloads: imported rides stream their stored originals; native
-  // generation lands with exports (Phase 3), until then no links.
+  // Downloads: imported rides stream their stored originals, and GeoJSON is
+  // generated from the rows so it is offered for every ride — including native
+  // ones, which have no stored file, and imports that arrived as something
+  // else. KML and GPX generation is still to come.
   const isImported = m.source === 'imported'
   return c.json({
     title: m.title,
@@ -250,6 +253,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     // 404s.
     kmlUrl: isImported && m.kmlBytes > 0 ? `/api/public/maps/${m.slug}/kml` : null,
     gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
+    geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })
@@ -266,6 +270,27 @@ app.get('/api/public/maps/:slug/gpx', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m || !m.gpxPresent) return c.text('Not found', 404)
   return streamFile(c, m, 'gpx', 'application/gpx+xml')
+})
+
+// Generated rather than streamed, so it works for every ride — native ones that
+// have no stored file at all, and imported ones that arrived as something else.
+// The gate is the same getViewable the other two use; nothing about generating
+// the bytes changes who is allowed to see them.
+app.get('/api/public/maps/:slug/geojson', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m) return c.text('Not found', 404)
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/geo+json; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
+    headers['Content-Disposition'] = `attachment; filename="${safe}.geojson"`
+  }
+  return new Response(buildGeoJson(ride), { headers })
 })
 
 async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
