@@ -154,7 +154,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 export function panelShell(o: { title?: string; extraClass?: string; contents: string }): string {
   return (
     <div id="info-panel" class={`floating-panel${o.extraClass ? ` ${o.extraClass}` : ''}`}>
-      <button class="collapse-toggle" aria-label="Collapse panel">
+      <button type="button" class="collapse-toggle" aria-label="Collapse panel">
         <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon" />
       </button>
       {o.title && <h1 class="panel-title">{o.title}</h1>}

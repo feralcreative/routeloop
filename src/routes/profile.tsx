@@ -4,7 +4,7 @@
 // endpoint plus a client script. Validation still runs through the same zod
 // helpers as the ride APIs so the two paths cannot drift.
 import { Hono } from 'hono'
-import { eq, ne, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'

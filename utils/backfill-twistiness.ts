@@ -18,7 +18,7 @@ import { asc, isNull, or } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db/index'
 import { routes, routeLegs } from '../src/db/schema'
-import { isLocalDatabaseUrl } from '../src/config'
+import { isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
 import { twistiness, twistLabel } from '../src/maps/twist'
 import type { Track } from '../src/maps/kml'
 
@@ -29,7 +29,7 @@ const dryRun = args.includes('--dry-run')
 const url = process.env.DATABASE_URL ?? ''
 if (!isLocalDatabaseUrl(url)) {
   console.error('Refusing to run: DATABASE_URL does not look local.')
-  console.error(`  ${url.replace(/:\/\/[^@]*@/, '://***@')}`)
+  console.error(`  ${redactDatabaseUrl(url)}`)
   process.exit(1)
 }
 
