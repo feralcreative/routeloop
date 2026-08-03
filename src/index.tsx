@@ -25,6 +25,7 @@ import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
+import { importRoutes } from './routes/import'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -92,6 +93,7 @@ app.route('/', adminRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
+app.route('/', importRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)

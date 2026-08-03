@@ -9,6 +9,7 @@
 // the same structured shape the builder produces, so every viewer renders
 // from one model.
 import { Hono } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -88,11 +89,20 @@ mapsRoutes.post(
     const user = currentUser(c)
     const body = await c.req.parseBody()
 
+    // The import page posts a plain form and cannot render JSON, so it sets
+    // `redirect=1` and gets a redirect instead. Everything else — anything
+    // calling this as an API — is unaffected and still gets JSON.
+    const wantsRedirect = body.redirect === '1'
+    const fail = (message: string, status: ContentfulStatusCode) =>
+      wantsRedirect
+        ? c.redirect(`/import?error=${encodeURIComponent(message)}`, 302)
+        : c.json({ error: message }, status)
+
     // Bot defense before any file is touched (enforced once keys are set).
     if (turnstileEnabled()) {
       const token = typeof body['cf-turnstile-response'] === 'string' ? body['cf-turnstile-response'] : ''
       if (!(await verifyTurnstile(token, c.req.header('CF-Connecting-IP')))) {
-        return c.json({ error: 'bot check failed—reload and try again' }, 403)
+        return fail('bot check failed—reload and try again', 403)
       }
     }
 
@@ -103,18 +113,21 @@ mapsRoutes.post(
       visibility: body.visibility || 'private',
       external_url: body.external_url ?? '',
     })
-    if (!parsed.success) return c.json({ error: firstIssue(parsed.error) }, 400)
+    if (!parsed.success) return fail(firstIssue(parsed.error), 400)
     const meta = parsed.data
 
-    const kmlFile = body.kml
-    if (!(kmlFile instanceof File) || kmlFile.size === 0) return c.json({ error: 'a KML file is required' }, 400)
-    if (!/\.kml$/i.test(kmlFile.name)) return c.json({ error: 'route file must be a .kml' }, 400)
-    if (kmlFile.size > KML_MAX_BYTES) return c.json({ error: `KML exceeds ${KML_MAX_BYTES / MB} MB` }, 413)
+    // `route` is the field the import page posts, and the name every format
+    // will arrive under. `kml` is still read so anything already posting to this
+    // endpoint keeps working — the two are the same field, differently named.
+    const kmlFile = body.route instanceof File && body.route.size > 0 ? body.route : body.kml
+    if (!(kmlFile instanceof File) || kmlFile.size === 0) return fail('a route file is required', 400)
+    if (!/\.kml$/i.test(kmlFile.name)) return fail('route file must be a .kml', 400)
+    if (kmlFile.size > KML_MAX_BYTES) return fail(`KML exceeds ${KML_MAX_BYTES / MB} MB`, 413)
 
     const gpxFile = body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
     if (gpxFile) {
-      if (!/\.gpx$/i.test(gpxFile.name)) return c.json({ error: 'track file must be a .gpx' }, 400)
-      if (gpxFile.size > GPX_MAX_BYTES) return c.json({ error: `GPX exceeds ${GPX_MAX_BYTES / MB} MB` }, 413)
+      if (!/\.gpx$/i.test(gpxFile.name)) return fail('track file must be a .gpx', 400)
+      if (gpxFile.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
     }
 
     // Parse, sanitize, extract structure. A RouteFileError is the user's
@@ -128,7 +141,7 @@ mapsRoutes.post(
         gpxBuf = Buffer.from(await gpxFile.arrayBuffer())
       }
     } catch (e) {
-      if (e instanceof RouteFileError) return c.json({ error: e.message }, 400)
+      if (e instanceof RouteFileError) return fail(e.message, 400)
       throw e
     }
     const kmlBuf = Buffer.from(kml.storedKml, 'utf8')
@@ -216,13 +229,13 @@ mapsRoutes.post(
         return ride
       })
       console.log(`[import] user ${user.id} imported ride ${created.id} (${incoming} bytes, ${created.visibility})`)
-      return c.json({ id: created.id, slug: created.slug, title: created.title, visibility: created.visibility }, 201)
+      return wantsRedirect
+        ? c.redirect(`/m/${created.slug}`, 302)
+        : c.json({ id: created.id, slug: created.slug, title: created.title, visibility: created.visibility }, 201)
     } catch (e) {
       if (e instanceof QuotaExceeded) {
-        return c.json(
-          {
-            error: `over quota: ${(e.usedBytes / MB).toFixed(1)} MB used of ${Math.round(e.quotaBytes / MB)} MB, upload is ${(incoming / MB).toFixed(1)} MB`,
-          },
+        return fail(
+          `over quota: ${(e.usedBytes / MB).toFixed(1)} MB used of ${Math.round(e.quotaBytes / MB)} MB, upload is ${(incoming / MB).toFixed(1)} MB`,
           413,
         )
       }
