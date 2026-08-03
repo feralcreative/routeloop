@@ -1,8 +1,8 @@
 # Status and handoff
 
-**Updated:** 2026-08-02
-**Branch:** `fix/editor-interface-sizing`, based on `origin/main`—nine commits
-**Note:** the public-surfaces work merged as PR #47. A local `main` that has not been pulled since will make `git log main..HEAD` look like it carries two sprints. Pull first.
+**Updated:** 2026-08-03
+**Branch:** `feat/import-export`, based on `origin/main`—fourteen commits, 316 tests
+**Closes:** #13, #21, #22, #25, #35, #36
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -439,7 +439,7 @@ Fixed twice over, on purpose:
 
 **The general shape of this is worth remembering:** anything the hook rewrites in place can corrupt data that merely looks like prose. Snapshot files and sample documents would want the same exclusion.
 
-### Left for you
+### Left for you—the Mapbox retirement
 
 - **Favicons** still carry the old routeloop mark, including the `og:image` social card. Needs the generator and the source artwork, so it is not scriptable from the repo. Filed separately rather than holding this branch.
 - **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
@@ -490,10 +490,84 @@ A POI is not a routing anchor, so a pause at one falls *inside* a leg rather tha
 2. **`/api/rides/:id` did not return POI `durationMin`**, so a saved dwell would have vanished on the next load. Caught by round-tripping through the API rather than by reading the code.
 3. **The clone path dropped it too**, caught by `tsc` when the payload type gained the field. Cloning would have quietly shortened every day.
 
-### Left for you
+### Left for you—sprint 07
 
 - **Favicons** still carry the old routeloop mark, including the `og:image` card. Needs the generator and the source artwork.
 - **The twistiness bands need real rides.** They are calibrated on machine-generated demo rides across California, not rides anyone chose for being good, so real trips will skew twistier. One exported const in [twist.ts](../src/maps/twist.ts).
+
+<!--| PAGE-BREAK -->
+
+## Sprint 09: getting routes in and out—2026-08-03
+
+Branch `feat/import-export`, fourteen commits. The app now reads six formats and writes five, imports a folder of files as one multi-day trip, and prints a roadbook.
+
+**The reason for the sprint was narrower than what it became:** there was no way to get a real GPX into the app, so the twistiness metric had never seen a road anyone chose for being good. `POST /api/maps` had existed since the pivot and was reachable only by API—nothing in the app rendered a file input—and it rejected any upload without a `.kml`. A rider with a folder of GPX files, which is what every GPS produces, had no way in at all. `processGpx()` had been written, complete, and left unreachable with a comment saying it would be wired up "when the import UI accepts GPX without a KML". Nobody had filed that, so it never got scheduled.
+
+### What the pipeline reads and writes
+
+| Format | In | Out | Notes |
+| --- | --- | --- | --- |
+| KML | yes | yes | stored sanitized and re-serialized |
+| KMZ | yes | no | unzipped to its KML; `source_format` remembers it arrived zipped |
+| GPX | yes | yes | **stops are `<wpt>`, shaping points are `<trkpt>`, never `<rte>`** |
+| GeoJSON | yes | yes | the only interchange format that keeps roles, stop/POI and dwell |
+| CSV | yes | yes | a stop list, not a route: no geometry, so no mileage and a **null** twistiness |
+| TankBag JSON | yes | yes | **lossless**—the builder's own save payload |
+
+Every format goes through the pipeline unchanged: auth → origin → Turnstile → size cap → **DOCTYPE rejection** → strict parse → sanitize → transactional quota under `FOR UPDATE` → file writes named only from integer ids.
+
+### The GPX decision that the app's promise depends on
+
+**GPX export writes stops as `<wpt>` and shaping points as `<trkpt>`. Nothing is ever written as `<rte>`/`<rtept>`.** A route file is a list of places to navigate *between*, so a device given one picks its own way from each point to the next—usually the fast way, rarely the good one, and a missed turn throws out the rest of the day. That is exactly the failure the FAQ describes under "Why does my GPS ignore the route I planned?", and the answer there is that TankBag puts in enough intermediate points to leave the device no room to form an opinion. Exporting those as route points hands the room straight back. There is a test asserting `<rtept>` never appears.
+
+### Multi-file import
+
+Several files posted at once become the days of one ride, in order, because that is what a rider with a per-day folder actually has—importing them one at a time makes one ride per day and no trip. Day titles come from filenames, colours walk the shared palette, and every original is kept (`{ride_id}-{n}.{ext}` from day 2 on). Verified against a real 3-day ride exported to three GPX files and re-imported: per-day twistiness came back **79/69/53**, identical, with exact point counts.
+
+Files are all validated before any is parsed, so a bad tenth file fails the upload and names itself rather than leaving nine days half-imported.
+
+### The storage decision, and the one I got wrong first
+
+`rides` gained `source_format` and `source_bytes`, and `size_bytes` is now generated from all three byte columns (see `utils/deploy/sql/2026-08-03-ride-source-format.sql`).
+
+**Every format keeps its original.** GeoJSON and CSV briefly stored nothing, on the theory that the rows were a complete record of the upload. They are not: import flattens a multi-day file to one route, so the day structure existed in the uploaded file and then existed nowhere—destroyed, not deferred. That reasoning was written down and shipped before it was corrected, which is worth knowing if a similar argument turns up again.
+
+**`size_bytes` must name every byte column.** `used_bytes` is incremented by the app on import and decremented by this generated column on delete. They are computed by different sides and quota drifts permanently if they ever disagree—so a new byte column that is not in the expression leaks a little on every delete, silently. Verified balanced across all four formats: import adds N, delete returns to exactly the starting figure.
+
+### Downloads are source-aware
+
+An imported ride streams its stored original for the format it arrived in—byte-for-byte, which is the entire reason the file is kept—and every other format is generated from the rows. So a KML import downloads as GPX, and a ride built here downloads as either, neither of which was possible before.
+
+**Every branch tests `source_format`.** A multi-file import stores `'mixed'`, which matches nothing, so those rides always generate. Without that a three-KML import would have streamed **day 1's file as the whole ride**, since `kml_bytes > 0` was true. Caught by testing rather than by reading.
+
+### The roadbook (#25)
+
+`/m/:slug/roadbook`, server-rendered, no JavaScript, print CSS for US Letter.
+
+**Stop-by-stop, not turn-by-turn, and that is a data limit rather than a choice.** `route_legs` holds geometry, distance and duration; maneuvers are a separate field on the Directions response, they are what the call is priced on, and they would be blank for every imported ride regardless. What it prints is the part that stays true when a road closes: stops in order, leg and cumulative miles, **miles since fuel**, planned dwell, and an estimated clock when the day has a start time.
+
+The fuel column is the one nothing else in the app says. It reads *as you arrive*, so a fuel stop shows the distance the last tank actually covered rather than the 0 it is about to reset to.
+
+### Bugs the work surfaced
+
+1. **A multi-day GPX re-imported 78 miles longer than it left.** `processGpx` read every `trkpt` across all `<trk>` elements as one track, inventing straight lines between where one day ended and the next began: 553 miles came back as 631, and twistiness fell from 79/69/53 to **59** because the phantom joins are perfectly straight. A confident, wrong number for the metric this sprint existed to make trustworthy. The longest `<trk>` wins now, while `<trkseg>` breaks *within* a track are still joined—those are recording pauses in one ride.
+2. **KML and GeoJSON disagreed on a degenerate line.** KML read a one-point line as a zero-length track; GeoJSON rejected the whole file with "contains no lines or points". Found by the cross-format tests on their first run, which is what they exist for.
+3. **`tsc --noEmit` had never type-checked the tests.** `tsconfig.json` included only `src`, and vitest transpiles without checking, so fixtures could drift from the types they claimed to be—and had. Adding `test` exposed 8 real errors in suites that were passing.
+4. **The roadbook 500'd for an anonymous request** to a private ride: `currentUser()` throws outside an auth gate. 404 now, like every other gated route.
+5. **POIs with no measured position printed `0.0`**, a claim about where they are rather than an admission that nobody measured. They sort last and print a dash.
+
+### Qlty, and 13 findings that were all wrong
+
+SonarCloud was retired (258 findings, of which 16 were real) and replaced with a tuned Qlty config. Two things worth knowing:
+
+- **Qlty does not read the repo's `.prettierrc`.** Not from the repo root, not from a copy in `.qlty/configs/`, not via a `config_files` entry—all three were tried. It formats with its own defaults, and the one that bites is `singleQuote`, which `.prettierrc` explicitly turns *off* for SCSS. It was flagging **13 of the 14 SCSS files** purely over `@use "tokens"` versus `@use 'tokens'`, disagreeing with the project's own config and with `npx prettier`. SCSS is excluded from Qlty's prettier now, with the reasoning in `qlty.toml`.
+- **Biome ships its own formatter** and disagrees with prettier, so leaving both on made every file permanently "unformatted" according to one of them. Prettier owns formatting; biome is the linter.
+
+### Left for you—sprint 09
+
+- **The twistiness bands still need real rides.** This is the whole point of the sprint and the one thing it could not do for itself: import a folder of GPX files from trips you actually took and read the labels against roads you know. One exported const in [twist.ts](../src/maps/twist.ts).
+- **Single-file multi-day import.** A GeoJSON or KML that contains several days still imports as one route with the longest day as its track. Every point survives; the day structure does not. The originals are now kept, so this is recoverable later rather than lost—which is exactly why they are kept. Closes no issue; asserted in `test/round-trip.test.ts` so it fails loudly when fixed.
+- **~34 pre-existing prettier findings** in files this branch did not author. Clearing them means a repo-wide formatter run, which the house rule rules out.
 
 <!--| PAGE-BREAK -->
 
@@ -503,19 +577,22 @@ A POI is not a routing anchor, so a pause at one falls *inside* a leg rather tha
 
 What is actually next:
 
-1. **Sprint 08, written up in `_PLANS/sprint-08-260802T1929Z.md`.** Get the HTML out of the TypeScript. Part 1 moves the 412 lines of static prose in `pages.ts` into `src/content/*.html` and stands alone; Part 2 is the optional JSX conversion of the dynamic views.
-2. **Set per-API daily quota caps** on the GCP project. Google's free tiers are far smaller than Mapbox's were—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k.
-3. **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
+1. **Point twistiness at real roads.** The import path exists now specifically so this can happen: bring in a folder of GPX files from trips you actually rode and read the labels against roads you know. The bands are calibrated on machine-generated demo rides and nothing in that corpus was chosen for being good. One exported const in [twist.ts](../src/maps/twist.ts).
+2. **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
+3. **Apply `utils/deploy/sql/2026-08-03-ride-source-format.sql`** on the next deploy, before or with the code that writes those columns.
+
+Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and merged.
 
 <!--| PAGE-BREAK -->
 
 ## Known risks
 
 - **Coordinate order** stays the likeliest bug. The app stores and speaks `[lng, lat]`; google.maps speaks `{lat, lng}`. Getting it backwards still renders, just in the wrong place. Routes API with `polylineEncoding: GEO_JSON_LINESTRING` returns `[lng, lat]`, so **no stored ride ever needed migrating**. Two functions do the conversion and only two: `toGoogleWaypoint` in [src/routes/routing.ts](../src/routes/routing.ts) on the server, and `toLatLng`/`fromLatLng` in [public/js/map-common.js](../public/js/map-common.js) on the client. Keep it that way.
-- **The Mapbox token is still unrestricted** and billable to that account until `profile.js` moves and Mapbox is gone.
 - **The shared residential egress IP**—see above. Both environments and the workstation ride on one address.
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
-- **Schema is push-only, and `--force` is genuinely dangerous.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first—riders now hold data that cannot be rebuilt from an uploaded file. This is not theoretical: adding a nullable column plus a unique constraint on 2026-08-01 produced a prompt offering to **truncate the users table**, which `--force` would have accepted. See the sprint 4 section for what to do instead.
+- **Schema is push-only, and `--force` is genuinely dangerous.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first. This is not theoretical: adding a nullable column plus a unique constraint on 2026-08-01 produced a prompt offering to **truncate the users table**, which `--force` would have accepted. Hand-written additive DDL in `utils/deploy/sql/` is the way through; see the sprint 4 section.
+- **The danger is the flag, not the database.** Production is a closed alpha with three accounts and they are all the owner's. Migrations and redeploys are cheap and should not be deferred out of caution—doing so on 2026-08-03 is what shipped GeoJSON and CSV imports that stored no original file, destroying multi-day structure that a stored file would have preserved. Be careful with the mechanics, not about whether to proceed.
+- **`rides.size_bytes` must name every byte column.** It is generated from `kml_bytes + gpx_bytes + source_bytes`, and `used_bytes` is incremented by the app on import but decremented by this column on delete. A new byte column left out of the expression leaks quota on every delete, permanently and with no error.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
 - **DNS is not the blocker; the un-deployed rename is.** All tankbag hostnames already resolve through the tunnel. As of 2026-07-30 the *live* prod build predates the rename, so `tankbag.app` still 301s to `routeloop.app`—the correct routeloop→tankbag redirect lands only on the next deploy, not via any DNS change. **One real gap:** `www.tankbag.app` has **no DNS record** (`www.routeloop.app` does); add a proxied CNAME to the same tunnel, or the browser key's `www.tankbag.app` referrer entry is moot and the host won't resolve.
 
