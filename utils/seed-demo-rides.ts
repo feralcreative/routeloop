@@ -22,7 +22,7 @@ import { and, eq, inArray, like } from 'drizzle-orm'
 import { db } from '../src/db/index'
 import { users, rides, routes, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
 import { generateSlug } from '../src/maps/slug'
-import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl } from '../src/config'
+import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
 
 // schema.ts exports row types but not the role union, so derive it from the
 // enum itself — that way adding a role in one place cannot drift from this file.
@@ -48,7 +48,7 @@ function assertLocal(): void {
   const url = process.env.DATABASE_URL ?? ''
   if (!isLocalDatabaseUrl(url)) {
     console.error('Refusing to run: DATABASE_URL does not look local.')
-    console.error(`  ${url.replace(/:\/\/[^@]*@/, '://***@')}`)
+    console.error(`  ${redactDatabaseUrl(url)}`)
     process.exit(1)
   }
 }

@@ -65,6 +65,28 @@ export function isLocalDatabaseUrl(url: string): boolean {
 
 export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? '')
 
+/**
+ * A connection string safe to print. Used by the guards that refuse to run
+ * against a non-local database and need to say *which* database they refused.
+ *
+ * Was `url.replace(/:\/\/[^@]*@/, '://***@')`, copy-pasted into two scripts, and
+ * wrong in both directions:
+ *
+ *   - **It leaked.** A password in the query string — `?password=…`, which libpq
+ *     accepts and some hosted providers hand out — printed in full.
+ *   - **It over-redacted.** `[^@]*` crosses the path, so a URL with an `@`
+ *     anywhere later (`postgres://host/db?opt=a@b`) had its *host* swallowed:
+ *     `postgres://***@b`. That defeats the whole point of printing it, which is
+ *     to show you which database you just pointed at.
+ */
+export function redactDatabaseUrl(url: string): string {
+  return url
+    // Userinfo only: stop at the first `/` so the path can never be consumed.
+    .replace(/:\/\/[^@/]*@/, '://***@')
+    // Credentials that travel as query parameters.
+    .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
+}
+
 // --- Dev sign-in -------------------------------------------------------------
 //
 // A way into a signed-in page without a password. This is a loaded gun, so it is
