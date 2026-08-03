@@ -14,7 +14,7 @@ This document orients an AI agent working on the codebase. Read it first, then [
 
 tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits.
 
-Importing existing files (KML, GPX; later KMZ, CSV) is a **migration path**, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
+Importing existing files (KML, KMZ, GPX; later CSV, GeoJSON) is a **migration path**, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
 ## The product model (drives the schema)
 
@@ -256,7 +256,7 @@ Deferred, with reasons:
 - **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by email or phone is a user-enumeration surface and wants rate limiting before it exists.
 - **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
 - **Phase 5—Trip features** 🔄 **multi-day editing done 2026-07-30**; the date/time half is not started. `routes.start_at` / `end_at` exist in the schema and load into builder state, but nothing sets them and there is no date-time UI, so the timeline slider proper is still ahead.
-- **Backlog** ⬜ bikes, KMZ/CSV import, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
+- **Backlog** ⬜ bikes, CSV/GeoJSON import, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
 
 ## Deployment state
 

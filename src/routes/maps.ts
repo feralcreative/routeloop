@@ -17,8 +17,8 @@ import { db } from '../db/index'
 import { rides, routes, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
+  FORMAT_INFO,
   GPX_MAX_BYTES,
-  KML_MAX_BYTES,
   METERS_PER_MILE,
   distFromStartAlongTrack,
   isSupportedFormat,
@@ -29,6 +29,7 @@ import {
   validateGpx,
   type ExtractedRoute,
 } from '../maps/kml'
+import { extractKmlFromKmz } from '../maps/kmz'
 import { generateSlug } from '../maps/slug'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
@@ -130,14 +131,14 @@ mapsRoutes.post(
     if (!isSupportedFormat(ext)) {
       return fail(`unsupported file type "${ext || upload.name}" — accepted: ${SUPPORTED_FORMATS.join(', ')}`, 400)
     }
-    const cap = ext === 'gpx' ? GPX_MAX_BYTES : KML_MAX_BYTES
+    const cap = FORMAT_INFO[ext].maxBytes
     if (upload.size > cap) return fail(`${ext.toUpperCase()} exceeds ${cap / MB} MB`, 413)
 
     // A GPX may still arrive as a companion to a KML, which is what this
     // endpoint accepted before it took anything but KML. In that case the KML
     // is the route and the GPX is kept only so it can be downloaded again.
     const companionGpx =
-      ext === 'kml' && body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
+      ext !== 'gpx' && body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
     if (companionGpx) {
       if (!/\.gpx$/i.test(companionGpx.name)) return fail('track file must be a .gpx', 400)
       if (companionGpx.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
@@ -151,6 +152,10 @@ mapsRoutes.post(
     // GPX is stored as uploaded, which is what the companion path already did.
     // Both stream back with an explicit non-HTML content type and nosniff, so
     // neither can be coaxed into rendering.
+    //
+    // A KMZ becomes its inner KML and is stored as one — the archive itself is
+    // a container, not content, and keeping it would mean a second stored form
+    // of the same route that nothing can render.
     let extracted: ExtractedRoute
     let storedExt: 'kml' | 'gpx'
     let storedBuf: Buffer
@@ -163,7 +168,14 @@ mapsRoutes.post(
         storedBuf = Buffer.from(await upload.arrayBuffer())
         gpxBuf = storedBuf
       } else {
-        const kml = processKml(await upload.text())
+        // Unzipping first means the KMZ path converges on processKml before
+        // anything is parsed, so DOCTYPE rejection, sanitizing and extraction
+        // are the same code for both — a KMZ cannot route around them.
+        const text =
+          ext === 'kmz'
+            ? extractKmlFromKmz(Buffer.from(await upload.arrayBuffer()))
+            : await upload.text()
+        const kml = processKml(text)
         extracted = kml
         storedExt = 'kml'
         storedBuf = Buffer.from(kml.storedKml, 'utf8')

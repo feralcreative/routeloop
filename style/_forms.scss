@@ -63,10 +63,23 @@
     color: #777;
     font-size: 0.85rem;
 
+    .format {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+    }
+
     strong {
-      display: inline-block;
       min-width: 3.2em;
       color: $text;
+    }
+
+    // Pushed to the right edge so the caps line up as a column and can be
+    // compared at a glance, which is the only reason to show three of them.
+    .format-cap {
+      margin-left: auto;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
   }
 

@@ -190,14 +190,15 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 **Work.**
 
 - [ ] **Native TankBag JSON export/import**—expose the existing save=load ride payload for lossless backup and round-trip. Nearly free, since the shape already exists, and it is the only format that preserves point kind and stop duration exactly (everything else flattens them—see item 4).
-- [ ] Import KMZ (zipped KML) and CSV.
+- [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the *decompressed* size.
+- [ ] Import CSV.
 - [ ] Import/export GeoJSON.
 - [ ] Export GPX flavors that load cleanly on Garmin and other devices.
 - [ ] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** planned—native JSON is the cheapest starting point; KMZ and CSV are the nearest of the interchange formats.
+**Status.** in progress—KMZ landed 2026-08-03; native JSON is the cheapest of what remains, and CSV and GeoJSON are the nearest of the interchange formats.
 
 ### 9. Discovery and public profiles
 
@@ -310,7 +311,6 @@ Well-scoped, low-context tasks a new contributor can land without holding the wh
 - **Align the day-slider tick labels** to the thumb positions in the builder (a known cosmetic nit in STATUS.md).
 - **`profile.js` geocoding → server proxy** (item 1). A self-contained endpoint modeled on `POST /api/route`, plus a small client change.
 - **First unit tests** (item 11). `src/maps/roles.ts`—`canonicalRole`, `parseRoleName`, `formatRoleName`—is a pure, well-specified module and an ideal place to stand up the test runner.
-- **KMZ import** (item 8). KMZ is a zipped KML; unzip, then hand the KML to the existing pipeline unchanged.
 
 ## Working in this repo
 

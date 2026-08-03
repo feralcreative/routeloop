@@ -14,6 +14,10 @@ import { parseRoleName, type Role } from './roles'
 
 export const KML_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 export const GPX_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+// The archive, compressed. Larger than the KML cap because a legitimate KMZ
+// carries overlays and imagery that get skipped; the KML pulled out of it is
+// still held to KML_MAX_BYTES, measured after decompression. See kmz.ts.
+export const KMZ_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
 // User-caused rejection (bad file), as opposed to a server fault.
 export class RouteFileError extends Error {}
@@ -21,15 +25,18 @@ export class RouteFileError extends Error {}
 // The formats the import pipeline accepts, stated once. The import page builds
 // its `accept` attribute and its copy from this, and the upload handler gates
 // on it, so the form cannot offer something the server refuses.
-export const SUPPORTED_FORMATS = ['kml', 'gpx'] as const
+export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx'] as const
 export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
 export const isSupportedFormat = (ext: string): ext is SupportedFormat =>
   (SUPPORTED_FORMATS as readonly string[]).includes(ext)
 
-// What each one is called and where riders get them, for the import page.
-export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string }> = {
-  kml: { label: 'KML', note: 'Google Earth, My Maps, most planners' },
-  gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS' },
+// What each one is called, where riders get them, and how big it may be. The
+// cap lives here rather than in the handler so that adding a format cannot
+// leave it silently sharing another format's limit.
+export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string; maxBytes: number }> = {
+  kml: { label: 'KML', note: 'Google Earth, My Maps, most planners', maxBytes: KML_MAX_BYTES },
+  kmz: { label: 'KMZ', note: 'Google Earth saves these by default—a zipped KML', maxBytes: KMZ_MAX_BYTES },
+  gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS', maxBytes: GPX_MAX_BYTES },
 }
 
 // A [lng, lat] polyline — the storage/GeoJSON axis order.
