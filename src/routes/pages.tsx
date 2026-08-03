@@ -13,7 +13,8 @@ import type { Context } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
-import { esc, page, type NavKey } from '../views/layout'
+import { page, type NavKey } from '../views/layout'
+import { raw } from 'hono/html'
 import { content } from '../views/content'
 import { rideCards } from '../views/cards'
 import { requireActive, type AuthEnv } from '../auth/middleware'
@@ -74,19 +75,34 @@ pageRoutes.get('/explore', async (c) => {
   const hasNext = rows.length > PER_PAGE
   const cards = rows.slice(0, PER_PAGE)
 
-  const tab = (key: string, label: string) =>
-    `<a class="explore-tab${sort === key ? ' is-on' : ''}" href="/explore?sort=${key}">${label}</a>`
-  const pageLink = (n: number, label: string) =>
-    `<a class="explore-page" href="/explore?sort=${sort}&page=${n}">${label}</a>`
+  const Tab = ({ key_, label }: { key_: string; label: string }) => (
+    <a class={`explore-tab${sort === key_ ? ' is-on' : ''}`} href={`/explore?sort=${key_}`}>
+      {label}
+    </a>
+  )
+  const PageLink = ({ n, label }: { n: number; label: string }) => (
+    <a class="explore-page" href={`/explore?sort=${sort}&page=${n}`}>
+      {label}
+    </a>
+  )
 
-  const body = `<h1>Explore</h1>
-<p class="lede">Public rides other people have planned. Open one, or clone it as a starting point for your own.</p>
-<nav class="explore-tabs">${tab('popular', 'Most viewed')}${tab('new', 'Newest')}</nav>
-${rideCards(cards, sort === 'popular')}
-<nav class="explore-pager">
-  ${page_ > 1 ? pageLink(page_ - 1, '← Newer page') : ''}
-  ${hasNext ? pageLink(page_ + 1, 'Older page →') : ''}
-</nav>`
+  const body = (
+    <>
+      <h1>Explore</h1>
+      <p class="lede">
+        Public rides other people have planned. Open one, or clone it as a starting point for your own.
+      </p>
+      <nav class="explore-tabs">
+        <Tab key_="popular" label="Most viewed" />
+        <Tab key_="new" label="Newest" />
+      </nav>
+      {raw(rideCards(cards, sort === 'popular'))}
+      <nav class="explore-pager">
+        {page_ > 1 && <PageLink n={page_ - 1} label="← Newer page" />}
+        {hasNext && <PageLink n={page_ + 1} label="Older page →" />}
+      </nav>
+    </>
+  ).toString()
 
   return render(c, 'Explore', body, 'content-page explore-page', 'explore')
 })
@@ -121,23 +137,38 @@ pageRoutes.get('/riders', requireActive, async (c) => {
     .orderBy(users.displayName)
     .limit(200)
 
-  const list = rows.length
-    ? `<ul class="rider-list">${rows
-        .map(
-          (r) =>
-            `<li><a href="/@${esc(r.username!)}"><span class="rider-display">${esc(r.displayName)}</span><span class="rider-handle">@${esc(r.username!)}</span></a></li>`,
-        )
-        .join('')}</ul>`
-    : '<p class="empty">Nobody matches that.</p>'
-
-  const body = `<h1>Riders</h1>
-<p class="lede">Everyone planning here. Names and handles only &mdash; anything else is on a rider's own profile, and only if they put it there.</p>
-<form class="rider-search" method="get" action="/riders">
-  <label class="visually-hidden" for="rider-q">Search riders</label>
-  <input id="rider-q" name="q" type="search" maxlength="30" placeholder="Search by name or handle" value="${esc(q)}">
-  <button class="btn" type="submit">Search</button>
-</form>
-${list}`
+  const body = (
+    <>
+      <h1>Riders</h1>
+      <p class="lede">
+        Everyone planning here. Names and handles only &mdash; anything else is on a rider's own profile, and only if
+        they put it there.
+      </p>
+      <form class="rider-search" method="get" action="/riders">
+        <label class="visually-hidden" for="rider-q">
+          Search riders
+        </label>
+        <input id="rider-q" name="q" type="search" maxlength={30} placeholder="Search by name or handle" value={q} />
+        <button class="btn" type="submit">
+          Search
+        </button>
+      </form>
+      {rows.length > 0 ? (
+        <ul class="rider-list">
+          {rows.map((r) => (
+            <li>
+              <a href={`/@${r.username!}`}>
+                <span class="rider-display">{r.displayName}</span>
+                <span class="rider-handle">@{r.username!}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">Nobody matches that.</p>
+      )}
+    </>
+  ).toString()
 
   return render(c, 'Riders', body, 'content-page riders-page', 'riders')
 })
@@ -187,11 +218,18 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     .orderBy(desc(rides.viewCount), desc(rides.createdAt))
     .limit(50)
 
-  const surname = row.shareLastName && row.lastName ? ` ${esc(row.lastName)}` : ''
-  const body = `<h1 class="profile-name">${esc(row.displayName)}${surname}</h1>
-<p class="profile-handle">@${esc(row.username)}</p>
-<h2>Public rides</h2>
-${rideCards(cards)}`
+  const surname = row.shareLastName && row.lastName ? ` ${row.lastName}` : ''
+  const body = (
+    <>
+      <h1 class="profile-name">
+        {row.displayName}
+        {surname}
+      </h1>
+      <p class="profile-handle">@{row.username}</p>
+      <h2>Public rides</h2>
+      {raw(rideCards(cards))}
+    </>
+  ).toString()
 
   return render(c, row.displayName, body, 'content-page profile-page')
 })
