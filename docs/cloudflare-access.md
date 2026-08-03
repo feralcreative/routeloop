@@ -32,7 +32,7 @@ Direct Google/GitHub OAuth was removed in this work—`src/auth/oauth.ts` is del
 Trusting an inbound header is only safe because the origin is unreachable except through the tunnel. Two guards back that up:
 
 - The Access application intercepts `tankbag.app/auth/cloudflare` at the edge, so an external request carrying a forged header never reaches the origin.
-- The legacy `tankbag.app` / `stage.tankbag.app` tunnel routes reach the **same containers**, and those paths are *not* covered by the Access applications—so the `LEGACY_HOSTS` middleware in [src/index.ts](../src/index.ts) 301s each legacy host to its own canonical host before any auth code runs. Verified on both: a forged `Cf-Access-Authenticated-User-Email` gets the redirect, not a session. Note that stage maps to *stage*, not prod—a legacy host must never redirect across environments.
+- The legacy `tankbag.app` / `stage.tankbag.app` tunnel routes reach the **same containers**, and those paths are *not* covered by the Access applications—so the `LEGACY_HOSTS` middleware in [src/index.tsx](../src/index.tsx) 301s each legacy host to its own canonical host before any auth code runs. Verified on both: a forged `Cf-Access-Authenticated-User-Email` gets the redirect, not a session. Note that stage maps to *stage*, not prod—a legacy host must never redirect across environments.
 
 If another hostname is ever pointed at either container, it must get its own Access application or an entry in `LEGACY_HOSTS`. Treat that as a standing invariant: an unprotected hostname on an Access-trusting origin is a full auth bypass.
 

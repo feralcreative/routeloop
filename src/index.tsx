@@ -27,7 +27,8 @@ import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
-import { esc, googleMapsLoader, page, panelShell } from './views/layout'
+import { googleMapsLoader, page, panelShell } from './views/layout'
+import { raw } from 'hono/html'
 import { asset } from './views/assets'
 import { rideCards, type CardRow } from './views/cards'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
@@ -291,35 +292,60 @@ async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: stri
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
 function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false): string {
-  const desc = m.description ? `<p class="description">${esc(m.description)}</p>` : ''
-  // Only rendered for a rider who can actually open the builder on this ride —
-  // see canEditRide. A viewer who cannot edit is shown nothing rather than a
-  // disabled control, since there is no action for them to enable.
-  const edit = editUrl ? `<a class="panel-edit" href="${esc(editUrl)}">Edit this ride</a>` : ''
-  // Offered to a signed-in rider who does not own this public ride — cloning
-  // your own is what the builder is for.
-  const clone = clonable
-    ? `<button class="panel-clone" type="button" data-clone="${m.id}">Clone this ride</button>`
-    : ''
-  // Every ride gets the timeline now. It hides itself when a ride carries no
-  // dates, which is the same answer the opt-in used to give imported rides.
-  const scrub = `
-        <div class="trip-timeline" id="trip-timeline" hidden>
-          <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
-                 aria-label="Move through the trip in time" title="Drag to move through the trip">
-          <div class="time-readout" id="time-readout"></div>
-        </div>`
-
   return panelShell({
     title: m.title,
-    contents: `        <div class="details">${desc}${edit}${clone}</div>${scrub}
+    contents: (
+      <>
+        <div class="details">
+          {m.description && <p class="description">{m.description}</p>}
+          {/*
+            Only rendered for a rider who can actually open the builder on this
+            ride — see canEditRide. A viewer who cannot edit is shown nothing
+            rather than a disabled control, since there is no action to enable.
+          */}
+          {editUrl && (
+            <a class="panel-edit" href={editUrl}>
+              Edit this ride
+            </a>
+          )}
+          {/*
+            Offered to a signed-in rider who does not own this public ride —
+            cloning your own is what the builder is for.
+          */}
+          {clonable && (
+            <button class="panel-clone" type="button" data-clone={m.id}>
+              Clone this ride
+            </button>
+          )}
+        </div>
+        {/*
+          Every ride gets the timeline now. It hides itself when a ride carries
+          no dates, which is the same answer the opt-in used to give imported
+          rides.
+        */}
+        <div class="trip-timeline" id="trip-timeline" hidden>
+          <input
+            id="time-slider"
+            class="time-slider"
+            type="range"
+            min="0"
+            max="0"
+            step="60"
+            value="0"
+            aria-label="Move through the trip in time"
+            title="Drag to move through the trip"
+          />
+          <div class="time-readout" id="time-readout"></div>
+        </div>
         <div class="routes">
           <table class="route-table"></table>
           <label class="toggle-checkbox">
-            <input type="checkbox" id="toggle-arrows" checked>
+            <input type="checkbox" id="toggle-arrows" checked />
             Show Direction of Travel
           </label>
-        </div>`,
+        </div>
+      </>
+    ).toString(),
   })
 }
 
@@ -357,14 +383,26 @@ function homeHtml(recentCards: string, popularCards: string, user: UserRow): str
     title: 'Home',
     user,
     navKey: 'home',
-    body: `<main class="home">
-      <h1>Welcome back, ${esc(user.displayName)}</h1>
-      <p><a class="btn" href="/builder">Plan a ride</a></p>
-      <div class="home-sections">
-        <section class="home-section"><h2>Your recent rides</h2>${recentCards}</section>
-        <section class="home-section"><h2>Popular public rides</h2>${popularCards}</section>
-      </div>
-    </main>`,
+    body: (
+      <main class="home">
+        <h1>Welcome back, {user.displayName}</h1>
+        <p>
+          <a class="btn" href="/builder">
+            Plan a ride
+          </a>
+        </p>
+        <div class="home-sections">
+          <section class="home-section">
+            <h2>Your recent rides</h2>
+            {raw(recentCards)}
+          </section>
+          <section class="home-section">
+            <h2>Popular public rides</h2>
+            {raw(popularCards)}
+          </section>
+        </div>
+      </main>
+    ).toString(),
   })
 }
 

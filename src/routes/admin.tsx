@@ -14,7 +14,7 @@ import { z } from 'zod'
 import { db } from '../db/index'
 import { users } from '../db/schema'
 import { currentUser, requireManageRiders, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { esc, page } from '../views/layout'
+import { page } from '../views/layout'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -37,51 +37,71 @@ type RiderRow = {
 const fmtDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '—')
 
 // A single status-changing button, as its own form so it works without script.
-function actionForm(id: number, status: 'active' | 'blocked', label: string, cls: string): string {
-  return `<form method="post" action="/admin/riders/${id}">
-      <input type="hidden" name="status" value="${status}">
-      <button class="btn btn-sm ${cls}" type="submit">${esc(label)}</button>
-    </form>`
+function ActionForm({ id, status, label, cls }: { id: number; status: 'active' | 'blocked'; label: string; cls: string }) {
+  return (
+    <form method="post" action={`/admin/riders/${id}`}>
+      <input type="hidden" name="status" value={status} />
+      <button class={`btn btn-sm ${cls}`} type="submit">
+        {label}
+      </button>
+    </form>
+  )
 }
 
 // The actions offered depend on where the rider currently is. A pending rider can
 // be approved or blocked; an active rider blocked; a blocked rider reinstated.
-function actionsFor(r: RiderRow): string {
-  switch (r.status) {
+function ActionsFor({ rider }: { rider: RiderRow }) {
+  switch (rider.status) {
     case 'pending':
-      return actionForm(r.id, 'active', 'Approve', 'btn-approve') + actionForm(r.id, 'blocked', 'Block', 'btn-danger')
+      return (
+        <>
+          <ActionForm id={rider.id} status="active" label="Approve" cls="btn-approve" />
+          <ActionForm id={rider.id} status="blocked" label="Block" cls="btn-danger" />
+        </>
+      )
     case 'active':
-      return actionForm(r.id, 'blocked', 'Block', 'btn-danger')
+      return <ActionForm id={rider.id} status="blocked" label="Block" cls="btn-danger" />
     case 'blocked':
-      return actionForm(r.id, 'active', 'Reinstate', 'btn-approve')
+      return <ActionForm id={rider.id} status="active" label="Reinstate" cls="btn-approve" />
   }
 }
 
-function riderRow(r: RiderRow, meId: number): string {
-  const isMe = r.id === meId
-  const badge = r.canManageRiders ? '<span class="pill is-manager">manager</span>' : ''
-  const handle = r.username ? `@${esc(r.username)}` : ''
-  // A manager never gets action buttons on their own row: the page exists to keep
-  // at least one active manager, so self-blocking is not an option to offer.
-  const actions = isMe ? '<span class="rider-you">you</span>' : actionsFor(r)
-
-  return `<li class="rider">
-      <span class="rider-id">#${r.id}</span>
+function RiderRowView({ rider, meId }: { rider: RiderRow; meId: number }) {
+  const handle = rider.username ? `@${rider.username}` : ''
+  return (
+    <li class="rider">
+      <span class="rider-id">#{rider.id}</span>
       <span class="rider-main">
-        <span class="rider-name">${esc(r.displayName)} ${badge}</span>
-        <span class="rider-email">${esc(r.email ?? '—')}${handle ? ` &middot; ${handle}` : ''}</span>
-        <span class="rider-meta">joined ${fmtDate(r.createdAt)} &middot; last seen ${fmtDate(r.lastLoginAt)}</span>
+        <span class="rider-name">
+          {rider.displayName} {rider.canManageRiders && <span class="pill is-manager">manager</span>}
+        </span>
+        <span class="rider-email">
+          {rider.email ?? '—'}
+          {handle ? ` · ${handle}` : ''}
+        </span>
+        <span class="rider-meta">
+          joined {fmtDate(rider.createdAt)} · last seen {fmtDate(rider.lastLoginAt)}
+        </span>
       </span>
-      <span class="rider-status"><span class="pill is-${r.status}">${esc(r.status)}</span></span>
-      <span class="rider-actions">${actions}</span>
-    </li>`
+      <span class="rider-status">
+        <span class={`pill is-${rider.status}`}>{rider.status}</span>
+      </span>
+      {/*
+        A manager never gets action buttons on their own row: the page exists to
+        keep at least one active manager, so self-blocking is not on offer.
+      */}
+      <span class="rider-actions">
+        {rider.id === meId ? <span class="rider-you">you</span> : <ActionsFor rider={rider} />}
+      </span>
+    </li>
+  )
 }
 
-function notice(query: (k: string) => string | undefined): string {
-  if (query('updated') === '1') return '<p class="notice">Rider updated.</p>'
-  if (query('error') === 'self') return '<p class="notice is-error">You can’t change your own account here.</p>'
-  if (query('error') === 'bad') return '<p class="notice is-error">That action wasn’t recognized.</p>'
-  return ''
+function Notice({ query }: { query: (k: string) => string | undefined }) {
+  if (query('updated') === '1') return <p class="notice">Rider updated.</p>
+  if (query('error') === 'self') return <p class="notice is-error">You can’t change your own account here.</p>
+  if (query('error') === 'bad') return <p class="notice is-error">That action wasn’t recognized.</p>
+  return <></>
 }
 
 adminRoutes.get('/admin', requireManageRiders, async (c) => {
@@ -107,14 +127,26 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
     )
 
   const pending = riders.filter((r) => r.status === 'pending').length
-  const rows = riders.map((r) => riderRow(r, me.id)).join('')
 
-  const body = `<h1>Riders</h1>
-    <div class="sub">${riders.length} account${riders.length === 1 ? '' : 's'}${
-      pending ? ` &middot; ${pending} waiting for approval` : ''
-    }</div>
-    ${notice((k) => c.req.query(k))}
-    ${riders.length ? `<ul class="cards rider-list">${rows}</ul>` : '<p class="empty">No riders yet.</p>'}`
+  const body = (
+    <>
+      <h1>Riders</h1>
+      <div class="sub">
+        {riders.length} account{riders.length === 1 ? '' : 's'}
+        {pending ? ` · ${pending} waiting for approval` : ''}
+      </div>
+      <Notice query={(k) => c.req.query(k)} />
+      {riders.length > 0 ? (
+        <ul class="cards rider-list">
+          {riders.map((r) => (
+            <RiderRowView rider={r} meId={me.id} />
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">No riders yet.</p>
+      )}
+    </>
+  ).toString()
 
   return c.html(page({ title: 'Riders', user: me, navKey: 'admin', body }))
 })

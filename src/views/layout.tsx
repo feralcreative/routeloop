@@ -7,6 +7,7 @@ import { alphaSplash } from './splash'
 
 export { esc } from './esc'
 import { esc } from './esc'
+import { raw } from 'hono/html'
 import { asset } from './assets'
 
 // A function rather than a const so each icon carries a fresh content hash. The
@@ -89,12 +90,15 @@ const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'profile', href: '/profile', label: 'Your profile' },
 ]
 
-function navLink(item: { key: NavKey; href: string; label: string }, navKey?: NavKey): string {
-  const current = item.key === navKey ? ' aria-current="page"' : ''
-  return `<a href="${item.href}"${current}>${esc(item.label)}</a>`
+function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
+  return (
+    <a href={item.href} aria-current={item.key === navKey ? 'page' : undefined}>
+      {item.label}
+    </a>
+  )
 }
 
-function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): string {
+function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
   // it is 62px wide against the horizontal lockup's 102px, so it takes less of
@@ -103,46 +107,63 @@ function siteHeader(user: UserRow | null, navKey?: NavKey, isMap = false): strin
   const logo = isMap
     ? { src: '/img/logo-tankbag-vert-light.svg', w: 871, h: 618 }
     : { src: '/img/logo-tankbag-horiz-light.svg', w: 1414, h: 426 }
-  // Rider management is the only nav item that is capability-gated rather than
-  // shown to every signed-in rider, so it is appended here instead of living in
-  // the static NAV_LINKS list.
-  const adminLink =
-    user?.canManageRiders ? navLink({ key: 'admin', href: '/admin', label: 'Riders' }, navKey) : ''
-  const links = user
-    ? `${NAV_LINKS.map((l) => navLink(l, navKey)).join('')}${adminLink}
-      <hr>
-      <span class="nav-user">${esc(user.displayName)}</span>
-      <form method="post" action="/logout"><button class="linkbtn" type="submit">Sign out</button></form>`
-    : `${navLink(NAV_LINKS[0], navKey)}<a href="/login">Sign in</a>`
 
-  return `<header class="site-header" id="site-header">
-  <a class="site-logo" href="/"><img src="${logo.src}" alt="TankBag" width="${logo.w}" height="${logo.h}"></a>
-  <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
-    <span class="nav-bars" aria-hidden="true"></span>
-  </button>
-  <nav class="site-nav" id="site-nav" hidden>
-    ${links}
-    <hr>
-    ${navAboutMenu()}
-  </nav>
-</header>`
+  return (
+    <header class="site-header" id="site-header">
+      <a class="site-logo" href="/">
+        <img src={logo.src} alt="TankBag" width={logo.w} height={logo.h} />
+      </a>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
+        <span class="nav-bars" aria-hidden="true"></span>
+      </button>
+      <nav class="site-nav" id="site-nav" hidden>
+        {user ? (
+          <>
+            {NAV_LINKS.map((l) => (
+              <NavLink item={l} navKey={navKey} />
+            ))}
+            {/*
+              Rider management is the only nav item that is capability-gated
+              rather than shown to every signed-in rider, so it is appended here
+              instead of living in the static NAV_LINKS list.
+            */}
+            {user.canManageRiders && <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />}
+            <hr />
+            <span class="nav-user">{user.displayName}</span>
+            <form method="post" action="/logout">
+              <button class="linkbtn" type="submit">
+                Sign out
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <NavLink item={NAV_LINKS[0]} navKey={navKey} />
+            <a href="/login">Sign in</a>
+          </>
+        )}
+        <hr />
+        <NavAboutMenu />
+      </nav>
+    </header>
+  )
 }
 
 // The floating map panel scaffold, previously copy-pasted into all three map
 // shells. map-common.js binds the collapse toggle by these class names.
 export function panelShell(o: { title?: string; extraClass?: string; contents: string }): string {
-  const cls = o.extraClass ? ` ${o.extraClass}` : ''
-  return `<div id="info-panel" class="floating-panel${cls}">
-    <button class="collapse-toggle" aria-label="Collapse panel">
-      <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon">
-    </button>
-    ${o.title ? `<h1 class="panel-title">${esc(o.title)}</h1>` : ''}
-    <div class="panel-contents-wrapper">
-      <div class="panel-content">
-${o.contents}
+  return (
+    <div id="info-panel" class={`floating-panel${o.extraClass ? ` ${o.extraClass}` : ''}`}>
+      <button class="collapse-toggle" aria-label="Collapse panel">
+        <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon" />
+      </button>
+      {o.title && <h1 class="panel-title">{o.title}</h1>}
+      <div class="panel-contents-wrapper">
+        {/* Already-rendered markup from the caller, hence raw(). */}
+        <div class="panel-content">{raw(o.contents)}</div>
       </div>
     </div>
-  </div>`
+  ).toString()
 }
 
 // Legal and help links. Rendered on chrome pages as a footer and on the splash
@@ -167,11 +188,26 @@ const SITE_LINKS: { href: string; label: string }[] = [
 // guard would catch it, but making someone answer "are you sure" to read a
 // definition is a bad trade.
 export const faqLink = (anchor: string, what: string): string =>
-  `<a class="faq-link" href="/faq#${anchor}" target="_blank" rel="noopener"` +
-  ` title="What is ${esc(what)}?" aria-label="What is ${esc(what)}? Opens the questions page in a new tab">?</a>`
+  (
+    <a
+      class="faq-link"
+      href={`/faq#${anchor}`}
+      target="_blank"
+      rel="noopener"
+      title={`What is ${what}?`}
+      aria-label={`What is ${what}? Opens the questions page in a new tab`}
+    >
+      ?
+    </a>
+  ).toString()
 
-const siteLinkRow = (): string =>
-  SITE_LINKS.map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('')
+const SiteLinkRow = () => (
+  <>
+    {SITE_LINKS.map((l) => (
+      <a href={l.href}>{l.label}</a>
+    ))}
+  </>
+)
 
 // The same three links plus the alpha modal, folded into one disclosure. The
 // nav was a flat run of nine items where the last four are all "about this
@@ -180,21 +216,29 @@ const siteLinkRow = (): string =>
 //
 // <details> rather than a JS menu: it is a disclosure, and the platform already
 // handles the keyboard and the ARIA for one.
-const navAboutMenu = (): string => `<details class="nav-sub">
-      <summary>About</summary>
-      <div class="nav-sub-items">
-        <button type="button" class="linkbtn" data-open-alpha>About this app</button>
-        ${siteLinkRow()}
-      </div>
-    </details>`
+const NavAboutMenu = () => (
+  <details class="nav-sub">
+    <summary>About</summary>
+    <div class="nav-sub-items">
+      <button type="button" class="linkbtn" data-open-alpha>
+        About this app
+      </button>
+      <SiteLinkRow />
+    </div>
+  </details>
+)
 
 function siteFooter(splash: boolean): string {
   // The splash is a signed-out landing page over video: it gets the links and
   // nothing else. A closing note there would compete with the sign-in controls.
-  return `<footer class="site-footer${splash ? ' is-splash' : ''}">
-  <nav class="site-footer-links">${siteLinkRow()}</nav>
-  ${splash ? '' : '<p class="site-footer-note">TankBag is in a closed alpha.</p>'}
-</footer>`
+  return (
+    <footer class={`site-footer${splash ? ' is-splash' : ''}`}>
+      <nav class="site-footer-links">
+        <SiteLinkRow />
+      </nav>
+      {!splash && <p class="site-footer-note">TankBag is in a closed alpha.</p>}
+    </footer>
+  ).toString()
 }
 
 export function page(opts: PageOpts): string {
@@ -228,7 +272,7 @@ export function page(opts: PageOpts): string {
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
-${variant === 'splash' ? '' : siteHeader(opts.user, opts.navKey, isMap)}
+${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
 ${body}
 ${opts.splash === false ? '' : alphaSplash()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}

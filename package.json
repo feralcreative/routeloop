@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Multi-tenant motorcycle route map sharing app (TypeScript + Hono).",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.tsx",
+    "start": "tsx src/index.tsx",
     "typecheck": "tsc --noEmit",
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",
     "sass:watch": "sass --watch style/main.scss public/style/main.min.css",
