@@ -189,7 +189,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Work.**
 
-- [ ] **Native TankBag JSON export/import**—expose the existing save=load ride payload for lossless backup and round-trip. Nearly free, since the shape already exists, and it is the only format that preserves point kind and stop duration exactly (everything else flattens them—see item 4).
+- [x] **Native TankBag JSON export/import**—`/tankbag.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colours, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `tankbag` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the _decompressed_ size.
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.

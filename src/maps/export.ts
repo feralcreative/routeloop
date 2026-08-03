@@ -342,3 +342,86 @@ export function buildGpx(ride: ExportRide): string {
   out.push('</gpx>', '')
   return out.join('\n')
 }
+
+// --- Native TankBag JSON ---------------------------------------------------
+
+// The lossless one, and the only format that is.
+//
+// Every other export flattens something: KML and GPX cannot say whether a point
+// is a stop or a POI or how long you sat there, CSV drops the geometry, GeoJSON
+// keeps the points but the importer rebuilds one day out of many. This is the
+// builder's own save payload, so a ride exported here and imported back is the
+// same ride — days, colours, times, via points and all — because it goes
+// through the same schema and the same insert the builder's save does.
+//
+// `tankbag` is a version, not decoration: the importer refuses a file without
+// it rather than guessing, which is also what keeps a plain GeoJSON from being
+// mistaken for one.
+export const NATIVE_FORMAT_VERSION = 1
+
+export type NativeRide = {
+  tankbag: number
+  exportedFrom: string
+  ride: unknown
+}
+
+export const isNativeRide = (v: unknown): v is NativeRide =>
+  typeof v === 'object' && v !== null && typeof (v as NativeRide).tankbag === 'number'
+
+// Straight from the rows, in the shape ridePayload validates. Note this reads
+// legs rather than the concatenated track: the leg boundaries are where the
+// stops are, and losing them is what makes every other format lossy.
+export async function loadNativeRide(
+  rideId: number,
+  meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
+): Promise<NativeRide> {
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
+
+  const out = []
+  for (const r of routeRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
+
+    const point = (p: (typeof pts)[number]) => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      description: p.description ?? '',
+      roles: p.roles,
+      durationMin: p.durationMin,
+    })
+
+    out.push({
+      title: r.title,
+      color: r.color,
+      startAt: r.startAt?.toISOString() ?? null,
+      endAt: r.endAt?.toISOString() ?? null,
+      stops: pts.filter((p) => p.kind === 'stop').map(point),
+      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      legs: legs.map((l) => ({
+        geometry: l.geometry,
+        distanceM: l.distanceM,
+        durationS: l.durationS,
+        viaPoints: l.viaPoints ?? [],
+      })),
+    })
+  }
+
+  return {
+    tankbag: NATIVE_FORMAT_VERSION,
+    exportedFrom: 'tankbag.app',
+    ride: {
+      title: meta.title,
+      description: meta.description ?? '',
+      visibility: meta.visibility,
+      external_url: meta.externalUrl ?? '',
+      routes: out,
+    },
+  }
+}
+
+export const buildNativeJson = (r: NativeRide): string => JSON.stringify(r)

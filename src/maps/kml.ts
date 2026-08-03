@@ -45,9 +45,11 @@ export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string;
   kmz: { label: 'KMZ', note: 'Google Earth saves these by default—a zipped KML', maxBytes: KMZ_MAX_BYTES },
   gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS', maxBytes: GPX_MAX_BYTES },
   geojson: { label: 'GeoJSON', note: 'geojson.io, QGIS, anything mapping-adjacent', maxBytes: GEOJSON_MAX_BYTES },
-  // Same parser, different extension. Plenty of tools save GeoJSON as .json and
-  // making a rider rename the file to get it accepted would be theatre.
-  json: { label: 'JSON', note: 'GeoJSON saved under the plainer extension', maxBytes: GEOJSON_MAX_BYTES },
+  // Two different things arrive under .json: a GeoJSON saved under the plainer
+  // extension, and a TankBag export. They are told apart by content — the
+  // `tankbag` version field — not by name, because plenty of tools write
+  // GeoJSON as .json and making a rider rename a file would be theatre.
+  json: { label: 'JSON', note: 'A TankBag backup, or GeoJSON under the plainer name', maxBytes: GEOJSON_MAX_BYTES },
   csv: { label: 'CSV', note: 'A list of stops from a spreadsheet—no route line', maxBytes: CSV_MAX_BYTES },
 }
 

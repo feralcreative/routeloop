@@ -14,7 +14,7 @@ This document orients an AI agent working on the codebase. Read it first, then [
 
 tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits.
 
-Importing existing files (KML, KMZ, GPX, GeoJSON, CSV) is a **migration path**, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
+Importing existing files (KML, KMZ, GPX, GeoJSON, CSV) is a **migration path**, and native TankBag JSON is the lossless backup format, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
 ## The product model (drives the schema)
 

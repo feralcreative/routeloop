@@ -17,7 +17,16 @@ import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
-import { buildCsv, buildGeoJson, buildGpx, buildKml, loadRideForExport, type ExportRide } from './maps/export'
+import {
+  buildCsv,
+  buildGeoJson,
+  buildGpx,
+  buildKml,
+  buildNativeJson,
+  loadNativeRide,
+  loadRideForExport,
+  type ExportRide,
+} from './maps/export'
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -254,6 +263,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     gpxUrl: `/api/public/maps/${m.slug}/gpx`,
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     csvUrl: `/api/public/maps/${m.slug}/csv`,
+    // The only lossless one — days, colours, times and via points survive it.
+    nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })
@@ -309,6 +320,31 @@ const DOWNLOADS: Record<
 // store 'mixed', which matches nothing, so those rides always generate from the
 // rows — and the rows are the merged trip, which is the correct answer.
 
+
+// The lossless one, and its own route because it carries ride-level fields the
+// others do not and is never streamed from a stored file — a native JSON is
+// generated from the rows by definition.
+app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m) return c.text('Not found', 404)
+  const native = await loadNativeRide(m.id, {
+    title: m.title,
+    description: m.description,
+    visibility: m.visibility,
+    externalUrl: m.externalUrl,
+  })
+  if ((native.ride as { routes: unknown[] }).routes.length === 0) return c.text('Not found', 404)
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
+    headers['Content-Disposition'] = `attachment; filename="${safe}.tankbag.json"`
+  }
+  return new Response(buildNativeJson(native), { headers })
+})
 
 app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   const format = c.req.param('format')

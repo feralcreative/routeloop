@@ -32,13 +32,20 @@ import {
 } from '../maps/kml'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
+import { isNativeRide, NATIVE_FORMAT_VERSION } from '../maps/export'
+import { insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
 import { extractKmlFromKmz } from '../maps/kmz'
+import { fields, firstIssue } from '../maps/fields'
 import { dayColor } from '../maps/palette'
 import { generateSlug } from '../maps/slug'
 import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
+
+// Re-exported: rides.ts has imported these from here since before they had
+// a module of their own.
+export { fields, firstIssue }
 
 export const mapsRoutes = new Hono<AuthEnv>()
 
@@ -56,16 +63,6 @@ class QuotaExceeded extends Error {
   }
 }
 
-// Scalar form fields, shared by import (with defaults), PATCH here, and the
-// ride API. external_url: http(s) only — never javascript:, never data:.
-const externalUrl = z.union([z.literal(''), z.url({ protocol: /^https?$/ }).max(2048)])
-export const fields = {
-  title: z.string().trim().min(1, 'title is required').max(150),
-  description: z.string().trim().max(2000),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'color must be #rrggbb'),
-  visibility: z.enum(['public', 'unlisted', 'private']),
-  external_url: externalUrl,
-}
 const uploadSchema = z.object({
   title: fields.title,
   description: fields.description.default(''),
@@ -82,11 +79,6 @@ const patchSchema = z
     external_url: fields.external_url.optional(),
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'nothing to update' })
-
-export const firstIssue = (e: z.ZodError): string => {
-  const i = e.issues[0]
-  return i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message
-}
 
 // A day's name from the file it came from: "day-2-coast.gpx" reads better in
 // the legend than "Day 2", and a rider who named their files named them for a
@@ -172,6 +164,61 @@ mapsRoutes.post(
     // companion-GPX path below, which only ever made sense for one route file.
     const single = sources.length === 1 ? sources[0] : null
     const ext = single?.ext ?? 'mixed'
+
+    // A native TankBag JSON is a different door entirely: it is the builder's
+    // own save payload, so it skips extraction and goes through the same schema
+    // and the same insert a save does. Nothing about it is a route *file* — it
+    // is a ride, restored. It arrives as .json like GeoJSON does, so the two
+    // are told apart by the `tankbag` version field rather than by extension.
+    if (single && (single.ext === 'json' || single.ext === 'geojson')) {
+      const text = await single.file.text()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        return fail('that file is not valid JSON', 400)
+      }
+      if (isNativeRide(parsed)) {
+        if (parsed.tankbag > NATIVE_FORMAT_VERSION) {
+          return fail(`this file was written by a newer version of TankBag (format ${parsed.tankbag})`, 400)
+        }
+        const check = ridePayload.safeParse({ ...(parsed.ride as object), title: meta.title })
+        if (!check.success) return fail(firstIssue(check.error), 400)
+        const payload = check.data
+        // The uploader owns what they upload, and a restored ride lands
+        // private regardless of what the file says — publishing is a decision
+        // taken here, not one carried in from a file someone was sent.
+        payload.visibility = meta.visibility
+        normalize(payload)
+        const totals = rideTotals(payload)
+
+        // No file is stored and no quota is charged: a native ride is rows, and
+        // the caps that bound it are structural (MAX_ROUTES, MAX_STOPS, the
+        // per-ride point ceiling) rather than byte-based. That is exactly how a
+        // ride built in the builder is treated.
+        const created = await db.transaction(async (tx) => {
+          const [ride] = await tx
+            .insert(rides)
+            .values({
+              ownerId: user.id,
+              slug: generateSlug(),
+              title: payload.title,
+              description: payload.description || null,
+              visibility: payload.visibility,
+              source: 'native',
+              externalUrl: payload.external_url || null,
+              ...totals,
+            })
+            .returning()
+          await insertRideGraph(tx, ride.id, payload)
+          return ride
+        })
+        console.log(`[import] user ${user.id} restored native ride ${created.id} (${created.visibility})`)
+        return wantsRedirect
+          ? c.redirect(`/m/${created.slug}`, 302)
+          : c.json({ id: created.id, slug: created.slug, title: created.title, visibility: created.visibility }, 201)
+      }
+    }
 
     // A GPX may still arrive as a companion to a KML, which is what this
     // endpoint accepted before it took anything but KML. In that case the KML

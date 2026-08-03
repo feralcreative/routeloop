@@ -179,9 +179,10 @@
     });
   }
 
-  function dlButton(href, label, download) {
+  function dlButton(href, label, download, title) {
     return (
-      '<a class="route-dl-btn" href="' + esc(href) + '"' + (download ? ' download' : ' target="_blank" rel="noopener"') + ">" + label + "</a>"
+      '<a class="route-dl-btn" href="' + esc(href) + '"' + (title ? ' title="' + esc(title) + '"' : "") +
+      (download ? ' download' : ' target="_blank" rel="noopener"') + ">" + label + "</a>"
     );
   }
 
@@ -236,6 +237,11 @@
     // The stop list on its own, for a spreadsheet. Last because it is the one
     // that is not a route.
     if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true));
+    // Last and titled, because it is the one to pick for a backup: every other
+    // format on this row loses something on the way back in.
+    if (state.ride.nativeUrl) {
+      dls.push(dlButton(state.ride.nativeUrl + "?dl", "TankBag", true, "Lossless \u2014 re-imports as the same ride"));
+    }
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
       dls.push(dlButton(state.ride.externalUrl, "URL", false));
     }
