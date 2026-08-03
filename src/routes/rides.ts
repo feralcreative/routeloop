@@ -26,6 +26,7 @@ import {
   trackMeters,
   type Track,
 } from '../maps/kml'
+import { DAY_COLORS } from '../maps/palette'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell } from '../views/layout'
@@ -629,7 +630,15 @@ function builderHtml(
       extraClass: 'builder-panel',
       contents,
     })}`,
-    tb: { gmapsKey: GMAPS_KEY, mapId: GMAPS_MAP_ID, roles: ROLE_META, rideId, home, publicStart },
+    tb: {
+      gmapsKey: GMAPS_KEY,
+      mapId: GMAPS_MAP_ID,
+      roles: ROLE_META,
+      dayColors: DAY_COLORS,
+      rideId,
+      home,
+      publicStart,
+    },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>

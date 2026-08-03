@@ -199,7 +199,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** in progress—KMZ, GeoJSON and CSV landed 2026-08-03. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
+**Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
 
 ### 9. Discovery and public profiles
 

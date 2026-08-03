@@ -86,7 +86,7 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 **Enums:** `provider`, `visibility`, `ride_source`, `point_kind`, `waypoint_role` (the 17 roles—keep in sync with `src/maps/roles.ts`).
 
-**File storage.** Imported originals live at `{STORAGE_PATH}/{owner_id}/{ride_id}.kml` (and `.gpx`), paths built only from integer ids and containment-checked. Native rides have no files. Quota applies to imported bytes only.
+**File storage.** Imported originals live at `{STORAGE_PATH}/{owner_id}/{ride_id}.{ext}`, paths built only from integer ids and containment-checked, with `ext` from a closed list in `storage.ts`. A ride imported from several files keeps each one, day 2 onward suffixed `{ride_id}-{n}.{ext}`. Every format keeps its original—a KMZ as the KML pulled out of it, everything else as uploaded—and `rides.source_format` records what it arrived as. Bytes land in `kml_bytes`, `gpx_bytes` or `source_bytes`; `size_bytes` is generated from all three and **must** name every one, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete. Native rides have no files. Quota applies to imported bytes only.
 
 ## The role taxonomy
 

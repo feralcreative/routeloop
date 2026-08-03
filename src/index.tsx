@@ -15,9 +15,10 @@ import {
 } from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
+import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
 import { buildCsv, buildGeoJson, buildGpx, buildKml, loadRideForExport, type ExportRide } from './maps/export'
-import { mapFilePath } from './maps/storage'
+import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
@@ -271,23 +272,43 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
 // that is four places for one of them to drift.
 const DOWNLOADS: Record<
   string,
-  { type: string; stored?: 'kml' | 'gpx'; hasStored?: (m: RideRow) => boolean; build: (r: ExportRide) => string }
+  { type: string; stored: StoredExt; hasStored: (m: RideRow) => boolean; build: (r: ExportRide) => string }
 > = {
   kml: {
     type: 'application/vnd.google-earth.kml+xml',
     stored: 'kml',
-    hasStored: (m) => m.kmlBytes > 0,
+    // A KMZ is stored as the KML from inside it, so it answers here too. Rows
+    // predating source_format have it backfilled from whichever file they kept.
+    hasStored: (m) => m.kmlBytes > 0 && (m.sourceFormat === 'kml' || m.sourceFormat === 'kmz'),
     build: buildKml,
   },
   gpx: {
     type: 'application/gpx+xml',
     stored: 'gpx',
-    hasStored: (m) => m.gpxPresent,
+    hasStored: (m) => m.gpxPresent && m.sourceFormat === 'gpx',
     build: buildGpx,
   },
-  geojson: { type: 'application/geo+json', build: buildGeoJson },
-  csv: { type: 'text/csv', build: buildCsv },
+  // These two have no byte column of their own; source_format is what says the
+  // ride arrived as one, and source_bytes that the file is on disk.
+  geojson: {
+    type: 'application/geo+json',
+    stored: 'geojson',
+    hasStored: (m) => m.sourceBytes > 0 && (m.sourceFormat === 'geojson' || m.sourceFormat === 'json'),
+    build: buildGeoJson,
+  },
+  csv: {
+    type: 'text/csv',
+    stored: 'csv',
+    hasStored: (m) => m.sourceBytes > 0 && m.sourceFormat === 'csv',
+    build: buildCsv,
+  },
 }
+
+// Every branch above tests source_format, which is what keeps a folder import
+// from streaming one of its files as if it were the whole ride: several files
+// store 'mixed', which matches nothing, so those rides always generate from the
+// rows — and the rows are the merged trip, which is the correct answer.
+
 
 app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   const format = c.req.param('format')
@@ -307,8 +328,11 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   // The stored original wins where there is one. Generating it instead would
   // be lossy for no reason: the file carries styling, folders and per-point
   // detail this app does not model and therefore cannot reproduce.
-  if (spec.stored && spec.hasStored?.(m)) {
-    const path = mapFilePath(m.ownerId, m.id, spec.stored)
+  if (spec.hasStored(m)) {
+    // A .json upload is stored under .json, not .geojson — the extension is the
+    // one the rider sent. Both are the same format and both answer /geojson.
+    const ext = spec.stored === 'geojson' && m.sourceFormat === 'json' ? 'json' : spec.stored
+    const path = mapFilePath(m.ownerId, m.id, ext)
     if (path) {
       const buf = await readFile(path).catch(() => null)
       if (buf) return new Response(buf, { headers })
@@ -407,6 +431,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
+      dayColors: DAY_COLORS,
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>

@@ -52,15 +52,25 @@ importRoutes.get('/import', requireActive, (c) => {
             <input type="hidden" name="redirect" value="1" />
 
             <p class="field">
-              <label for="f-route">Route file</label>
+              <label for="f-route">Route files</label>
+              {/*
+                `multiple` because a rider with a multi-day trip has one file
+                per day, and importing them one at a time makes one ride per day
+                and no trip. Several files become several days of one ride, in
+                the order the browser lists them — which for a folder selection
+                is filename order, so day-1/day-2/day-3 comes out right.
+              */}
               <input
                 id="f-route"
                 name="route"
                 type="file"
+                multiple
                 required
                 accept={FORMATS.map((f) => `.${f.ext}`).join(',')}
               />
-              <span class="field-hint">Up to {MAX_BYTES / MB} MB, depending on the format.</span>
+              <span class="field-hint">
+                Up to {MAX_BYTES / MB} MB each, depending on the format. Pick several and each becomes a day.
+              </span>
             </p>
 
             {/*
