@@ -10,7 +10,7 @@ import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { sanitizeText } from '../maps/kml'
-import { esc, page } from '../views/layout'
+import { page } from '../views/layout'
 import { asset } from '../views/assets'
 import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAYS } from '../auth/username'
 import { usernameSchema } from '../auth/username'
@@ -104,7 +104,7 @@ type RenderArgs = {
   history?: UsernameHistoryRow[]
 }
 
-function field(o: {
+function Field(o: {
   name: string
   label: string
   values: Record<string, unknown>
@@ -112,119 +112,174 @@ function field(o: {
   type?: string
   hint?: string
   autocomplete?: string
-}): string {
+}) {
   const err = o.errors?.[o.name as keyof ProfileValues]
   const raw = o.values[o.name]
   const value = raw == null ? '' : String(raw)
-  return `<p class="field${err ? ' has-error' : ''}">
-    <label for="f-${o.name}">${esc(o.label)}</label>
-    <input id="f-${o.name}" name="${o.name}" type="${o.type ?? 'text'}" value="${esc(value)}"
-      ${o.autocomplete ? `autocomplete="${o.autocomplete}"` : ''}
-      ${err ? `aria-invalid="true" aria-describedby="e-${o.name}"` : ''}>
-    ${err ? `<span class="field-error" id="e-${o.name}">${esc(err)}</span>` : ''}
-    ${o.hint ? `<span class="field-hint">${esc(o.hint)}</span>` : ''}
-  </p>`
+  return (
+    <p class={`field${err ? ' has-error' : ''}`}>
+      <label for={`f-${o.name}`}>{o.label}</label>
+      <input
+        id={`f-${o.name}`}
+        name={o.name}
+        type={o.type ?? 'text'}
+        value={value}
+        autocomplete={o.autocomplete}
+        aria-invalid={err ? 'true' : undefined}
+        aria-describedby={err ? `e-${o.name}` : undefined}
+      />
+      {err && (
+        <span class="field-error" id={`e-${o.name}`}>
+          {err}
+        </span>
+      )}
+      {o.hint && <span class="field-hint">{o.hint}</span>}
+    </p>
+  )
 }
 
-function check(o: { name: string; label: string; values: Record<string, unknown> }): string {
+function Check(o: { name: string; label: string; values: Record<string, unknown> }) {
   const on = o.values[o.name] === true || o.values[o.name] === 'on'
-  return `<label class="check">
-    <input type="checkbox" name="${o.name}"${on ? ' checked' : ''}>
-    <span>${esc(o.label)}</span>
-  </label>`
+  return (
+    <label class="check">
+      <input type="checkbox" name={o.name} checked={on} />
+      <span>{o.label}</span>
+    </label>
+  )
 }
 
 // Previously held names, newest first, with anything still inside its window
 // saying when it frees up — that date is the only reason the hold exists, so
 // showing the list without it would be showing the wrong half.
-function historyBlock(rows: UsernameHistoryRow[]): string {
-  if (rows.length < 2) return '' // nothing to show a rider who has only ever had one
+function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
+  if (rows.length < 2) return <></> // nothing to show a rider who has only ever had one
   const now = Date.now()
   const day = (d: Date) => d.toISOString().slice(0, 10)
-  const items = rows
-    .filter((r) => r.releasedAt)
-    .map((r) => {
-      const until = new Date(r.releasedAt!.getTime() + USERNAME_HOLD_DAYS * 86400000)
-      const held = until.getTime() > now
-      return `<li><span class="handle">@${esc(r.username)}</span> <span class="handle-dates">${esc(day(r.claimedAt))} – ${esc(day(r.releasedAt!))}${held ? ` · yours to reclaim until ${esc(day(until))}` : ''}</span></li>`
-    })
-    .join('')
-  if (!items) return ''
-  return `<div class="handle-history">
-        <p class="field-hint">Names you have used before. A name you release is held for ${USERNAME_HOLD_DAYS} days, so nobody else can take it while you think it over.</p>
-        <ul>${items}</ul>
-      </div>`
+  const released = rows.filter((r) => r.releasedAt)
+  if (released.length === 0) return <></>
+  return (
+    <div class="handle-history">
+      <p class="field-hint">
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take
+        it while you think it over.
+      </p>
+      <ul>
+        {released.map((r) => {
+          const until = new Date(r.releasedAt!.getTime() + USERNAME_HOLD_DAYS * 86400000)
+          const held = until.getTime() > now
+          return (
+            <li>
+              <span class="handle">@{r.username}</span>{' '}
+              <span class="handle-dates">
+                {day(r.claimedAt)} – {day(r.releasedAt!)}
+                {held ? ` · yours to reclaim until ${day(until)}` : ''}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }
 
 function renderProfile({ user, values, errors, saved, history }: RenderArgs): string {
   const v = values
-  const body = `<h1>Your profile</h1>
-    ${saved ? '<p class="notice">Profile saved.</p>' : ''}
-    ${errors && Object.keys(errors).length ? '<p class="notice is-error">Some fields need attention.</p>' : ''}
+  const body = (
+    <>
+      <h1>Your profile</h1>
+      {saved && <p class="notice">Profile saved.</p>}
+      {errors && Object.keys(errors).length > 0 && <p class="notice is-error">Some fields need attention.</p>}
 
-    <form class="profile-form" method="post" action="/profile">
-      <fieldset>
-        <legend>Who you are</legend>
-        ${field({ name: 'displayName', label: 'Display name', values: v, errors, autocomplete: 'nickname' })}
-        ${field({ name: 'username', label: 'Username', values: v, errors, hint: `Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.` })}
-        ${historyBlock(history ?? [])}
-        ${field({ name: 'firstName', label: 'First name', values: v, errors, autocomplete: 'given-name' })}
-        ${field({ name: 'lastName', label: 'Last name', values: v, errors, autocomplete: 'family-name' })}
-        ${check({ name: 'shareLastName', label: 'Show my last name to other riders', values: v })}
-      </fieldset>
+      <form class="profile-form" method="post" action="/profile">
+        <fieldset>
+          <legend>Who you are</legend>
+          <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
+          <Field
+            name="username"
+            label="Username"
+            values={v}
+            errors={errors}
+            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+          />
+          <HistoryBlock rows={history ?? []} />
+          <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
+          <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
+          <Check name="shareLastName" label="Show my last name to other riders" values={v} />
+        </fieldset>
 
-      <fieldset>
-        <legend>Home base</legend>
-        ${field({ name: 'addressLine', label: 'Address', values: v, errors, autocomplete: 'street-address' })}
-        ${field({ name: 'city', label: 'City', values: v, errors, autocomplete: 'address-level2' })}
-        ${field({ name: 'state', label: 'State or region', values: v, errors, autocomplete: 'address-level1' })}
-        ${field({ name: 'postalCode', label: 'Postal code', values: v, errors, autocomplete: 'postal-code' })}
-        <input type="hidden" name="homeLat" id="f-homeLat" value="${esc(v.homeLat == null ? '' : String(v.homeLat))}">
-        <input type="hidden" name="homeLng" id="f-homeLng" value="${esc(v.homeLng == null ? '' : String(v.homeLng))}">
-        <p class="field-hint" id="geocode-status" role="status"></p>
-        ${check({ name: 'addHomeToRides', label: 'Start new rides at my home address', values: v })}
-      </fieldset>
+        <fieldset>
+          <legend>Home base</legend>
+          <Field name="addressLine" label="Address" values={v} errors={errors} autocomplete="street-address" />
+          <Field name="city" label="City" values={v} errors={errors} autocomplete="address-level2" />
+          <Field name="state" label="State or region" values={v} errors={errors} autocomplete="address-level1" />
+          <Field name="postalCode" label="Postal code" values={v} errors={errors} autocomplete="postal-code" />
+          <input type="hidden" name="homeLat" id="f-homeLat" value={v.homeLat == null ? '' : String(v.homeLat)} />
+          <input type="hidden" name="homeLng" id="f-homeLng" value={v.homeLng == null ? '' : String(v.homeLng)} />
+          <p class="field-hint" id="geocode-status" role="status"></p>
+          <Check name="addHomeToRides" label="Start new rides at my home address" values={v} />
+        </fieldset>
 
-      <fieldset>
-        <legend>Public starting point</legend>
-        <p class="field-hint">Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you would not mind strangers seeing on a map &mdash; a gas station, a coffee shop, a trailhead, a supermarket car park. Somewhere you can actually meet people is ideal.</p>
-        <p class="field-hint">Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on it.</p>
-        ${field({ name: 'startLabel', label: 'Name it', values: v, errors, hint: 'What it shows up as. "Chevron on Main", "Peet\'s at the plaza".' })}
-        ${field({ name: 'startAddressLine', label: 'Address', values: v, errors, autocomplete: 'off' })}
-        ${field({ name: 'startCity', label: 'City', values: v, errors, autocomplete: 'off' })}
-        ${field({ name: 'startState', label: 'State or region', values: v, errors, autocomplete: 'off' })}
-        ${field({ name: 'startPostalCode', label: 'Postal code', values: v, errors, autocomplete: 'off' })}
-        <input type="hidden" name="startLat" id="f-startLat" value="${esc(v.startLat == null ? '' : String(v.startLat))}">
-        <input type="hidden" name="startLng" id="f-startLng" value="${esc(v.startLng == null ? '' : String(v.startLng))}">
-        <p class="field-hint" id="start-geocode-status" role="status"></p>
-      </fieldset>
+        <fieldset>
+          <legend>Public starting point</legend>
+          <p class="field-hint">
+            Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you
+            would not mind strangers seeing on a map &mdash; a gas station, a coffee shop, a trailhead, a supermarket
+            car park. Somewhere you can actually meet people is ideal.
+          </p>
+          <p class="field-hint">
+            Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on
+            it.
+          </p>
+          <Field
+            name="startLabel"
+            label="Name it"
+            values={v}
+            errors={errors}
+            hint={'What it shows up as. "Chevron on Main", "Peet\'s at the plaza".'}
+          />
+          <Field name="startAddressLine" label="Address" values={v} errors={errors} autocomplete="off" />
+          <Field name="startCity" label="City" values={v} errors={errors} autocomplete="off" />
+          <Field name="startState" label="State or region" values={v} errors={errors} autocomplete="off" />
+          <Field name="startPostalCode" label="Postal code" values={v} errors={errors} autocomplete="off" />
+          <input type="hidden" name="startLat" id="f-startLat" value={v.startLat == null ? '' : String(v.startLat)} />
+          <input type="hidden" name="startLng" id="f-startLng" value={v.startLng == null ? '' : String(v.startLng)} />
+          <p class="field-hint" id="start-geocode-status" role="status"></p>
+        </fieldset>
 
-      <fieldset>
-        <legend>Splitting costs</legend>
-        <p class="field-hint">Optional. For settling up on hotels, gas and meals along a trip.</p>
-        ${field({ name: 'cashApp', label: 'Cash App', values: v, errors })}
-        ${field({ name: 'venmo', label: 'Venmo', values: v, errors })}
-        ${field({ name: 'paypal', label: 'PayPal', values: v, errors })}
-        ${field({ name: 'zelle', label: 'Zelle', values: v, errors })}
-        ${check({ name: 'sharePaymentHandles', label: 'Share these with riders on my rides', values: v })}
-      </fieldset>
+        <fieldset>
+          <legend>Splitting costs</legend>
+          <p class="field-hint">Optional. For settling up on hotels, gas and meals along a trip.</p>
+          <Field name="cashApp" label="Cash App" values={v} errors={errors} />
+          <Field name="venmo" label="Venmo" values={v} errors={errors} />
+          <Field name="paypal" label="PayPal" values={v} errors={errors} />
+          <Field name="zelle" label="Zelle" values={v} errors={errors} />
+          <Check name="sharePaymentHandles" label="Share these with riders on my rides" values={v} />
+        </fieldset>
 
-      <fieldset ${user.canManageRiders ? '' : 'disabled'}>
-        <legend>Your riders</legend>
-        ${
-          user.canManageRiders
-            ? '<p class="field-hint">Rider management is enabled for your account—<a href="/admin">approve and manage riders</a>.</p>'
-            : '<p class="field-hint">Adding riders is closed during the alpha.</p>'
-        }
-      </fieldset>
+        <fieldset disabled={!user.canManageRiders}>
+          <legend>Your riders</legend>
+          {user.canManageRiders ? (
+            <p class="field-hint">
+              Rider management is enabled for your account—<a href="/admin">approve and manage riders</a>.
+            </p>
+          ) : (
+            <p class="field-hint">Adding riders is closed during the alpha.</p>
+          )}
+        </fieldset>
 
-      <fieldset disabled>
-        <legend>Your places</legend>
-        <p class="field-hint">Saved places are coming in the next release.</p>
-      </fieldset>
+        <fieldset disabled>
+          <legend>Your places</legend>
+          <p class="field-hint">Saved places are coming in the next release.</p>
+        </fieldset>
 
-      <p><button class="btn" type="submit">Save profile</button></p>
-    </form>`
+        <p>
+          <button class="btn" type="submit">
+            Save profile
+          </button>
+        </p>
+      </form>
+    </>
+  ).toString()
 
   return page({
     title: 'Your profile',
