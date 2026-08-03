@@ -92,16 +92,6 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
-# The inverse check: a variable that must be ABSENT. DEV_LOGIN_EMAIL turns on a
-# route that hands out a session with no password. The app gates it three more
-# ways and would refuse to register it on the NAS anyway — this exists for the
-# case where a dev .env is copied to a server and one of those gates is later
-# loosened by someone who does not know this route is behind them.
-if [ -n "${DEV_LOGIN_EMAIL:-}" ]; then
-  log_error "DEV_LOGIN_EMAIL is set in .env. That is the passwordless dev sign-in."
-  log_error "Comment it out before deploying. Refusing to continue."
-  exit 1
-fi
 
 # Magic link is genuinely optional — Google OAuth alone is a working sign-in —
 # so an incomplete SMTP triple warns rather than blocks. All three or none:
@@ -186,6 +176,56 @@ echo -e "  ${MAGENTA}Container${NC} : ${CONTAINER_NAME} (host 127.0.0.1:${HOST_P
 [ -n "${DRY_RUN:-}" ] && echo -e "  ${YELLOW}DRY RUN — nothing will be built, transferred, or restarted${NC}"
 echo ""
 
+# ------------------------------------------------- remote environment ------
+# Composed here, above the dry-run exit, so `--dry-run` exercises the guard
+# below. A check that only runs during a real deploy is one nobody can test.
+# Supplies every ${VAR} in docker-compose.yml. Contains secrets → mode 600.
+REMOTE_ENV=$(mktemp)
+trap 'rm -f "$REMOTE_ENV"' EXIT
+printf '%s\n' \
+  "# Written by utils/deploy/deploy.sh — do not edit by hand." \
+  "COMPOSE_PROJECT_NAME=${PROJECT_NAME}-${DEPLOY_ENV}" \
+  "IMAGE_NAME=${IMAGE_NAME}" \
+  "CONTAINER_NAME=${CONTAINER_NAME}" \
+  "DB_CONTAINER_NAME=${DB_CONTAINER_NAME}" \
+  "HOST_PORT=${HOST_PORT}" \
+  "ALIAS_HOST_PORT=${ALIAS_HOST_PORT}" \
+  "APP_UID=${APP_UID}" \
+  "APP_GID=${APP_GID}" \
+  "GMAPS_KEY=${GMAPS_KEY}" \
+  "GMAPS_SERVER_KEY=${GMAPS_SERVER_KEY:-}" \
+  "GMAPS_MAP_ID=${GMAPS_MAP_ID}" \
+  "DB_PASSWORD=${DB_PASSWORD}" \
+  "APP_ORIGIN=${APP_ORIGIN}" \
+  "OWNER_EMAIL=${OWNER_EMAIL:-}" \
+  "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
+  "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \
+  "SMTP_HOST=${SMTP_HOST:-}" \
+  "SMTP_PORT=${SMTP_PORT:-}" \
+  "SMTP_USER=${SMTP_USER:-}" \
+  "SMTP_PASS=${SMTP_PASS:-}" \
+  "MAIL_FROM=${MAIL_FROM:-}" \
+  > "$REMOTE_ENV"
+
+# Verify the artifact, not the source. The list above is an explicit allow-list,
+# so a dev-only variable cannot reach the server through this script — but that
+# is a property of the list, and lists get edited. This asserts it of the bytes
+# actually about to be written, which is the thing that matters.
+#
+# It replaces a check on the local .env that refused to deploy whenever
+# DEV_LOGIN_EMAIL was set. That was wrong: the variable was never going to be
+# shipped, so the check only ever cost a manual edit before every deploy — which
+# is how a guard earns itself deleted.
+for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL; do
+  if grep -q "^${FORBIDDEN}=" "$REMOTE_ENV"; then
+    log_error "${FORBIDDEN} is in the generated remote .env. That is a passwordless sign-in."
+    log_error "Remove it from the allow-list in this script. Refusing to continue."
+    rm -f "$REMOTE_ENV"
+    exit 1
+  fi
+done
+
+
 if [ -n "${DRY_RUN:-}" ]; then
   log_info "Would build ${IMAGE_NAME} (${DOCKER_PLATFORM}) from $PROJECT_ROOT"
   log_info "Would transfer the image + ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
@@ -232,31 +272,7 @@ $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker load < ${NAS_DEPLOY_PATH}/${PROJ
 log_info "Writing compose file and environment..."
 cat "$PROJECT_ROOT/$COMPOSE_SRC" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/docker-compose.yml"
 
-# Supplies every ${VAR} in docker-compose.yml. Contains secrets → mode 600.
-printf '%s\n' \
-  "# Written by utils/deploy/deploy.sh — do not edit by hand." \
-  "COMPOSE_PROJECT_NAME=${PROJECT_NAME}-${DEPLOY_ENV}" \
-  "IMAGE_NAME=${IMAGE_NAME}" \
-  "CONTAINER_NAME=${CONTAINER_NAME}" \
-  "DB_CONTAINER_NAME=${DB_CONTAINER_NAME}" \
-  "HOST_PORT=${HOST_PORT}" \
-  "ALIAS_HOST_PORT=${ALIAS_HOST_PORT}" \
-  "APP_UID=${APP_UID}" \
-  "APP_GID=${APP_GID}" \
-  "GMAPS_KEY=${GMAPS_KEY}" \
-  "GMAPS_SERVER_KEY=${GMAPS_SERVER_KEY:-}" \
-  "GMAPS_MAP_ID=${GMAPS_MAP_ID}" \
-  "DB_PASSWORD=${DB_PASSWORD}" \
-  "APP_ORIGIN=${APP_ORIGIN}" \
-  "OWNER_EMAIL=${OWNER_EMAIL:-}" \
-  "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
-  "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \
-  "SMTP_HOST=${SMTP_HOST:-}" \
-  "SMTP_PORT=${SMTP_PORT:-}" \
-  "SMTP_USER=${SMTP_USER:-}" \
-  "SMTP_PASS=${SMTP_PASS:-}" \
-  "MAIL_FROM=${MAIL_FROM:-}" \
-  | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
+cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
 
 # --------------------------------------------------------------- deploy ------
 log_info "Restarting stack..."
