@@ -1,0 +1,4 @@
+source-path=SCRIPTDIR
+# SC1091 "not following sourced file": deploy.config is sourced at runtime and
+# is deliberately not checked in, so shellcheck can never follow it.
+disable=SC1091

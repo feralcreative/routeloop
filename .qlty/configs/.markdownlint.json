@@ -1,0 +1,5 @@
+{
+  "//": "House style is ~/.claude/rules/markdown-rules.md. These two are where it and markdownlint's defaults genuinely disagree.",
+  "MD013": false,
+  "MD033": false
+}
