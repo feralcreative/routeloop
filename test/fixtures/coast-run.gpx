@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TankBag test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Coast run</name></metadata>
+  <wpt lat="36.9741" lon="-122.0308"><ele>12</ele><name>START - Santa Cruz</name><desc>Meet at the wharf.</desc></wpt>
+  <wpt lat="37.0113" lon="-122.1922"><ele>30</ele><name>GAS - Davenport</name></wpt>
+  <wpt lat="37.2552" lon="-122.3833"><ele>45</ele><name>FOOD - Pescadero</name></wpt>
+  <wpt lat="37.4636" lon="-122.4286"><ele>18</ele><name>FINISH - Half Moon Bay</name></wpt>
+  <trk>
+    <name>Coast run</name>
+    <trkseg>
+      <trkpt lat="36.9741" lon="-122.0308"><ele>12</ele></trkpt>
+      <trkpt lat="37.0113" lon="-122.1922"><ele>30</ele></trkpt>
+      <trkpt lat="37.1050" lon="-122.2867"><ele>88</ele></trkpt>
+      <trkpt lat="37.1819" lon="-122.3878"><ele>64</ele></trkpt>
+      <trkpt lat="37.2552" lon="-122.3833"><ele>45</ele></trkpt>
+      <trkpt lat="37.4636" lon="-122.4286"><ele>18</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

@@ -194,7 +194,8 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
 - [ ] Export GPX flavors that load cleanly on Garmin and other devices.
-- [ ] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
+- [x] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
+- [x] Round-trip fidelity tests per format (#35)—`test/fixtures/` holds one ride written five ways and `test/round-trip.test.ts` asserts the parsers agree. It caught a real disagreement on its first run: KML read a one-point line as a zero-length track while GeoJSON rejected the whole file.
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 

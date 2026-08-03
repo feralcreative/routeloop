@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "properties": { "name": "Coast run", "description": "Highway 1 north from Santa Cruz." },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.0308, 36.9741, 12],
+          [-122.1922, 37.0113, 30],
+          [-122.2867, 37.105, 88],
+          [-122.3878, 37.1819, 64],
+          [-122.3833, 37.2552, 45],
+          [-122.4286, 37.4636, 18]
+        ]
+      },
+      "properties": { "name": "Coast run" }
+    },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-122.0308, 36.9741, 12] },
+      "properties": { "name": "START - Santa Cruz", "description": "Meet at the wharf." } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-122.1922, 37.0113, 30] },
+      "properties": { "name": "GAS - Davenport" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-122.3833, 37.2552, 45] },
+      "properties": { "name": "FOOD - Pescadero" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-122.4286, 37.4636, 18] },
+      "properties": { "name": "FINISH - Half Moon Bay" } }
+  ]
+}

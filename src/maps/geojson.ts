@@ -145,8 +145,13 @@ function collect(geometry: unknown, props: Json | undefined, into: Collected, de
   const coords = geometry.coordinates
 
   if (type === 'LineString') {
+    // A one-point line is invalid by specification, but it is a real export —
+    // a planner that saved before the second point was placed — and KML
+    // accepts it as a zero-length track. Formats disagreeing on the same
+    // degenerate shape is exactly what the cross-format tests exist to stop,
+    // so this keeps it rather than rejecting the whole file.
     const line = lineString(coords, 'LineString')
-    if (line.length > 1) into.lines.push(line)
+    if (line.length > 0) into.lines.push(line)
     return
   }
 
@@ -157,7 +162,7 @@ function collect(geometry: unknown, props: Json | undefined, into: Collected, de
     if (Array.isArray(coords)) {
       for (const part of coords) {
         const line = lineString(part, String(type))
-        if (line.length > 1) into.lines.push(line)
+        if (line.length > 0) into.lines.push(line)
       }
     }
     return

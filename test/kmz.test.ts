@@ -1,70 +1,22 @@
 // The KMZ reader, which is the first archive this app opens and therefore the
 // first place a zip bomb or a zip-slip name could land.
 //
-// The archives are built here rather than committed as fixtures for one
-// reason: the interesting cases are the malformed ones, and a hand-built zip
-// is the only way to produce a header that lies about its own contents. That
-// is exactly what the decompression cap has to survive.
-import { deflateRawSync } from 'node:zlib'
+// The archives are built rather than committed as fixtures for one reason: the
+// interesting cases are the malformed ones, and a hand-built zip is the only way
+// to produce a header that lies about its own contents. That is exactly what the
+// decompression cap has to survive. The writer lives in ./helpers/zip so the
+// cross-format tests build KMZ fixtures the same way.
 import { describe, expect, it } from 'vitest'
 import { KML_MAX_BYTES, RouteFileError } from '../src/maps/kml'
 import { extractKmlFromKmz } from '../src/maps/kmz'
-
-type Entry = { name: string; body: Buffer; store?: boolean }
-
-// A minimal writer, matched to the reader: local header, data, central
-// directory, EOCD. No zip64, no data descriptors, no extra fields.
-function makeZip(entries: Entry[], opts: { declaredSize?: (e: Entry) => number; comment?: string } = {}) {
-  const parts: Buffer[] = []
-  const central: Buffer[] = []
-  let offset = 0
-
-  for (const e of entries) {
-    const name = Buffer.from(e.name, 'latin1')
-    const data = e.store ? e.body : deflateRawSync(e.body)
-    const declared = opts.declaredSize ? opts.declaredSize(e) : e.body.length
-
-    const local = Buffer.alloc(30)
-    local.writeUInt32LE(0x04034b50, 0)
-    local.writeUInt16LE(20, 4) // version needed
-    local.writeUInt16LE(e.store ? 0 : 8, 8) // compression method
-    local.writeUInt32LE(data.length, 18)
-    local.writeUInt32LE(declared, 22)
-    local.writeUInt16LE(name.length, 26)
-    parts.push(local, name, data)
-
-    const cd = Buffer.alloc(46)
-    cd.writeUInt32LE(0x02014b50, 0)
-    cd.writeUInt16LE(20, 6)
-    cd.writeUInt16LE(e.store ? 0 : 8, 10)
-    cd.writeUInt32LE(data.length, 20)
-    cd.writeUInt32LE(declared, 24)
-    cd.writeUInt16LE(name.length, 28)
-    cd.writeUInt32LE(offset, 42)
-    central.push(cd, name)
-
-    offset += local.length + name.length + data.length
-  }
-
-  const cdBuf = Buffer.concat(central)
-  const comment = Buffer.from(opts.comment ?? '', 'latin1')
-  const eocd = Buffer.alloc(22)
-  eocd.writeUInt32LE(0x06054b50, 0)
-  eocd.writeUInt16LE(entries.length, 8)
-  eocd.writeUInt16LE(entries.length, 10)
-  eocd.writeUInt32LE(cdBuf.length, 12)
-  eocd.writeUInt32LE(offset, 16)
-  eocd.writeUInt16LE(comment.length, 20)
-
-  return Buffer.concat([...parts, cdBuf, eocd, comment])
-}
+import { makeZip, type ZipEntry } from './helpers/zip'
 
 const KML = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
 <Placemark><name>Start</name><Point><coordinates>-122.4,37.8,0</coordinates></Point></Placemark>
 </Document></kml>`
 
-const kmz = (entries: Entry[], opts?: Parameters<typeof makeZip>[1]) => makeZip(entries, opts)
+const kmz = (entries: ZipEntry[], opts?: Parameters<typeof makeZip>[1]) => makeZip(entries, opts)
 const buf = (s: string) => Buffer.from(s, 'utf8')
 
 describe('extractKmlFromKmz', () => {
