@@ -4,6 +4,12 @@
   // repo — the same failure mode that got SonarCloud retired. Everything turned
   // off below is a style preference; everything left on has either found a real
   // defect here or would.
+  // The repo already formats with prettier and has a .prettierrc that files are
+  // written against. Biome ships its own formatter and disagrees with prettier
+  // on details, so leaving both on means every file is permanently "unformatted"
+  // according to one of them — noise that says nothing about the code. Prettier
+  // owns formatting; biome is here for the linter only.
+  "formatter": { "enabled": false },
   "linter": {
     "enabled": true,
     "rules": {
