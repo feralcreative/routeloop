@@ -544,7 +544,9 @@ The app had something like this before—`DEV_AUTH_EMAIL`, deleted along with Cl
 | `APP_ORIGIN` is not https | `IS_HTTPS_ORIGIN`—the strongest gate, since stage and prod break OAuth and cookie `Secure` if they get it wrong |
 | The request's `Host` is 127.0.0.1 or localhost, not the LAN address | per request, in the handler |
 
-`utils/deploy/deploy.sh` refuses to deploy while `DEV_LOGIN_EMAIL` is set—the backstop for a dev `.env` reaching a server.
+`utils/deploy/deploy.sh` builds the server's `.env` from an explicit allow-list, and `DEV_LOGIN_EMAIL` is not on it, so a deploy cannot ship it. The script greps the generated file to assert that before sending, and `--dry-run` exercises the check.
+
+**Corrected 2026-08-03.** That guard originally refused to deploy at all while `DEV_LOGIN_EMAIL` was set locally, which was wrong on both counts: the variable could never have been shipped, and the check cost a manual edit before every single deploy. A guard that has to be worked around is a guard that gets deleted. It now verifies the artifact rather than the input.
 
 **Rebuilding the local dataset: `utils/seed-dev.sh`.** Run this rather than the two seeders by hand. `src/db/seed.ts` opens with `TRUNCATE rides, user_identities, users RESTART IDENTITY CASCADE` and, unlike `utils/seed-demo-rides.ts`, carries **no check that the database is local**—so running it straight after a `db-clone prod dev` silently destroys every account you just pulled down. The script applies that missing guard, carries the accounts across the truncate and restores them by email (identity rows are not restored and are not needed: `resolveUser` falls back to matching on email, so signing in re-links each account), and only then generates rides—`seed-demo-rides.ts` looks its owner up by email, so run in the other order every ride lands on the demo user and is invisible from the account you sign in with. `--straight` skips the Routes API, which otherwise bills one call per leg.
 
