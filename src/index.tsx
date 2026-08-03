@@ -30,7 +30,7 @@ import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
 import { raw } from 'hono/html'
 import { asset } from './views/assets'
-import { rideCards, type CardRow } from './views/cards'
+import { rideCards } from './views/cards'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
