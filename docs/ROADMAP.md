@@ -109,24 +109,30 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 <!--| PAGE-BREAK -->
 
-### 4. Navigation hand-off: Expand and batched Google Maps links
+### 4. Expand: densify a route so a hand-off stays on your roads
 
-**Goal.** Hand a rider the exact route they planned, ready to navigate in Google Maps (and later on-device), instead of a loose set of stops the nav app re-routes between however it likes. Two problems sit between a planned route and a faithful hand-off, and this milestone solves both together:
+**Goal.** Give a nav app only your stops and it picks its own roads between them—often not the ones you meant. **Expand** fixes that: it densifies the route with extra shaping waypoints sampled along the planned geometry, pinning whatever you hand it to onto your roads. This is MyRouteApp's "Expand," the owner's favorite feature there—a 10–20-point route expanded to 30+ points to stay on track. It is provider-agnostic and improves *every* hand-off: the Google Maps links (item 5) and the Garmin/TomTom file exports (item 3) alike.
 
-- **Side-quests.** Give a nav app only your stops and it picks its own roads between them—often not the ones you meant. **Expand** fixes this: it densifies the route with extra shaping waypoints sampled along the planned geometry, pinning the nav app to your roads. This is MyRouteApp's "Expand," the owner's favorite feature there—a 10–20-point route is expanded to 30+ points to stay on track.
-- **The waypoint cap.** Google Maps takes only ~10 points per URL, so an expanded route is split into an ordered series of links. This is the direct answer to the vision's first pain point, that Google My Maps caps at ~10 waypoints.
-
-**Work—Expand.**
+**Work.**
 
 - [ ] Densify a route by sampling extra shaping waypoints along the stored leg geometry (`route_legs.geometry` already holds the full, 6-decimal, road-snapped polyline), so a hand-off follows the planned roads instead of the nav app's own guess between distant stops.
 - [ ] Rider-controllable density—a target point count or spacing. The owner's habit: expand a 10–20-point route to at least 30.
 - [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—TankBag's own viewer renders the exact path already, so Expand matters only when leaving the app.
 - [ ] Refinement: bias added points toward junctions and decision points, where a nav app is most likely to diverge, rather than purely even spacing.
+- [ ] Expand-added points are shaping points, not stops: written as Garmin/TomTom _shaping_ points in the file exports (item 3) and counted as plain waypoints in the Google Maps links (item 5).
 
-**Work—batched Google Maps links.**
+**Touches.** new `src/maps/expand.ts` (densify over leg geometry), `route_legs.geometry` as the source, the export path (item 3) and the Google Maps link builder (item 5).
 
-- [ ] Serialize a route's ordered points (after Expand) into Google Maps directions URLs—the `https://www.google.com/maps/dir/?api=1&…` form, or the `/maps/dir/lat,lng/lat,lng/…` path form.
-- [ ] **Every point is a plain Google Maps waypoint.** Waypoint, POI, stop and Expand-added points all collapse to the same thing here: Google Maps does not differentiate the kinds and cannot attach a duration to a stop, so all of them count equally toward the batches. The kind and duration distinction only matters for the file exports (items 3 and 8), where GPX and KML can carry it—and where Expand-added points should be written as Garmin/TomTom _shaping_ points, not stops.
+**Status.** planned—priority one. Expand is the workaround the whole vision is built around, and every hand-off depends on it.
+
+### 5. One-tap Google Maps links
+
+**Goal.** Hand a rider the exact route they planned, ready to navigate in Google Maps, instead of a loose set of stops it re-routes between however it likes. Google Maps takes only ~10 points per URL, so a route—especially an Expanded one—is serialized into an ordered series of links. This is the direct answer to the vision's first pain point, that Google My Maps caps at ~10 waypoints.
+
+**Work.**
+
+- [ ] Serialize a route's ordered points (after Expand, item 4) into Google Maps directions URLs—the `https://www.google.com/maps/dir/?api=1&…` form, or the `/maps/dir/lat,lng/lat,lng/…` path form.
+- [ ] **Every point is a plain Google Maps waypoint.** Waypoint, POI, stop and Expand-added points all collapse to the same thing here: Google Maps does not differentiate the kinds and cannot attach a duration to a stop, so all of them count equally toward the batches. The kind and duration distinction only matters for the file exports (items 3 and 9), where GPX and KML can carry it.
 - [ ] **Batch at no more than 10 points per URL.** Expand multiplies the point count, so it multiplies the links: a 30-point route is at least three of them; a 28-point route without expansion is 10, then 10, then 8.
 - [ ] **Never batch across a route boundary.** Batching resets at each route end, so a route's final link is short rather than topped up with the opening points of the next route. Each route (day/session) is chunked independently.
 - [ ] A share surface that lists the links per route and batch—e.g. "Day 2 · part 1 of 3"—copyable and sendable to riders.
@@ -136,11 +142,11 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - **Batch continuity.** A clean partition (10 + 10 + 8) leaves a gap between links: the segment from point 10 to point 11 sits in no URL. Overlapping each batch by one point (…9, 10 │ 10, 11…) closes the gap at the cost of one point per link. Decide which, and make the choice obvious in the UI.
 - **Coordinate order.** Google Maps URLs want `lat,lng`; the app stores `[lng, lat]`. Reuse the existing conversion discipline (`toLatLng` / `fromLatLng`), never a fresh inline swap.
 
-**Touches.** new `src/maps/expand.ts` (densify over leg geometry) and `src/maps/gmaps-links.ts` (link builder), `route_legs.geometry` as the source, `public/js/viewer.js` and the share UI, possibly a small share endpoint under `src/routes/`.
+**Touches.** new `src/maps/gmaps-links.ts` (link builder), `route_legs.geometry` and Expand (item 4) as the source, `public/js/viewer.js` and the share UI, possibly a small share endpoint under `src/routes/`.
 
-**Status.** planned—high value; Expand plus batching is the workaround the whole vision is built around.
+**Status.** planned—priority one, paired with Expand (item 4); together they are the hand-off the whole vision is built around.
 
-### 5. Saved places
+### 6. Saved places
 
 **Goal.** A rider's reusable library of locations (home, favorite fuel stops, meet points) they can drop into any ride.
 
@@ -154,7 +160,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** planned—designed in `_PLANS/sprint-01-260725T2320Z.md` Phase B, cut from Sprint 2 for size.
 
-### 6. Bikes and range planning
+### 7. Bikes and range planning
 
 **Goal.** Model bikes and riders so the app can reason about range and comfort, per the original vision.
 
@@ -168,7 +174,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** planned.
 
-### 7. Riders and group rides
+### 8. Riders and group rides
 
 **Goal.** Turn a solo planning tool into a group one.
 
@@ -183,7 +189,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** planned. The admin panel is the first slice of this and is already shipped.
 
-### 8. Import and export breadth
+### 9. Import and export breadth
 
 **Goal.** Handle as many open route/map formats as possible, in both directions.
 
@@ -201,7 +207,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
 
-### 9. Discovery and public profiles
+### 10. Discovery and public profiles
 
 **Goal.** Make good public rides findable and give riders a public identity.
 
@@ -215,7 +221,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** done on `feat/legal-and-faq-pages`, closing #14 and #26. What a public surface may show is stated once in `pages.ts` rather than decided per template: username, display name and public rides are shown; last name is opt-in; first name, email, address, coordinates and payment handles never. Clone drops descriptions and times and lands private. See docs/STATUS.md for the Hono routing gotcha that makes `/@username` work.
 
-### 10. Rich stop details
+### 11. Rich stop details
 
 **Goal.** Let a stop hold everything a rider actually needs when they arrive—reservations, confirmation numbers, gate and door codes, check-in / check-out times, links, and freeform notes—not just a name and a category.
 
@@ -231,7 +237,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** planned.
 
-### 11. Quality and platform
+### 12. Quality and platform
 
 **Goal.** The groundwork that keeps a growing, multi-contributor codebase honest.
 
@@ -247,6 +253,75 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 **Touches.** repo-wide; new `test/`, `.github/workflows/`.
 
 **Status.** planned—pick these up alongside feature work, not in a big bang.
+
+### 13. Rider Subgroups: converging and splitting group rides
+
+**Goal.** Model a group ride the way it actually happens: riders, organized into **Rider Subgroups**, set off from different places, converge at one or more meeting points, ride the middle as one group, then split back into subgroups at the end to head home in different directions. A Rider Subgroup is a named set of riders sharing an approach—the Oakland contingent, the Sacramento contingent—and it is the primitive the whole feature is built on. Each person gets one continuous plan of their own—their origin, the pickups along the way, the shared middle, their route home—while the planner sees the whole converging-and-diverging shape on one map. The worked example: a Sierras ride where people leave from Santa Cruz, San Jose, San Francisco, Oakland and Sacramento, join at meeting points along the way, ride the rest as one pack, and reverse the process going home.
+
+**Work.**
+
+- [ ] Make **Rider Subgroup** a first-class thing: a named set of riders sharing an approach. Assign subgroups to legs, so a leg carries the subgroups on it. A stop where the set of subgroups changes is a **meeting point** (subgroups merge) or a **split** (a subgroup peels off)—the `meet` and `split` roles already exist in the taxonomy and become structural here rather than decorative.
+- [ ] Support multiple feeder approaches converging at **one or more** meeting points, possibly in stages: SF and Santa Cruz merge in San Jose, then that combined group meets the Oakland contingent in Dublin. Each feeder is a geographically distinct line ending at its meeting point; from there the merged group rides on as one shared leg. The same structure runs in reverse on the way home, splitting progressively.
+- [ ] Generate each rider's personal itinerary from the legs they're on—their start point, their pickups, the shared trunk, their way back—so no rider has to mentally subtract the legs that aren't theirs.
+- [ ] Per-rider hand-off: Expand (item 4), the Google Maps links (item 5) and the file exports (items 3, 9) produce a rider-specific file—mine starts in Oakland, Dylan's starts in Sacramento—not one file for an abstract whole-group route nobody actually rides end to end.
+- [ ] Show it on one map: distinct approach lines converging on the meeting points, the shared trunk drawn once, and a way to focus a single rider's path (reuse the route-dim mechanism the day slider and legend hover already use).
+
+**Open questions to settle when building.**
+
+- **Model.** Two shapes are viable and the choice is load-bearing. Either each approach and dispersal is its own Route within the Ride (leans on the existing rides-hold-many-routes model; a meeting point is a stop shared between a feeder's end and the trunk's start), or legs carry participant membership directly and a rider's route is the ordered set of legs they are on (matches "assign people to legs" literally, but needs branching geometry within a single route). Decide before building—it changes the schema and every downstream view.
+- **Timing.** Convergence is a time problem too: two groups have to reach Dublin near enough the same moment. The timeline (item 2) already models per-leg spans; a meeting point wants an arrival window and a warning when approaches do not line up.
+- **Who edits.** Does each subgroup's lead plan their own approach, or does the ride leader plan all of them? Ties to collaborative editing in the backlog.
+
+**Touches.** `src/db/schema.ts` (participant/leg assignment, or feeder-route structure), new or extended routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `src/maps/expand.ts` and the export path (per-rider hand-off), `src/maps/roles.ts` (`meet` / `split` become structural).
+
+**Status.** planned—extends item 8 (riders and group rides), which is its prerequisite: there have to be riders before they can be assigned to legs.
+
+### 14. Alternate routes and group voting
+
+**Goal.** Let a ride carry more than one candidate for a stretch—"over the pass" versus "the valley road"—and let the group vote them up or down, so the plan reflects what most people actually want to ride rather than whatever the organizer picked alone.
+
+**Work.**
+
+- [ ] An **alternate** is a first-class thing: two or more candidate paths that share a start and end anchor and diverge between them. Exactly one is the **active** path at a time; the others ride along as recorded options rather than being thrown away.
+- [ ] Up/down voting on each alternate—one vote per ride member, changeable until the decision closes—with a live tally.
+- [ ] A resolution step: the ride leader promotes the winning alternate to the active path, or opts into auto-resolve by tally at a deadline. A losing alternate is kept, so a reversed decision doesn't lose the work.
+- [ ] Voting is scoped to invited ride members, never the public share link, and writes on a member's behalf so it needs the same abuse guardrails as any write.
+- [ ] Draw alternates distinctly—active path solid, alternates ghosted—and let a voter see each option on the map before voting. Reuse the route-dim / hover machinery.
+- [ ] Timeline and roadbook show the **active** path only; alternates never clutter the hand-off.
+
+**Open questions to settle when building.**
+
+- **Granularity.** Segment-level (a fork between two stops), day/route-level (a whole alternate day), or both? Segment-level matches the "this way or that" pitch; route-level is simpler and reuses the rides-hold-many-routes model. It changes the schema.
+- **Who proposes.** Only the ride leader, or any member? Any-member turns this into lightweight collaborative editing (backlog) and needs guardrails.
+- **Resolution rules.** Simple majority, quorum, deadline, tie-breaking, and whether the leader can override the vote. Settle the governance before building the buttons.
+- **Anonymous vs. named votes.** Named votes create social pressure; anonymous is cleaner but hides who wants what.
+
+**Touches.** `src/db/schema.ts` (alternates + votes), new routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js` (ghosted alternates), the timeline and roadbook (active path only).
+
+**Status.** planned—a group-collaboration feature; depends on riders (item 8) and overlaps the collaborative-editing backlog item.
+
+### 15. On-the-road mobile interface
+
+**Goal.** A phone-sized, glove-friendly view of a ride for use in the saddle—big buttons, high contrast, no clutter—that does two things well: send the ride's files to whatever the rider navigates with, and step through a route's Google Maps legs one batch at a time. This is a **consumption** surface, not a planning one (planning stays a big-screen job), and it is the digital counterpart to the printed roadbook.
+
+**Work.**
+
+- [ ] A mobile layout for a ride: large tap targets, high contrast for sunlight, minimal chrome, usable one-handed. Reachable from any ride under the same visibility gate as the viewer—no account needed for a public or unlisted one.
+- [ ] **The Google Maps leg-loader (the headline).** List every 10-point batch from item 5 as a big button—"Day 2 · part 2 of 4"—that opens the Google Maps app on tap. Highlight the current batch, mark the finished ones, and make loading the next a single obvious tap the moment the last one ends. Remember progress per device (localStorage; no account required).
+- [ ] **Send files to the device.** Offer the ride's exports (GPX, KML, …) through the phone's native share sheet / "open in"—the Web Share API with files where supported, a plain download otherwise—so a file lands in Garmin Drive, TomTom, or wherever the rider's app picks it up.
+- [ ] Usable on spotty signal: once loaded, the leg-loader and its links should work without a connection, since the whole point is loading the next leg in the middle of nowhere. Leans on the PWA/offline groundwork in item 12.
+- [ ] Fold in the roadbook data (stop order, leg and cumulative miles, miles since fuel, dwell) as an at-a-glance list, so the mobile page is the roadbook and the live hand-off in one.
+
+**Open questions to settle when building.**
+
+- **Where it lives.** A dedicated mobile route (e.g. `/m/:slug/go`) versus a responsive mode of the existing viewer. A separate, purpose-built page is probably cleaner than bending the map viewer to a glove.
+- **Offline mechanism.** A full PWA (installable, service worker) versus a lighter localStorage cache of just the links and roadbook. Decide alongside item 12.
+- **Batch boundary.** Whether the "next" button pre-fills the next batch's start with the previous batch's end so the rider isn't dropped between links (ties to item 5's batch-continuity question).
+- **Web Share reach.** File sharing via `navigator.share` is uneven across iOS/Android browsers; define the plain-download fallback and what "send to device" means where the share sheet can't take a file.
+
+**Touches.** new mobile route under `src/routes/` (a JSX page) plus a small `public/js/` controller, `src/maps/gmaps-links.ts` (item 5) and `src/maps/export.ts` as the data sources, the roadbook data, SCSS for the mobile layout, and the PWA groundwork in item 12.
+
+**Status.** planned—depends on one-tap Google Maps links (item 5) for the leg-loader and on export (largely shipped) for file sending; overlaps the PWA/offline item (item 12).
 
 <!--| PAGE-BREAK -->
 
