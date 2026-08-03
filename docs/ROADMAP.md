@@ -191,14 +191,14 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 - [ ] **Native TankBag JSON export/import**—expose the existing save=load ride payload for lossless backup and round-trip. Nearly free, since the shape already exists, and it is the only format that preserves point kind and stop duration exactly (everything else flattens them—see item 4).
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the *decompressed* size.
-- [ ] Import CSV.
+- [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
 - [ ] Export GPX flavors that load cleanly on Garmin and other devices.
 - [ ] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** in progress—KMZ and GeoJSON landed 2026-08-03. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
+**Status.** in progress—KMZ, GeoJSON and CSV landed 2026-08-03. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
 
 ### 9. Discovery and public profiles
 

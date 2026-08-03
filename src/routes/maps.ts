@@ -29,6 +29,7 @@ import {
   validateGpx,
   type ExtractedRoute,
 } from '../maps/kml'
+import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { generateSlug } from '../maps/slug'
@@ -177,6 +178,12 @@ mapsRoutes.post(
         extracted = processGeoJson(await upload.text())
         storedExt = null
         storedBuf = null
+      } else if (ext === 'csv') {
+        // Stops and nothing else — no track, so no legs, no mileage and no
+        // twistiness. The ride gets its line when it is routed in the builder.
+        extracted = processCsv(await upload.text())
+        storedExt = null
+        storedBuf = null
       } else if (ext === 'gpx') {
         const text = await upload.text()
         extracted = processGpx(text)
@@ -214,7 +221,15 @@ mapsRoutes.post(
     const incoming = (storedBuf?.byteLength ?? 0) + (storedExt === 'kml' ? (gpxBuf?.byteLength ?? 0) : 0)
     const distM = Math.round(extracted.trackMeters)
     const totalMiles = (extracted.trackMeters / METERS_PER_MILE).toFixed(1)
-    const stopDists = distFromStartAlongTrack(extracted.track, extracted.points)
+    // With no track to project onto, distFromStartAlongTrack answers 0 for
+    // every point. That is a claim — "this stop is at the start" — and it is
+    // false for all but the first. A trackless import stores null instead,
+    // which is the same null-is-not-zero distinction twistiness makes: null
+    // means nothing measured it, 0 means it measured zero.
+    const stopDists: Array<number | null> =
+      extracted.track.length > 0
+        ? distFromStartAlongTrack(extracted.track, extracted.points)
+        : extracted.points.map(() => null)
 
     // Quota + inserts + file writes in one transaction: the quota row is
     // locked (FOR UPDATE) so concurrent imports cannot both squeeze under the

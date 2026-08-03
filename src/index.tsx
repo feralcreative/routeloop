@@ -17,7 +17,7 @@ import {
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { ROLE_META } from './maps/roles'
-import { buildGeoJson, loadRideForExport } from './maps/export'
+import { buildCsv, buildGeoJson, loadRideForExport } from './maps/export'
 import { mapFilePath } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -254,6 +254,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     kmlUrl: isImported && m.kmlBytes > 0 ? `/api/public/maps/${m.slug}/kml` : null,
     gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
+    csvUrl: `/api/public/maps/${m.slug}/csv`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })
@@ -291,6 +292,26 @@ app.get('/api/public/maps/:slug/geojson', async (c) => {
     headers['Content-Disposition'] = `attachment; filename="${safe}.geojson"`
   }
   return new Response(buildGeoJson(ride), { headers })
+})
+
+// The stop list on its own, for a spreadsheet. text/csv rather than
+// application/octet-stream so it opens where riders expect, and nosniff so it
+// cannot be talked into rendering as anything else.
+app.get('/api/public/maps/:slug/csv', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m) return c.text('Not found', 404)
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
+    headers['Content-Disposition'] = `attachment; filename="${safe}.csv"`
+  }
+  return new Response(buildCsv(ride), { headers })
 })
 
 async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {

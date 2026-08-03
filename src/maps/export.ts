@@ -163,3 +163,51 @@ export function buildGeoJson(ride: ExportRide): string {
     features,
   })
 }
+
+// --- CSV -------------------------------------------------------------------
+
+// The stop list, and only the stop list. A CSV cannot hold a track, so this is
+// lossy by construction and says so by omission rather than by writing a
+// straight line between stops and calling it a route.
+//
+// Quoting is RFC 4180: a field is quoted when it contains the delimiter, a
+// quote or a newline, and a quote inside becomes two. csv.ts parses the same
+// grammar, so a file written here reads back exactly.
+const csvCell = (v: string | number | null | undefined): string => {
+  if (v == null) return ''
+  const s = String(v)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+const CSV_HEADER = ['day', 'kind', 'name', 'lat', 'lng', 'roles', 'durationMin', 'description', 'distFromStartMi']
+
+export function buildCsv(ride: ExportRide): string {
+  const lines = [CSV_HEADER.join(',')]
+
+  ride.routes.forEach((r, i) => {
+    for (const p of r.points) {
+      lines.push(
+        [
+          i + 1,
+          p.kind,
+          // Unprefixed here, with roles in their own column: a spreadsheet has
+          // somewhere to put them, unlike a KML <name>. The importer reads
+          // either, so a file edited by hand into the prefixed form still works.
+          p.name,
+          p.lat,
+          p.lng,
+          p.roles.join('/'),
+          p.durationMin,
+          p.description,
+          mi(p.distFromStartM),
+        ]
+          .map(csvCell)
+          .join(','),
+      )
+    }
+  })
+
+  // CRLF: the line ending RFC 4180 specifies, and the one Excel needs to not
+  // treat the whole file as a single row.
+  return lines.join('\r\n') + '\r\n'
+}

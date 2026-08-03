@@ -18,6 +18,9 @@ export const GPX_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 // carries overlays and imagery that get skipped; the KML pulled out of it is
 // still held to KML_MAX_BYTES, measured after decompression. See kmz.ts.
 export const KMZ_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+// A stop list, not a track — 200 stops of text does not reach a megabyte, and
+// anything much larger is not a stop list. See csv.ts.
+export const CSV_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
 // GeoJSON spends more bytes per coordinate than KML does (brackets, commas and
 // full precision rather than a packed string), so the same route is a larger
 // file. See geojson.ts.
@@ -29,7 +32,7 @@ export class RouteFileError extends Error {}
 // The formats the import pipeline accepts, stated once. The import page builds
 // its `accept` attribute and its copy from this, and the upload handler gates
 // on it, so the form cannot offer something the server refuses.
-export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx', 'geojson', 'json'] as const
+export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx', 'geojson', 'json', 'csv'] as const
 export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
 export const isSupportedFormat = (ext: string): ext is SupportedFormat =>
   (SUPPORTED_FORMATS as readonly string[]).includes(ext)
@@ -45,6 +48,7 @@ export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string;
   // Same parser, different extension. Plenty of tools save GeoJSON as .json and
   // making a rider rename the file to get it accepted would be theatre.
   json: { label: 'JSON', note: 'GeoJSON saved under the plainer extension', maxBytes: GEOJSON_MAX_BYTES },
+  csv: { label: 'CSV', note: 'A list of stops from a spreadsheet—no route line', maxBytes: CSV_MAX_BYTES },
 }
 
 // A [lng, lat] polyline — the storage/GeoJSON axis order.
