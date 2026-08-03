@@ -43,6 +43,7 @@ Delivered in phases:
 - **Share**—public, unlisted, or private visibility, shareable by link.
 - **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
 - **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as TankBag JSON for a lossless backup that re-imports as the same ride.
+- **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
 

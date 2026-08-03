@@ -16,6 +16,9 @@ const ride: ExportRide = {
       title: 'Day 1',
       color: '#cc0000',
       distanceM: 1000,
+      durationS: 0,
+      startAt: null,
+      endAt: null,
       twistinessDpm: 214,
       twistinessBestDpm: 340,
       track: [

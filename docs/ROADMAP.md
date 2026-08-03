@@ -258,7 +258,7 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 
 - Elevation and grade profile per route, drawn under the timeline.
 - Weather forecast along the route keyed to each leg's date-time—the timeline makes this genuinely useful, not a gimmick.
-- Print-friendly roadbook / turn-by-turn cue sheet for riders who tape it to the tank.
+- [x] Print-friendly roadbook for riders who tape it to the tank—`/m/:slug/roadbook`. **Stop-by-stop, not turn-by-turn:** `route_legs` holds geometry, distance and duration and nothing else, maneuvers are a separate Directions field priced per call, and they would be blank for every imported ride anyway. What it does print is the part that stays true when a road closes: stops in order, leg and cumulative miles, **miles since fuel**, planned dwell, and an estimated clock when the day has a start time.
 - Reverse a route; duplicate a ride as a template.
 - Distance and moving-time estimates with configurable rest cadence.
 

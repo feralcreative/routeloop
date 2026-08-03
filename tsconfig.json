@@ -22,5 +22,9 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
   },
-  "include": ["src"]
+  // `test` is included on purpose. Without it `tsc --noEmit` reports a clean
+  // tree while the fixtures have drifted out of the types they claim to be —
+  // vitest transpiles without type-checking, so nothing else would catch it.
+  // That was true until 2026-08-03 and it was hiding real drift.
+  "include": ["src", "test"]
 }

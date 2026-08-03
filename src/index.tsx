@@ -36,6 +36,7 @@ import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { importRoutes } from './routes/import'
+import { roadbookRoutes } from './routes/roadbook'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -104,6 +105,7 @@ app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', importRoutes)
+app.route('/', roadbookRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
@@ -265,6 +267,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     csvUrl: `/api/public/maps/${m.slug}/csv`,
     // The only lossless one — days, colours, times and via points survive it.
     nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
+    // A page, not a file: the printable stop-by-stop sheet.
+    roadbookUrl: `/m/${m.slug}/roadbook`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })

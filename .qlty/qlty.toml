@@ -106,12 +106,24 @@ mode = "comment"
 name = "hadolint"
 mode = "comment"
 
-# Formatting, from the repo's own .prettierrc — including the overrides that
-# keep public/js on double quotes and semicolons. `qlty fmt` applies it; this
-# only reports, because reformatting on someone's behalf mid-review is rude.
+# Formatting. Reports only — reformatting on someone's behalf mid-review is
+# rude, and the house rule is that lint issues get fixed in code.
+#
+# **SCSS is excluded and that is not laziness.** Qlty does not read the repo's
+# .prettierrc (nor a copy in .qlty/configs/, nor a `config_files` entry — all
+# three were tried on 2026-08-03), so it formats with its own defaults. The one
+# that matters is `singleQuote`, which .prettierrc explicitly turns *off* for
+# SCSS: this repo writes `@use "tokens"`. Left on, qlty flagged 13 of the 14
+# SCSS files purely over quote style, disagreeing with the project's own config
+# and with `npx prettier` — 13 findings that were all wrong. SCSS is still
+# formatted, by prettier, using the config at the repo root.
 [[plugin]]
 name = "prettier"
 mode = "comment"
+
+[[exclude]]
+plugins = ["prettier"]
+file_patterns = ["**/*.scss"]
 
 # Markdown. The docs here are long-form and load-bearing, and the house rules
 # (no hard-wrapped prose, tight em dashes) are enforced separately by

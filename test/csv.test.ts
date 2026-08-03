@@ -152,6 +152,9 @@ describe('buildCsv → processCsv round-trip', () => {
         title: 'Day 1',
         color: '#cc0000',
         distanceM: 16000,
+        durationS: 0,
+        startAt: null,
+        endAt: null,
         twistinessDpm: 214,
         twistinessBestDpm: 340,
         track: [

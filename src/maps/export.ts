@@ -32,6 +32,12 @@ export type ExportRoute = {
   title: string | null
   color: string
   distanceM: number
+  // Riding seconds, summed from the legs. 0 for a leg the router never answered
+  // for, the same as everywhere else — a consumer wanting a time for one of
+  // those estimates it from distance rather than treating the day as shorter.
+  durationS: number
+  startAt: Date | null
+  endAt: Date | null
   twistinessDpm: number | null
   twistinessBestDpm: number | null
   track: Track
@@ -72,7 +78,7 @@ export async function loadRideForExport(
   for (const r of routeRows) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
     const legs = await db
-      .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM })
+      .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
       .where(eq(routeLegs.routeId, r.id))
       .orderBy(routeLegs.position)
@@ -81,6 +87,9 @@ export async function loadRideForExport(
       title: r.title,
       color: r.color,
       distanceM: r.distanceM,
+      durationS: legs.reduce((n, l) => n + l.durationS, 0),
+      startAt: r.startAt,
+      endAt: r.endAt,
       twistinessDpm: r.twistinessDpm,
       twistinessBestDpm: r.twistinessBestDpm,
       track: concatLegs(legs),

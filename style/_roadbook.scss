@@ -1,0 +1,218 @@
+@use "tokens" as *;
+@use "sass:color";
+
+// The printable roadbook. Two audiences: someone checking it on screen, and a
+// sheet of US Letter paper in a tank bag window at 60 mph. The paper one wins
+// every trade-off — bigger numbers, more contrast, no colour that costs ink to
+// say something a word already says.
+
+.roadbook-page {
+  .rb-head {
+    margin-bottom: 1.6rem;
+
+    h1 {
+      margin: 0 0 0.2rem;
+    }
+  }
+
+  .rb-summary {
+    margin: 0;
+    color: #555;
+    font-weight: 700;
+  }
+
+  .rb-note {
+    margin: 0.5rem 0 0;
+    color: #555;
+  }
+
+  .rb-caveat {
+    margin: 0.7rem 0 0;
+    color: #666;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  .rb-day {
+    margin: 0 0 2rem;
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0 0.15rem;
+      font-size: 1.15rem;
+    }
+  }
+
+  .rb-day-swatch {
+    display: inline-block;
+    width: 0.85em;
+    height: 0.85em;
+    border-radius: 3px;
+  }
+
+  .rb-day-meta {
+    margin: 0 0 0.6rem;
+    color: #555;
+    font-size: 0.9rem;
+  }
+
+  .rb-empty {
+    margin: 0;
+    color: #777;
+    font-style: italic;
+  }
+
+  .rb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+
+    th,
+    td {
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid $grey;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      border-bottom-width: 2px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #555;
+    }
+  }
+
+  // Mileages are read by scanning down a column, so they line up and share a
+  // digit width. Nothing else in the app needs tabular figures this badly.
+  .rb-num {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rb-n {
+    width: 1%;
+    text-align: right;
+    color: #777;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // A POI is not a stop and must not read as one at a glance — it is a thing
+  // worth seeing, not a place the day is planned around.
+  .rb-poi {
+    color: #555;
+
+    .rb-name {
+      font-weight: 400;
+      font-style: italic;
+    }
+  }
+
+  .rb-name {
+    display: block;
+    font-weight: 700;
+  }
+
+  .rb-roles {
+    display: block;
+    color: #666;
+    font-size: 0.8rem;
+  }
+
+  .rb-desc {
+    display: block;
+    margin-top: 0.15rem;
+    color: #444;
+    font-size: 0.82rem;
+  }
+
+  .rb-print {
+    margin: 2rem 0 0;
+    display: flex;
+    gap: 0.6rem;
+  }
+}
+
+//@ Print — US Letter, which is what docs/ targets everywhere else
+@media print {
+  .roadbook-page {
+    // Chrome is for navigating; paper has nothing to navigate to.
+    .site-header,
+    .site-footer,
+    .no-print {
+      display: none !important;
+    }
+
+    // Reading-width margins are a screen concern. On paper the printer's own
+    // margin is the margin.
+    .page-wrap {
+      max-width: none;
+      padding: 0;
+    }
+
+    background: #fff;
+    color: #000;
+    font-size: 10.5pt;
+
+    // A day split across a page boundary is the one thing that makes this
+    // sheet useless — you are looking for stop 6 and it is on the other side.
+    .rb-day {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      margin-bottom: 1.2rem;
+    }
+
+    .rb-table {
+      font-size: 9.5pt;
+
+      // Repeat the header when a long day does have to break.
+      thead {
+        display: table-header-group;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      th,
+      td {
+        border-bottom-color: #999;
+      }
+
+      th {
+        color: #000;
+      }
+    }
+
+    // Ink is expensive and grey is unreadable on a cheap printer.
+    .rb-summary,
+    .rb-note,
+    .rb-day-meta,
+    .rb-roles,
+    .rb-desc,
+    .rb-n,
+    .rb-poi {
+      color: #000;
+    }
+
+    .rb-caveat {
+      color: #333;
+      font-size: 8.5pt;
+    }
+
+    // The swatch is the only colour worth spending: it is what matches a day on
+    // the sheet to the same day on the map. Forced, because browsers strip
+    // backgrounds when printing by default.
+    .rb-day-swatch {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      border: 1px solid #000;
+    }
+  }
+}

@@ -239,6 +239,10 @@
     if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true));
     // Last and titled, because it is the one to pick for a backup: every other
     // format on this row loses something on the way back in.
+    // Not a download — a page you print. Separate from the file formats above
+    // because it answers a different question: not "give me this ride in
+    // another app" but "give me this ride on paper".
+    if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false));
     if (state.ride.nativeUrl) {
       dls.push(dlButton(state.ride.nativeUrl + "?dl", "TankBag", true, "Lossless \u2014 re-imports as the same ride"));
     }
