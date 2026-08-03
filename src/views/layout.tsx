@@ -51,7 +51,7 @@ export function googleMapsLoader(key: string): string {
 }
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'explore' | 'riders' | 'rides' | 'builder' | 'places' | 'profile' | 'admin'
+export type NavKey = 'home' | 'explore' | 'riders' | 'rides' | 'builder' | 'import' | 'places' | 'profile' | 'admin'
 
 export type PageOpts = {
   /** Without the " — TankBag" suffix; page() appends it. */
@@ -86,6 +86,7 @@ const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'explore', href: '/explore', label: 'Explore' },
   { key: 'riders', href: '/riders', label: 'Riders' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
+  { key: 'import', href: '/import', label: 'Import a route' },
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
   { key: 'profile', href: '/profile', label: 'Your profile' },
 ]

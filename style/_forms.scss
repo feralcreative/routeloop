@@ -33,6 +33,50 @@
   }
 }
 
+// The import form. Same field styling as the profile, but no fieldsets — it is
+// four controls, and boxing them would imply groupings that are not there.
+.import-form {
+  max-width: 560px;
+
+  // A file input is the one control browsers style entirely their own way, so
+  // this only sets the box around it and leaves the button alone.
+  input[type="file"] {
+    width: 100%;
+    padding: 0.6rem;
+    background: $white;
+    border: 1px dashed $grey;
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:hover {
+      border-color: $url;
+    }
+  }
+
+  // What each format is and where it comes from. Quiet, under the file input,
+  // because it answers "will mine work?" without being asked.
+  .field-formats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: -0.6rem 0 1.1rem;
+    color: #777;
+    font-size: 0.85rem;
+
+    strong {
+      display: inline-block;
+      min-width: 3.2em;
+      color: $text;
+    }
+  }
+
+  // Turnstile renders a fixed-size iframe; give it room without it colliding
+  // with the submit button.
+  .cf-turnstile {
+    margin: 0 0 1.1rem;
+  }
+}
+
 .field {
   margin: 0 0 1.1rem;
 
