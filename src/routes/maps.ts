@@ -21,9 +21,13 @@ import {
   KML_MAX_BYTES,
   METERS_PER_MILE,
   distFromStartAlongTrack,
+  isSupportedFormat,
+  processGpx,
   processKml,
+  SUPPORTED_FORMATS,
   RouteFileError,
   validateGpx,
+  type ExtractedRoute,
 } from '../maps/kml'
 import { generateSlug } from '../maps/slug'
 import { twistiness } from '../maps/twist'
@@ -117,38 +121,68 @@ mapsRoutes.post(
     const meta = parsed.data
 
     // `route` is the field the import page posts, and the name every format
-    // will arrive under. `kml` is still read so anything already posting to this
+    // arrives under. `kml` is still read so anything already posting to this
     // endpoint keeps working — the two are the same field, differently named.
-    const kmlFile = body.route instanceof File && body.route.size > 0 ? body.route : body.kml
-    if (!(kmlFile instanceof File) || kmlFile.size === 0) return fail('a route file is required', 400)
-    if (!/\.kml$/i.test(kmlFile.name)) return fail('route file must be a .kml', 400)
-    if (kmlFile.size > KML_MAX_BYTES) return fail(`KML exceeds ${KML_MAX_BYTES / MB} MB`, 413)
+    const upload = body.route instanceof File && body.route.size > 0 ? body.route : body.kml
+    if (!(upload instanceof File) || upload.size === 0) return fail('a route file is required', 400)
 
-    const gpxFile = body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
-    if (gpxFile) {
-      if (!/\.gpx$/i.test(gpxFile.name)) return fail('track file must be a .gpx', 400)
-      if (gpxFile.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
+    const ext = (upload.name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+    if (!isSupportedFormat(ext)) {
+      return fail(`unsupported file type "${ext || upload.name}" — accepted: ${SUPPORTED_FORMATS.join(', ')}`, 400)
+    }
+    const cap = ext === 'gpx' ? GPX_MAX_BYTES : KML_MAX_BYTES
+    if (upload.size > cap) return fail(`${ext.toUpperCase()} exceeds ${cap / MB} MB`, 413)
+
+    // A GPX may still arrive as a companion to a KML, which is what this
+    // endpoint accepted before it took anything but KML. In that case the KML
+    // is the route and the GPX is kept only so it can be downloaded again.
+    const companionGpx =
+      ext === 'kml' && body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
+    if (companionGpx) {
+      if (!/\.gpx$/i.test(companionGpx.name)) return fail('track file must be a .gpx', 400)
+      if (companionGpx.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
     }
 
     // Parse, sanitize, extract structure. A RouteFileError is the user's
     // problem (400); anything else is ours (500).
-    let kml
+    //
+    // Each branch yields the same ExtractedRoute, plus the bytes to keep. KML is
+    // stored re-serialized after sanitizing (processKml returns storedKml);
+    // GPX is stored as uploaded, which is what the companion path already did.
+    // Both stream back with an explicit non-HTML content type and nosniff, so
+    // neither can be coaxed into rendering.
+    let extracted: ExtractedRoute
+    let storedExt: 'kml' | 'gpx'
+    let storedBuf: Buffer
     let gpxBuf: Buffer | undefined
     try {
-      kml = processKml(await kmlFile.text())
-      if (gpxFile) {
-        validateGpx(await gpxFile.text())
-        gpxBuf = Buffer.from(await gpxFile.arrayBuffer())
+      if (ext === 'gpx') {
+        const text = await upload.text()
+        extracted = processGpx(text)
+        storedExt = 'gpx'
+        storedBuf = Buffer.from(await upload.arrayBuffer())
+        gpxBuf = storedBuf
+      } else {
+        const kml = processKml(await upload.text())
+        extracted = kml
+        storedExt = 'kml'
+        storedBuf = Buffer.from(kml.storedKml, 'utf8')
+        if (companionGpx) {
+          validateGpx(await companionGpx.text())
+          gpxBuf = Buffer.from(await companionGpx.arrayBuffer())
+        }
       }
     } catch (e) {
       if (e instanceof RouteFileError) return fail(e.message, 400)
       throw e
     }
-    const kmlBuf = Buffer.from(kml.storedKml, 'utf8')
-    const incoming = kmlBuf.byteLength + (gpxBuf?.byteLength ?? 0)
-    const distM = Math.round(kml.trackMeters)
-    const totalMiles = (kml.trackMeters / METERS_PER_MILE).toFixed(1)
-    const stopDists = distFromStartAlongTrack(kml.track, kml.points)
+
+    // A GPX-only import stores one file, so its bytes are counted once even
+    // though storedBuf and gpxBuf point at the same buffer.
+    const incoming = storedBuf.byteLength + (storedExt === 'kml' ? (gpxBuf?.byteLength ?? 0) : 0)
+    const distM = Math.round(extracted.trackMeters)
+    const totalMiles = (extracted.trackMeters / METERS_PER_MILE).toFixed(1)
+    const stopDists = distFromStartAlongTrack(extracted.track, extracted.points)
 
     // Quota + inserts + file writes in one transaction: the quota row is
     // locked (FOR UPDATE) so concurrent imports cannot both squeeze under the
@@ -174,17 +208,17 @@ mapsRoutes.post(
             source: 'imported',
             externalUrl: meta.external_url || null,
             gpxPresent: Boolean(gpxBuf),
-            kmlBytes: kmlBuf.byteLength,
-            gpxBytes: gpxBuf?.byteLength ?? 0,
+            kmlBytes: storedExt === 'kml' ? storedBuf.byteLength : 0,
+            gpxBytes: storedExt === 'gpx' ? storedBuf.byteLength : (gpxBuf?.byteLength ?? 0),
             totalMiles,
-            stopCount: kml.points.length,
+            stopCount: extracted.points.length,
           })
           .returning()
 
         // An imported ride never touches the router, so this is the only shape
         // information it will ever have — which is exactly why twistiness is
         // computed from geometry rather than from routing maneuvers.
-        const twist = twistiness(kml.track)
+        const twist = twistiness(extracted.track)
         const [route] = await tx
           .insert(routes)
           .values({
@@ -197,9 +231,9 @@ mapsRoutes.post(
           })
           .returning()
 
-        if (kml.points.length > 0) {
+        if (extracted.points.length > 0) {
           await tx.insert(points).values(
-            kml.points.map((p, i) => ({
+            extracted.points.map((p, i) => ({
               routeId: route.id,
               kind: 'stop' as const,
               position: i,
@@ -212,15 +246,15 @@ mapsRoutes.post(
             })),
           )
         }
-        if (kml.track.length > 0) {
+        if (extracted.track.length > 0) {
           await tx
             .insert(routeLegs)
-            .values({ routeId: route.id, position: 0, geometry: kml.track, distanceM: distM })
+            .values({ routeId: route.id, position: 0, geometry: extracted.track, distanceM: distM })
         }
 
         fileRideId = ride.id
-        await writeMapFile(user.id, ride.id, 'kml', kmlBuf)
-        if (gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
+        await writeMapFile(user.id, ride.id, storedExt, storedBuf)
+        if (storedExt === 'kml' && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
 
         await tx
           .update(usersTable)

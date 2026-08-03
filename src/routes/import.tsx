@@ -13,16 +13,16 @@ import { Hono } from 'hono'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { TURNSTILE_SITE_KEY, turnstileEnabled } from '../maps/turnstile'
-import { KML_MAX_BYTES } from '../maps/kml'
+import { FORMAT_INFO, GPX_MAX_BYTES, KML_MAX_BYTES, SUPPORTED_FORMATS } from '../maps/kml'
 
 export const importRoutes = new Hono<AuthEnv>()
 
 const MB = 1024 * 1024
 
-// What the pipeline accepts today. Extended as each format lands; the list is
-// here rather than inline so the copy and the `accept` attribute cannot drift
-// from each other.
-const FORMATS = [{ ext: '.kml', label: 'KML', note: 'Google Earth, My Maps, most planners' }]
+// Read from the pipeline rather than restated, so the form cannot offer a
+// format the server refuses — or omit one it accepts.
+const FORMATS = SUPPORTED_FORMATS.map((ext) => ({ ext, ...FORMAT_INFO[ext] }))
+const MAX_BYTES = Math.max(KML_MAX_BYTES, GPX_MAX_BYTES)
 
 importRoutes.get('/import', requireActive, (c) => {
   const user = currentUser(c)
@@ -58,11 +58,17 @@ importRoutes.get('/import', requireActive, (c) => {
                 name="route"
                 type="file"
                 required
-                accept={FORMATS.map((f) => f.ext).join(',')}
+                accept={FORMATS.map((f) => `.${f.ext}`).join(',')}
               />
-              <span class="field-hint">
-                {FORMATS.map((f) => `${f.label} (${f.ext})`).join(', ')} — up to {KML_MAX_BYTES / MB} MB.
-              </span>
+              <span class="field-hint">Up to {MAX_BYTES / MB} MB.</span>
+            </p>
+
+            <p class="field-formats">
+              {FORMATS.map((f) => (
+                <span class="format">
+                  <strong>.{f.ext}</strong> {f.note}
+                </span>
+              ))}
             </p>
 
             <p class="field">

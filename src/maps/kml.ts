@@ -18,6 +18,20 @@ export const GPX_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 // User-caused rejection (bad file), as opposed to a server fault.
 export class RouteFileError extends Error {}
 
+// The formats the import pipeline accepts, stated once. The import page builds
+// its `accept` attribute and its copy from this, and the upload handler gates
+// on it, so the form cannot offer something the server refuses.
+export const SUPPORTED_FORMATS = ['kml', 'gpx'] as const
+export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
+export const isSupportedFormat = (ext: string): ext is SupportedFormat =>
+  (SUPPORTED_FORMATS as readonly string[]).includes(ext)
+
+// What each one is called and where riders get them, for the import page.
+export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string }> = {
+  kml: { label: 'KML', note: 'Google Earth, My Maps, most planners' },
+  gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS' },
+}
+
 // A [lng, lat] polyline — the storage/GeoJSON axis order.
 export type Track = [number, number][]
 

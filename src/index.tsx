@@ -245,7 +245,10 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     description: m.description ?? '',
     source: m.source,
     totalMiles: Number(m.totalMiles),
-    kmlUrl: isImported ? `/api/public/maps/${m.slug}/kml` : null,
+    // Only offered when a KML was actually stored. A GPX-only import has none,
+    // and advertising the link would give the viewer a download button that
+    // 404s.
+    kmlUrl: isImported && m.kmlBytes > 0 ? `/api/public/maps/${m.slug}/kml` : null,
     gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
@@ -256,7 +259,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
 // Seam 2 + GPX: gated file streams from outside-the-web-root storage.
 app.get('/api/public/maps/:slug/kml', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m) return c.text('Not found', 404)
+  if (!m || m.kmlBytes === 0) return c.text('Not found', 404)
   return streamFile(c, m, 'kml', 'application/vnd.google-earth.kml+xml')
 })
 app.get('/api/public/maps/:slug/gpx', async (c) => {

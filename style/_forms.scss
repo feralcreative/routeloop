@@ -53,6 +53,23 @@
     }
   }
 
+  // What each format is and where it comes from. Quiet, under the file input,
+  // because it answers "will mine work?" without being asked.
+  .field-formats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: -0.6rem 0 1.1rem;
+    color: #777;
+    font-size: 0.85rem;
+
+    strong {
+      display: inline-block;
+      min-width: 3.2em;
+      color: $text;
+    }
+  }
+
   // Turnstile renders a fixed-size iframe; give it room without it colliding
   // with the submit button.
   .cf-turnstile {
