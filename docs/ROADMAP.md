@@ -71,7 +71,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
 - [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
 
-**Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.ts`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
+**Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.tsx`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
 **Status.** Done, bar one thing. Mapbox is retired, the two viewer shells are one, the legal pages shipped, the favicons were regenerated on 2026-07-31, and the GCP console work landed 2026-08-02 (quota caps applied, 23 unused Maps APIs disabled). The tracking issue #6 is closed; the single remaining item—removing the Cloudflare Access policy at the edge—moved to #58, because it is gated on a verified prod deploy and nothing in this repo will ever tick it.
 
@@ -85,7 +85,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] A timeline slider across the viewer and builder that maps a moment to the leg/section active then, dimming the rest without hiding anything.
 - [x] Sensible defaults: derive a route's duration from its legs, and seed each day's start from the previous day's end.
 
-**Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/rides.ts`, `src/index.ts` (the `ride.json` contract has to start carrying per-leg data—it currently flattens every leg into one track).
+**Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/rides.ts`, `src/index.tsx` (the `ride.json` contract has to start carrying per-leg data—it currently flattens every leg into one track).
 
 **Status.** done on `feat/trip-timeline-slider`, closing #7 and #19. Duration is derived as legs **plus** stop dwell, and deliberately kept separate from `routes.duration_s`, which caches riding time only. `ride.json` now carries per-leg spans—the viewer could not map a moment to a leg without them. The time model is shared by both clients in `public/js/ride-time.js` so they cannot disagree. See docs/STATUS.md for the rest, including the two properties of leg spans that real data will break a naive assumption about.
 
@@ -225,7 +225,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [ ] Builder UI to edit the details; viewer UI to show them in the stop's info window / panel.
 - [ ] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 
-**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/rides.ts` (payload + sanitize), `public/js/builder.js`, `public/js/viewer.js`, `src/index.ts` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
+**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/rides.ts` (payload + sanitize), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
 
 **Status.** planned.
 
