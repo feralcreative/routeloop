@@ -99,7 +99,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [ ] Persist the pulled points into `route_legs.via_points` (the column already round-trips through the API). On drop, re-request only the affected leg through `POST /api/route` with the new via list; the anchor stops stay fixed.
 - [ ] Via-points are themselves draggable and removable after creation, and render distinctly from stops and POIs—smaller and clearly ephemeral—so the routing anchors stay legible.
 - [ ] Moving or reordering a stop invalidates that leg's shaping and clears its via-points (already the builder's behavior); keep that so a stale shaping point can't fight a new route.
-- [ ] `src/maps/export.ts`—build KML and GPX from stored rows.
+- [x] `src/maps/export.ts`—generate KML, GPX, GeoJSON and CSV from stored rows, and make `/kml` and `/gpx` source-aware: an imported ride streams its stored original (byte-for-byte, which is why the file is kept) and everything else is generated. A native ride can be downloaded as any of the four for the first time.
 - [ ] Source-aware `/kml` and `/gpx` endpoints that serve native rides from the database and imported rides from their original file.
 - [ ] Round-trip the `ROLE - Name` convention on export so files reopen correctly in Google Earth and elsewhere.
 
@@ -126,7 +126,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 **Work—batched Google Maps links.**
 
 - [ ] Serialize a route's ordered points (after Expand) into Google Maps directions URLs—the `https://www.google.com/maps/dir/?api=1&…` form, or the `/maps/dir/lat,lng/lat,lng/…` path form.
-- [ ] **Every point is a plain Google Maps waypoint.** Waypoint, POI, stop and Expand-added points all collapse to the same thing here: Google Maps does not differentiate the kinds and cannot attach a duration to a stop, so all of them count equally toward the batches. The kind and duration distinction only matters for the file exports (items 3 and 8), where GPX and KML can carry it—and where Expand-added points should be written as Garmin/TomTom *shaping* points, not stops.
+- [ ] **Every point is a plain Google Maps waypoint.** Waypoint, POI, stop and Expand-added points all collapse to the same thing here: Google Maps does not differentiate the kinds and cannot attach a duration to a stop, so all of them count equally toward the batches. The kind and duration distinction only matters for the file exports (items 3 and 8), where GPX and KML can carry it—and where Expand-added points should be written as Garmin/TomTom _shaping_ points, not stops.
 - [ ] **Batch at no more than 10 points per URL.** Expand multiplies the point count, so it multiplies the links: a 30-point route is at least three of them; a 28-point route without expansion is 10, then 10, then 8.
 - [ ] **Never batch across a route boundary.** Batching resets at each route end, so a route's final link is short rather than topped up with the opening points of the next route. Each route (day/session) is chunked independently.
 - [ ] A share surface that lists the links per route and batch—e.g. "Day 2 · part 1 of 3"—copyable and sendable to riders.
@@ -189,15 +189,17 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Work.**
 
-- [ ] **Native TankBag JSON export/import**—expose the existing save=load ride payload for lossless backup and round-trip. Nearly free, since the shape already exists, and it is the only format that preserves point kind and stop duration exactly (everything else flattens them—see item 4).
-- [ ] Import KMZ (zipped KML) and CSV.
-- [ ] Import/export GeoJSON.
-- [ ] Export GPX flavors that load cleanly on Garmin and other devices.
-- [ ] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
+- [x] **Native TankBag JSON export/import**—`/tankbag.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colours, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `tankbag` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
+- [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the _decompressed_ size.
+- [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
+- [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
+- [x] Export GPX that loads cleanly on a device—stops are `<wpt>` and shaping points are `<trkpt>`, never `<rte>`/`<rtept>`. A route file lets the device re-derive the ride between anchors, which is the failure the FAQ describes under "Why does my GPS ignore the route I planned?".
+- [x] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
+- [x] Round-trip fidelity tests per format (#35)—`test/fixtures/` holds one ride written five ways and `test/round-trip.test.ts` asserts the parsers agree. It caught a real disagreement on its first run: KML read a one-point line as a zero-length track while GeoJSON rejected the whole file.
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** planned—native JSON is the cheapest starting point; KMZ and CSV are the nearest of the interchange formats.
+**Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
 
 ### 9. Discovery and public profiles
 
@@ -235,7 +237,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Work.**
 
-- [ ] An automated test suite—unit tests for `roles.ts`, `kml.ts` and the leg-distance clamp; integration tests for ride save/load; a viewer smoke test. There is no test runner configured yet.
+- [ ] An automated test suite. Vitest is configured and `roles.ts` and the format parsers are covered (286 tests). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
 - [ ] CI on GitHub Actions: typecheck, SCSS build, and the tests above on every PR.
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.
@@ -256,7 +258,7 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 
 - Elevation and grade profile per route, drawn under the timeline.
 - Weather forecast along the route keyed to each leg's date-time—the timeline makes this genuinely useful, not a gimmick.
-- Print-friendly roadbook / turn-by-turn cue sheet for riders who tape it to the tank.
+- [x] Print-friendly roadbook for riders who tape it to the tank—`/m/:slug/roadbook`. **Stop-by-stop, not turn-by-turn:** `route_legs` holds geometry, distance and duration and nothing else, maneuvers are a separate Directions field priced per call, and they would be blank for every imported ride anyway. What it does print is the part that stays true when a road closes: stops in order, leg and cumulative miles, **miles since fuel**, planned dwell, and an estimated clock when the day has a start time.
 - Reverse a route; duplicate a ride as a template.
 - Distance and moving-time estimates with configurable rest cadence.
 
@@ -297,7 +299,7 @@ Things deliberately not built, recorded so they do not get proposed twice. These
 | **Round-trip generators** | Scenic, Kurviger and Garmin all ship one and riders say all three pad the distance with junk roads—"many roads that are minor and not fast at all… just there to make up the total distance." Garmin's Adventurous Routing gets called a complete disaster. Shipped everywhere, good nowhere. |
 | **Turn-by-turn navigation** | Not a permanent vow, but a separate product with its own failure surface: freezing, battery drain, late voice cues, destructive recalculation. That is where every competitor's reputation actually fails. Nothing should be attempted here until the hand-off is excellent, and a companion app is a different conversation from bolting navigation onto the planner. |
 | **Curviness as the headline feature** | Kurviger picks single-track farm lanes because they carry a high speed limit; American riders call the result borderline useless. Curviness without road-width and speed-limit context produces routes nobody wants. Worth having (#28); not worth leading with. |
-| **Inventing new vocabulary** | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way *devices* name them, not the way the app thinks about them. |
+| **Inventing new vocabulary** | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them. |
 | **Paywalling export or sharing** | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not. |
 
 One wording correction that falls out of this: the vision above says TankBag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
@@ -309,8 +311,6 @@ Well-scoped, low-context tasks a new contributor can land without holding the wh
 - **Add privacy and terms pages** (item 1). Two static pages through the existing `page()` shell.
 - **Align the day-slider tick labels** to the thumb positions in the builder (a known cosmetic nit in STATUS.md).
 - **`profile.js` geocoding → server proxy** (item 1). A self-contained endpoint modeled on `POST /api/route`, plus a small client change.
-- **First unit tests** (item 11). `src/maps/roles.ts`—`canonicalRole`, `parseRoleName`, `formatRoleName`—is a pure, well-specified module and an ideal place to stand up the test runner.
-- **KMZ import** (item 8). KMZ is a zipped KML; unzip, then hand the KML to the existing pipeline unchanged.
 
 ## Working in this repo
 

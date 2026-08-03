@@ -44,6 +44,10 @@ function maskInlineCode(line) {
   return [masked, spans]
 }
 
+// The NUL is the point — see maskInlineCode above. A placeholder that could
+// appear in real prose would let the tightener corrupt text it was meant to
+// protect, which is the whole failure this avoids.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: deliberate, see above
 const unmask = (line, spans) => line.replace(/\u0000(\d+)\u0000/g, (_, i) => spans[Number(i)])
 
 export function tighten(source, { code = false } = {}) {

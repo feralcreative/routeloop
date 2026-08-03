@@ -88,7 +88,10 @@ describe('the two implementations agree', () => {
 })
 
 describe('routeTwistiness', () => {
-  const route = (legs: { geometry: Track }[]) => ({ legs })
+  // distanceM is optional because the client's cache signature reads it
+  // (`l.distanceM || 0`), so the tests that exercise the cache have to be able
+  // to set it. Untyped until now, which the tsconfig did not check.
+  const route = (legs: { geometry: Track; distanceM?: number }[]) => ({ legs })
 
   it('concatenates legs before measuring, so a leg join is not a corner', () => {
     const whole = arc(200, 180)

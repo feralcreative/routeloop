@@ -41,7 +41,9 @@ Delivered in phases:
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
 - **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
-- **Import**—bring in existing `.kml` / `.gpx` to migrate from other tools _(KMZ, CSV later)_.
+- **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
+- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as TankBag JSON for a lossless backup that re-imports as the same ride.
+- **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
 

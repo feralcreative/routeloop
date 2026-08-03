@@ -245,7 +245,18 @@ export const rides = pgTable(
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
-    sizeBytes: integer('size_bytes').generatedAlwaysAs(sql`kml_bytes + gpx_bytes`),
+    // What the ride actually arrived as, which kml_bytes/gpx_bytes cannot say:
+    // a KMZ is stored as the KML pulled out of it, and a GeoJSON or CSV has no
+    // column of its own. NULL for a ride built here rather than imported.
+    sourceFormat: varchar('source_format', { length: 10 }),
+    // Bytes of the stored original for the formats without a dedicated column.
+    // Kept separate rather than folded into kml_bytes so "how big is the KML"
+    // stays answerable.
+    sourceBytes: integer('source_bytes').notNull().default(0),
+    // Must include every byte column. used_bytes is incremented by the app on
+    // import and decremented by this on delete, so a column missing here means
+    // quota leaks a little on every delete, permanently and silently.
+    sizeBytes: integer('size_bytes').generatedAlwaysAs(sql`kml_bytes + gpx_bytes + source_bytes`),
     totalMiles: numeric('total_miles', { precision: 7, scale: 1 }).notNull().default('0'),
     totalDurationS: integer('total_duration_s').notNull().default(0),
     stopCount: smallint('stop_count').notNull().default(0),

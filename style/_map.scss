@@ -563,7 +563,10 @@ table.route-table {
 .route-dl-btn {
   display: inline-block;
   padding: 0.3em 0.7em;
-  margin-right: 0.35em;
+  // Bottom margin as well as right: there are four formats plus an optional
+  // source link now, which wraps to a second line in a 380px panel, and
+  // wrapped chips with no vertical gap read as one solid block.
+  margin: 0 0.35em 0.35em 0;
   border-radius: 5px;
   background: $grey;
   color: $text;

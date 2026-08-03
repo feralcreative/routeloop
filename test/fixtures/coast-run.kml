@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Coast run</name>
+    <description>Highway 1 north from Santa Cruz.</description>
+    <Placemark>
+      <name>START - Santa Cruz</name>
+      <description>Meet at the wharf.</description>
+      <Point><coordinates>-122.0308,36.9741,12</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>GAS - Davenport</name>
+      <Point><coordinates>-122.1922,37.0113,30</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>FOOD - Pescadero</name>
+      <Point><coordinates>-122.3833,37.2552,45</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>FINISH - Half Moon Bay</name>
+      <Point><coordinates>-122.4286,37.4636,18</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Route</name>
+      <LineString>
+        <coordinates>
+          -122.0308,36.9741,12
+          -122.1922,37.0113,30
+          -122.2867,37.1050,88
+          -122.3878,37.1819,64
+          -122.3833,37.2552,45
+          -122.4286,37.4636,18
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

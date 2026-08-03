@@ -1,0 +1,436 @@
+// Generating route files from stored rows, as opposed to streaming back the
+// original a rider uploaded.
+//
+// Every ride can be exported this way, imported or native — the database is the
+// one shape both have in common. Where a stored original exists it is still the
+// better answer for its own format (it is byte-for-byte what the rider had),
+// and the download routes prefer it; this is what makes a format available that
+// the ride never arrived in.
+//
+// GeoJSON first because it is the format that loses the least: it carries
+// arbitrary `properties`, so a ride exported here and re-imported keeps its
+// roles, its POI/stop distinction and its per-day colours, none of which
+// survive a trip through KML or GPX. See the note on ExtractedPoint.kind.
+import { eq } from 'drizzle-orm'
+import { db } from '../db/index'
+import { points as pointsTable, routes as routesTable, routeLegs } from '../db/schema'
+import { METERS_PER_MILE, type Track } from './kml'
+import { formatRoleName, type Role } from './roles'
+
+export type ExportPoint = {
+  lat: number
+  lng: number
+  name: string
+  description: string | null
+  roles: Role[]
+  kind: 'stop' | 'poi'
+  durationMin: number | null
+  distFromStartM: number | null
+}
+
+export type ExportRoute = {
+  title: string | null
+  color: string
+  distanceM: number
+  // Riding seconds, summed from the legs. 0 for a leg the router never answered
+  // for, the same as everywhere else — a consumer wanting a time for one of
+  // those estimates it from distance rather than treating the day as shorter.
+  durationS: number
+  startAt: Date | null
+  endAt: Date | null
+  twistinessDpm: number | null
+  twistinessBestDpm: number | null
+  track: Track
+  points: ExportPoint[]
+}
+
+export type ExportRide = {
+  title: string
+  description: string | null
+  routes: ExportRoute[]
+}
+
+// Legs are stored per routed segment and share their joints, so consecutive
+// duplicates are dropped on the way out. This is the same concatenation
+// ride.json does, minus the leg index bookkeeping that only the timeline needs.
+function concatLegs(legs: Array<{ geometry: Track }>): Track {
+  const track: Track = []
+  for (const leg of legs) {
+    for (const pt of leg.geometry) {
+      const last = track[track.length - 1]
+      if (!last || last[0] !== pt[0] || last[1] !== pt[1]) track.push(pt)
+    }
+  }
+  return track
+}
+
+export async function loadRideForExport(
+  rideId: number,
+  meta: { title: string; description: string | null },
+): Promise<ExportRide> {
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
+
+  const out: ExportRoute[] = []
+  for (const r of routeRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+    const legs = await db
+      .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
+      .from(routeLegs)
+      .where(eq(routeLegs.routeId, r.id))
+      .orderBy(routeLegs.position)
+
+    out.push({
+      title: r.title,
+      color: r.color,
+      distanceM: r.distanceM,
+      durationS: legs.reduce((n, l) => n + l.durationS, 0),
+      startAt: r.startAt,
+      endAt: r.endAt,
+      twistinessDpm: r.twistinessDpm,
+      twistinessBestDpm: r.twistinessBestDpm,
+      track: concatLegs(legs),
+      // Stops first, in stop order, then POIs — the order the importer will
+      // read them back in, and the order the builder stores them.
+      points: pts.map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        description: p.description,
+        roles: p.roles,
+        kind: p.kind,
+        durationMin: p.durationMin,
+        distFromStartM: p.distFromStartM,
+      })),
+    })
+  }
+
+  return { title: meta.title, description: meta.description, routes: out }
+}
+
+const mi = (m: number | null): number | null => (m == null ? null : Math.round((m / METERS_PER_MILE) * 10) / 10)
+
+type Feature = { type: 'Feature'; geometry: unknown; properties: Record<string, unknown> }
+
+export function buildGeoJson(ride: ExportRide): string {
+  const features: Feature[] = []
+
+  ride.routes.forEach((r, i) => {
+    const dayName = r.title || `Day ${i + 1}`
+
+    if (r.track.length > 1) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: r.track },
+        properties: {
+          name: dayName,
+          day: i + 1,
+          distanceMi: mi(r.distanceM),
+          twistinessDpm: r.twistinessDpm,
+          twistinessBestDpm: r.twistinessBestDpm,
+          // simplestyle-spec, which geojson.io, GitHub and Mapbox all render.
+          // Costs three keys and means the day colours survive into any of them
+          // instead of every day drawing the same default blue.
+          stroke: r.color,
+          'stroke-width': 4,
+          'stroke-opacity': 0.9,
+        },
+      })
+    }
+
+    for (const p of r.points) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+        properties: {
+          // Both spellings on purpose. The prefixed name is the documented
+          // convention and is all a tool that shows only a label will see; the
+          // array is what our own importer prefers, because a prefix in a name
+          // a rider typed themselves is a guess and an array is not.
+          name: formatRoleName(p.roles, p.name),
+          roles: p.roles,
+          kind: p.kind,
+          day: i + 1,
+          description: p.description ?? undefined,
+          durationMin: p.durationMin ?? undefined,
+          distFromStartMi: mi(p.distFromStartM) ?? undefined,
+        },
+      })
+    }
+  })
+
+  // Compact, deliberately. Indenting puts every coordinate component on its own
+  // line, and a day's track is thousands of them — it tripled a real ride from
+  // 150 KB to 460 KB while making the file harder to read, not easier. Anything
+  // a person opens this in pretty-prints it anyway. `undefined` values drop out.
+  return JSON.stringify({
+    type: 'FeatureCollection',
+    properties: { name: ride.title, description: ride.description ?? undefined },
+    features,
+  })
+}
+
+// --- CSV -------------------------------------------------------------------
+
+// The stop list, and only the stop list. A CSV cannot hold a track, so this is
+// lossy by construction and says so by omission rather than by writing a
+// straight line between stops and calling it a route.
+//
+// Quoting is RFC 4180: a field is quoted when it contains the delimiter, a
+// quote or a newline, and a quote inside becomes two. csv.ts parses the same
+// grammar, so a file written here reads back exactly.
+const csvCell = (v: string | number | null | undefined): string => {
+  if (v == null) return ''
+  const s = String(v)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+const CSV_HEADER = ['day', 'kind', 'name', 'lat', 'lng', 'roles', 'durationMin', 'description', 'distFromStartMi']
+
+export function buildCsv(ride: ExportRide): string {
+  const lines = [CSV_HEADER.join(',')]
+
+  ride.routes.forEach((r, i) => {
+    for (const p of r.points) {
+      lines.push(
+        [
+          i + 1,
+          p.kind,
+          // Unprefixed here, with roles in their own column: a spreadsheet has
+          // somewhere to put them, unlike a KML <name>. The importer reads
+          // either, so a file edited by hand into the prefixed form still works.
+          p.name,
+          p.lat,
+          p.lng,
+          p.roles.join('/'),
+          p.durationMin,
+          p.description,
+          mi(p.distFromStartM),
+        ]
+          .map(csvCell)
+          .join(','),
+      )
+    }
+  })
+
+  // CRLF: the line ending RFC 4180 specifies, and the one Excel needs to not
+  // treat the whole file as a single row.
+  return lines.join('\r\n') + '\r\n'
+}
+
+// --- XML -------------------------------------------------------------------
+
+// Names and descriptions are rider-supplied and reach a file other software
+// parses, so they are escaped on the way out. `&` first, or it would re-escape
+// the ampersands the later replacements introduce.
+//
+// Note what is *not* here: no DOCTYPE, ever. The importer refuses any document
+// carrying one, and a file this app writes has to be a file this app will read.
+const xml = (v: string | null | undefined): string =>
+  (v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
+// --- KML -------------------------------------------------------------------
+
+// KML colours are `aabbggrr` — alpha first and the RGB bytes reversed. Getting
+// this backwards does not fail, it just draws every day in the wrong colour,
+// which is why it has a test rather than a comment alone.
+function kmlColor(css: string): string {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(css.trim())
+  if (!hex) return 'ff0000cc'
+  const [r, g, b] = [hex[1].slice(0, 2), hex[1].slice(2, 4), hex[1].slice(4, 6)]
+  return `ff${b}${g}${r}`.toLowerCase()
+}
+
+const kmlCoords = (track: Track): string => track.map(([lng, lat]) => `${lng},${lat}`).join(' ')
+
+export function buildKml(ride: ExportRide): string {
+  const out: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+    '  <Document>',
+    `    <name>${xml(ride.title)}</name>`,
+  ]
+  if (ride.description) out.push(`    <description>${xml(ride.description)}</description>`)
+
+  ride.routes.forEach((r, i) => {
+    out.push(
+      `    <Style id="day${i + 1}"><LineStyle><color>${kmlColor(r.color)}</color><width>4</width></LineStyle></Style>`,
+    )
+  })
+
+  ride.routes.forEach((r, i) => {
+    const dayName = r.title || `Day ${i + 1}`
+    // A Folder per day so Google Earth's sidebar shows the days separately.
+    // The importer flattens them back to one route — see the round-trip tests,
+    // where that loss is asserted rather than left to be discovered.
+    out.push('    <Folder>', `      <name>${xml(dayName)}</name>`)
+
+    for (const p of r.points) {
+      // The role prefix is the only place a KML can carry a role: a Placemark
+      // has a name and a description and nowhere else to put one. This is the
+      // convention parseRoleName reads back and the README documents.
+      out.push('      <Placemark>', `        <name>${xml(formatRoleName(p.roles, p.name))}</name>`)
+      if (p.description) out.push(`        <description>${xml(p.description)}</description>`)
+      out.push(`        <Point><coordinates>${p.lng},${p.lat}</coordinates></Point>`, '      </Placemark>')
+    }
+
+    if (r.track.length > 0) {
+      out.push(
+        '      <Placemark>',
+        `        <name>${xml(dayName)}</name>`,
+        `        <styleUrl>#day${i + 1}</styleUrl>`,
+        '        <LineString>',
+        '          <tessellate>1</tessellate>',
+        `          <coordinates>${kmlCoords(r.track)}</coordinates>`,
+        '        </LineString>',
+        '      </Placemark>',
+      )
+    }
+    out.push('    </Folder>')
+  })
+
+  out.push('  </Document>', '</kml>', '')
+  return out.join('\n')
+}
+
+// --- GPX -------------------------------------------------------------------
+
+// The decision this whole format hinges on: **stops are `<wpt>` and the shaping
+// points are `<trkpt>`. Nothing is ever written as `<rte>`/`<rtept>`.**
+//
+// A `<rte>` is a list of places to navigate *between*, so a GPS given one picks
+// its own way from each point to the next — usually the fast way and rarely the
+// good one, and a missed turn throws out the rest of the day. That is exactly
+// the failure the FAQ describes under "Why does my GPS ignore the route I
+// planned?", and the answer there is that TankBag puts in enough intermediate
+// points to leave the device no room to form an opinion. Exporting those points
+// as route points instead of track points hands that room straight back and
+// makes the app's central promise false.
+//
+// A `<trk>` is a record of a path actually taken. Devices follow it rather than
+// re-deriving it, which is the behaviour riders are here for.
+export function buildGpx(ride: ExportRide): string {
+  const out: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="TankBag" xmlns="http://www.topografix.com/GPX/1/1">',
+    '  <metadata>',
+    `    <name>${xml(ride.title)}</name>`,
+  ]
+  if (ride.description) out.push(`    <desc>${xml(ride.description)}</desc>`)
+  out.push('  </metadata>')
+
+  // Waypoints before tracks, which is the element order the GPX schema
+  // requires (wpt, then rte, then trk) rather than a stylistic choice.
+  for (const r of ride.routes) {
+    for (const p of r.points) {
+      out.push(`  <wpt lat="${p.lat}" lon="${p.lng}">`, `    <name>${xml(formatRoleName(p.roles, p.name))}</name>`)
+      if (p.description) out.push(`    <desc>${xml(p.description)}</desc>`)
+      // `type` is where a GPX can carry a category, and some devices show it.
+      // The importer does not read it back — the name prefix is what round
+      // trips — but writing it costs a line and loses nothing.
+      if (p.roles.length > 0) out.push(`    <type>${xml(p.roles.join('/'))}</type>`)
+      out.push('  </wpt>')
+    }
+  }
+
+  ride.routes.forEach((r, i) => {
+    if (r.track.length === 0) return
+    out.push('  <trk>', `    <name>${xml(r.title || `Day ${i + 1}`)}</name>`, '    <trkseg>')
+    for (const [lng, lat] of r.track) out.push(`      <trkpt lat="${lat}" lon="${lng}"/>`)
+    out.push('    </trkseg>', '  </trk>')
+  })
+
+  out.push('</gpx>', '')
+  return out.join('\n')
+}
+
+// --- Native TankBag JSON ---------------------------------------------------
+
+// The lossless one, and the only format that is.
+//
+// Every other export flattens something: KML and GPX cannot say whether a point
+// is a stop or a POI or how long you sat there, CSV drops the geometry, GeoJSON
+// keeps the points but the importer rebuilds one day out of many. This is the
+// builder's own save payload, so a ride exported here and imported back is the
+// same ride — days, colours, times, via points and all — because it goes
+// through the same schema and the same insert the builder's save does.
+//
+// `tankbag` is a version, not decoration: the importer refuses a file without
+// it rather than guessing, which is also what keeps a plain GeoJSON from being
+// mistaken for one.
+export const NATIVE_FORMAT_VERSION = 1
+
+export type NativeRide = {
+  tankbag: number
+  exportedFrom: string
+  ride: unknown
+}
+
+export const isNativeRide = (v: unknown): v is NativeRide =>
+  typeof v === 'object' && v !== null && typeof (v as NativeRide).tankbag === 'number'
+
+// Straight from the rows, in the shape ridePayload validates. Note this reads
+// legs rather than the concatenated track: the leg boundaries are where the
+// stops are, and losing them is what makes every other format lossy.
+export async function loadNativeRide(
+  rideId: number,
+  meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
+): Promise<NativeRide> {
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
+
+  const out = []
+  for (const r of routeRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
+
+    const point = (p: (typeof pts)[number]) => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      description: p.description ?? '',
+      roles: p.roles,
+      durationMin: p.durationMin,
+    })
+
+    out.push({
+      title: r.title,
+      color: r.color,
+      startAt: r.startAt?.toISOString() ?? null,
+      endAt: r.endAt?.toISOString() ?? null,
+      stops: pts.filter((p) => p.kind === 'stop').map(point),
+      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      legs: legs.map((l) => ({
+        geometry: l.geometry,
+        distanceM: l.distanceM,
+        durationS: l.durationS,
+        viaPoints: l.viaPoints ?? [],
+      })),
+    })
+  }
+
+  return {
+    tankbag: NATIVE_FORMAT_VERSION,
+    exportedFrom: 'tankbag.app',
+    ride: {
+      title: meta.title,
+      description: meta.description ?? '',
+      visibility: meta.visibility,
+      external_url: meta.externalUrl ?? '',
+      routes: out,
+    },
+  }
+}
+
+export const buildNativeJson = (r: NativeRide): string => JSON.stringify(r)

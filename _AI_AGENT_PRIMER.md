@@ -14,7 +14,7 @@ This document orients an AI agent working on the codebase. Read it first, then [
 
 tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits.
 
-Importing existing files (KML, GPX; later KMZ, CSV) is a **migration path**, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
+Importing existing files (KML, KMZ, GPX, GeoJSON, CSV) is a **migration path**, and native TankBag JSON is the lossless backup format, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
 ## The product model (drives the schema)
 
@@ -86,7 +86,7 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 **Enums:** `provider`, `visibility`, `ride_source`, `point_kind`, `waypoint_role` (the 17 roles—keep in sync with `src/maps/roles.ts`).
 
-**File storage.** Imported originals live at `{STORAGE_PATH}/{owner_id}/{ride_id}.kml` (and `.gpx`), paths built only from integer ids and containment-checked. Native rides have no files. Quota applies to imported bytes only.
+**File storage.** Imported originals live at `{STORAGE_PATH}/{owner_id}/{ride_id}.{ext}`, paths built only from integer ids and containment-checked, with `ext` from a closed list in `storage.ts`. A ride imported from several files keeps each one, day 2 onward suffixed `{ride_id}-{n}.{ext}`. Every format keeps its original—a KMZ as the KML pulled out of it, everything else as uploaded—and `rides.source_format` records what it arrived as. Bytes land in `kml_bytes`, `gpx_bytes` or `source_bytes`; `size_bytes` is generated from all three and **must** name every one, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete. Native rides have no files. Quota applies to imported bytes only.
 
 ## The role taxonomy
 
@@ -122,6 +122,8 @@ Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, nati
 
 ### The ride payload (save = load shape)
 
+Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSON import validates and inserts through exactly the same code the builder's save does. A second path that agreed with it today would drift tomorrow.
+
 ```json
 { "title": "...", "description": "", "visibility": "private", "external_url": "",
   "routes": [ { "title": "", "color": "#0066cc", "startAt": null, "endAt": null,
@@ -138,7 +140,9 @@ Server-side integrity on save (`src/routes/rides.ts`): all text is sanitized, co
 
 Ported from the PHP era and preserved—re-derive, never drop these:
 
-- **XXE-safe XML parse** (`src/maps/kml.ts`)—reject any `<!DOCTYPE>` before parsing; `@xmldom/xmldom` does no network or entity resolution.
+- **XXE-safe XML parse** (`src/maps/kml.ts`)—reject any `<!DOCTYPE>` before parsing; `@xmldom/xmldom` does no network or entity resolution. A KMZ is unzipped and then handed to `processKml`, so it converges on this defense rather than routing around it.
+- **Decompression cap** (`src/maps/kmz.ts`)—enforced *during* inflate via `maxOutputLength`, not read from the archive header. A zip bomb is small on the wire and its declared size is whatever the author typed.
+- **Structural depth check** (`src/maps/geojson.ts`)—JSON has no entities, so there is no DOCTYPE to refuse; deep nesting is the remaining structural attack and it is rejected before `JSON.parse` runs, on the same principle.
 - **Server-side extraction**—waypoint roles parsed from name prefixes; the route track is the longest coordinate line; mileage is authoritative.
 - **Sanitization**—`sanitizeText` strips tags and defuses `javascript:` / `data:` schemes in every name/description, at rest; the viewer's `esc()` is the second layer.
 - **Transactional quota**—`SELECT … FOR UPDATE`, HTTP 413 over quota.
@@ -161,12 +165,24 @@ src/
                       google.ts, magic.ts, mailer.ts
   maps/
     roles.ts          Canonical 17-role taxonomy (parse/format)
-    kml.ts            XXE-safe parse, extraction, sanitize, processGpx
+    kml.ts            XXE-safe parse, extraction, sanitize, KML + GPX
+    kmz.ts            Zip reader — one entry, cap on the DECOMPRESSED size
+    geojson.ts        GeoJSON in; the only interchange format that keeps
+                      roles, stop/POI and dwell
+    csv.ts            RFC 4180 stop lists — no geometry, and none invented
+    export.ts         Generates KML/GPX/GeoJSON/CSV + lossless TankBag JSON
+    ride-graph.ts     The ride payload schema, normalize, insertRideGraph —
+                      shared by the builder's save and the native import
+    fields.ts         Scalar field rules shared by every ride-shaped request
+    palette.ts        Day colours; injected as window.TB.dayColors
     storage.ts        Integer-id file paths, containment-checked writes
     slug.ts           22-char base62 unguessable share ids
+    twist.ts          Twistiness: degrees of heading change per mile
     turnstile.ts      Feature-flagged siteverify
   routes/
-    maps.ts           Import API + edit/delete (exports fields/ownRide/firstIssue)
+    maps.ts           Import API + edit/delete (exports ownRide/canEditRide)
+    import.tsx        GET /import — the multi-file upload form
+    roadbook.tsx      GET /m/:slug/roadbook — the printable sheet
     rides.ts          Builder API + /builder pages
     routing.ts        POST /api/route — Google Routes proxy + leg cache
     dashboard.ts      Owner's ride list
@@ -256,7 +272,7 @@ Deferred, with reasons:
 - **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by email or phone is a user-enumeration surface and wants rate limiting before it exists.
 - **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
 - **Phase 5—Trip features** 🔄 **multi-day editing done 2026-07-30**; the date/time half is not started. `routes.start_at` / `end_at` exist in the schema and load into builder state, but nothing sets them and there is no date-time UI, so the timeline slider proper is still ahead.
-- **Backlog** ⬜ bikes, KMZ/CSV import, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
+- **Backlog** ⬜ bikes, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
 
 ## Deployment state
 
@@ -289,62 +305,52 @@ The map engine was recovered from the original Moto-Rooter viewer and rewired. T
 
 <!--| PAGE-BREAK -->
 
-## Where things stand—end of 2026-07-30
+## Where things stand—2026-08-03
 
 The section to read first when picking this up cold. Everything above describes how the code works; this describes what was just done to it and what is waiting.
 
-### What landed today
+### Recently landed
 
-Branch `refactor/google-maps-and-auth`, pushed, six commits:
-
-| | |
+| Sprint | What |
 | --- | --- |
-| `4a0a89d` | Repointed GitHub references at `feralcreative/tankbag`—the repo was renamed and the local remote still used the redirect |
-| `942e1d9` | **The map engine port**, Mapbox GL → `google.maps`, across the engine, both consumers, both shells and the marker CSS |
-| `728fd0b` | Role picker rendered permanently open—`[hidden]` was losing on specificity to a class selector |
-| `8b39424` | Splash clip slowed to half speed in the encode, re-cut from the ProRes master with interpolated frames |
-| `691b018` | **Deploy shipped none of the Google Maps or sign-in credentials**—the most important fix of the day; see below |
+| 04–06 | Auth (Google OAuth + magic link), public profiles, admin panel, the timeline |
+| 07 | Builder panel model, POI dwell, **twistiness** |
+| 08 | HTML out of the TypeScript—static prose to `src/content/`, views to Hono JSX |
+| 09 | **Import and export**, branch `feat/import-export`, fourteen commits |
 
-Uncommitted at end of day, all verified but not yet in a commit:
+Sprint 09 in one line: the app reads KML, KMZ, GPX, GeoJSON, CSV and its own JSON, writes all but KMZ, takes several files as the days of one trip, and prints a roadbook. Detail in [docs/STATUS.md](docs/STATUS.md).
 
-- **Multi-day builder** (`builder.js`, `rides.ts`, `_builder.scss`)—the day slider, per-day controls, add/delete/reorder, multi-route save and load.
-- **`config.ts` empty-env fix**—`env()` now treats `''` as unset. This was a real bug: the deploy writes every optional variable whether or not it has a value, so `OWNER_EMAIL=` defeated its own default and the owner's account was created `pending` with nobody able to approve it.
-- **`db-clone` / `db-restore`** in `deploy-utils.sh`.
-- **`utils/seed-demo-rides.ts`** and the `.gitignore` entry for its cache.
-- **`.panel-title`** dropped 3rem → 2.1rem with `line-height: 1.15`.
+### The load-bearing facts a new agent gets wrong
 
-### Deployed, and what that cost
-
-Stage and prod both run the new code. Getting there surfaced three things that are now documented but were not obvious:
-
-1. **The deploy shipped `GMAPS_MAP_ID`, `GOOGLE_CLIENT_*` and the `SMTP_*` set nowhere.** Without them the container starts, passes its healthcheck, and is useless—no markers render and *neither sign-in method exists*, because both hide themselves when unconfigured and Cloudflare Access no longer backs them up. `deploy.sh` now hard-fails on the ones that matter.
-2. **A stale 2026-07-20 volume was silently adopted** by a "fresh" deploy, carrying a pre-pivot schema. Symptom: healthy container, 500 on sign-in, `column users.username does not exist`.
-3. **The old stack holds the ports.** Bring it down before deploying the new one.
-
-The same volume-namespace trap hit the *local* dev database first, which is why `docker-compose.yml` now pins `name: tankbag`.
+- **`[lng, lat]` everywhere.** Only `google.maps` speaks `{lat, lng}`, and exactly two places convert. GeoJSON agrees with us; do not "fix" it. Pinned in `test/round-trip.test.ts` across all five formats, which is the test that would catch a transposition that each format's own suite would not.
+- **null is not zero.** Twistiness null means "nothing measured it"; 0 means "the road is straight". Same for `dist_from_start_m` on a trackless import. A format that guesses is indistinguishable from one that knows.
+- **`rides.size_bytes` must name every byte column.** The app increments `used_bytes` on import, the database decrements it from `size_bytes` on delete. A column missing from that expression leaks quota on every delete, silently and forever.
+- **Production is not precious.** Three accounts, all the owner's. Be careful with the *mechanics* of a migration—`drizzle-kit push` without `--force`, additive DDL by hand in `utils/deploy/sql/`—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
+- **The pre-commit tightener rewrites em dashes**, including in test fixtures. `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
 
 ### Pick up here
 
-**Loose ends from today, small:**
+1. **Point twistiness at real roads.** The whole reason the import path exists. Bands are calibrated on machine-generated demo rides; nothing in that corpus was chosen for being good. One const in `src/maps/twist.ts`.
+2. **Remove the Cloudflare Access policy.** The code that stopped trusting it has been deployed since 2026-07-30; the policy is pure redundancy now.
+3. **Add the `www.tankbag.app` tunnel route.** DNS exists, nothing routes it.
+4. **Single-file multi-day import.** A GeoJSON or KML holding several days still lands as one route. Every point survives, the days do not. Originals are stored now, so it is recoverable rather than lost, and the limit is asserted in `test/round-trip.test.ts` so fixing it fails the test loudly.
 
-- Commit the uncommitted work above.
-- **`db-clone` has never actually run.** Its guards are verified; the dump/load path is not. Try `db-clone stage dev` first—both sides disposable.
-- The day-slider tick labels are evenly spaced, not aligned to thumb positions. Deliberate (exact alignment is not achievable in CSS because the thumb is inset half its width at each end) but worth a look.
+**Still open, not urgent:** favicons carry the old routeloop mark; privacy policy and terms are required to publish the OAuth consent screen past 100 users; `db-clone`'s dump/load path has never actually run; day-slider tick labels are evenly spaced rather than thumb-aligned; and roughly 34 pre-existing prettier findings sit in files nobody has had reason to touch.
 
-**Then, roughly in order of what is actually in the way:**
+### Two things that are not checked by what you think checks them
 
-1. **Remove the Cloudflare Access policy.** The code that stopped trusting it is deployed, so the policy is now pure redundancy. This was gated on the deploy and the deploy is done.
-2. **Add the `www.tankbag.app` tunnel route.** DNS exists; nothing routes it.
-3. **An admin panel.** Approving a rider is currently a hand-written `UPDATE users SET status='active'` over SSH, which the owner described in exactly the terms it deserves. `users.status` and `can_manage_riders` already exist; this is one owner-only route and a template. Smallest thing with the biggest effect on daily use.
-4. **`profile.js` geocoding → a server proxy.** The last Mapbox call in the app and the only reason `MAPBOX_TOKEN` still has to be set.
-5. **Phase 4—retire Mapbox and `main.js`.** Teach the current engine to draw an imported ride's single-leg track (`ride.json` already serves both sources identically), collapse the two viewer shells, then delete `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`.
-6. **Phase 5's other half—the timeline.** `routes.start_at` / `end_at` are in the schema and load into builder state; nothing sets them. Multi-day editing is done, dates are not.
+- **`utils/` is not in `tsconfig.json`.** A bad import in `seed-demo-rides.ts` passed a clean typecheck and would only have failed at runtime:
 
-**Still open, not urgent:** favicons carry the old routeloop mark; privacy policy and terms are required to publish the OAuth consent screen past 100 users; per-API quota caps are unset on the `tankbag` GCP project; the SonarCloud key still says `feralcreative_routeloop-app`; and `/volume1/web/routeloop.app` plus `stage.routeloop.app` are stopped but still on disk.
+  ```bash
+  npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution Bundler \
+    --types node --esModuleInterop --skipLibCheck utils/seed-demo-rides.ts
+  ```
 
-**One caution.** `utils/` is **not** in `tsconfig.json`'s `include`, so `npm run typecheck` does not check it. A bad import in `seed-demo-rides.ts` passed a clean typecheck and would only have failed at runtime. Check those files explicitly:
+- **`test/` was not either, until 2026-08-03.** Vitest transpiles without type-checking, so fixtures drifted out of the types they claimed to be and everything still passed. Adding `test` to the include exposed eight real errors at once. It is in there now—keep it there.
 
-```bash
-npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution Bundler \
-  --types node --esModuleInterop --skipLibCheck utils/seed-demo-rides.ts
-```
+### Deploy traps, all of which have actually happened
+
+- **The old stack holds the ports.** `tankbag` wants `:6686` and `:16703`. Compose fails with `port is already allocated` and nothing more helpful. Bring the old stack down first.
+- **A stale volume gets adopted silently.** Volumes are namespaced by `COMPOSE_PROJECT_NAME`, not the deploy directory, so a "fresh" deploy can come up on a 2026-07-20 pre-pivot schema. Symptom: a healthy container that 500s on sign-in with `column users.username does not exist`. Check `docker volume ls` before assuming an environment is empty.
+- **The deploy ships only an explicit allow-list of env vars.** `GMAPS_MAP_ID`, `GOOGLE_CLIENT_*` and the `SMTP_*` set were once shipped nowhere: the container starts, passes its healthcheck, and is useless—no markers, and *neither sign-in method exists*, because both hide themselves when unconfigured. `deploy.sh` hard-fails on the ones that matter now.
+- **The post-deploy hook used to be non-fatal and used `--force`.** A failed schema push printed a warning and the deploy still reported success, which is how production drifted three sprints behind and started 500ing. Both fixed; do not reintroduce either.

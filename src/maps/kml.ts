@@ -14,6 +14,17 @@ import { parseRoleName, type Role } from './roles'
 
 export const KML_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 export const GPX_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+// The archive, compressed. Larger than the KML cap because a legitimate KMZ
+// carries overlays and imagery that get skipped; the KML pulled out of it is
+// still held to KML_MAX_BYTES, measured after decompression. See kmz.ts.
+export const KMZ_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+// A stop list, not a track — 200 stops of text does not reach a megabyte, and
+// anything much larger is not a stop list. See csv.ts.
+export const CSV_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+// GeoJSON spends more bytes per coordinate than KML does (brackets, commas and
+// full precision rather than a packed string), so the same route is a larger
+// file. See geojson.ts.
+export const GEOJSON_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
 // User-caused rejection (bad file), as opposed to a server fault.
 export class RouteFileError extends Error {}
@@ -21,15 +32,25 @@ export class RouteFileError extends Error {}
 // The formats the import pipeline accepts, stated once. The import page builds
 // its `accept` attribute and its copy from this, and the upload handler gates
 // on it, so the form cannot offer something the server refuses.
-export const SUPPORTED_FORMATS = ['kml', 'gpx'] as const
+export const SUPPORTED_FORMATS = ['kml', 'kmz', 'gpx', 'geojson', 'json', 'csv'] as const
 export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
 export const isSupportedFormat = (ext: string): ext is SupportedFormat =>
   (SUPPORTED_FORMATS as readonly string[]).includes(ext)
 
-// What each one is called and where riders get them, for the import page.
-export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string }> = {
-  kml: { label: 'KML', note: 'Google Earth, My Maps, most planners' },
-  gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS' },
+// What each one is called, where riders get them, and how big it may be. The
+// cap lives here rather than in the handler so that adding a format cannot
+// leave it silently sharing another format's limit.
+export const FORMAT_INFO: Record<SupportedFormat, { label: string; note: string; maxBytes: number }> = {
+  kml: { label: 'KML', note: 'Google Earth, My Maps, most planners', maxBytes: KML_MAX_BYTES },
+  kmz: { label: 'KMZ', note: 'Google Earth saves these by default—a zipped KML', maxBytes: KMZ_MAX_BYTES },
+  gpx: { label: 'GPX', note: 'Garmin, Wahoo, Strava, Gaia, almost any GPS', maxBytes: GPX_MAX_BYTES },
+  geojson: { label: 'GeoJSON', note: 'geojson.io, QGIS, anything mapping-adjacent', maxBytes: GEOJSON_MAX_BYTES },
+  // Two different things arrive under .json: a GeoJSON saved under the plainer
+  // extension, and a TankBag export. They are told apart by content — the
+  // `tankbag` version field — not by name, because plenty of tools write
+  // GeoJSON as .json and making a rider rename a file would be theatre.
+  json: { label: 'JSON', note: 'A TankBag backup, or GeoJSON under the plainer name', maxBytes: GEOJSON_MAX_BYTES },
+  csv: { label: 'CSV', note: 'A list of stops from a spreadsheet—no route line', maxBytes: CSV_MAX_BYTES },
 }
 
 // A [lng, lat] polyline — the storage/GeoJSON axis order.
@@ -41,6 +62,15 @@ export type ExtractedPoint = {
   name: string
   description: string | null
   roles: Role[]
+  // Only a format that can actually carry the distinction sets this. KML and
+  // GPX cannot — a Placemark and a <wpt> are the same thing whatever we meant
+  // by them — so their extractors leave it undefined and every point becomes a
+  // stop, which is the behaviour those formats have always had. GeoJSON writes
+  // its own properties, so a ride exported and re-imported keeps its POIs.
+  kind?: 'stop' | 'poi'
+  // Same reasoning as `kind`: only a format that can carry it sets it. Neither
+  // KML nor GPX has anywhere to put "we stopped here for 20 minutes".
+  durationMin?: number | null
 }
 
 export type ExtractedRoute = {
@@ -79,7 +109,11 @@ function elements(scope: Document | Element, localName: string): Element[] {
 // --- Geometry --------------------------------------------------------------
 
 const EARTH_RADIUS_M = 6371008.8
-const round6 = (n: number): number => Math.round(n * 1e6) / 1e6
+// ~11 cm, which is finer than any consumer GPS and keeps stored tracks small.
+// Exported so every format rounds identically — a format that rounded
+// differently would fail the round-trip tests for a reason that had nothing to
+// do with the format.
+export const round6 = (n: number): number => Math.round(n * 1e6) / 1e6
 
 export const METERS_PER_MILE = 1609.344
 
@@ -87,8 +121,7 @@ export function haversineM(lat1: number, lon1: number, lat2: number, lon2: numbe
   const rad = Math.PI / 180
   const dLat = (lat2 - lat1) * rad
   const dLon = (lon2 - lon1) * rad
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a))
 }
 
@@ -114,7 +147,7 @@ export function distFromStartAlongTrack(track: Track, pts: Array<{ lat: number; 
   }
   return pts.map((p) => {
     let best = 0
-    let bestD = Infinity
+    let bestD = Number.POSITIVE_INFINITY
     for (let i = 0; i < track.length; i++) {
       const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2
       if (d < bestD) {
@@ -231,16 +264,38 @@ export function processGpx(text: string): ExtractedRoute {
     throw new RouteFileError('GPX file has no <gpx> root element')
   }
 
-  const readPts = (localName: string): Track => {
+  // Points under one parent, in document order.
+  const readPts = (parent: Document | Element, localName: string): Track => {
     const out: Track = []
-    for (const el of elements(doc, localName)) {
+    for (const el of elements(parent, localName)) {
       const lat = Number(el.getAttribute('lat'))
       const lon = Number(el.getAttribute('lon'))
       if (Number.isFinite(lat) && Number.isFinite(lon)) out.push([round6(lon), round6(lat)])
     }
     return out
   }
-  const track = ((t) => (t.length > 0 ? t : readPts('rtept')))(readPts('trkpt'))
+
+  // The longest <trk> wins, matching what processKml does with the longest
+  // line — but segments *within* a track are joined, because a <trkseg> break
+  // is a recording pause in one ride while separate <trk> elements are
+  // separate rides.
+  //
+  // Reading every trkpt in the file as one track is what this used to do, and
+  // on a multi-day export it invents the geometry between where one day ends
+  // and the next begins. Measured on a real 3-day ride: 553 miles came back as
+  // 631, and twistiness fell from 79/69/53 to 59 because the phantom joins are
+  // perfectly straight. A number that confident and that wrong is worse than
+  // no number.
+  const trks = elements(doc, 'trk')
+  let track: Track = []
+  for (const trk of trks) {
+    const t = readPts(trk, 'trkpt')
+    if (t.length > track.length) track = t
+  }
+  // A GPX with loose trkpt and no <trk> wrapper is malformed but readable, and
+  // rtept is the fallback for a file that only carries a planned route.
+  if (track.length === 0) track = readPts(doc, 'trkpt')
+  if (track.length === 0) track = readPts(doc, 'rtept')
 
   const points: ExtractedPoint[] = []
   for (const wpt of elements(doc, 'wpt')) {

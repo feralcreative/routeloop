@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
@@ -16,8 +15,19 @@ import {
 } from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
+import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
-import { mapFilePath } from './maps/storage'
+import {
+  buildCsv,
+  buildGeoJson,
+  buildGpx,
+  buildKml,
+  buildNativeJson,
+  loadNativeRide,
+  loadRideForExport,
+  type ExportRide,
+} from './maps/export'
+import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { dashboardRoutes } from './routes/dashboard'
@@ -26,6 +36,7 @@ import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { importRoutes } from './routes/import'
+import { roadbookRoutes } from './routes/roadbook'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -94,6 +105,7 @@ app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', importRoutes)
+app.route('/', roadbookRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
@@ -237,9 +249,10 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     })
   }
 
-  // Downloads: imported rides stream their stored originals; native
-  // generation lands with exports (Phase 3), until then no links.
-  const isImported = m.source === 'imported'
+  // Every format is offered for every ride now. An imported ride streams its
+  // stored original where it has one and the rest are generated from the rows,
+  // so which formats a ride can be downloaded as no longer depends on which one
+  // it arrived in. See the DOWNLOADS table.
   return c.json({
     title: m.title,
     description: m.description ?? '',
@@ -248,46 +261,131 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     // Only offered when a KML was actually stored. A GPX-only import has none,
     // and advertising the link would give the viewer a download button that
     // 404s.
-    kmlUrl: isImported && m.kmlBytes > 0 ? `/api/public/maps/${m.slug}/kml` : null,
-    gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
+    kmlUrl: `/api/public/maps/${m.slug}/kml`,
+    gpxUrl: `/api/public/maps/${m.slug}/gpx`,
+    geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
+    csvUrl: `/api/public/maps/${m.slug}/csv`,
+    // The only lossless one — days, colours, times and via points survive it.
+    nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
+    // A page, not a file: the printable stop-by-stop sheet.
+    roadbookUrl: `/m/${m.slug}/roadbook`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })
 })
 
+// Downloads, source-aware.
+//
+// An imported ride streams its stored original for the format it arrived in —
+// byte-for-byte what the rider uploaded, which is the entire reason the file is
+// kept. Every other format, and every format of a native ride, is generated
+// from the rows. So a KML import can be downloaded as GPX and a ride built here
+// can be downloaded as either, neither of which was possible before.
+//
+// One table rather than four handlers: the visibility gate, the nosniff header
+// and the attachment naming are identical for all of them, and four copies of
+// that is four places for one of them to drift.
+const DOWNLOADS: Record<
+  string,
+  { type: string; stored: StoredExt; hasStored: (m: RideRow) => boolean; build: (r: ExportRide) => string }
+> = {
+  kml: {
+    type: 'application/vnd.google-earth.kml+xml',
+    stored: 'kml',
+    // A KMZ is stored as the KML from inside it, so it answers here too. Rows
+    // predating source_format have it backfilled from whichever file they kept.
+    hasStored: (m) => m.kmlBytes > 0 && (m.sourceFormat === 'kml' || m.sourceFormat === 'kmz'),
+    build: buildKml,
+  },
+  gpx: {
+    type: 'application/gpx+xml',
+    stored: 'gpx',
+    hasStored: (m) => m.gpxPresent && m.sourceFormat === 'gpx',
+    build: buildGpx,
+  },
+  // These two have no byte column of their own; source_format is what says the
+  // ride arrived as one, and source_bytes that the file is on disk.
+  geojson: {
+    type: 'application/geo+json',
+    stored: 'geojson',
+    hasStored: (m) => m.sourceBytes > 0 && (m.sourceFormat === 'geojson' || m.sourceFormat === 'json'),
+    build: buildGeoJson,
+  },
+  csv: {
+    type: 'text/csv',
+    stored: 'csv',
+    hasStored: (m) => m.sourceBytes > 0 && m.sourceFormat === 'csv',
+    build: buildCsv,
+  },
+}
 
-// Seam 2 + GPX: gated file streams from outside-the-web-root storage.
-app.get('/api/public/maps/:slug/kml', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m || m.kmlBytes === 0) return c.text('Not found', 404)
-  return streamFile(c, m, 'kml', 'application/vnd.google-earth.kml+xml')
-})
-app.get('/api/public/maps/:slug/gpx', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m || !m.gpxPresent) return c.text('Not found', 404)
-  return streamFile(c, m, 'gpx', 'application/gpx+xml')
-})
+// Every branch above tests source_format, which is what keeps a folder import
+// from streaming one of its files as if it were the whole ride: several files
+// store 'mixed', which matches nothing, so those rides always generate from the
+// rows — and the rows are the merged trip, which is the correct answer.
 
-async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
-  // Path built only from integer ids, containment-checked in mapFilePath.
-  const path = mapFilePath(m.ownerId, m.id, ext)
-  if (!path) return c.text('Not found', 404)
-  let buf: Buffer
-  try {
-    buf = await readFile(path)
-  } catch {
-    return c.text('Not found', 404)
-  }
+
+// The lossless one, and its own route because it carries ride-level fields the
+// others do not and is never streamed from a stored file — a native JSON is
+// generated from the rows by definition.
+app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m) return c.text('Not found', 404)
+  const native = await loadNativeRide(m.id, {
+    title: m.title,
+    description: m.description,
+    visibility: m.visibility,
+    externalUrl: m.externalUrl,
+  })
+  if ((native.ride as { routes: unknown[] }).routes.length === 0) return c.text('Not found', 404)
+
   const headers: Record<string, string> = {
-    'Content-Type': `${type}; charset=utf-8`,
+    'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
   }
   if (c.req.query('dl') !== undefined) {
     const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.${ext}"`
+    headers['Content-Disposition'] = `attachment; filename="${safe}.tankbag.json"`
   }
-  return new Response(buf, { headers })
-}
+  return new Response(buildNativeJson(native), { headers })
+})
+
+app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
+  const format = c.req.param('format')
+  const spec = DOWNLOADS[format]
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !spec) return c.text('Not found', 404)
+
+  const headers: Record<string, string> = {
+    'Content-Type': `${spec.type}; charset=utf-8`,
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
+    headers['Content-Disposition'] = `attachment; filename="${safe}.${format}"`
+  }
+
+  // The stored original wins where there is one. Generating it instead would
+  // be lossy for no reason: the file carries styling, folders and per-point
+  // detail this app does not model and therefore cannot reproduce.
+  if (spec.hasStored(m)) {
+    // A .json upload is stored under .json, not .geojson — the extension is the
+    // one the rider sent. Both are the same format and both answer /geojson.
+    const ext = spec.stored === 'geojson' && m.sourceFormat === 'json' ? 'json' : spec.stored
+    const path = mapFilePath(m.ownerId, m.id, ext)
+    if (path) {
+      const buf = await readFile(path).catch(() => null)
+      if (buf) return new Response(buf, { headers })
+    }
+    // Falls through to generation rather than 404ing. A row that says the file
+    // exists and a filesystem that disagrees is a real failure mode after a
+    // restore, and the rows are still enough to build a usable file.
+  }
+
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
+  return new Response(spec.build(ride), { headers })
+})
 
 // --- Templates ------------------------------------------------------------
 
@@ -373,6 +471,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
+      dayColors: DAY_COLORS,
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  // Tuned down from biome's defaults, which reported 242 issues across this
+  // repo — the same failure mode that got SonarCloud retired. Everything turned
+  // off below is a style preference; everything left on has either found a real
+  // defect here or would.
+  // The repo already formats with prettier and has a .prettierrc that files are
+  // written against. Biome ships its own formatter and disagrees with prettier
+  // on details, so leaving both on means every file is permanently "unformatted"
+  // according to one of them — noise that says nothing about the code. Prettier
+  // owns formatting; biome is here for the linter only.
+  "formatter": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        // 83 + 20 + 9 findings, and none of them a defect. This is most of the
+        // noise and none of the signal.
+        "useTemplate": "off",
+        "useSelfClosingElements": "off",
+        // 22 findings, all deliberate — `r.username!` after a NOT NULL filter,
+        // and similar. Left on as a warning would just be 22 warnings.
+        "noNonNullAssertion": "off"
+      },
+      "complexity": {
+        // The two the previous tool nagged hardest about and nobody ever acted
+        // on. `forEach` is fine; an optional chain is not always clearer.
+        "noForEach": "off",
+        "useArrowFunction": "off",
+        "useOptionalChain": "off"
+      },
+      "correctness": {
+        // A React reconciliation concern. This app renders JSX to a string
+        // once, server-side, through Hono — there is nothing to reconcile, and
+        // a `key` would be inert markup. Verified when the views were converted.
+        "useJsxKeyInIterable": "off"
+      },
+      "suspicious": {
+        // The IIFEs in public/js open with "use strict" deliberately: they are
+        // plain scripts, not modules, so it is not redundant there.
+        "noRedundantUseStrict": "off"
+      },
+      "a11y": {
+        // Wants rel="noreferrer"; every target="_blank" here already carries
+        // rel="noopener", which is what closes the window.opener hole.
+        // noreferrer additionally strips the Referer, which is a privacy
+        // preference and not wanted for links to our own FAQ.
+        "noBlankTarget": "off",
+        // Suggests <dialog> for role="dialog". The alpha modal is deliberately
+        // a div: <dialog> brings its own focus and backdrop behaviour that
+        // site.js already implements and tests.
+        "useSemanticElements": "off"
+      }
+    }
+  }
+}

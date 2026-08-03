@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { TURNSTILE_SITE_KEY, turnstileEnabled } from '../maps/turnstile'
-import { FORMAT_INFO, GPX_MAX_BYTES, KML_MAX_BYTES, SUPPORTED_FORMATS } from '../maps/kml'
+import { FORMAT_INFO, SUPPORTED_FORMATS } from '../maps/kml'
 
 export const importRoutes = new Hono<AuthEnv>()
 
@@ -22,7 +22,7 @@ const MB = 1024 * 1024
 // Read from the pipeline rather than restated, so the form cannot offer a
 // format the server refuses — or omit one it accepts.
 const FORMATS = SUPPORTED_FORMATS.map((ext) => ({ ext, ...FORMAT_INFO[ext] }))
-const MAX_BYTES = Math.max(KML_MAX_BYTES, GPX_MAX_BYTES)
+const MAX_BYTES = Math.max(...FORMATS.map((f) => f.maxBytes))
 
 importRoutes.get('/import', requireActive, (c) => {
   const user = currentUser(c)
@@ -52,21 +52,38 @@ importRoutes.get('/import', requireActive, (c) => {
             <input type="hidden" name="redirect" value="1" />
 
             <p class="field">
-              <label for="f-route">Route file</label>
+              <label for="f-route">Route files</label>
+              {/*
+                `multiple` because a rider with a multi-day trip has one file
+                per day, and importing them one at a time makes one ride per day
+                and no trip. Several files become several days of one ride, in
+                the order the browser lists them — which for a folder selection
+                is filename order, so day-1/day-2/day-3 comes out right.
+              */}
               <input
                 id="f-route"
                 name="route"
                 type="file"
+                multiple
                 required
                 accept={FORMATS.map((f) => `.${f.ext}`).join(',')}
               />
-              <span class="field-hint">Up to {MAX_BYTES / MB} MB.</span>
+              <span class="field-hint">
+                Up to {MAX_BYTES / MB} MB each, depending on the format. Pick several and each becomes a day.
+              </span>
             </p>
 
+            {/*
+              The cap is per format and they differ, so each row carries its
+              own rather than the hint above quoting the largest and being
+              wrong for the rest.
+            */}
             <p class="field-formats">
               {FORMATS.map((f) => (
                 <span class="format">
-                  <strong>.{f.ext}</strong> {f.note}
+                  <strong>.{f.ext}</strong>
+                  <span class="format-note">{f.note}</span>
+                  <span class="format-cap">{f.maxBytes / MB} MB</span>
                 </span>
               ))}
             </p>

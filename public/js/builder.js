@@ -54,12 +54,10 @@
   const MAX_STOPS = 200;
   const MAX_POIS = 200;
 
-  // Same palette the legacy viewer used, so a multi-day trip gets visually
-  // distinct days without the rider picking each one.
-  const DAY_COLORS = [
-    "#0066cc", "#cc0000", "#8800dd", "#ff6f00", "#dd00dd", "#006064",
-    "#4a148c", "#4e342e", "#00aaaa", "#a0740b", "#003300", "#550000",
-  ];
+  // Injected by the page shell from src/maps/palette.ts, the same way
+  // window.TB.roles carries the role table. The importer colours the days of a
+  // folder import server-side, so the palette cannot live only in here.
+  const DAY_COLORS = window.TB.dayColors;
 
   const newRoute = (color) => ({
     title: "",

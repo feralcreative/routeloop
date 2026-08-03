@@ -17,8 +17,8 @@ import { db } from '../db/index'
 import { rides, routes, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
+  FORMAT_INFO,
   GPX_MAX_BYTES,
-  KML_MAX_BYTES,
   METERS_PER_MILE,
   distFromStartAlongTrack,
   isSupportedFormat,
@@ -28,11 +28,24 @@ import {
   RouteFileError,
   validateGpx,
   type ExtractedRoute,
+  type SupportedFormat,
 } from '../maps/kml'
+import { processCsv } from '../maps/csv'
+import { processGeoJson } from '../maps/geojson'
+import { isNativeRide, NATIVE_FORMAT_VERSION } from '../maps/export'
+import { insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
+import { extractKmlFromKmz } from '../maps/kmz'
+import { fields, firstIssue } from '../maps/fields'
+import { dayColor } from '../maps/palette'
 import { generateSlug } from '../maps/slug'
+import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
+
+// Re-exported: rides.ts has imported these from here since before they had
+// a module of their own.
+export { fields, firstIssue }
 
 export const mapsRoutes = new Hono<AuthEnv>()
 
@@ -50,16 +63,6 @@ class QuotaExceeded extends Error {
   }
 }
 
-// Scalar form fields, shared by import (with defaults), PATCH here, and the
-// ride API. external_url: http(s) only — never javascript:, never data:.
-const externalUrl = z.union([z.literal(''), z.url({ protocol: /^https?$/ }).max(2048)])
-export const fields = {
-  title: z.string().trim().min(1, 'title is required').max(150),
-  description: z.string().trim().max(2000),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'color must be #rrggbb'),
-  visibility: z.enum(['public', 'unlisted', 'private']),
-  external_url: externalUrl,
-}
 const uploadSchema = z.object({
   title: fields.title,
   description: fields.description.default(''),
@@ -77,9 +80,16 @@ const patchSchema = z
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'nothing to update' })
 
-export const firstIssue = (e: z.ZodError): string => {
-  const i = e.issues[0]
-  return i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message
+// A day's name from the file it came from: "day-2-coast.gpx" reads better in
+// the legend than "Day 2", and a rider who named their files named them for a
+// reason. Falls back to the position when the name says nothing useful.
+function dayTitle(fileName: string, index: number): string {
+  const base = fileName
+    .replace(/\.[A-Za-z0-9]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .slice(0, 120)
+  return base || `Day ${index + 1}`
 }
 
 // --- Import ----------------------------------------------------------------
@@ -91,7 +101,9 @@ mapsRoutes.post(
   bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'upload too large' }, 413) }),
   async (c) => {
     const user = currentUser(c)
-    const body = await c.req.parseBody()
+    // `all: true` so several files posted under the same field name arrive as
+    // an array rather than the last one silently winning.
+    const body = await c.req.parseBody({ all: true })
 
     // The import page posts a plain form and cannot render JSON, so it sets
     // `redirect=1` and gets a redirect instead. Everything else — anything
@@ -123,21 +135,96 @@ mapsRoutes.post(
     // `route` is the field the import page posts, and the name every format
     // arrives under. `kml` is still read so anything already posting to this
     // endpoint keeps working — the two are the same field, differently named.
-    const upload = body.route instanceof File && body.route.size > 0 ? body.route : body.kml
-    if (!(upload instanceof File) || upload.size === 0) return fail('a route file is required', 400)
-
-    const ext = (upload.name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
-    if (!isSupportedFormat(ext)) {
-      return fail(`unsupported file type "${ext || upload.name}" — accepted: ${SUPPORTED_FORMATS.join(', ')}`, 400)
+    //
+    // Several files become several days of one ride, in the order given. That
+    // is what a rider with a folder of per-day GPX files actually has, and
+    // importing them one at a time would make one ride per day and no trip.
+    const asFiles = (v: unknown): File[] =>
+      (Array.isArray(v) ? v : [v]).filter((f): f is File => f instanceof File && f.size > 0)
+    const uploads = asFiles(body.route).length > 0 ? asFiles(body.route) : asFiles(body.kml)
+    if (uploads.length === 0) return fail('a route file is required', 400)
+    if (uploads.length > MAX_SOURCE_FILES) {
+      return fail(`too many files — ${MAX_SOURCE_FILES} is the limit for one ride`, 400)
     }
-    const cap = ext === 'gpx' ? GPX_MAX_BYTES : KML_MAX_BYTES
-    if (upload.size > cap) return fail(`${ext.toUpperCase()} exceeds ${cap / MB} MB`, 413)
+
+    // Validate every file before parsing any, so a bad tenth file fails the
+    // upload rather than leaving nine days half-imported.
+    const sources: Array<{ file: File; ext: SupportedFormat }> = []
+    for (const file of uploads) {
+      const e = (file.name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+      if (!isSupportedFormat(e)) {
+        return fail(`unsupported file type "${e || file.name}" — accepted: ${SUPPORTED_FORMATS.join(', ')}`, 400)
+      }
+      const cap = FORMAT_INFO[e].maxBytes
+      if (file.size > cap) return fail(`${file.name}: ${e.toUpperCase()} exceeds ${cap / MB} MB`, 413)
+      sources.push({ file, ext: e })
+    }
+
+    // The single-file case keeps every behaviour it had, including the
+    // companion-GPX path below, which only ever made sense for one route file.
+    const single = sources.length === 1 ? sources[0] : null
+    const ext = single?.ext ?? 'mixed'
+
+    // A native TankBag JSON is a different door entirely: it is the builder's
+    // own save payload, so it skips extraction and goes through the same schema
+    // and the same insert a save does. Nothing about it is a route *file* — it
+    // is a ride, restored. It arrives as .json like GeoJSON does, so the two
+    // are told apart by the `tankbag` version field rather than by extension.
+    if (single && (single.ext === 'json' || single.ext === 'geojson')) {
+      const text = await single.file.text()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        return fail('that file is not valid JSON', 400)
+      }
+      if (isNativeRide(parsed)) {
+        if (parsed.tankbag > NATIVE_FORMAT_VERSION) {
+          return fail(`this file was written by a newer version of TankBag (format ${parsed.tankbag})`, 400)
+        }
+        const check = ridePayload.safeParse({ ...(parsed.ride as object), title: meta.title })
+        if (!check.success) return fail(firstIssue(check.error), 400)
+        const payload = check.data
+        // The uploader owns what they upload, and a restored ride lands
+        // private regardless of what the file says — publishing is a decision
+        // taken here, not one carried in from a file someone was sent.
+        payload.visibility = meta.visibility
+        normalize(payload)
+        const totals = rideTotals(payload)
+
+        // No file is stored and no quota is charged: a native ride is rows, and
+        // the caps that bound it are structural (MAX_ROUTES, MAX_STOPS, the
+        // per-ride point ceiling) rather than byte-based. That is exactly how a
+        // ride built in the builder is treated.
+        const created = await db.transaction(async (tx) => {
+          const [ride] = await tx
+            .insert(rides)
+            .values({
+              ownerId: user.id,
+              slug: generateSlug(),
+              title: payload.title,
+              description: payload.description || null,
+              visibility: payload.visibility,
+              source: 'native',
+              externalUrl: payload.external_url || null,
+              ...totals,
+            })
+            .returning()
+          await insertRideGraph(tx, ride.id, payload)
+          return ride
+        })
+        console.log(`[import] user ${user.id} restored native ride ${created.id} (${created.visibility})`)
+        return wantsRedirect
+          ? c.redirect(`/m/${created.slug}`, 302)
+          : c.json({ id: created.id, slug: created.slug, title: created.title, visibility: created.visibility }, 201)
+      }
+    }
 
     // A GPX may still arrive as a companion to a KML, which is what this
     // endpoint accepted before it took anything but KML. In that case the KML
     // is the route and the GPX is kept only so it can be downloaded again.
     const companionGpx =
-      ext === 'kml' && body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
+      single && single.ext !== 'gpx' && body.gpx instanceof File && body.gpx.size > 0 ? body.gpx : undefined
     if (companionGpx) {
       if (!/\.gpx$/i.test(companionGpx.name)) return fail('track file must be a .gpx', 400)
       if (companionGpx.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
@@ -146,43 +233,77 @@ mapsRoutes.post(
     // Parse, sanitize, extract structure. A RouteFileError is the user's
     // problem (400); anything else is ours (500).
     //
-    // Each branch yields the same ExtractedRoute, plus the bytes to keep. KML is
-    // stored re-serialized after sanitizing (processKml returns storedKml);
-    // GPX is stored as uploaded, which is what the companion path already did.
-    // Both stream back with an explicit non-HTML content type and nosniff, so
-    // neither can be coaxed into rendering.
-    let extracted: ExtractedRoute
-    let storedExt: 'kml' | 'gpx'
-    let storedBuf: Buffer
+    // Every branch yields the same ExtractedRoute plus the bytes to keep, and
+    // every format keeps its original. That last part was not always true:
+    // GeoJSON and CSV briefly stored nothing on the theory that the rows were a
+    // complete record of the upload. They are not — import flattens a multi-day
+    // file to one route, so the day structure would have existed in the upload
+    // and then existed nowhere. The file is the only copy of what was actually
+    // sent, which is the whole reason to keep one.
+    //
+    // KML is stored re-serialized after sanitizing (processKml returns
+    // storedKml); everything else is stored as uploaded. All of it streams back
+    // with an explicit non-HTML content type and nosniff, so none of it can be
+    // coaxed into rendering.
+    // One day per file, each with the bytes to keep alongside it.
+    type Day = { route: ExtractedRoute; ext: StoredExt; buf: Buffer; name: string }
+    const days: Day[] = []
     let gpxBuf: Buffer | undefined
     try {
-      if (ext === 'gpx') {
-        const text = await upload.text()
-        extracted = processGpx(text)
-        storedExt = 'gpx'
-        storedBuf = Buffer.from(await upload.arrayBuffer())
-        gpxBuf = storedBuf
-      } else {
-        const kml = processKml(await upload.text())
-        extracted = kml
-        storedExt = 'kml'
-        storedBuf = Buffer.from(kml.storedKml, 'utf8')
-        if (companionGpx) {
-          validateGpx(await companionGpx.text())
-          gpxBuf = Buffer.from(await companionGpx.arrayBuffer())
+      for (const { file, ext: e } of sources) {
+        if (e === 'geojson' || e === 'json') {
+          const text = await file.text()
+          days.push({ route: processGeoJson(text), ext: e, buf: Buffer.from(text, 'utf8'), name: file.name })
+        } else if (e === 'csv') {
+          // Stops and nothing else — no track, so no legs, no mileage and no
+          // twistiness. The ride gets its line when it is routed in the builder.
+          const text = await file.text()
+          days.push({ route: processCsv(text), ext: 'csv', buf: Buffer.from(text, 'utf8'), name: file.name })
+        } else if (e === 'gpx') {
+          const buf = Buffer.from(await file.arrayBuffer())
+          days.push({ route: processGpx(await file.text()), ext: 'gpx', buf, name: file.name })
+          if (single) gpxBuf = buf
+        } else {
+          // Unzipping first means the KMZ path converges on processKml before
+          // anything is parsed, so DOCTYPE rejection, sanitizing and extraction
+          // are the same code for both — a KMZ cannot route around them. The
+          // archive is stored as the KML pulled out of it; `source_format`
+          // remembers it arrived zipped.
+          const text = e === 'kmz' ? extractKmlFromKmz(Buffer.from(await file.arrayBuffer())) : await file.text()
+          const kml = processKml(text)
+          days.push({ route: kml, ext: 'kml', buf: Buffer.from(kml.storedKml, 'utf8'), name: file.name })
         }
       }
+      if (companionGpx) {
+        validateGpx(await companionGpx.text())
+        gpxBuf = Buffer.from(await companionGpx.arrayBuffer())
+      }
     } catch (e) {
-      if (e instanceof RouteFileError) return fail(e.message, 400)
+      // Name the file, or a folder import that fails says only "no <kml> root"
+      // and leaves the rider to work out which of thirty files it meant.
+      if (e instanceof RouteFileError) {
+        return fail(sources.length > 1 ? `${sources[days.length]?.file.name ?? 'file'}: ${e.message}` : e.message, 400)
+      }
       throw e
     }
 
-    // A GPX-only import stores one file, so its bytes are counted once even
-    // though storedBuf and gpxBuf point at the same buffer.
-    const incoming = storedBuf.byteLength + (storedExt === 'kml' ? (gpxBuf?.byteLength ?? 0) : 0)
-    const distM = Math.round(extracted.trackMeters)
-    const totalMiles = (extracted.trackMeters / METERS_PER_MILE).toFixed(1)
-    const stopDists = distFromStartAlongTrack(extracted.track, extracted.points)
+    // Which byte column each stored original lands in. KML and GPX have their
+    // own for historical reasons and because "how big is the KML" stays a
+    // question worth answering; everything else shares source_bytes.
+    const bytesIn = (want: (d: Day) => boolean) => days.filter(want).reduce((n, d) => n + d.buf.byteLength, 0)
+    const kmlBytes = bytesIn((d) => d.ext === 'kml')
+    const gpxBytes = bytesIn((d) => d.ext === 'gpx') + (companionGpx ? (gpxBuf?.byteLength ?? 0) : 0)
+    const sourceBytes = bytesIn((d) => d.ext !== 'kml' && d.ext !== 'gpx')
+
+    // Must equal the generated `size_bytes` the delete path subtracts. The two
+    // are computed by different sides — the app on the way in, the database on
+    // the way out — and quota drifts permanently if they ever disagree, so this
+    // is the same sum as the column expression and nothing else.
+    const incoming = kmlBytes + gpxBytes + sourceBytes
+
+    const totalMeters = days.reduce((m, d) => m + d.route.trackMeters, 0)
+    const totalMiles = (totalMeters / METERS_PER_MILE).toFixed(1)
+    const stopCount = days.reduce((n, d) => n + d.route.points.filter((p) => p.kind !== 'poi').length, 0)
 
     // Quota + inserts + file writes in one transaction: the quota row is
     // locked (FOR UPDATE) so concurrent imports cannot both squeeze under the
@@ -208,53 +329,89 @@ mapsRoutes.post(
             source: 'imported',
             externalUrl: meta.external_url || null,
             gpxPresent: Boolean(gpxBuf),
-            kmlBytes: storedExt === 'kml' ? storedBuf.byteLength : 0,
-            gpxBytes: storedExt === 'gpx' ? storedBuf.byteLength : (gpxBuf?.byteLength ?? 0),
+            // The extension as uploaded, so a KMZ is remembered as a KMZ even
+            // though what sits on disk is the KML from inside it.
+            sourceFormat: ext,
+            kmlBytes,
+            gpxBytes,
+            sourceBytes,
             totalMiles,
-            stopCount: extracted.points.length,
+            stopCount,
           })
           .returning()
 
-        // An imported ride never touches the router, so this is the only shape
-        // information it will ever have — which is exactly why twistiness is
-        // computed from geometry rather than from routing maneuvers.
-        const twist = twistiness(extracted.track)
-        const [route] = await tx
-          .insert(routes)
-          .values({
-            rideId: ride.id,
-            position: 0,
-            color: meta.color,
-            distanceM: distM,
-            twistinessDpm: twist?.dpm ?? null,
-            twistinessBestDpm: twist?.bestDpm ?? null,
-          })
-          .returning()
+        // One route per file, in the order they were given. A single upload is
+        // the same code path with one day in the list.
+        for (const [i, day] of days.entries()) {
+          const distM = Math.round(day.route.trackMeters)
 
-        if (extracted.points.length > 0) {
-          await tx.insert(points).values(
-            extracted.points.map((p, i) => ({
-              routeId: route.id,
-              kind: 'stop' as const,
+          // An imported ride never touches the router, so this is the only shape
+          // information it will ever have — which is exactly why twistiness is
+          // computed from geometry rather than from routing maneuvers. It is
+          // per-day: averaging a whole trip would bury the good road in the
+          // straight one that got you there.
+          const twist = twistiness(day.route.track)
+          const [route] = await tx
+            .insert(routes)
+            .values({
+              rideId: ride.id,
               position: i,
-              lat: p.lat,
-              lng: p.lng,
-              name: p.name,
-              description: p.description,
-              roles: p.roles,
-              distFromStartM: stopDists[i],
-            })),
-          )
-        }
-        if (extracted.track.length > 0) {
-          await tx
-            .insert(routeLegs)
-            .values({ routeId: route.id, position: 0, geometry: extracted.track, distanceM: distM })
-        }
+              // Every day the same colour would make the viewer's legend
+              // useless, so a multi-file import walks the palette the builder
+              // uses. A single file keeps exactly the colour that was asked for.
+              color: days.length > 1 ? dayColor(i) : meta.color,
+              // '' is this column's no-title value (notNull, default ''),
+              // and the viewer already falls back to "Day N" when it is empty.
+              title: days.length > 1 ? dayTitle(day.name, i) : '',
+              distanceM: distM,
+              twistinessDpm: twist?.dpm ?? null,
+              twistinessBestDpm: twist?.bestDpm ?? null,
+            })
+            .returning()
 
-        fileRideId = ride.id
-        await writeMapFile(user.id, ride.id, storedExt, storedBuf)
-        if (storedExt === 'kml' && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
+          // With no track to project onto, distFromStartAlongTrack answers 0
+          // for every point. That is a claim — "this stop is at the start" —
+          // and it is false for all but the first. A trackless import stores
+          // null instead, the same null-is-not-zero distinction twistiness
+          // makes: null means nothing measured it, 0 means it measured zero.
+          const stopDists: Array<number | null> =
+            day.route.track.length > 0
+              ? distFromStartAlongTrack(day.route.track, day.route.points)
+              : day.route.points.map(() => null)
+
+          if (day.route.points.length > 0) {
+            // Stops carry a position and POIs carry null, matching what the
+            // builder writes — a POI is not a routing anchor and has no place
+            // in the stop order. So the counter advances only for stops.
+            let stopPos = 0
+            await tx.insert(points).values(
+              day.route.points.map((p, n) => {
+                const isPoi = p.kind === 'poi'
+                return {
+                  routeId: route.id,
+                  kind: isPoi ? ('poi' as const) : ('stop' as const),
+                  position: isPoi ? null : stopPos++,
+                  lat: p.lat,
+                  lng: p.lng,
+                  name: p.name,
+                  description: p.description,
+                  roles: p.roles,
+                  durationMin: p.durationMin ?? null,
+                  distFromStartM: stopDists[n],
+                }
+              }),
+            )
+          }
+          if (day.route.track.length > 0) {
+            await tx
+              .insert(routeLegs)
+              .values({ routeId: route.id, position: 0, geometry: day.route.track, distanceM: distM })
+          }
+
+          fileRideId = ride.id
+          await writeMapFile(user.id, ride.id, day.ext, day.buf, i)
+        }
+        if (companionGpx && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
 
         await tx
           .update(usersTable)
