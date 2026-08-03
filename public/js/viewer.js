@@ -224,10 +224,18 @@
       })
       .join("");
 
-    // Ride-level downloads (imported originals now; native exports in Phase 3).
+    // Ride-level downloads. Every ride offers every format now: an imported
+    // ride streams its stored original for the format it arrived in and the
+    // rest are generated from the rows, so which formats are on offer no longer
+    // depends on which one the ride came from. See the DOWNLOADS table in
+    // src/index.tsx.
     const dls = [];
     if (state.ride.gpxUrl) dls.push(dlButton(state.ride.gpxUrl + "?dl", "GPX", true));
     if (state.ride.kmlUrl) dls.push(dlButton(state.ride.kmlUrl + "?dl", "KML", true));
+    if (state.ride.geojsonUrl) dls.push(dlButton(state.ride.geojsonUrl + "?dl", "GeoJSON", true));
+    // The stop list on its own, for a spreadsheet. Last because it is the one
+    // that is not a route.
+    if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true));
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
       dls.push(dlButton(state.ride.externalUrl, "URL", false));
     }

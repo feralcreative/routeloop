@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { processCsv } from '../src/maps/csv'
 import { processGeoJson } from '../src/maps/geojson'
 import { extractKmlFromKmz } from '../src/maps/kmz'
-import { buildCsv, buildGeoJson, type ExportRide } from '../src/maps/export'
+import { buildCsv, buildGeoJson, buildGpx, buildKml, type ExportRide } from '../src/maps/export'
 import { processGpx, processKml, RouteFileError, trackMeters, type ExtractedRoute, type Track } from '../src/maps/kml'
 import { kmzOf } from './helpers/zip'
 
@@ -168,6 +168,42 @@ describe('the shapes that break parsers', () => {
     expect(r.track).toHaveLength(2)
   })
 
+  // A multi-day GPX carries one <trk> per day. Reading them as one continuous
+  // track invents the geometry between where one day ends and the next begins:
+  // on a real 3-day ride that turned 553 miles into 631 and pulled twistiness
+  // down from 79/69/53 to 59, because the phantom joins are perfectly straight.
+  it('takes the longest track rather than joining separate ones end to end', () => {
+    const trk = (pts: Array<[number, number]>) =>
+      `<trk><trkseg>${pts.map(([lng, lat]) => `<trkpt lat="${lat}" lon="${lng}"/>`).join('')}</trkseg></trk>`
+    const r = processGpx(
+      `<gpx>${trk([
+        [-122.0, 37.0],
+        [-122.1, 37.1],
+      ])}${trk([
+        [-121.0, 36.0],
+        [-121.1, 36.1],
+        [-121.2, 36.2],
+      ])}</gpx>`,
+    )
+    expect(r.track).toEqual([
+      [-121, 36],
+      [-121.1, 36.1],
+      [-121.2, 36.2],
+    ])
+  })
+
+  // But a <trkseg> break inside one <trk> is a recording pause in a single
+  // ride, so those are joined. The two cases look alike and are not.
+  it('joins segments within one track, because a break there is a pause', () => {
+    const r = processGpx(
+      '<gpx><trk>' +
+        '<trkseg><trkpt lat="37.0" lon="-122.0"/><trkpt lat="37.1" lon="-122.1"/></trkseg>' +
+        '<trkseg><trkpt lat="37.2" lon="-122.2"/></trkseg>' +
+        '</trk></gpx>',
+    )
+    expect(r.track).toHaveLength(3)
+  })
+
   it('falls back to route points when a GPX has no track', () => {
     const r = processGpx('<gpx><rte><rtept lat="37.0" lon="-122.0"/><rtept lat="37.1" lon="-122.1"/></rte></gpx>')
     expect(r.track).toHaveLength(2)
@@ -237,9 +273,21 @@ describe('a ride survives export and re-import', () => {
     build: () => string
     parse: (s: string) => ExtractedRoute
     keepsTrack: boolean
+    // KML and GPX have nowhere to put a stop/POI distinction or a dwell time —
+    // a Placemark and a <wpt> are the same thing whatever we meant by them. The
+    // roles survive because the name prefix carries them.
+    keepsKindAndDwell: boolean
   }> = [
-    { label: 'GeoJSON', build: () => buildGeoJson(ride), parse: processGeoJson, keepsTrack: true },
-    { label: 'CSV', build: () => buildCsv(ride), parse: processCsv, keepsTrack: false },
+    {
+      label: 'GeoJSON',
+      build: () => buildGeoJson(ride),
+      parse: processGeoJson,
+      keepsTrack: true,
+      keepsKindAndDwell: true,
+    },
+    { label: 'CSV', build: () => buildCsv(ride), parse: processCsv, keepsTrack: false, keepsKindAndDwell: true },
+    { label: 'KML', build: () => buildKml(ride), parse: processKml, keepsTrack: true, keepsKindAndDwell: false },
+    { label: 'GPX', build: () => buildGpx(ride), parse: processGpx, keepsTrack: true, keepsKindAndDwell: false },
   ]
 
   for (const w of writers) {
@@ -261,9 +309,24 @@ describe('a ride survives export and re-import', () => {
         })
       })
 
-      it('keeps the stop/POI distinction and the dwell time', () => {
-        expect(back.points.map((p) => p.kind)).toEqual(['stop', 'stop', 'poi', 'stop'])
-        expect(back.points.map((p) => p.durationMin)).toEqual([null, 15, null, null])
+      if (w.keepsKindAndDwell) {
+        it('keeps the stop/POI distinction and the dwell time', () => {
+          expect(back.points.map((p) => p.kind)).toEqual(['stop', 'stop', 'poi', 'stop'])
+          expect(back.points.map((p) => p.durationMin)).toEqual([null, 15, null, null])
+        })
+      } else {
+        // Left undefined rather than set to 'stop': the extractor is saying
+        // "this format cannot tell you", which the insert path then reads as a
+        // stop. A format that guessed would be indistinguishable from one that
+        // knew.
+        it('says nothing about kind or dwell, which is all the format can say', () => {
+          expect(back.points.map((p) => p.kind)).toEqual([undefined, undefined, undefined, undefined])
+          expect(back.points.map((p) => p.durationMin ?? null)).toEqual([null, null, null, null])
+        })
+      }
+
+      it('writes a file this app will read back — no DOCTYPE', () => {
+        expect(w.build()).not.toMatch(/<!DOCTYPE/i)
       })
 
       if (w.keepsTrack) {

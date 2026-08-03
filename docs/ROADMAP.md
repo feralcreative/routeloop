@@ -99,7 +99,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [ ] Persist the pulled points into `route_legs.via_points` (the column already round-trips through the API). On drop, re-request only the affected leg through `POST /api/route` with the new via list; the anchor stops stay fixed.
 - [ ] Via-points are themselves draggable and removable after creation, and render distinctly from stops and POIs—smaller and clearly ephemeral—so the routing anchors stay legible.
 - [ ] Moving or reordering a stop invalidates that leg's shaping and clears its via-points (already the builder's behavior); keep that so a stale shaping point can't fight a new route.
-- [x] `src/maps/export.ts`—generate from stored rows. GeoJSON done; KML and GPX still to come.
+- [x] `src/maps/export.ts`—generate KML, GPX, GeoJSON and CSV from stored rows, and make `/kml` and `/gpx` source-aware: an imported ride streams its stored original (byte-for-byte, which is why the file is kept) and everything else is generated. A native ride can be downloaded as any of the four for the first time.
 - [ ] Source-aware `/kml` and `/gpx` endpoints that serve native rides from the database and imported rides from their original file.
 - [ ] Round-trip the `ROLE - Name` convention on export so files reopen correctly in Google Earth and elsewhere.
 
@@ -193,7 +193,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the *decompressed* size.
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
-- [ ] Export GPX flavors that load cleanly on Garmin and other devices.
+- [x] Export GPX that loads cleanly on a device—stops are `<wpt>` and shaping points are `<trkpt>`, never `<rte>`/`<rtept>`. A route file lets the device re-derive the ride between anchors, which is the failure the FAQ describes under "Why does my GPS ignore the route I planned?".
 - [x] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 - [x] Round-trip fidelity tests per format (#35)—`test/fixtures/` holds one ride written five ways and `test/round-trip.test.ts` asserts the parsers agree. It caught a real disagreement on its first run: KML read a one-point line as a zero-length track while GeoJSON rejected the whole file.
 

@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
@@ -17,7 +16,7 @@ import {
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { ROLE_META } from './maps/roles'
-import { buildCsv, buildGeoJson, loadRideForExport } from './maps/export'
+import { buildCsv, buildGeoJson, buildGpx, buildKml, loadRideForExport, type ExportRide } from './maps/export'
 import { mapFilePath } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -238,11 +237,10 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     })
   }
 
-  // Downloads: imported rides stream their stored originals, and GeoJSON is
-  // generated from the rows so it is offered for every ride — including native
-  // ones, which have no stored file, and imports that arrived as something
-  // else. KML and GPX generation is still to come.
-  const isImported = m.source === 'imported'
+  // Every format is offered for every ride now. An imported ride streams its
+  // stored original where it has one and the rest are generated from the rows,
+  // so which formats a ride can be downloaded as no longer depends on which one
+  // it arrived in. See the DOWNLOADS table.
   return c.json({
     title: m.title,
     description: m.description ?? '',
@@ -251,8 +249,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     // Only offered when a KML was actually stored. A GPX-only import has none,
     // and advertising the link would give the viewer a download button that
     // 404s.
-    kmlUrl: isImported && m.kmlBytes > 0 ? `/api/public/maps/${m.slug}/kml` : null,
-    gpxUrl: isImported && m.gpxPresent ? `/api/public/maps/${m.slug}/gpx` : null,
+    kmlUrl: `/api/public/maps/${m.slug}/kml`,
+    gpxUrl: `/api/public/maps/${m.slug}/gpx`,
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     csvUrl: `/api/public/maps/${m.slug}/csv`,
     externalUrl: m.externalUrl || null,
@@ -260,80 +258,70 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   })
 })
 
-
-// Seam 2 + GPX: gated file streams from outside-the-web-root storage.
-app.get('/api/public/maps/:slug/kml', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m || m.kmlBytes === 0) return c.text('Not found', 404)
-  return streamFile(c, m, 'kml', 'application/vnd.google-earth.kml+xml')
-})
-app.get('/api/public/maps/:slug/gpx', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m || !m.gpxPresent) return c.text('Not found', 404)
-  return streamFile(c, m, 'gpx', 'application/gpx+xml')
-})
-
-// Generated rather than streamed, so it works for every ride — native ones that
-// have no stored file at all, and imported ones that arrived as something else.
-// The gate is the same getViewable the other two use; nothing about generating
-// the bytes changes who is allowed to see them.
-app.get('/api/public/maps/:slug/geojson', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m) return c.text('Not found', 404)
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
-  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/geo+json; charset=utf-8',
-    'X-Content-Type-Options': 'nosniff',
-  }
-  if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.geojson"`
-  }
-  return new Response(buildGeoJson(ride), { headers })
-})
-
-// The stop list on its own, for a spreadsheet. text/csv rather than
-// application/octet-stream so it opens where riders expect, and nosniff so it
-// cannot be talked into rendering as anything else.
-app.get('/api/public/maps/:slug/csv', async (c) => {
-  const m = await getViewable(c.req.param('slug'), c.get('user'))
-  if (!m) return c.text('Not found', 404)
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
-  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'text/csv; charset=utf-8',
-    'X-Content-Type-Options': 'nosniff',
-  }
-  if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.csv"`
-  }
-  return new Response(buildCsv(ride), { headers })
-})
-
-async function streamFile(c: Context, m: RideRow, ext: 'kml' | 'gpx', type: string): Promise<Response> {
-  // Path built only from integer ids, containment-checked in mapFilePath.
-  const path = mapFilePath(m.ownerId, m.id, ext)
-  if (!path) return c.text('Not found', 404)
-  let buf: Buffer
-  try {
-    buf = await readFile(path)
-  } catch {
-    return c.text('Not found', 404)
-  }
-  const headers: Record<string, string> = {
-    'Content-Type': `${type}; charset=utf-8`,
-    'X-Content-Type-Options': 'nosniff',
-  }
-  if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.${ext}"`
-  }
-  return new Response(buf, { headers })
+// Downloads, source-aware.
+//
+// An imported ride streams its stored original for the format it arrived in —
+// byte-for-byte what the rider uploaded, which is the entire reason the file is
+// kept. Every other format, and every format of a native ride, is generated
+// from the rows. So a KML import can be downloaded as GPX and a ride built here
+// can be downloaded as either, neither of which was possible before.
+//
+// One table rather than four handlers: the visibility gate, the nosniff header
+// and the attachment naming are identical for all of them, and four copies of
+// that is four places for one of them to drift.
+const DOWNLOADS: Record<
+  string,
+  { type: string; stored?: 'kml' | 'gpx'; hasStored?: (m: RideRow) => boolean; build: (r: ExportRide) => string }
+> = {
+  kml: {
+    type: 'application/vnd.google-earth.kml+xml',
+    stored: 'kml',
+    hasStored: (m) => m.kmlBytes > 0,
+    build: buildKml,
+  },
+  gpx: {
+    type: 'application/gpx+xml',
+    stored: 'gpx',
+    hasStored: (m) => m.gpxPresent,
+    build: buildGpx,
+  },
+  geojson: { type: 'application/geo+json', build: buildGeoJson },
+  csv: { type: 'text/csv', build: buildCsv },
 }
+
+app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
+  const format = c.req.param('format')
+  const spec = DOWNLOADS[format]
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !spec) return c.text('Not found', 404)
+
+  const headers: Record<string, string> = {
+    'Content-Type': `${spec.type}; charset=utf-8`,
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
+    headers['Content-Disposition'] = `attachment; filename="${safe}.${format}"`
+  }
+
+  // The stored original wins where there is one. Generating it instead would
+  // be lossy for no reason: the file carries styling, folders and per-point
+  // detail this app does not model and therefore cannot reproduce.
+  if (spec.stored && spec.hasStored?.(m)) {
+    const path = mapFilePath(m.ownerId, m.id, spec.stored)
+    if (path) {
+      const buf = await readFile(path).catch(() => null)
+      if (buf) return new Response(buf, { headers })
+    }
+    // Falls through to generation rather than 404ing. A row that says the file
+    // exists and a filesystem that disagrees is a real failure mode after a
+    // restore, and the rows are still enough to build a usable file.
+  }
+
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
+  return new Response(spec.build(ride), { headers })
+})
 
 // --- Templates ------------------------------------------------------------
 

@@ -211,3 +211,134 @@ export function buildCsv(ride: ExportRide): string {
   // treat the whole file as a single row.
   return lines.join('\r\n') + '\r\n'
 }
+
+// --- XML -------------------------------------------------------------------
+
+// Names and descriptions are rider-supplied and reach a file other software
+// parses, so they are escaped on the way out. `&` first, or it would re-escape
+// the ampersands the later replacements introduce.
+//
+// Note what is *not* here: no DOCTYPE, ever. The importer refuses any document
+// carrying one, and a file this app writes has to be a file this app will read.
+const xml = (v: string | null | undefined): string =>
+  (v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
+// --- KML -------------------------------------------------------------------
+
+// KML colours are `aabbggrr` — alpha first and the RGB bytes reversed. Getting
+// this backwards does not fail, it just draws every day in the wrong colour,
+// which is why it has a test rather than a comment alone.
+function kmlColor(css: string): string {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(css.trim())
+  if (!hex) return 'ff0000cc'
+  const [r, g, b] = [hex[1].slice(0, 2), hex[1].slice(2, 4), hex[1].slice(4, 6)]
+  return `ff${b}${g}${r}`.toLowerCase()
+}
+
+const kmlCoords = (track: Track): string => track.map(([lng, lat]) => `${lng},${lat}`).join(' ')
+
+export function buildKml(ride: ExportRide): string {
+  const out: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+    '  <Document>',
+    `    <name>${xml(ride.title)}</name>`,
+  ]
+  if (ride.description) out.push(`    <description>${xml(ride.description)}</description>`)
+
+  ride.routes.forEach((r, i) => {
+    out.push(
+      `    <Style id="day${i + 1}"><LineStyle><color>${kmlColor(r.color)}</color><width>4</width></LineStyle></Style>`,
+    )
+  })
+
+  ride.routes.forEach((r, i) => {
+    const dayName = r.title || `Day ${i + 1}`
+    // A Folder per day so Google Earth's sidebar shows the days separately.
+    // The importer flattens them back to one route — see the round-trip tests,
+    // where that loss is asserted rather than left to be discovered.
+    out.push('    <Folder>', `      <name>${xml(dayName)}</name>`)
+
+    for (const p of r.points) {
+      // The role prefix is the only place a KML can carry a role: a Placemark
+      // has a name and a description and nowhere else to put one. This is the
+      // convention parseRoleName reads back and the README documents.
+      out.push('      <Placemark>', `        <name>${xml(formatRoleName(p.roles, p.name))}</name>`)
+      if (p.description) out.push(`        <description>${xml(p.description)}</description>`)
+      out.push(`        <Point><coordinates>${p.lng},${p.lat}</coordinates></Point>`, '      </Placemark>')
+    }
+
+    if (r.track.length > 0) {
+      out.push(
+        '      <Placemark>',
+        `        <name>${xml(dayName)}</name>`,
+        `        <styleUrl>#day${i + 1}</styleUrl>`,
+        '        <LineString>',
+        '          <tessellate>1</tessellate>',
+        `          <coordinates>${kmlCoords(r.track)}</coordinates>`,
+        '        </LineString>',
+        '      </Placemark>',
+      )
+    }
+    out.push('    </Folder>')
+  })
+
+  out.push('  </Document>', '</kml>', '')
+  return out.join('\n')
+}
+
+// --- GPX -------------------------------------------------------------------
+
+// The decision this whole format hinges on: **stops are `<wpt>` and the shaping
+// points are `<trkpt>`. Nothing is ever written as `<rte>`/`<rtept>`.**
+//
+// A `<rte>` is a list of places to navigate *between*, so a GPS given one picks
+// its own way from each point to the next — usually the fast way and rarely the
+// good one, and a missed turn throws out the rest of the day. That is exactly
+// the failure the FAQ describes under "Why does my GPS ignore the route I
+// planned?", and the answer there is that TankBag puts in enough intermediate
+// points to leave the device no room to form an opinion. Exporting those points
+// as route points instead of track points hands that room straight back and
+// makes the app's central promise false.
+//
+// A `<trk>` is a record of a path actually taken. Devices follow it rather than
+// re-deriving it, which is the behaviour riders are here for.
+export function buildGpx(ride: ExportRide): string {
+  const out: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="TankBag" xmlns="http://www.topografix.com/GPX/1/1">',
+    '  <metadata>',
+    `    <name>${xml(ride.title)}</name>`,
+  ]
+  if (ride.description) out.push(`    <desc>${xml(ride.description)}</desc>`)
+  out.push('  </metadata>')
+
+  // Waypoints before tracks, which is the element order the GPX schema
+  // requires (wpt, then rte, then trk) rather than a stylistic choice.
+  for (const r of ride.routes) {
+    for (const p of r.points) {
+      out.push(`  <wpt lat="${p.lat}" lon="${p.lng}">`, `    <name>${xml(formatRoleName(p.roles, p.name))}</name>`)
+      if (p.description) out.push(`    <desc>${xml(p.description)}</desc>`)
+      // `type` is where a GPX can carry a category, and some devices show it.
+      // The importer does not read it back — the name prefix is what round
+      // trips — but writing it costs a line and loses nothing.
+      if (p.roles.length > 0) out.push(`    <type>${xml(p.roles.join('/'))}</type>`)
+      out.push('  </wpt>')
+    }
+  }
+
+  ride.routes.forEach((r, i) => {
+    if (r.track.length === 0) return
+    out.push('  <trk>', `    <name>${xml(r.title || `Day ${i + 1}`)}</name>`, '    <trkseg>')
+    for (const [lng, lat] of r.track) out.push(`      <trkpt lat="${lat}" lon="${lng}"/>`)
+    out.push('    </trkseg>', '  </trk>')
+  })
+
+  out.push('</gpx>', '')
+  return out.join('\n')
+}

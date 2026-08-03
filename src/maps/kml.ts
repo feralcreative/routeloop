@@ -119,8 +119,7 @@ export function haversineM(lat1: number, lon1: number, lat2: number, lon2: numbe
   const rad = Math.PI / 180
   const dLat = (lat2 - lat1) * rad
   const dLon = (lon2 - lon1) * rad
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a))
 }
 
@@ -146,7 +145,7 @@ export function distFromStartAlongTrack(track: Track, pts: Array<{ lat: number; 
   }
   return pts.map((p) => {
     let best = 0
-    let bestD = Infinity
+    let bestD = Number.POSITIVE_INFINITY
     for (let i = 0; i < track.length; i++) {
       const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2
       if (d < bestD) {
@@ -263,16 +262,38 @@ export function processGpx(text: string): ExtractedRoute {
     throw new RouteFileError('GPX file has no <gpx> root element')
   }
 
-  const readPts = (localName: string): Track => {
+  // Points under one parent, in document order.
+  const readPts = (parent: Document | Element, localName: string): Track => {
     const out: Track = []
-    for (const el of elements(doc, localName)) {
+    for (const el of elements(parent, localName)) {
       const lat = Number(el.getAttribute('lat'))
       const lon = Number(el.getAttribute('lon'))
       if (Number.isFinite(lat) && Number.isFinite(lon)) out.push([round6(lon), round6(lat)])
     }
     return out
   }
-  const track = ((t) => (t.length > 0 ? t : readPts('rtept')))(readPts('trkpt'))
+
+  // The longest <trk> wins, matching what processKml does with the longest
+  // line — but segments *within* a track are joined, because a <trkseg> break
+  // is a recording pause in one ride while separate <trk> elements are
+  // separate rides.
+  //
+  // Reading every trkpt in the file as one track is what this used to do, and
+  // on a multi-day export it invents the geometry between where one day ends
+  // and the next begins. Measured on a real 3-day ride: 553 miles came back as
+  // 631, and twistiness fell from 79/69/53 to 59 because the phantom joins are
+  // perfectly straight. A number that confident and that wrong is worse than
+  // no number.
+  const trks = elements(doc, 'trk')
+  let track: Track = []
+  for (const trk of trks) {
+    const t = readPts(trk, 'trkpt')
+    if (t.length > track.length) track = t
+  }
+  // A GPX with loose trkpt and no <trk> wrapper is malformed but readable, and
+  // rtept is the fallback for a file that only carries a planned route.
+  if (track.length === 0) track = readPts(doc, 'trkpt')
+  if (track.length === 0) track = readPts(doc, 'rtept')
 
   const points: ExtractedPoint[] = []
   for (const wpt of elements(doc, 'wpt')) {
