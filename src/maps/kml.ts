@@ -73,10 +73,27 @@ export type ExtractedPoint = {
   durationMin?: number | null
 }
 
+// One line out of a file, with whatever the file called it. A multi-day export
+// writes one of these per day — separate <trk> elements in GPX, separate
+// Placemarks in KML, separate features in GeoJSON — and the name is usually
+// "Day 3" or "Reno to Ely" if the exporting tool bothered.
+export type ExtractedTrack = {
+  track: Track // [lng, lat], 6-decimal rounded
+  name: string | null // the file's own name for it, if it had one
+  meters: number // haversine length
+}
+
 export type ExtractedRoute = {
   points: ExtractedPoint[] // Placemark/wpt order—becomes stop order
-  track: Track // the longest line in the file, 6-decimal rounded
-  trackMeters: number // haversine length of track
+  // Every line in the file, in document order. This is the honest answer to
+  // "what was in there", and importing fewer of them than this holds is data
+  // loss — the file said three days and the ride has one.
+  tracks: ExtractedTrack[]
+  // The first line, which for the single-track file most formats produce is
+  // the only line. Kept because almost everything downstream wants one route's
+  // geometry and asking each caller for tracks[0]?.track ?? [] reads worse.
+  track: Track
+  trackMeters: number // haversine length of `track`
 }
 
 export type KmlResult = ExtractedRoute & {
@@ -132,6 +149,44 @@ export function trackMeters(track: Track): number {
     m += haversineM(track[i - 1][1], track[i - 1][0], track[i][1], track[i][0])
   }
   return m
+}
+
+// Assemble the extraction result from the lines a parser found, in the order
+// the file listed them. Every parser ends here so that "what counts as a track"
+// is decided once.
+export function extracted(lines: Array<{ track: Track; name?: string | null }>, points: ExtractedPoint[]) {
+  const tracks: ExtractedTrack[] = lines
+    .filter((l) => l.track.length > 0)
+    .map((l) => ({ track: l.track, name: l.name?.trim() || null, meters: trackMeters(l.track) }))
+  const first = tracks[0]?.track ?? []
+  return { points, tracks, track: first, trackMeters: tracks[0]?.meters ?? 0 }
+}
+
+// Which line does this point belong to? Only asked when a file holds several,
+// and answered by proximity: a waypoint sitting on day 3's road is a day 3
+// stop, whatever order the <wpt> elements happened to appear in. GPX writes
+// waypoints at document level with nothing tying them to a <trk>, so proximity
+// is the only signal there is.
+//
+// Vertices are sampled rather than walked. A recorded day is tens of thousands
+// of points, the answer only has to be better than "put everything on day 1",
+// and an exact nearest-vertex search over every track would make a large import
+// noticeably slower to no benefit.
+export function nearestTrackIndex(tracks: ExtractedTrack[], p: { lat: number; lng: number }): number {
+  let best = 0
+  let bestM = Infinity
+  for (let t = 0; t < tracks.length; t++) {
+    const line = tracks[t].track
+    const stride = Math.max(1, Math.floor(line.length / 200))
+    for (let i = 0; i < line.length; i += stride) {
+      const d = haversineM(p.lat, p.lng, line[i][1], line[i][0])
+      if (d < bestM) {
+        bestM = d
+        best = t
+      }
+    }
+  }
+  return best
 }
 
 // Cumulative meters from the track start to the vertex nearest each point —
@@ -200,13 +255,38 @@ function sanitizeDoc(doc: Document): void {
 
 // --- KML -------------------------------------------------------------------
 
-// Route track = the longest <coordinates> line in the file; short ones belong
-// to point Placemarks. Mirrors what the legacy viewer drew.
+// The name on the Placemark a geometry sits inside, which is where a multi-day
+// KML puts "Day 2". Walks up rather than querying down because a LineString can
+// be nested in a MultiGeometry and the name belongs to the Placemark either way.
+function placemarkName(el: Element): string | null {
+  for (let n: Element | null = el; n; n = n.parentNode as Element | null) {
+    if (n.localName === 'Placemark') return sanitizeText(elements(n, 'name')[0]?.textContent ?? '') || null
+  }
+  return null
+}
+
+// Every LineString is a route line, and each is kept: a multi-day KML writes one
+// Placemark per day and taking only the longest threw the other days away.
+// Point Placemarks are stops and are read separately below, which is why this
+// walks LineString rather than every <coordinates> — a Point carries one of
+// those too, and length alone is a fragile way to tell them apart.
 function extractKml(doc: Document): ExtractedRoute {
-  let track: Track = []
-  for (const el of elements(doc, 'coordinates')) {
-    const pts = parseCoordinates(el.textContent ?? '')
-    if (pts.length > track.length) track = pts
+  const lines: Array<{ track: Track; name: string | null }> = []
+  for (const ls of elements(doc, 'LineString')) {
+    const pts = parseCoordinates(elements(ls, 'coordinates')[0]?.textContent ?? '')
+    if (pts.length > 1) lines.push({ track: pts, name: placemarkName(ls) })
+  }
+
+  // A file whose geometry is not in a LineString at all — gx:Track, or a bare
+  // <coordinates> somewhere unexpected — still has to yield its route, so the
+  // old longest-line heuristic stays as the fallback it always effectively was.
+  if (lines.length === 0) {
+    let longest: Track = []
+    for (const el of elements(doc, 'coordinates')) {
+      const pts = parseCoordinates(el.textContent ?? '')
+      if (pts.length > longest.length) longest = pts
+    }
+    if (longest.length > 1) lines.push({ track: longest, name: null })
   }
 
   const points: ExtractedPoint[] = []
@@ -227,7 +307,7 @@ function extractKml(doc: Document): ExtractedRoute {
     })
   }
 
-  return { points, track, trackMeters: trackMeters(track) }
+  return extracted(lines, points)
 }
 
 export function processKml(text: string): KmlResult {
@@ -275,27 +355,32 @@ export function processGpx(text: string): ExtractedRoute {
     return out
   }
 
-  // The longest <trk> wins, matching what processKml does with the longest
-  // line — but segments *within* a track are joined, because a <trkseg> break
-  // is a recording pause in one ride while separate <trk> elements are
-  // separate rides.
+  // Every <trk> is kept, because each one is a separate ride and dropping the
+  // rest loses days the file plainly contained. Segments *within* a track are
+  // joined, because a <trkseg> break is a recording pause in one ride while
+  // separate <trk> elements are separate rides. The two cases look alike and
+  // are not.
   //
-  // Reading every trkpt in the file as one track is what this used to do, and
-  // on a multi-day export it invents the geometry between where one day ends
-  // and the next begins. Measured on a real 3-day ride: 553 miles came back as
-  // 631, and twistiness fell from 79/69/53 to 59 because the phantom joins are
-  // perfectly straight. A number that confident and that wrong is worse than
-  // no number.
-  const trks = elements(doc, 'trk')
-  let track: Track = []
-  for (const trk of trks) {
+  // What is never done is reading every trkpt in the file as one track. That
+  // invents the geometry between where one day ends and the next begins:
+  // measured on a real 3-day ride, 553 miles came back as 631 and twistiness
+  // fell from 79/69/53 to 59, because the phantom joins are perfectly straight.
+  // Keeping the tracks apart is what avoids that, and it is also what keeps
+  // the days — the reason this used to take only the longest one.
+  const lines: Array<{ track: Track; name: string | null }> = []
+  for (const trk of elements(doc, 'trk')) {
     const t = readPts(trk, 'trkpt')
-    if (t.length > track.length) track = t
+    if (t.length > 0) lines.push({ track: t, name: sanitizeText(elements(trk, 'name')[0]?.textContent ?? '') || null })
   }
   // A GPX with loose trkpt and no <trk> wrapper is malformed but readable, and
-  // rtept is the fallback for a file that only carries a planned route.
-  if (track.length === 0) track = readPts(doc, 'trkpt')
-  if (track.length === 0) track = readPts(doc, 'rtept')
+  // rtept is the fallback for a file that only carries a planned route. Both
+  // are single-line cases by construction — there is no wrapper to separate
+  // one from the next, so there is nothing to lose by reading them as one.
+  if (lines.length === 0) {
+    const loose = readPts(doc, 'trkpt')
+    const rte = loose.length > 0 ? loose : readPts(doc, 'rtept')
+    if (rte.length > 0) lines.push({ track: rte, name: null })
+  }
 
   const points: ExtractedPoint[] = []
   for (const wpt of elements(doc, 'wpt')) {
@@ -308,8 +393,8 @@ export function processGpx(text: string): ExtractedRoute {
     points.push({ lat: round6(lat), lng: round6(lon), name, description: rawDesc || null, roles })
   }
 
-  if (track.length === 0 && points.length === 0) {
+  if (lines.length === 0 && points.length === 0) {
     throw new RouteFileError('GPX file contains no track, route, or waypoints')
   }
-  return { points, track, trackMeters: trackMeters(track) }
+  return extracted(lines, points)
 }

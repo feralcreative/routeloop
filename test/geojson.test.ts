@@ -55,10 +55,14 @@ describe('processGeoJson', () => {
     expect(r.track[0]).toEqual(SF)
   })
 
-  it('takes the longest line, so scenery does not become the route', () => {
+  it('keeps every line, in document order, rather than picking one', () => {
     const long = line([SF, [-122.38, 37.79], [-122.33, 37.8], OAK])
     const r = processGeoJson(fc([feature(line([SF, OAK])), feature(long)]))
-    expect(r.track).toHaveLength(4)
+    expect(r.tracks).toHaveLength(2)
+    // `track` is the first line, not the longest — the file's order is the
+    // day order, and a longer day two does not make it day one.
+    expect(r.track).toHaveLength(2)
+    expect(r.tracks[1].track).toHaveLength(4)
   })
 
   it('accepts a bare geometry as the document root', () => {
@@ -84,7 +88,8 @@ describe('processGeoJson', () => {
         [SF, [-122.38, 37.79], OAK],
       ],
     }
-    expect(processGeoJson(fc([feature(mls)])).track).toHaveLength(3)
+    const r = processGeoJson(fc([feature(mls)]))
+    expect(r.tracks.map((t) => t.track.length)).toEqual([2, 3])
   })
 
   it('draws a Polygon rather than refusing it', () => {

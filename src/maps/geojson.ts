@@ -14,7 +14,7 @@ import {
   RouteFileError,
   round6,
   sanitizeText,
-  trackMeters,
+  extracted,
   type ExtractedPoint,
   type ExtractedRoute,
   type Track,
@@ -220,10 +220,10 @@ export function processGeoJson(text: string): ExtractedRoute {
     throw new RouteFileError('GeoJSON file contains no lines or points')
   }
 
-  // Longest line wins, matching the KML path: short lines belong to decoration,
-  // and a file with several is one route plus its scenery.
-  let track: Track = []
-  for (const line of found.lines) if (line.length > track.length) track = line
+  // Every line is kept, in the order the document listed them. A file with
+  // several is a file with several days far more often than it is one route
+  // plus its scenery, and guessing wrong by taking the longest silently threw
+  // the rest away.
 
   const points: ExtractedPoint[] = found.points.map(({ pos, props }) => {
     // Sanitized on the same principle as the KML path: names and descriptions
@@ -248,5 +248,8 @@ export function processGeoJson(text: string): ExtractedRoute {
     }
   })
 
-  return { points, track, trackMeters: trackMeters(track) }
+  return extracted(
+    found.lines.map((track) => ({ track, name: null })),
+    points,
+  )
 }

@@ -238,5 +238,5 @@ export function processCsv(text: string): ExtractedRoute {
   if (points.length === 0) throw new RouteFileError('CSV file has a header but no stops')
 
   // No geometry, and none invented. See the note at the top of this file.
-  return { points, track: [], trackMeters: 0 }
+  return { points, tracks: [], track: [], trackMeters: 0 }
 }

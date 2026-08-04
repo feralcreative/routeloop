@@ -18,7 +18,15 @@ import { processCsv } from '../src/maps/csv'
 import { processGeoJson } from '../src/maps/geojson'
 import { extractKmlFromKmz } from '../src/maps/kmz'
 import { buildCsv, buildGeoJson, buildGpx, buildKml, type ExportRide } from '../src/maps/export'
-import { processGpx, processKml, RouteFileError, trackMeters, type ExtractedRoute, type Track } from '../src/maps/kml'
+import {
+  nearestTrackIndex,
+  processGpx,
+  processKml,
+  RouteFileError,
+  trackMeters,
+  type ExtractedRoute,
+  type Track,
+} from '../src/maps/kml'
 import { kmzOf } from './helpers/zip'
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8')
@@ -172,24 +180,43 @@ describe('the shapes that break parsers', () => {
   // track invents the geometry between where one day ends and the next begins:
   // on a real 3-day ride that turned 553 miles into 631 and pulled twistiness
   // down from 79/69/53 to 59, because the phantom joins are perfectly straight.
-  it('takes the longest track rather than joining separate ones end to end', () => {
-    const trk = (pts: Array<[number, number]>) =>
-      `<trk><trkseg>${pts.map(([lng, lat]) => `<trkpt lat="${lat}" lon="${lng}"/>`).join('')}</trkseg></trk>`
+  it('keeps every track, rather than joining them or picking one', () => {
+    const trk = (pts: Array<[number, number]>, name?: string) =>
+      `<trk>${name ? `<name>${name}</name>` : ''}<trkseg>${pts
+        .map(([lng, lat]) => `<trkpt lat="${lat}" lon="${lng}"/>`)
+        .join('')}</trkseg></trk>`
     const r = processGpx(
-      `<gpx>${trk([
-        [-122.0, 37.0],
-        [-122.1, 37.1],
-      ])}${trk([
-        [-121.0, 36.0],
-        [-121.1, 36.1],
-        [-121.2, 36.2],
-      ])}</gpx>`,
+      `<gpx>${trk(
+        [
+          [-122.0, 37.0],
+          [-122.1, 37.1],
+        ],
+        'Day 1',
+      )}${trk(
+        [
+          [-121.0, 36.0],
+          [-121.1, 36.1],
+          [-121.2, 36.2],
+        ],
+        'Day 2',
+      )}</gpx>`,
     )
-    expect(r.track).toEqual([
+    expect(r.tracks).toHaveLength(2)
+    expect(r.tracks[0].track).toEqual([
+      [-122, 37],
+      [-122.1, 37.1],
+    ])
+    expect(r.tracks[1].track).toEqual([
       [-121, 36],
       [-121.1, 36.1],
       [-121.2, 36.2],
     ])
+    // The file's own names for the days, which become route titles on import.
+    expect(r.tracks.map((t) => t.name)).toEqual(['Day 1', 'Day 2'])
+    // Still never joined end to end: the gap between day 1's finish and day
+    // 2's start is not geometry, and inventing it inflated a real 3-day ride
+    // from 553 miles to 631 while flattening twistiness from 79/69/53 to 59.
+    expect(r.tracks.every((t) => t.track.length < 5)).toBe(true)
   })
 
   // But a <trkseg> break inside one <trk> is a recording pause in a single
@@ -413,30 +440,149 @@ describe('the fidelity that is knowingly lost', () => {
     ],
   }
 
-  // The import pipeline builds exactly one route, so a multi-day ride comes
-  // back flattened: every stop survives, but the days do not, and only the
-  // longest line becomes the track. Confirmed against a real 3-day ride, where
-  // 6293 track points came back as 2553.
-  it('flattens a multi-day ride to one day, keeping every stop', () => {
+  // A multi-day ride survives the trip out and back: both days come back as
+  // their own lines, in order, with every stop. This is what used to flatten —
+  // against a real 3-day ride, 6293 track points came back as 2553 because
+  // only the longest line was kept.
+  it('brings a multi-day ride back as one line per day, in order', () => {
     const back = processGeoJson(buildGeoJson(twoDays))
     expect(back.points.map((p) => p.name)).toEqual(['A', 'B'])
-    expect(back.track).toEqual([
+    expect(back.tracks).toHaveLength(2)
+    expect(back.tracks[0].track).toEqual([
+      [-122.0, 37.0],
+      [-122.1, 37.1],
+    ])
+    expect(back.tracks[1].track).toEqual([
       [-122.2, 37.2],
       [-122.3, 37.3],
       [-122.4, 37.4],
     ])
   })
 
-  // Per-day colour and title live on the route row, and the importer takes
-  // neither — colour comes from the upload form, and the day has no name.
-  it('does not carry per-day colour or title back in', () => {
+  // Per-day colour is still not read back: colour comes from the upload form,
+  // and a day's colour is the viewer's business rather than the file's.
+  it('does not carry per-day colour back in', () => {
     const written = JSON.parse(buildGeoJson(twoDays))
-    // Both are written, so the loss is on the import side and a third-party
-    // tool still sees them.
+    // Written, so the loss is on the import side and a third-party tool still
+    // sees it.
     expect(written.features[0].properties.stroke).toBe('#cc0000')
     expect(written.features[0].properties.name).toBe('Day 1')
-    // ExtractedRoute has nowhere to put either.
     const back: ExtractedRoute = processGeoJson(buildGeoJson(twoDays))
-    expect(Object.keys(back)).toEqual(['points', 'track', 'trackMeters'])
+    expect(back.tracks.every((t) => t.name === null)).toBe(true)
+  })
+})
+
+// The bug this file used to assert as intended behaviour: a ride built over
+// several days was exported correctly and re-imported as one day, because every
+// parser kept only its longest line. The app could not read its own export.
+describe('a multi-day ride survives its own export', () => {
+  const day = (n: number, pts: Track): ExportRide['routes'][number] => ({
+    title: `Day ${n}`,
+    color: '#cc0000',
+    distanceM: 1000,
+    durationS: 0,
+    startAt: null,
+    endAt: null,
+    twistinessDpm: null,
+    twistinessBestDpm: null,
+    track: pts,
+    points: [
+      {
+        lat: pts[0][1],
+        lng: pts[0][0],
+        name: `Stop ${n}`,
+        description: null,
+        roles: [],
+        kind: 'stop' as const,
+        durationMin: null,
+        distFromStartM: null,
+      },
+    ],
+  })
+
+  // Three days that are nowhere near each other, so a parser that joined them
+  // would be obvious in the distance and a proximity assignment is unambiguous.
+  const ride: ExportRide = {
+    title: 'Three days',
+    description: null,
+    routes: [
+      day(1, [
+        [-122.0, 37.0],
+        [-122.1, 37.1],
+      ]),
+      day(2, [
+        [-119.0, 39.0],
+        [-119.1, 39.1],
+        [-119.2, 39.2],
+      ]),
+      day(3, [
+        [-116.0, 41.0],
+        [-116.1, 41.1],
+      ]),
+    ],
+  }
+
+  for (const w of [
+    { label: 'GPX', build: buildGpx, parse: processGpx, keepsNames: true },
+    { label: 'KML', build: buildKml, parse: processKml, keepsNames: true },
+    { label: 'GeoJSON', build: buildGeoJson, parse: processGeoJson, keepsNames: false },
+  ]) {
+    describe(w.label, () => {
+      const back = () => w.parse(w.build(ride))
+
+      it('comes back as three days, not one', () => {
+        expect(back().tracks).toHaveLength(3)
+      })
+
+      it('keeps each day in order, with its own geometry', () => {
+        expect(back().tracks.map((t) => t.track)).toEqual(ride.routes.map((r) => r.track))
+      })
+
+      it('does not invent geometry between days', () => {
+        // The gap from day 1's finish to day 2's start is roughly 200 km of
+        // nothing. Joining the tracks would add it to the total.
+        const joined = trackMeters(ride.routes.flatMap((r) => r.track))
+        const kept = back().tracks.reduce((m, t) => m + t.meters, 0)
+        expect(kept).toBeLessThan(joined / 2)
+      })
+
+      if (w.keepsNames) {
+        it('carries each day name back from the file', () => {
+          expect(back().tracks.map((t) => t.name)).toEqual(['Day 1', 'Day 2', 'Day 3'])
+        })
+      }
+
+      it('keeps every stop', () => {
+        expect(back().points.map((p) => p.name)).toEqual(['Stop 1', 'Stop 2', 'Stop 3'])
+      })
+    })
+  }
+})
+
+// GPX puts <wpt> at document level with nothing tying one to a <trk>, so when a
+// file holds several days the only way to place a stop on the right one is
+// where it physically is.
+describe('assigning stops to the day they sit on', () => {
+  const tracks = [
+    { name: 'Day 1', meters: 0, track: [[-122.0, 37.0] as [number, number], [-122.1, 37.1] as [number, number]] },
+    { name: 'Day 2', meters: 0, track: [[-119.0, 39.0] as [number, number], [-119.1, 39.1] as [number, number]] },
+  ]
+
+  it('puts a stop on the track it is nearest', () => {
+    expect(nearestTrackIndex(tracks, { lat: 37.05, lng: -122.05 })).toBe(0)
+    expect(nearestTrackIndex(tracks, { lat: 39.05, lng: -119.05 })).toBe(1)
+  })
+
+  it('still answers for a stop nowhere near either, rather than dropping it', () => {
+    // Kansas. Wrong day, but a wrong day is recoverable and a missing stop is
+    // not, which is the whole trade this import makes.
+    const i = nearestTrackIndex(tracks, { lat: 38.5, lng: -98.0 })
+    expect([0, 1]).toContain(i)
+  })
+
+  it('samples long tracks without missing the obvious answer', () => {
+    const long: [number, number][] = Array.from({ length: 5000 }, (_, i) => [-100 + i / 1000, 45])
+    const withLong = [...tracks, { name: 'Long', meters: 0, track: long }]
+    expect(nearestTrackIndex(withLong, { lat: 45, lng: -97.5 })).toBe(2)
   })
 })
