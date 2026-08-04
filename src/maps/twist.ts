@@ -104,7 +104,10 @@ export type Twistiness = {
   bestMiles: number
 }
 
-function bearing(a: [number, number], b: [number, number]): number {
+// Exported for src/maps/expand.ts, which places shaping points by heading
+// change: the same signal this file scores a day by, used to decide where a
+// router could plausibly wander rather than how fun the road is.
+export function bearing(a: [number, number], b: [number, number]): number {
   const la1 = a[1] * RAD
   const la2 = b[1] * RAD
   const dLng = (b[0] - a[0]) * RAD
@@ -114,10 +117,10 @@ function bearing(a: [number, number], b: [number, number]): number {
 }
 
 /** Shortest signed difference between two bearings, -180..180. */
-const turn = (from: number, to: number): number => ((to - from + 540) % 360) - 180
+export const turn = (from: number, to: number): number => ((to - from + 540) % 360) - 180
 
 /** Walk the polyline emitting a point every `spacing` metres. */
-function resample(track: Track, spacing: number): Track {
+export function resample(track: Track, spacing: number): Track {
   const out: Track = [track[0]]
   let carry = 0
   for (let i = 1; i < track.length; i++) {
