@@ -467,8 +467,10 @@ describe('the fidelity that is knowingly lost', () => {
     // sees it.
     expect(written.features[0].properties.stroke).toBe('#cc0000')
     expect(written.features[0].properties.name).toBe('Day 1')
+    // The name does come back — it is the day's title. Colour does not, and
+    // that is the deliberate part: a day's colour is the viewer's business.
     const back: ExtractedRoute = processGeoJson(buildGeoJson(twoDays))
-    expect(back.tracks.every((t) => t.name === null)).toBe(true)
+    expect(back.tracks.map((t) => t.name)).toEqual(['Day 1', 'Day 2'])
   })
 })
 
@@ -525,7 +527,7 @@ describe('a multi-day ride survives its own export', () => {
   for (const w of [
     { label: 'GPX', build: buildGpx, parse: processGpx, keepsNames: true },
     { label: 'KML', build: buildKml, parse: processKml, keepsNames: true },
-    { label: 'GeoJSON', build: buildGeoJson, parse: processGeoJson, keepsNames: false },
+    { label: 'GeoJSON', build: buildGeoJson, parse: processGeoJson, keepsNames: true },
   ]) {
     describe(w.label, () => {
       const back = () => w.parse(w.build(ride))
