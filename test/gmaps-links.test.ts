@@ -177,3 +177,99 @@ describe('labels', () => {
     expect(linkLabel(r, r.links[0], 2)).toBe('Day 3')
   })
 })
+
+// Shaping points are what Expand contributes: extra waypoints woven between the
+// stops so Maps has less room to pick its own roads. They are paid for in
+// links, because Maps takes nine waypoints whatever they are.
+describe('holding the route with shaping points', () => {
+  // A long dogleg with two stops at the ends, so there is real geometry for
+  // Expand to sample and an obvious corner to pin.
+  const M_LAT = 1 / 111_320
+  const M_LNG = 1 / (111_320 * Math.cos(37 * (Math.PI / 180)))
+  const track: [number, number][] = []
+  for (let d = 0; d <= 20_000; d += 100) track.push([-122 + d * M_LNG, 37])
+  for (let d = 100; d <= 20_000; d += 100) track.push([-122 + 20_000 * M_LNG, 37 + d * M_LAT])
+
+  const ends: ExportPoint[] = [
+    { ...stop(0), lat: 37, lng: -122 },
+    { ...stop(99), lat: 37 + 20_000 * M_LAT, lng: -122 + 20_000 * M_LNG },
+  ]
+  const route = { ...routeOf(ends), track }
+
+  it('hands over the stops alone by default', () => {
+    const r = routeLinks(route)
+    expect(r.links).toHaveLength(1)
+    expect(r.links[0].shaping).toBe(0)
+    // Two stops 40 km apart means 40 km of road with nothing holding it, and
+    // saying so is the whole value of the number. Riders can then decide
+    // whether that matters on this particular route.
+    expect(r.longestGapM).toBeGreaterThan(39_000)
+  })
+
+  it('counts stops as pinning the route, not just shaping points', () => {
+    // A day with a stop every few miles needs no shaping at all, and reporting
+    // it as wide open would be a confident wrong number.
+    const M = 1 / 111_320
+    const dense: ExportPoint[] = Array.from({ length: 12 }, (_, i) => ({
+      ...stop(i),
+      lat: 37 + i * 1000 * M,
+      lng: -122,
+    }))
+    const line: [number, number][] = []
+    for (let d = 0; d <= 11_000; d += 100) line.push([-122, 37 + d * M])
+    const r = routeLinks({ ...routeOf(dense), track: line })
+    expect(r.links[0].shaping).toBe(0)
+    expect(r.longestGapM).toBeLessThan(1500)
+  })
+
+  it('weaves shaping points between the stops when asked', () => {
+    const r = routeLinks(route, { shapingPoints: 6 })
+    expect(r.links[0].shaping).toBe(6)
+    // The rider's own stops are still the ones listed.
+    expect(r.links[0].points.map((p) => p.name)).toEqual(['Stop 0', 'Stop 99'])
+    expect(waypointsOf(r.links[0].url)).toHaveLength(6)
+  })
+
+  it('reports how much road is still unpinned', () => {
+    const loose = routeLinks(route, { shapingPoints: 3 })
+    const tight = routeLinks(route, { shapingPoints: 24 })
+    expect(loose.longestGapM).toBeGreaterThan(tight.longestGapM!)
+  })
+
+  it('buys fidelity with links, not with points per link', () => {
+    // Every ten shaping points is roughly one more link and one more tap.
+    const few = routeLinks(route, { shapingPoints: 6 })
+    const many = routeLinks(route, { shapingPoints: 40 })
+    expect(many.links.length).toBeGreaterThan(few.links.length)
+    for (const l of many.links) expect(waypointsOf(l.url).length).toBeLessThanOrEqual(9)
+  })
+
+  it('keeps the rider\'s own stops as the ends of the day', () => {
+    // A shaping point outside the first or last stop would send someone past
+    // their own start or finish.
+    const r = routeLinks(route, { shapingPoints: 20 })
+    const first = params(r.links[0].url).get('origin')
+    const last = params(r.links[r.links.length - 1].url).get('destination')
+    expect(first).toBe('37,-122')
+    expect(last).toBe(`${ends[1].lat},${ends[1].lng}`)
+  })
+
+  it('prefers to break at a stop, so a tap lands where the rider already is', () => {
+    // Twenty stops and enough shaping to force several links: every boundary
+    // that can be a stop should be one.
+    const many: ExportPoint[] = Array.from({ length: 20 }, (_, i) => ({
+      ...stop(i),
+      lat: 37 + i * 1000 * M_LAT,
+      lng: -122,
+    }))
+    const straightTrack: [number, number][] = []
+    for (let d = 0; d <= 19_000; d += 100) straightTrack.push([-122, 37 + d * M_LAT])
+    const r = routeLinks({ ...routeOf(many), track: straightTrack }, { shapingPoints: 30 })
+    expect(r.links.length).toBeGreaterThan(2)
+    // Every join between consecutive links is a stop, not a shaping point.
+    for (let i = 1; i < r.links.length; i++) {
+      const joinLat = params(r.links[i].url).get('origin')
+      expect(many.some((m) => `${m.lat},${m.lng}` === joinLat)).toBe(true)
+    }
+  })
+})
