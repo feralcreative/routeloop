@@ -12,7 +12,7 @@ This document orients an AI agent working on the codebase. Read it first, then [
 
 ## What this project is
 
-tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits.
+tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits, and hands the finished plan off: `/m/:slug/navigate` serializes a ride into Google Maps links (9 waypoints plus two ends each), with **Expand** weaving in shaping points so Maps has too little room to pick its own roads.
 
 Importing existing files (KML, KMZ, GPX, GeoJSON, CSV) is a **migration path**, and native TankBag JSON is the lossless backup format, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
@@ -107,6 +107,7 @@ Public (gated by `getViewable(slug, viewer)`—public/unlisted for anyone, priva
 
 - `GET /`—public ride listing
 - `GET /m/:slug`—viewer page; **native → current engine shell**, **imported → legacy `main.js` shell**
+- `GET /m/:slug/navigate`—the Google Maps hand-off page: each day as an ordered series of `/maps/dir/?api=1` links, with an Expand density control (off / light / tight) and the longest stretch Maps still routes for itself. Same visibility gate as the viewer
 - `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`
 - `GET /api/public/maps/:slug`—**legacy** metadata array (`main.js` only; retires with it)
 - `GET /api/public/maps/:slug/kml` · `/gpx`—gated file streams (imported originals)
@@ -178,11 +179,14 @@ src/
     storage.ts        Integer-id file paths, containment-checked writes
     slug.ts           22-char base62 unguessable share ids
     twist.ts          Twistiness: degrees of heading change per mile
+    expand.ts         Shaping points that bound the longest unpinned stretch
+    gmaps-links.ts    A route as batched Google Maps directions URLs
     turnstile.ts      Feature-flagged siteverify
   routes/
     maps.ts           Import API + edit/delete (exports ownRide/canEditRide)
     import.tsx        GET /import — the multi-file upload form
     roadbook.tsx      GET /m/:slug/roadbook — the printable sheet
+    handoff.tsx       GET /m/:slug/navigate — the Google Maps leg loader
     rides.ts          Builder API + /builder pages
     routing.ts        POST /api/route — Google Routes proxy + leg cache
     dashboard.ts      Owner's ride list
@@ -319,6 +323,8 @@ The section to read first when picking this up cold. Everything above describes 
 | 09 | **Import and export**, branch `feat/import-export`, fourteen commits |
 
 Sprint 09 in one line: the app reads KML, KMZ, GPX, GeoJSON, CSV and its own JSON, writes all but KMZ, takes several files as the days of one trip, and prints a roadbook. Detail in [docs/STATUS.md](docs/STATUS.md).
+
+Since then, on `feat/expand-route` and `fix/multi-track-import`: a file holding several tracks lands as several days instead of only its longest (#70), and the hand-off shipped—**Expand** (`src/maps/expand.ts`) plus the navigate page (#65, #66). Google Maps carries **9 waypoints** per link, tested on a phone; the "~10 points" figure in older docs was an assumption.
 
 ### The load-bearing facts a new agent gets wrong
 
