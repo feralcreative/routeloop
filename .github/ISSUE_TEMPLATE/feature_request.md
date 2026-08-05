@@ -1,20 +1,23 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Something TankBag should do and does not
 title: ''
-labels: ''
+labels: enhancement
 assignees: ''
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**The problem**
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+<!-- What you were trying to do when you wanted this. A concrete ride or trip
+     that was awkward to plan is worth more than a description of the feature. -->
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**What you want it to do**
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**Alternatives**
+
+<!-- How you work around it now, or what another tool does that works. -->
+
+**Anything else**
+
+<!-- If it is already on docs/ROADMAP.md, link the item—it may just need a
+     nudge up the P0–P3 order rather than a new issue. -->

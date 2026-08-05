@@ -1,38 +1,27 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Something is broken or behaves wrongly
 title: ''
-labels: ''
+labels: bug
 assignees: ''
-
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**What happened**
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- And what you expected instead. -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+**Where**
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+<!-- tankbag.app, stage, or local—and the page or URL. If a ride is involved,
+     its slug helps. Phone or desktop, and which browser, if it looks visual. -->
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+**How to reproduce**
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+1.
+2.
+3.
 
-**Additional context**
-Add any other context about the problem here.
+**Anything else**
+
+<!-- Console errors, a screenshot, the file you imported. If it involves an
+     import or export, attaching the file is usually the fastest route to a fix. -->

@@ -154,15 +154,27 @@ public/
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
   img/icons/          17 role SVGs (currentColor) + UI icons
 style/main.scss       SCSS source
+test/                 Vitest suite — pure logic only, no database
+  fixtures/           Sample KML/GPX/GeoJSON/CSV of one ride, per format
+  helpers/            Test-only helpers (zip.ts builds a KMZ in memory)
 utils/
   seed-demo-rides.ts  Generates varied, road-routed demo rides in dev
+  seed-dev.sh         Rebuilds the dev dataset, carrying accounts across it
+  seed-github-issues.sh  Seeds GitHub issues from docs/ROADMAP.md
+  backfill-twistiness.ts Fills twistiness columns on pre-existing rows
+  tighten-em-dashes.mjs  Prose dash fixer — the pre-commit hook and npm scripts
   deploy/             deploy.sh, prod.sh, stage.sh, deploy-utils.sh (ops +
                       env-to-env cloning), hooks/post-deploy.sh
+.githooks/pre-commit  Opt-in: git config core.hooksPath .githooks
+.github/workflows/    CI — typecheck + tests on PRs and main
+.qlty/                Code quality (biome, prettier, markdownlint, actionlint)
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
+vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
                       ideas.md (vision), decisions-auth-and-search.md,
                       google-cloud-setup.md
+CONTRIBUTING.md       Setup, gotchas, conventions — start here to contribute
 _PLANS/               Plans + session handoff
 app/, utils/schema.sql  Legacy PHP/MySQL (superseded; reference only)
 ```

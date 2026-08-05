@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Multi-tenant motorcycle route map sharing app (TypeScript + Hono).",
   "scripts": {
     "dev": "tsx watch src/index.tsx",

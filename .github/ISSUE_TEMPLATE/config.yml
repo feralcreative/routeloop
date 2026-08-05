@@ -1,0 +1,10 @@
+# Keep the two templates as the only ways to open an issue, and point
+# everything else somewhere it will actually get an answer.
+blank_issues_enabled: false
+contact_links:
+  - name: How to set up and contribute
+    url: https://github.com/feralcreative/tankbag/blob/main/CONTRIBUTING.md
+    about: Local setup, the gotchas that will bite, and how to open a pull request
+  - name: What is planned, and in what order
+    url: https://github.com/feralcreative/tankbag/blob/main/docs/ROADMAP.md
+    about: Check here before filing a feature request — it may already be an item

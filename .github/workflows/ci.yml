@@ -1,0 +1,47 @@
+name: CI
+
+# Pull requests, and pushes to main so a direct commit is checked too.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to the same branch cancels the run still going for the first.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      # The repo runs two Node versions in earnest: development happens on 20
+      # and the Dockerfile ships node:22-alpine. Testing both is what catches
+      # the drift between them, which is the whole reason to have a matrix at
+      # this size rather than picking one and hoping.
+      matrix:
+        node: ['20', '22']
+
+    name: node ${{ matrix.node }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      # No database service: the suite is deliberately scoped to pure logic
+      # (see vitest.config.ts), so nothing here needs Postgres. If a test ever
+      # does, adding a service container is a decision to take on purpose.
+      - run: npm test
