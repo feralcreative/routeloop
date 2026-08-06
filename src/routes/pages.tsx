@@ -22,9 +22,13 @@ import { allow, clientIp } from '../auth/ratelimit'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
-// Both legal pages carry this. A date matters more than a version number to a
-// reader deciding whether anything changed since they last looked.
-const EFFECTIVE = '1 August 2026'
+// Each legal page carries its own date. A date matters more than a version
+// number to a reader deciding whether anything changed since they last looked —
+// which is exactly why the two cannot share one: bumping privacy would date-
+// stamp a change to terms that never happened, and the privacy page promises
+// the date only moves when something actually moved.
+const PRIVACY_EFFECTIVE = '3 August 2026'
+const TERMS_EFFECTIVE = '1 August 2026'
 
 // Two spans that used to be written as the years they started, which quietly
 // went stale every January. Stated as durations and worked out at render time
@@ -237,5 +241,9 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
 pageRoutes.get('/faq', (c) =>
   render(c, 'Questions', content('faq.html', { RIDING_YEARS, WEB_YEARS }), 'content-page faq-page'),
 )
-pageRoutes.get('/privacy', (c) => render(c, 'Privacy', content('privacy.html', { EFFECTIVE }), 'content-page'))
-pageRoutes.get('/terms', (c) => render(c, 'Terms', content('terms.html', { EFFECTIVE }), 'content-page'))
+pageRoutes.get('/privacy', (c) =>
+  render(c, 'Privacy', content('privacy.html', { EFFECTIVE: PRIVACY_EFFECTIVE }), 'content-page'),
+)
+pageRoutes.get('/terms', (c) =>
+  render(c, 'Terms', content('terms.html', { EFFECTIVE: TERMS_EFFECTIVE }), 'content-page'),
+)

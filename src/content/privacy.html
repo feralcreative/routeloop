@@ -22,7 +22,10 @@
 <p>The routes, stops, notes and coordinates you enter, plus how many times a shared trip has been opened. If you upload a KML or GPX file, the original is kept so it can be downloaded again.</p>
 
 <h3>Technical</h3>
-<p>Your IP address is used briefly to rate-limit sign-in emails, so the form cannot be used to flood someone's inbox. There are no analytics, no tracking pixels, and no third-party cookies. The only cookie is the one that keeps you signed in.</p>
+<p>Your IP address is used briefly to rate-limit sign-in emails, so the form cannot be used to flood someone's inbox.</p>
+<p>Three cookies exist, and that is the whole list. One keeps you signed in. The other two appear only while you are signing in with Google, protect that handshake against tampering, and expire ten minutes later. All three are strictly functional—the site does not work without them. There is no advertising cookie, no tracking pixel, and no third-party cookie, because there is no advertising here to feed.</p>
+<p>Page views are counted with Cloudflare Web Analytics, and have been since July 2026. It is cookieless: it stores nothing on your device, does not follow you from site to site, and builds no profile of you. Visitors in the EU are excluded from it entirely. What it records is that a page was opened—which page, the site you arrived from, the country, and the sort of browser, device and operating system—and nothing that identifies you.</p>
+<p>One thing there is worth saying plainly. It records the full address of the page, which means the link to a shared trip appears in my analytics as its own line. It does not record anything after a question mark. Cloudflare already carries every request to this site and sees those addresses regardless; what I cannot do on the plan this runs on is stop them being listed. If that matters for a particular trip, keep it private rather than unlisted.</p>
 
 <h2>Who else sees it</h2>
 <p>Four services are involved in running the app. None of them is sent your trips as a body of data.</p>
@@ -30,7 +33,7 @@
   <li><strong>Google Maps, Places and Routes</strong> draw the map, answer your place searches, and work out the roads between two stops. That means Google sees the search terms you type and the coordinates it is asked to route between, in the moment it is asked.</li>
   <li><strong>Google Sign-In</strong>, if you use it, tells TankBag your email address, whether Google has verified it, and your first and last name. Nothing else is requested.</li>
   <li><strong>Gmail</strong> carries the sign-in email if you use a magic link instead.</li>
-  <li><strong>Cloudflare</strong> passes traffic between the internet and the server.</li>
+  <li><strong>Cloudflare</strong> passes traffic between the internet and the server, and counts page views as described above.</li>
 </ul>
 <p>The application and its database run on hardware I own and administer. Your trips are not held by a cloud provider.</p>
 
@@ -54,6 +57,7 @@
 
 <h2>Changes</h2>
 <p>If this page changes in a way that affects what is collected or who sees it, the date above changes and I will say what moved. Silent rewrites defeat the point of publishing it.</p>
+<p><strong>3 August 2026.</strong> A correction rather than a change. This page said there were no analytics. That was wrong: Cloudflare Web Analytics has counted page views since July 2026, and the section above now describes it properly—including that the link to a shared trip is listed in it. The cookie list was wrong in the same way. It described only the sign-in cookie, and the two ten-minute cookies used during a Google sign-in were there the whole time. Nothing new started collecting on this date; the page caught up with what was already true.</p>
 
 <h2>Asking</h2>
 <p>Questions, requests for a copy of your data, or a deletion request all go to the same place: <a href="https://github.com/feralcreative/tankbag/issues">the issue tracker</a> for anything public, or the contact route you signed up through for anything that should not be.</p>

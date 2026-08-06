@@ -2,9 +2,15 @@
 #
 # Seed GitHub issues for the TankBag roadmap (docs/ROADMAP.md).
 #
-# Creates one tracking issue per roadmap item, the six "good first
+# Creates one tracking issue per roadmap item, a set of "good first
 # contributions", and the unscheduled idea backlog — each tagged with area:*
-# labels so issues that touch the same code are visible at a glance. Idempotent:
+# labels so issues that touch the same code are visible at a glance.
+#
+# The good-first set below predates several of them being built: the roles.ts
+# unit tests and KMZ import both shipped, so those two are skipped on a fresh
+# run against an empty repo and their bodies no longer describe reality.
+# docs/ROADMAP.md's "Good first contributions" section is the current list.
+# Idempotent:
 # it skips any issue whose exact title already exists, so a re-run never
 # duplicates (it does NOT retro-add labels to issues that already exist).
 #

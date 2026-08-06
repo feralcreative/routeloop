@@ -14,7 +14,7 @@ import {
   RouteFileError,
   round6,
   sanitizeText,
-  trackMeters,
+  extracted,
   type ExtractedPoint,
   type ExtractedRoute,
   type Track,
@@ -135,7 +135,14 @@ function firstString(props: Json | undefined, keys: string[]): string {
   return ''
 }
 
-type Collected = { lines: Track[]; points: Array<{ pos: [number, number]; props: Json | undefined }> }
+// Lines carry their properties for the same reason points do: a multi-day
+// GeoJSON names each feature ("Day 2"), and that name is the day's title on
+// import. GPX and KML both keep theirs, and a format silently dropping it was
+// the odd one out.
+type Collected = {
+  lines: Array<{ track: Track; props: Json | undefined }>
+  points: Array<{ pos: [number, number]; props: Json | undefined }>
+}
 
 // Walks whatever nesting the file uses. GeometryCollection is recursive by
 // specification, so the depth guard above is what keeps this bounded.
@@ -151,7 +158,7 @@ function collect(geometry: unknown, props: Json | undefined, into: Collected, de
     // degenerate shape is exactly what the cross-format tests exist to stop,
     // so this keeps it rather than rejecting the whole file.
     const line = lineString(coords, 'LineString')
-    if (line.length > 0) into.lines.push(line)
+    if (line.length > 0) into.lines.push({ track: line, props })
     return
   }
 
@@ -162,7 +169,7 @@ function collect(geometry: unknown, props: Json | undefined, into: Collected, de
     if (Array.isArray(coords)) {
       for (const part of coords) {
         const line = lineString(part, String(type))
-        if (line.length > 0) into.lines.push(line)
+        if (line.length > 0) into.lines.push({ track: line, props })
       }
     }
     return
@@ -220,10 +227,10 @@ export function processGeoJson(text: string): ExtractedRoute {
     throw new RouteFileError('GeoJSON file contains no lines or points')
   }
 
-  // Longest line wins, matching the KML path: short lines belong to decoration,
-  // and a file with several is one route plus its scenery.
-  let track: Track = []
-  for (const line of found.lines) if (line.length > track.length) track = line
+  // Every line is kept, in the order the document listed them. A file with
+  // several is a file with several days far more often than it is one route
+  // plus its scenery, and guessing wrong by taking the longest silently threw
+  // the rest away.
 
   const points: ExtractedPoint[] = found.points.map(({ pos, props }) => {
     // Sanitized on the same principle as the KML path: names and descriptions
@@ -248,5 +255,8 @@ export function processGeoJson(text: string): ExtractedRoute {
     }
   })
 
-  return { points, track, trackMeters: trackMeters(track) }
+  return extracted(
+    found.lines.map(({ track, props }) => ({ track, name: sanitizeText(firstString(props, NAME_KEYS)) || null })),
+    points,
+  )
 }

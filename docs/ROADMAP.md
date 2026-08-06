@@ -18,6 +18,29 @@ Each roadmap item lists a **Goal**, the **Work** as a checklist, the code it **T
 
 If you are a new contributor, jump to [Working in this repo](#working-in-this-repo) first.
 
+## Priorities
+
+Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. Reviewed 2026-08-04.
+
+<!-- col-widths: 12% 88% -->
+
+| Tier   | What it means                                                                      |
+| ------ | ---------------------------------------------------------------------------------- |
+| **P0** | Blocks real use of something that already ships. Do these next                     |
+| **P1** | The group layer, plus the platform work that has to exist before anyone is invited |
+| **P2** | Real gaps riders will hit, none of them urgent at this size                        |
+| **P3** | Good ideas with no timeline, and the whole idea backlog                            |
+
+**P0—finish what is half-built.** The hand-off works and the plan survives import; what is missing is the ability to use either of them properly.
+
+- **[#69](https://github.com/feralcreative/tankbag/issues/69) On-the-road mobile interface.** The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal. This is the difference between a demo and the feature.
+- **[#8](https://github.com/feralcreative/tankbag/issues/8) Route shaping.** A rider cannot pull a route onto the road they meant. Everything else in the planner assumes the line is right, and there is no way to correct it.
+- **[#38](https://github.com/feralcreative/tankbag/issues/38) Autosave and undo.** The competitive research files undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
+
+**P1—the group layer, in dependency order.** [#71](https://github.com/feralcreative/tankbag/issues/71) ride membership, then [#72](https://github.com/feralcreative/tankbag/issues/72) friendships, then [#73](https://github.com/feralcreative/tankbag/issues/73) the visibility levels that need both. [#12](https://github.com/feralcreative/tankbag/issues/12) sits on top of all three. [#16](https://github.com/feralcreative/tankbag/issues/16) is here for one reason: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than accounts—that has to exist before rides are shared widely.
+
+A note on sequencing: P1 is where the product stops being single-player, and it is the reason a rider brings anyone else. It is second only because P0 makes the thing worth showing them.
+
 ## Vision
 
 MyRouteApp, but far better: entire-trip focused, with a slicker UI and smoother UX.
@@ -51,6 +74,9 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Maps**—rendering, search (Places New) and routing (Routes API) all on Google.
 - **Admin panel**—the owner approves, blocks and reinstates rider accounts.
 - **Twistiness**—each day carries a measure of how much its roads bend, derived from geometry so imported rides get one too. Shown as a word in the builder and the viewer legend.
+- **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
+- **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
+- **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
@@ -111,7 +137,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 ### 4. Expand: densify a route so a hand-off stays on your roads
 
-**Goal.** Give a nav app only your stops and it picks its own roads between them—often not the ones you meant. **Expand** fixes that: it densifies the route with extra shaping waypoints sampled along the planned geometry, pinning whatever you hand it to onto your roads. This is MyRouteApp's "Expand," the owner's favorite feature there—a 10–20-point route expanded to 30+ points to stay on track. It is provider-agnostic and improves *every* hand-off: the Google Maps links (item 5) and the Garmin/TomTom file exports (item 3) alike.
+**Goal.** Give a nav app only your stops and it picks its own roads between them—often not the ones you meant. **Expand** fixes that: it densifies the route with extra shaping waypoints sampled along the planned geometry, pinning whatever you hand it to onto your roads. This is MyRouteApp's "Expand," the owner's favorite feature there—a 10–20-point route expanded to 30+ points to stay on track. It is provider-agnostic and improves _every_ hand-off: the Google Maps links (item 5) and the Garmin/TomTom file exports (item 3) alike.
 
 **Work.**
 
@@ -123,11 +149,11 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** new `src/maps/expand.ts` (densify over leg geometry), `route_legs.geometry` as the source, the export path (item 3) and the Google Maps link builder (item 5).
 
-**Status.** planned—priority one. Expand is the workaround the whole vision is built around, and every hand-off depends on it.
+**Status.** done on `feat/expand-route`. `src/maps/expand.ts` places shaping points to bound the longest unpinned stretch rather than spacing them evenly—even spacing wastes points on a straight where the nav app was never going to diverge. Density is the rider's call at hand-off time (off / light / tight), because every extra point is another link and another tap. Nothing is stored: it is a transform over `route_legs.geometry`, which is what makes it free to change later.
 
 ### 5. One-tap Google Maps links
 
-**Goal.** Hand a rider the exact route they planned, ready to navigate in Google Maps, instead of a loose set of stops it re-routes between however it likes. Google Maps takes only ~10 points per URL, so a route—especially an Expanded one—is serialized into an ordered series of links. This is the direct answer to the vision's first pain point, that Google My Maps caps at ~10 waypoints.
+**Goal.** Hand a rider the exact route they planned, ready to navigate in Google Maps, instead of a loose set of stops it re-routes between however it likes. Google Maps takes 9 waypoints plus an origin and a destination per URL, so a route—especially an Expanded one—is serialized into an ordered series of links. This is the direct answer to the vision's first pain point, that Google My Maps caps at ~10 waypoints.
 
 **Work.**
 
@@ -144,7 +170,13 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** new `src/maps/gmaps-links.ts` (link builder), `route_legs.geometry` and Expand (item 4) as the source, `public/js/viewer.js` and the share UI, possibly a small share endpoint under `src/routes/`.
 
-**Status.** planned—priority one, paired with Expand (item 4); together they are the hand-off the whole vision is built around.
+**Status.** done on `feat/expand-route`, in `src/maps/gmaps-links.ts`. Three things were settled by testing on a real iPhone rather than from the documentation:
+
+- A `/maps/dir/?api=1` link opens the **native app** and carries **9 waypoints**, so 11 points per link counting the two ends. Google's docs say "up to three waypoints supported on mobile browsers, and a maximum of nine waypoints supported otherwise"—the three applies to a route rendered in the mobile browser, not to the app the link hands off to. Earlier drafts of this roadmap said ~10 points; that figure was an assumption.
+- Omitting `origin` makes Maps start from the rider's current location and offer **Start** instead of **Preview**, which removes the "add Your Location and drag it to the top" ritual at every fuel stop.
+- Raw coordinates render as "dropped pin". Named places need Google place IDs, which this app does not store; the route is exact and navigable either way.
+
+Consecutive links overlap by one point, so the leg between two batches is never left unnavigated, and a batch prefers to end on a stop—a tap is free if the rider is already off the bike.
 
 ### 6. Saved places
 
@@ -205,7 +237,11 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
 
-**Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has. Known gap: import always builds a single day, so a multi-day ride exported to GeoJSON comes back as one route with the longest day as its track. Points and their properties all survive.
+**Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has.
+
+The single-file gap closed 2026-08-04 (#70): every track in a file now lands as its own day, in document order, carrying the file's own name for it—GPX `<trk><name>`, KML Placemark names, GeoJSON feature names. All three parsers previously kept only their longest line and discarded the rest, which meant the app could not read back its own multi-day export. Waypoints are assigned to the day they physically sit on, since GPX ties them to nothing. More than 31 days is refused rather than truncated.
+
+Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk>` and no device picker, and a Garmin wants `<rte>` shaping points.
 
 ### 10. Discovery and public profiles
 
@@ -243,8 +279,8 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Work.**
 
-- [ ] An automated test suite. Vitest is configured and `roles.ts` and the format parsers are covered (286 tests). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
-- [ ] CI on GitHub Actions: typecheck, SCSS build, and the tests above on every PR.
+- [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand and the Google Maps link builder are covered (372 tests). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
+- [x] CI on GitHub Actions: `npm run typecheck` and `npm test` on every pull request and on pushes to `main`, against Node 20 and 22 (`.github/workflows/ci.yml`). The SCSS build is deliberately not gated—formatting and style are qlty's job, and a failing build there would block a PR on something no reviewer reads.
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.
 - [ ] An accessibility pass (keyboard, focus, contrast, ARIA) and groundwork for i18n.
@@ -307,7 +343,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 **Work.**
 
 - [ ] A mobile layout for a ride: large tap targets, high contrast for sunlight, minimal chrome, usable one-handed. Reachable from any ride under the same visibility gate as the viewer—no account needed for a public or unlisted one.
-- [ ] **The Google Maps leg-loader (the headline).** List every 10-point batch from item 5 as a big button—"Day 2 · part 2 of 4"—that opens the Google Maps app on tap. Highlight the current batch, mark the finished ones, and make loading the next a single obvious tap the moment the last one ends. Remember progress per device (localStorage; no account required).
+- [x] **The Google Maps leg-loader (the headline).** List every batch from item 5 as a big button—"Day 2 · part 2 of 4"—that opens the Google Maps app on tap. Highlight the current batch, mark the finished ones, and make loading the next a single obvious tap the moment the last one ends. Remember progress per device (localStorage; no account required).
 - [ ] **Send files to the device.** Offer the ride's exports (GPX, KML, …) through the phone's native share sheet / "open in"—the Web Share API with files where supported, a plain download otherwise—so a file lands in Garmin Drive, TomTom, or wherever the rider's app picks it up.
 - [ ] Usable on spotty signal: once loaded, the leg-loader and its links should work without a connection, since the whole point is loading the next leg in the middle of nowhere. Leans on the PWA/offline groundwork in item 12.
 - [ ] Fold in the roadbook data (stop order, leg and cumulative miles, miles since fuel, dwell) as an at-a-glance list, so the mobile page is the roadbook and the live hand-off in one.
@@ -321,7 +357,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** new mobile route under `src/routes/` (a JSX page) plus a small `public/js/` controller, `src/maps/gmaps-links.ts` (item 5) and `src/maps/export.ts` as the data sources, the roadbook data, SCSS for the mobile layout, and the PWA groundwork in item 12.
 
-**Status.** planned—depends on one-tap Google Maps links (item 5) for the leg-loader and on export (largely shipped) for file sending; overlaps the PWA/offline item (item 12).
+**Status.** in progress—the leg-loader shipped as `/m/:slug/navigate` on `feat/expand-route`, listing every link per day with the density control. What remains is what makes it usable _on the bike_ rather than at a desk: glove-sized targets, marking finished legs, remembering progress per device without an account, and tolerating no signal. Overlaps the PWA/offline item (item 12).
 
 <!--| PAGE-BREAK -->
 
@@ -369,35 +405,28 @@ Things deliberately not built, recorded so they do not get proposed twice. These
 
 <!-- col-widths: 26% 74% -->
 
-| Not doing | Why |
-| --- | --- |
-| **Round-trip generators** | Scenic, Kurviger and Garmin all ship one and riders say all three pad the distance with junk roads—"many roads that are minor and not fast at all… just there to make up the total distance." Garmin's Adventurous Routing gets called a complete disaster. Shipped everywhere, good nowhere. |
-| **Turn-by-turn navigation** | Not a permanent vow, but a separate product with its own failure surface: freezing, battery drain, late voice cues, destructive recalculation. That is where every competitor's reputation actually fails. Nothing should be attempted here until the hand-off is excellent, and a companion app is a different conversation from bolting navigation onto the planner. |
-| **Curviness as the headline feature** | Kurviger picks single-track farm lanes because they carry a high speed limit; American riders call the result borderline useless. Curviness without road-width and speed-limit context produces routes nobody wants. Worth having (#28); not worth leading with. |
-| **Inventing new vocabulary** | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them. |
-| **Paywalling export or sharing** | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not. |
+| Not doing                             | Why                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Round-trip generators**             | Scenic, Kurviger and Garmin all ship one and riders say all three pad the distance with junk roads—"many roads that are minor and not fast at all… just there to make up the total distance." Garmin's Adventurous Routing gets called a complete disaster. Shipped everywhere, good nowhere.                                                                          |
+| **Turn-by-turn navigation**           | Not a permanent vow, but a separate product with its own failure surface: freezing, battery drain, late voice cues, destructive recalculation. That is where every competitor's reputation actually fails. Nothing should be attempted here until the hand-off is excellent, and a companion app is a different conversation from bolting navigation onto the planner. |
+| **Curviness as the headline feature** | Kurviger picks single-track farm lanes because they carry a high speed limit; American riders call the result borderline useless. Curviness without road-width and speed-limit context produces routes nobody wants. Worth having (#28); not worth leading with.                                                                                                       |
+| **Inventing new vocabulary**          | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them.                                                                                                                                                           |
+| **Paywalling export or sharing**      | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not.                                                                                                                                                                                  |
 
 One wording correction that falls out of this: the vision above says TankBag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
 
 ## Good first contributions
 
-Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These map directly to _good first issue_ labels.
+Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These carry the _good first issue_ label on GitHub.
 
-- **Add privacy and terms pages** (item 1). Two static pages through the existing `page()` shell.
-- **Align the day-slider tick labels** to the thumb positions in the builder (a known cosmetic nit in STATUS.md).
-- **`profile.js` geocoding → server proxy** (item 1). A self-contained endpoint modeled on `POST /api/route`, plus a small client change.
+- **[#35](https://github.com/feralcreative/tankbag/issues/35) Round-trip fidelity tests per format.** Pure test work in `test/`, no app context needed—assert what each format can and cannot carry, so import → export never silently drops a stop.
+- **[#40](https://github.com/feralcreative/tankbag/issues/40) Keyboard shortcuts for the builder.** Contained to `public/js/builder.js` and its key handling.
+- **[#51](https://github.com/feralcreative/tankbag/issues/51) Layer stacking with per-layer opacity.** A self-contained map-engine feature with a clear reference implementation in Gaia GPS.
+
+The three tasks previously listed here—privacy and terms pages, the day-slider tick labels, and the `profile.js` geocoding proxy—all shipped, as #18, #19 and #20.
 
 ## Working in this repo
 
-Before writing code:
+Setup, the gotchas that will bite you, branch and commit conventions, and how to open a pull request all live in **[CONTRIBUTING.md](../CONTRIBUTING.md)**. It is the canonical copy—GitHub links it from the issue and pull-request composer, which is why it is there rather than here.
 
-1. Read **[\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md)** for architecture, then **[STATUS.md](STATUS.md)** for where things actually stand.
-2. Follow the local-dev setup in the **[README](../README.md)**—Postgres in Docker, `.env` from `.env.example`, `drizzle-kit push`, then `npm run dev` on port 6686.
-
-Gotchas that will bite otherwise:
-
-- **Coordinate order.** The app stores and speaks `[lng, lat]` (GeoJSON order); Google's JS objects speak `{lat, lng}`. Getting it backwards still renders a map, just in the wrong place. Exactly two functions convert—`toGoogleWaypoint` on the server and `toLatLng` / `fromLatLng` in `map-common.js`—keep it that way.
-- **`public/js/map-common.js` is the only file that touches `google.maps`.** The viewer and builder go through the handles it returns. Preserve that boundary.
-- **SCSS** compiles with `npm run sass` (never an IDE extension), and prose is never hard-wrapped.
-- **Conventional Commits** for messages (`type(scope): subject`), and never commit, push, or deploy without the owner's say-so.
-- **Schema is push-only**—`npx drizzle-kit push`, no migration files. Read the statement list before applying; riders now hold data that cannot be rebuilt from an upload.
+Two things to read first either way: [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for the architecture, and [STATUS.md](STATUS.md) for where things actually stand.

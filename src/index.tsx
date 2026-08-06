@@ -36,6 +36,7 @@ import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { rideRoutes } from './routes/rides'
 import { importRoutes } from './routes/import'
+import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
@@ -106,6 +107,7 @@ app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
+app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)

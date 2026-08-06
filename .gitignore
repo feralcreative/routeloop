@@ -83,7 +83,6 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 .npm
@@ -255,7 +254,10 @@ serverless.yml.bak
 .codex
 .DS_Store?
 _PLANS
-Icon?
+# The macOS Finder "Icon\r" file. Must be anchored to the carriage return:
+# a bare `Icon?` matches any five-character name, which silently swallowed
+# public/img/icons/ — every role icon — for as long as it was there.
+Icon
 ._*
 .Spotlight-V100
 .Trashes

@@ -29,11 +29,14 @@ import {
   validateGpx,
   type ExtractedRoute,
   type SupportedFormat,
+  nearestTrackIndex,
+  type ExtractedPoint,
+  type Track,
 } from '../maps/kml'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
 import { isNativeRide, NATIVE_FORMAT_VERSION } from '../maps/export'
-import { insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
+import { MAX_ROUTES, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { fields, firstIssue } from '../maps/fields'
 import { dayColor } from '../maps/palette'
@@ -245,23 +248,77 @@ mapsRoutes.post(
     // storedKml); everything else is stored as uploaded. All of it streams back
     // with an explicit non-HTML content type and nosniff, so none of it can be
     // coaxed into rendering.
-    // One day per file, each with the bytes to keep alongside it.
-    type Day = { route: ExtractedRoute; ext: StoredExt; buf: Buffer; name: string }
+    // One day per *track*, not per file. A file holding several — a GPX with a
+    // <trk> per day, a KML with a Placemark per day — becomes that many days,
+    // because the alternative is keeping one and discarding the rest, which is
+    // the data loss this pipeline used to ship (#70).
+    //
+    // `buf` is the stored original and belongs to the file, so only the first
+    // day out of a file carries it. Every day counting the same bytes would
+    // charge a rider's quota three times for one upload.
+    type Day = {
+      points: ExtractedPoint[]
+      track: Track
+      trackMeters: number
+      title: string | null // the file's own name for this day, if it had one
+      ext: StoredExt
+      // The stored original and its slot on disk. Both belong to the file, so
+      // only the first day out of a file carries them; the rest write nothing.
+      buf: Buffer | null
+      fileIndex: number
+      name: string
+    }
     const days: Day[] = []
+
+    // Waypoints arrive at document level with nothing tying them to a track, so
+    // when a file holds several they are assigned by proximity — a stop sitting
+    // on day 3's road belongs to day 3. With one track the question does not
+    // arise and every point goes to it, which is what always happened.
+    const addDays = (route: ExtractedRoute, ext: StoredExt, buf: Buffer, name: string, fileIndex: number) => {
+      if (route.tracks.length <= 1) {
+        days.push({
+          points: route.points,
+          track: route.track,
+          trackMeters: route.trackMeters,
+          title: route.tracks[0]?.name ?? null,
+          ext,
+          buf,
+          fileIndex,
+          name,
+        })
+        return
+      }
+      const buckets: ExtractedPoint[][] = route.tracks.map(() => [])
+      for (const p of route.points) buckets[nearestTrackIndex(route.tracks, p)].push(p)
+      route.tracks.forEach((t, i) => {
+        days.push({
+          points: buckets[i],
+          track: t.track,
+          trackMeters: t.meters,
+          title: t.name,
+          ext,
+          // Only the first day of the file owns the bytes.
+          buf: i === 0 ? buf : null,
+          fileIndex,
+          name,
+        })
+      })
+    }
+
     let gpxBuf: Buffer | undefined
     try {
-      for (const { file, ext: e } of sources) {
+      for (const [fileIndex, { file, ext: e }] of sources.entries()) {
         if (e === 'geojson' || e === 'json') {
           const text = await file.text()
-          days.push({ route: processGeoJson(text), ext: e, buf: Buffer.from(text, 'utf8'), name: file.name })
+          addDays(processGeoJson(text), e, Buffer.from(text, 'utf8'), file.name, fileIndex)
         } else if (e === 'csv') {
           // Stops and nothing else — no track, so no legs, no mileage and no
           // twistiness. The ride gets its line when it is routed in the builder.
           const text = await file.text()
-          days.push({ route: processCsv(text), ext: 'csv', buf: Buffer.from(text, 'utf8'), name: file.name })
+          addDays(processCsv(text), 'csv', Buffer.from(text, 'utf8'), file.name, fileIndex)
         } else if (e === 'gpx') {
           const buf = Buffer.from(await file.arrayBuffer())
-          days.push({ route: processGpx(await file.text()), ext: 'gpx', buf, name: file.name })
+          addDays(processGpx(await file.text()), 'gpx', buf, file.name, fileIndex)
           if (single) gpxBuf = buf
         } else {
           // Unzipping first means the KMZ path converges on processKml before
@@ -271,7 +328,7 @@ mapsRoutes.post(
           // remembers it arrived zipped.
           const text = e === 'kmz' ? extractKmlFromKmz(Buffer.from(await file.arrayBuffer())) : await file.text()
           const kml = processKml(text)
-          days.push({ route: kml, ext: 'kml', buf: Buffer.from(kml.storedKml, 'utf8'), name: file.name })
+          addDays(kml, 'kml', Buffer.from(kml.storedKml, 'utf8'), file.name, fileIndex)
         }
       }
       if (companionGpx) {
@@ -287,10 +344,23 @@ mapsRoutes.post(
       throw e
     }
 
+    // A file can now produce more days than files were uploaded, so the ride's
+    // route cap has to be checked here rather than being implied by
+    // MAX_SOURCE_FILES. Refused rather than truncated: dropping days 32+ is the
+    // silent data loss this whole change exists to remove, and a rider who is
+    // told the number can split the file themselves. A merge step in the
+    // importer is the real answer (#70) and this is what holds until then.
+    if (days.length > MAX_ROUTES) {
+      return fail(
+        `that import comes to ${days.length} days and the limit is ${MAX_ROUTES} — split it and import the parts as separate rides`,
+        400,
+      )
+    }
+
     // Which byte column each stored original lands in. KML and GPX have their
     // own for historical reasons and because "how big is the KML" stays a
     // question worth answering; everything else shares source_bytes.
-    const bytesIn = (want: (d: Day) => boolean) => days.filter(want).reduce((n, d) => n + d.buf.byteLength, 0)
+    const bytesIn = (want: (d: Day) => boolean) => days.filter(want).reduce((n, d) => n + (d.buf?.byteLength ?? 0), 0)
     const kmlBytes = bytesIn((d) => d.ext === 'kml')
     const gpxBytes = bytesIn((d) => d.ext === 'gpx') + (companionGpx ? (gpxBuf?.byteLength ?? 0) : 0)
     const sourceBytes = bytesIn((d) => d.ext !== 'kml' && d.ext !== 'gpx')
@@ -301,9 +371,9 @@ mapsRoutes.post(
     // is the same sum as the column expression and nothing else.
     const incoming = kmlBytes + gpxBytes + sourceBytes
 
-    const totalMeters = days.reduce((m, d) => m + d.route.trackMeters, 0)
+    const totalMeters = days.reduce((m, d) => m + d.trackMeters, 0)
     const totalMiles = (totalMeters / METERS_PER_MILE).toFixed(1)
-    const stopCount = days.reduce((n, d) => n + d.route.points.filter((p) => p.kind !== 'poi').length, 0)
+    const stopCount = days.reduce((n, d) => n + d.points.filter((p) => p.kind !== 'poi').length, 0)
 
     // Quota + inserts + file writes in one transaction: the quota row is
     // locked (FOR UPDATE) so concurrent imports cannot both squeeze under the
@@ -343,14 +413,14 @@ mapsRoutes.post(
         // One route per file, in the order they were given. A single upload is
         // the same code path with one day in the list.
         for (const [i, day] of days.entries()) {
-          const distM = Math.round(day.route.trackMeters)
+          const distM = Math.round(day.trackMeters)
 
           // An imported ride never touches the router, so this is the only shape
           // information it will ever have — which is exactly why twistiness is
           // computed from geometry rather than from routing maneuvers. It is
           // per-day: averaging a whole trip would bury the good road in the
           // straight one that got you there.
-          const twist = twistiness(day.route.track)
+          const twist = twistiness(day.track)
           const [route] = await tx
             .insert(routes)
             .values({
@@ -362,7 +432,11 @@ mapsRoutes.post(
               color: days.length > 1 ? dayColor(i) : meta.color,
               // '' is this column's no-title value (notNull, default ''),
               // and the viewer already falls back to "Day N" when it is empty.
-              title: days.length > 1 ? dayTitle(day.name, i) : '',
+              // The file's own name for the day wins when it has one — a GPX
+              // <trk><name>Day 2</name> is better than anything derivable from
+              // the filename, and for a multi-track file the filename is the
+              // same for every day anyway.
+              title: day.title ?? (days.length > 1 ? dayTitle(day.name, i) : ''),
               distanceM: distM,
               twistinessDpm: twist?.dpm ?? null,
               twistinessBestDpm: twist?.bestDpm ?? null,
@@ -375,17 +449,15 @@ mapsRoutes.post(
           // null instead, the same null-is-not-zero distinction twistiness
           // makes: null means nothing measured it, 0 means it measured zero.
           const stopDists: Array<number | null> =
-            day.route.track.length > 0
-              ? distFromStartAlongTrack(day.route.track, day.route.points)
-              : day.route.points.map(() => null)
+            day.track.length > 0 ? distFromStartAlongTrack(day.track, day.points) : day.points.map(() => null)
 
-          if (day.route.points.length > 0) {
+          if (day.points.length > 0) {
             // Stops carry a position and POIs carry null, matching what the
             // builder writes — a POI is not a routing anchor and has no place
             // in the stop order. So the counter advances only for stops.
             let stopPos = 0
             await tx.insert(points).values(
-              day.route.points.map((p, n) => {
+              day.points.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
                   routeId: route.id,
@@ -402,14 +474,15 @@ mapsRoutes.post(
               }),
             )
           }
-          if (day.route.track.length > 0) {
-            await tx
-              .insert(routeLegs)
-              .values({ routeId: route.id, position: 0, geometry: day.route.track, distanceM: distM })
+          if (day.track.length > 0) {
+            await tx.insert(routeLegs).values({ routeId: route.id, position: 0, geometry: day.track, distanceM: distM })
           }
 
           fileRideId = ride.id
-          await writeMapFile(user.id, ride.id, day.ext, day.buf, i)
+          // Indexed by file, not by day: one file that produced three days is
+          // still one original on disk, and writing it three times would both
+          // waste the slots and disagree with the bytes charged to quota.
+          if (day.buf) await writeMapFile(user.id, ride.id, day.ext, day.buf, day.fileIndex)
         }
         if (companionGpx && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
 
