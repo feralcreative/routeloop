@@ -19,12 +19,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
+    "@hono/node-server": "^2.0.10",
     "@xmldom/xmldom": "^0.9.10",
     "arctic": "^3.7.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.6.14",
+    "hono": "^4.13.0",
     "nodemailer": "^9.0.3",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
