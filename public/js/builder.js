@@ -19,6 +19,8 @@
     setRouteDim,
     setLegHighlight,
     clearLegHighlight,
+    onRouteShapeDrag,
+    consumeShapeClick,
     addMarker,
     removeMarker,
     onMarkerDragEnd,
@@ -49,10 +51,17 @@
   // there are two implementations and what keeps them honest.
   const { routeTwistiness, twistLabel, routePoiDistances } = window.TBTwist;
 
+  // Pure drag-to-shape arithmetic — see route-shape.js.
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
+
   const MILE = 1609.344;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
   const MAX_STOPS = 200;
   const MAX_POIS = 200;
+  // Matches MAX_VIAS_PER_LEG in src/maps/ride-graph.ts, which the save path
+  // enforces. Refusing the 21st here is the difference between a rider being
+  // told now and a whole ride failing to save later.
+  const MAX_VIAS_PER_LEG = 20;
 
   // Injected by the page shell from src/maps/palette.ts, the same way
   // window.TB.roles carries the role table. The importer colours the days of a
@@ -357,7 +366,7 @@
     if (!state.map) return;
     for (let i = 0; i < state.layerCount; i++) removeRouteLayers(state.map, i);
     state.routes.forEach((route, r) => {
-      addRouteLayers(state.map, r, fullTrack(r), route.color);
+      addRouteLayers(state.map, r, fullTrack(r), route.color, { shapeable: true });
     });
     state.layerCount = state.routes.length;
     state.layersReady = true;
@@ -402,6 +411,10 @@
     state.markers.forEach((m) => {
       m.stops.forEach(({ marker }) => removeMarker(marker));
       m.pois.forEach(({ marker }) => removeMarker(marker));
+      // Vias came later than the other two. A kind that renderMarkers creates
+      // and this forgets does not error — it just leaves the old handles on the
+      // map, so every redraw stacks another set on top of the last.
+      (m.vias || []).forEach(({ marker }) => removeMarker(marker));
     });
     state.markers = [];
   }
@@ -417,6 +430,7 @@
     });
     const marker = addMarker(state.map, [stop.lng, stop.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
+      beginEdit("move stop");
       stop.lng = +lng.toFixed(6);
       stop.lat = +lat.toFixed(6);
       // A moved anchor invalidates its shaping points.
@@ -437,6 +451,7 @@
     });
     const marker = addMarker(state.map, [poi.lng, poi.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
+      beginEdit("move POI");
       poi.lng = +lng.toFixed(6);
       poi.lat = +lat.toFixed(6);
       markDirty();
@@ -444,11 +459,64 @@
     return { marker, el };
   }
 
+  // --- Drag to shape --------------------------------------------------------
+
+  // A shaping point is not a place anyone is going — it is a hint about which
+  // road to take. It gets its own smaller handle, no row in the stop list, and
+  // no place in the stop numbering.
+  function makeViaMarker(r, legIndex, viaIndex, v) {
+    const el = markerElement({ name: "" }, state.routes[r].color, "via");
+    el.title = "Shaping point—drag to move, click to remove";
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      beginEdit("remove shaping point");
+      state.routes[r].legs[legIndex].viaPoints.splice(viaIndex, 1);
+      computeLeg(r, legIndex);
+      renderMarkers();
+      markDirty();
+    });
+    const marker = addMarker(state.map, [v[0], v[1]], el, { draggable: true });
+    onMarkerDragEnd(marker, ([lng, lat]) => {
+      beginEdit("move shaping point");
+      state.routes[r].legs[legIndex].viaPoints[viaIndex] = [+lng.toFixed(6), +lat.toFixed(6)];
+      computeLeg(r, legIndex);
+      renderMarkers();
+      markDirty();
+    });
+    return { marker, el };
+  }
+
+  // Called once per drop, with a vertex index into the day's flat track.
+  function shapeAt({ id: r, vertexIndex, edgeForward, lngLat }) {
+    const route = state.routes[r];
+    if (!route) return;
+    const { track, spans } = trackAndSpans(r);
+    const legIndex = legAtVertex(spans, vertexIndex, edgeForward);
+    if (legIndex == null || !route.legs[legIndex]) return;
+
+    const leg = route.legs[legIndex];
+    const vias = leg.viaPoints || (leg.viaPoints = []);
+    if (vias.length >= MAX_VIAS_PER_LEG) {
+      return toast("Up to " + MAX_VIAS_PER_LEG + " shaping points per leg", true);
+    }
+
+    beginEdit("shape route");
+    // Order is the route: appending one that belongs in the middle makes the
+    // leg double back on itself.
+    const at = viaInsertIndex(track, spans[legIndex], vias, vertexIndex);
+    vias.splice(at, 0, [+lngLat[0].toFixed(6), +lngLat[1].toFixed(6)]);
+    computeLeg(r, legIndex);
+    renderMarkers();
+    markDirty();
+  }
+
   function renderMarkers() {
     clearMarkers();
     state.markers = state.routes.map((route, r) => ({
       stops: route.stops.map((s, i) => makeStopMarker(r, s, i)),
       pois: route.pois.map((p, i) => makePoiMarker(r, p, i)),
+      // One handle per shaping point, so a via can be moved or taken back out.
+      vias: route.legs.flatMap((leg, li) => (leg.viaPoints || []).map((v, vi) => makeViaMarker(r, li, vi, v))),
     }));
     applyFocus();
   }
@@ -1678,7 +1746,11 @@
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
     offerRecovery();
+    onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {
+      // A drop at the end of a shape drag also produces a click. Without this
+      // the rider bends the line and gets a stop they never asked for.
+      if (consumeShapeClick(state.map)) return;
       if (state.addMode === "poi") addPoi(lng, lat, "");
       else addStop(lng, lat, "");
     });

@@ -517,6 +517,29 @@ table.route-table {
     margin: -6px 0 0 -6px;
   }
 }
+// A shaping point: somewhere the route passes through, not somewhere anyone is
+// going. Deliberately the smallest thing on the map and a diamond rather than a
+// circle, so it reads as machinery next to the stops and POIs rather than
+// competing with them for attention.
+.tb-marker-via {
+  cursor: grab;
+
+  .tb-marker-dot {
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    background: $white;
+    border: 2px solid currentColor;
+    border-radius: 2px;
+    transform: rotate(45deg);
+    box-sizing: border-box;
+  }
+
+  &:hover .tb-marker-dot {
+    background: currentColor;
+  }
+}
+
 .tb-inline-icon svg {
   width: 100%;
   height: 100%;

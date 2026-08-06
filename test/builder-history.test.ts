@@ -132,6 +132,18 @@ describe('what a snapshot copies and what it shares', () => {
     expect(snap.routes[0].legs[0].geometry).toBe(s.routes[0].legs[0].geometry)
   })
 
+  // Regression: viaPoints was shared by reference because nothing wrote vias.
+  // Drag-to-shape splices into it, so an undo of a shaping point put the via
+  // back on the map while the geometry correctly reverted — state and markers
+  // disagreeing, with no error anywhere.
+  it('copies viaPoints, which drag-to-shape splices in place', () => {
+    const s = stateOf()
+    const snap = H.snapshot(s)
+    expect(snap.routes[0].legs[0].viaPoints).not.toBe(s.routes[0].legs[0].viaPoints)
+    s.routes[0].legs[0].viaPoints.splice(0, 0, [-122.05, 37.05])
+    expect(snap.routes[0].legs[0].viaPoints).toEqual([])
+  })
+
   it('copies the legs array and each leg object, which are mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)

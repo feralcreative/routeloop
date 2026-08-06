@@ -25,7 +25,13 @@
   //                  cost ~50 object copies instead of ~19,000 coordinate
   //                  pairs for a long day, and what makes a 100-step stack
   //                  affordable at all.
-  //   leg.viaPoints  same: only ever reassigned (`= []`), never spliced.
+  //   leg.viaPoints  WAS in that category and no longer is. Drag-to-shape
+  //                  splices into it in place, so it must be copied like
+  //                  roles. This is the same trap twice: a field is safe to
+  //                  share right up until someone adds the feature that
+  //                  mutates it, and nothing fails loudly when they do — the
+  //                  snapshot just quietly gains the edit it was taken to
+  //                  protect against.
   //   roles          the exception, and the trap. point.roles.splice() and
   //                  .push() mutate it in place, so it MUST be copied. Sharing
   //                  it would let a later role toggle reach back and rewrite
@@ -43,7 +49,7 @@
       ...r,
       stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice() })),
       pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice() })),
-      legs: (r.legs || []).map((l) => ({ ...l })),
+      legs: (r.legs || []).map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
     };
   }
 
