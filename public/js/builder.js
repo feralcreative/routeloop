@@ -141,10 +141,78 @@
     toast("Pick a day on the slider first", true);
   }
 
+  // Undo/redo and the crash draft. The logic lives in builder-history.js so it
+  // can be tested without a DOM; everything here is the wiring.
+  const HIST = window.TBHistory;
+  const history_ = HIST.createHistory();
+  let draftTimer = null;
+  let draftFailed = false;
+
+  // Called at the TOP of every content mutation, before the change lands —
+  // markDirty() runs after, which is why the two are separate. `coalesce` is a
+  // stable key for a run of keystrokes on one field, so typing a name is one
+  // undo step rather than one per letter.
+  function beginEdit(label, coalesce) {
+    history_.push(HIST.snapshot(state), label, coalesce);
+    renderHistoryButtons();
+  }
+
+  function renderHistoryButtons() {
+    const u = $("undo");
+    const r = $("redo");
+    if (!u || !r) return;
+    u.disabled = !history_.canUndo();
+    r.disabled = !history_.canRedo();
+    u.title = history_.canUndo() ? "Undo " + history_.undoLabel() : "Nothing to undo";
+    r.title = history_.canRedo() ? "Redo " + history_.redoLabel() : "Nothing to redo";
+  }
+
+  // There is no single render() in this file — this is the sequence init() runs,
+  // plus the three inputs that no render function touches (they are written
+  // only by loadExisting), which would otherwise keep showing pre-undo text.
+  function renderEverything() {
+    rebuildLayers();
+    renderMarkers();
+    renderSlider();
+    renderDayHead();
+    renderList();
+    refreshDerived();
+    $("ride-title").value = state.meta.title;
+    $("ride-description").value = state.meta.description;
+    $("ride-visibility").value = state.meta.visibility;
+  }
+
+  function applyUndo(dir) {
+    const entry = dir === "redo" ? history_.redo(HIST.snapshot(state)) : history_.undo(HIST.snapshot(state));
+    if (!entry) return;
+    HIST.restore(state, entry.snap);
+    renderEverything();
+    renderHistoryButtons();
+    markDirty();
+    toast((dir === "redo" ? "Redid " : "Undid ") + entry.label);
+  }
+
+  // Debounced rather than on a timer: a localStorage write of this size is
+  // sub-millisecond, so waiting a minute would only buy up to a minute of lost
+  // work. Two seconds of idle is close enough to continuous.
+  function queueDraft() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+      const ok = HIST.Draft.write(state.rideId, state);
+      // Silence here would be the worst outcome: a rider who believes a draft
+      // exists and finds nothing after a crash. Say it once, not every 2s.
+      if (!ok && !draftFailed) {
+        draftFailed = true;
+        toast("This ride is too big to keep a recovery copy—save often", true);
+      }
+    }, 2000);
+  }
+
   function markDirty() {
     state.dirty = true;
     $("save-status").textContent = "unsaved changes";
     $("discard").disabled = false;
+    queueDraft();
   }
 
   // Throws the working copy away and reloads the saved one. A reload rather than
@@ -160,6 +228,10 @@
     const saved = state.rideId ? "the last saved version" : "an empty ride";
     if (!window.confirm("Discard every unsaved change and go back to " + saved + "?\n\nThis cannot be undone.")) return;
     state.dirty = false;
+    // Drop the draft too, or the reload lands on a recovery prompt offering
+    // back the exact thing that was just discarded.
+    clearTimeout(draftTimer);
+    HIST.Draft.clear(state.rideId);
     window.location.reload();
   }
 
@@ -384,6 +456,7 @@
   // --- Mutations ------------------------------------------------------------
 
   function addStop(lng, lat, name) {
+    beginEdit("add stop");
     const r = editIndex();
     if (r == null) return pickADayFirst();
     const route = state.routes[r];
@@ -405,6 +478,7 @@
   }
 
   function addPoi(lng, lat, name) {
+    beginEdit("add POI");
     const r = editIndex();
     if (r == null) return pickADayFirst();
     const route = state.routes[r];
@@ -426,6 +500,7 @@
   }
 
   function deleteStop(i) {
+    beginEdit("delete stop");
     const r = editIndex();
     if (r == null) return;
     const route = state.routes[r];
@@ -452,6 +527,7 @@
   }
 
   function deletePoi(i) {
+    beginEdit("delete POI");
     const r = editIndex();
     if (r == null) return;
     state.routes[r].pois.splice(i, 1);
@@ -461,6 +537,7 @@
   }
 
   function moveStop(i, dir) {
+    beginEdit("move stop");
     const r = editIndex();
     if (r == null) return;
     const route = state.routes[r];
@@ -496,6 +573,7 @@
   }
 
   function addDay() {
+    beginEdit("add day");
     if (state.routes.length >= MAX_ROUTES) return toast("Day limit reached (" + MAX_ROUTES + ")", true);
     const prev = state.routes[state.routes.length - 1];
     const route = newRoute(DAY_COLORS[state.routes.length % DAY_COLORS.length]);
@@ -532,6 +610,7 @@
   }
 
   function deleteDay() {
+    beginEdit("delete day");
     if (state.routes.length <= 1) return toast("A ride needs at least one day", true);
     const r = editIndex();
     if (r == null) return pickADayFirst();
@@ -555,6 +634,7 @@
   //
   // That costs one Routes call per leg, which is why a long day asks first.
   function reverseDay() {
+    beginEdit("reverse day");
     const r = editIndex();
     if (r == null) return pickADayFirst();
     const route = state.routes[r];
@@ -587,6 +667,7 @@
   }
 
   function moveDay(dir) {
+    beginEdit("move day");
     const r = editIndex();
     if (r == null) return pickADayFirst();
     const j = r + dir;
@@ -1113,6 +1194,9 @@
       if (!row) return;
       const point = pointOf(row);
       if (!point) return;
+      // Keyed by the row and the field, so a run of keystrokes folds into one
+      // step and moving to another field starts a new one.
+      beginEdit("edit stop", "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className);
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       if (e.target.classList.contains("row-dur")) {
@@ -1144,6 +1228,7 @@
       }
       if (btn.classList.contains("role-opt")) {
         const role = btn.dataset.role;
+        beginEdit("change category");
         const idx = point.roles.indexOf(role);
         if (idx >= 0) point.roles.splice(idx, 1);
         else if (point.roles.length < 4) point.roles.push(role);
@@ -1303,8 +1388,15 @@
       if (!state.rideId) {
         state.rideId = data.id;
         history.replaceState(null, "", "/builder/" + data.id);
+        // The draft was filed under "new"; move it before it becomes an orphan
+        // that offers itself to the next new ride.
+        HIST.Draft.adopt(state.rideId);
       }
       state.dirty = false;
+      // Saved is the one moment the draft is provably redundant.
+      clearTimeout(draftTimer);
+      HIST.Draft.clear(state.rideId);
+      draftFailed = false;
       $("discard").disabled = true;
       $("save-status").innerHTML = 'saved ✓ · <a href="/m/' + esc(data.slug || "") + '">view</a>';
     } catch (e) {
@@ -1362,6 +1454,7 @@
     $("route-color").addEventListener("input", (e) => {
       const route = editRoute();
       if (!route) return;
+      beginEdit("recolour day", "route-color");
       route.color = e.target.value;
       renderDayHead();
       renderSlider();
@@ -1372,6 +1465,7 @@
     $("route-title").addEventListener("input", (e) => {
       const route = editRoute();
       if (!route) return;
+      beginEdit("rename day", "route-title");
       route.title = e.target.value;
       $("day-label").textContent = dayLabel(editIndex());
       refreshDerived();
@@ -1380,6 +1474,7 @@
     $("route-start").addEventListener("change", (e) => {
       const route = editRoute();
       if (!route) return;
+      beginEdit("change start time");
       route.startAt = localInputToIso(e.target.value);
       refreshDerived();
       markDirty();
@@ -1389,6 +1484,7 @@
     $("route-end").addEventListener("change", (e) => {
       const route = editRoute();
       if (!route) return;
+      beginEdit("change end time");
       route.endAt = localInputToIso(e.target.value);
       route.endManual = route.endAt !== null;
       refreshDerived();
@@ -1438,14 +1534,17 @@
 
   function wireMeta() {
     $("ride-title").addEventListener("input", (e) => {
+      beginEdit("rename ride", "ride-title");
       state.meta.title = e.target.value;
       markDirty();
     });
     $("ride-description").addEventListener("input", (e) => {
+      beginEdit("edit description", "ride-description");
       state.meta.description = e.target.value;
       markDirty();
     });
     $("ride-visibility").addEventListener("change", (e) => {
+      beginEdit("change visibility");
       state.meta.visibility = e.target.value;
       markDirty();
       offerPublicStart();
@@ -1474,6 +1573,68 @@
     return pts;
   }
 
+  // Undo/redo controls and the recovery prompt.
+  function wireHistory() {
+    $("undo").addEventListener("click", () => applyUndo("undo"));
+    $("redo").addEventListener("click", () => applyUndo("redo"));
+
+    document.addEventListener("keydown", (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      // Text fields keep their own undo — except the row inputs, whose native
+      // stack renderList() destroys on every redraw anyway, so those are ours.
+      const t = e.target;
+      const native =
+        t &&
+        (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type !== "range" && t.type !== "color")) &&
+        !t.classList.contains("row-name") &&
+        !t.classList.contains("row-desc") &&
+        !t.classList.contains("row-dur");
+      if (native) return;
+      e.preventDefault();
+      applyUndo(e.shiftKey ? "redo" : "undo");
+    });
+
+    // Leaving a field ends the run of keystrokes, so the next edit is its own
+    // undo step rather than folding into the last word typed.
+    document.addEventListener("focusout", () => history_.breakCoalesce());
+    renderHistoryButtons();
+  }
+
+  // A draft only means something if it is newer than what was just loaded, and
+  // nothing is applied until the rider says so — restoring over a saved ride
+  // without asking is its own kind of data loss.
+  function offerRecovery() {
+    const d = HIST.Draft.read(state.rideId);
+    if (!d) return;
+    const bar = $("recover-bar");
+    const mins = Math.max(1, Math.round((Date.now() - (d.savedAt || 0)) / 60000));
+    $("recover-text").textContent =
+      "Unsaved changes from " + (mins < 60 ? mins + " minute" + (mins === 1 ? "" : "s") : "over an hour") + " ago. ";
+    bar.hidden = false;
+    $("recover-yes").addEventListener("click", () => {
+      beginEdit("restore draft");
+      state.meta = { ...d.meta };
+      state.routes = d.routes.map((r) => ({ ...r, legs: (r.legs || []).map((l) => ({ ...l, geometry: [] })) }));
+      state.legSeq = [];
+      renderEverything();
+      bar.hidden = true;
+      // Geometry is not in the draft — the router rebuilds it. Stops are what
+      // could not have been recovered from anywhere else.
+      state.routes.forEach((_, r) =>
+        computeLegsAround(
+          r,
+          Array.from({ length: Math.max(0, state.routes[r].stops.length - 1) }, (_, i) => i),
+        ),
+      );
+      markDirty();
+      toast("Unsaved changes restored");
+    });
+    $("recover-no").addEventListener("click", () => {
+      HIST.Draft.clear(state.rideId);
+      bar.hidden = true;
+    });
+  }
+
   async function init() {
     if (!window.TB.gmapsKey || !window.TB.mapId) {
       document.body.insertAdjacentHTML(
@@ -1486,6 +1647,7 @@
     wireDays();
     wireList($("stop-list"));
     wireSearch();
+    wireHistory();
 
     if (state.rideId) {
       try {
@@ -1515,6 +1677,7 @@
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
+    offerRecovery();
     onMapClick(state.map, ([lng, lat]) => {
       if (state.addMode === "poi") addPoi(lng, lat, "");
       else addStop(lng, lat, "");

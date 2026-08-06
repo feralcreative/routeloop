@@ -439,8 +439,15 @@ function builderHtml(
 
         <div class="builder-actions">
           <button id="save" class="btn" type="button">Save ride</button>
+          <button id="undo" class="btn-quiet" type="button" disabled title="Nothing to undo">Undo</button>
+          <button id="redo" class="btn-quiet" type="button" disabled title="Nothing to redo">Redo</button>
           <button id="discard" class="btn-quiet" type="button" disabled>Discard changes</button>
           <span id="save-status" class="save-status"></span>
+        </div>
+        <div id="recover-bar" class="tb-banner is-recover" hidden>
+          <span id="recover-text"></span>
+          <button id="recover-yes" class="linkbtn" type="button">Restore</button>
+          <button id="recover-no" class="linkbtn" type="button">Discard</button>
         </div>`
 
   return page({
@@ -468,6 +475,7 @@ function builderHtml(
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>
+  <script src="${asset('/js/builder-history.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

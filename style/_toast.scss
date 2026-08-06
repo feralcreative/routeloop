@@ -34,4 +34,15 @@
   font: 700 14px/1.4 $font;
   text-align: center;
   padding: 0.5em;
+
+  // The recovery prompt is not an error — it is an offer, and colouring it
+  // like the maps-misconfigured banner would read as something broke.
+  &.is-recover {
+    background: $text;
+
+    button {
+      color: $white;
+      margin-left: 0.75em;
+    }
+  }
 }
