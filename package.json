@@ -19,7 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
+    "@hono/node-server": "^2.0.10",
     "@xmldom/xmldom": "^0.9.10",
     "arctic": "^3.7.0",
     "dotenv": "^16.4.7",
