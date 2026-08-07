@@ -1,8 +1,8 @@
 # Status and handoff
 
-**Updated:** 2026-08-03
-**Branch:** `feat/import-export`, based on `origin/main`—fourteen commits, 316 tests
-**Closes:** #13, #21, #22, #25, #35, #36
+**Updated:** 2026-08-06
+**Branch:** `feat/drag-to-shape`, based on `origin/main`—424 tests across 20 files, all passing
+**Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
 Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
@@ -11,12 +11,12 @@ Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this 
 
 tankbag is a ride **planning / sharing / organizing** app, not navigation. It is live at `tankbag.app` on a Synology NAS behind Cloudflare Tunnel.
 
-Two migrations drove the previous branch, `refactor/google-maps-and-auth`, which is now merged into `main`:
+Two migrations drove the branch `refactor/google-maps-and-auth`, which is long since merged. **Both are finished**—this table is kept as history, not as work:
 
-| | Was | Is becoming | State |
+| | Was | Became | State |
 | --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **working locally**—credentials in place (2026-07-30); both methods verified. Still needs a prod deploy + the Access-policy removal, in that order |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02, because this row claimed otherwise for a day after it stopped being true |
+| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -292,7 +292,7 @@ Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://git
 
 **#27 overlaps and was deliberately left out.** The leg-plus-dwell duration formula landed here, so what remains of that issue is the configurable rest cadence—which needs its own storage decision and a call on whether a generated rest break becomes a real `points` row or a display-only overlay.
 
-On #19: the even tick spacing is deliberate, not an oversight—the comment in [\_builder.scss](../style/_builder.scss) argues the thumb inset makes exact alignment a lie at any width. It is achievable if the thumb width is pinned in CSS rather than left to the UA, but that comment needs replacing rather than quietly contradicting.
+**Removed 2026-08-06:** a paragraph sat here claiming the even tick spacing was deliberate and that the thumb inset made exact alignment impossible. It contradicted the `e859d6e` note four paragraphs above it, which had already measured the fix. It was the *pre-fix* argument, left in place after the fix landed. Kept as a marker rather than deleted silently, because a document that argues with itself is worse than one that is merely behind—a reader has no way to tell which half is current.
 
 <!--| PAGE-BREAK -->
 
@@ -341,9 +341,9 @@ Existing accounts created before this sprint have `username = NULL`. `requireAct
 
 `/choose-name` and `/logout` run on `requireAuth` rather than `requireActive`, which is what keeps the gate from looping.
 
-### Left undone, deliberately
+### Left undone, deliberately—since fixed
 
-The **"Sign out" link on the holding page** is `$url` blue directly over the video: 2.94:1 against bright gravel, 2.33:1 against dark foliage. Both fail WCAG AA. It is a form submit styled as a link and genuinely a lighter action than the three resource buttons beside it, so it should not become a fourth button—but it does need a colour that survives the footage. One line, not done.
+The **"Sign out" link on the holding page** was `$url` blue directly over the video: 2.94:1 against bright gravel, 2.33:1 against dark foliage, both failing WCAG AA. **Fixed 2026-08-02 ([#45](https://github.com/feralcreative/tankbag/issues/45)).** It stayed a link rather than becoming a fourth button—it is genuinely a lighter action than the three resource buttons beside it—and took the same white-plus-text-shadow treatment as every other piece of over-video text on the splash. The reasoning sits beside the rule in [\_splash.scss](../style/_splash.scss).
 
 ## Public surfaces—2026-08-01
 
@@ -441,9 +441,11 @@ Fixed twice over, on purpose:
 
 ### Left for you—the Mapbox retirement
 
-- **Favicons** still carry the old routeloop mark, including the `og:image` social card. Needs the generator and the source artwork, so it is not scriptable from the repo. Filed separately rather than holding this branch.
-- **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
-- **Set per-API daily quota caps** on the GCP project. Google's free tiers are far smaller than Mapbox's—Dynamic Maps 10k/month against 50k, Routes 10k against Directions' 100k.
+All but one of these is now done. Kept because the reasoning is still worth having, and struck through so nobody works them again:
+
+- ~~**Favicons** still carry the old routeloop mark, including the `og:image` social card.~~ **Done**—regenerated 2026-07-31 in `22610b8`, [#55](https://github.com/feralcreative/tankbag/issues/55) closed 2026-08-02. `og:image` points at `logo-tankbag-horiz-light@2x.png`. This item was restated as outstanding in two later sections of this file for four days after it was finished; see the note on checking assets before believing a checklist.
+- **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`. **Still open**, and the only edge-side item left.
+- ~~**Set per-API daily quota caps** on the GCP project.~~ **Done 2026-08-02**—five metrics capped, see "Console hardening" above.
 
 ## Sprint 07: the editing panel, and twistiness—2026-08-02
 
@@ -492,8 +494,8 @@ A POI is not a routing anchor, so a pause at one falls *inside* a leg rather tha
 
 ### Left for you—sprint 07
 
-- **Favicons** still carry the old routeloop mark, including the `og:image` card. Needs the generator and the source artwork.
-- **The twistiness bands need real rides.** They are calibrated on machine-generated demo rides across California, not rides anyone chose for being good, so real trips will skew twistier. One exported const in [twist.ts](../src/maps/twist.ts).
+- ~~**Favicons** still carry the old routeloop mark, including the `og:image` card.~~ **Done**—this was already finished when it was written here. See the Mapbox-retirement list above.
+- **The twistiness bands need real rides.** They are calibrated on machine-generated demo rides across California, not rides anyone chose for being good, so real trips will skew twistier. One exported const in [twist.ts](../src/maps/twist.ts). **Still open**, and the import path built in sprint 09 exists specifically so this can finally happen.
 
 <!--| PAGE-BREAK -->
 
@@ -571,15 +573,100 @@ SonarCloud was retired (258 findings, of which 16 were real) and replaced with a
 
 <!--| PAGE-BREAK -->
 
+## Single-file multi-day import—2026-08-04
+
+Branch `fix/multi-track-import`, closing [#70](https://github.com/feralcreative/tankbag/issues/70). Sprint 09 left this as its known limitation and asserted it in `test/round-trip.test.ts`, so fixing it failed that test loudly—which is exactly what the assertion was for.
+
+A file holding several tracks now lands as several days, names and all. Before this the longest `<trk>` won and every point in the others was dropped. The parse returns `tracks[]` rather than one `track`, and `src/routes/maps.ts` turns each into a route.
+
+**Points are bucketed to the nearest track, not split by document order.** A file's placemarks are not guaranteed to sit in the same order as its lines, so `nearestTrackIndex()` assigns each stop to the track it is actually closest to. Ordering by position in the file would put day 3's fuel stop on day 1 whenever an editor wrote the folders in a different order. Day titles come from each track's own name; a single-track file takes the path it always did.
+
+## Expand, and the Google Maps hand-off—2026-08-04
+
+Three commits on `feat/expand-route`, closing [#65](https://github.com/feralcreative/tankbag/issues/65) and [#66](https://github.com/feralcreative/tankbag/issues/66). This is the feature that answers "so how do I actually ride it?"
+
+**`src/maps/expand.ts`** densifies a planned route by inserting shaping points along geometry that is already stored, so whatever the rider navigates with has no room to pick its own roads. Two decisions are argued in the file's own header and should not be relitigated:
+
+- **It is deliberately not verified against a router.** The tempting design—ask the router for A→B, diff it against the intended line, insert a point wherever they disagree—is close to tautological, because `route_legs.geometry` *is* Routes API output; it agrees, and costs dozens of calls to discover that. It also defends against the wrong router. The one that ruins a ride is never ours: it is the rider's own Google Maps carrying their avoid settings, or a Garmin recomputing after a missed turn. You cannot verify against a router you do not control, so the only defence is leaving it no room—and density is geometry, free and offline.
+- **Turns first, then the longest unpinned runs.** A junction taken left is a junction a router could take straight through, so candidates are scored by heading change—the same signal `twist.ts` uses, asked a different question. Whatever budget the turns do not want goes to halving the widest gaps, because curvature cannot see a parallel frontage road and only proximity defends against one.
+
+**`src/maps/gmaps-links.ts`** serializes a day into an ordered series of `/maps/dir/?api=1` links. **Google Maps carries 9 waypoints per link**, established on a real iPhone rather than from the documentation—the "~10 points" figure in older docs was an assumption, and Google's own docs are wrong about the part that matters, since their three-waypoint figure applies to a route rendered in the mobile browser and not to the app the link hands off to. Omitting `origin` makes Maps use the rider's current location and offer **Start** rather than Preview, which removes the "add Your Location and drag it to the top" ritual riders otherwise perform at every fuel stop. Consecutive links deliberately **share** a point: a clean partition would leave the leg between two batches unnavigated.
+
+**`/m/:slug/navigate`** ([handoff.tsx](../src/routes/handoff.tsx)) is the page, on the same visibility gate as the viewer, with no JavaScript beyond plain hrefs because it has to work at a fuel stop on one bar. Density is off / light / tight, labelled by what the rider is actually choosing between—room for the nav app, against how many times they stop and tap—rather than by point counts. **It states the longest unpinned stretch rather than hiding it.** Between two consecutive points Maps routes however it likes, and saying so is the difference between this and every tool that claims a clean hand-off and delivers a route that wandered.
+
+Raw coordinates render as "dropped pin". Named places need Google place IDs, which this app does not store yet; the route is exact and navigable either way, so names are an upgrade rather than a blocker.
+
+## Contributor scaffolding—2026-08-05
+
+Branch `chore/contributor-onboarding`, merged in #75. `CONTRIBUTING.md`, a PR template, rewritten issue templates, and **CI** at `.github/workflows/ci.yml`—typecheck plus tests on every pull request and on pushes to `main`.
+
+**The Node matrix is 20 and 22 on purpose:** development happens on 20 and the Dockerfile ships `node:22-alpine`, so running both is what catches the drift between them. There is no database service, because the suite is deliberately scoped to pure logic. If a test ever needs Postgres, adding a service container should be a decision taken on purpose rather than something already sitting there.
+
+**`package-lock.json` is committed now** (`064b4c9`). It had been gitignored, which meant `npm ci` could not run in CI or in the Docker build at all.
+
+**The `.gitignore` trap, which is the one to remember** (`7beb77a`): the pattern was `Icon?`, meant for the macOS Finder `Icon\r` file. A bare `Icon?` matches **any five-character name**, so it had been silently swallowing `public/img/icons/`—every role icon in the app—for as long as it was there. Production had icons only because the deploy builds its image from the working tree rather than from git. 22 icon files landed in that commit.
+
+Note the replacement pattern is a bare `Icon`, which no longer matches the `Icon\r` file it was written for. Nothing in the tree triggers it today, so this is a latent gap rather than a live one—but the pattern now ignores nothing.
+
+## Autosave, undo and crash recovery—2026-08-05
+
+Branch `feat/builder-autosave-undo`, merged in #78, closing [#38](https://github.com/feralcreative/tankbag/issues/38). The competitive research filed undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
+
+**Two protections that are deliberately not the same thing**, and [builder-history.js](../public/js/builder-history.js) says so at the top. *History* recovers from a mistake you made and noticed—in memory, per session, lost on reload. A *draft* recovers from a crash, a closed tab or a dead phone, **including for a ride that has never been saved and has no id**. Collapsing them into one mechanism means either a mistake surviving a reload or a crash losing everything.
+
+**The snapshot trap, which has now fired twice.** What a snapshot copies is decided by what the builder mutates in place, and that is not uniform. `leg.geometry` is never mutated in place—it is always replaced wholesale—so it is shared by reference, which is what makes a snapshot cost ~50 object copies instead of ~19,000 coordinate pairs on a long day, and what makes a 100-step stack affordable. `point.roles` is the exception and **must** be copied, because `splice()` and `push()` mutate it. **`leg.viaPoints` was in the safe category until drag-to-shape started splicing into it**, and nothing failed loudly when that changed—the snapshot quietly gained the edit it was taken to protect against. A field is safe to share right up until someone adds the feature that mutates it.
+
+Kept out of `builder.js` so it can be tested: `test/builder-history.test.ts` evals the file and drives `window.TBHistory`, the same arrangement `twist-client.test.ts` uses on `twist.js`.
+
+## Drag-to-shape—2026-08-06
+
+Branch `feat/drag-to-shape`, closing [#8](https://github.com/feralcreative/tankbag/issues/8)—the P0 that everything else in the planner quietly assumed. A rider can pull the route line onto the road they meant, and the dropped point becomes a via point on the correct leg.
+
+**The hard part is arithmetic, not interaction.** A day is drawn as *one* polyline—the concatenated geometry of all its legs—so a drag hands back a vertex index into that flat path and nothing else; the map layer has no idea where one leg ends and the next begins. [route-shape.js](../public/js/route-shape.js) turns that index back into "leg 3, between via 1 and via 2". It is pure—no DOM, no `google.maps`, no state—so `test/route-shape.test.ts` can drive it directly. An off-by-one here bends a route around the wrong corner, which is exactly the kind of thing that should fail in a test rather than on a map.
+
+Two properties of the span array make it less obvious than it looks, both recorded in the file. **Legs share their joint vertex**, because the concatenation drops the duplicate where one leg's last coordinate meets the next leg's first—so a vertex sitting exactly on a joint belongs to both, and which one the rider meant depends on the segment they grabbed rather than on the vertex. And **a leg with no geometry has a null span and consumes no indices**, so it must be skipped without shifting everything after it.
+
+This is also the change that turned `leg.viaPoints` into a field that has to be deep-copied for undo—see the snapshot trap above.
+
+## The login page is a beta waiting list—2026-08-06
+
+`/login` told visitors the opposite of the truth. It said "Not a member yet? Signing in creates your account", which is accurate in the narrow technical sense and reads as an open door—so a rider signed in, expected the app, and met the holding page instead. **The gate belongs on the way in, not after it.**
+
+**The distinction the copy now carries, because it is the owner's and nothing in the code expressed it:** *alpha* is developers only, and *beta* is friends, invited a few at a time. So a visitor is not being kept from something they could otherwise have—beta does not exist yet—and the honest thing to offer them is a place in the queue.
+
+**The mechanism did not change, and that is the point.** Signing in with Google or a magic link creates a `pending` user, `requireActive` bounces `pending` to `/welcome`, and `/admin` is the approval queue. That *is* a waiting list. Building a second one—a `waitlist` table, its own endpoint, its own inbox to triage—would have added a store to reconcile against `users` for a capability the app already had. What was missing was the page saying so.
+
+What changed, all copy and one CSS block:
+
+- **`/login`** leads with a gate block: "You can't sign yourself in", then the alpha/beta split, then a link to `/faq#invites`. The controls became **Join the list** and **Join with Google**.
+- **Sign-in is deliberately still here, through those same two controls.** The owner and every approved rider arrive on this page, and a page offering only a waiting list would lock out everyone who already has an account. `**Already approved?** Same control — it signs you in.` sits directly under them, which is the line doing the load-bearing work.
+- **The nav says "Join the beta"**, not "Sign in". A nav offering sign-in contradicts the page it links to.
+- **`/welcome`** names beta, so it agrees with the page that sent them there.
+- **The FAQ** entry became "Why can't I just sign up?" and carries the alpha/beta split.
+- **The sent notice dropped its hedge.** It used to say "if that address has access", presented as anti-enumeration. It protected nothing: `requestMagicLink` mails every valid address whether or not an account exists, so the responses were already identical and there was never anything to enumerate. It now says a link is on its way, which is both true and no more revealing.
+- **Both controls are feature-flagged by omission**, as before, but the "no method configured" case is now stated once for the pair rather than only for Google—an empty box under an invitation to join is worse than saying the list is closed.
+
+**The one constraint that shaped the design: the splash never scrolls.** `_splash.scss` pins `.splash` to one viewport and steps the stack down through two height tiers (`max-height: 760px` and `620px`). Anything added there is spent out of that budget, which is why the gate is two blocks rather than three and why `.splash-gate` is trimmed at both tiers. Measured in Chrome: the stack is 669px at 1440×900 against 837px of room, 599px at 1280×720, and 471px at 844×390—it fits at every tier with slack. The ~53px of page overflow at 1440×900 is pre-existing and structural (a static footer sitting below a `100svh` splash); the gate adds **1px** to it.
+
+**The gate takes a solid scrim rather than the text-shadow every other over-video block uses.** That treatment is tuned to stay readable across most frames of the clip. This one has to hold on all of them, including the brightest—it is the page's whole message.
+
+Verified in Chrome at 1440×900, 1280×720, 844×390 and 390×844 with zero console messages; `/login`, `?sent=1`, `?error=link` and `/faq#invites` all checked; and a temporary `pending` account confirmed the round trip—`/builder` 302s to `/welcome`, which renders the new copy. That account was deleted afterwards; dev is back to one user.
+
+<!--| PAGE-BREAK -->
+
 ## Next steps, in order
 
 **The Mapbox track that used to live here is finished** and its steps were removed on 2026-08-02 because they described work already done. Checked against the code rather than taken on trust: `public/js/main.js` does not exist, `nativeViewHtml` is gone and `viewHtml` is the only shell, no `MAPBOX_*` value is read anywhere (only historical comments remain), and `profile.js` geocoding already goes through `POST /api/geocode`. If you find a claim in this file that the code disagrees with, the code is right—that is what happened here, and it had already caused one bogus GitHub issue to be filed.
 
+**The P0 tier is empty as of 2026-08-06.** Route shaping ([#8](https://github.com/feralcreative/tankbag/issues/8)) and autosave/undo ([#38](https://github.com/feralcreative/tankbag/issues/38)) both shipped, and the third P0 in the roadmap's list—the on-the-road mobile interface ([#69](https://github.com/feralcreative/tankbag/issues/69))—now carries a P2 label. The labels are the authority, so the roadmap's P0 section was rewritten to match rather than the other way round.
+
 What is actually next:
 
 1. **Point twistiness at real roads.** The import path exists now specifically so this can happen: bring in a folder of GPX files from trips you actually rode and read the labels against roads you know. The bands are calibrated on machine-generated demo rides and nothing in that corpus was chosen for being good. One exported const in [twist.ts](../src/maps/twist.ts).
-2. **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`.
-3. **Apply `utils/deploy/sql/2026-08-03-ride-source-format.sql`** on the next deploy, before or with the code that writes those columns.
+2. **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`, and it has been deployed since 2026-07-30, so the ordering constraint that used to guard this is satisfied.
+3. **Add the `www.tankbag.app` tunnel route.** The DNS record exists and nothing routes it, so the host returns a bare Cloudflare 404. The app already 301s `www` → apex; it simply never receives the request.
+4. **Apply `utils/deploy/sql/2026-08-03-ride-source-format.sql`** on the next deploy, before or with the code that writes those columns—if it has not gone out already. It is additive DDL and safe to re-run; check `rides.source_format` on the target before assuming either way.
+5. **The P1 group layer, in dependency order:** [#71](https://github.com/feralcreative/tankbag/issues/71) ride membership, then [#72](https://github.com/feralcreative/tankbag/issues/72) friendships, then [#73](https://github.com/feralcreative/tankbag/issues/73) the visibility levels that need both. This is where the product stops being single-player.
 
 Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and merged.
 

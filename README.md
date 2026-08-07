@@ -8,18 +8,18 @@ It is deliberately a **planning and sharing tool, not a turn-by-turn navigation 
 
 Active build on a **TypeScript + Hono + PostgreSQL** stack, hosted on a Synology NAS behind a Cloudflare Tunnel. The product pivoted from "upload KML files" to "plan rides in-app"; upload is now an import path.
 
-**Live at [tankbag.app](https://tankbag.app).** The app briefly shipped as `routeloop.app` in July 2026; that name was reverted on 2026-07-29 and `routeloop.app` now permanently redirects here. Public and unlisted ride links are reachable without signing in.
+**Live at [tankbag.app](https://tankbag.app).** The app briefly shipped as `routeloop.app` in July 2026; that name was reverted on 2026-07-29 and `routeloop.app` now permanently redirects here. As developer and designer on this project, I reserve the right to change the name and logo several more times before I actually launch. Public and unlisted ride links are reachable without signing in.
 
-Two replacements drove the `refactor/google-maps-and-auth` branch; both are now deployed to production, with only cleanup remaining. Both are described precisely in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
+Two replacements drove the `refactor/google-maps-and-auth` branch. **Both are finished and deployed**, and the table is kept as history rather than as work. Current state lives in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
 
-|      | Being replaced                     | Replacement                                         | State                                                                                                             |
-| ---- | ---------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed to stage and production 2026-07-30** and signing in; the Access policy still has to be removed         |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Ported, verified and deployed 2026-07-30**; only `profile.js` geocoding and dead Mapbox config remain to retire |
+|      | Was replaced                       | By                                                  | State                                                                                                            |
+| ---- | ---------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed 2026-07-30** and signing in ever since; the Access policy at the Cloudflare edge still has to be pulled |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Done.** Rendering, search, routing and geocoding all on Google; no `MAPBOX_*` value is read anywhere            |
 
-Auth is changing because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
+Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
-**The new auth code is now deployed to production**, so the Cloudflare Access policy is the next thing to remove—it is redundant, not protective, since the app no longer reads the header it injects. Do it in that order and never the reverse: pulling the policy before the code shipped would have left the running app open.
+**The only loose end is at the edge, not in the repo:** the Cloudflare Access policy is still defined and is now pure redundancy, since the deployed app has not read the header it injects since 2026-07-30. That ordering mattered—pulling the policy before the code shipped would have left the running app open—and it is satisfied, so the policy can go whenever.
 
 Delivered in phases:
 
@@ -32,9 +32,14 @@ Delivered in phases:
 - [x] **Maps migration**—rendering, search and routing on Google _(deployed 2026-07-30)_
 - [x] **Multi-day builder**—every day of a trip drawn on one map, with a day-focus slider
 - [x] **Admin panel**—owner approves, blocks and reinstates rider accounts
-- [ ] **Shaping + export**—drag routes into shape; export KML/GPX
-- [ ] **Trip timeline**—per-day date-times and the timeline slider
-- [ ] **Later**—bikes, saved places, more import formats, PostGIS
+- [x] **Trip timeline**—per-day date-times and the timeline slider
+- [x] **Import and export**—six formats in, five out; several files become the days of one trip
+- [x] **Roadbook**—a printable stop-by-stop sheet
+- [x] **Expand + the Google Maps hand-off**—`/m/:slug/navigate`, nine waypoints per link
+- [x] **Shaping**—drag the route line onto the road you meant
+- [x] **Undo and crash-recovery drafts** in the builder
+- [ ] **The group layer**—ride membership, friendships, and the visibility levels that need both
+- [ ] **Later**—bikes, saved places, on-the-road mobile interface, PostGIS
 
 ## What it does
 
@@ -44,7 +49,8 @@ Delivered in phases:
 - **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
 - **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as TankBag JSON for a lossless backup that re-imports as the same ride.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
-- **Export**—download a ride as KML/GPX for other apps and round-tripping _(not yet built)_.
+- **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
+- **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
 
 ## Tech stack
@@ -54,7 +60,7 @@ Delivered in phases:
 - **Auth**—Google OAuth (via `arctic`) and an emailed magic link both resolve into the same hand-rolled server sessions, whose primary key is the SHA-256 hash of the browser token rather than the token itself. Authorization is separate: `users.status` (`pending` | `active` | `blocked`) decides who may actually use the app. Cloudflare Turnstile guards uploads and saves, feature-flagged off until keys are set.
 - **Hosting**—Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS terminates at the Cloudflare edge and no inbound ports are open on the NAS.
 
-> A legacy Google Maps viewer (`public/js/main.js`) still renders **imported** rides on its own shell. It survived the Mapbox era as the reference implementation for the port back to Google, and retires in Phase 4 once the current engine learns to draw an imported ride's single-leg track—which `ride.json` already serves identically for both sources.
+> There used to be a second, legacy viewer (`public/js/main.js`) rendering **imported** rides on its own shell. It survived the Mapbox era as the reference implementation for the port back to Google and was deleted on 2026-08-01, once it turned out the current engine already drew an imported ride correctly—`ride.json` had been serving both sources identically since per-leg spans were added. One viewer, one shell.
 
 ## Local development
 
@@ -77,14 +83,15 @@ Delivered in phases:
 
    ```text
    PORT=6686
-   MAPBOX_TOKEN=pk.<public token—only profile.js still uses this>
    GMAPS_KEY=<Google browser key, referrer-restricted>
+   GMAPS_SERVER_KEY=<Google server key, IP-restricted — Routes + Geocoding>
+   GMAPS_MAP_ID=<vector Map ID — without it, Advanced Markers render nothing>
    STORAGE_PATH=./moto-storage
    DATABASE_URL=postgresql://tankbag:tankbag_dev_pw@127.0.0.1:5432/tankbag
    APP_ORIGIN=http://127.0.0.1:6686
    ```
 
-`MAPBOX_TOKEN` is now needed only by `public/js/profile.js`, which still geocodes the home address against Mapbox; it goes away once that moves to a server proxy. For the Google keys—browser, server, OAuth client, Map ID—see [docs/google-cloud-setup.md](docs/google-cloud-setup.md).
+   For all four Google credentials—browser key, server key, OAuth client and Map ID—see [docs/google-cloud-setup.md](docs/google-cloud-setup.md). There is no `MAPBOX_TOKEN` any more; the last Mapbox call moved server-side to `POST /api/geocode` on 2026-08-01.
 
 3. Apply the schema and seed a sample ride:
 
@@ -133,26 +140,36 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 ```text
 src/                  TypeScript app (Hono)
-  index.ts            Home, viewer (native / legacy imported shells), ride.json,
-                      legacy metadata + gated file streams
+  index.tsx           Home, viewer (one shell for both sources), ride.json,
+                      gated download streams
   config.ts           Env-derived config, allowed origins, CSRF helpers
+  content/            Static prose as HTML—faq, privacy, terms
   db/                 Drizzle schema (source of truth), connection, dev seed
   auth/               google.ts (OAuth), magic.ts (magic link), mailer.ts,
                       identity.ts (provider-agnostic user resolution),
-                      session.ts, middleware.ts (auth + status gates)
-  maps/               roles.ts, kml.ts, storage.ts, slug.ts, turnstile.ts
+                      session.ts, middleware.ts (auth + status gates),
+                      username.ts, ratelimit.ts
+  maps/               roles.ts, kml/kmz/gpx/geojson/csv parsers, export.ts,
+                      ride-graph.ts, expand.ts, gmaps-links.ts, twist.ts,
+                      storage.ts, slug.ts, palette.ts, turnstile.ts
   routes/             maps.ts (import), rides.ts (builder), routing.ts (Routes
-                      API proxy), admin.ts (rider approval), dashboard.ts,
-                      profile.ts, auth.ts
-  views/layout.ts     Shared chrome shell
+                      + Geocoding proxies), admin.tsx (rider approval),
+                      dashboard.tsx, profile.tsx, auth.tsx, pages.tsx
+                      (explore/riders/profiles/legal), import.tsx,
+                      handoff.tsx (navigate), roadbook.tsx
+  views/              layout.tsx (chrome shell), splash.tsx (alpha modal),
+                      cards.tsx, esc.ts, assets.ts
 public/
-  js/main.js          Legacy Google viewer, imported rides—retires in Phase 4
   js/map-common.js    Shared Google engine—ONLY file touching google.maps
-  js/viewer.js        Native ride viewer
+  js/viewer.js        Ride viewer
   js/builder.js       The ride builder—multi-day, one map, day focus slider
-  js/profile.js       Profile page (address geocoding)
+  js/builder-history.js  Undo/redo, plus drafts that survive a crash
+  js/route-shape.js   Drag-to-shape index math—pure and tested
+  js/ride-time.js     Trip time model, shared by builder and viewer
+  js/twist.js         Client twistiness, kept equal to the server's
+  js/profile.js       Profile page (address geocoding via /api/geocode)
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
-  img/icons/          17 role SVGs (currentColor) + UI icons
+  img/icons/          Role SVGs (currentColor) + UI icons—22 files
 style/main.scss       SCSS source
 test/                 Vitest suite — pure logic only, no database
   fixtures/           Sample KML/GPX/GeoJSON/CSV of one ride, per format
@@ -194,7 +211,7 @@ Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns
 
 Every stop and POI carries one or more of 17 roles, defined canonically in `src/maps/roles.ts`. **In the builder you set them by clicking role icons**—roles are first-class enum values in the database, never encoded in a name.
 
-The `ROLE - Name` name-prefix convention is **only an import detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—TankBag parses the prefix into roles on import. The same convention is designed to be written back out once server-side export is built (export is not built yet).
+The `ROLE - Name` name-prefix convention is **only an import and export detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—TankBag parses the prefix into roles on import, and writes it back out on export so files reopen correctly in Google Earth and elsewhere.
 
 So an _imported_ name may carry a prefix, combining up to four roles with `/`:
 

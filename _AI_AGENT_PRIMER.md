@@ -1,12 +1,12 @@
 # AI Agent Primer: tankbag
 
-**Last Updated:** 2026-07-30
+**Last Updated:** 2026-08-06
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
-**Status:** **Live in production on the new stack.** The product moved from "upload KML files" to "plan rides in-app"; that pivot and Sprint 2's user profiles are merged. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**. Both migrations that defined branch `refactor/google-maps-and-auth` are now **done and deployed**: **Cloudflare Access → Google OAuth + magic link**, and **Mapbox → Google Maps**. The builder gained **multi-day rides on a single map** on 2026-07-30, which is the feature the whole product model was designed around. See "Where things stand" at the end of this document before starting anything.
+**Status:** **Live in production on the new stack.** The product moved from "upload KML files" to "plan rides in-app"; upload survives as an import path. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**. Both migrations that defined branch `refactor/google-maps-and-auth` are **done and deployed**: **Cloudflare Access → Google OAuth + magic link**, and **Mapbox → Google Maps**. Since then the app has gained multi-day rides on one map, the trip timeline, an admin panel, public profiles, import/export across six formats, a printable roadbook, the Expand hand-off to Google Maps, undo plus crash-recovery drafts, and drag-to-shape. See "Where things stand" at the end of this document before starting anything.
 
-This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand—that file moves faster than this one and wins where they disagree.
+This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand—that file moves faster than this one and wins where they disagree. Where either disagrees with the code, **the code is right**; that has happened more than once and has already caused a bogus GitHub issue to be filed for work already finished.
 
-> **Neither Cloudflare Access nor Mapbox is live any more.** Where this document names them it is describing history, or the one remaining Mapbox call in `profile.js`. The Access *policy* still exists at the Cloudflare edge and should be removed—it is redundant, not protective, since the deployed app no longer reads the header it injects.
+> **Neither Cloudflare Access nor Mapbox exists in this codebase any more.** Where this document names them it is describing history or explaining why something is shaped as it is. No `MAPBOX_*` value is read anywhere, and `public/js/main.js` is deleted. The Access *policy* still exists at the Cloudflare edge and should be removed—it is redundant, not protective, since the deployed app has not read the header it injects since 2026-07-30.
 
 > **Historical baggage.** The `app/` directory (a prior PHP/MySQL build) and `utils/schema.sql` (MySQL) are **superseded** reference material. Older plans (`_PLANS/multi-tenant-rebuild.md`, `_PLANS/tankbag-hono-rebuild.md`, `_PLANS/tankbag-phase2-auth.md`) describe earlier stages and are historical. The live backend is the TypeScript/Hono code under `src/`.
 
@@ -30,29 +30,31 @@ From `docs/ideas.md`:
 ## Architecture and stack
 
 - **Backend**—TypeScript on **Hono**, run by Node (`tsx` in dev, Docker in prod); portable to Cloudflare Workers. **PostgreSQL** via **Drizzle ORM**. **Zod** for payload validation.
-- **Maps**—**Google Maps JavaScript API** (rendering, via the inline bootstrap loader that defines `google.maps.importLibrary`), **Places (New)** `AutocompleteSuggestion` for search, and the **Routes API** for per-leg routing—proxied server-side through `POST /api/route`, because the Routes key is IP-restricted and unusable from a browser. The frontend has **no bundler**; libraries are imported on demand at runtime. The driver for the migration was place-search quality; the reason it was a whole-engine swap rather than a search swap is that each provider's terms tie their search results to their own basemap. One Mapbox call survives, in `profile.js`—see the phases below.
+- **Maps**—**Google Maps JavaScript API** (rendering, via the inline bootstrap loader that defines `google.maps.importLibrary`), **Places (New)** `AutocompleteSuggestion` for search, and the **Routes API** for per-leg routing—proxied server-side through `POST /api/route`, because the Routes key is IP-restricted and unusable from a browser. Geocoding is proxied the same way through `POST /api/geocode`, for the same reason. The frontend has **no bundler**; libraries are imported on demand at runtime. The driver for the migration was place-search quality; the reason it was a whole-engine swap rather than a search swap is that each provider's terms tie their search results to their own basemap.
 - **Auth**—Google OAuth (via `arctic`) plus an emailed magic link, both resolving through [src/auth/identity.ts](src/auth/identity.ts) into the same hand-rolled server sessions (SHA-256-hashed tokens). Deployed to stage and prod on 2026-07-30. It replaced Cloudflare Access, which is billed **per seat** and so could not survive open signups. Cloudflare **Turnstile** still guards uploads/saves, feature-flagged off until keys are set.
 - **Authorization is separate from authentication.** `users.status` (`pending` | `active` | `blocked`) decides who may use the app; every new account starts `pending`. This is the capacity gate for a NAS-hosted alpha and is unaffected by either migration.
 - **Frontend**—vanilla JavaScript. SCSS compiled to CSS with the `sass` CLI.
 - **Hosting**—Synology NAS (Docker) behind Cloudflare Tunnel; HTTPS at the edge. Each container publishes **two** host ports and answers on both, which is what lets the canonical name change without touching tunnel config. Prod: `tankbag.app → localhost:6686` (canonical) and `routeloop.app → localhost:16703` (301s away). Stage: `stage.tankbag.app → localhost:16687` (canonical) and `stage.routeloop.app → localhost:6687` (301s away).
 
-## Two map engines, both now Google
+## One map engine
 
-There are still **two** viewers, but they are no longer two vendors:
+There is now **one** viewer and one shell. The legacy `public/js/main.js`—1,135 lines of `google.maps` predating everything else, which served imported rides on their own shell and read `window.MOTO` rather than `window.TB`—was deleted on 2026-08-01. It had survived the Mapbox era as the reference implementation for the port *back* to Google, and once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one route with one leg. Retiring it was flipping a conditional and deleting the file, not porting a renderer.
 
-1. **Legacy viewer**—`public/js/main.js`, 1,135 lines of `google.maps` predating everything else. Serves **imported** rides only, via the `viewHtml` shell in `src/index.ts`. It parses KML in the browser and reads `window.MOTO`, not `window.TB`.
-2. **The current engine**—`public/js/map-common.js` (shared, `window.TBMap`) plus `public/js/viewer.js` (read-only) and `public/js/builder.js` (editing). Serves **native** rides from `ride.json`.
+The client is now:
 
-The marker/tooltip/mileage behavior in `map-common.js` was ported from the legacy viewer's hard-won logic (colored `currentColor` SVG icons, the `From Start / From Gas / From Charge` tooltip columns, direction arrows, per-route hover-dim)—first onto Mapbox, then back onto Google. `main.js` was the reference implementation for that second move, which is why it was kept rather than deleted.
+- **`public/js/map-common.js`**—the shared engine, `window.TBMap`.
+- **`public/js/viewer.js`** (read-only) and **`public/js/builder.js`** (editing), both reading `ride.json`.
+- Four pure helpers that own arithmetic rather than DOM: **`ride-time.js`** (`window.TBTime`, the trip time model), **`twist.js`** (`window.TBTwist`), **`route-shape.js`** (`window.TBShape`, drag-to-shape index math) and **`builder-history.js`** (`window.TBHistory`, undo plus crash-recovery drafts). Each is `eval`'d by its own test file, which is the whole reason it is not inside `builder.js`.
+
+The marker/tooltip/mileage behavior in `map-common.js` was ported from the legacy viewer's hard-won logic (colored `currentColor` SVG icons, the `From Start / From Gas / From Charge` tooltip columns, direction arrows, per-route hover-dim)—first onto Mapbox, then back onto Google.
 
 **`map-common.js` is the only file that touches `google.maps`.** That boundary is load-bearing. The Mapbox version left marker construction to its callers, so `viewer.js` and `builder.js` each reached for `new mapboxgl.Marker` directly—which is exactly why swapping engines had to touch three files instead of one. They now go through `addMarker`, `removeMarker`, `onMarkerDragEnd`, `onMapClick`, `panTo` and `searchPlaces`, and name no vendor API at all. Preserve that.
 
-Two things to know before editing the engine:
+Three things to know before editing the engine:
 
 - **Coordinate order.** The app stores and speaks `[lng, lat]`; `google.maps` speaks `{lat, lng}`. `toLatLng` and `fromLatLng` in `map-common.js` are the only client-side conversion, matching `toGoogleWaypoint` in `src/routes/routing.ts` on the server. Reversed pairs still render—just in the wrong hemisphere, or subtly off. Routes API accepts `polylineEncoding: GEO_JSON_LINESTRING`, so `route_legs.geometry` keeps its `[lng,lat][]` shape and **no stored ride ever needed migrating**.
 - **`.tb-marker` is deliberately `0×0`** in `_map.scss`. An `AdvancedMarkerElement` anchors its content at the content's *bottom-center*, so a zero-size wrapper puts that anchor exactly on the point and the legacy negative-margin offsets keep working. Give that wrapper a size and every marker drifts off its own coordinates.
-
-Retiring `main.js` means teaching the current engine to render an imported ride's single-leg track—which `ride.json` already serves identically for both sources.
+- **A day is drawn as one polyline**, the concatenated geometry of every leg. That is what makes drag-to-shape non-trivial: a drag hands back a vertex index into that flat path, and turning it back into a leg plus a via-point slot is `route-shape.js`'s entire job. Legs share their joint vertex, because the concat drops the duplicate where one leg's last coordinate meets the next leg's first, and a leg with no geometry consumes no indices—an index calculation has to handle both. The leg highlight is one spare `Polyline` per map, sliced from the route's own line, rather than a `Polyline` per leg: per-leg lines would have changed the layer-id contract every caller depends on.
 
 <!--| PAGE-BREAK -->
 
@@ -99,27 +101,30 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the import/export boundary**. In the DB, roles are first-class enum values. Page shells inject `ROLE_META` as `window.TB.roles` so client code never re-declares it. Icons are in `public/img/icons/icon-<role>.svg`, filled with `currentColor` so they tint to the route color.
 
-## Entry points and routes (`src/index.ts` + `src/routes/*`)
+## Entry points and routes (`src/index.tsx` + `src/routes/*`)
 
 A host middleware runs **first**, ahead of every route: requests for `routeloop.app` / `www.routeloop.app` / `stage.routeloop.app`, plus `www.tankbag.app`, get a **301 to the same path and query on the canonical host** (`tankbag.app`, or `stage.tankbag.app` for the staging pair). The redirect direction reversed on 2026-07-29 when the name went back to tankbag; before that it pointed the other way. Because it runs ahead of every route, a request arriving on a non-canonical hostname is redirected before any auth handler sees it.
 
 Public (gated by `getViewable(slug, viewer)`—public/unlisted for anyone, private owner-only, else 404):
 
 - `GET /`—public ride listing
-- `GET /m/:slug`—viewer page; **native → current engine shell**, **imported → legacy `main.js` shell**
-- `GET /m/:slug/navigate`—the Google Maps hand-off page: each day as an ordered series of `/maps/dir/?api=1` links, with an Expand density control (off / light / tight) and the longest stretch Maps still routes for itself. Same visibility gate as the viewer
-- `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`
-- `GET /api/public/maps/:slug`—**legacy** metadata array (`main.js` only; retires with it)
-- `GET /api/public/maps/:slug/kml` · `/gpx`—gated file streams (imported originals)
+- `GET /m/:slug`—viewer page. **One shell for both sources** since `main.js` was retired
+- `GET /m/:slug/navigate`—the Google Maps hand-off page: each day as an ordered series of `/maps/dir/?api=1` links, with an Expand density control (off / light / tight) and the longest stretch Maps still routes for itself. Same visibility gate as the viewer. In `src/routes/handoff.tsx`
+- `GET /m/:slug/roadbook`—the printable stop-by-stop sheet, server-rendered with no JavaScript. In `src/routes/roadbook.tsx`
+- `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`, and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track`
+- `GET /api/public/maps/:slug/:format{kml|gpx|geojson|csv}` and `/tankbag.json`—gated downloads. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in, and every other format is generated from the rows
+- `GET /explore`, `/riders`, `/faq`, `/privacy`, `/terms`, and `/@:username` public profiles—in `src/routes/pages.tsx`. `/riders` is signed-in only, because an anonymous list of every account is a scraping target with no upside
 
 Owner API (all `requireAuthApi` + `requireSameOrigin`):
 
-- Import—`POST /api/maps` (multipart KML+optional GPX → one imported ride with structured rows; full XXE-safe pipeline + transactional quota). In `src/routes/maps.ts`.
+- Import—`POST /api/maps` (multipart; KML, KMZ, GPX, GeoJSON, CSV or native TankBag JSON → structured rows; full XXE-safe pipeline + transactional quota). **Several files posted at once become the days of one ride**, and all are validated before any is parsed so a bad tenth file names itself rather than leaving nine days half-imported. In `src/routes/maps.ts`; the upload form is `src/routes/import.tsx`.
 - Builder—`POST /api/rides`, `PUT /api/rides/:id` (full-replace), `GET /api/rides/:id` (owner load). In `src/routes/rides.ts`.
 - Edit/delete—`PATCH /api/maps/:id`, `DELETE /api/maps/:id` (owner-scoped; serve both sources). In `src/routes/maps.ts`.
+- Clone—`POST /api/rides/:id/clone`, rebuilding a public native ride through the same `insertRideGraph` the builder uses. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands **private**. Private and imported rides 404 rather than 403, so the endpoint confirms nothing.
 - Routing—`POST /api/route` (also `requireActiveApi`): `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted and unusable from a browser, and caches computed legs because editing re-requests the same pair constantly. In `src/routes/routing.ts`. The builder's `directions()` calls it.
+- Geocoding—`POST /api/geocode`, beside it and for the same reason. **A miss is cached as well as a hit** (a half-typed address is resubmitted constantly and a failed lookup bills the same as a successful one), and Geocoding reports "found nothing" as HTTP 200 with `ZERO_RESULTS`, handled explicitly rather than falling through as success.
 
-Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, native-only) in `src/routes/rides.ts`; `GET /dashboard` in `src/routes/dashboard.ts`; `GET`/`POST /profile` in `src/routes/profile.ts`; auth routes in `src/routes/auth.ts`.
+Pages: `GET /builder` and `GET /builder/:id` (`requireAuth`, owner-checked, native-only) in `src/routes/rides.ts`; `GET /dashboard` in `src/routes/dashboard.tsx`; `GET`/`POST /profile` in `src/routes/profile.tsx`; `/admin` rider approval in `src/routes/admin.tsx`; auth routes in `src/routes/auth.tsx`.
 
 ### The ride payload (save = load shape)
 
@@ -156,14 +161,17 @@ Ported from the PHP era and preserved—re-derive, never drop these:
 
 ```text
 src/
-  index.ts            Hono app: home, viewer (native/imported branch),
-                      ride.json, legacy metadata + gated file streams
+  index.tsx           Hono app: home, viewer (one shell), ride.json,
+                      gated download streams
+  config.ts           Env-derived constants, allowed origins, feature flags
+  content/            Static prose as HTML — faq, privacy, terms
   db/
     schema.ts         Drizzle schema — SOURCE OF TRUTH
     index.ts          DB connection (pg Pool + Drizzle)
     seed.ts           Dev seed: user #1 + sample ride (structured rows)
   auth/               session.ts, middleware.ts (gates), identity.ts,
-                      google.ts, magic.ts, mailer.ts
+                      google.ts, magic.ts, mailer.ts, username.ts,
+                      ratelimit.ts (one sliding window, in-memory)
   maps/
     roles.ts          Canonical 17-role taxonomy (parse/format)
     kml.ts            XXE-safe parse, extraction, sanitize, KML + GPX
@@ -187,33 +195,48 @@ src/
     import.tsx        GET /import — the multi-file upload form
     roadbook.tsx      GET /m/:slug/roadbook — the printable sheet
     handoff.tsx       GET /m/:slug/navigate — the Google Maps leg loader
+    pages.tsx         /explore, /riders, /@username, /faq, /privacy, /terms
+    admin.tsx         Rider approval — the reader of users.status
     rides.ts          Builder API + /builder pages
-    routing.ts        POST /api/route — Google Routes proxy + leg cache
-    dashboard.ts      Owner's ride list
-    profile.ts        /profile form POST, username reservations
-    auth.ts           Google OAuth + magic link, /welcome, logout
-  views/layout.ts     Shared chrome shell (esc, page)
+    routing.ts        POST /api/route + /api/geocode — Google proxies
+    dashboard.tsx     Owner's ride list
+    profile.tsx       /profile form POST, username reservations
+    auth.tsx          Google OAuth + magic link, /welcome, logout
+  views/
+    layout.tsx        Shared chrome shell (page)
+    splash.tsx        The alpha modal, injected into every page
+    cards.tsx         rideCards — moved out of index to break a cycle
+    esc.ts            HTML escaping
+    assets.ts         Cache-busting asset() URLs
 public/
-  js/main.js          Legacy Google viewer (imported rides)—retires in Phase 4
   js/map-common.js    Shared Google engine (window.TBMap)—ONLY file
                       that touches google.maps
-  js/viewer.js        Native ride viewer (reads ride.json)
+  js/viewer.js        Ride viewer (reads ride.json)
   js/builder.js       The ride builder — multi-day, one map, focus slider
-  js/profile.js       Profile page (address geocoding)
+  js/builder-history.js  Undo/redo (in memory) + drafts (survive a crash)
+  js/route-shape.js   Drag-to-shape index math — pure, tested
+  js/ride-time.js     The trip time model, shared by builder and viewer
+  js/twist.js         Client twistiness, kept equal to the server's
+  js/profile.js       Profile page (address geocoding via /api/geocode)
   js/site.js          Global chrome behavior
   style/main.min.css  Compiled CSS (build output)
-  img/icons/          17 role SVGs (currentColor) + UI icons
-style/main.scss       SCSS source
+  img/icons/          Role SVGs (currentColor) + UI icons — 22 files
+style/main.scss       SCSS source + partials (_splash, _builder, _map, …)
 moto-storage/         Imported originals (git-ignored) — {owner}/{ride}.{ext}
+test/                 Vitest — pure logic only, no database or browser
 docs/STATUS.md        Current state + next steps — READ THIS SECOND
+docs/ROADMAP.md       The durable plan; GitHub issue labels outrank it
 docs/ideas.md         The product vision
+.github/workflows/    CI — typecheck + tests, Node 20 and 22
 utils/
   seed-demo-rides.ts  Varied road-routed demo rides for dev (seeded RNG,
                       cached Routes calls, refuses a non-local DATABASE_URL)
+  seed-dev.sh         Rebuilds the dev dataset, carrying accounts across
+  tighten-em-dashes.mjs  Prose dash fixer — pre-commit hook + npm scripts
   deploy/             deploy.sh + prod/stage wrappers, deploy-utils.sh
-                      (ops + env-to-env db-clone), hooks/post-deploy.sh
-_PLANS/               Plans + handoff (google-auth-and-maps-migration + its
-                      AMENDMENTS file are current)
+                      (ops + env-to-env db-clone), hooks/post-deploy.sh,
+                      sql/ hand-written additive DDL
+_PLANS/               Plans + handoff (gitignored)
 app/, utils/schema.sql  LEGACY PHP/MySQL (reference only)
 ```
 
@@ -244,7 +267,6 @@ What *will* bite: if the browser key's allow-list is wrong or lost, the map does
 
 ```text
 PORT=6686
-MAPBOX_TOKEN=pk.<public token—LAST USE is profile.js geocoding; dies in Phase 4>
 GMAPS_KEY=<Google browser key — referrer-restricted, ships in page source. SET>
 GMAPS_SERVER_KEY=<Google server key — IP-restricted, Routes/Geocoding. SET>
 GMAPS_MAP_ID=<vector Map ID, required for Advanced Markers. SET>
@@ -264,19 +286,21 @@ Done and merged:
 - **Unified shell + SCSS split** ✅ one `page()` for every surface, global nav, alpha modal, SCSS partials, sign-in splash with background clip.
 - **Sprint 2—user profiles** ✅ `users.status` authorization, `user_profiles`, `/profile`, `/welcome`, home-address seeding.
 
-In flight on `refactor/google-maps-and-auth`:
-
-- **Auth—Google OAuth + magic link** 🔄 committed in `17de208`; **credentials now in place and both methods verified locally (2026-07-30)**—OAuth client (External consent screen), Vector Map ID, and a Gmail app password, all on the `tankbag` GCP project (`976935115789`). Cloudflare Access is deleted from the codebase; **do not remove the Access policy until this ships to prod**, or the deployed build is open. Still needs the prod deploy, in the correct order (deploy new auth, then pull the Access policy).
-- **Maps—Mapbox → Google** ✅ **done and deployed 2026-07-30** (`942e1d9`), browser-verified end to end. `map-common.js`, `viewer.js` and `builder.js` all run on `google.maps`; the builder routes through `POST /api/route` and searches with Places `AutocompleteSuggestion`. Keys + Vector Map ID live on the `tankbag` GCP project. **Two things remain:** `profile.js` still calls Mapbox Geocoding and wants a server proxy (Geocoding is on the IP-restricted server key), and Phase 4 retires `main.js` plus the dead `MAPBOX_*` config. See [docs/STATUS.md](docs/STATUS.md) for the port's details and [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
+- **Auth—Google OAuth + magic link** ✅ committed in `17de208`, **deployed to stage and prod 2026-07-30**. OAuth client (External consent screen), Vector Map ID and a Gmail app password all live on the `tankbag` GCP project (`976935115789`). Cloudflare Access is gone from the codebase. The **Access policy at the edge is the one loose end**, and the ordering constraint that used to guard it—deploy the code that stops trusting the header *before* pulling the policy—has been satisfied since 2026-07-30.
+- **Maps—Mapbox → Google** ✅ **deployed 2026-07-30** (`942e1d9`), browser-verified end to end. See [_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
+- **Phase 4—retire Mapbox and the legacy viewer** ✅ 2026-08-01. `main.js` deleted (1,135 lines), `POST /api/geocode` took the last Mapbox call server-side, and every `MAPBOX_*` value is gone from config, compose, the deploy guards and `.env.example`.
+- **Phase 3—Via-point shaping + server exports** ✅ both halves, in two pieces. Exports landed in sprint 09 (`src/maps/export.ts`, six formats in and five out, source-aware downloads); **drag-to-shape landed 2026-08-06**, so a rider can pull the line onto the road they meant and the dropped point becomes a via point on the right leg.
+- **Trip timeline** ✅ 2026-08-01. `routes.start_at` / `end_at` are written by a real date-time UI, and the timeline and day slider write one shared focus model.
+- **Admin panel** ✅ `users.status` has its reader: `/admin` approves, blocks and reinstates.
+- **Public surfaces** ✅ `/explore`, `/riders`, `/@username` profiles, `/faq`, `/privacy`, `/terms`.
+- **Autosave, undo and crash-recovery drafts** ✅ 2026-08-05.
 
 Deferred, with reasons:
 
-- **Phase 3—Via-point shaping + server exports** ⬜ drag-to-shape legs into `route_legs.via_points`; `src/maps/export.ts`; source-aware `/kml` + `/gpx`. It was deferred behind the two migrations because building leg-shaping against a routing engine that was about to be replaced would have been wasted work. **That reason has now expired**—the engine is settled, so this is unblocked whenever it is wanted. `route_legs.via_points` already round-trips through the API and the builder clears it on any anchor move.
 - **Places (saved locations)** ⬜ designed in [_PLANS/sprint-01-260725T2320Z.md](_PLANS/sprint-01-260725T2320Z.md) Phase B, never built. Cut from Sprint 2 because it is two tables, seven endpoints, marker-group primitives and builder integration—larger than the rest of that sprint combined. The profile reserves a section for it.
-- **Rider list** ⬜ capability flag only (`users.can_manage_riders`). Lookup by email or phone is a user-enumeration surface and wants rate limiting before it exists.
-- **Admin panel** ⬜ Sprint 3. `users.status` is the column it will drive.
-- **Phase 5—Trip features** 🔄 **multi-day editing done 2026-07-30**; the date/time half is not started. `routes.start_at` / `end_at` exist in the schema and load into builder state, but nothing sets them and there is no date-time UI, so the timeline slider proper is still ahead.
-- **Backlog** ⬜ bikes, autosave, drag-reorder, per-leg off-road mode, PostGIS, public profile pages (`username` is reserved and unique so this stays possible).
+- **The group layer** ⬜ the whole P1 tier, in dependency order: ride membership (#71), then friendships (#72), then the visibility levels that need both (#73). This is where the product stops being single-player, and it is the reason a rider brings anyone else.
+- **On-the-road mobile interface** ⬜ #69. The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal.
+- **Backlog** ⬜ bikes, drag-reorder, per-leg off-road mode, PostGIS, keyboard shortcuts, rich stop details.
 
 ## Deployment state
 
@@ -309,22 +333,27 @@ The map engine was recovered from the original Moto-Rooter viewer and rewired. T
 
 <!--| PAGE-BREAK -->
 
-## Where things stand—2026-08-03
+## Where things stand—2026-08-06
 
 The section to read first when picking this up cold. Everything above describes how the code works; this describes what was just done to it and what is waiting.
 
 ### Recently landed
 
-| Sprint | What |
+| Sprint / date | What |
 | --- | --- |
 | 04–06 | Auth (Google OAuth + magic link), public profiles, admin panel, the timeline |
 | 07 | Builder panel model, POI dwell, **twistiness** |
 | 08 | HTML out of the TypeScript—static prose to `src/content/`, views to Hono JSX |
 | 09 | **Import and export**, branch `feat/import-export`, fourteen commits |
+| 2026-08-04 | Multi-track import (#70), **Expand** + the navigate page (#65, #66) |
+| 2026-08-05 | Contributor scaffolding: `CONTRIBUTING.md`, PR and issue templates, **CI** |
+| 2026-08-05/06 | **Autosave, undo and crash-recovery drafts** (#38), then **drag-to-shape** (#8) |
 
-Sprint 09 in one line: the app reads KML, KMZ, GPX, GeoJSON, CSV and its own JSON, writes all but KMZ, takes several files as the days of one trip, and prints a roadbook. Detail in [docs/STATUS.md](docs/STATUS.md).
+Sprint 09 in one line: the app reads KML, KMZ, GPX, GeoJSON, CSV and its own JSON, writes all but KMZ, takes several files as the days of one trip, and prints a roadbook.
 
-Since then, on `feat/expand-route` and `fix/multi-track-import`: a file holding several tracks lands as several days instead of only its longest (#70), and the hand-off shipped—**Expand** (`src/maps/expand.ts`) plus the navigate page (#65, #66). Google Maps carries **9 waypoints** per link, tested on a phone; the "~10 points" figure in older docs was an assumption.
+Since then: a file holding several tracks lands as several days rather than only its longest; **Expand** (`src/maps/expand.ts`) plus `/m/:slug/navigate` turn a plan into Google Maps links, carrying **9 waypoints** per link—tested on a phone, where the "~10 points" figure in older docs was an assumption; CI runs typecheck and tests on Node 20 and 22 for every PR; and the builder gained undo, drafts that survive a crash, and drag-to-shape. **424 tests across 20 files.** Detail for all of it in [docs/STATUS.md](docs/STATUS.md).
+
+**The P0 tier is empty.** The next real work is the P1 group layer—#71 ride membership, then #72 friendships, then #73 the visibility levels that need both.
 
 ### The load-bearing facts a new agent gets wrong
 
@@ -333,15 +362,18 @@ Since then, on `feat/expand-route` and `fix/multi-track-import`: a file holding 
 - **`rides.size_bytes` must name every byte column.** The app increments `used_bytes` on import, the database decrements it from `size_bytes` on delete. A column missing from that expression leaks quota on every delete, silently and forever.
 - **Production is not precious.** Three accounts, all the owner's. Be careful with the *mechanics* of a migration—`drizzle-kit push` without `--force`, additive DDL by hand in `utils/deploy/sql/`—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
 - **The pre-commit tightener rewrites em dashes**, including in test fixtures. `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
+- **A snapshot shares what the builder never mutates in place, and that set changes.** `leg.geometry` is shared by reference because it is always replaced wholesale; `point.roles` must be copied because `splice()` mutates it. `leg.viaPoints` moved from the first group to the second the day drag-to-shape shipped, and nothing failed loudly—the snapshot just quietly gained the edit it existed to protect against. Check this whenever you add a feature that edits in place.
 
 ### Pick up here
 
 1. **Point twistiness at real roads.** The whole reason the import path exists. Bands are calibrated on machine-generated demo rides; nothing in that corpus was chosen for being good. One const in `src/maps/twist.ts`.
 2. **Remove the Cloudflare Access policy.** The code that stopped trusting it has been deployed since 2026-07-30; the policy is pure redundancy now.
 3. **Add the `www.tankbag.app` tunnel route.** DNS exists, nothing routes it.
-4. **Single-file multi-day import.** A GeoJSON or KML holding several days still lands as one route. Every point survives, the days do not. Originals are stored now, so it is recoverable rather than lost, and the limit is asserted in `test/round-trip.test.ts` so fixing it fails the test loudly.
+4. **The P1 group layer**, in dependency order: #71 → #72 → #73.
 
-**Still open, not urgent:** favicons carry the old routeloop mark; privacy policy and terms are required to publish the OAuth consent screen past 100 users; `db-clone`'s dump/load path has never actually run; day-slider tick labels are evenly spaced rather than thumb-aligned; and roughly 34 pre-existing prettier findings sit in files nobody has had reason to touch.
+**Still open, not urgent:** `db-clone`'s dump/load path has never actually run; roughly 34 pre-existing prettier findings sit in files nobody has had reason to touch; and `.gitignore`'s `Icon` pattern no longer matches the macOS `Icon\r` file it was written for, which is latent rather than live.
+
+**Do not re-file these—they are done, and were listed as outstanding after they were finished:** favicons (2026-07-31), privacy policy and terms (2026-08-01), the day-slider tick alignment (#19), the `/welcome` sign-out contrast (#45), single-file multi-day import (#70). This document and `docs/STATUS.md` have both described finished work as pending long enough to generate a bogus GitHub issue. **Look at the files before believing a checklist item.**
 
 ### Two things that are not checked by what you think checks them
 

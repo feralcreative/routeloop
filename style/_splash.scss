@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // The sign-in page is the only full-bleed marketing surface in the app: a
@@ -53,6 +54,63 @@
   max-width: 620px;
   color: #666;
   font-size: 1.25rem;
+}
+
+// The access gate. This is the page's most important sentence and the one a
+// visitor must not be able to miss: alpha is developers, beta is invite-only,
+// and nobody signs themselves in. The page said the opposite by omission for a
+// long time — "signing in creates your account" — so riders signed in expecting
+// the app and met the holding page instead.
+//
+// It takes a solid scrim rather than the text-shadow the rest of the over-video
+// copy uses. That treatment is tuned to stay readable across most frames of the
+// clip; this block has to hold on every one of them, including the brightest.
+// Same reasoning as .notice, which is a solid block for the same reason.
+//
+// $splash-ink is the color every scrim over the video is mixed from, which is
+// what makes this agree with the rest of the page instead of being a second
+// near-black picked by eye.
+.splash-gate {
+  box-sizing: border-box;
+  max-width: 620px;
+  margin: 1.25rem 0 0;
+  padding: 0.9rem 1.1rem;
+  color: rgba(255, 255, 255, 0.88);
+  background: color.change($splash-ink, $alpha: 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  // The accent edge does the work a heading would, without adding one: it marks
+  // the block as status rather than pitch, beside a headline it must not
+  // compete with.
+  border-left: 4px solid $accent;
+  border-radius: 10px;
+
+  p {
+    margin: 0;
+  }
+
+  p + p {
+    margin-top: 0.6rem;
+  }
+
+  strong {
+    color: $white;
+  }
+
+  a {
+    color: $accent;
+  }
+}
+
+// The refusal is the headline of the block; everything under it is support.
+.splash-gate-lead {
+  color: $white;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.splash-gate-note {
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .providers {
@@ -520,9 +578,10 @@ body.splash-page {
 
 // Nothing below scrolls the page — .splash is pinned to one viewport, so these
 // exist to keep its contents from *overflowing* that box. Both are keyed on
-// height rather than width because height is the axis that runs out. At full
-// scale the stack measures ~665px, so the tiers hand off continuously: >760px
-// full, 620–760px trimmed to ~600px, below that trimmed again.
+// height rather than width because height is the axis that runs out. The sign-in
+// page is the tallest stack of the three splash pages and therefore the one that
+// sets the budget; .splash-gate is the newest thing spending it, so it is
+// trimmed at both tiers alongside everything else.
 
 //@ Short viewports — laptop windows and landscape tablets
 @media (max-height: 760px) {
@@ -536,6 +595,11 @@ body.splash-page {
 
   .splash h1 {
     font-size: clamp(2rem, 5.5vw, 4rem);
+  }
+
+  .splash-gate {
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
   }
 }
 
@@ -558,6 +622,19 @@ body.splash-page {
 
   .splash-copy {
     font-size: 1.05rem;
+  }
+
+  // At this height the pitch and the gate are competing for the same few
+  // hundred pixels, and the gate wins: a visitor who cannot get in needs to
+  // know that more than they need the second sentence of the sell.
+  .splash-gate {
+    margin-top: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.95rem;
+  }
+
+  .splash-gate-lead {
+    font-size: 1.02rem;
   }
 
   .providers {

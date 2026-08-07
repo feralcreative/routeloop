@@ -20,7 +20,7 @@ If you are a new contributor, jump to [Working in this repo](#working-in-this-re
 
 ## Priorities
 
-Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. Reviewed 2026-08-04.
+Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. Reviewed 2026-08-06.
 
 <!-- col-widths: 12% 88% -->
 
@@ -31,11 +31,13 @@ Every open issue carries a **P0–P3** label. The labels are the authority on wh
 | **P2** | Real gaps riders will hit, none of them urgent at this size                        |
 | **P3** | Good ideas with no timeline, and the whole idea backlog                            |
 
-**P0—finish what is half-built.** The hand-off works and the plan survives import; what is missing is the ability to use either of them properly.
+**P0 is empty as of 2026-08-06.** The tier that used to hold this section has been cleared:
 
-- **[#69](https://github.com/feralcreative/tankbag/issues/69) On-the-road mobile interface.** The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal. This is the difference between a demo and the feature.
-- **[#8](https://github.com/feralcreative/tankbag/issues/8) Route shaping.** A rider cannot pull a route onto the road they meant. Everything else in the planner assumes the line is right, and there is no way to correct it.
-- **[#38](https://github.com/feralcreative/tankbag/issues/38) Autosave and undo.** The competitive research files undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
+- ~~**[#8](https://github.com/feralcreative/tankbag/issues/8) Route shaping.**~~ **Shipped 2026-08-06.** A rider can pull a route onto the road they meant; everything else in the planner had been assuming the line was right with no way to correct it.
+- ~~**[#38](https://github.com/feralcreative/tankbag/issues/38) Autosave and undo.**~~ **Shipped 2026-08-05.** The competitive research filed undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
+- **[#69](https://github.com/feralcreative/tankbag/issues/69) On-the-road mobile interface** is now labelled **P2**, not P0. The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal. That is still the difference between a demo and the feature, but the label is the authority and the label says P2.
+
+**With P0 clear, P1 is the work.**
 
 **P1—the group layer, in dependency order.** [#71](https://github.com/feralcreative/tankbag/issues/71) ride membership, then [#72](https://github.com/feralcreative/tankbag/issues/72) friendships, then [#73](https://github.com/feralcreative/tankbag/issues/73) the visibility levels that need both. [#12](https://github.com/feralcreative/tankbag/issues/12) sits on top of all three. [#16](https://github.com/feralcreative/tankbag/issues/16) is here for one reason: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than accounts—that has to exist before rides are shared widely.
 
@@ -77,6 +79,11 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
 - **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
 - **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
+- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native TankBag JSON), five out, several files at once becoming the days of one trip, and every original kept so nothing an upload contained is destroyed.
+- **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
+- **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
+- **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
+- **CI**—typecheck and 424 tests on every pull request and push to `main`, against Node 20 and 22.
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
@@ -121,17 +128,16 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Work.**
 
-- [ ] **Drag the route line onto a different road to shape it.** Grabbing a rendered leg anywhere and dragging it to a nearby road drops a **waypoint**—an ephemeral leg via-point—at the release point and re-snaps the leg through it, so the route follows the road you meant rather than the one the router picked. This is the standard rubber-band map drag, and it is the third dot kind from the vision.
-- [ ] Persist the pulled points into `route_legs.via_points` (the column already round-trips through the API). On drop, re-request only the affected leg through `POST /api/route` with the new via list; the anchor stops stay fixed.
-- [ ] Via-points are themselves draggable and removable after creation, and render distinctly from stops and POIs—smaller and clearly ephemeral—so the routing anchors stay legible.
-- [ ] Moving or reordering a stop invalidates that leg's shaping and clears its via-points (already the builder's behavior); keep that so a stale shaping point can't fight a new route.
-- [x] `src/maps/export.ts`—generate KML, GPX, GeoJSON and CSV from stored rows, and make `/kml` and `/gpx` source-aware: an imported ride streams its stored original (byte-for-byte, which is why the file is kept) and everything else is generated. A native ride can be downloaded as any of the four for the first time.
-- [ ] Source-aware `/kml` and `/gpx` endpoints that serve native rides from the database and imported rides from their original file.
-- [ ] Round-trip the `ROLE - Name` convention on export so files reopen correctly in Google Earth and elsewhere.
+- [x] **Drag the route line onto a different road to shape it.** Grabbing a rendered leg anywhere and dragging it to a nearby road drops a **waypoint**—an ephemeral leg via-point—at the release point and re-snaps the leg through it, so the route follows the road you meant rather than the one the router picked. This is the standard rubber-band map drag, and it is the third dot kind from the vision.
+- [x] Persist the pulled points into `route_legs.via_points`. On drop, re-request only the affected leg through `POST /api/route` with the new via list; the anchor stops stay fixed.
+- [x] Via-points are themselves draggable and removable after creation, and render distinctly from stops and POIs—smaller and clearly ephemeral—so the routing anchors stay legible.
+- [x] Moving or reordering a stop invalidates that leg's shaping and clears its via-points, so a stale shaping point can't fight a new route.
+- [x] `src/maps/export.ts`—generate KML, GPX, GeoJSON and CSV from stored rows, and make downloads source-aware: an imported ride streams its stored original (byte-for-byte, which is why the file is kept) and everything else is generated. A native ride can be downloaded as any of the four for the first time.
+- [x] Round-trip the `ROLE - Name` convention on export so files reopen correctly in Google Earth and elsewhere.
 
-**Touches.** `public/js/builder.js`, `src/maps/export.ts` (new), `src/routes/maps.ts`, `src/maps/roles.ts`.
+**Touches.** `public/js/builder.js`, `public/js/route-shape.js`, `public/js/map-common.js`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/maps/roles.ts`.
 
-**Status.** next—was deferred behind the maps migration; that reason has expired.
+**Status.** shipped—export in sprint 09 (2026-08-03), drag-to-shape on 2026-08-06 ([#8](https://github.com/feralcreative/tankbag/issues/8)). The index arithmetic that turns a drag on the day's single concatenated polyline back into "leg 3, between via 1 and via 2" lives in `route-shape.js`, kept pure so `test/route-shape.test.ts` can drive it.
 
 <!--| PAGE-BREAK -->
 
@@ -279,7 +285,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand and the Google Maps link builder are covered (372 tests). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
+- [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand, the Google Maps link builder, the drag-to-shape index math and the builder's undo/draft model are covered (424 tests across 20 files). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
 - [x] CI on GitHub Actions: `npm run typecheck` and `npm test` on every pull request and on pushes to `main`, against Node 20 and 22 (`.github/workflows/ci.yml`). The SCSS build is deliberately not gated—formatting and style are qlty's job, and a failing build there would block a PR on something no reviewer reads.
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.

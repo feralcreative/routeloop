@@ -64,34 +64,64 @@ function SplashPage({ eyebrow, heading, children }: { eyebrow: string; heading: 
   )
 }
 
-// --- Sign in ----------------------------------------------------------------
+// --- Sign in, and the beta waiting list -------------------------------------
 
-// Signing up and signing in are the same request: an address Google verifies
-// either has an account or gets one created as 'pending'. The copy is the whole
-// distinction, which is why both controls point at the same route.
+// Joining the list and signing in are the same request, and the copy is the
+// only thing that distinguishes them. An address either already has an account
+// or gets one created as 'pending' — and 'pending' *is* the waiting list, read
+// by /admin, so there is no second store to reconcile against users.
+//
+// The page has to be honest with a visitor about something the mechanism cannot
+// express on its own: **nobody can sign themselves in**. Alpha is developers
+// only; beta is invite-only and approved by hand. Before this the page said
+// "Not a member yet? Signing in creates your account", which is true in the
+// narrow technical sense and reads as an open door — so riders signed in,
+// expected the app, and hit /welcome instead. The gate belongs on the way in,
+// not after it.
+//
+// Sign-in is deliberately not removed or hidden behind a second page. Approved
+// riders and the owner arrive here too, every one of them through the same two
+// controls, and a page that only offered a waiting list would lock out everyone
+// who already has an account.
 authRoutes.get('/login', (c) => {
   if (c.get('user')) return c.redirect('/', 302)
 
   const notice = c.req.query('sent') === '1'
   const failed = c.req.query('error')
+  const canJoin = MAGIC_LINK_ENABLED || GOOGLE_ENABLED
 
   return c.html(
     page({
-      title: 'Sign in',
+      title: 'Join the beta list',
       user: null,
       variant: 'splash',
       body: (
-        <SplashPage eyebrow="Plan the whole ride" heading="Every stop. Every day. One map.">
+        <SplashPage eyebrow="Closed alpha · beta list open" heading="Every stop. Every day. One map.">
           <p class="splash-copy">
-            Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with
-            the group.
+            Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with the
+            group.
           </p>
-          {notice && <p class="notice">Check your email — if that address has access, a sign-in link is on its way.</p>}
+          {/*
+            Two blocks, not three. The splash is pinned to one viewport and
+            never scrolls — _splash.scss budgets the stack at ~665px and steps
+            it down through two height tiers — so every line here is paid for
+            out of that budget.
+          */}
+          <div class="splash-gate">
+            <p>
+              TankBag is in <strong>closed alpha</strong> — developers only. <strong>Beta testing is next</strong> and
+              it's invite-only, approved by hand a few riders at a time. Getting on the list is what you can do today.{' '}
+              <a href="/faq#invites">Why it works this way</a>.
+            </p>
+          </div>
+          {notice && (
+            <p class="notice">Check your email — your link is on the way. It works once, within 15 minutes.</p>
+          )}
           {failed && (
             <p class="notice is-error">
               {failed === 'link'
                 ? 'That link is invalid, already used, or expired. Request a new one.'
-                : 'Sign-in failed. Please try again.'}
+                : 'Something went wrong. Please try again.'}
             </p>
           )}
           <div class="providers">
@@ -113,7 +143,7 @@ authRoutes.get('/login', (c) => {
                   placeholder="you@example.com"
                 />
                 <button class="btn" type="submit">
-                  Email me a link
+                  Join the list
                 </button>
               </form>
             )}
@@ -124,15 +154,23 @@ authRoutes.get('/login', (c) => {
               square: the artwork is 268x274, and claiming otherwise is what
               makes a squashed logo.
             */}
-            {GOOGLE_ENABLED ? (
+            {GOOGLE_ENABLED && (
               <a class="provider provider-google" href="/auth/google">
                 <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274" />
-                <span>Sign in with Google</span>
+                <span>Join with Google</span>
               </a>
-            ) : (
-              <p class="note">Google sign-in is not configured.</p>
             )}
-            <p class="provider-alt">Not a member yet? Signing in creates your account.</p>
+            {/*
+              Both flags off means there is no way in and no way onto the list.
+              Saying so beats rendering an empty box under a heading that just
+              invited someone to join something.
+            */}
+            {!canJoin && <p class="note">The list is closed on this deployment — no sign-in method is configured.</p>}
+            {canJoin && (
+              <p class="provider-alt">
+                <strong>Already approved?</strong> Same control — it signs you in.
+              </p>
+            )}
           </div>
         </SplashPage>
       ).toString(),
@@ -222,7 +260,17 @@ function chooseNameHtml(
   values: { username: string; displayName: string },
   errors: Record<string, string>,
 ): string {
-  function Field({ name, label, hint, max }: { name: 'username' | 'displayName'; label: string; hint: string; max: number }) {
+  function Field({
+    name,
+    label,
+    hint,
+    max,
+  }: {
+    name: 'username' | 'displayName'
+    label: string
+    hint: string
+    max: number
+  }) {
     return (
       <label class="name-field">
         <span class="name-label">{label}</span>
@@ -251,7 +299,12 @@ function chooseNameHtml(
           Pick a handle and the name you want other riders to see. Both are yours to change later.
         </p>
         <form class="name-form" method="post" action="/choose-name">
-          <Field name="username" label="Username" hint="Letters, numbers and underscores. This is your handle." max={30} />
+          <Field
+            name="username"
+            label="Username"
+            hint="Letters, numbers and underscores. This is your handle."
+            max={30}
+          />
           <Field name="displayName" label="Display name" hint="Shown to other riders. Spaces are fine." max={255} />
           <button class="btn" type="submit">
             Continue
@@ -278,7 +331,9 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
   // Username availability is an enumeration surface: each submission reveals
   // whether a handle is taken or held. Cheap to walk without this.
   if (!allow('username-check', clientIp(c.req.raw.headers), { max: 30 })) {
-    return c.html(chooseNameHtml(user, { username: '', displayName: '' }, { username: 'too many tries—wait a few minutes' }))
+    return c.html(
+      chooseNameHtml(user, { username: '', displayName: '' }, { username: 'too many tries—wait a few minutes' }),
+    )
   }
 
   const raw = Object.fromEntries(await c.req.formData()) as Record<string, string>
@@ -344,8 +399,9 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       body: (
         <SplashPage eyebrow="You're on the list" heading="Hang tight.">
           <p class="splash-copy">
-            TankBag is in a closed alpha, so accounts are approved by hand. Yours is waiting—you'll be able to sign in
-            and start planning once it's through.
+            You're in the queue for <strong>beta testing</strong>. TankBag is in closed alpha right now — developers
+            only — and riders are waved in by hand, a few at a time. You'll be able to sign in and start planning once
+            yours comes up.
           </p>
           <ul class="welcome-links">
             {links.map((l) => (
