@@ -54,7 +54,7 @@ export type PageVariant = 'chrome' | 'map' | 'splash'
 export type NavKey = 'home' | 'explore' | 'riders' | 'rides' | 'builder' | 'import' | 'places' | 'profile' | 'admin'
 
 export type PageOpts = {
-  /** Without the " — TankBag" suffix; page() appends it. */
+  /** Without the " — Tankbag" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -112,7 +112,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
-        <img src={logo.src} alt="TankBag" width={logo.w} height={logo.h} />
+        <img src={logo.src} alt="Tankbag" width={logo.w} height={logo.h} />
       </a>
       <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
         <span class="nav-bars" aria-hidden="true"></span>
@@ -128,7 +128,9 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               rather than shown to every signed-in rider, so it is appended here
               instead of living in the static NAV_LINKS list.
             */}
-            {user.canManageRiders && <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />}
+            {user.canManageRiders && (
+              <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />
+            )}
             <hr />
             <span class="nav-user">{user.displayName}</span>
             <form method="post" action="/logout">
@@ -244,7 +246,7 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">TankBag is in a closed alpha.</p>}
+      {!splash && <p class="site-footer-note">Tankbag is in a closed alpha.</p>}
     </footer>
   ).toString()
 }
@@ -253,17 +255,11 @@ export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
   const htmlClass = isMap ? ' class="map-page"' : ''
-  const bodyClass = [
-    isMap ? 'map-page' : '',
-    variant === 'splash' ? 'splash-page' : '',
-    opts.bodyClass ?? '',
-  ]
+  const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
-  const title = `${esc(opts.title)} — TankBag`
-  const body = isMap
-    ? opts.body
-    : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
+  const title = `${esc(opts.title)} — Tankbag`
+  const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
 <html lang="en-US"${htmlClass}>

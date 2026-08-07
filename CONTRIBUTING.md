@@ -1,6 +1,6 @@
-# Contributing to TankBag
+# Contributing to Tankbag
 
-TankBag is a motorcycle trip planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
+Tankbag is a motorcycle trip planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
 
 ## Before you start
 

@@ -1,4 +1,4 @@
-// The native TankBag format: the one export that loses nothing.
+// The native Tankbag format: the one export that loses nothing.
 //
 // Every other format flattens something and the round-trip tests say so. This
 // one has to survive intact, and the way it does that is by being the builder's
@@ -67,7 +67,7 @@ const ride = {
 const native: NativeRide = { tankbag: NATIVE_FORMAT_VERSION, exportedFrom: 'tankbag.app', ride }
 
 describe('isNativeRide', () => {
-  it('recognises a TankBag export', () => {
+  it('recognises a Tankbag export', () => {
     expect(isNativeRide(JSON.parse(buildNativeJson(native)))).toBe(true)
   })
 

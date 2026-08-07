@@ -22,7 +22,7 @@
 
 ## TASK 4—GCP API quotas: blocked, needs your action
 
-I opened `console.cloud.google.com/apis/dashboard` and it redirected straight to a Google sign-in page—there's no active Google session in this browser. Per my security rules I can't log in or enter credentials on your behalf. **Please sign in to the Google account tied to the TankBag project in this browser tab**, and let me know once you're in—I'll then pull the Maps JavaScript API / Places API / Routes API quota and usage figures, check the billing budget alert, and come back with proposed daily caps (not applying anything until you confirm).
+I opened `console.cloud.google.com/apis/dashboard` and it redirected straight to a Google sign-in page—there's no active Google session in this browser. Per my security rules I can't log in or enter credentials on your behalf. **Please sign in to the Google account tied to the Tankbag project in this browser tab**, and let me know once you're in—I'll then pull the Maps JavaScript API / Places API / Routes API quota and usage figures, check the billing budget alert, and come back with proposed daily caps (not applying anything until you confirm).
 
 ## Flags / unresolved items
 

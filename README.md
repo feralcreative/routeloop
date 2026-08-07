@@ -1,8 +1,8 @@
-# TankBag
+# Tankbag
 
-TankBag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
+Tankbag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—TankBag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -12,10 +12,10 @@ Active build on a **TypeScript + Hono + PostgreSQL** stack, hosted on a Synology
 
 Two replacements drove the `refactor/google-maps-and-auth` branch. **Both are finished and deployed**, and the table is kept as history rather than as work. Current state lives in [docs/STATUS.md](docs/STATUS.md), which is the document that stays current:
 
-|      | Was replaced                       | By                                                  | State                                                                                                            |
-| ---- | ---------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+|      | Was replaced                       | By                                                  | State                                                                                                              |
+| ---- | ---------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed 2026-07-30** and signing in ever since; the Access policy at the Cloudflare edge still has to be pulled |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Done.** Rendering, search, routing and geocoding all on Google; no `MAPBOX_*` value is read anywhere            |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Done.** Rendering, search, routing and geocoding all on Google; no `MAPBOX_*` value is read anywhere             |
 
 Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
 
@@ -47,7 +47,7 @@ Delivered in phases:
 - **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
 - **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
-- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as TankBag JSON for a lossless backup that re-imports as the same ride.
+- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
@@ -211,7 +211,7 @@ Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns
 
 Every stop and POI carries one or more of 17 roles, defined canonically in `src/maps/roles.ts`. **In the builder you set them by clicking role icons**—roles are first-class enum values in the database, never encoded in a name.
 
-The `ROLE - Name` name-prefix convention is **only an import and export detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—TankBag parses the prefix into roles on import, and writes it back out on export so files reopen correctly in Google Earth and elsewhere.
+The `ROLE - Name` name-prefix convention is **only an import and export detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—Tankbag parses the prefix into roles on import, and writes it back out on export so files reopen correctly in Google Earth and elsewhere.
 
 So an _imported_ name may carry a prefix, combining up to four roles with `/`:
 
@@ -274,4 +274,4 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 ## Provenance
 
-TankBag reuses the client-side map engine from the original [Moto-Rooter](https://github.com/feralcreative/moto-rooter) static viewer. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
+Tankbag reuses the client-side map engine from the original [Moto-Rooter](https://github.com/feralcreative/moto-rooter) static viewer. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.

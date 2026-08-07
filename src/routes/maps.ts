@@ -168,7 +168,7 @@ mapsRoutes.post(
     const single = sources.length === 1 ? sources[0] : null
     const ext = single?.ext ?? 'mixed'
 
-    // A native TankBag JSON is a different door entirely: it is the builder's
+    // A native Tankbag JSON is a different door entirely: it is the builder's
     // own save payload, so it skips extraction and goes through the same schema
     // and the same insert a save does. Nothing about it is a route *file* — it
     // is a ride, restored. It arrives as .json like GeoJSON does, so the two
@@ -183,7 +183,7 @@ mapsRoutes.post(
       }
       if (isNativeRide(parsed)) {
         if (parsed.tankbag > NATIVE_FORMAT_VERSION) {
-          return fail(`this file was written by a newer version of TankBag (format ${parsed.tankbag})`, 400)
+          return fail(`this file was written by a newer version of Tankbag (format ${parsed.tankbag})`, 400)
         }
         const check = ridePayload.safeParse({ ...(parsed.ride as object), title: meta.title })
         if (!check.success) return fail(firstIssue(check.error), 400)

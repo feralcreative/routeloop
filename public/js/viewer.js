@@ -181,8 +181,14 @@
 
   function dlButton(href, label, download, title) {
     return (
-      '<a class="route-dl-btn" href="' + esc(href) + '"' + (title ? ' title="' + esc(title) + '"' : "") +
-      (download ? ' download' : ' target="_blank" rel="noopener"') + ">" + label + "</a>"
+      '<a class="route-dl-btn" href="' +
+      esc(href) +
+      '"' +
+      (title ? ' title="' + esc(title) + '"' : "") +
+      (download ? " download" : ' target="_blank" rel="noopener"') +
+      ">" +
+      label +
+      "</a>"
     );
   }
 
@@ -212,15 +218,30 @@
         // column existed, or one with no geometry. Rendering null as "Straight"
         // would be a claim the data does not support, so it says nothing.
         const twist = twistLabel(r.twistinessDpm)
-          ? '<span class="route-twist" title="' + esc(twistDetail(r)) + '">' +
-            esc(twistLabel(r.twistinessDpm)) + "</span>"
+          ? '<span class="route-twist" title="' +
+            esc(twistDetail(r)) +
+            '">' +
+            esc(twistLabel(r.twistinessDpm)) +
+            "</span>"
           : "";
         return (
-          '<tr class="route-row" data-i="' + i + '">' +
-          '<td><label class="route-toggle" style="--route-color:' + esc(r.color) + '">' +
-          '<input type="checkbox" checked data-i="' + i + '">' +
-          '<span class="route-name">' + esc(name) + "</span></label>" + twist + "</td>" +
-          '<td class="route-miles">' + Number(r.distanceMi).toFixed(1) + " mi</td></tr>"
+          '<tr class="route-row" data-i="' +
+          i +
+          '">' +
+          '<td><label class="route-toggle" style="--route-color:' +
+          esc(r.color) +
+          '">' +
+          '<input type="checkbox" checked data-i="' +
+          i +
+          '">' +
+          '<span class="route-name">' +
+          esc(name) +
+          "</span></label>" +
+          twist +
+          "</td>" +
+          '<td class="route-miles">' +
+          Number(r.distanceMi).toFixed(1) +
+          " mi</td></tr>"
         );
       })
       .join("");
@@ -244,7 +265,7 @@
     // another app" but "give me this ride on paper".
     if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false));
     if (state.ride.nativeUrl) {
-      dls.push(dlButton(state.ride.nativeUrl + "?dl", "TankBag", true, "Lossless \u2014 re-imports as the same ride"));
+      dls.push(dlButton(state.ride.nativeUrl + "?dl", "Tankbag", true, "Lossless \u2014 re-imports as the same ride"));
     }
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
       dls.push(dlButton(state.ride.externalUrl, "URL", false));

@@ -1,6 +1,6 @@
-# TankBag roadmap
+# Tankbag roadmap
 
-The durable plan for where TankBag is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
+The durable plan for where Tankbag is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
 
 - **This file**—the narrative: the vision, the phases, and why each matters. It changes slowly.
 - **[STATUS.md](STATUS.md)**—the current state and the very next steps. It moves fastest and wins wherever it disagrees with this file.
@@ -47,7 +47,7 @@ A note on sequencing: P1 is where the product stops being single-player, and it 
 
 MyRouteApp, but far better: entire-trip focused, with a slicker UI and smoother UX.
 
-TankBag is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** trip: every leg, every session, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole trip at once. TankBag has no such limits.
+Tankbag is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** trip: every leg, every session, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole trip at once. Tankbag has no such limits.
 
 The model that everything else follows:
 
@@ -79,7 +79,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
 - **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
 - **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
-- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native TankBag JSON), five out, several files at once becoming the days of one trip, and every original kept so nothing an upload contained is destroyed.
+- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native Tankbag JSON), five out, several files at once becoming the days of one trip, and every original kept so nothing an upload contained is destroyed.
 - **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
 - **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
 - **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
@@ -99,7 +99,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
 - [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
 - [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
-- [x] Regenerate the favicons and social image from the current TankBag mark. Done 2026-07-31; the files live in `public/img/favicon/`.
+- [x] Regenerate the favicons and social image from the current Tankbag mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
 - [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
@@ -149,7 +149,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 - [ ] Densify a route by sampling extra shaping waypoints along the stored leg geometry (`route_legs.geometry` already holds the full, 6-decimal, road-snapped polyline), so a hand-off follows the planned roads instead of the nav app's own guess between distant stops.
 - [ ] Rider-controllable density—a target point count or spacing. The owner's habit: expand a 10–20-point route to at least 30.
-- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—TankBag's own viewer renders the exact path already, so Expand matters only when leaving the app.
+- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—Tankbag's own viewer renders the exact path already, so Expand matters only when leaving the app.
 - [ ] Refinement: bias added points toward junctions and decision points, where a nav app is most likely to diverge, rather than purely even spacing.
 - [ ] Expand-added points are shaping points, not stops: written as Garmin/TomTom _shaping_ points in the file exports (item 3) and counted as plain waypoints in the Google Maps links (item 5).
 
@@ -233,7 +233,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [x] **Native TankBag JSON export/import**—`/tankbag.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colours, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `tankbag` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
+- [x] **Native Tankbag JSON export/import**—`/tankbag.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colours, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `tankbag` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the _decompressed_ size.
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
@@ -419,7 +419,7 @@ Things deliberately not built, recorded so they do not get proposed twice. These
 | **Inventing new vocabulary**          | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them.                                                                                                                                                           |
 | **Paywalling export or sharing**      | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not.                                                                                                                                                                                  |
 
-One wording correction that falls out of this: the vision above says TankBag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
+One wording correction that falls out of this: the vision above says Tankbag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
 
 ## Good first contributions
 

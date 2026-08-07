@@ -46,8 +46,8 @@ async function emailAllowed(email: string): Promise<boolean> {
 
 function linkEmail(url: string): { text: string; html: string } {
   return {
-    text: `Sign in to TankBag:\n\n${url}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
-    html: `<p>Sign in to TankBag:</p><p><a href="${url}">Sign in</a></p><p style="color:#666;font-size:14px">This link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.</p>`,
+    text: `Sign in to Tankbag:\n\n${url}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
+    html: `<p>Sign in to Tankbag:</p><p><a href="${url}">Sign in</a></p><p style="color:#666;font-size:14px">This link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.</p>`,
   }
 }
 
@@ -71,7 +71,7 @@ export async function requestMagicLink(email: string, ip: string): Promise<void>
 
   const url = `${APP_ORIGIN}/auth/magic/${token}`
   const { text, html } = linkEmail(url)
-  await sendMail(email, 'Your TankBag sign-in link', text, html)
+  await sendMail(email, 'Your Tankbag sign-in link', text, html)
 }
 
 export class MagicLinkError extends Error {}

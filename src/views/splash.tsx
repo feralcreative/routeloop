@@ -24,7 +24,7 @@ export function alphaSplash(): string {
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
-            TankBag is an early build of something I'm making. Expect rough edges, missing pieces, and the occasional
+            Tankbag is an early build of something I'm making. Expect rough edges, missing pieces, and the occasional
             data reset. Feedback is the whole point.
           </p>
           {links.length > 0 && (

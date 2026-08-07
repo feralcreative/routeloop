@@ -13,10 +13,10 @@ tankbag is a ride **planning / sharing / organizing** app, not navigation. It is
 
 Two migrations drove the branch `refactor/google-maps-and-auth`, which is long since merged. **Both are finished**—this table is kept as history, not as work:
 
-| | Was | Became | State |
-| --- | --- | --- | --- |
-| Auth | Cloudflare Access | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy |
-| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
+|      | Was                                | Became                                      | State                                                                                                                                                                                                                                                 |
+| ---- | ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
+| Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -30,8 +30,8 @@ Done in the repo: the canonical/legacy host map reversed, cookies (`tankbag_sess
 2. ~~**OAuth client.**~~ **Done 2026-07-30**—created on the tankbag GCP project with an External consent screen and the three tankbag redirect URIs. See "Google Cloud migrated to the tankbag project" below.
 3. ~~**Favicons.**~~ **Done 2026-07-31**—regenerated from the current mark and moved into `public/img/favicon/` in `22610b8`. This entry described them as stale, at paths that no longer existed, for longer than it was true; an issue got filed off it on 2026-08-01 for work already finished. If a checklist item here is about assets, look at the files before believing it.
 4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. The `cd` paths in this document were updated to match; older `_PLANS/` files and shell history still point at the old path.
-5. ~~**SonarCloud project key** in `.vscode/settings.json`.~~ **Moot as of 2026-08-03—SonarCloud is retired.** It was too noisy to be useful: 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs and vulnerabilities. Replaced by [Qlty](https://qlty.sh), run locally from the CLI, on the theory that a small tuned rule set that people read beats a large one they learn to ignore. The GitHub repo *was* renamed on 2026-07-30—it is `feralcreative/tankbag` now, and the local remote was re-pointed at it the same day. The old `feralcreative/tankbag-app` URL still works only through GitHub's rename redirect, so anything still hardcoding it is living on borrowed time.
-6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the *previous* rename; rewriting it would turn a record of what happened into fiction.
+5. ~~**SonarCloud project key** in `.vscode/settings.json`.~~ **Moot as of 2026-08-03—SonarCloud is retired.** It was too noisy to be useful: 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs and vulnerabilities. Replaced by [Qlty](https://qlty.sh), run locally from the CLI, on the theory that a small tuned rule set that people read beats a large one they learn to ignore. The GitHub repo _was_ renamed on 2026-07-30—it is `feralcreative/tankbag` now, and the local remote was re-pointed at it the same day. The old `feralcreative/tankbag-app` URL still works only through GitHub's rename redirect, so anything still hardcoding it is living on borrowed time.
+6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the _previous_ rename; rewriting it would turn a record of what happened into fiction.
 
 ## Phase 0—settled, 2026-07-27
 
@@ -86,20 +86,20 @@ The Mapbox engine is gone from the rendering path. `map-common.js` was rewritten
 
 What went where:
 
-| Mapbox | Google |
-| --- | --- |
-| `mapboxgl.Map` + `NavigationControl` | `Maps.Map` with `mapId`, `zoomControl` bottom-right |
-| `LngLatBounds` + `fitBounds(maxZoom)` | `LatLngBounds`; **no** maxZoom option, so a one-off `idle` listener clamps it |
-| `addSource` / `addLayer` line + symbol | one `Polyline` per route, held in a `WeakMap` keyed by map |
-| `ensureArrowImage` (canvas triangle) | **deleted**—`Polyline.icons` + `FORWARD_CLOSED_ARROW` |
-| `mapboxgl.Marker({element})` | `AdvancedMarkerElement({content})` |
-| `mapboxgl.Popup` | `InfoWindow` with `headerDisabled` |
-| Geocoding v6 forward | Places `AutocompleteSuggestion` + session tokens |
-| `map.on('load')` | nothing—the map is usable when the constructor resolves |
+| Mapbox                                 | Google                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------- |
+| `mapboxgl.Map` + `NavigationControl`   | `Maps.Map` with `mapId`, `zoomControl` bottom-right                           |
+| `LngLatBounds` + `fitBounds(maxZoom)`  | `LatLngBounds`; **no** maxZoom option, so a one-off `idle` listener clamps it |
+| `addSource` / `addLayer` line + symbol | one `Polyline` per route, held in a `WeakMap` keyed by map                    |
+| `ensureArrowImage` (canvas triangle)   | **deleted**—`Polyline.icons` + `FORWARD_CLOSED_ARROW`                         |
+| `mapboxgl.Marker({element})`           | `AdvancedMarkerElement({content})`                                            |
+| `mapboxgl.Popup`                       | `InfoWindow` with `headerDisabled`                                            |
+| Geocoding v6 forward                   | Places `AutocompleteSuggestion` + session tokens                              |
+| `map.on('load')`                       | nothing—the map is usable when the constructor resolves                       |
 
 **Three things worth knowing before you touch it again:**
 
-- **`.tb-marker` is deliberately `0×0`** ([style/\_map.scss](../style/_map.scss)). An `AdvancedMarkerElement` anchors its content at the content's *bottom-center*; a zero-size box puts that anchor exactly on the point, so the legacy negative-margin offsets keep working. Size that wrapper to its contents and every marker drifts up and to the right of its own coordinates.
+- **`.tb-marker` is deliberately `0×0`** ([style/\_map.scss](../style/_map.scss)). An `AdvancedMarkerElement` anchors its content at the content's _bottom-center_; a zero-size box puts that anchor exactly on the point, so the legacy negative-margin offsets keep working. Size that wrapper to its contents and every marker drifts up and to the right of its own coordinates.
 - **Coordinate order stays confined to `toLatLng` / `fromLatLng`.** Same discipline as `toGoogleWaypoint` in [routing.ts](../src/routes/routing.ts). Verified live: a leg round-trips as `[-117.022799, 34.895831]`, lng first.
 - **Search had to move too.** It was not scope creep: each provider's terms tie their search results to their own basemap, so Mapbox Geocoding drawn on a Google map breaks Mapbox's terms just as Places on a Mapbox map breaks Google's.
 
@@ -109,17 +109,17 @@ Verified in a browser with zero console messages on both pages: Places autocompl
 
 Verified end to end against the live API:
 
-| Case | Result |
-| --- | --- |
-| Barstow → Victorville | 71,316 m / 3,059 s / 218 points—identical to a direct API call |
-| Two via points | 200 |
-| No session | 401 |
-| Foreign `Origin` | 403 |
-| Malformed body | 400 |
-| Coordinates passed as `[lat, lng]` | 400—caught by range validation, not silently routed |
-| Unroutable pair (mid-Pacific) | 422 |
-| Server key present in `/`, `/builder`, `/login` source | 0 occurrences |
-| Cache | 256 ms cold, 5 ms warm |
+| Case                                                   | Result                                                         |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| Barstow → Victorville                                  | 71,316 m / 3,059 s / 218 points—identical to a direct API call |
+| Two via points                                         | 200                                                            |
+| No session                                             | 401                                                            |
+| Foreign `Origin`                                       | 403                                                            |
+| Malformed body                                         | 400                                                            |
+| Coordinates passed as `[lat, lng]`                     | 400—caught by range validation, not silently routed            |
+| Unroutable pair (mid-Pacific)                          | 422                                                            |
+| Server key present in `/`, `/builder`, `/login` source | 0 occurrences                                                  |
+| Cache                                                  | 256 ms cold, 5 ms warm                                         |
 
 **`.env`** gained `GMAPS_SERVER_KEY` and a placeholder `GMAPS_MAP_ID`, and lost a comment that falsely claimed `GMAPS_KEY` was referrer-restricted. A timestamped `.env.bak-*` sits beside it.
 
@@ -174,7 +174,7 @@ gcloud services api-keys describe 3a3d4f70-1838-45f7-86bf-18023c32592e \
 
 Note the shell quoting hazard that produced a false result the first time this was run: building the `-H "Referer: …"` argument conditionally through a variable expansion mangles the header, and every origin then reports BLOCKED—which reads as "the restriction works" when in fact nothing was sent. Pass the header literally, as above.
 
-**When every origin reports BLOCKED, read the response body before believing the allow-list is correct.** On 2026-07-30 the browser key rejected *every* referrer including `tankbag.app`, which this document had recorded as verified hours earlier. That looks exactly like the quoting hazard above, and it was not—the body said `API_KEY_HTTP_REFERRER_BLOCKED` against `projects/976935115789`, so the restriction really had been lost between the project migration and the next test. Re-applying the allow-list fixed it. `grep -q suggestions` cannot tell "blocked" from "malformed request"; the body can:
+**When every origin reports BLOCKED, read the response body before believing the allow-list is correct.** On 2026-07-30 the browser key rejected _every_ referrer including `tankbag.app`, which this document had recorded as verified hours earlier. That looks exactly like the quoting hazard above, and it was not—the body said `API_KEY_HTTP_REFERRER_BLOCKED` against `projects/976935115789`, so the restriction really had been lost between the project migration and the next test. Re-applying the allow-list fixed it. `grep -q suggestions` cannot tell "blocked" from "malformed request"; the body can:
 
 ```bash
 curl -s -X POST "https://places.googleapis.com/v1/places:autocomplete" \
@@ -197,7 +197,7 @@ The Maps keys and OAuth client used to live on `routeloop-503503` (display name 
 - **OAuth client + External consent screen** → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, scopes exactly `openid email profile`. Redirect URIs are the three tankbag hosts below. Verified: `/auth/google` 302s to Google with the right client, scope and PKCE.
 - **Gmail app password** → `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` (`tankbag.app@gmail.com`). Verified with `transporter.verify()`.
 
-**The old `routeloop-503503` keys are now orphaned but must stay alive** until the new `.env` is deployed to prod—the *live* prod build still uses them. Delete them only after the prod cutover, or the imported-ride viewer breaks in production.
+**The old `routeloop-503503` keys are now orphaned but must stay alive** until the new `.env` is deployed to prod—the _live_ prod build still uses them. Delete them only after the prod cutover, or the imported-ride viewer breaks in production.
 
 Both the referrer-update command and the re-verify block now name the `tankbag` project and the live key uids, corrected 2026-08-02.
 
@@ -209,13 +209,13 @@ The credential items (Map ID, OAuth client, SMTP) landed 2026-07-30. Everything 
 
 Overrides on the `tankbag` project (`976935115789`), verified as overrides rather than defaults:
 
-| metric | daily cap | previously |
-| --- | --- | --- |
-| `maps-backend/billable_default` (map loads) | 500 | unlimited |
-| `routes/compute_routes_requests` | 500 | unlimited |
-| `places/AutocompletePlacesRequest` | 500 | 175,000 |
-| `places/GetPlaceRequest` | 300 | 125,000 |
-| `geocoding-backend/billable_default` | 100 | unlimited |
+| metric                                      | daily cap | previously |
+| ------------------------------------------- | --------- | ---------- |
+| `maps-backend/billable_default` (map loads) | 500       | unlimited  |
+| `routes/compute_routes_requests`            | 500       | unlimited  |
+| `places/AutocompletePlacesRequest`          | 500       | 175,000    |
+| `places/GetPlaceRequest`                    | 300       | 125,000    |
+| `geocoding-backend/billable_default`        | 100       | unlimited  |
 
 Five metrics, not four APIs: Places bills autocomplete and place-details separately and the builder calls both—autocomplete per keystroke burst, details once per stop actually picked.
 
@@ -269,7 +269,7 @@ Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://git
 
 **`2732526`—the date-time UI.** Start and end fields per day. The end fills itself from the day and keeps up as legs and stop durations change; typing one overrides it; clearing it hands control back. A note says which of those is in play.
 
-**The bug that shaped it, because the design reads wrong otherwise.** Manual-ness was first inferred by comparing the stored end against the derived one, with no flag—which fails the moment the day changes, since an end that *was* automatic no longer matches the new derivation and freezes as though it had been typed. The comparison is only sound at load time, when nothing has changed yet. So `inferEndManual()` runs once on load and seeds a session-only `endManual` flag that is tracked directly from then on. It is not in `payload()` and needs no column.
+**The bug that shaped it, because the design reads wrong otherwise.** Manual-ness was first inferred by comparing the stored end against the derived one, with no flag—which fails the moment the day changes, since an end that _was_ automatic no longer matches the new derivation and freezes as though it had been typed. The comparison is only sound at load time, when nothing has changed yet. So `inferEndManual()` runs once on load and seeds a session-only `endManual` flag that is tracked directly from then on. It is not in `payload()` and needs no column.
 
 **Verified:** typecheck, SCSS build, and 18 assertions over the time logic, extracted from the real `builder.js` source rather than a retyped copy. That harness lives in a scratchpad, not the repo—it works by string-extracting functions, which is fine as a scratch check and a bad thing to enshrine while [#21](https://github.com/feralcreative/tankbag/issues/21) is open to set up a real runner.
 
@@ -278,21 +278,21 @@ Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://git
 **What the rest of it landed as, and the parts worth knowing before touching any of it again:**
 
 - **`ride.json` now carries per-leg spans.** It used to concatenate every leg into one flat `track` and drop leg durations, so a client could not tell where one leg ended—mapping a moment to a leg was impossible from the public contract. Each route now also carries `legs[{ distanceM, durationS, startIndex, endIndex }]` indexing into that same unchanged `track`.
-- **That concat drops *any* consecutive duplicate, not only the joints between legs.** `sample-route-one` carries 33 repeats inside a single leg. Harmless when the output was one flat line; load-bearing now that indices point into it.
+- **That concat drops _any_ consecutive duplicate, not only the joints between legs.** `sample-route-one` carries 33 repeats inside a single leg. Harmless when the output was one flat line; load-bearing now that indices point into it.
 - **Consecutive legs do not always share a joint.** Real routes produce both—one demo ride shares its joints, another has a one-point gap between its first two legs. **Never test `legs[i].startIndex === legs[i-1].endIndex`**; it fails on real data.
 - **`map-common.js` gained a leg highlight** as one spare `Polyline` per map, sliced from the route's own line. Additive on purpose: a `Polyline` per leg would have changed the layer-id contract every caller depends on, in a file #6, #8 and #9 also touch. Three engine paths drop a live highlight—`removeRouteLayers`, `updateRouteTrack` (which fires on every leg recompute in the builder) and `setRouteVisible(false)`—and callers re-apply. A highlight that briefly vanishes is a far smaller lie than one drawn over the wrong road.
 - **The time model lives in `public/js/ride-time.js` (`window.TBTime`), shared by both clients.** Not copied into each: the builder resolves a moment from legs held in memory, the viewer from legs `ride.json` sends, and the same ride must land on the same leg in both. This is the lesson `map-common.js` already records about marker construction.
 - **A moment at a stop is on no leg, and the overnight gap between days belongs to no day.** Both say so rather than lighting the leg just ridden. The readout carries the difference in words, so the map is never the only explanation.
-- **The builder keeps two controls over one model.** `state.moment` is the source of truth when set; the day slider does not compete with the timeline, it *picks a moment* (that day's start). A null moment falls back to plain day focus, which is what an undated ride uses throughout.
+- **The builder keeps two controls over one model.** `state.moment` is the source of truth when set; the day slider does not compete with the timeline, it _picks a moment_ (that day's start). A null moment falls back to plain day focus, which is what an undated ride uses throughout.
 - **In the viewer, hover outranks the timeline while it lasts.** Both wanted to dim, and before this, leaving a hovered legend row called `highlight(null)` and silently discarded the timeline's state. Both now resolve through one `paintFocus()`.
 
-**#19 (`e859d6e`) contradicted a comment on purpose.** The old note argued even tick spacing was deliberate because the thumb inset made alignment impossible. Wrong twice: the inset is knowable (a thumb centre travels between half a thumb from each end, so the usable track is `100% - thumb`), and `space-between` was aligning label *edges*, not centres, which drifted further off than the inset ever did. Measured in Chrome at 320px: centres now land within 0.01px of the computed thumb positions, against 4.18px before.
+**#19 (`e859d6e`) contradicted a comment on purpose.** The old note argued even tick spacing was deliberate because the thumb inset made alignment impossible. Wrong twice: the inset is knowable (a thumb centre travels between half a thumb from each end, so the usable track is `100% - thumb`), and `space-between` was aligning label _edges_, not centres, which drifted further off than the inset ever did. Measured in Chrome at 320px: centres now land within 0.01px of the computed thumb positions, against 4.18px before.
 
 **Verification.** Typecheck, the SCSS build, and five scratch suites covering the shared time model, the builder's date handling and leg spans, the highlight overlay, and the server's span computation—including one that runs the real server loop against the real builder function to prove they agree. A database-backed check asserted the span invariants over every ride present at the time (21 routes / 71 legs / 16 rides). The viewer was driven in Chrome; the builder was checked by the owner. **None of the scratch suites are in the repo**—they work by string-extracting functions out of source, which is fine as a scratch check and a bad thing to enshrine while [#21](https://github.com/feralcreative/tankbag/issues/21) is open to set up a real runner.
 
 **#27 overlaps and was deliberately left out.** The leg-plus-dwell duration formula landed here, so what remains of that issue is the configurable rest cadence—which needs its own storage decision and a call on whether a generated rest break becomes a real `points` row or a display-only overlay.
 
-**Removed 2026-08-06:** a paragraph sat here claiming the even tick spacing was deliberate and that the thumb inset made exact alignment impossible. It contradicted the `e859d6e` note four paragraphs above it, which had already measured the fix. It was the *pre-fix* argument, left in place after the fix landed. Kept as a marker rather than deleted silently, because a document that argues with itself is worse than one that is merely behind—a reader has no way to tell which half is current.
+**Removed 2026-08-06:** a paragraph sat here claiming the even tick spacing was deliberate and that the thumb inset made exact alignment impossible. It contradicted the `e859d6e` note four paragraphs above it, which had already measured the fix. It was the _pre-fix_ argument, left in place after the fix landed. Kept as a marker rather than deleted silently, because a document that argues with itself is worse than one that is merely behind—a reader has no way to tell which half is current.
 
 <!--| PAGE-BREAK -->
 
@@ -306,7 +306,7 @@ Branch `style/ui-tweaks-and-cleanup`, nine commits, from `_PLANS/sprint-04-26080
 
 - **`name` is gone from `GoogleClaims`** ([google.ts](../src/auth/google.ts)) and must not come back. It used to flow straight into `users.display_name`, which is what the nav, the dashboard greeting and the admin rider list all render—so signing in with Google silently published whatever Google held.
 - **`picture` was never added, for the same reason.** Note `users.avatar_url` exists and is never written, which makes wiring that claim to it look like finishing an unfinished job rather than opening a hole. The comment on the type says so.
-- **`given_name` / `family_name` *are* read**, and go to `user_profiles.first_name` / `last_name`. The distinction is where they surface: that table exists precisely so private fields never ride along on a row reaching a client, and nothing renders them to anyone but the rider. `share_last_name` is written but has **no reader anywhere in the app**.
+- **`given_name` / `family_name` _are_ read**, and go to `user_profiles.first_name` / `last_name`. The distinction is where they surface: that table exists precisely so private fields never ride along on a row reaching a client, and nothing renders them to anyone but the rider. `share_last_name` is written but has **no reader anywhere in the app**.
 - **What makes that acceptable rather than merely currently-harmless** is that the profile form shows both names as ordinary inputs directly above the toggle that would expose the last name, so a rider flipping it can see what it reveals. Move those fields somewhere less visible and the seeding stops being defensible. That reasoning is in [identity.ts](../src/auth/identity.ts) next to the code.
 
 ### The model, settled after two reversals
@@ -315,7 +315,7 @@ Branch `style/ui-tweaks-and-cleanup`, nine commits, from `_PLANS/sprint-04-26080
 
 **Neither is prefilled.** Both are blank and required at `/choose-name`. `display_name` is `notNull` and the row must exist before a rider can be shown anything, so `resolveUser` fills it from the email address alone and the prompt overwrites it—that placeholder is visible only in the nav, between signing in and answering.
 
-**`users.public_id` is `{first-username}-{YYMMDDTHHMMZ}`**, e.g. `ziad-260801T2220Z`. Deliberately **not** called a UUID, because it is not one. Written once when a username is first chosen and never again, so a later change leaves every existing reference resolving. Built from explicit UTC getters: `users.created_at` is `timestamp` *without* time zone, so the `Z` is a promise the server's clock zone must not get to break.
+**`users.public_id` is `{first-username}-{YYMMDDTHHMMZ}`**, e.g. `ziad-260801T2220Z`. Deliberately **not** called a UUID, because it is not one. Written once when a username is first chosen and never again, so a later change leaves every existing reference resolving. Built from explicit UTC getters: `users.created_at` is `timestamp` _without_ time zone, so the `Z` is a promise the server's clock zone must not get to break.
 
 **A released username is held for 30 days**—but never against the rider who released it, which is the entire feature. `username_history` records every name held; `uq_username_lower` stays the hard guard, since "unavailable unless you are the one who let it go" is not something an index can express. The hold is therefore an application check and the unique-violation catch is still the real backstop.
 
@@ -353,7 +353,7 @@ Branch `feat/legal-and-faq-pages`, eight commits. Closes [#45](https://github.co
 
 A rider with `add_home_to_rides` on gets a first stop seeded at their house, named **"Home"**, carrying the `home` role, at six-decimal precision. `ride.json` sends `lat`/`lng`/`name`/`roles` to anyone with a share link. **Sharing such a ride publishes a map pin on your front door.**
 
-**Moving the pin does not fix it, and this is the part that is easy to get wrong.** The first leg is *drawn* from the house: the line points at the building whatever the marker says. Relabelling or nudging the marker leaves the geometry intact. The substitution has to happen while planning, and leg 0 has to re-route.
+**Moving the pin does not fix it, and this is the part that is easy to get wrong.** The first leg is _drawn_ from the house: the line points at the building whatever the marker says. Relabelling or nudging the marker leaves the geometry intact. The substitution has to happen while planning, and leg 0 has to re-route.
 
 So `user_profiles` gained a second address—`start_label`, `start_address_line`, `start_city`, `start_state`, `start_postal_code`, `start_lat`, `start_lng`—mirroring the home block field for field. When a ride whose first stop carries the `home` role is switched to public or unlisted, the builder **offers** the swap, then rewrites the stop, drops the `home` role, clears shaping points and recomputes leg 0. Offered rather than applied: the rider may have meant to share it, and silently redrawing a planned route is worse than asking. Declining is remembered for the session.
 
@@ -365,11 +365,11 @@ The profile copy pushes a gas station, coffee shop or trailhead—somewhere you 
 
 Every public surface reads the same rule. It is written out in `pages.ts` so it is not reconstructed per template:
 
-| | |
-| --- | --- |
-| shown | username, display name, public rides |
-| opt-in | last name, and only via `share_last_name` |
-| never | first name, email, home address, coordinates, payment handles |
+|        |                                                               |
+| ------ | ------------------------------------------------------------- |
+| shown  | username, display name, public rides                          |
+| opt-in | last name, and only via `share_last_name`                     |
+| never  | first name, email, home address, coordinates, payment handles |
 
 Payment handles are **never**, not opt-in, even though `share_payment_handles` exists. They are for settling up with people you are riding with, which is a relationship the app does not model yet (#12). A handle on a public page is a payment request open to strangers. Verified by seeding a profile with everything filled in and grepping the rendered page for each field.
 
@@ -453,16 +453,16 @@ Branch `fix/editor-interface-sizing`. All eleven items from `_PLANS/sprint-07-26
 
 ### What went in
 
-| Item | Result |
-| --- | --- |
-| 1 | The day slider picks the working day; "All" is a view |
-| 2 | POIs interleaved by distance, and they carry a duration |
-| 3, 7 | Panel grouped into ride / trip / day bands, day icons tinted its colour |
-| 4, 5 | Time stopped replaced by **twistiness**, with an FAQ entry |
-| 6 | Panel terms link to their FAQ answers |
-| 8 | Nav's last four items folded into an About submenu |
-| 9 | FAQ is an accordion with stable anchors |
-| 10, 11 | Bio years computed at render; tagline removed |
+| Item   | Result                                                                  |
+| ------ | ----------------------------------------------------------------------- |
+| 1      | The day slider picks the working day; "All" is a view                   |
+| 2      | POIs interleaved by distance, and they carry a duration                 |
+| 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its colour |
+| 4, 5   | Time stopped replaced by **twistiness**, with an FAQ entry              |
+| 6      | Panel terms link to their FAQ answers                                   |
+| 8      | Nav's last four items folded into an About submenu                      |
+| 9      | FAQ is an accordion with stable anchors                                 |
+| 10, 11 | Bio years computed at render; tagline removed                           |
 
 Plus one unplanned commit: the 24 `darken()`/`lighten()` calls became `color.adjust()`, so the SCSS build is silent rather than emitting 38 deprecation warnings that had been getting waved through.
 
@@ -484,7 +484,7 @@ The builder computes it live rather than reading the stored figure, because the 
 
 ### POI dwell rewrote the time model
 
-A POI is not a routing anchor, so a pause at one falls *inside* a leg rather than between two of them. The old `activeAt` alternated stop-dwell and leg-riding and had nowhere to put that. `routeSchedule()` in [ride-time.js](../public/js/ride-time.js) emits the day as a list of segments instead, which is both expressible and testable—the suite now asserts that the schedule's total always equals `routeElapsedS` (which every stored end time and the timeline slider depend on) and that it never emits a gap or an overlap.
+A POI is not a routing anchor, so a pause at one falls _inside_ a leg rather than between two of them. The old `activeAt` alternated stop-dwell and leg-riding and had nowhere to put that. `routeSchedule()` in [ride-time.js](../public/js/ride-time.js) emits the day as a list of segments instead, which is both expressible and testable—the suite now asserts that the schedule's total always equals `routeElapsedS` (which every stored end time and the timeline slider depend on) and that it never emits a gap or an overlap.
 
 ### Three bugs the work surfaced
 
@@ -507,20 +507,20 @@ Branch `feat/import-export`, fourteen commits. The app now reads six formats and
 
 ### What the pipeline reads and writes
 
-| Format | In | Out | Notes |
-| --- | --- | --- | --- |
-| KML | yes | yes | stored sanitized and re-serialized |
-| KMZ | yes | no | unzipped to its KML; `source_format` remembers it arrived zipped |
-| GPX | yes | yes | **stops are `<wpt>`, shaping points are `<trkpt>`, never `<rte>`** |
-| GeoJSON | yes | yes | the only interchange format that keeps roles, stop/POI and dwell |
-| CSV | yes | yes | a stop list, not a route: no geometry, so no mileage and a **null** twistiness |
-| TankBag JSON | yes | yes | **lossless**—the builder's own save payload |
+| Format       | In  | Out | Notes                                                                          |
+| ------------ | --- | --- | ------------------------------------------------------------------------------ |
+| KML          | yes | yes | stored sanitized and re-serialized                                             |
+| KMZ          | yes | no  | unzipped to its KML; `source_format` remembers it arrived zipped               |
+| GPX          | yes | yes | **stops are `<wpt>`, shaping points are `<trkpt>`, never `<rte>`**             |
+| GeoJSON      | yes | yes | the only interchange format that keeps roles, stop/POI and dwell               |
+| CSV          | yes | yes | a stop list, not a route: no geometry, so no mileage and a **null** twistiness |
+| Tankbag JSON | yes | yes | **lossless**—the builder's own save payload                                    |
 
 Every format goes through the pipeline unchanged: auth → origin → Turnstile → size cap → **DOCTYPE rejection** → strict parse → sanitize → transactional quota under `FOR UPDATE` → file writes named only from integer ids.
 
 ### The GPX decision that the app's promise depends on
 
-**GPX export writes stops as `<wpt>` and shaping points as `<trkpt>`. Nothing is ever written as `<rte>`/`<rtept>`.** A route file is a list of places to navigate *between*, so a device given one picks its own way from each point to the next—usually the fast way, rarely the good one, and a missed turn throws out the rest of the day. That is exactly the failure the FAQ describes under "Why does my GPS ignore the route I planned?", and the answer there is that TankBag puts in enough intermediate points to leave the device no room to form an opinion. Exporting those as route points hands the room straight back. There is a test asserting `<rtept>` never appears.
+**GPX export writes stops as `<wpt>` and shaping points as `<trkpt>`. Nothing is ever written as `<rte>`/`<rtept>`.** A route file is a list of places to navigate _between_, so a device given one picks its own way from each point to the next—usually the fast way, rarely the good one, and a missed turn throws out the rest of the day. That is exactly the failure the FAQ describes under "Why does my GPS ignore the route I planned?", and the answer there is that Tankbag puts in enough intermediate points to leave the device no room to form an opinion. Exporting those as route points hands the room straight back. There is a test asserting `<rtept>` never appears.
 
 ### Multi-file import
 
@@ -548,11 +548,11 @@ An imported ride streams its stored original for the format it arrived in—byte
 
 **Stop-by-stop, not turn-by-turn, and that is a data limit rather than a choice.** `route_legs` holds geometry, distance and duration; maneuvers are a separate field on the Directions response, they are what the call is priced on, and they would be blank for every imported ride regardless. What it prints is the part that stays true when a road closes: stops in order, leg and cumulative miles, **miles since fuel**, planned dwell, and an estimated clock when the day has a start time.
 
-The fuel column is the one nothing else in the app says. It reads *as you arrive*, so a fuel stop shows the distance the last tank actually covered rather than the 0 it is about to reset to.
+The fuel column is the one nothing else in the app says. It reads _as you arrive_, so a fuel stop shows the distance the last tank actually covered rather than the 0 it is about to reset to.
 
 ### Bugs the work surfaced
 
-1. **A multi-day GPX re-imported 78 miles longer than it left.** `processGpx` read every `trkpt` across all `<trk>` elements as one track, inventing straight lines between where one day ended and the next began: 553 miles came back as 631, and twistiness fell from 79/69/53 to **59** because the phantom joins are perfectly straight. A confident, wrong number for the metric this sprint existed to make trustworthy. The longest `<trk>` wins now, while `<trkseg>` breaks *within* a track are still joined—those are recording pauses in one ride.
+1. **A multi-day GPX re-imported 78 miles longer than it left.** `processGpx` read every `trkpt` across all `<trk>` elements as one track, inventing straight lines between where one day ended and the next began: 553 miles came back as 631, and twistiness fell from 79/69/53 to **59** because the phantom joins are perfectly straight. A confident, wrong number for the metric this sprint existed to make trustworthy. The longest `<trk>` wins now, while `<trkseg>` breaks _within_ a track are still joined—those are recording pauses in one ride.
 2. **KML and GeoJSON disagreed on a degenerate line.** KML read a one-point line as a zero-length track; GeoJSON rejected the whole file with "contains no lines or points". Found by the cross-format tests on their first run, which is what they exist for.
 3. **`tsc --noEmit` had never type-checked the tests.** `tsconfig.json` included only `src`, and vitest transpiles without checking, so fixtures could drift from the types they claimed to be—and had. Adding `test` exposed 8 real errors in suites that were passing.
 4. **The roadbook 500'd for an anonymous request** to a private ride: `currentUser()` throws outside an auth gate. 404 now, like every other gated route.
@@ -562,7 +562,7 @@ The fuel column is the one nothing else in the app says. It reads *as you arrive
 
 SonarCloud was retired (258 findings, of which 16 were real) and replaced with a tuned Qlty config. Two things worth knowing:
 
-- **Qlty does not read the repo's `.prettierrc`.** Not from the repo root, not from a copy in `.qlty/configs/`, not via a `config_files` entry—all three were tried. It formats with its own defaults, and the one that bites is `singleQuote`, which `.prettierrc` explicitly turns *off* for SCSS. It was flagging **13 of the 14 SCSS files** purely over `@use "tokens"` versus `@use 'tokens'`, disagreeing with the project's own config and with `npx prettier`. SCSS is excluded from Qlty's prettier now, with the reasoning in `qlty.toml`.
+- **Qlty does not read the repo's `.prettierrc`.** Not from the repo root, not from a copy in `.qlty/configs/`, not via a `config_files` entry—all three were tried. It formats with its own defaults, and the one that bites is `singleQuote`, which `.prettierrc` explicitly turns _off_ for SCSS. It was flagging **13 of the 14 SCSS files** purely over `@use "tokens"` versus `@use 'tokens'`, disagreeing with the project's own config and with `npx prettier`. SCSS is excluded from Qlty's prettier now, with the reasoning in `qlty.toml`.
 - **Biome ships its own formatter** and disagrees with prettier, so leaving both on made every file permanently "unformatted" according to one of them. Prettier owns formatting; biome is the linter.
 
 ### Left for you—sprint 09
@@ -587,7 +587,7 @@ Three commits on `feat/expand-route`, closing [#65](https://github.com/feralcrea
 
 **`src/maps/expand.ts`** densifies a planned route by inserting shaping points along geometry that is already stored, so whatever the rider navigates with has no room to pick its own roads. Two decisions are argued in the file's own header and should not be relitigated:
 
-- **It is deliberately not verified against a router.** The tempting design—ask the router for A→B, diff it against the intended line, insert a point wherever they disagree—is close to tautological, because `route_legs.geometry` *is* Routes API output; it agrees, and costs dozens of calls to discover that. It also defends against the wrong router. The one that ruins a ride is never ours: it is the rider's own Google Maps carrying their avoid settings, or a Garmin recomputing after a missed turn. You cannot verify against a router you do not control, so the only defence is leaving it no room—and density is geometry, free and offline.
+- **It is deliberately not verified against a router.** The tempting design—ask the router for A→B, diff it against the intended line, insert a point wherever they disagree—is close to tautological, because `route_legs.geometry` _is_ Routes API output; it agrees, and costs dozens of calls to discover that. It also defends against the wrong router. The one that ruins a ride is never ours: it is the rider's own Google Maps carrying their avoid settings, or a Garmin recomputing after a missed turn. You cannot verify against a router you do not control, so the only defence is leaving it no room—and density is geometry, free and offline.
 - **Turns first, then the longest unpinned runs.** A junction taken left is a junction a router could take straight through, so candidates are scored by heading change—the same signal `twist.ts` uses, asked a different question. Whatever budget the turns do not want goes to halving the widest gaps, because curvature cannot see a parallel frontage road and only proximity defends against one.
 
 **`src/maps/gmaps-links.ts`** serializes a day into an ordered series of `/maps/dir/?api=1` links. **Google Maps carries 9 waypoints per link**, established on a real iPhone rather than from the documentation—the "~10 points" figure in older docs was an assumption, and Google's own docs are wrong about the part that matters, since their three-waypoint figure applies to a route rendered in the mobile browser and not to the app the link hands off to. Omitting `origin` makes Maps use the rider's current location and offer **Start** rather than Preview, which removes the "add Your Location and drag it to the top" ritual riders otherwise perform at every fuel stop. Consecutive links deliberately **share** a point: a clean partition would leave the leg between two batches unnavigated.
@@ -612,7 +612,7 @@ Note the replacement pattern is a bare `Icon`, which no longer matches the `Icon
 
 Branch `feat/builder-autosave-undo`, merged in #78, closing [#38](https://github.com/feralcreative/tankbag/issues/38). The competitive research filed undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
 
-**Two protections that are deliberately not the same thing**, and [builder-history.js](../public/js/builder-history.js) says so at the top. *History* recovers from a mistake you made and noticed—in memory, per session, lost on reload. A *draft* recovers from a crash, a closed tab or a dead phone, **including for a ride that has never been saved and has no id**. Collapsing them into one mechanism means either a mistake surviving a reload or a crash losing everything.
+**Two protections that are deliberately not the same thing**, and [builder-history.js](../public/js/builder-history.js) says so at the top. _History_ recovers from a mistake you made and noticed—in memory, per session, lost on reload. A _draft_ recovers from a crash, a closed tab or a dead phone, **including for a ride that has never been saved and has no id**. Collapsing them into one mechanism means either a mistake surviving a reload or a crash losing everything.
 
 **The snapshot trap, which has now fired twice.** What a snapshot copies is decided by what the builder mutates in place, and that is not uniform. `leg.geometry` is never mutated in place—it is always replaced wholesale—so it is shared by reference, which is what makes a snapshot cost ~50 object copies instead of ~19,000 coordinate pairs on a long day, and what makes a 100-step stack affordable. `point.roles` is the exception and **must** be copied, because `splice()` and `push()` mutate it. **`leg.viaPoints` was in the safe category until drag-to-shape started splicing into it**, and nothing failed loudly when that changed—the snapshot quietly gained the edit it was taken to protect against. A field is safe to share right up until someone adds the feature that mutates it.
 
@@ -622,7 +622,7 @@ Kept out of `builder.js` so it can be tested: `test/builder-history.test.ts` eva
 
 Branch `feat/drag-to-shape`, closing [#8](https://github.com/feralcreative/tankbag/issues/8)—the P0 that everything else in the planner quietly assumed. A rider can pull the route line onto the road they meant, and the dropped point becomes a via point on the correct leg.
 
-**The hard part is arithmetic, not interaction.** A day is drawn as *one* polyline—the concatenated geometry of all its legs—so a drag hands back a vertex index into that flat path and nothing else; the map layer has no idea where one leg ends and the next begins. [route-shape.js](../public/js/route-shape.js) turns that index back into "leg 3, between via 1 and via 2". It is pure—no DOM, no `google.maps`, no state—so `test/route-shape.test.ts` can drive it directly. An off-by-one here bends a route around the wrong corner, which is exactly the kind of thing that should fail in a test rather than on a map.
+**The hard part is arithmetic, not interaction.** A day is drawn as _one_ polyline—the concatenated geometry of all its legs—so a drag hands back a vertex index into that flat path and nothing else; the map layer has no idea where one leg ends and the next begins. [route-shape.js](../public/js/route-shape.js) turns that index back into "leg 3, between via 1 and via 2". It is pure—no DOM, no `google.maps`, no state—so `test/route-shape.test.ts` can drive it directly. An off-by-one here bends a route around the wrong corner, which is exactly the kind of thing that should fail in a test rather than on a map.
 
 Two properties of the span array make it less obvious than it looks, both recorded in the file. **Legs share their joint vertex**, because the concatenation drops the duplicate where one leg's last coordinate meets the next leg's first—so a vertex sitting exactly on a joint belongs to both, and which one the rider meant depends on the segment they grabbed rather than on the vertex. And **a leg with no geometry has a null span and consumes no indices**, so it must be skipped without shifting everything after it.
 
@@ -632,9 +632,9 @@ This is also the change that turned `leg.viaPoints` into a field that has to be 
 
 `/login` told visitors the opposite of the truth. It said "Not a member yet? Signing in creates your account", which is accurate in the narrow technical sense and reads as an open door—so a rider signed in, expected the app, and met the holding page instead. **The gate belongs on the way in, not after it.**
 
-**The distinction the copy now carries, because it is the owner's and nothing in the code expressed it:** *alpha* is developers only, and *beta* is friends, invited a few at a time. So a visitor is not being kept from something they could otherwise have—beta does not exist yet—and the honest thing to offer them is a place in the queue.
+**The distinction the copy now carries, because it is the owner's and nothing in the code expressed it:** _alpha_ is developers only, and _beta_ is friends, invited a few at a time. So a visitor is not being kept from something they could otherwise have—beta does not exist yet—and the honest thing to offer them is a place in the queue.
 
-**The mechanism did not change, and that is the point.** Signing in with Google or a magic link creates a `pending` user, `requireActive` bounces `pending` to `/welcome`, and `/admin` is the approval queue. That *is* a waiting list. Building a second one—a `waitlist` table, its own endpoint, its own inbox to triage—would have added a store to reconcile against `users` for a capability the app already had. What was missing was the page saying so.
+**The mechanism did not change, and that is the point.** Signing in with Google or a magic link creates a `pending` user, `requireActive` bounces `pending` to `/welcome`, and `/admin` is the approval queue. That _is_ a waiting list. Building a second one—a `waitlist` table, its own endpoint, its own inbox to triage—would have added a store to reconcile against `users` for a capability the app already had. What was missing was the page saying so.
 
 What changed, all copy and one CSS block:
 
@@ -681,7 +681,7 @@ Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and 
 - **The danger is the flag, not the database.** Production is a closed alpha with three accounts and they are all the owner's. Migrations and redeploys are cheap and should not be deferred out of caution—doing so on 2026-08-03 is what shipped GeoJSON and CSV imports that stored no original file, destroying multi-day structure that a stored file would have preserved. Be careful with the mechanics, not about whether to proceed.
 - **`rides.size_bytes` must name every byte column.** It is generated from `kml_bytes + gpx_bytes + source_bytes`, and `used_bytes` is incremented by the app on import but decremented by this column on delete. A new byte column left out of the expression leaks quota on every delete, permanently and with no error.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
-- **DNS is not the blocker; the un-deployed rename is.** All tankbag hostnames already resolve through the tunnel. As of 2026-07-30 the *live* prod build predates the rename, so `tankbag.app` still 301s to `routeloop.app`—the correct routeloop→tankbag redirect lands only on the next deploy, not via any DNS change. **One real gap:** `www.tankbag.app` has **no DNS record** (`www.routeloop.app` does); add a proxied CNAME to the same tunnel, or the browser key's `www.tankbag.app` referrer entry is moot and the host won't resolve.
+- **DNS is not the blocker; the un-deployed rename is.** All tankbag hostnames already resolve through the tunnel. As of 2026-07-30 the _live_ prod build predates the rename, so `tankbag.app` still 301s to `routeloop.app`—the correct routeloop→tankbag redirect lands only on the next deploy, not via any DNS change. **One real gap:** `www.tankbag.app` has **no DNS record** (`www.routeloop.app` does); add a proxied CNAME to the same tunnel, or the browser key's `www.tankbag.app` referrer entry is moot and the host won't resolve.
 
 ## Local development
 
@@ -701,12 +701,12 @@ Port 6686 is this project's port—kill and reuse it, never switch.
 
 The app had something like this before—`DEV_AUTH_EMAIL`, deleted along with Cloudflare Access—so this is a considered re-add rather than a restoration. It is gated four ways and when any gate fails the route is **not registered at all**, making `/dev/login` a plain 404 rather than a refusal that confirms it exists:
 
-| Gate | Where |
-| --- | --- |
-| `DEV_LOGIN_EMAIL` names an existing account (it will not create one) | `config.ts`, through `env()` so a deploy's empty string counts as unset |
-| `DATABASE_URL` is 127.0.0.1, localhost or host.docker.internal | `isLocalDatabaseUrl()`, shared with the seeders' `assertLocal()` |
-| `APP_ORIGIN` is not https | `IS_HTTPS_ORIGIN`—the strongest gate, since stage and prod break OAuth and cookie `Secure` if they get it wrong |
-| The request's `Host` is 127.0.0.1 or localhost, not the LAN address | per request, in the handler |
+| Gate                                                                 | Where                                                                                                           |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `DEV_LOGIN_EMAIL` names an existing account (it will not create one) | `config.ts`, through `env()` so a deploy's empty string counts as unset                                         |
+| `DATABASE_URL` is 127.0.0.1, localhost or host.docker.internal       | `isLocalDatabaseUrl()`, shared with the seeders' `assertLocal()`                                                |
+| `APP_ORIGIN` is not https                                            | `IS_HTTPS_ORIGIN`—the strongest gate, since stage and prod break OAuth and cookie `Secure` if they get it wrong |
+| The request's `Host` is 127.0.0.1 or localhost, not the LAN address  | per request, in the handler                                                                                     |
 
 `utils/deploy/deploy.sh` builds the server's `.env` from an explicit allow-list, and `DEV_LOGIN_EMAIL` is not on it, so a deploy cannot ship it. The script greps the generated file to assert that before sending, and `--dry-run` exercises the check.
 
@@ -714,7 +714,7 @@ The app had something like this before—`DEV_AUTH_EMAIL`, deleted along with Cl
 
 **Rebuilding the local dataset: `utils/seed-dev.sh`.** Run this rather than the two seeders by hand. `src/db/seed.ts` opens with `TRUNCATE rides, user_identities, users RESTART IDENTITY CASCADE` and, unlike `utils/seed-demo-rides.ts`, carries **no check that the database is local**—so running it straight after a `db-clone prod dev` silently destroys every account you just pulled down. The script applies that missing guard, carries the accounts across the truncate and restores them by email (identity rows are not restored and are not needed: `resolveUser` falls back to matching on email, so signing in re-links each account), and only then generates rides—`seed-demo-rides.ts` looks its owner up by email, so run in the other order every ride lands on the demo user and is invisible from the account you sign in with. `--straight` skips the Routes API, which otherwise bills one call per leg.
 
-**`db-clone prod dev` costs you the demo data.** Prod is nearly empty; dev is where the interesting rides live. One clone took the local corpus from 16 rides / 21 routes / 71 legs to a single one-leg ride, taking `sample-route-one`—the only *imported* ride, and therefore the only local test case for the single-leg track path that Phase 4 and #6 both turn on—with it. `utils/seed-dev.sh` puts it back.
+**`db-clone prod dev` costs you the demo data.** Prod is nearly empty; dev is where the interesting rides live. One clone took the local corpus from 16 rides / 21 routes / 71 legs to a single one-leg ride, taking `sample-route-one`—the only _imported_ ride, and therefore the only local test case for the single-leg track path that Phase 4 and #6 both turn on—with it. `utils/seed-dev.sh` puts it back.
 
 - There is a shared tmux session named `shared`; the dev server runs in its own window. Backgrounding it in the main window gets it **suspended on tty input**, where it holds the port and answers nothing. Two such zombies were found and cleared on 2026-07-27, in state `TN`. If requests hang with the port bound, that is the cause—`kill -CONT` then `kill -9`, since SIGTERM never reaches a stopped process. Orphaned `npm run dev` trees also survive a directory rename with their cwd pointing at the old path; three were cleared on 2026-07-30.
 - **Either `localhost` or `127.0.0.1` works.** The old advice to prefer `localhost` was a Mapbox token restriction and no longer applies—the Google browser key allows both on port 6686, and `isAllowedOrigin` accepts both so the CSRF gate passes either way.

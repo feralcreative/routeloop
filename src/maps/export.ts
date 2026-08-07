@@ -310,7 +310,7 @@ export function buildKml(ride: ExportRide): string {
 // its own way from each point to the next — usually the fast way and rarely the
 // good one, and a missed turn throws out the rest of the day. That is exactly
 // the failure the FAQ describes under "Why does my GPS ignore the route I
-// planned?", and the answer there is that TankBag puts in enough intermediate
+// planned?", and the answer there is that Tankbag puts in enough intermediate
 // points to leave the device no room to form an opinion. Exporting those points
 // as route points instead of track points hands that room straight back and
 // makes the app's central promise false.
@@ -320,7 +320,7 @@ export function buildKml(ride: ExportRide): string {
 export function buildGpx(ride: ExportRide): string {
   const out: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<gpx version="1.1" creator="TankBag" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<gpx version="1.1" creator="Tankbag" xmlns="http://www.topografix.com/GPX/1/1">',
     '  <metadata>',
     `    <name>${xml(ride.title)}</name>`,
   ]
@@ -352,7 +352,7 @@ export function buildGpx(ride: ExportRide): string {
   return out.join('\n')
 }
 
-// --- Native TankBag JSON ---------------------------------------------------
+// --- Native Tankbag JSON ---------------------------------------------------
 
 // The lossless one, and the only format that is.
 //

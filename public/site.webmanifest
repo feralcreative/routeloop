@@ -1,6 +1,6 @@
 {
-  "name": "TankBag.app",
-  "short_name": "TankBag",
+  "name": "Tankbag.app",
+  "short_name": "Tankbag",
   "icons": [
     {
       "src": "/img/favicon/web-app-manifest-192x192.png?v=260731T2112Z",

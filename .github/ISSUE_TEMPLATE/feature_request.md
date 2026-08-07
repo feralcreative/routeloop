@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something TankBag should do and does not
+about: Something Tankbag should do and does not
 title: ''
 labels: enhancement
 assignees: ''
