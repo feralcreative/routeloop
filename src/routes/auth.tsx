@@ -96,10 +96,10 @@ authRoutes.get('/login', (c) => {
       user: null,
       variant: 'splash',
       body: (
-        <SplashPage eyebrow="Closed alpha · beta list open" heading="Every stop. Every day. One map.">
+        <SplashPage eyebrow="Plan the whole ride" heading="Every day. Every detail.">
           <p class="splash-copy">
-            Build motorcycle rides and road trips, organize the places that matter, and share the complete plan with the
-            group.
+            Build motorcycle rides and road trips, organize the details that matter, and share the complete plan with
+            the whole group.
           </p>
           {/*
             Two blocks, not three. The splash is pinned to one viewport and
@@ -107,9 +107,11 @@ authRoutes.get('/login', (c) => {
             it down through two height tiers — so every line here is paid for
             out of that budget.
           */}
+
           <div class="splash-gate">
+            <p class="splash-gate-lead">Please note:</p>
             <p>
-              TankBag is in <strong>closed alpha</strong> — developers only. <strong>Beta testing is next</strong> and
+              TankBag is in <strong>closed alpha</strong>—developers only. <strong>Beta testing is next</strong> and
               it's invite-only, approved by hand a few riders at a time. Getting on the list is what you can do today.{' '}
               <a href="/faq#invites">Why it works this way</a>.
             </p>
