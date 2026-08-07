@@ -9,10 +9,10 @@ import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm'
 import { APP_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { loginTokens } from '../db/schema'
-import { resolveUser } from './identity'
-import { sendMail } from './mailer'
+import { resolveUser, type ResolvedUser } from './identity'
+import { magicLinkEmail } from '../emails/magic-link'
+import { sendTemplate } from './mailer'
 import { generateSessionToken, hashToken } from './session'
-import type { UserRow } from '../db/schema'
 import { allow } from './ratelimit'
 
 const TOKEN_TTL_MS = 15 * 60 * 1000
@@ -44,13 +44,6 @@ async function emailAllowed(email: string): Promise<boolean> {
   return (row?.n ?? 0) < MAX_PER_EMAIL_PER_HOUR
 }
 
-function linkEmail(url: string): { text: string; html: string } {
-  return {
-    text: `Sign in to Tankbag:\n\n${url}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
-    html: `<p>Sign in to Tankbag:</p><p><a href="${url}">Sign in</a></p><p style="color:#666;font-size:14px">This link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.</p>`,
-  }
-}
-
 /**
  * Issues and sends a link. Returns nothing either way on purpose — the caller
  * must respond identically whether or not the address has an account, or this
@@ -70,17 +63,21 @@ export async function requestMagicLink(email: string, ip: string): Promise<void>
   })
 
   const url = `${APP_ORIGIN}/auth/magic/${token}`
-  const { text, html } = linkEmail(url)
-  await sendMail(email, 'Your Tankbag sign-in link', text, html)
+  await sendTemplate(email, magicLinkEmail, { url })
 }
 
 export class MagicLinkError extends Error {}
 
 /**
- * Redeems a token and returns the user it signed in. Throws on anything that is
- * not a live, unconsumed, unexpired token.
+ * Redeems a token and returns the user it signed in, and whether that user was
+ * created by this redemption. Throws on anything that is not a live, unconsumed,
+ * unexpired token.
+ *
+ * Note that the caller must not send mail on the `created` flag until this has
+ * returned: everything below runs inside a transaction, and an SMTP round trip
+ * in there would hold a pooled connection open for the length of a network call.
  */
-export async function redeemMagicLink(token: string): Promise<UserRow> {
+export async function redeemMagicLink(token: string): Promise<ResolvedUser> {
   const id = await hashToken(token)
 
   return db.transaction(async (tx) => {

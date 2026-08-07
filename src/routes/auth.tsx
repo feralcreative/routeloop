@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
 import { completeGoogleLogin, GoogleAuthError, GOOGLE_ENABLED, startGoogleLogin } from '../auth/google'
 import { resolveUser } from '../auth/identity'
+import { notifyNewSignup } from '../auth/notify'
 import { MagicLinkError, normalizeEmail, redeemMagicLink, requestMagicLink } from '../auth/magic'
 import { clearSessionCookie, createSession, invalidateSession, setSessionCookie } from '../auth/session'
 import {
@@ -170,7 +171,7 @@ authRoutes.get('/login', (c) => {
             {!canJoin && <p class="note">The list is closed on this deployment — no sign-in method is configured.</p>}
             {canJoin && (
               <p class="provider-alt">
-                <strong>Already approved?</strong> Same control — it signs you in.
+                <strong>Already approved?</strong> Same entry point—it signs you in.
               </p>
             )}
           </div>
@@ -193,8 +194,11 @@ authRoutes.get('/auth/google/callback', async (c) => {
 
   try {
     const identity = await completeGoogleLogin(c)
-    const user = await resolveUser(identity)
-    setSessionCookie(c, await createSession(user.id))
+    const resolved = await resolveUser(identity)
+    setSessionCookie(c, await createSession(resolved.user.id))
+    // Detached and after the session is minted: a mail failure must not turn a
+    // successful sign-in into an error page.
+    notifyNewSignup(resolved, 'google')
     return c.redirect('/', 302)
   } catch (err) {
     if (err instanceof GoogleAuthError) {
@@ -234,8 +238,11 @@ authRoutes.post('/auth/magic', async (c) => {
 
 authRoutes.get('/auth/magic/:token', async (c) => {
   try {
-    const user = await redeemMagicLink(c.req.param('token'))
-    setSessionCookie(c, await createSession(user.id))
+    // redeemMagicLink resolves the user inside a transaction; this is after it,
+    // so nothing below holds a pooled connection open for an SMTP round trip.
+    const resolved = await redeemMagicLink(c.req.param('token'))
+    setSessionCookie(c, await createSession(resolved.user.id))
+    notifyNewSignup(resolved, 'email')
     return c.redirect('/', 302)
   } catch (err) {
     if (err instanceof MagicLinkError) return c.redirect('/login?error=link', 302)
@@ -339,7 +346,10 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
   }
 
   const raw = Object.fromEntries(await c.req.formData()) as Record<string, string>
-  const values = { username: String(raw.username ?? ''), displayName: String(raw.displayName ?? '') }
+  const values = {
+    username: String(raw.username ?? ''),
+    displayName: String(raw.displayName ?? ''),
+  }
   const parsed = nameFields.safeParse(values)
   if (!parsed.success) {
     const errors: Record<string, string> = {}
@@ -361,7 +371,10 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
       await claimUsername(tx, user, parsed.data.username)
       await tx
         .update(users)
-        .set({ displayName: sanitizeText(parsed.data.displayName), updatedAt: new Date() })
+        .set({
+          displayName: sanitizeText(parsed.data.displayName),
+          updatedAt: new Date(),
+        })
         .where(eq(users.id, user.id))
     })
   } catch (err) {
@@ -369,7 +382,11 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
     // and two riders can clear it in the same instant. Only one wins the write.
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('uq_username_lower')) {
-      return c.html(chooseNameHtml(user, values, { username: 'that username was just taken' }))
+      return c.html(
+        chooseNameHtml(user, values, {
+          username: 'that username was just taken',
+        }),
+      )
     }
     throw err
   }

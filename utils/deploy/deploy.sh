@@ -93,19 +93,36 @@ if [ -n "$MISSING" ]; then
 fi
 
 
-# Magic link is genuinely optional — Google OAuth alone is a working sign-in —
-# so an incomplete SMTP triple warns rather than blocks. All three or none:
-# a partial set is the case that looks configured and fails at send time.
+# Mail is genuinely optional — Google OAuth alone is a working sign-in — so an
+# incomplete SMTP triple warns rather than blocks. All three or none: a partial
+# set is the case that looks configured and fails at send time.
+#
+# Note what "none" now costs. It is no longer only the magic-link form: the same
+# three values gate every notification, so an unconfigured deploy also sends no
+# waitlist confirmation, no approval notice and no new-signup alert. Riders are
+# approved by hand, so that last one is how the owner learns anyone is waiting.
 SMTP_SET=0
 [ -n "${SMTP_USER:-}" ] && SMTP_SET=$((SMTP_SET + 1))
 [ -n "${SMTP_PASS:-}" ] && SMTP_SET=$((SMTP_SET + 1))
 [ -n "${MAIL_FROM:-}" ] && SMTP_SET=$((SMTP_SET + 1))
 if [ "$SMTP_SET" -eq 0 ]; then
-  log_warning "SMTP_USER/SMTP_PASS/MAIL_FROM unset — magic-link sign-in will be hidden; Google OAuth only."
+  log_warning "SMTP_USER/SMTP_PASS/MAIL_FROM unset — no mail at all: magic-link sign-in hidden, and no"
+  log_warning "  waitlist, approval or new-signup notifications will be sent. Google OAuth only."
 elif [ "$SMTP_SET" -lt 3 ]; then
   log_error "SMTP is partially configured ($SMTP_SET/3). Set all of SMTP_USER, SMTP_PASS, MAIL_FROM, or none."
   exit 1
 fi
+
+# MAIL_FROM travels through printf into a compose .env, where a `<` or `#` does
+# not mean what it means in a shell. mailer.ts composes the display name, so the
+# bracketed form is never needed and is rejected here rather than producing a
+# malformed SMTP envelope that only shows up in a recipient's headers.
+case "${MAIL_FROM:-}" in
+  *"<"*|*">"*|*"#"*)
+    log_error "MAIL_FROM must be a bare address, not a display-name form. Got: ${MAIL_FROM}"
+    exit 1
+    ;;
+esac
 
 # The password is interpolated into a postgresql:// URL; reserved characters
 # would silently corrupt it, so reject them up front.
