@@ -12,6 +12,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
+import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
 
 export const routingRoutes = new Hono<AuthEnv>()
 
@@ -28,9 +29,12 @@ const FIELD_MASK = 'routes.polyline.geoJsonLinestring,routes.distanceMeters,rout
 // in California.
 const TRAVEL_MODE = 'DRIVE'
 
-// Routes accepts more, but a leg with 25 shaping points is already pathological
-// and the cap keeps one request from becoming an expensive one.
-const MAX_VIAS = 25
+// Matches MAX_VIAS_PER_LEG in src/maps/ride-graph.ts, which is what the save
+// path enforces. They used to disagree — this allowed 25 and the schema
+// allowed 20 — so a leg with 21 shaping points routed happily and then failed
+// validation the moment the rider tried to keep it. A cap that only bites
+// after the work is done is worse than no cap.
+const MAX_VIAS = MAX_VIAS_PER_LEG
 
 // The whole app stores and speaks [lng, lat] — GeoJSON order, which is what
 // Mapbox used and what `route_legs.geometry` holds. Google speaks {latitude,
@@ -112,7 +116,11 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
       body: JSON.stringify({
         origin: toGoogleWaypoint(origin),
         destination: toGoogleWaypoint(destination),
-        intermediates: vias.map(toGoogleWaypoint),
+        // `via: true` makes these pass-through points rather than stopovers.
+        // Without it Google treats every shaping point as somewhere the rider
+        // stops, which adds stopover semantics to a point that only ever meant
+        // "go this way" — and can bend the route to arrive at it properly.
+        intermediates: vias.map((v) => ({ ...toGoogleWaypoint(v), via: true })),
         travelMode: TRAVEL_MODE,
         polylineEncoding: 'GEO_JSON_LINESTRING',
       }),

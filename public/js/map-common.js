@@ -171,23 +171,43 @@
   }
 
   // Adds (or replaces) the line + arrows for one route's track.
-  function addRouteLayers(map, id, track, color) {
+  //
+  // `opts.shapeable` makes the line grabbable for drag-to-shape. It is opt-in
+  // per call, and only the builder passes it: the viewer draws through this
+  // same function, and a route line that swallows clicks there would break
+  // click-through to the map and offer an edit affordance on a page with
+  // nothing to edit.
+  //
+  // It lives on the entry rather than only on the Polyline because
+  // addRouteLayers destroys and rebuilds the line — rebuildLayers() runs on
+  // every day add, delete, reorder and recolour — so a flag set once at
+  // construction would quietly vanish. paint() never touches clickable, so
+  // once it is on the entry it survives every repaint.
+  function addRouteLayers(map, id, track, color, opts) {
     requireInit("addRouteLayers");
     removeRouteLayers(map, id);
+    const shapeable = Boolean(opts && opts.shapeable);
     const entry = {
       line: new Maps.Polyline({
         map,
         path: track.map(toLatLng),
         strokeWeight: 4,
-        clickable: false,
+        clickable: shapeable,
       }),
       color,
       visible: true,
       arrowsOn: true,
       dim: false,
+      shapeable,
+      id,
     };
     paint(entry);
     layersOf(map).set(id, entry);
+    // Re-arm: this line is brand new, and rebuildLayers() runs often enough
+    // that a gesture wired only at onRouteShapeDrag() time would stop working
+    // the first time a day was added.
+    const drag = shapeDrags.get(map);
+    if (shapeable && drag && drag.arm) drag.arm(entry);
   }
 
   // The leg highlight is a slice of a route's path, so anything that removes a
@@ -280,6 +300,134 @@
     line.setOptions({ strokeColor: entry.color, icons: entry.arrowsOn ? arrowIcons(entry.color, false) : [] });
     line.setPath(slice);
     line.setVisible(true);
+  }
+
+  // --- Drag to shape --------------------------------------------------------
+
+  // Pulling the route line onto the road the rider actually meant.
+  //
+  // Google's own `editable: true` is the obvious answer and the wrong one: a
+  // routed leg is thousands of shape points, so it would hand back thousands of
+  // drag handles, and dragging one edits geometry that the next re-route throws
+  // away. What a rider wants is to grab the line anywhere and leave ONE shaping
+  // point behind. So the gesture is built by hand.
+  //
+  // The drag is tracked on the map rather than the polyline because the pointer
+  // leaves the line the instant it moves — that is the whole point of the
+  // gesture.
+  const shapeDrags = new WeakMap(); // map -> { preview, handler, active }
+
+  function previewOf(map, state) {
+    if (!state.preview) {
+      state.preview = new Maps.Polyline({
+        map,
+        strokeWeight: 4,
+        strokeOpacity: 0.9,
+        zIndex: 4, // above the leg highlight, which may be showing at the time
+        clickable: false,
+        visible: false,
+        // Deliberately not the route colour: this is a proposal, not the route.
+        strokeColor: "#222222",
+      });
+    }
+    return state.preview;
+  }
+
+  // handler({ id, vertexIndex, edgeForward, lngLat }) fires once, on drop.
+  //
+  // `edgeForward` says the rider grabbed the segment leaving the nearest vertex
+  // rather than the one arriving at it. Consecutive legs share their joint
+  // vertex, so on a joint that flag is the only thing that says which leg was
+  // meant.
+  function onRouteShapeDrag(map, handler) {
+    requireInit("onRouteShapeDrag");
+    const state = shapeDrags.get(map) || {};
+    state.handler = handler;
+    shapeDrags.set(map, state);
+    if (state.wired) return;
+    state.wired = true;
+
+    const finish = (commit, lngLat) => {
+      const a = state.active;
+      state.active = null;
+      if (!a) return;
+      if (state.preview) state.preview.setVisible(false);
+      map.setOptions({ draggable: true });
+      if (moveL) Core.event.removeListener(moveL);
+      if (upL) Core.event.removeListener(upL);
+      moveL = upL = null;
+      if (commit && state.handler) {
+        state.handler({ id: a.id, vertexIndex: a.vertexIndex, edgeForward: a.edgeForward, lngLat });
+      }
+      // The click that follows a mouseup would otherwise reach onMapClick and
+      // drop a stop where the rider was only bending the line.
+      if (commit) state.swallowClick = true;
+    };
+
+    let moveL = null;
+    let upL = null;
+
+    // Polylines are destroyed and rebuilt on every rebuildLayers(), so arming
+    // is a function the creation path calls rather than a one-time pass.
+    state.arm = (entry) => {
+      entry.line.addListener("mousedown", (e) => {
+        if (!entry.shapeable || !entry.visible) return;
+        const path = entry.line.getPath().getArray();
+        if (path.length < 2) return;
+        const here = fromLatLng(e.latLng);
+        let best = 0;
+        let bestD = Infinity;
+        const k = Math.cos((here[1] * Math.PI) / 180);
+        for (let i = 0; i < path.length; i++) {
+          const p = fromLatLng(path[i]);
+          const dx = (p[0] - here[0]) * k;
+          const dy = p[1] - here[1];
+          const d = dx * dx + dy * dy;
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        // Which side of the nearest vertex did the grab land on? Compare
+        // against the neighbours: closer to the next vertex means the rider
+        // took the segment leaving `best`.
+        let edgeForward = true;
+        if (best > 0 && best < path.length - 1) {
+          const prev = fromLatLng(path[best - 1]);
+          const next = fromLatLng(path[best + 1]);
+          const dp = Math.hypot((prev[0] - here[0]) * k, prev[1] - here[1]);
+          const dn = Math.hypot((next[0] - here[0]) * k, next[1] - here[1]);
+          edgeForward = dn <= dp;
+        } else if (best === path.length - 1) {
+          edgeForward = false;
+        }
+
+        state.active = { id: entry.id, vertexIndex: best, edgeForward, from: path[best] };
+        // Or the map pans out from under the gesture.
+        map.setOptions({ draggable: false });
+
+        const preview = previewOf(map, state);
+        preview.setPath([path[best], e.latLng]);
+        preview.setVisible(true);
+
+        moveL = map.addListener("mousemove", (ev) => {
+          if (!state.active) return;
+          preview.setPath([state.active.from, ev.latLng]);
+        });
+        upL = map.addListener("mouseup", (ev) => finish(true, fromLatLng(ev.latLng)));
+      });
+    };
+
+    // Arm what is already drawn; addRouteLayers arms everything drawn later.
+    for (const entry of layersOf(map).values()) if (entry.shapeable) state.arm(entry);
+  }
+
+  // True once per drop, so the caller can ignore the click that follows.
+  function consumeShapeClick(map) {
+    const state = shapeDrags.get(map);
+    if (!state || !state.swallowClick) return false;
+    state.swallowClick = false;
+    return true;
   }
 
   function clearLegHighlight(map) {
@@ -608,6 +756,8 @@
     setRouteDim,
     setLegHighlight,
     clearLegHighlight,
+    onRouteShapeDrag,
+    consumeShapeClick,
     addMarker,
     removeMarker,
     onMarkerDragEnd,

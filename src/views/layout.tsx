@@ -140,7 +140,14 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
         ) : (
           <>
             <NavLink item={NAV_LINKS[0]} navKey={navKey} />
-            <a href="/login">Sign in</a>
+            {/*
+              "Join the beta", not "Sign in". Nobody can sign themselves in —
+              alpha is developers and beta is invite-only — so a nav that offers
+              sign-in contradicts the page it links to. Approved riders returning
+              from a signed-out session land on the same page through the same
+              controls, and /login says so directly under them.
+            */}
+            <a href="/login">Join the beta</a>
           </>
         )}
         <hr />
