@@ -9,6 +9,24 @@
 // The `.splash*`, `.eyebrow`, `.providers` and `.note` rules moved here verbatim
 // from _chrome.scss; they were only ever used by /login.
 
+// Anything that holds text over the clip.
+//
+// A scrim alone only lowers the footage's brightness; it leaves the DETAIL —
+// treeline, road edges, the moving horizon — running underneath the words, and
+// that is what actually costs legibility on a busy frame. The blur removes the
+// detail, so the scrim's remaining alpha has only a smooth wash to darken.
+// Together they hold on frames neither survives alone, which is why every panel
+// over the video takes both rather than one turned up.
+//
+// The -webkit- prefix is not optional and not legacy dressing: Safari only
+// dropped it in 18, and this project compiles with plain `sass` and no
+// autoprefixer, so nothing adds it later. Unprefixed alone silently degrades to
+// scrim-only on a browser a lot of riders are using.
+@mixin over-video-panel($blur: 8px) {
+  -webkit-backdrop-filter: blur($blur);
+  backdrop-filter: blur($blur);
+}
+
 .splash {
   position: relative; // lifts the copy above the fixed video layer
   z-index: 1;
@@ -83,6 +101,7 @@
   // compete with.
   border-left: 4px solid $accent;
   border-radius: 10px;
+  @include over-video-panel;
 
   p {
     margin: 0;
@@ -360,7 +379,9 @@
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 50%;
   cursor: pointer;
-  backdrop-filter: blur(4px);
+  // 4px, not the panel default: this is a 2.5rem circle over the clip, and the
+  // heavier blur the text panels need reads as a smear at this size.
+  @include over-video-panel(4px);
 
   svg {
     width: 1.05rem;
@@ -514,10 +535,31 @@ body.splash-page {
     }
   }
 
-  // .notice comes from _forms.scss as a solid block, so it stays legible over
-  // the clip without a dark-mode variant.
+  // .notice is a SOFT TINT, not a solid block — rgba($gpx, 0.12) behind text
+  // coloured a darkened $gpx. That is right on the white pages it was built for
+  // and wrong here: 12% of anything over moving footage is transparent, and dark
+  // green on a bright frame is close to invisible. The comment that used to sit
+  // here asserted the opposite, which is how it survived this long.
+  //
+  // So the block gets the .splash-gate treatment instead of the form one, and
+  // for the same reason .splash-gate documents: over-video copy needs a scrim
+  // that holds on the brightest frame, not one tuned for the average. Severity
+  // moves to the left edge, where .splash-gate already puts it — the fill can
+  // then be the same near-black in both states, which is what makes them read as
+  // one family rather than two blocks that happen to be adjacent.
   .notice {
     max-width: 520px;
+    color: rgba(255, 255, 255, 0.88);
+    background: color.change($splash-ink, $alpha: 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-left: 4px solid $gpx;
+    @include over-video-panel;
+
+    &.is-error {
+      background: color.change($splash-ink, $alpha: 0.78);
+      border-color: rgba(255, 255, 255, 0.16);
+      border-left-color: $kml;
+    }
   }
 }
 
@@ -533,45 +575,7 @@ body.splash-page {
 //@ XS <576px — the copy spans the full width here, so the horizontal ramp stops
 // helping and the pass runs top-to-bottom instead.
 @media (max-width: 575px) {
-  // Sits above both the clip (z-index 0) and the copy (z-index 1). It is appended
-// to <body> by site.js rather than written into the markup: without JS the clip
-// never loads at all, so a control in the HTML would be a button that does
-// nothing on exactly the pages where nothing is playing.
-.video-toggle {
-  position: fixed;
-  right: 1.1rem;
-  bottom: 1.1rem;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  color: $white;
-  background: rgba(6, 10, 12, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-
-  svg {
-    width: 1.05rem;
-    height: 1.05rem;
-    fill: currentColor;
-  }
-
-  &:hover {
-    background: rgba(6, 10, 12, 0.68);
-    border-color: rgba(255, 255, 255, 0.45);
-  }
-
-  &:focus-visible {
-    outline: 2px solid $accent;
-    outline-offset: 2px;
-  }
-}
-
-.splash-media::after {
+  .splash-media::after {
     background: linear-gradient(to top, rgba(6, 10, 12, 0.5) 0%, rgba(6, 10, 12, 0.18) 55%, rgba(6, 10, 12, 0.42) 100%);
   }
 }
