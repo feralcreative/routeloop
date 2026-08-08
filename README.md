@@ -52,6 +52,7 @@ Delivered in phases:
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
+- **Email**—transactional mail from `tankbag.app` via Resend over SMTP, with replies received free through Cloudflare Email Routing. Four templates: the sign-in link, a waitlist confirmation, an approval notice, and a new-signup alert to the owner. See [docs/email.md](docs/email.md).
 
 ## Tech stack
 
@@ -129,7 +130,7 @@ Either `localhost` or `127.0.0.1` works. The browser key allows both on port 668
 
 Port 6686 belongs to this project. If it is already bound, kill the process and reuse the port rather than starting on a different one.
 
-Sign-in works locally once the Google OAuth client and SMTP credentials are in `.env`; both methods hide themselves when unconfigured rather than offering a broken button, and the old Cloudflare Access bypass is deleted. To script an authenticated request without a browser round trip, mint a session directly:
+Sign-in works locally once the Google OAuth client and SMTP credentials are in `.env`; both methods hide themselves when unconfigured rather than offering a broken button, and the old Cloudflare Access bypass is deleted. Note the SMTP values now gate **all** outbound mail, not just the magic link—with them unset, approval and signup notifications are skipped too (logged, not failed). To script an authenticated request without a browser round trip, mint a session directly:
 
 ```bash
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
@@ -147,8 +148,13 @@ src/                  TypeScript app (Hono)
   db/                 Drizzle schema (source of truth), connection, dev seed
   auth/               google.ts (OAuth), magic.ts (magic link), mailer.ts,
                       identity.ts (provider-agnostic user resolution),
-                      session.ts, middleware.ts (auth + status gates),
+                      notify.ts (signup emails), session.ts,
+                      middleware.ts (auth + status gates),
                       username.ts, ratelimit.ts
+  emails/             Email templates — PURE, no db and no env beyond
+                      APP_ORIGIN, so the whole registry is testable.
+                      shell.tsx (the one document), theme.ts (palette
+                      pinned to _tokens.scss), rules.ts (when to send)
   maps/               roles.ts, kml/kmz/gpx/geojson/csv parsers, export.ts,
                       ride-graph.ts, expand.ts, gmaps-links.ts, twist.ts,
                       storage.ts, slug.ts, palette.ts, turnstile.ts

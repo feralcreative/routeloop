@@ -138,18 +138,36 @@ export const GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', '')
 export const GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', '')
 export const GOOGLE_REDIRECT_URI = `${APP_ORIGIN}/auth/google/callback`
 
-// Magic-link delivery. A credential entirely separate from the OAuth client
-// above — mail is sent by the server from its own address, never as the
-// signed-in user, so no Gmail scope belongs on the sign-in consent screen.
-export const SMTP_HOST = env('SMTP_HOST', 'smtp.gmail.com')
+// Outbound mail. A credential entirely separate from the OAuth client above —
+// mail is sent by the server from its own address, never as the signed-in user,
+// so no Gmail scope belongs on the sign-in consent screen. It carries the
+// sign-in link and every notification: the waitlist confirmation, the approval
+// notice, and the owner's new-signup alert.
+export const SMTP_HOST = env('SMTP_HOST', 'smtp.resend.com')
 export const SMTP_PORT = Number(env('SMTP_PORT', '587'))
 export const SMTP_USER = env('SMTP_USER', '')
 export const SMTP_PASS = env('SMTP_PASS', '')
-export const MAIL_FROM = env('MAIL_FROM', SMTP_USER)
 
-// Feature flag by omission, matching how turnstile.ts already behaves: with no
-// credentials the magic-link form is not offered rather than offered and broken.
-export const MAGIC_LINK_ENABLED = Boolean(SMTP_USER && SMTP_PASS && MAIL_FROM)
+// Defaults to empty, NOT to SMTP_USER, and the difference is load-bearing. Under
+// Gmail the SMTP user was the address, so falling back to it was right. Under
+// Resend SMTP_USER is the literal string `resend`, so that fallback would make
+// MAIL_FROM 'resend' — which is truthy, so MAIL_ENABLED would be true, the
+// sign-in form would render, and every send would fail at the server with a 550
+// that no local check could have caught.
+export const MAIL_FROM = env('MAIL_FROM', '')
+
+// Two flags, deliberately, because they answer different questions.
+//
+// MAIL_ENABLED is a capability: can this deployment put a message in an inbox at
+// all? Every notification asks it, and it is what mailer.ts gates on.
+export const MAIL_ENABLED = Boolean(SMTP_USER && SMTP_PASS && MAIL_FROM)
+
+// MAGIC_LINK_ENABLED is a product decision: is emailed sign-in *offered*? The
+// same expression today, and kept as its own name so a deployment that wants
+// Google-only sign-in while still mailing approvals has something to turn off.
+// Feature flag by omission, matching turnstile.ts: with no credentials the form
+// is not offered rather than offered and broken.
+export const MAGIC_LINK_ENABLED = MAIL_ENABLED
 
 // Alpha splash links. These deliberately keep `??` rather than env(): for these
 // three, empty is a meaningful value that omits the link instead of rendering a

@@ -9,11 +9,14 @@
 // and a client script. requireSameOrigin still guards the write because changing
 // a rider's status is privileged in a way saving your own profile is not.
 import { Hono } from 'hono'
-import { desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { users } from '../db/schema'
 import { currentUser, requireManageRiders, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { sendTemplateDetached } from '../auth/mailer'
+import { approvedEmail } from '../emails/approved'
+import { shouldSendApproval } from '../emails/rules'
 import { page } from '../views/layout'
 
 export const adminRoutes = new Hono<AuthEnv>()
@@ -163,10 +166,41 @@ adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, as
   const parsed = statusSchema.safeParse(await c.req.parseBody())
   if (!parsed.success) return c.redirect('/admin?error=bad', 302)
 
-  const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1)
+  const [target] = await db
+    .select({
+      id: users.id,
+      status: users.status,
+      email: users.email,
+      displayName: users.displayName,
+      approvedEmailAt: users.approvedEmailAt,
+    })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
   if (!target) return c.notFound()
 
-  await db.update(users).set({ status: parsed.data.status, updatedAt: new Date() }).where(eq(users.id, id))
+  const next = parsed.data.status
+  const notify = shouldSendApproval(target.status, next, target.approvedEmailAt)
+
+  // Conditional, and the WHERE is the point. `ne(status, next)` plus the
+  // returning() means the DATABASE decides whether this request is the one that
+  // made the change — two managers clicking Approve in the same instant, or one
+  // double-submitting, cannot both come back with a row. Reading the status
+  // above and branching on it in JavaScript would let both through.
+  //
+  // approvedEmailAt is stamped in the same statement rather than a follow-up
+  // write, so there is no window where the status is active and the flag is
+  // still null.
+  const [changed] = await db
+    .update(users)
+    .set({ status: next, updatedAt: new Date(), ...(notify ? { approvedEmailAt: new Date() } : {}) })
+    .where(and(eq(users.id, id), ne(users.status, next)))
+    .returning({ email: users.email, displayName: users.displayName })
+
+  // Detached: an approval that committed must not 500 because mail is down.
+  if (changed && notify) {
+    sendTemplateDetached(changed.email, approvedEmail, { displayName: changed.displayName })
+  }
 
   // Redirect rather than re-render so a refresh cannot resubmit the change.
   return c.redirect('/admin?updated=1', 302)

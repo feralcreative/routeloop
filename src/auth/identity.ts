@@ -39,7 +39,19 @@ function displayNameFromEmail(email: string): string {
   return local ? local.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Rider'
 }
 
-export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): Promise<UserRow> {
+/**
+ * The result of resolving an identity.
+ *
+ * `created` exists because the signup notifications need a fact only this
+ * function knows: whether a row was inserted, or an existing account was found
+ * by provider id or by verified address. Nothing downstream can reconstruct it —
+ * a `pending` status means "not approved yet", not "new", and a rider can sit
+ * pending across many sign-ins. Returning it here is what keeps the waitlist
+ * email from firing on every visit.
+ */
+export type ResolvedUser = { user: UserRow; created: boolean }
+
+export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): Promise<ResolvedUser> {
   const email = identity.email.trim().toLowerCase()
   // Never the provider's name. display_name is notNull and the row has to exist
   // before a rider can be shown anything, so this fills it from the address
@@ -63,10 +75,10 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
 
   if (existing) {
     await read.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, existing.user.id))
-    return existing.user
+    return { user: existing.user, created: false }
   }
 
-  const create = async (tx: Executor): Promise<UserRow> => {
+  const create = async (tx: Executor): Promise<ResolvedUser> => {
     // Same person arriving by a second method. Both providers verify the address
     // before we get here, so matching on it is safe and is what lets someone use
     // Google one day and a magic link the next without splitting their rides
@@ -129,7 +141,12 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
     // profile are theirs, and a new login method must not overwrite them.
     if (match) await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, match.id))
 
-    return user
+    // `!match` and not "did we reach this branch": arriving here means no
+    // identity row existed for this provider, which also happens when a rider
+    // who signed up with Google adds a magic link. That is a second identity on
+    // an account they already have, not a new account, and mailing them a
+    // welcome would be wrong.
+    return { user, created: !match }
   }
 
   // Borrow the caller's transaction when there is one; otherwise own it, so the

@@ -42,7 +42,9 @@ services:
       OWNER_EMAIL: ${OWNER_EMAIL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      # Magic link. Optional — Google OAuth alone is a working sign-in.
+      # Outbound mail: the sign-in link AND every notification (waitlist
+      # confirmation, approval notice, owner alert). Optional — Google OAuth
+      # alone is a working sign-in — but unset means no notifications at all.
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}

@@ -76,6 +76,21 @@ export const users = pgTable(
     // does the approving. resolveUser() writes 'pending' explicitly on the
     // insert path instead.
     status: userStatusEnum('status').notNull().default('active'),
+    // When the "you're approved" email went out, or null if it never has.
+    //
+    // This is what makes that email exactly-once for the life of an account.
+    // /admin can toggle active -> blocked -> active freely, and every one of
+    // those transitions is a genuine status change, so "did the status change"
+    // is not a sufficient guard on its own — it would mail a rider again every
+    // time they were reinstated.
+    //
+    // Nullable with no default, and that is deliberate rather than incidental:
+    // drizzle-kit push stamps a default onto every existing row, so defaulting
+    // this to now() would mark every current account as already-notified, which
+    // is the same class of mistake the status default above documents.
+    //
+    // To resend deliberately: UPDATE users SET approved_email_at = NULL.
+    approvedEmailAt: timestamp('approved_email_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
     quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(262144000), // 250 MB
     usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0), // denormalized cache
@@ -358,6 +373,8 @@ export const routeLegs = pgTable(
 )
 
 export type UserRow = typeof users.$inferSelect
+/** The authorization states, derived from the enum so the two cannot drift. */
+export type UserStatus = (typeof userStatusEnum.enumValues)[number]
 export type UserProfileRow = typeof userProfiles.$inferSelect
 export type UsernameHistoryRow = typeof usernameHistory.$inferSelect
 export type LoginTokenRow = typeof loginTokens.$inferSelect
