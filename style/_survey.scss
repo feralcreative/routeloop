@@ -1,4 +1,5 @@
 @use "sass:color";
+@use "sass:list";
 @use "tokens" as *;
 
 // The rider survey, the invitations page, and the two things they needed that
@@ -79,12 +80,6 @@
     justify-content: center;
   }
 
-  input:checked + span {
-    color: $white;
-    background: $brand;
-    border-color: $brand;
-  }
-
   input:focus-visible + span {
     outline: 2px solid $accent;
     outline-offset: 2px;
@@ -95,27 +90,97 @@
   }
 }
 
-//@ XS <560px — four labels will not sit side by side at this width, so the
-// strip goes two-up rather than one-up.
+// The scale is a traffic light: no, maybe, yes. The colour carries the meaning,
+// which is why the tone comes from RATINGS in questions.ts rather than from an
+// :nth-child here — reorder the scale and a positional selector would repaint it
+// silently, which is the worst possible way for this to be wrong.
 //
-// Two-up and not stacked, because this form is 34 rated rows and the phone is
-// where most of them get answered: one-up put a single question at ~350px and
-// the whole page near 12,000px of scrolling, which is its own reason to give up
-// half way through. Two-up roughly halves that.
+// Hover shows the colour on the border, selection fills it. That gives the whole
+// strip a preview of what each answer means before you commit to one, and it
+// means colour is never the ONLY signal: an unselected option is outlined and a
+// selected one is solid, so the state survives being colour-blind or printed.
 //
-// Reading order still runs the scale correctly — row by row it is don't care,
-// nice to have, would use, must have — which is the objection that has to be
-// answered before splitting a scale across two columns is allowed.
+// Text colour is per-tone and not decorative. White on the yellow would be
+// around 1.3:1 and effectively invisible, so yellow takes the dark ink; the
+// other two take white. The green is Material Green 800 rather than $gpx, which
+// is Green 600 and lands at 3.3:1 behind white — the same family's darker step,
+// for the same reason DARK.url in the email palette is Blue 300 rather than $url.
+$rate-tones: (
+  "no": (
+    $kml,
+    $white,
+  ),
+  "maybe": (
+    $accent,
+    $text,
+  ),
+  "yes": (
+    #2e7d32,
+    $white,
+  ),
+);
+
+@each $tone, $pair in $rate-tones {
+  // list.nth, not the global nth: the global built-ins are deprecated and go
+  // away in Dart Sass 3.
+  $fill: list.nth($pair, 1);
+  $ink: list.nth($pair, 2);
+
+  .rate-#{$tone} {
+    // Border only. Tinting the label to match would put #ffdd00 text on white
+    // at about 1.3:1 for the middle option, which is not a hover state, it is a
+    // disappearing one.
+    &:hover input:not(:checked) + span {
+      border-color: $fill;
+    }
+
+    input:checked + span {
+      color: $ink;
+      background: $fill;
+      border-color: $fill;
+    }
+  }
+
+  // The same tone as a flat segment in the admin distribution bar, where there
+  // is no radio to key off.
+  .spread .rate-#{$tone} {
+    background: $fill;
+  }
+}
+
+//@ XS <560px — three equal columns, held all the way down.
+//
+// This was two-up when the scale had four points and four labels would not fit
+// across a phone. Three fit: the longest is "Nice to have", which sets about
+// 75px at this size against roughly 105px of column. Keeping all three on one
+// line is worth some effort — a 2+1 grid leaves an orphan, and an orphan on a
+// three-point scale reads as though the last option belongs to a different
+// question.
+//
+// grid rather than the flex above, so the columns stay equal instead of sizing
+// to their labels. A scale whose options are different widths implies the wide
+// one is the bigger answer.
+// The targets also grow here, and only here. A 29px control is fine under a
+// mouse pointer, which lands where you aimed it; a thumb does not, and this is
+// the one control on the page and it gets used two dozen times in a row. 44px is
+// the figure both Apple and Google publish and it is what the desktop density
+// is traded against — narrow columns make the target harder to hit sideways, so
+// height is the axis that has to give.
 @media (max-width: 559px) {
   .rate-strip {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
   }
 
   .rate-opt span {
-    padding-left: 0.6rem;
-    padding-right: 0.6rem;
+    min-height: 44px;
+    padding: 0.5rem 0.3rem;
     font-size: 0.8rem;
+    // Two-word labels wrap to two lines inside a 90px column, and a wrapped
+    // label must not push the box taller than its neighbours — the row has to
+    // read as one control.
+    line-height: 1.2;
   }
 }
 
@@ -227,9 +292,11 @@
   }
 }
 
-// The distribution bar. Four segments flexed by their counts, so a room split
-// between "must have" and "don't care" looks different from a room that all said
-// "would use" — which is the thing an average cannot show.
+// The distribution bar. One segment per point on the scale, flexed by its count,
+// so a room split between "must have" and "don't care" looks different from a
+// room that all said the same middling thing — which is the finding an average
+// cannot show. Segment colours come from the $rate-tones loop above, so the bar
+// reads as the same traffic light the rider answered with.
 .spread {
   display: flex;
   width: 7rem;
@@ -242,19 +309,6 @@
     display: block;
     min-width: 0;
   }
-}
-
-.spread-0 {
-  background: #ddd;
-}
-.spread-1 {
-  background: #b9d3ee;
-}
-.spread-2 {
-  background: color.adjust($brand, $lightness: 20%);
-}
-.spread-3 {
-  background: $brand;
 }
 
 .tally {

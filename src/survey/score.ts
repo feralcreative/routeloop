@@ -8,7 +8,7 @@
 //
 // The arithmetic is small; the interpretation is the hard part, so it is stated
 // here rather than left implicit in a template.
-import { BUNDLES, TOP_PICKS, bundleLabel } from './questions'
+import { BUNDLES, MAX_RATING, RATINGS, TOP_PICKS, bundleLabel } from './questions'
 import type { SurveyAnswers } from './questions'
 
 export type Ranked = {
@@ -56,7 +56,11 @@ export function topRankWeight(rank: number): number {
  */
 export const SCORE_WEIGHTS = { rating: 0.4, picks: 0.6 } as const
 
-const MAX_RATING_VALUE = 3
+// Derived, not written down. The scale went from four points to three when
+// "would use" was dropped, and a literal here would have quietly rescaled every
+// score to two-thirds of what it should be — a change that shifts the whole
+// table and looks like data rather than a bug.
+const MAX_RATING_VALUE = MAX_RATING
 
 /**
  * Every bundle, ordered most-wanted first.
@@ -117,7 +121,7 @@ export function rankBundles(responses: readonly SurveyAnswers[]): Ranked[] {
  * the second is a feature for a subset, which is a different decision.
  */
 export function histogram(responses: readonly SurveyAnswers[], bundleId: string): number[] {
-  const counts = [0, 0, 0, 0]
+  const counts = RATINGS.map(() => 0)
   for (const r of responses) {
     const v = r.ratings[bundleId]
     if (typeof v === 'number' && v >= 0 && v < counts.length) counts[v] += 1

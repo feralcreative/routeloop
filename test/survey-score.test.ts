@@ -11,7 +11,7 @@
 //   - a first pick outweighs a fifth, because the order is real information
 //   - the sort is total, so the same data cannot produce two different tables
 import { describe, expect, it } from 'vitest'
-import { BUNDLE_IDS, EMPTY_ANSWERS, TOP_PICKS } from '../src/survey/questions'
+import { BUNDLE_IDS, EMPTY_ANSWERS, MAX_RATING, MIN_RATING, RATINGS, TOP_PICKS } from '../src/survey/questions'
 import type { SurveyAnswers } from '../src/survey/questions'
 import {
   SCORE_WEIGHTS,
@@ -24,6 +24,13 @@ import {
 } from '../src/survey/score'
 
 const B = BUNDLE_IDS
+
+// Named off the scale rather than written as numbers. The scale went from four
+// points to three when "would use" was dropped, and every hardcoded 3 in this
+// file silently became an out-of-range value that parseAnswers would clamp —
+// tests that still passed while measuring something else.
+const TOP = MAX_RATING
+const NONE = MIN_RATING
 
 const answer = (over: Partial<SurveyAnswers> = {}): SurveyAnswers => ({
   ...EMPTY_ANSWERS,
@@ -67,30 +74,30 @@ describe('rankBundles', () => {
 
   // A bundle nobody rated is a finding, not a row to hide.
   it('keeps an unrated bundle in the table at the bottom', () => {
-    const rows = rankBundles([answer({ ratings: { [B[0]]: 3 } })])
+    const rows = rankBundles([answer({ ratings: { [B[0]]: TOP } })])
     expect(rows.some((r) => r.id === B[1])).toBe(true)
     expect(find(rows, B[1]).n).toBe(0)
   })
 
   it('averages only the riders who rated it', () => {
     const rows = rankBundles([
-      answer({ ratings: { [B[0]]: 3 } }),
-      answer({ ratings: { [B[0]]: 1 } }),
+      answer({ ratings: { [B[0]]: TOP } }),
+      answer({ ratings: { [B[0]]: NONE } }),
       answer({ ratings: {} }), // abandoned before reaching it
     ])
     const row = find(rows, B[0])
     expect(row.n).toBe(2)
-    expect(row.mean).toBe(2)
+    expect(row.mean).toBe((TOP + NONE) / 2)
   })
 
   // The distinction that keeps form fatigue out of the results. If the mean were
   // over all three responses it would read 1.33 and the bundle would sink for a
   // reason that has nothing to do with what riders want.
   it('does not let an abandoned form drag a bundle down', () => {
-    const rated = rankBundles([answer({ ratings: { [B[0]]: 3 } }), answer({ ratings: { [B[0]]: 3 } })])
+    const rated = rankBundles([answer({ ratings: { [B[0]]: TOP } }), answer({ ratings: { [B[0]]: TOP } })])
     const withAbandon = rankBundles([
-      answer({ ratings: { [B[0]]: 3 } }),
-      answer({ ratings: { [B[0]]: 3 } }),
+      answer({ ratings: { [B[0]]: TOP } }),
+      answer({ ratings: { [B[0]]: TOP } }),
       answer({ ratings: {} }),
     ])
     expect(find(withAbandon, B[0]).mean).toBe(find(rated, B[0]).mean)
@@ -120,8 +127,8 @@ describe('rankBundles', () => {
   // "must have" by everyone; only one gets picked. It has to win.
   it('separates two bundles that everyone rated identically', () => {
     const responses = [
-      answer({ ratings: { [B[0]]: 3, [B[1]]: 3 }, top: [B[0], B[2], B[3], B[4], B[5]] }),
-      answer({ ratings: { [B[0]]: 3, [B[1]]: 3 }, top: [B[0], B[2], B[3], B[4], B[5]] }),
+      answer({ ratings: { [B[0]]: TOP, [B[1]]: TOP }, top: [B[0], B[2], B[3], B[4], B[5]] }),
+      answer({ ratings: { [B[0]]: TOP, [B[1]]: TOP }, top: [B[0], B[2], B[3], B[4], B[5]] }),
     ]
     const rows = rankBundles(responses)
     expect(find(rows, B[0]).mean).toBe(find(rows, B[1]).mean)
@@ -131,7 +138,7 @@ describe('rankBundles', () => {
   // And the other direction: ratings still order the bundles nobody picked,
   // rather than leaving the bottom of the table in arbitrary order.
   it('still orders bundles that nobody picked, by rating', () => {
-    const rows = rankBundles([answer({ ratings: { [B[0]]: 3, [B[1]]: 0 } })])
+    const rows = rankBundles([answer({ ratings: { [B[0]]: TOP, [B[1]]: NONE } })])
     expect(find(rows, B[0]).score).toBeGreaterThan(find(rows, B[1]).score)
   })
 
@@ -146,7 +153,7 @@ describe('rankBundles', () => {
   })
 
   it('sorts descending by score', () => {
-    const rows = rankBundles([answer({ ratings: { [B[0]]: 1, [B[1]]: 3, [B[2]]: 2 } })])
+    const rows = rankBundles([answer({ ratings: { [B[0]]: NONE, [B[1]]: TOP, [B[2]]: TOP - 1 } })])
     const scores = rows.map((r) => r.score)
     expect(scores).toEqual([...scores].sort((a, z) => z - a))
   })
@@ -155,7 +162,7 @@ describe('rankBundles', () => {
   // bundles with identical numbers can swap between loads and the table looks
   // like it is reporting a change.
   it('is stable for identical data', () => {
-    const responses = [answer({ ratings: Object.fromEntries(B.map((id) => [id, 2])) })]
+    const responses = [answer({ ratings: Object.fromEntries(B.map((id) => [id, TOP - 1])) })]
     expect(rankBundles(responses).map((r) => r.id)).toEqual(rankBundles(responses).map((r) => r.id))
   })
 
@@ -169,23 +176,36 @@ describe('rankBundles', () => {
 
 describe('histogram', () => {
   it('counts by rating value', () => {
-    expect(
-      histogram([answer({ ratings: { [B[0]]: 0 } }), answer({ ratings: { [B[0]]: 3 } }), answer({ ratings: { [B[0]]: 3 } })], B[0]),
-    ).toEqual([1, 0, 0, 2])
+    const counts = histogram(
+      [answer({ ratings: { [B[0]]: NONE } }), answer({ ratings: { [B[0]]: TOP } }), answer({ ratings: { [B[0]]: TOP } })],
+      B[0],
+    )
+    expect(counts).toHaveLength(RATINGS.length)
+    expect(counts[NONE]).toBe(1)
+    expect(counts[TOP]).toBe(2)
   })
 
   it('is all zeroes for an unrated bundle', () => {
-    expect(histogram([answer()], B[0])).toEqual([0, 0, 0, 0])
+    expect(histogram([answer()], B[0])).toEqual(RATINGS.map(() => 0))
   })
 
-  // The case the mean cannot show: a bundle half the riders must have and half
-  // do not care about is a feature for a subset, not a middling feature.
+  // The case the mean cannot show, and the reason the bar exists beside it: one
+  // room is split — half must-have, half don't-care — and the other is uniformly
+  // lukewarm. Identical means, completely different findings. The first is a
+  // feature for a subset; the second is a feature for nobody in particular.
   it('separates a split room from a lukewarm one', () => {
-    const split = [answer({ ratings: { [B[0]]: 3 } }), answer({ ratings: { [B[0]]: 0 } })]
-    const lukewarm = [answer({ ratings: { [B[0]]: 2 } }), answer({ ratings: { [B[0]]: 1 } })]
-    expect(rankBundles(split)[0]).toBeDefined()
-    expect(histogram(split, B[0])).toEqual([1, 0, 0, 1])
-    expect(histogram(lukewarm, B[0])).toEqual([0, 1, 1, 0])
+    const MID = TOP - 1
+    const split = [answer({ ratings: { [B[0]]: TOP } }), answer({ ratings: { [B[0]]: NONE } })]
+    const lukewarm = [answer({ ratings: { [B[0]]: MID } }), answer({ ratings: { [B[0]]: MID } })]
+
+    // The means agree, which is exactly the problem.
+    expect(find(rankBundles(split), B[0]).mean).toBe(find(rankBundles(lukewarm), B[0]).mean)
+
+    // The histograms do not.
+    expect(histogram(split, B[0])[NONE]).toBe(1)
+    expect(histogram(split, B[0])[TOP]).toBe(1)
+    expect(histogram(lukewarm, B[0])[MID]).toBe(2)
+    expect(histogram(lukewarm, B[0])[TOP]).toBe(0)
   })
 })
 

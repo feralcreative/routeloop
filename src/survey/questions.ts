@@ -36,19 +36,28 @@ export const OPEN_MAX = 2000
 
 // --- The rating scale --------------------------------------------------------
 
-// Four points, no neutral, and that is the whole design. A midpoint on a
-// question like this collects "I have not thought about it" and reports it as a
-// considered opinion, and with a friendly audience a 5-point scale piles up at
-// 4. Forcing a side is what makes the middle of the ranking mean anything.
+// Three points, and the missing fourth is the point.
+//
+// This was four — don’t care, nice to have, would use, must have — and "would
+// use" was doing no work. It is what a polite person picks when they do not
+// want to say no to a friend, so it collected the answers that mattered most
+// and reported them as mild enthusiasm. Dropping it forces the question the
+// survey is actually asking: would you miss this, or not.
+//
+// Still no neutral. A midpoint collects "I have not thought about it" and
+// reports it as a considered opinion.
+//
+// `tone` is carried here rather than derived in CSS because the colour IS the
+// meaning — red, yellow, green — and a stylesheet reaching for :nth-child would
+// silently repaint the scale the moment a row is reordered.
 export const RATINGS = [
-  { value: 0, label: 'Don’t care' },
-  { value: 1, label: 'Nice to have' },
-  { value: 2, label: 'Would use' },
-  { value: 3, label: 'Must have' },
+  { value: 0, label: 'Don’t care', tone: 'no' },
+  { value: 1, label: 'Nice to have', tone: 'maybe' },
+  { value: 2, label: 'Must have', tone: 'yes' },
 ] as const
 
 export const MIN_RATING = 0
-export const MAX_RATING = 3
+export const MAX_RATING = RATINGS.length - 1
 
 // --- The bundles -------------------------------------------------------------
 

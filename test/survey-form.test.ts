@@ -13,7 +13,7 @@
 // Same shape as roadbook.test.ts: the pure function is lifted out of the handler
 // and tested there, because nothing in this repo can exercise a route.
 import { describe, expect, it } from 'vitest'
-import { BUNDLE_IDS, CHOICE_QUESTIONS, OPEN_QUESTIONS, TOP_PICKS } from '../src/survey/questions'
+import { BUNDLE_IDS, CHOICE_QUESTIONS, MAX_RATING, OPEN_QUESTIONS, RATINGS, TOP_PICKS } from '../src/survey/questions'
 import { answersFromBody } from '../src/routes/survey'
 import type { Body } from '../src/routes/survey'
 
@@ -51,12 +51,12 @@ describe('answersFromBody — the empty-string trap', () => {
     expect(out.ratings[B[0]]).toBe(0)
   })
 
-  it('keeps the whole scale', () => {
+  it('keeps every point on the scale', () => {
     const body = emptyBody()
-    for (const [i, id] of B.slice(0, 4).entries()) body[`rating:${id}`] = String(i)
+    for (const [i, r] of RATINGS.entries()) body[`rating:${B[i]}`] = String(r.value)
     const out = answersFromBody(body)
-    expect(out.ratings[B[0]]).toBe(0)
-    expect(out.ratings[B[3]]).toBe(3)
+    for (const [i, r] of RATINGS.entries()) expect(out.ratings[B[i]]).toBe(r.value)
+    expect(out.ratings[B[MAX_RATING]]).toBe(MAX_RATING)
   })
 
   it('drops a rating that is not a number', () => {

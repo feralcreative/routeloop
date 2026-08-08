@@ -31,12 +31,15 @@ import {
 import type { SurveyAnswers } from '../src/survey/questions'
 
 const B = BUNDLE_IDS
+// Off the scale, not written down: dropping a point must not silently turn a
+// valid rating in this file into an out-of-range one that gets clamped.
+const TOP = MAX_RATING
 const REQUIRED_CHOICES = CHOICE_QUESTIONS.filter((q) => q.required)
 
 /** A complete, valid submission, built from the live question set. */
 function goodAnswers(): SurveyAnswers {
   const a: SurveyAnswers = { ratings: {}, top: [], single: {}, multi: {}, open: {} }
-  for (const b of BUNDLES) a.ratings[b.id] = 2
+  for (const b of BUNDLES) a.ratings[b.id] = TOP
   a.top = B.slice(0, TOP_PICKS)
   for (const q of REQUIRED_CHOICES) {
     if (q.multi) a.multi[q.id] = [q.options[0]]
@@ -113,8 +116,8 @@ describe('parseAnswers', () => {
   // The version-skew case, and the reason this function is lenient. A draft
   // written before a bundle was renamed must still open.
   it('drops ratings for bundles that no longer exist and keeps the rest', () => {
-    const out = parseAnswers({ ratings: { [B[0]]: 3, 'bundle-deleted-last-sprint': 2 } })
-    expect(out.ratings).toEqual({ [B[0]]: 3 })
+    const out = parseAnswers({ ratings: { [B[0]]: TOP, 'bundle-deleted-last-sprint': 2 } })
+    expect(out.ratings).toEqual({ [B[0]]: TOP })
   })
 
   it('drops unknown ids out of the top picks without shortening the valid ones', () => {
@@ -126,7 +129,7 @@ describe('parseAnswers', () => {
     const out = parseAnswers({ ratings: { [B[0]]: 99, [B[1]]: -4, [B[2]]: 1.6 } })
     expect(out.ratings[B[0]]).toBe(MAX_RATING)
     expect(out.ratings[B[1]]).toBe(0)
-    expect(out.ratings[B[2]]).toBe(2)
+    expect(out.ratings[B[2]]).toBe(MAX_RATING)
   })
 
   it('drops non-numeric ratings', () => {
@@ -251,7 +254,7 @@ describe('validateSubmission', () => {
   // save-and-come-back flow breaks the moment someone wires the draft path into
   // this function.
   it('is not used by drafts: a half-finished form is invalid but still savable', () => {
-    const half: SurveyAnswers = { ...EMPTY_ANSWERS, ratings: { [B[0]]: 3 } }
+    const half: SurveyAnswers = { ...EMPTY_ANSWERS, ratings: { [B[0]]: TOP } }
     expect(Object.keys(validateSubmission(half)).length).toBeGreaterThan(0)
     expect(parseAnswers(half)).toEqual(half)
   })

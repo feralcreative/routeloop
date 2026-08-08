@@ -104,7 +104,7 @@ function RatingRow({ id, label, value, invalid }: { id: string; label: string; v
       <div class="rate-label">{label}</div>
       <div class="rate-strip">
         {RATINGS.map((r) => (
-          <label class="rate-opt">
+          <label class={`rate-opt rate-${r.tone}`}>
             <input type="radio" name={`rating:${id}`} value={String(r.value)} checked={value === r.value} />
             <span>{r.label}</span>
           </label>
@@ -402,9 +402,12 @@ surveyRoutes.get('/admin/survey', requireManageRiders, async (c) => {
                           "must have" and "don't care" is a feature for a subset,
                           not a middling feature. */}
                       <td>
+                        {/* Same three tones as the form, so a bar the reader
+                            saw as green when they answered still reads green
+                            here. */}
                         <span class="spread" title={RATINGS.map((x, k) => `${x.label}: ${h[k]}`).join(', ')}>
                           {h.map((n, k) => (
-                            <span class={`spread-${k}`} style={`flex:${n}`}></span>
+                            <span class={`rate-${RATINGS[k]?.tone ?? 'no'}`} style={`flex:${n}`}></span>
                           ))}
                         </span>
                       </td>

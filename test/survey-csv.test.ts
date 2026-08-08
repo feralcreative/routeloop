@@ -15,13 +15,23 @@
 // one cell out from their header. That is why the header is derived from the
 // question set and why the width assertion below exists.
 import { describe, expect, it } from 'vitest'
-import { BUNDLES, CHOICE_QUESTIONS, EMPTY_ANSWERS, OPEN_QUESTIONS, TOP_PICKS, BUNDLE_IDS } from '../src/survey/questions'
+import {
+  BUNDLES,
+  BUNDLE_IDS,
+  CHOICE_QUESTIONS,
+  EMPTY_ANSWERS,
+  MAX_RATING,
+  OPEN_QUESTIONS,
+  RATINGS,
+  TOP_PICKS,
+} from '../src/survey/questions'
 import type { SurveyAnswers } from '../src/survey/questions'
 import { surveyCell, surveyCsv, surveyHeader, surveyRow } from '../src/survey/csv'
 import type { SurveyRow } from '../src/survey/csv'
 import { csvCell } from '../src/maps/export'
 
 const B = BUNDLE_IDS
+const TOP = MAX_RATING
 
 const row = (over: Partial<SurveyRow> = {}): SurveyRow => ({
   email: 'rider@example.com',
@@ -129,9 +139,11 @@ describe('surveyHeader and surveyRow', () => {
   // The number is an implementation detail the rider never saw; the words are
   // what they picked, and what makes the sheet readable without a legend.
   it('writes ratings as the words the rider saw', () => {
-    const cells = surveyRow(row({ answers: answers({ ratings: { [B[0]]: 3 } }) }))
-    expect(cells).toContain('Must have')
-    expect(cells).not.toContain('3')
+    const cells = surveyRow(row({ answers: answers({ ratings: { [B[0]]: TOP } }) }))
+    const topLabel = RATINGS.find((r) => r.value === TOP)?.label ?? ''
+    expect(cells).toContain(topLabel)
+    // The number is an implementation detail the rider never saw.
+    expect(cells).not.toContain(String(TOP))
   })
 
   it('writes top picks as labels, in order, padding the empty slots', () => {
