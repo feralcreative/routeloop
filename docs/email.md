@@ -105,11 +105,21 @@ If it becomes an image it needs a **new** asset: roughly 360×104, opaque backgr
 
 Outside the repo, in this order:
 
-1. **Resend**—add `tankbag.app`, put the SPF and DKIM records it gives you into Cloudflare DNS, wait for verification, create an API key.
-2. **DMARC**—add a TXT record at `_dmarc.tankbag.app`: `v=DMARC1; p=quarantine; rua=mailto:dmarc@tankbag.app`.
+1. **Resend**—add `tankbag.app`, put the SPF and DKIM records it gives you into Cloudflare DNS, wait for verification, create an API key. Domain management needs a **full access** key while the key that ends up in `SMTP_PASS` should be sending-only, so make a full-access one for setup and revoke it afterwards. A sending-only key returns `401 restricted_api_key` on every `/domains` call.
+2. **DMARC**—add a TXT record at `_dmarc.tankbag.app`.
 3. **Cloudflare Email Routing**—enable on `tankbag.app`, verify the destination inbox, route `hello@` and `no-reply@` to it. Do this even if only sending: replies to an address that hard-bounces hurt sender reputation.
 
 Then set the five SMTP values in `.env`. They are already on the deploy allow-list in `utils/deploy/deploy.sh` and already forwarded in `docker-compose.prod.yml`, so no plumbing changes.
+
+### What is actually deployed, as of 2026-08-07
+
+Steps 1 and 2 are done. `tankbag.app` is verified in Resend, and the zone carries DKIM at `resend._domainkey`, SPF at `send`, and the SES bounce MX at `send`. A message from `hello@tankbag.app` reaches a Gmail inbox with `dkim=pass header.i=@tankbag.app`, `spf=pass` and `dmarc=pass header.from=tankbag.app`.
+
+**DMARC is live as `v=DMARC1; p=none; rua=mailto:ziad@feralcreative.co`**, not the `p=quarantine` to `dmarc@tankbag.app` that step 2 implies. Both differences follow from step 3 being undone: with no Email Routing there is no `dmarc@tankbag.app` to deliver reports to, and `p=none` gathers those reports without quarantining mail from a domain whose alignment has a day of history behind it. Tighten to `quarantine` once the reports come back clean.
+
+**Step 3 is outstanding, so the apex accepts no inbound mail at all**—there are no MX records on `tankbag.app` itself, and a reply to any notification hard-bounces. Worth closing before real riders start receiving mail.
+
+Note also that SPF aligns in relaxed mode only: the envelope sender is on `send.tankbag.app` while the From header is the apex. That is DMARC's default and passes, but an `aspf=s` policy would fail SPF alignment and leave DKIM as the single passing mechanism.
 
 ## Checking it works
 
