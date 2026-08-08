@@ -1,6 +1,6 @@
 # Email
 
-**Updated:** 2026-08-07
+**Updated:** 2026-08-08
 
 How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md); this covers the mail subsystem alone.
 
@@ -90,16 +90,39 @@ Not stylistic. Outlook on Windows renders with Word's engine, Gmail clips a long
 
 - Layout is tables. Padding goes on a `<td>`—Word drops it on a `<div>`.
 - Every style that **matters** is an inline `style=`. The `<style>` block may only improve a message that is already correct without it.
-- Build light. A white card with dark text inverts cleanly; an already-dark design inverts to grey mud.
+- Build light. A white card with dark text inverts cleanly; an already-dark design inverts to grey mud. Dark mode sits on top of this rather than replacing it—see below.
 - Never set `color` without `background-color` on the same element. A lone `color` is what produces dark-on-dark text under forced inversion.
 - **No quote characters in any CSS value.** Hono escapes `'` to `&#39;` inside an attribute; a browser decodes that before the CSS parser sees it and Word is not reliably a browser. `src/emails/theme.ts` keeps the font stack unquoted for this reason—CSS permits a family name to be a sequence of identifiers.
 - Colors come from `theme.ts` and nowhere else. `test/email-theme.test.ts` pins those values against `style/_tokens.scss` and fails if a template invents a hex.
 
-### The logo is text, not an image
+### The logo, and why there are two of them
 
-The header wordmark is styled text. A remote image is blocked by default in a large share of clients, so a logo is the one element guaranteed not to render on first open, and a transparent-background PNG additionally vanishes where the client inverts the cell behind it. Text always renders.
+The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="tankbag."` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
 
-If it becomes an image it needs a **new** asset: roughly 360×104, opaque background, PNG—no client renders SVG in email. The existing `public/img/logo-tankbag-horiz-light@2x.png` is 2911×852 and 84 KB, which is an absurd payload for every inbox. Whatever replaces it must still read correctly with images disabled, which means alt text carrying the wordmark and no information living only in the picture.
+| | |
+| --- | --- |
+| Source | `_assets/logo-tankbag-email-horiz.png`, `…-dark.png` |
+| Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
+| Size | 360×103, ~6 KB each, displayed at 180×52 so the source is the 2x asset |
+
+**Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 180×52 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
+
+Do **not** reach for `public/img/logo-tankbag-horiz-light@2x.png`—it is 2911×852 and 84 KB, an absurd payload for every inbox.
+
+### Dark mode
+
+Two populations, served by different mechanisms, and the split is what keeps "build light" above still true:
+
+- **Clients that honour `prefers-color-scheme`** (Apple Mail on both platforms is the one that matters) get a real dark design from the `@media` block in `shell.tsx`.
+- **Clients that do not** (Gmail everywhere—it applies its own inversion and ignores the query) get the light design and invert it cleanly, exactly as before.
+
+So the light values stay inline and remain correct standalone, the dark ones exist **only** inside the media query, and that query overrides with `!important` because an author `!important` is the one thing that outranks an inline declaration. Nothing dark is load-bearing: delete the whole `<style>` block and every message is still correct.
+
+Every primitive carries a `tb-` class, which is the only handle the media block has—an inline style cannot itself be conditional. **Adding a primitive means adding a rule for it**, or it renders dark-on-dark. That is a test, not a convention: `test/email-dark-mode.test.ts` fails on any `tb-` class in the document with no rule in the block, on any declaration missing `!important`, and on any dark palette value that leaks into an inline style.
+
+The dark palette is in `DARK` in `theme.ts`, derived from the site's own dark-surface values in `_splash.scss` flattened over black rather than picked by eye, and contrast-checked in the same test. `$url` is **not** reusable in dark: `#1565c0` on black is 4.0:1, under the 4.5:1 a body-size link needs.
+
+**Known gap:** Outlook.com's dark mode uses `[data-ogsc]` attribute rewriting rather than `prefers-color-scheme`, and nothing here targets it. Those readers get the light design, which is a correct outcome rather than a broken one—so this is untested territory to enter deliberately, not a bug to patch blind.
 
 ## Setting it up from scratch
 
@@ -127,12 +150,20 @@ Note also that SPF aligns in relaxed mode only: the envelope sender is on `send.
 npm run typecheck && npm test
 ```
 
-Then, against a real inbox—none of the below is covered by the suite, which is pure-logic only:
+To send all four to a real inbox:
+
+```bash
+EMAIL_ASSET_ORIGIN=https://tankbag.app npx tsx utils/email-preview.mts [recipient]
+```
+
+**`EMAIL_ASSET_ORIGIN` is what makes the logo visible.** The wordmark's `<img src>` is built from `APP_ORIGIN`, which is `http://127.0.0.1:6686` in development—an address no inbox can reach—so without it every preview arrives with a broken header. Only `/img/` URLs are rewritten; the links in the body are left pointing at the dev origin, because those are being previewed too and silently aiming them at production would make a magic-link preview actively misleading. The script warns when the variable is unset and `APP_ORIGIN` is not https.
+
+Then, against that inbox—none of the below is covered by the suite, which is pure-logic only:
 
 1. Request a magic link and confirm the delivered body matches the copy of record.
 2. Sign in with a fresh address by both methods. Two emails per signup; a second sign-in with the same address sends neither.
 3. Approve the rider in `/admin`, then toggle `active → blocked → active` and confirm **no** second email.
 4. Unset `SMTP_PASS`, restart, approve someone: the POST must succeed and the log must say `info … not configured`.
-5. Read every template with **images disabled**, then in Outlook, Gmail dark mode on Android, and Apple Mail.
+5. Read every template with **images disabled**, then in Outlook, Gmail dark mode on Android, and Apple Mail. Apple Mail is the one that exercises the dark design; Gmail exercises the light design surviving Gmail's own inversion. Check the header in both—a logo whose ground does not match the card behind it shows as a rectangle, and that is the failure this design is most exposed to.
 6. In Gmail, "Show original" and confirm `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS`.
 7. Point `SMTP_HOST` at an unroutable address and approve someone. The process must log and stay up.
