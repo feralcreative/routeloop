@@ -65,7 +65,7 @@ export type NavKey =
   | 'survey'
 
 export type PageOpts = {
-  /** Without the " — Tankbag" suffix; page() appends it. */
+  /** Without the " – Tankbag" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -275,7 +275,10 @@ export function page(opts: PageOpts): string {
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
-  const title = `${esc(opts.title)} — Tankbag`
+  // A spaced EN dash, not an em dash. Em dashes are tight everywhere in this
+  // product, and "Coast Run—Tankbag" reads as one compound word rather than a
+  // page inside a site. A title separator is the case the en dash exists for.
+  const title = `${esc(opts.title)} – Tankbag`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>

@@ -68,7 +68,7 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
 
   return c.html(
     page({
-      title: `${m.title} — navigate`,
+      title: `${m.title} – navigate`,
       user,
       bodyClass: 'handoff-page',
       body: (
@@ -111,7 +111,7 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
               <section class="ho-day">
                 <h2>{day.title?.trim() || `Day ${dayIndex + 1}`}</h2>
                 {day.links.length === 0 ? (
-                  <p class="ho-empty">Nothing to navigate — this day has no stops yet.</p>
+                  <p class="ho-empty">Nothing to navigate—this day has no stops yet.</p>
                 ) : (
                   <ol class="ho-links">
                     {day.links.map((link) => (

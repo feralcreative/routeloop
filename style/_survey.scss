@@ -15,7 +15,7 @@
 // --- The rating strip --------------------------------------------------------
 
 .rate-row {
-  padding: 0.85rem 0;
+  padding: 1rem 0;
   border-bottom: 1px solid color.adjust($grey, $lightness: 6%);
 
   &:last-child {
@@ -32,14 +32,15 @@
 
 .rate-label {
   margin-bottom: 0.5rem;
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.35;
+  font-weight: 700;
 }
 
 .rate-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 1rem;
 }
 
 // The label is the control. The radio itself is hidden from sight but NOT from
@@ -47,7 +48,8 @@
 // keeps it focusable and announced, which display:none would not. The focus ring
 // is drawn on the sibling span via :focus-visible.
 .rate-opt {
-  flex: 1 1 8rem;
+  flex: 1 1 5rem;
+  justify-content: space-around;
   position: relative;
   display: block;
   cursor: pointer;
@@ -57,12 +59,11 @@
     opacity: 0;
     width: 1px;
     height: 1px;
-    margin: 0;
+    margin: 0 1rem;
   }
 
   span {
-    display: block;
-    padding: 0.55rem 0.5rem;
+    padding: 0.25rem 0.25rem;
     text-align: center;
     font-size: 0.85rem;
     font-weight: 700;
@@ -72,7 +73,7 @@
     border-radius: 8px;
     // Tall enough to hit with a thumb at speed. 44px is the figure both Apple
     // and Google publish, and this is a page people fill in one-handed.
-    min-height: 44px;
+    min-height: 1.5em;
     display: flex;
     align-items: center;
     justify-content: center;

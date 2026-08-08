@@ -101,13 +101,13 @@ authRoutes.get('/login', (c) => {
           <div class="splash-gate">
             <p>
               <span class="splash-gate-lede">Hey: </span>
-              Tankbag is in active development. <strong>Beta testing is next</strong> and it's invite-only, approved by
+              Tankbag is in active development. <strong>Beta testing is next</strong> and it’s invite-only, approved by
               hand a few riders at a time. Getting on the list is what you can do today.{' '}
               <a href="/faq#invites">Why it works this way</a>.
             </p>
           </div>
           {notice && (
-            <p class="notice">Check your email — your link is on the way. It works once, within 15 minutes.</p>
+            <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>
           )}
           {failed && (
             <p class="notice is-error">
@@ -157,7 +157,7 @@ authRoutes.get('/login', (c) => {
               Saying so beats rendering an empty box under a heading that just
               invited someone to join something.
             */}
-            {!canJoin && <p class="note">The list is closed on this deployment — no sign-in method is configured.</p>}
+            {!canJoin && <p class="note">The list is closed on this deployment—no sign-in method is configured.</p>}
             {canJoin && (
               <p class="provider-alt">
                 <strong>Already approved?</strong> Same entry point—it signs you in.
@@ -405,10 +405,10 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       variant: 'splash',
       splash: false,
       body: (
-        <SplashPage eyebrow="You're on the list" heading="Hang tight.">
+        <SplashPage eyebrow="You’re on the list" heading="Hang tight.">
           <p class="splash-copy">
-            You're in the queue for <strong>beta testing</strong>. Tankbag is in closed alpha right now — developers
-            only — and riders are waved in by hand, a few at a time. You'll be able to sign in and start planning once
+            You’re in the queue for <strong>beta testing</strong>. Tankbag is in closed alpha right now—developers
+            only—and riders are waved in by hand, a few at a time. You’ll be able to sign in and start planning once
             yours comes up.
           </p>
           <ul class="welcome-links">

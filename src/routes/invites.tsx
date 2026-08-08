@@ -80,7 +80,7 @@ inviteRoutes.get('/i/:token', async (c) => {
   const what = invite ? grantsSentence(invite) : ''
 
   const body = (
-    <SplashPage eyebrow={dead ? 'Invitation' : "You're invited"} heading={dead ? 'That link is closed.' : 'Come ride.'}>
+    <SplashPage eyebrow={dead ? 'Invitation' : 'You’re invited'} heading={dead ? 'That link is closed.' : 'Come ride.'}>
       {dead ? (
         <p class="splash-gate">
           <strong>Sorry:</strong> {REFUSALS[refusal] ?? REFUSALS.invalid}
@@ -89,7 +89,7 @@ inviteRoutes.get('/i/:token', async (c) => {
         <>
           <div class="splash-gate">
             <p>
-              <strong>Hey:</strong> you've been invited to {what}. Sign in and it's yours — there's no password to
+              <strong>Hey:</strong> you’ve been invited to {what}. Sign in and it’s yours—there’s no password to
               pick.
             </p>
           </div>
@@ -136,7 +136,7 @@ inviteRoutes.get('/i/:token', async (c) => {
               )}
               {GOOGLE_ENABLED && (
                 <p class="provider-alt">
-                  Reading this inside another app? <strong>Google sign-in only works in a real browser</strong> — use
+                  Reading this inside another app? <strong>Google sign-in only works in a real browser</strong>—use
                   the email form, or open this page in Safari or Chrome.
                 </p>
               )}
@@ -149,7 +149,7 @@ inviteRoutes.get('/i/:token', async (c) => {
 
   return c.html(
     page({
-      title: dead ? 'Invitation' : "You're invited",
+      title: dead ? 'Invitation' : 'You’re invited',
       user: user ?? null,
       variant: 'splash',
       body,
@@ -234,7 +234,7 @@ function Notice({ query, link }: { query: (k: string) => string | undefined; lin
       <div class="notice invite-fresh">
         <p>
           <strong>Copy this now.</strong> Only the hash is stored, so this is the one time the link exists. Lost it?
-          Regenerate — that kills the old one and keeps the seats.
+          Regenerate—that kills the old one and keeps the seats.
         </p>
         <input class="invite-link" type="text" readonly value={link} onclick="this.select()" />
       </div>
@@ -249,7 +249,7 @@ function Notice({ query, link }: { query: (k: string) => string | undefined; lin
       </p>
     )
   }
-  if (query('error') === 'bad') return <p class="notice is-error">That did not look right — check the fields.</p>
+  if (query('error') === 'bad') return <p class="notice is-error">That did not look right—check the fields.</p>
   if (query('error') === 'gone') return <p class="notice is-error">That invitation no longer exists.</p>
   return <></>
 }
@@ -304,9 +304,9 @@ function CreateForm() {
         <p class="field">
           <label for="f-kind">How is it going out?</label>
           <select id="f-kind" name="kind">
-            <option value="group">Group link — paste it into a channel</option>
-            <option value="link">Private link — hand it to one person</option>
-            <option value="email">Email — I send it for you</option>
+            <option value="group">Group link—paste it into a channel</option>
+            <option value="link">Private link—hand it to one person</option>
+            <option value="email">Email—I send it for you</option>
           </select>
           <span class="field-hint">A group link is the only one that takes more than one rider.</span>
         </p>

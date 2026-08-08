@@ -24,7 +24,7 @@ export function alphaSplash(): string {
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
-            Tankbag is an early build of something I'm making. Expect rough edges, missing pieces, and the occasional
+            Tankbag is an early build of something I’m making. Expect rough edges, missing pieces, and the occasional
             data reset. Feedback is the whole point.
           </p>
           {links.length > 0 && (
@@ -40,7 +40,7 @@ export function alphaSplash(): string {
           )}
         </div>
         <label class="modal-dismiss">
-          <input type="checkbox" id="alpha-hide" /> Don't show this again
+          <input type="checkbox" id="alpha-hide" /> Don’t show this again
         </label>
         <button type="button" class="btn" data-close-alpha>
           Got it

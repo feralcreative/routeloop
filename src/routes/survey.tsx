@@ -122,13 +122,13 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
     <>
       <h1>The rider survey</h1>
       <p class="lede">
-        I am building Tankbag on my own judgement about what a trip needs, and my judgement is one rider's. This is
-        how I find out where it is wrong. It runs about 10 minutes and every answer is tied to your account, so I can
-        come back to you if something you said deserves a proper conversation.
+        I am building Tankbag on my own judgement about what a trip needs, and my judgement is one rider’s. This is
+        how I find out where it is wrong. Everything below is genuinely undecided—the parts I have already made my
+        mind up about are not on the list, because asking about those would waste the only 5 minutes you owe me.
       </p>
 
-      {welcome && <p class="notice">You're in. Thanks for doing this.</p>}
-      {saved && <p class="notice">Saved. Come back whenever — this page remembers where you got to.</p>}
+      {welcome && <p class="notice">You’re in. Thanks for doing this.</p>}
+      {saved && <p class="notice">Saved. Come back whenever—this page remembers where you got to.</p>}
       {bad && (
         <p class="notice is-error">
           {e.ratings ? `${e.ratings}. ` : ''}
@@ -157,7 +157,7 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
           <legend>The five that matter most</legend>
           <p class={`field-hint section-blurb${e.top ? ' has-error' : ''}`}>
             Out of everything above, the {TOP_PICKS} you would actually want, best first. This is the part that
-            decides what I build — a rating says everything is nice, {TOP_PICKS} picks say what you would trade the
+            decides what I build—a rating says everything is nice, {TOP_PICKS} picks say what you would trade the
             rest for.
           </p>
           {Array.from({ length: TOP_PICKS }, (_, i) => (
@@ -384,7 +384,7 @@ surveyRoutes.get('/admin/survey', requireManageRiders, async (c) => {
                   <th>Feature</th>
                   <th>Score</th>
                   <th>Mean</th>
-                  <th>In someone's five</th>
+                  <th>In someone’s five</th>
                   <th>Spread</th>
                 </tr>
               </thead>
@@ -428,8 +428,15 @@ surveyRoutes.get('/admin/survey', requireManageRiders, async (c) => {
                     {rows.map((t) => (
                       <li>
                         <span class="tally-bar" style={`width:${Math.round(t.share * 100)}%`}></span>
+                        {/*
+                          A spaced EN dash, not a tight em dash. This separates a
+                          label from a count rather than joining two clauses, and
+                          "Google Maps—3 (62%)" reads as a compound. The style
+                          rule allows exactly this substitution where a line needs
+                          air.
+                        */}
                         <span class="tally-label">
-                          {t.option} — {t.n} ({pct(t.share)})
+                          {t.option} – {t.n} ({pct(t.share)})
                         </span>
                       </li>
                     ))}

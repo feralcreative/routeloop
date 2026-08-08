@@ -98,10 +98,10 @@ importRoutes.get('/import', requireActive, (c) => {
               <label for="f-visibility">Who can see it</label>
               <select id="f-visibility" name="visibility">
                 <option value="private" selected>
-                  Private — only you
+                  Private—only you
                 </option>
-                <option value="unlisted">Unlisted — anyone with the link</option>
-                <option value="public">Public — listed in Explore</option>
+                <option value="unlisted">Unlisted—anyone with the link</option>
+                <option value="public">Public—listed in Explore</option>
               </select>
             </p>
 

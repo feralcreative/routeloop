@@ -41,7 +41,7 @@ export const OPEN_MAX = 2000
 // considered opinion, and with a friendly audience a 5-point scale piles up at
 // 4. Forcing a side is what makes the middle of the ranking mean anything.
 export const RATINGS = [
-  { value: 0, label: "Don't care" },
+  { value: 0, label: 'Don’t care' },
   { value: 1, label: 'Nice to have' },
   { value: 2, label: 'Would use' },
   { value: 3, label: 'Must have' },
@@ -67,32 +67,65 @@ export const SECTIONS: readonly Section[] = [
   { id: 'roads', title: 'The roads themselves', blurb: 'Which way the route actually goes.' },
   { id: 'conditions', title: 'Conditions', blurb: 'What the road will be like when you get there.' },
   { id: 'range', title: 'Fuel and range', blurb: 'Not running out, a long way from anywhere.' },
-  { id: 'handoff', title: 'Getting it onto your GPS', blurb: 'The plan surviving the trip from screen to bike.' },
   { id: 'group', title: 'Riding with other people', blurb: 'Everything that stops being simple past one bike.' },
-  { id: 'onbike', title: 'On the bike', blurb: 'Using it at a fuel stop with gloves on.' },
+  { id: 'onbike', title: 'On the bike', blurb: 'Out of the driveway and using it with gloves on.' },
 ]
 
+// WHAT IS NOT HERE IS AS DELIBERATE AS WHAT IS.
+//
+// Nothing on this list is table stakes. The whole trip on one map, routing
+// between stops, dragging the line onto the road you meant, import and export,
+// a share link that needs no account — every one of those is either the premise
+// of the app or a line in its own tagline, and none of them is going away
+// whatever a survey says. Asking about them is not a question, it is a
+// formality, and it costs a rider ten rows of attention that the real questions
+// need. A survey that runs long gets abandoned in the middle, and the middle is
+// where the answers that would change a sprint are sitting.
+//
+// So this list is only the undecided: things not built, things half-decided, and
+// things where the shape is still an argument. That is what a ranking can
+// actually move.
+//
+// The blindness rule still holds — no label says which side of the line it is on
+// — but note that the omissions are their own signal to anyone already using the
+// app. Most respondents are not, so it costs little; it is a real trade rather
+// than a free one.
 export const BUNDLES: readonly Bundle[] = [
   // Planning
-  { id: 'whole-trip-one-map', section: 'planning', label: 'The whole trip on one map—every day at once, each in its own color' },
-  { id: 'click-to-route', section: 'planning', label: 'Drop stops on a map and get real road routing between them' },
-  { id: 'drag-to-shape', section: 'planning', label: 'Drag the route line onto the road you actually meant' },
-  { id: 'stop-detail', section: 'planning', label: 'Tag what each stop is—gas, food, camp, motel—with how long you are there and notes' },
-  { id: 'saved-places', section: 'planning', label: 'Saved places you reuse across trips instead of searching for them every time' },
-  { id: 'lodging-anchors', section: 'planning', label: 'Where you sleep sets where the day ends, and the next morning starts there' },
-  { id: 'day-budget', section: 'planning', label: 'A per-day time budget, so you find out Tuesday is over-packed before you leave' },
+  {
+    id: 'saved-places',
+    section: 'planning',
+    label: 'Saved places you reuse across trips instead of searching for them every time',
+  },
+  {
+    id: 'lodging-anchors',
+    section: 'planning',
+    label: 'Where you sleep sets where the day ends, and the next morning starts there',
+  },
+  {
+    id: 'day-budget',
+    section: 'planning',
+    label: 'A per-day time budget, so you find out Tuesday is over-packed before you leave',
+  },
   { id: 'elevation', section: 'planning', label: 'Elevation and grade, before you commit to a pass' },
 
   // Roads
-  { id: 'twistiness', section: 'roads', label: 'A twistiness rating for a road or a whole day' },
   { id: 'prefer-curves', section: 'roads', label: 'Routing that prefers the fun road over the fast one' },
   { id: 'avoid-highways', section: 'roads', label: 'Switches to stay off the interstate or push onto back roads' },
-  { id: 'per-leg-routing', section: 'roads', label: 'Different routing per leg—slab out of town, twisty once you are in the hills' },
+  {
+    id: 'per-leg-routing',
+    section: 'roads',
+    label: 'Different routing per leg—slab out of town, twisty once you are in the hills',
+  },
   { id: 'unpaved', section: 'roads', label: 'Say whether you will take dirt, per leg, and have the route respect it' },
   { id: 'road-flags', section: 'roads', label: 'Riders flag rough or gravelly roads, and everyone routes around them' },
 
   // Conditions
-  { id: 'weather-timeline', section: 'conditions', label: 'Weather along the route, for the day and hour you would actually be there' },
+  {
+    id: 'weather-timeline',
+    section: 'conditions',
+    label: 'Weather along the route, for the day and hour you would actually be there',
+  },
   { id: 'closures', section: 'conditions', label: 'Seasonal closures—a warning that the pass is shut in April' },
   { id: 'map-layers', section: 'conditions', label: 'Map layers you can stack and fade—terrain, satellite' },
 
@@ -101,22 +134,26 @@ export const BUNDLES: readonly Bundle[] = [
   { id: 'range-warnings', section: 'range', label: 'A warning when two stops are further apart than one tank' },
   { id: 'group-range', section: 'range', label: 'Planning around the shortest fuel range in the group' },
 
-  // Hand-off
-  { id: 'import', section: 'handoff', label: 'Import a route you already have—GPX, KML, Google Earth' },
-  { id: 'export', section: 'handoff', label: 'Download the route as GPX or KML' },
-  { id: 'device-gpx', section: 'handoff', label: 'A GPX written for your exact device, so it does not quietly rebuild your route' },
-  { id: 'gmaps-handoff', section: 'handoff', label: 'A hand-off that makes Google Maps follow your plan instead of rerouting you' },
-  { id: 'roadbook', section: 'handoff', label: 'A printable sheet for the tank bag—stops, miles, and miles since fuel' },
-
   // Group
-  { id: 'share-link', section: 'group', label: 'Share the plan by link that opens with no account and no app' },
   { id: 'roster', section: 'group', label: 'Invite riders to a ride and see who is actually coming' },
   { id: 'friends', section: 'group', label: 'Friends you ride with regularly, and sharing with just them' },
-  { id: 'subgroups', section: 'group', label: 'Groups that leave from different cities, meet up, ride as one, then split for home' },
+  {
+    id: 'subgroups',
+    section: 'group',
+    label: 'Groups that leave from different cities, meet up, ride as one, then split for home',
+  },
   { id: 'vote', section: 'group', label: 'Two ways to go on the map, and the group votes' },
   { id: 'money', section: 'group', label: 'Splitting gas, motels and meals with the people on the ride' },
 
-  // On the bike
+  // On the bike. device-gpx sits here rather than in a hand-off section of its
+  // own: import and export are table stakes and gone, which left that section
+  // holding one row, and a heading for one question is a heading that reads as
+  // an oversight.
+  {
+    id: 'device-gpx',
+    section: 'onbike',
+    label: 'A GPX written for your exact device, so it does not quietly rebuild your route',
+  },
   { id: 'one-bar', section: 'onbike', label: 'Works with one bar of signal' },
   { id: 'leg-progress', section: 'onbike', label: 'Mark a leg done, and pick up where you left off' },
   { id: 'offline', section: 'onbike', label: 'Open a saved ride with no connection at all' },
@@ -212,8 +249,12 @@ export const CHOICE_QUESTIONS: readonly ChoiceQuestion[] = [
     multi: true,
     required: true,
     options: [
-      'Phone running Google Maps',
-      'Phone running something else',
+      'Google Maps',
+      'Apple Maps',
+      'Sygic',
+      'HERE WeGo',
+      'OsmAnd',
+      'Another iOS/Android app',
       'A Garmin',
       'A TomTom',
       'Printed directions or a roadbook',

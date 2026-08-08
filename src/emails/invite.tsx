@@ -39,11 +39,11 @@ export const inviteEmail = defineEmail<Props>({
 
   text: ({ url, what, expiry }) =>
     [
-      `You've been invited to ${what}.`,
+      `You’ve been invited to ${what}.`,
       '',
       url,
       '',
-      `The link is good for ${expiry}. You'll sign in with Google or an emailed link — there's no password to pick.`,
+      `The link is good for ${expiry}. You’ll sign in with Google or an emailed link—there’s no password to pick.`,
       '',
       `Why it works this way: ${FAQ_URL}`,
     ].join('\n'),
@@ -51,13 +51,13 @@ export const inviteEmail = defineEmail<Props>({
   html: ({ url, what, expiry }) =>
     (
       <>
-        <P>You've been invited to {what}.</P>
+        <P>You’ve been invited to {what}.</P>
         <Button href={url}>Open the invitation</Button>
         <Muted>
           Or paste this into your browser: <A href={url}>{url}</A>
         </Muted>
         <Muted>
-          The link is good for {expiry}. You'll sign in with Google or an emailed link — there's no password to pick.{' '}
+          The link is good for {expiry}. You’ll sign in with Google or an emailed link—there’s no password to pick.{' '}
           <A href={FAQ_URL}>Why it works this way</A>.
         </Muted>
       </>

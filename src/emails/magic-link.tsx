@@ -15,12 +15,16 @@ import { A, Button, Muted, P } from './shell'
 
 type Props = { url: string }
 
-// Straight apostrophe, matching the copy of record character for character. A
-// curly one is better typography and is deliberately not used here: this
-// template is a migration, so any difference in the delivered message would be
-// noise in the diff that proves the move was safe. Typography is a separate
-// decision, for all four templates at once.
-const EXPIRY = "This link works once and expires in 15 minutes. If you didn't ask for it, ignore this email."
+// The curly apostrophe this line used to argue against.
+//
+// It was straight so that the migration off the old template literals produced a
+// byte-identical message, and the comment here said typography was a separate
+// decision to be taken for every template at once. That has now happened: all
+// five carry real apostrophes, matching the rest of the rendered app.
+//
+// Single-quoted rather than double, because the apostrophe inside is now a
+// character rather than a delimiter and the string no longer has to escape it.
+const EXPIRY = 'This link works once and expires in 15 minutes. If you didn’t ask for it, ignore this email.'
 
 export const magicLinkEmail = defineEmail<Props>({
   key: 'magic-link',
