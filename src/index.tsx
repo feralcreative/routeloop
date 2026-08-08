@@ -30,6 +30,8 @@ import {
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
+import { inviteRoutes } from './routes/invites'
+import { surveyRoutes } from './routes/survey'
 import { dashboardRoutes } from './routes/dashboard'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
@@ -102,6 +104,10 @@ app.use('*', withSession)
 
 app.route('/', authRoutes)
 app.route('/', adminRoutes)
+// Both carry literal paths and mount before pageRoutes, whose /:handle{@…}
+// regex param is the greediest thing in the table.
+app.route('/', inviteRoutes)
+app.route('/', surveyRoutes)
 app.route('/', dashboardRoutes)
 app.route('/', mapsRoutes)
 app.route('/', rideRoutes)

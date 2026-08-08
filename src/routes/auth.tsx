@@ -4,7 +4,10 @@
 // both landing in the same session model, with users.status still deciding who
 // is actually allowed through.
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
+import { readInviteCookie } from '../invites/cookie'
+import { normalizeInviteToken } from '../invites/policy'
 import { completeGoogleLogin, GoogleAuthError, GOOGLE_ENABLED, startGoogleLogin } from '../auth/google'
 import { resolveUser } from '../auth/identity'
 import { notifyNewSignup } from '../auth/notify'
@@ -20,6 +23,7 @@ import {
   isAllowedOrigin,
 } from '../config'
 import { page } from '../views/layout'
+import { SplashPage } from '../views/splash'
 import { db } from '../db/index'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
@@ -30,39 +34,24 @@ import { sanitizeText } from '../maps/kml'
 
 export const authRoutes = new Hono<AuthEnv>()
 
-// The three splash pages (sign in, choose a name, holding) share this chrome.
-// It was three copies of the same markup before; the only thing that differed
-// was the eyebrow, the heading and what sits under them.
-function SplashMedia() {
-  return (
-    <div class="splash-media" aria-hidden="true">
-      <video
-        class="splash-video"
-        data-src="/video/tankbag-intro.mp4"
-        autoplay
-        loop
-        muted
-        playsinline
-        preload="none"
-        disablepictureinpicture
-        disableremoteplayback
-      ></video>
-    </div>
-  )
-}
-
-function SplashPage({ eyebrow, heading, children }: { eyebrow: string; heading: string; children?: unknown }) {
-  return (
-    <>
-      <SplashMedia />
-      <main class="splash">
-        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1456" height="426" />
-        <p class="eyebrow">{eyebrow}</p>
-        <h1>{heading}</h1>
-        {children}
-      </main>
-    </>
-  )
+/**
+ * Where a rider lands once they are signed in.
+ *
+ * Home, unless they arrived holding an invitation — in which case back to the
+ * invite page, signed in, where a button finishes the job.
+ *
+ * Note what this does NOT do: it does not redeem. The cookie is a redirect hint
+ * and nothing more, so a stale one costs a rider one extra page and can never
+ * spend a seat on its own. Redemption is a POST the rider makes deliberately,
+ * for the reasons routes/invites.tsx opens with.
+ *
+ * The token is checked against the token charset before it is put in a URL. It
+ * comes from a cookie, which is attacker-supplied like any other header, and
+ * this value is about to be interpolated into a Location.
+ */
+function afterSignIn(c: Context<AuthEnv>): string {
+  const token = normalizeInviteToken(readInviteCookie(c))
+  return token ? `/i/${token}` : '/'
 }
 
 // --- Sign in, and the beta waiting list -------------------------------------
@@ -112,13 +101,13 @@ authRoutes.get('/login', (c) => {
           <div class="splash-gate">
             <p>
               <span class="splash-gate-lede">Hey: </span>
-              Tankbag is in active development. <strong>Beta testing is next</strong> and it's invite-only, approved by
+              Tankbag is in active development. <strong>Beta testing is next</strong> and it’s invite-only, approved by
               hand a few riders at a time. Getting on the list is what you can do today.{' '}
               <a href="/faq#invites">Why it works this way</a>.
             </p>
           </div>
           {notice && (
-            <p class="notice">Check your email — your link is on the way. It works once, within 15 minutes.</p>
+            <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>
           )}
           {failed && (
             <p class="notice is-error">
@@ -168,7 +157,7 @@ authRoutes.get('/login', (c) => {
               Saying so beats rendering an empty box under a heading that just
               invited someone to join something.
             */}
-            {!canJoin && <p class="note">The list is closed on this deployment — no sign-in method is configured.</p>}
+            {!canJoin && <p class="note">The list is closed on this deployment—no sign-in method is configured.</p>}
             {canJoin && (
               <p class="provider-alt">
                 <strong>Already approved?</strong> Same entry point—it signs you in.
@@ -199,7 +188,7 @@ authRoutes.get('/auth/google/callback', async (c) => {
     // Detached and after the session is minted: a mail failure must not turn a
     // successful sign-in into an error page.
     notifyNewSignup(resolved, 'google')
-    return c.redirect('/', 302)
+    return c.redirect(afterSignIn(c), 302)
   } catch (err) {
     if (err instanceof GoogleAuthError) {
       // Details go to the log, not the page — the reasons are all things a
@@ -243,7 +232,7 @@ authRoutes.get('/auth/magic/:token', async (c) => {
     const resolved = await redeemMagicLink(c.req.param('token'))
     setSessionCookie(c, await createSession(resolved.user.id))
     notifyNewSignup(resolved, 'email')
-    return c.redirect('/', 302)
+    return c.redirect(afterSignIn(c), 302)
   } catch (err) {
     if (err instanceof MagicLinkError) return c.redirect('/login?error=link', 302)
     throw err
@@ -416,10 +405,10 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       variant: 'splash',
       splash: false,
       body: (
-        <SplashPage eyebrow="You're on the list" heading="Hang tight.">
+        <SplashPage eyebrow="You’re on the list" heading="Hang tight.">
           <p class="splash-copy">
-            You're in the queue for <strong>beta testing</strong>. Tankbag is in closed alpha right now — developers
-            only — and riders are waved in by hand, a few at a time. You'll be able to sign in and start planning once
+            You’re in the queue for <strong>beta testing</strong>. Tankbag is in closed alpha right now—developers
+            only—and riders are waved in by hand, a few at a time. You’ll be able to sign in and start planning once
             yours comes up.
           </p>
           <ul class="welcome-links">

@@ -58,6 +58,29 @@ export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) =
   await next()
 }
 
+// The Rider Survey, which is invite-only and deliberately NOT beta-gated.
+//
+// It cannot be requireActive, and that is the whole reason this exists. A
+// survey-only invite grants no beta access, so its holder stays `pending` —
+// requireActive would send them to /welcome, the one page whose job is to say
+// they cannot use the app yet. Being asked for an opinion and being given the
+// keys are separate things, and an invite can offer either.
+//
+// Blocked is still blocked. A blocked rider gains nothing from answering, and
+// the surface should behave for them exactly as the rest of the app does.
+//
+// An address is required because a response not tied to a verified email is not
+// a response — that is the entire reason this survey lives in the app instead of
+// in a form. users.email is nullable, so this is reachable for a legacy row.
+export const requireSurvey: MiddlewareHandler<AuthEnv> = async (c, next) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/login', 302)
+  if (!user.username) return c.redirect('/choose-name', 302)
+  if (user.status === 'blocked') return c.redirect('/welcome', 302)
+  if (!user.surveyInvitedAt || !user.email) return c.redirect('/welcome', 302)
+  await next()
+}
+
 // API flavor: a fetch() caller wants a 401, not a redirect to an HTML page.
 export const requireAuthApi: MiddlewareHandler<AuthEnv> = async (c, next) => {
   if (!c.get('user')) return c.json({ error: 'authentication required' }, 401)

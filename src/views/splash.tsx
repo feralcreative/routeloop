@@ -24,7 +24,7 @@ export function alphaSplash(): string {
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
-            Tankbag is an early build of something I'm making. Expect rough edges, missing pieces, and the occasional
+            Tankbag is an early build of something I’m making. Expect rough edges, missing pieces, and the occasional
             data reset. Feedback is the whole point.
           </p>
           {links.length > 0 && (
@@ -40,7 +40,7 @@ export function alphaSplash(): string {
           )}
         </div>
         <label class="modal-dismiss">
-          <input type="checkbox" id="alpha-hide" /> Don't show this again
+          <input type="checkbox" id="alpha-hide" /> Don’t show this again
         </label>
         <button type="button" class="btn" data-close-alpha>
           Got it
@@ -48,4 +48,49 @@ export function alphaSplash(): string {
       </div>
     </div>
   ).toString()
+}
+
+// --- The full-bleed page chrome ---------------------------------------------
+
+// The splash pages — sign in, choose a name, the holding page, and the invite
+// landing — share this. It was three copies of the same markup before, differing
+// only in the eyebrow, the heading and what sits under them.
+//
+// Moved here from routes/auth.tsx when the invite page became the fourth: a
+// route module importing chrome from another route module is the wrong shape,
+// and this file is already where the splash-surface views live.
+function SplashMedia() {
+  return (
+    <div class="splash-media" aria-hidden="true">
+      <video
+        class="splash-video"
+        data-src="/video/tankbag-intro.mp4"
+        autoplay
+        loop
+        muted
+        playsinline
+        preload="none"
+        disablepictureinpicture
+        disableremoteplayback
+      ></video>
+    </div>
+  )
+}
+
+export function SplashPage({
+  eyebrow,
+  heading,
+  children,
+}: { eyebrow: string; heading: string; children?: unknown }) {
+  return (
+    <>
+      <SplashMedia />
+      <main class="splash">
+        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1456" height="426" />
+        <p class="eyebrow">{eyebrow}</p>
+        <h1>{heading}</h1>
+        {children}
+      </main>
+    </>
+  )
 }

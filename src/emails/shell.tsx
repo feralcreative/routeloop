@@ -180,7 +180,7 @@ function header(): string {
 function footer(): string {
   return `<td class="tb-cell tb-foot" style="padding:8px 32px 32px;background-color:${COLORS.white};border-top:1px solid ${COLORS.grey}">
         <p class="tb-muted" style="margin:16px 0 0;color:${COLORS.muted};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:13px;line-height:20px;mso-line-height-rule:exactly">
-          Tankbag — plan the whole ride.<br>
+          Tankbag—plan the whole ride.<br>
           <a href="${APP_ORIGIN}" class="tb-muted" style="color:${COLORS.muted};background-color:${COLORS.white};text-decoration:underline">${APP_ORIGIN.replace(/^https?:\/\//, '')}</a>
         </p>
       </td>`

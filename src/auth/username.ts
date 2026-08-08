@@ -29,7 +29,9 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'builder',
   'dashboard',
   'favicon',
+  'i',
   'img',
+  'invites',
   'js',
   'login',
   'logout',
@@ -38,6 +40,7 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'profile',
   'static',
   'style',
+  'survey',
   'video',
   'welcome',
 ])

@@ -26,16 +26,16 @@ const FAQ_URL = `${APP_ORIGIN}/faq#invites`
 export const waitlistEmail = defineEmail<Props>({
   key: 'waitlist',
 
-  subject: () => "You're on the Tankbag list",
+  subject: () => 'You’re on the Tankbag list',
 
   preheader: () => 'Nothing to do now. Riders are approved by hand, a few at a time.',
 
   text: () =>
     [
-      "You're on the list for Tankbag.",
+      'You’re on the list for Tankbag.',
       '',
-      "Beta is invite-only and I approve riders by hand, a few at a time. There's",
-      "nothing else for you to do — you'll get an email when your turn comes up.",
+      'Beta is invite-only and I approve riders by hand, a few at a time. There’s',
+      'nothing else for you to do—you’ll get an email when your turn comes up.',
       '',
       `Your place: ${WELCOME_URL}`,
       `Why it works this way: ${FAQ_URL}`,
@@ -44,10 +44,10 @@ export const waitlistEmail = defineEmail<Props>({
   html: () =>
     (
       <>
-        <P>You're on the list for Tankbag.</P>
+        <P>You’re on the list for Tankbag.</P>
         <P>
-          Beta is invite-only and I approve riders by hand, a few at a time. There's nothing else for you to do —
-          you'll get an email when your turn comes up.
+          Beta is invite-only and I approve riders by hand, a few at a time. There’s nothing else for you to do—
+          you’ll get an email when your turn comes up.
         </P>
         <Muted>
           <A href={WELCOME_URL}>Your place</A> · <A href={FAQ_URL}>Why it works this way</A>

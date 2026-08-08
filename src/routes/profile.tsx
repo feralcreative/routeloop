@@ -223,8 +223,8 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Public starting point</legend>
           <p class="field-hint">
             Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you
-            would not mind strangers seeing on a map &mdash; a gas station, a coffee shop, a trailhead, a supermarket
-            car park. Somewhere you can actually meet people is ideal.
+            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket car
+            park. Somewhere you can actually meet people is ideal.
           </p>
           <p class="field-hint">
             Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on
@@ -235,7 +235,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
             label="Name it"
             values={v}
             errors={errors}
-            hint={'What it shows up as. "Chevron on Main", "Peet\'s at the plaza".'}
+            hint={'What it shows up as. “Chevron on Main”, “Peet’s at the plaza”.'}
           />
           <Field name="startAddressLine" label="Address" values={v} errors={errors} autocomplete="off" />
           <Field name="startCity" label="City" values={v} errors={errors} autocomplete="off" />

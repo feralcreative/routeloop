@@ -68,7 +68,7 @@ dashboardRoutes.get('/dashboard', requireActive, async (c) => {
           ))}
         </ul>
       ) : (
-        <p class="empty">No rides yet — plan your first one.</p>
+        <p class="empty">No rides yet—plan your first one.</p>
       )}
     </>
   ).toString()

@@ -26,30 +26,30 @@ export const approvedEmail = defineEmail<Props>({
 
   subject: () => 'Your Tankbag account is approved',
 
-  preheader: () => "You're in. Sign in and start planning.",
+  preheader: () => 'You’re in. Sign in and start planning.',
 
   text: ({ displayName }) =>
     [
-      `You're in, ${displayName}.`,
+      `You’re in, ${displayName}.`,
       '',
       'Your Tankbag account is approved, so you can sign in and start planning.',
       '',
       `Sign in: ${LOGIN_URL}`,
       '',
       'Two ways to start:',
-      `  Plan a ride from scratch — ${BUILDER_URL}`,
-      `  Import a route you already have (KML, GPX, GeoJSON, CSV) — ${IMPORT_URL}`,
+      `  Plan a ride from scratch: ${BUILDER_URL}`,
+      `  Import a route you already have (KML, GPX, GeoJSON, CSV): ${IMPORT_URL}`,
     ].join('\n'),
 
   html: ({ displayName }) =>
     (
       <>
-        <P>You're in, {displayName}.</P>
+        <P>You’re in, {displayName}.</P>
         <P>Your Tankbag account is approved, so you can sign in and start planning.</P>
         <Button href={LOGIN_URL}>Sign in</Button>
         <Muted>
           Two ways to start: <A href={BUILDER_URL}>plan a ride from scratch</A>, or{' '}
-          <A href={IMPORT_URL}>import a route you already have</A> — KML, GPX, GeoJSON or CSV.
+          <A href={IMPORT_URL}>import a route you already have</A>—KML, GPX, GeoJSON or CSV.
         </Muted>
       </>
     ).toString(),

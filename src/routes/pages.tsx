@@ -145,8 +145,8 @@ pageRoutes.get('/riders', requireActive, async (c) => {
     <>
       <h1>Riders</h1>
       <p class="lede">
-        Everyone planning here. Names and handles only &mdash; anything else is on a rider's own profile, and only if
-        they put it there.
+        Everyone planning here. Names and handles only—anything else is on a rider’s own profile, and only if they put
+        it there.
       </p>
       <form class="rider-search" method="get" action="/riders">
         <label class="visually-hidden" for="rider-q">
