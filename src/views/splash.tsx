@@ -49,3 +49,48 @@ export function alphaSplash(): string {
     </div>
   ).toString()
 }
+
+// --- The full-bleed page chrome ---------------------------------------------
+
+// The splash pages — sign in, choose a name, the holding page, and the invite
+// landing — share this. It was three copies of the same markup before, differing
+// only in the eyebrow, the heading and what sits under them.
+//
+// Moved here from routes/auth.tsx when the invite page became the fourth: a
+// route module importing chrome from another route module is the wrong shape,
+// and this file is already where the splash-surface views live.
+function SplashMedia() {
+  return (
+    <div class="splash-media" aria-hidden="true">
+      <video
+        class="splash-video"
+        data-src="/video/tankbag-intro.mp4"
+        autoplay
+        loop
+        muted
+        playsinline
+        preload="none"
+        disablepictureinpicture
+        disableremoteplayback
+      ></video>
+    </div>
+  )
+}
+
+export function SplashPage({
+  eyebrow,
+  heading,
+  children,
+}: { eyebrow: string; heading: string; children?: unknown }) {
+  return (
+    <>
+      <SplashMedia />
+      <main class="splash">
+        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1456" height="426" />
+        <p class="eyebrow">{eyebrow}</p>
+        <h1>{heading}</h1>
+        {children}
+      </main>
+    </>
+  )
+}

@@ -4,7 +4,10 @@
 // both landing in the same session model, with users.status still deciding who
 // is actually allowed through.
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
+import { readInviteCookie } from '../invites/cookie'
+import { normalizeInviteToken } from '../invites/policy'
 import { completeGoogleLogin, GoogleAuthError, GOOGLE_ENABLED, startGoogleLogin } from '../auth/google'
 import { resolveUser } from '../auth/identity'
 import { notifyNewSignup } from '../auth/notify'
@@ -20,6 +23,7 @@ import {
   isAllowedOrigin,
 } from '../config'
 import { page } from '../views/layout'
+import { SplashPage } from '../views/splash'
 import { db } from '../db/index'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
@@ -30,39 +34,24 @@ import { sanitizeText } from '../maps/kml'
 
 export const authRoutes = new Hono<AuthEnv>()
 
-// The three splash pages (sign in, choose a name, holding) share this chrome.
-// It was three copies of the same markup before; the only thing that differed
-// was the eyebrow, the heading and what sits under them.
-function SplashMedia() {
-  return (
-    <div class="splash-media" aria-hidden="true">
-      <video
-        class="splash-video"
-        data-src="/video/tankbag-intro.mp4"
-        autoplay
-        loop
-        muted
-        playsinline
-        preload="none"
-        disablepictureinpicture
-        disableremoteplayback
-      ></video>
-    </div>
-  )
-}
-
-function SplashPage({ eyebrow, heading, children }: { eyebrow: string; heading: string; children?: unknown }) {
-  return (
-    <>
-      <SplashMedia />
-      <main class="splash">
-        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1456" height="426" />
-        <p class="eyebrow">{eyebrow}</p>
-        <h1>{heading}</h1>
-        {children}
-      </main>
-    </>
-  )
+/**
+ * Where a rider lands once they are signed in.
+ *
+ * Home, unless they arrived holding an invitation — in which case back to the
+ * invite page, signed in, where a button finishes the job.
+ *
+ * Note what this does NOT do: it does not redeem. The cookie is a redirect hint
+ * and nothing more, so a stale one costs a rider one extra page and can never
+ * spend a seat on its own. Redemption is a POST the rider makes deliberately,
+ * for the reasons routes/invites.tsx opens with.
+ *
+ * The token is checked against the token charset before it is put in a URL. It
+ * comes from a cookie, which is attacker-supplied like any other header, and
+ * this value is about to be interpolated into a Location.
+ */
+function afterSignIn(c: Context<AuthEnv>): string {
+  const token = normalizeInviteToken(readInviteCookie(c))
+  return token ? `/i/${token}` : '/'
 }
 
 // --- Sign in, and the beta waiting list -------------------------------------
@@ -199,7 +188,7 @@ authRoutes.get('/auth/google/callback', async (c) => {
     // Detached and after the session is minted: a mail failure must not turn a
     // successful sign-in into an error page.
     notifyNewSignup(resolved, 'google')
-    return c.redirect('/', 302)
+    return c.redirect(afterSignIn(c), 302)
   } catch (err) {
     if (err instanceof GoogleAuthError) {
       // Details go to the log, not the page — the reasons are all things a
@@ -243,7 +232,7 @@ authRoutes.get('/auth/magic/:token', async (c) => {
     const resolved = await redeemMagicLink(c.req.param('token'))
     setSessionCookie(c, await createSession(resolved.user.id))
     notifyNewSignup(resolved, 'email')
-    return c.redirect('/', 302)
+    return c.redirect(afterSignIn(c), 302)
   } catch (err) {
     if (err instanceof MagicLinkError) return c.redirect('/login?error=link', 302)
     throw err

@@ -51,7 +51,18 @@ export function googleMapsLoader(key: string): string {
 }
 
 export type PageVariant = 'chrome' | 'map' | 'splash'
-export type NavKey = 'home' | 'explore' | 'riders' | 'rides' | 'builder' | 'import' | 'places' | 'profile' | 'admin'
+export type NavKey =
+  | 'home'
+  | 'explore'
+  | 'riders'
+  | 'rides'
+  | 'builder'
+  | 'import'
+  | 'places'
+  | 'profile'
+  | 'admin'
+  | 'invites'
+  | 'survey'
 
 export type PageOpts = {
   /** Without the " — Tankbag" suffix; page() appends it. */
@@ -124,12 +135,18 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               <NavLink item={l} navKey={navKey} />
             ))}
             {/*
-              Rider management is the only nav item that is capability-gated
-              rather than shown to every signed-in rider, so it is appended here
-              instead of living in the static NAV_LINKS list.
+              The capability-gated items, appended here rather than living in
+              the static NAV_LINKS list because each is shown to some signed-in
+              riders and not others.
             */}
+            {user.surveyInvitedAt && (
+              <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
+            )}
             {user.canManageRiders && (
-              <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />
+              <>
+                <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />
+                <NavLink item={{ key: 'invites', href: '/admin/invites', label: 'Invitations' }} navKey={navKey} />
+              </>
             )}
             <hr />
             <span class="nav-user">{user.displayName}</span>

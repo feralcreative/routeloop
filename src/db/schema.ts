@@ -25,6 +25,12 @@ export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare'
 // account, so a new rider lands 'pending' and waits for approval.
 export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private'])
+// Three ways to hand out access, and the difference is not only max_uses. An
+// 'email' invite is bound to an address and mailed; a 'link' is one URL handed
+// to one person; a 'group' is pasted into a channel and read by everyone in it.
+// Recorded rather than derived from max_uses, because a group link with one seat
+// left is still a group link and the admin page has to say so.
+export const inviteKindEnum = pgEnum('invite_kind', ['email', 'link', 'group'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
 // The 17-category taxonomy carried over from the KML naming convention;
@@ -91,6 +97,20 @@ export const users = pgTable(
     //
     // To resend deliberately: UPDATE users SET approved_email_at = NULL.
     approvedEmailAt: timestamp('approved_email_at'),
+    // When an invite let this rider into the Rider Survey, or null if none has.
+    //
+    // Denormalized from invite_redemptions -> invites.grants_survey, and the
+    // reason is the nav: it decides whether to render a Survey item on every
+    // page render, and this row is already loaded by withSession. Deriving it
+    // would mean a join on every request or an eager join in withSession, which
+    // is exactly the growth the users / user_profiles split below exists to
+    // avoid. The join is the truth; this is the cache, like used_bytes above.
+    //
+    // A timestamp rather than a boolean because it also answers "when were they
+    // let in", which the admin page wants, and null/not-null is the flag.
+    //
+    // Nullable with no default, for the reason approved_email_at documents.
+    surveyInvitedAt: timestamp('survey_invited_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
     quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(262144000), // 250 MB
     usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0), // denormalized cache
@@ -239,6 +259,128 @@ export const loginTokens = pgTable(
   ],
 )
 
+// A grant of access, issued by a manager, redeemed by whoever holds the link.
+//
+// The token follows login_tokens exactly: random bytes handed out, only the
+// SHA-256 hash stored, so a leaked table yields nothing redeemable. What is
+// deliberately NOT here is any notion of the invite identifying a person — a
+// group link is read by a whole Discord channel, so the only identity that ever
+// matters is the one the redeemer signs in with. invite_redemptions is where
+// people appear.
+//
+// This is not a second authorization system. grants_beta performs the same
+// pending -> active transition /admin performs, through the same rule in
+// src/emails/rules.ts. There is no third account state and no invite-specific
+// capability.
+//
+// THE SECURITY MODEL IS REVOCABLE-AND-OBSERVABLE, NOT UNFORGEABLE. A link
+// pasted into a channel will leak past it; treat that as certain rather than as
+// a risk. uq_redemption_invite_user stops one account redeeming twice, and
+// nothing stops one person with three Google accounts. The controls that
+// actually work are max_uses as a hard budget, label so you can tell which link
+// leaked, expires_at, revoked_at, and rotating token_hash.
+export const invites = pgTable(
+  'invites',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    // Rotatable, which is why this is a unique index and not the primary key the
+    // way it is on login_tokens and sessions. Regenerating answers a leak while
+    // keeping the row's identity, its label and its redemption history.
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    kind: inviteKindEnum('kind').notNull(),
+    grantsSurvey: boolean('grants_survey').notNull().default(false),
+    grantsBeta: boolean('grants_beta').notNull().default(false),
+    // Set only for kind='email'. NOT enforced at redemption: people are mailed
+    // at one address and sign in with another constantly, and refusing that
+    // would strand exactly the invitees who did nothing wrong.
+    email: varchar('email', { length: 255 }),
+    // What this link is for, in the manager's own words — "MC Discord #general".
+    // The only thing that tells you WHICH link leaked.
+    label: varchar('label', { length: 120 }),
+    maxUses: integer('max_uses').notNull().default(1),
+    // A cache of invite_redemptions rows with consumed_seat, kept here so the
+    // seat claim is one conditional UPDATE rather than a count under a lock.
+    usedCount: integer('used_count').notNull().default(0),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdBy: bigint('created_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_invite_token').on(t.tokenHash),
+    index('idx_invite_created').on(t.createdBy, t.createdAt),
+    // An invite that grants nothing is a bug, not a state.
+    check('ck_invite_grants_something', sql`grants_survey or grants_beta`),
+    check('ck_invite_uses', sql`max_uses >= 1 and used_count >= 0 and used_count <= max_uses`),
+    check('ck_invite_email_kind', sql`kind <> 'email' or email is not null`),
+  ],
+)
+
+// Who came in through which invite. The audit trail invites.used_count caches.
+//
+// The unique index is the idempotency MECHANISM, not a report: it is what makes
+// a double-click, a retried POST and a second visit a week later all cost one
+// seat. redeemInvite() reads a zero-row insert as "this rider is already in".
+//
+// consumed_seat records whether this redemption incremented invites.used_count.
+// It is false when the invite had nothing left to give this rider — an already
+// active member opening a group link out of curiosity — because seats are a
+// budget for letting NEW people in. Without it, a 25-seat link pasted into a
+// channel of 40 riders who mostly have accounts is exhausted by people who
+// gained nothing, which is the group link quietly failing.
+export const inviteRedemptions = pgTable(
+  'invite_redemptions',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    inviteId: bigint('invite_id', { mode: 'number' })
+      .notNull()
+      .references(() => invites.id, { onDelete: 'cascade' }),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    consumedSeat: boolean('consumed_seat').notNull().default(false),
+    redeemedAt: timestamp('redeemed_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_redemption_invite_user').on(t.inviteId, t.userId),
+    index('idx_redemption_invite').on(t.inviteId, t.redeemedAt),
+    index('idx_redemption_user').on(t.userId),
+  ],
+)
+
+// One rider's answers to the Rider Survey. The FK is the PK — one response per
+// rider, no surrogate id to keep in sync — following user_profiles above.
+//
+// answers is jsonb and the question set lives in src/survey/questions.ts, so
+// changing a question is a code change and never a migration. That is the whole
+// point: drizzle-kit push is the only migration tool here and it is dangerous,
+// so this feature is deliberately DDL-free after day one.
+//
+// $type<> is a compile-time claim Postgres does not enforce. EVERY read goes
+// through parseAnswers(), which is lenient by design — a draft written under
+// SURVEY_VERSION 1 and read by version 2 code has missing keys, and casting
+// would assert they are there.
+//
+// submitted_at null means a draft in progress. The admin summary counts only
+// submitted rows; the rider may keep editing either way.
+export const surveyResponses = pgTable(
+  'survey_responses',
+  {
+    userId: bigint('user_id', { mode: 'number' })
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    surveyVersion: smallint('survey_version').notNull().default(1),
+    answers: jsonb('answers').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    submittedAt: timestamp('submitted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('idx_survey_submitted').on(t.submittedAt)],
+)
+
 // The shareable package (docs/ideas.md): a ride holds many routes over many
 // days/sessions. The slug is the share id; visibility gates viewing. Byte
 // columns describe imported originals on disk and drive quota — native rides
@@ -379,6 +521,11 @@ export type UserProfileRow = typeof userProfiles.$inferSelect
 export type UsernameHistoryRow = typeof usernameHistory.$inferSelect
 export type LoginTokenRow = typeof loginTokens.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
+export type InviteRow = typeof invites.$inferSelect
+export type InviteRedemptionRow = typeof inviteRedemptions.$inferSelect
+export type SurveyResponseRow = typeof surveyResponses.$inferSelect
+/** The three ways an invite is handed out, derived from the enum so the two cannot drift. */
+export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
 export type RideRow = typeof rides.$inferSelect
 export type RouteRow = typeof routes.$inferSelect
 export type PointRow = typeof points.$inferSelect

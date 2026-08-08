@@ -1,0 +1,395 @@
+@use "sass:color";
+@use "tokens" as *;
+
+// The rider survey, the invitations page, and the two things they needed that
+// this project had never styled: a radio group, and a table of data.
+//
+// The survey is 34 rated rows on one page and it is filled in on a phone as
+// often as not, so the rating control is the whole design problem here. A
+// four-column grid of radios reads fine at 1200px and is unusable at 390px,
+// where the labels wrap to two lines each and the row becomes 90px tall. The
+// answer below is one control that changes shape rather than two controls: a
+// segmented strip that goes horizontal when there is room and stacks when there
+// is not.
+
+// --- The rating strip --------------------------------------------------------
+
+.rate-row {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid color.adjust($grey, $lightness: 6%);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  // Marked on the row, not the input, because the thing that is wrong is "you
+  // did not answer this question" and the question is the row.
+  &.has-error {
+    background: rgba(211, 47, 47, 0.05);
+    box-shadow: inset 3px 0 0 $kml;
+  }
+}
+
+.rate-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.rate-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+// The label is the control. The radio itself is hidden from sight but NOT from
+// the accessibility tree or the keyboard — position:absolute with opacity:0
+// keeps it focusable and announced, which display:none would not. The focus ring
+// is drawn on the sibling span via :focus-visible.
+.rate-opt {
+  flex: 1 1 8rem;
+  position: relative;
+  display: block;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+  }
+
+  span {
+    display: block;
+    padding: 0.55rem 0.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #555;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 8px;
+    // Tall enough to hit with a thumb at speed. 44px is the figure both Apple
+    // and Google publish, and this is a page people fill in one-handed.
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  input:checked + span {
+    color: $white;
+    background: $brand;
+    border-color: $brand;
+  }
+
+  input:focus-visible + span {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+
+  &:hover input:not(:checked) + span {
+    border-color: #bbb;
+  }
+}
+
+//@ XS <560px — four labels will not sit side by side at this width, so the
+// strip goes two-up rather than one-up.
+//
+// Two-up and not stacked, because this form is 34 rated rows and the phone is
+// where most of them get answered: one-up put a single question at ~350px and
+// the whole page near 12,000px of scrolling, which is its own reason to give up
+// half way through. Two-up roughly halves that.
+//
+// Reading order still runs the scale correctly — row by row it is don't care,
+// nice to have, would use, must have — which is the objection that has to be
+// answered before splitting a scale across two columns is allowed.
+@media (max-width: 559px) {
+  .rate-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .rate-opt span {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+    font-size: 0.8rem;
+  }
+}
+
+// --- The rest of the form ----------------------------------------------------
+
+.survey-form {
+  max-width: 46rem;
+}
+
+.survey-section {
+  margin: 0 0 2rem;
+  padding: 1.25rem 1.4rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 12px;
+
+  legend {
+    padding: 0 0.5rem;
+    font-weight: 900;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #777;
+  }
+}
+
+.section-blurb {
+  margin: 0 0 1rem;
+
+  &.has-error {
+    color: $kml;
+  }
+}
+
+// Checkbox and radio lists in the "how you ride" block. Two columns where there
+// is room, because these are short options and a single column of eleven
+// planning tools is a lot of scrolling for a list you read all of at once.
+.opt-list {
+  display: grid;
+  gap: 0.15rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  margin-top: 0.4rem;
+
+  .check {
+    margin: 0;
+    padding: 0.35rem 0;
+  }
+}
+
+.survey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 3rem;
+}
+
+// The second submit. Deliberately quiet — saving a draft is the safe, boring
+// action and should not compete with sending.
+.btn-quiet {
+  color: $text;
+  background: $white;
+  border: 1px solid $grey;
+
+  &:hover {
+    border-color: #bbb;
+  }
+}
+
+// --- The admin summary -------------------------------------------------------
+
+// The one horizontally-scrolling thing in the app. A six-column table of 34 rows
+// does not fit a phone and never will, so it scrolls inside its own box rather
+// than making the whole page scroll sideways.
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 0 2rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid $grey;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #555;
+    white-space: nowrap;
+  }
+
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  tbody tr:hover {
+    background: #fafafa;
+  }
+}
+
+// The distribution bar. Four segments flexed by their counts, so a room split
+// between "must have" and "don't care" looks different from a room that all said
+// "would use" — which is the thing an average cannot show.
+.spread {
+  display: flex;
+  width: 7rem;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #eee;
+
+  span {
+    display: block;
+    min-width: 0;
+  }
+}
+
+.spread-0 {
+  background: #ddd;
+}
+.spread-1 {
+  background: #b9d3ee;
+}
+.spread-2 {
+  background: color.adjust($brand, $lightness: 20%);
+}
+.spread-3 {
+  background: $brand;
+}
+
+.tally {
+  margin: 0 0 1.75rem;
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+}
+
+.tally-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    position: relative;
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.2rem;
+    // The bar sits behind the label rather than beside it, so a long option name
+    // never squeezes the bar into a sliver.
+    isolation: isolate;
+  }
+}
+
+.tally-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  background: rgba(21, 101, 192, 0.14);
+  border-radius: 4px;
+}
+
+.tally-label {
+  font-size: 0.9rem;
+}
+
+.quote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    margin: 0 0 0.6rem;
+    padding: 0.7rem 0.9rem;
+    background: $white;
+    border: 1px solid $grey;
+    border-left: 3px solid $brand;
+    border-radius: 8px;
+    // Riders write paragraphs in these, and the newlines they typed are meaning.
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+}
+
+// --- Invitations -------------------------------------------------------------
+
+.invite-form {
+  max-width: 34rem;
+}
+
+.invite {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.invite-main {
+  flex: 1 1 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.invite-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.invite-meta {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+
+  form {
+    margin: 0;
+  }
+}
+
+// How full a group link is, readable from across the page. The whole reason a
+// number alone is not enough: 23/25 and 3/25 are the same glance.
+.seat-meter {
+  width: 100%;
+  max-width: 16rem;
+  height: 6px;
+  margin-top: 0.35rem;
+  border-radius: 3px;
+  background: #eee;
+  overflow: hidden;
+
+  span {
+    display: block;
+    height: 100%;
+    background: $brand;
+  }
+}
+
+// The one-time link. It exists in this response and nowhere else, so the block
+// is loud on purpose.
+.invite-fresh {
+  p {
+    margin: 0 0 0.6rem;
+  }
+}
+
+.invite-link {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: $text;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+}

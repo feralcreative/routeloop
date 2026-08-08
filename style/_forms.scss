@@ -93,14 +93,25 @@
 .field {
   margin: 0 0 1.1rem;
 
-  label {
+  label,
+  .field-label {
     display: block;
     margin-bottom: 0.3rem;
     font-weight: 700;
     font-size: 0.92rem;
   }
 
-  input {
+  // `select` and `textarea` joined `input` here when the survey arrived. Before
+  // that neither had any styling at all — the one `<select>` on /import rendered
+  // as the platform default beside inputs that did not.
+  //
+  // The selector is deliberately narrow: a bare `input` at 100% width would also
+  // catch a radio or a checkbox placed inside a .field, and stretch it across the
+  // row. Those belong in .check and .opt-list, which is why the type exclusions
+  // are here rather than left to whoever writes the next form.
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
     box-sizing: border-box;
     width: 100%;
     padding: 0.6rem 0.7rem;
@@ -117,7 +128,22 @@
     }
   }
 
-  &.has-error input {
+  textarea {
+    resize: vertical;
+    min-height: 5.5rem;
+    line-height: 1.45;
+  }
+
+  // Native arrow, deliberately: a custom one means a background-image and a
+  // second set of rules per platform, and the native control is the one a rider
+  // on a phone already knows how to drive.
+  select {
+    appearance: auto;
+  }
+
+  &.has-error input,
+  &.has-error select,
+  &.has-error textarea {
     border-color: $kml;
   }
 }

@@ -182,7 +182,16 @@ export function buildGeoJson(ride: ExportRide): string {
 // Quoting is RFC 4180: a field is quoted when it contains the delimiter, a
 // quote or a newline, and a quote inside becomes two. csv.ts parses the same
 // grammar, so a file written here reads back exactly.
-const csvCell = (v: string | number | null | undefined): string => {
+//
+// Deliberately does NOT neutralize leading =, +, - or @. A spreadsheet reads
+// those as formulas, but this file's contract is byte-identical round-tripping
+// (test/round-trip.test.ts) and a stop legitimately named "-" would come back
+// changed. src/survey/csv.ts writes free text a person will open in Excel and
+// therefore does guard it, in its own escaper. The two look alike and must not
+// be merged; test/survey-csv.test.ts asserts they still differ.
+//
+// Exported only so that test can make that assertion.
+export const csvCell = (v: string | number | null | undefined): string => {
   if (v == null) return ''
   const s = String(v)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
