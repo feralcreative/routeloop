@@ -110,8 +110,8 @@ authRoutes.get('/login', (c) => {
           */}
 
           <div class="splash-gate">
-            <p class="splash-gate-lead">Hey:</p>
             <p>
+              <span class="splash-gate-lede">Hey: </span>
               Tankbag is in active development. <strong>Beta testing is next</strong> and it's invite-only, approved by
               hand a few riders at a time. Getting on the list is what you can do today.{' '}
               <a href="/faq#invites">Why it works this way</a>.

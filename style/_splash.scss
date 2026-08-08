@@ -30,7 +30,12 @@
 .splash {
   position: relative; // lifts the copy above the fixed video layer
   z-index: 1;
-  --control-width: 320px;
+  // One width for every control stack on the splash pages — the email form and
+  // its submit, the Google button, the line under it, and the .name-form and
+  // .welcome-links columns on the two sibling pages. They are set from one
+  // variable so those pages cannot drift into three near-identical widths.
+  // Change it here and they all move together, which is the point.
+  --control-width: 416px;
   padding: clamp(2rem, 9vh, 7rem) 0;
 
   h1 {
@@ -121,7 +126,7 @@
 }
 
 // The refusal is the headline of the block; everything under it is support.
-.splash-gate-lead {
+.splash-gate-lede {
   color: $white;
   font-size: 1.15rem;
   font-weight: 900;
@@ -637,7 +642,7 @@ body.splash-page {
     font-size: 0.95rem;
   }
 
-  .splash-gate-lead {
+  .splash-gate-lede {
     font-size: 1.02rem;
   }
 
