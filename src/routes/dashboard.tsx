@@ -9,8 +9,6 @@ import { page } from '../views/layout'
 
 export const dashboardRoutes = new Hono<AuthEnv>()
 
-const MB = 1024 * 1024
-
 // Deliberately not views/cards.tsx: this row carries a visibility pill and an
 // edit link that the public card must never show. Same shape, different
 // contract — merging them would mean a flag that only ever means "am I the
@@ -45,16 +43,20 @@ dashboardRoutes.get('/dashboard', requireActive, async (c) => {
     .where(eq(rides.ownerId, user.id))
     .orderBy(desc(rides.createdAt))
 
-  const usedMb = (user.usedBytes / MB).toFixed(1)
-  const quotaMb = Math.round(user.quotaBytes / MB)
 
   // Unlike the public listing, this shows every visibility — they are the
   // owner's own rides.
   const body = (
     <>
       <h1>Your rides</h1>
+      {/*
+        The storage figure moved to the home page, where it is a meter beside the
+        rest of the rider's numbers and is hidden entirely when nothing has been
+        imported. It read "0.0 MB of 250 MB" forever for anyone who only used the
+        builder, which is most people.
+      */}
       <div class="sub">
-        {usedMb} MB of {quotaMb} MB used
+        {rows.length} {rows.length === 1 ? 'ride' : 'rides'}
       </div>
       <p>
         <a class="btn" href="/builder">

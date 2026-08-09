@@ -112,8 +112,30 @@ export const users = pgTable(
     // Nullable with no default, for the reason approved_email_at documents.
     surveyInvitedAt: timestamp('survey_invited_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
-    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(262144000), // 250 MB
-    usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0), // denormalized cache
+    // 25 MB, lowered from 250 for the beta.
+    //
+    // Only IMPORTED files count against this — a ride built in the builder writes
+    // nothing to disk — and one import is stored three times over: the original
+    // upload byte-for-byte, plus a generated KML and a generated GPX, which is
+    // what size_bytes on rides sums. Call it 0.3–1 MB per imported riding day, so
+    // 25 MB is roughly 25–80 days.
+    //
+    // The number is bounded below by two things, and moving it down further
+    // breaks one of them: the 16 MB per-request body limit in routes/maps.ts, and
+    // the 200,000-point ride cap, whose worst case is about 24 MB. A quota under
+    // either would refuse a legitimate import for a reason the rider cannot see.
+    //
+    // Changing this default does NOT touch existing rows — for a column that
+    // already exists, push emits ALTER COLUMN SET DEFAULT and Postgres applies it
+    // to new inserts only. That is the mirror image of the hazard the status and
+    // approved_email_at comments describe above, and it is why
+    // utils/deploy/sql/2026-08-08-quota-25mb.sql carries an explicit UPDATE.
+    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(26214400), // 25 MB
+    // Denormalized cache of sum(rides.size_bytes), incremented on import and
+    // decremented on delete, with no reconciler — so it drifts, and has. The
+    // dashboard computes the authoritative sum alongside it and reports the
+    // disagreement rather than trusting this.
+    usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     lastLoginAt: timestamp('last_login_at'),

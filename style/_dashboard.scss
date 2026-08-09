@@ -1,0 +1,442 @@
+@use "sass:color";
+@use "tokens" as *;
+
+// The signed-in home page: hero figure, KPI tiles, a meter, two bar forms and
+// one chart.
+//
+// Everything except the chart is built from divs. The app already had three
+// working instances of this idiom before the dashboard existed — .seat-meter on
+// the invites page, .spread and .tally-bar on the survey summary — and a
+// charting library asked to draw a horizontal bar produces worse marks than a
+// span with a width on it.
+//
+// Colours are declared once as custom properties on .home and referenced by role
+// below, so a palette change is one block rather than a search. The three
+// categorical hues were run through the data-viz validator against this page's
+// white card surface: all five checks pass, worst adjacent pair is teal-orange
+// at OKLab ΔE 11.6 under protanopia. Do not swap one by eye — re-run the script.
+//
+// There is no dark mode here on purpose: this app has none. Only the emails do.
+// A single dark-aware page in a light-only app is a worse outcome than a
+// consistent one, so when the site gets a theme this block joins it.
+.home {
+  // Sequential slot. One hue, because these bars compare magnitude and length
+  // already carries it — a ramp across seventeen unordered categories would
+  // imply a rank the data does not have.
+  --viz-series-1: #{$brand};
+  // Categorical slots, validated as a set. Order is fixed: public, unlisted,
+  // private. Colour follows the meaning, never the size of the group.
+  --viz-cat-1: #1565c0;
+  --viz-cat-2: #c85a10;
+  --viz-cat-3: #0f8f6f;
+  --viz-ink-muted: #777;
+  --viz-grid: #{color.adjust($grey, $lightness: 6%)};
+  --viz-track: #eee;
+}
+
+// --- Hero --------------------------------------------------------------------
+
+.hero-stat {
+  margin: 0 0 1.5rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+}
+
+.hero-value {
+  font-size: clamp(2.75rem, 9vw, 4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-label {
+  font-size: 1.05rem;
+  color: #666;
+}
+
+// --- KPI tiles ---------------------------------------------------------------
+
+.stat-tiles {
+  list-style: none;
+  margin: 0 0 2rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  // auto-fit rather than a fixed count: the tile row is 4 or 5 items depending
+  // on whether the rider has ever dragged the route line, and a fixed grid
+  // leaves a hole when it is 4.
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+.stat-tile {
+  padding: 0.9rem 1rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+// --- Blocks ------------------------------------------------------------------
+
+.stat-block {
+  margin: 0 0 2.25rem;
+
+  h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem;
+  }
+}
+
+.stat-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+// --- Meter -------------------------------------------------------------------
+
+.meter {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--viz-track);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--viz-series-1);
+}
+
+// --- Role bars ---------------------------------------------------------------
+
+.role-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.role-bar {
+  display: grid;
+  // Label, then the track takes the slack, then the count. Fixed label column so
+  // every bar starts at the same x — bars that start at different places are not
+  // comparable, which is the entire job of this chart.
+  grid-template-columns: 9.5rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.role-label {
+  color: #444;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-track {
+  height: 14px;
+  background: var(--viz-track);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.role-fill {
+  display: block;
+  height: 100%;
+  background: var(--viz-series-1);
+  // 4px rounded data-end, anchored to the baseline: the bar is square where it
+  // starts and rounded where the value is, so the rounding never reads as part
+  // of the magnitude.
+  border-radius: 0 4px 4px 0;
+}
+
+.role-n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #555;
+}
+
+//@ XS <560px — the fixed label column stops fitting, so the label goes above
+// its own bar. Bars still share a left edge, which is the property that matters.
+@media (max-width: 559px) {
+  .role-bar {
+    grid-template-columns: 1fr 2.5rem;
+    grid-template-areas: "label label" "track n";
+    gap: 0.15rem 0.6rem;
+  }
+
+  .role-label {
+    grid-area: label;
+  }
+  .role-track {
+    grid-area: track;
+  }
+  .role-n {
+    grid-area: n;
+  }
+}
+
+// --- Visibility split --------------------------------------------------------
+
+.split {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  // 2px of surface between segments, so two adjacent fills never touch and read
+  // as one longer band.
+  gap: 2px;
+  background: var(--viz-track);
+}
+
+.split-seg {
+  display: block;
+  min-width: 0;
+}
+
+.split-public {
+  background: var(--viz-cat-1);
+}
+.split-unlisted {
+  background: var(--viz-cat-2);
+}
+.split-private {
+  background: var(--viz-cat-3);
+}
+
+.split-key {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  font-size: 0.9rem;
+  // Text wears text tokens; the dot beside it carries the identity.
+  color: #555;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
+.key-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+// --- Records -----------------------------------------------------------------
+
+.record-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+
+  li {
+    padding: 0.8rem 1rem;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+}
+
+.record-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.record-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.record-hint {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+// --- The chart, and the table that is its accessible twin --------------------
+
+.chart {
+  margin: 0 0 0.5rem;
+  min-height: 150px;
+}
+
+// The table is always in the DOM. On a screen wide enough for the chart it is
+// redundant and hidden; on a narrow one, or with no JavaScript, it IS the chart.
+// `.chart:empty` is the test — uPlot fills the div, so an empty one means the
+// script never ran and the table has to stay.
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th,
+  td {
+    padding: 0.25rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid var(--viz-grid);
+  }
+
+  th[scope="row"] {
+    font-weight: 400;
+    color: #666;
+    width: 5rem;
+  }
+
+  .num {
+    position: relative;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.mini-bar {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  z-index: -1;
+  background: rgba(21, 101, 192, 0.14);
+  border-radius: 3px;
+}
+
+//@ Chart present — hide the duplicate table once uPlot has actually drawn.
+//
+// :has() is doing real work: the presence of a rendered canvas decides, so a
+// script that never ran leaves the table on screen without needing any script of
+// its own to arrange that.
+//
+// clip-path, not the old `clip` rect, and the difference matters HERE
+// specifically. A <table> will not size below its minimum content width, so
+// `width: 1px` is quietly ignored and the element stays ~100px wide — harmless,
+// since it is out of flow, but it means the width can never be what does the
+// hiding. clip-path: inset(50%) clips whatever size the box ends up.
+//
+// Matches the .visually-hidden declaration in _splash.scss rather than inventing
+// a second one; it is not reused directly because that class would have to be in
+// the markup unconditionally, and then the table would be hidden from a rider
+// whose chart never drew.
+.stat-block:has(.chart .uplot) .chart-table {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+// uPlot's own layout primitives, lifted from dist/uPlot.min.css rather than
+// shipped as a second stylesheet — it is 1.8 KB and most of it styles a legend
+// and a title this chart does not render. Everything below is positioning uPlot
+// requires to place its canvas, axes and cursor; the visual choices are ours.
+.uplot,
+.uplot *,
+.uplot *::before,
+.uplot *::after {
+  box-sizing: border-box;
+}
+
+.uplot {
+  font-family: inherit;
+  line-height: 1.5;
+  width: min-content;
+}
+
+.u-wrap {
+  position: relative;
+  user-select: none;
+}
+
+.u-over,
+.u-under {
+  position: absolute;
+}
+
+.u-under {
+  overflow: hidden;
+}
+
+.uplot canvas {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.u-axis {
+  position: absolute;
+}
+
+.u-cursor-x,
+.u-cursor-y {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.u-hz .u-cursor-x {
+  height: 100%;
+  border-right: 1px dashed #b0b0b0;
+}
+
+.u-hz .u-cursor-y {
+  width: 100%;
+  border-bottom: 1px dashed #b0b0b0;
+}
+
+.u-cursor-pt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  border: 0 solid;
+  pointer-events: none;
+  will-change: transform;
+  // !important because uPlot sets the `background` shorthand inline.
+  background-clip: padding-box !important;
+}
+
+.u-axis.u-off,
+.u-select.u-off,
+.u-cursor-x.u-off,
+.u-cursor-y.u-off,
+.u-cursor-pt.u-off {
+  display: none;
+}
