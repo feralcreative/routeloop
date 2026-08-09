@@ -113,6 +113,8 @@ Delivered in phases:
 npm run dev
 ```
 
+This runs the server, the SCSS watcher and live reload together—edit a stylesheet and the page updates without reloading. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details and for `dev:server`, which starts the server alone.
+
 Then open <http://localhost:6686>. The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
 One seeded ride is not enough to judge how the dashboard or the viewer read. To fill dev with varied, genuinely road-routed rides:

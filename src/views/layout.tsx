@@ -9,6 +9,8 @@ export { esc } from './esc'
 import { esc } from './esc'
 import { raw } from 'hono/html'
 import { asset } from './assets'
+import { IS_DEV } from '../config'
+import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
 // root /favicon.ico is requested by browsers directly and cannot be versioned.
@@ -303,6 +305,7 @@ ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></n
 ${opts.tb ? jsonScript('TB', opts.tb) : ''}
 <script src="${asset('/js/site.js')}" defer></script>
 ${opts.scripts ?? ''}
+${IS_DEV ? liveReloadScript() : ''}
 </body>
 </html>`
 }

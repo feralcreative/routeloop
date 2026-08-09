@@ -8,7 +8,8 @@
   },
   "description": "Multi-tenant motorcycle route map sharing app (TypeScript + Hono).",
   "scripts": {
-    "dev": "tsx watch src/index.tsx",
+    "dev": "sass --watch style/main.scss public/style/main.min.css & SASS=$!; trap \"kill $SASS 2>/dev/null\" EXIT INT TERM; tsx watch src/index.tsx",
+    "dev:server": "tsx watch src/index.tsx",
     "start": "tsx src/index.tsx",
     "typecheck": "tsc --noEmit",
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",

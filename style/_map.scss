@@ -594,8 +594,17 @@ table.route-table {
     color: color.adjust($text, $lightness: 25%);
   }
 }
+// Links to the FAQ answer rather than carrying its own explanation — the panel
+// has no room for one. Dotted underline so it reads as "there is more here"
+// rather than as another download.
 .day-zip-label {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted $grey;
   cursor: help;
+  &:hover {
+    color: $url;
+  }
 }
 .day-zip {
   margin-left: 0.4em;

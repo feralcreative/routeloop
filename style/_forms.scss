@@ -206,6 +206,65 @@
     }
   }
 
+  // The naming convention, explained where it gets used. Collapsed by default:
+  // it is genuinely optional, and a form that opens with a naming spec reads
+  // like a requirement.
+  .naming-help {
+    margin: 0 0 1.1rem;
+    font-size: 0.9rem;
+
+    summary {
+      color: $url;
+      cursor: pointer;
+    }
+
+    // Indented under the summary so the disclosure triangle stays the leftmost
+    // thing and the body reads as belonging to it.
+    .naming-help-body {
+      margin-top: 0.6rem;
+      padding-left: 1.1rem;
+      border-left: 2px solid $grey;
+      color: #555;
+    }
+
+    p {
+      margin: 0 0 0.7rem;
+    }
+
+    .naming-example {
+      // The one line a rider might copy, so it gets room and may not wrap
+      // mid-field — a field broken across two lines is the thing this whole
+      // block is trying to explain.
+      overflow-x: auto;
+      padding: 0.5rem 0.6rem;
+      border-radius: 6px;
+      background: color.adjust($grey, $lightness: 6%);
+
+      code {
+        white-space: nowrap;
+        color: $text;
+      }
+
+      // Every variable part, against the literal `tankbag_` around it.
+      b {
+        color: $url;
+      }
+    }
+
+    .naming-fields {
+      margin: 0 0 0.7rem;
+      padding-left: 1.1rem;
+
+      li + li {
+        margin-top: 0.3rem;
+      }
+
+      b {
+        color: $url;
+      }
+    }
+  }
+
   // Turnstile renders a fixed-size iframe; give it room without it colliding
   // with the submit button.
   .cf-turnstile {

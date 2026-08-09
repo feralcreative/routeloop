@@ -48,7 +48,8 @@ import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
 import { asset } from './views/assets'
-import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
+import { devReloadRoutes, startLiveReload } from './dev/livereload'
+import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -99,6 +100,14 @@ app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
+
+// Live reload, development only — see src/dev/livereload.ts. Mounted up here
+// with the static assets so a connection that stays open for the whole session
+// never holds a session lookup behind it.
+if (IS_DEV) {
+  app.route('/', devReloadRoutes)
+  startLiveReload()
+}
 
 // Resolves the session once per request so every template can render the right
 // header. Mounted after the static assets so they skip the database entirely.

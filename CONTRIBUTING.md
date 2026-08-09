@@ -34,7 +34,8 @@ Do this once per clone. Git does not enable repo hooks by default and nothing wi
 ## Running it
 
 ```bash
-npm run dev          # the app, on port 6686
+npm run dev          # the app on port 6686, plus the SCSS watcher and live reload
+npm run dev:server   # the app alone, if you want to run sass yourself
 npm test             # the suite, ~370 tests, no database needed
 npm run test:watch   # the same, watching
 npm run typecheck    # tsc --noEmit
@@ -42,6 +43,12 @@ npm run sass         # compile SCSS — never an IDE extension
 ```
 
 The app is at <http://localhost:6686>; `127.0.0.1` works equally well. The seeded ride is at `/m/sample-route-one` and the builder is at `/builder`.
+
+### Live reload
+
+`npm run dev` starts `sass --watch` alongside the server and the page picks the result up on its own—see [src/dev/livereload.ts](src/dev/livereload.ts). Save a `.scss` file and the stylesheet is swapped in place, without a page reload, so a map keeps its instance, its viewport and whatever ride you had loaded. Save anything under [public/js/](public/js/) and the page reloads; save anything under `src/` and `tsx watch` restarts the server, which the browser notices and reloads for.
+
+It is development-only in the strict sense: both the `/__dev/reload` endpoint and the snippet that talks to it are gated on `IS_DEV`, which is `APP_ORIGIN` not being HTTPS—the same signal the dev sign-in leans on below. Nothing about it can render in stage or prod.
 
 **Port 6686 belongs to this project.** If it is already bound, kill whatever holds it and reuse the port rather than starting on another one. Two instances on two ports is how you end up debugging the one you are not looking at.
 

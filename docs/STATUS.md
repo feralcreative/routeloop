@@ -698,6 +698,14 @@ Two things the writer needed that the reader never did:
 
 `GET /api/public/maps/:slug/zip/:format` was registered *after* the generic `:format` download route and was silently shadowed by it—`/zip/gpx` answered 200 with a plain GPX body and no attachment header. `/api/public/maps/:slug/nonsense/gpx` did the same, so the generic route is matching two-segment paths. Registering the zip route first fixes it. **Found by requesting it, not by reading the code**, which is the only way it was going to be found.
 
+### Where a rider is told about it
+
+Three places, and the first was initially missed—the convention shipped with nothing on the page where it gets used, which made it a format only the docs knew about.
+
+- **`/import` carries a collapsed `<details>`** with the annotated example, what is literal, what is optional, and one line on why the date is the field that matters. Collapsed and labelled optional on purpose: every file that ignores the convention imports exactly as it always did, and a form that opens with a naming spec reads like a requirement. It explains itself inline rather than only linking out, because sending someone off the page to learn how to name files they are already holding is how it goes unread.
+- **The viewer's per-day zip row links to `/faq#one-file-per-day`.** The panel is 380px wide and the answer is three paragraphs, so that one does link out.
+- **Two FAQ entries**, `file-names` and `one-file-per-day`. Both are new ids, added to the `FAQ_IDS` contract in `test/content.test.ts` deliberately—that test exists to stop ids being renamed or dropped silently, and it failed until the list was updated, which is exactly what it is for.
+
 ### Verified
 
 Against the running dev server, end to end: a three-day ride exported as `zip/gpx`, `unzip -t` clean, filenames carrying dates, re-imported through `POST /api/maps`, and the result compared against the original—**3 days in order, dates exact, twistiness identical at 79/69/53**, distances within 0.02 % (six-decimal coordinate rounding on export). Whole-ride download names also confirmed conforming. Typecheck clean, SCSS clean, 765 tests across 33 files.

@@ -276,8 +276,10 @@ docker compose up -d --wait db          # Postgres on 127.0.0.1:5432
 npx drizzle-kit push                     # apply schema
 npx tsx src/db/seed.ts                   # user #1 + sample ride
 npm run sass                             # compile CSS if SCSS changed
-npm run dev                              # tsx watch → :6686
+npm run dev                              # sass --watch + tsx watch → :6686
 ```
+
+`npm run dev` also serves live reload (`src/dev/livereload.ts`): an SSE endpoint at `/__dev/reload` plus an inline snippet in `page()`, both gated on `IS_DEV` (`APP_ORIGIN` is not HTTPS). A stylesheet change swaps the `<link>` in place instead of reloading, so map state survives; a `public/js/` change or a server restart reloads the page. `npm run dev:server` starts the server without the SCSS watcher.
 
 ### localhost vs 127.0.0.1—no longer a wrinkle
 

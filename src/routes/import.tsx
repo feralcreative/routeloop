@@ -94,6 +94,64 @@ importRoutes.get('/import', requireActive, (c) => {
             <div class="import-plan" id="import-plan" hidden></div>
 
             {/*
+              The convention, where the rider is actually about to use it.
+              Collapsed by default and marked optional, because it is: every
+              file that ignores it imports exactly as it always did, and a form
+              that opens with a naming spec reads like a requirement.
+
+              A <details> rather than a link to the FAQ alone. Sending someone
+              off the page to learn how to name the files they are holding is
+              how it goes unread — the FAQ link is still here for the longer
+              answer.
+            */}
+            <details class="naming-help">
+              <summary>File names can carry the day and date (optional)</summary>
+              <div class="naming-help-body">
+                <p>
+                  Anything you download from Tankbag is already named this way, so a folder you exported here drops
+                  straight back in and comes out as the same trip.
+                </p>
+
+                {/*
+                  One accent for every variable part rather than a colour per
+                  field: the tokens that exist are semantic ($gpx, $kml, $pending)
+                  and borrowing them to mean "day number" would put a red
+                  error colour on a date. The distinction that earns a colour is
+                  the one between the literal marker and the parts you fill in.
+                */}
+                <p class="naming-example">
+                  <code>
+                    tankbag_<b>big-sur-run</b>_<b>d02</b>_<b>2026-08-14</b>_<b>lost-coast</b>.gpx
+                  </code>
+                </p>
+
+                <ul class="naming-fields">
+                  <li>
+                    <code>tankbag_</code> is literal, and it is what marks the name as structured. Without it none of
+                    this applies and your file imports the way it always did.
+                  </li>
+                  <li>
+                    Then <b>the trip</b>, <b>d</b> plus the day number, <b>the date</b> that day starts, and{' '}
+                    <b>what you call it</b>. Everything after the trip name is optional.
+                  </li>
+                  <li>Underscores separate the parts, so hyphens are what go inside one.</li>
+                </ul>
+
+                <p>
+                  <strong>The date is the part worth having.</strong> A GPX or KML file has nowhere inside it to put
+                  one, so if you plan a trip here, export it for your GPS and bring it back, the schedule is the one
+                  thing that would otherwise be lost.
+                </p>
+
+                <p>
+                  <a href="/faq#file-names" target="_blank" rel="noopener">
+                    More about file names
+                  </a>
+                </p>
+              </div>
+            </details>
+
+            {/*
               The cap is per format and they differ, so each row carries its
               own rather than the hint above quoting the largest and being
               wrong for the rest.

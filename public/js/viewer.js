@@ -292,10 +292,14 @@
             "</a>",
         )
         .join(" ");
+      // The label links to the FAQ rather than explaining itself here. The
+      // panel is 380px wide and the answer to "why are the names like that"
+      // is three paragraphs — see /faq#one-file-per-day.
       table.innerHTML +=
         '<tr class="route-downloads-row route-dayzip-row"><td colspan="2">' +
-        '<span class="day-zip-label" title="One file per day, named so they re-import in order and dated">' +
-        "One file per day (zip):</span> " +
+        '<a class="day-zip-label" href="/faq#one-file-per-day" target="_blank" rel="noopener" ' +
+        'title="One file per day, named so they re-import in order and dated">' +
+        "One file per day (zip)</a>: " +
         zips +
         "</td></tr>";
     }
