@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
 import {
   rides,
@@ -30,6 +30,7 @@ import {
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
+import { homeRoutes } from './routes/home'
 import { inviteRoutes } from './routes/invites'
 import { surveyRoutes } from './routes/survey'
 import { dashboardRoutes } from './routes/dashboard'
@@ -43,9 +44,7 @@ import { roadbookRoutes } from './routes/roadbook'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
-import { raw } from 'hono/html'
 import { asset } from './views/assets'
-import { rideCards } from './views/cards'
 import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
@@ -104,6 +103,7 @@ app.use('*', withSession)
 
 app.route('/', authRoutes)
 app.route('/', adminRoutes)
+app.route('/', homeRoutes)
 // Both carry literal paths and mount before pageRoutes, whose /:handle{@…}
 // regex param is the greediest thing in the table.
 app.route('/', inviteRoutes)
@@ -117,30 +117,6 @@ app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
-
-// Signed-in home: the rider's latest work alongside public community picks.
-// The gate is hand-rolled rather than requireActive because this route reads the
-// user afterwards; keep the two branches in step with that middleware.
-app.get('/', async (c) => {
-  const user = c.get('user')
-  if (!user) return c.redirect('/login', 302)
-  if (user.status !== 'active') return c.redirect('/welcome', 302)
-
-  const selectCards = () =>
-    db
-      .select({ ride: rides, color: routesTable.color })
-      .from(rides)
-      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
-
-  const [recent, popular] = await Promise.all([
-    selectCards().where(eq(rides.ownerId, user.id)).orderBy(desc(rides.updatedAt)).limit(10),
-    selectCards()
-      .where(eq(rides.visibility, 'public'))
-      .orderBy(desc(rides.viewCount), desc(rides.createdAt))
-      .limit(10),
-  ])
-  return c.html(homeHtml(rideCards(recent), rideCards(popular, true), user))
-})
 
 // Viewer page. Native rides render on the ported engine from structured rows;
 // imported rides stay on the legacy main.js shell until Phase 4 unifies them.
@@ -489,34 +465,6 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
   })
 }
 
-
-function homeHtml(recentCards: string, popularCards: string, user: UserRow): string {
-  return page({
-    title: 'Home',
-    user,
-    navKey: 'home',
-    body: (
-      <main class="home">
-        <h1>Welcome back, {user.displayName}</h1>
-        <p>
-          <a class="btn" href="/builder">
-            Plan a ride
-          </a>
-        </p>
-        <div class="home-sections">
-          <section class="home-section">
-            <h2>Your recent rides</h2>
-            {raw(recentCards)}
-          </section>
-          <section class="home-section">
-            <h2>Popular public rides</h2>
-            {raw(popularCards)}
-          </section>
-        </div>
-      </main>
-    ).toString(),
-  })
-}
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`tankbag dev → http://127.0.0.1:${info.port}`)
