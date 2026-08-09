@@ -46,8 +46,8 @@ Delivered in phases:
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
 - **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
-- **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
-- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride.
+- **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one trip, and files following the naming convention below arrive already named, ordered and dated.
+- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
@@ -156,8 +156,10 @@ src/                  TypeScript app (Hono)
                       shell.tsx (the one document), theme.ts (palette
                       pinned to _tokens.scss), rules.ts (when to send)
   maps/               roles.ts, kml/kmz/gpx/geojson/csv parsers, export.ts,
-                      ride-graph.ts, expand.ts, gmaps-links.ts, twist.ts,
-                      storage.ts, slug.ts, palette.ts, turnstile.ts
+                      filename.ts (the naming convention), zip.ts (read +
+                      write; kmz.ts is its policy layer), ride-graph.ts,
+                      expand.ts, gmaps-links.ts, twist.ts, storage.ts,
+                      slug.ts, palette.ts, turnstile.ts
   routes/             maps.ts (import), rides.ts (builder), routing.ts (Routes
                       + Geocoding proxies), admin.tsx (rider approval),
                       dashboard.tsx, profile.tsx, auth.tsx, pages.tsx
@@ -173,13 +175,16 @@ public/
   js/route-shape.js   Drag-to-shape index math—pure and tested
   js/ride-time.js     Trip time model, shared by builder and viewer
   js/twist.js         Client twistiness, kept equal to the server's
+  js/filename.js      The naming convention, kept equal to the server's
+  js/import.js        The import drop box — enhancement over a plain form
   js/profile.js       Profile page (address geocoding via /api/geocode)
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
   img/icons/          Role SVGs (currentColor) + UI icons—22 files
 style/main.scss       SCSS source
 test/                 Vitest suite — pure logic only, no database
   fixtures/           Sample KML/GPX/GeoJSON/CSV of one ride, per format
-  helpers/            Test-only helpers (zip.ts builds a KMZ in memory)
+  helpers/            Test-only helpers. zip.ts builds deliberately MALFORMED
+                      archives for the reader's tests and is not src/maps/zip.ts
 utils/
   seed-demo-rides.ts  Generates varied, road-routed demo rides in dev
   seed-dev.sh         Rebuilds the dev dataset, carrying accounts across it
@@ -249,6 +254,51 @@ The 17 roles, and the alternate words each matches when parsing an imported name
 | WTF     | icon-wtf.svg     | WEIRD, RANDOM                       |
 
 Icons live in `public/img/icons/`, designed in [this Figma document](https://www.figma.com/design/pFQck3CUIa5twKqMu1IxD5/moto-router). Their fill is `currentColor` so each icon tints to match its route color.
+
+## The file naming convention
+
+Every file Tankbag exports names itself so that dropping a folder of them back in reconstructs the trip. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
+
+```text
+tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+\_____/ \__________/ \_/ \________/ \_________/
+ marker     ride     day    date       title
+```
+
+| Field  | Shape                                | Optional | Notes                                                    |
+| ------ | ------------------------------------ | -------- | -------------------------------------------------------- |
+| marker | literal `tankbag`                    | no       | its absence means the name is not read as structured     |
+| ride   | slug                                 | no       | the trip                                                 |
+| day    | `d` + digits, zero-padded to two     | yes      | so `d10` sorts after `d09`                               |
+| date   | `YYYY-MM-DD`, or `…THHMM` with a time | yes      | the day's start; a bare date means no time was set       |
+| title  | slug                                 | yes      | the day's own name                                       |
+
+Three rules the format rests on:
+
+- **Underscores separate fields, hyphens live inside one.** A day title with a dash in it cannot split the filename.
+- **The `tankbag_` marker is what makes a name structured.** Without it the importer does exactly what it always did—upload order is day order—so your own `day-2.gpx` is never silently reinterpreted.
+- **Optional fields are found by shape, not position.** `tankbag_big-sur-run_d02.gpx` and `tankbag_big-sur-run_2026-08-14.gpx` both parse.
+
+**A filename does not carry the ride, and is not trying to.** Roles, dwell, via points, per-day colours and the stop/POI distinction do not fit in one—`tankbag.json` remains the only lossless format. What the convention carries is the handful of fields the other formats drop, and the one that matters most is the date: **neither GPX nor KML can hold a date at all**, so for those formats the filename is the only place a planned schedule survives a round trip.
+
+Two fields are deliberately absent. **Visibility**, because a file named `public` that publishes a ride on import is a footgun with no upside. And **a timezone**, because the app stores what you typed in your own zone and a filename claiming otherwise would be inventing one.
+
+On the way back in, a title recovered from a filename is a *guess*—`avenue-of-giants` comes back "Avenue Of Giants"—so a file's own internal name (`<trk><name>`, a KML `<Folder>`) wins over it. The date has no such competition and is taken as authoritative.
+
+### Per-day archives
+
+A multi-day ride can be downloaded as one conforming file per day, zipped:
+
+```text
+GET /api/public/maps/:slug/zip/{kml|gpx|geojson|csv}
+
+tankbag_big-sur-run.gpx.zip
+  ├ tankbag_big-sur-run_d01_2026-08-13_coast-start.gpx
+  ├ tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+  └ tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx
+```
+
+That archive drags straight back into `/import` and comes out as the trip it left as. A whole-ride download is unchanged and still one file: it is all the days, so there is no one day to name, and it carries the trip's start date and no day field.
 
 ## Deployment
 

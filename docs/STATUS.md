@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-06
-**Branch:** `feat/drag-to-shape`, based on `origin/main`—424 tests across 20 files, all passing
+**Updated:** 2026-08-09
+**Branch:** `feat/import-export`, based on `origin/main`—765 tests across 33 files, all passing
 **Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
@@ -653,6 +653,56 @@ What changed, all copy and one CSS block:
 Verified in Chrome at 1440×900, 1280×720, 844×390 and 390×844 with zero console messages; `/login`, `?sent=1`, `?error=link` and `/faq#invites` all checked; and a temporary `pending` account confirmed the round trip—`/builder` 302s to `/welcome`, which renders the new copy. That account was deleted afterwards; dev is back to one user.
 
 <!--| PAGE-BREAK -->
+
+## The file naming convention and the drop box—2026-08-09
+
+Sprint 11, from `_PLANS/sprint-11-260809T0206Z.md`, on a **second** branch named `feat/import-export`—the sprint 09 branch of the same name is long merged, so a search for that name finds two unrelated pieces of work. Route files now name themselves so a folder of them re-imports as the trip it came from, and the import page takes a drag.
+
+### Why it exists, since the filename looks like decoration
+
+**GPX and KML cannot carry a date.** `routes.start_at` survived a trip through Tankbag JSON and nowhere else, so exporting a planned trip as the format every GPS actually reads lost the schedule. That is the field the convention exists for; the trip name, day number and day title come along because they are free once there is a structure to put them in.
+
+```text
+tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+ marker     ride     day    date       title
+```
+
+**What a filename does not carry, stated once so it does not get relitigated:** roles, dwell, via points, per-day colours and the stop/POI distinction. They do not fit and are not going in. `tankbag.json` remains the only lossless format. The ask that started this sprint was "all metadata intact", and the honest answer is that a filename is a four-field index, not a container.
+
+**Visibility is deliberately not a field**—a file named `public` that publishes a ride on import is a footgun with no upside. **Nor is a timezone**, for the same reason the timeline work gave: `datetime-local` carries none and the app stores what the rider typed in their own zone.
+
+### The three rules, and what breaks without each
+
+- **Underscores separate fields, hyphens live inside one.** `slugField` guarantees no field contains an underscore. Drop that and a day titled "Lost_Coast" splits the filename into two fields and the date lands in the title.
+- **The `tankbag_` marker is what makes a name structured.** Without it `parseExportName` returns null and every caller takes the pre-convention path. `test/filename.test.ts` carries a table of realistic rider filenames—`day-2.gpx`, `Track_001.gpx`, `Big Sur Run.gpx`—asserting none of them is read as structured.
+- **Dates are UTC on both sides**, matching `fmtDate` in the roadbook. Local getters would let a roadbook and a filename disagree about which day a route is on. The test pins an instant that falls on 2026-08-13 in Pacific and 2026-08-14 in UTC, so it fails on a local-getter implementation when run on a workstation. **CI runs UTC, where both agree**—this guard bites hardest locally, which is the opposite of the usual arrangement and worth knowing before trusting a green CI run on it.
+
+### Two implementations, held together by a test
+
+`src/maps/filename.ts` and `public/js/filename.js`, because the drop box has to say what it read out of a filename before anything is uploaded and the server has no bundler to hand the TypeScript to a browser. `test/filename-client.test.ts` runs both over the same fixtures. Same arrangement as `twist.ts`/`twist.js` and `ride-time.js`, same reason.
+
+### `src/maps/zip.ts` owns both directions now
+
+The reader was `kmz.ts`'s private internals until the per-day archive gave the app a second reason to open a zip. It moved out unchanged and `kmz.ts` kept the policy that made it careful—one entry, the first `.kml`, everything else ignored. All 16 KMZ tests pass untouched, which is what made the refactor safe to do at all.
+
+Two things the writer needed that the reader never did:
+
+- **A correct CRC-32.** The reader does not verify CRCs, so nothing in the suite would have caught a wrong one—but `unzip` and macOS Archive Utility both refuse it, and a rider would have found out instead. Asserted against the standard check value, `crc32("123456789") == 0xCBF43926`.
+- **`test/helpers/zip.ts` stays and is a different writer.** It builds deliberately malformed archives for the reader's tests and writes no CRC. Merging the two would take away the thing the KMZ tests are for.
+
+**A per-entry cap does not bound an archive.** Fifty entries each a byte under the cap is fifty times the cap, so `readZipEntries` carries a running total and checks it as it accumulates rather than after the loop.
+
+**macOS `__MACOSX/._name` resource forks are dropped.** Right-click → Compress on three files produces six entries; left in, the ride imports as six days with three of them binary junk.
+
+### The route-ordering trap, which actually fired
+
+`GET /api/public/maps/:slug/zip/:format` was registered *after* the generic `:format` download route and was silently shadowed by it—`/zip/gpx` answered 200 with a plain GPX body and no attachment header. `/api/public/maps/:slug/nonsense/gpx` did the same, so the generic route is matching two-segment paths. Registering the zip route first fixes it. **Found by requesting it, not by reading the code**, which is the only way it was going to be found.
+
+### Verified
+
+Against the running dev server, end to end: a three-day ride exported as `zip/gpx`, `unzip -t` clean, filenames carrying dates, re-imported through `POST /api/maps`, and the result compared against the original—**3 days in order, dates exact, twistiness identical at 79/69/53**, distances within 0.02 % (six-decimal coordinate rounding on export). Whole-ride download names also confirmed conforming. Typecheck clean, SCSS clean, 765 tests across 33 files.
+
+**Not verified: the drop box in a browser.** `public/js/import.js` is checked by the parts of it that are pure—the convention it reads is covered on both sides—but the DOM wiring (dragover cancellation, `input.files` assignment from `dataTransfer`, the click-through to the picker) has not been driven in Chrome. The page renders the zone and both scripts with correct cache-busted URLs; that is as far as it was taken.
 
 ## Next steps, in order
 

@@ -274,6 +274,32 @@
       table.innerHTML += '<tr class="route-downloads-row"><td colspan="2">' + dls.join(" ") + "</td></tr>";
     }
 
+    // The per-day archives, on their own row and only for a multi-day ride.
+    // Its own row rather than four more buttons on the one above: these answer
+    // a different question — not "this ride as a file" but "this ride as one
+    // file per day" — and they are the only download that gets a date onto
+    // every day, since a GPX or KML cannot carry one internally.
+    if (state.ride.dayZipBase) {
+      const zips = ["gpx", "kml", "geojson", "csv"]
+        .map(
+          (f) =>
+            '<a class="day-zip" download href="' +
+            esc(state.ride.dayZipBase) +
+            "/" +
+            f +
+            '">' +
+            f.toUpperCase() +
+            "</a>",
+        )
+        .join(" ");
+      table.innerHTML +=
+        '<tr class="route-downloads-row route-dayzip-row"><td colspan="2">' +
+        '<span class="day-zip-label" title="One file per day, named so they re-import in order and dated">' +
+        "One file per day (zip):</span> " +
+        zips +
+        "</td></tr>";
+    }
+
     table.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => {
       cb.addEventListener("change", () => setVisible(Number(cb.dataset.i), cb.checked));
     });

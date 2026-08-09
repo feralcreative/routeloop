@@ -582,6 +582,30 @@ table.route-table {
   .route-downloads-row td {
     padding-top: 0.6em;
   }
+  // The per-day archives. Deliberately not .route-dl-btn chips: they are a
+  // second way to download the same four formats, and giving them equal weight
+  // would double the size of the download block and make a rider read eight
+  // buttons to find the one they wanted.
+  .route-dayzip-row td {
+    padding-top: 0.35em;
+    font-size: 0.8em;
+    // No muted token exists; lightening $text is the idiom the rest of this
+    // file already uses for a secondary line.
+    color: color.adjust($text, $lightness: 25%);
+  }
+}
+.day-zip-label {
+  cursor: help;
+}
+.day-zip {
+  margin-left: 0.4em;
+  color: $text;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dotted $grey;
+  &:hover {
+    border-bottom-style: solid;
+  }
 }
 .route-dl-btn {
   display: inline-block;

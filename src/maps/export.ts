@@ -111,14 +111,36 @@ export async function loadRideForExport(
   return { title: meta.title, description: meta.description, routes: out }
 }
 
+/**
+ * The trip's start, for naming a download. Its own query because the stored-
+ * original branch of a download never loads the ride and would otherwise have
+ * to, just to name the file it is about to stream back untouched.
+ *
+ * Position 0 rather than the earliest date: the rider's day order is the trip's
+ * order, and a day dated before day 1 is a mistake to preserve, not to sort away.
+ */
+export async function rideStartDate(rideId: number): Promise<Date | null> {
+  const [first] = await db
+    .select({ startAt: routesTable.startAt })
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
+    .limit(1)
+  return first?.startAt ?? null
+}
+
 const mi = (m: number | null): number | null => (m == null ? null : Math.round((m / METERS_PER_MILE) * 10) / 10)
 
 type Feature = { type: 'Feature'; geometry: unknown; properties: Record<string, unknown> }
 
-export function buildGeoJson(ride: ExportRide): string {
+// `firstDay` exists for the per-day zip, where each file holds one route but is
+// day N of a trip. Without it every file in the archive would call itself day 1,
+// and the `day` property is the only thing in a GeoJSON that says otherwise.
+export function buildGeoJson(ride: ExportRide, firstDay = 1): string {
   const features: Feature[] = []
 
-  ride.routes.forEach((r, i) => {
+  ride.routes.forEach((r, n) => {
+    const i = firstDay + n - 1
     const dayName = r.title || `Day ${i + 1}`
 
     if (r.track.length > 1) {
@@ -199,10 +221,11 @@ export const csvCell = (v: string | number | null | undefined): string => {
 
 const CSV_HEADER = ['day', 'kind', 'name', 'lat', 'lng', 'roles', 'durationMin', 'description', 'distFromStartMi']
 
-export function buildCsv(ride: ExportRide): string {
+export function buildCsv(ride: ExportRide, firstDay = 1): string {
   const lines = [CSV_HEADER.join(',')]
 
-  ride.routes.forEach((r, i) => {
+  ride.routes.forEach((r, n) => {
+    const i = firstDay + n - 1
     for (const p of r.points) {
       lines.push(
         [
@@ -260,7 +283,9 @@ function kmlColor(css: string): string {
 
 const kmlCoords = (track: Track): string => track.map(([lng, lat]) => `${lng},${lat}`).join(' ')
 
-export function buildKml(ride: ExportRide): string {
+// firstDay as in buildGeoJson — it shifts the day numbering used for folder
+// names and style ids so a per-day file says which day it actually is.
+export function buildKml(ride: ExportRide, firstDay = 1): string {
   const out: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<kml xmlns="http://www.opengis.net/kml/2.2">',
@@ -269,13 +294,15 @@ export function buildKml(ride: ExportRide): string {
   ]
   if (ride.description) out.push(`    <description>${xml(ride.description)}</description>`)
 
-  ride.routes.forEach((r, i) => {
+  ride.routes.forEach((r, n) => {
+    const i = firstDay + n - 1
     out.push(
       `    <Style id="day${i + 1}"><LineStyle><color>${kmlColor(r.color)}</color><width>4</width></LineStyle></Style>`,
     )
   })
 
-  ride.routes.forEach((r, i) => {
+  ride.routes.forEach((r, n) => {
+    const i = firstDay + n - 1
     const dayName = r.title || `Day ${i + 1}`
     // A Folder per day so Google Earth's sidebar shows the days separately.
     // The importer flattens them back to one route — see the round-trip tests,
@@ -326,7 +353,7 @@ export function buildKml(ride: ExportRide): string {
 //
 // A `<trk>` is a record of a path actually taken. Devices follow it rather than
 // re-deriving it, which is the behaviour riders are here for.
-export function buildGpx(ride: ExportRide): string {
+export function buildGpx(ride: ExportRide, firstDay = 1): string {
   const out: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx version="1.1" creator="Tankbag" xmlns="http://www.topografix.com/GPX/1/1">',
@@ -350,9 +377,9 @@ export function buildGpx(ride: ExportRide): string {
     }
   }
 
-  ride.routes.forEach((r, i) => {
+  ride.routes.forEach((r, n) => {
     if (r.track.length === 0) return
-    out.push('  <trk>', `    <name>${xml(r.title || `Day ${i + 1}`)}</name>`, '    <trkseg>')
+    out.push('  <trk>', `    <name>${xml(r.title || `Day ${firstDay + n}`)}</name>`, '    <trkseg>')
     for (const [lng, lat] of r.track) out.push(`      <trkpt lat="${lat}" lon="${lng}"/>`)
     out.push('    </trkseg>', '  </trk>')
   })

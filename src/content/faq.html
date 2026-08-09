@@ -115,8 +115,25 @@
 <details class="qa" id="import-a-route">
   <summary>Can I import a route I already have?</summary>
   <div class="qa-answer">
-    <p>Yes—KML and GPX both.</p>
+    <p>Yes—KML, KMZ, GPX, GeoJSON and CSV, plus a <code>.zip</code> of any of them. Drop the files onto the import page and each one becomes a day of one trip.</p>
     <p>What you get back is an editable trip, not a picture of one. The file is pulled apart into stops and legs you can drag, rename, reorder and add days to. Most tools import a track as a single frozen line; if that’s all you needed you could have kept the file.</p>
+  </div>
+</details>
+
+<details class="qa" id="file-names">
+  <summary>Why do the files I download have such long names?</summary>
+  <div class="qa-answer">
+    <p>Because the name is doing a job. A file called <code>tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx</code> says which trip it belongs to, that it’s day 2, when that day starts, and what you called it—so when you drag a folder of them back in, your trip comes back in the right order with its dates intact.</p>
+    <p>That matters more than it sounds. <strong>A GPX or KML file has nowhere inside it to put a date.</strong> Your GPS reads those formats, so if you export a planned trip and bring it back, the schedule is the one thing that would otherwise be lost. Putting it in the filename is the only place it survives.</p>
+    <p>Nothing is required to follow this. Files you named yourself import exactly as they always did, in the order you picked them.</p>
+  </div>
+</details>
+
+<details class="qa" id="one-file-per-day">
+  <summary>Can I get one file per day instead of the whole trip in one?</summary>
+  <div class="qa-answer">
+    <p>Yes, for any trip with more than one day. Under the download buttons there’s a <em>One file per day (zip)</em> row—pick a format and you get an archive with one correctly named file per day, ready to load onto a GPS a day at a time.</p>
+    <p>Drop that archive back onto the import page and you get the whole trip back, days in order and dated.</p>
   </div>
 </details>
 

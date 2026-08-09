@@ -12,6 +12,7 @@
 import { Hono } from 'hono'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
+import { asset } from '../views/assets'
 import { TURNSTILE_SITE_KEY, turnstileEnabled } from '../maps/turnstile'
 import { FORMAT_INFO, SUPPORTED_FORMATS } from '../maps/kml'
 
@@ -54,11 +55,22 @@ importRoutes.get('/import', requireActive, (c) => {
             <p class="field">
               <label for="f-route">Route files</label>
               {/*
+                The drop zone is `hidden` in the markup and unhidden by
+                import.js, so a rider without JavaScript is never shown a box
+                that does nothing. The file input inside it is the real control
+                either way — everything below is enhancement over a form that
+                already works.
+              */}
+              <span class="dropzone" id="dropzone" hidden>
+                <span class="dropzone-hint">Drop your route files here</span>
+                <span class="dropzone-sub">or click to choose</span>
+              </span>
+              {/*
                 `multiple` because a rider with a multi-day trip has one file
                 per day, and importing them one at a time makes one ride per day
-                and no trip. Several files become several days of one ride, in
-                the order the browser lists them — which for a folder selection
-                is filename order, so day-1/day-2/day-3 comes out right.
+                and no trip. Several files become several days of one ride.
+                Order comes from the day field in the filename where the files
+                carry one, and from the browser's listing otherwise.
               */}
               <input
                 id="f-route"
@@ -66,12 +78,20 @@ importRoutes.get('/import', requireActive, (c) => {
                 type="file"
                 multiple
                 required
-                accept={FORMATS.map((f) => `.${f.ext}`).join(',')}
+                accept={[...FORMATS.map((f) => `.${f.ext}`), '.zip'].join(',')}
               />
               <span class="field-hint">
-                Up to {MAX_BYTES / MB} MB each, depending on the format. Pick several and each becomes a day.
+                Up to {MAX_BYTES / MB} MB each, depending on the format. Pick several and each becomes a day, or drop a{' '}
+                <strong>.zip</strong> of them.
               </span>
             </p>
+
+            {/*
+              What the filenames were read as, filled in by import.js. Shown
+              before the upload rather than after, because a wrong day order
+              costs one glance here and a rebuild in the builder.
+            */}
+            <div class="import-plan" id="import-plan" hidden></div>
 
             {/*
               The cap is per format and they differ, so each row carries its
@@ -121,6 +141,13 @@ importRoutes.get('/import', requireActive, (c) => {
         turnstileEnabled() && TURNSTILE_SITE_KEY
           ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>'
           : undefined,
+      // filename.js first: import.js reads window.TBFilename at load and bails
+      // if it is not there, which is the correct behaviour for a missing
+      // dependency and the wrong one for a race.
+      scripts: [
+        `<script src="${asset('/js/filename.js')}"></script>`,
+        `<script src="${asset('/js/import.js')}"></script>`,
+      ].join('\n'),
     }),
   )
 })

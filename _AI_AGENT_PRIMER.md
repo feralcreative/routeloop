@@ -14,7 +14,7 @@ This document orients an AI agent working on the codebase. Read it first, then [
 
 tankbag lets riders **plan** motorcycle rides (and car road trips) directly in the app: drop stops on a map, classify them (gas, food, camp, lodging, scenic…), and the route between them is snapped to roads. A ride is then managed, shared by link, and exported. It is a **planning / sharing / organizing tool—explicitly not a turn-by-turn navigation app** (see `docs/ideas.md`). The pain it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—"the worst of both worlds." tankbag has no such limits, and hands the finished plan off: `/m/:slug/navigate` serializes a ride into Google Maps links (9 waypoints plus two ends each), with **Expand** weaving in shaping points so Maps has too little room to pick its own roads.
 
-Importing existing files (KML, KMZ, GPX, GeoJSON, CSV) is a **migration path**, and native Tankbag JSON is the lossless backup format, not the main event. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
+Importing existing files (KML, KMZ, GPX, GeoJSON, CSV, or a zip of them) is a **migration path**, and native Tankbag JSON is the lossless backup format, not the main event. Files this app exports carry a **naming convention** (`src/maps/filename.ts`) so a folder of them re-imports as the trip it came from; see "The file naming convention" below. The vision doc is `docs/ideas.md`; near-term feature requests are in `_PLANS/changes-260724T0250Z.md`.
 
 ## The product model (drives the schema)
 
@@ -101,6 +101,26 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the import/export boundary**. In the DB, roles are first-class enum values. Page shells inject `ROLE_META` as `window.TB.roles` so client code never re-declares it. Icons are in `public/img/icons/icon-<role>.svg`, filled with `currentColor` so they tint to the route color.
 
+## The file naming convention
+
+`src/maps/filename.ts` is the source of truth; `public/js/filename.js` mirrors it for the drop box and `test/filename-client.test.ts` holds the two together—the same arrangement `twist.ts`/`twist.js` and `ride-time.js` already use, and for the same reason.
+
+```text
+tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+ marker     ride     day    date       title
+```
+
+- **Underscores separate fields, hyphens live inside one.** `slugField` guarantees no field ever contains an underscore, which is what stops a day title with a dash from splitting the filename. There is a test asserting exactly that; do not "simplify" the separator to a hyphen throughout.
+- **The `tankbag_` marker is load-bearing.** `parseExportName` returns `null` without it, and every caller then does precisely what it did before the convention existed. A rider's own `day-2.gpx` must never be reinterpreted, and there is a table of realistic non-conforming names asserting it is not.
+- **Optional fields are matched by shape, not position.**
+- **Dates are formatted and parsed in UTC**, because the roadbook renders `routes.start_at` with `timeZone: 'UTC'`. Local getters would let a roadbook and a filename disagree about which day a route is on. Pinned by a test using an instant that falls on different calendar days in Pacific and UTC.
+- **A title read off a filename is a guess**—`avenue-of-giants` comes back "Avenue Of Giants"—so the importer prefers a file's own internal name. **The date has no such competition and is authoritative**, and for GPX and KML it is the only place a schedule can survive at all.
+- **Visibility and timezone are deliberately not fields.** A file named `public` that publishes a ride on import is a footgun; a filename claiming a zone would invent one.
+
+`GET /api/public/maps/:slug/zip/{kml|gpx|geojson|csv}` downloads one conforming file per day. **It is registered ahead of the generic `:format` download route on purpose**—registered after it, the generic route swallows `/zip/gpx` and answers with a plain GPX. That was observed, not theorised.
+
+`src/maps/zip.ts` owns both directions. The reader was `kmz.ts`'s internals and moved here when a second caller appeared; `kmz.ts` kept the *policy* (one entry, the first `.kml`) and its own error wording. Note `test/helpers/zip.ts` is a **different** writer that stays: it builds deliberately malformed archives for the reader's tests, writes no CRC, and would produce a file macOS refuses.
+
 ## Entry points and routes (`src/index.tsx` + `src/routes/*`)
 
 A host middleware runs **first**, ahead of every route: requests for `routeloop.app` / `www.routeloop.app` / `stage.routeloop.app`, plus `www.tankbag.app`, get a **301 to the same path and query on the canonical host** (`tankbag.app`, or `stage.tankbag.app` for the staging pair). The redirect direction reversed on 2026-07-29 when the name went back to tankbag; before that it pointed the other way. Because it runs ahead of every route, a request arriving on a non-canonical hostname is redirected before any auth handler sees it.
@@ -117,7 +137,7 @@ Public (gated by `getViewable(slug, viewer)`—public/unlisted for anyone, priva
 
 Owner API (all `requireAuthApi` + `requireSameOrigin`):
 
-- Import—`POST /api/maps` (multipart; KML, KMZ, GPX, GeoJSON, CSV or native Tankbag JSON → structured rows; full XXE-safe pipeline + transactional quota). **Several files posted at once become the days of one ride**, and all are validated before any is parsed so a bad tenth file names itself rather than leaving nine days half-imported. In `src/routes/maps.ts`; the upload form is `src/routes/import.tsx`.
+- Import—`POST /api/maps` (multipart; KML, KMZ, GPX, GeoJSON, CSV, a **`.zip`** of any of those, or native Tankbag JSON → structured rows; full XXE-safe pipeline + transactional quota). **Several files posted at once become the days of one ride**, and all are validated before any is parsed so a bad tenth file names itself rather than leaving nine days half-imported. A zip is expanded before anything asks what format a file is, so nothing downstream ever sees one. **Day order comes from the `dNN` field when every file carries one, and from upload order otherwise**—partial sets keep upload order, because interleaving numbered and unnumbered files needs a rule nobody asked for. In `src/routes/maps.ts`; the upload form is `src/routes/import.tsx`, enhanced by `public/js/import.js` into a drop box that fills the form from the filenames.
 - Builder—`POST /api/rides`, `PUT /api/rides/:id` (full-replace), `GET /api/rides/:id` (owner load). In `src/routes/rides.ts`.
 - Edit/delete—`PATCH /api/maps/:id`, `DELETE /api/maps/:id` (owner-scoped; serve both sources). In `src/routes/maps.ts`.
 - Clone—`POST /api/rides/:id/clone`, rebuilding a public native ride through the same `insertRideGraph` the builder uses. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands **private**. Private and imported rides 404 rather than 403, so the endpoint confirms nothing.
@@ -175,7 +195,11 @@ src/
   maps/
     roles.ts          Canonical 17-role taxonomy (parse/format)
     kml.ts            XXE-safe parse, extraction, sanitize, KML + GPX
-    kmz.ts            Zip reader — one entry, cap on the DECOMPRESSED size
+    kmz.ts            KMZ policy — one entry, the first .kml. Zip mechanics
+                      live in zip.ts; this file owns what is read, not how
+    zip.ts            Zip read + write. Caps the DECOMPRESSED size during
+                      inflate, and the running total across entries
+    filename.ts       The route-file naming convention — parse, build, plan
     geojson.ts        GeoJSON in; the only interchange format that keeps
                       roles, stop/POI and dwell
     csv.ts            RFC 4180 stop lists — no geometry, and none invented
@@ -217,6 +241,9 @@ public/
   js/route-shape.js   Drag-to-shape index math — pure, tested
   js/ride-time.js     The trip time model, shared by builder and viewer
   js/twist.js         Client twistiness, kept equal to the server's
+  js/filename.js      The naming convention, kept equal to the server's
+  js/import.js        The import drop box — enhancement over a plain form,
+                      which still works with this file absent
   js/profile.js       Profile page (address geocoding via /api/geocode)
   js/site.js          Global chrome behavior
   style/main.min.css  Compiled CSS (build output)
@@ -348,6 +375,7 @@ The section to read first when picking this up cold. Everything above describes 
 | 2026-08-04    | Multi-track import (#70), **Expand** + the navigate page (#65, #66)             |
 | 2026-08-05    | Contributor scaffolding: `CONTRIBUTING.md`, PR and issue templates, **CI**      |
 | 2026-08-05/06 | **Autosave, undo and crash-recovery drafts** (#38), then **drag-to-shape** (#8) |
+| 2026-08-09    | **The file naming convention**, per-day zip export, zip import, the drop box |
 
 Sprint 09 in one line: the app reads KML, KMZ, GPX, GeoJSON, CSV and its own JSON, writes all but KMZ, takes several files as the days of one trip, and prints a roadbook.
 
@@ -362,6 +390,7 @@ Since then: a file holding several tracks lands as several days rather than only
 - **`rides.size_bytes` must name every byte column.** The app increments `used_bytes` on import, the database decrements it from `size_bytes` on delete. A column missing from that expression leaks quota on every delete, silently and forever.
 - **Production is not precious.** Three accounts, all the owner's. Be careful with the _mechanics_ of a migration—`drizzle-kit push` without `--force`, additive DDL by hand in `utils/deploy/sql/`—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
 - **The pre-commit tightener rewrites em dashes**, including in test fixtures. `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
+- **A filename is not a format.** `src/maps/filename.ts` carries four fields; everything else about a ride lives in the file or in Tankbag JSON. The temptation when someone asks for "all metadata in the filename" is to keep adding fields—roles, colours, dwell. Do not. The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work.
 - **A snapshot shares what the builder never mutates in place, and that set changes.** `leg.geometry` is shared by reference because it is always replaced wholesale; `point.roles` must be copied because `splice()` mutates it. `leg.viaPoints` moved from the first group to the second the day drag-to-shape shipped, and nothing failed loudly—the snapshot just quietly gained the edit it existed to protect against. Check this whenever you add a feature that edits in place.
 
 ### Pick up here

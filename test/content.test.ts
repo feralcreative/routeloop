@@ -26,6 +26,8 @@ const FAQ_IDS = [
   'stop-categories',
   'twistiness',
   'import-a-route',
+  'file-names',
+  'one-file-per-day',
   'on-a-phone',
   'outside-the-us',
   'share-without-account',

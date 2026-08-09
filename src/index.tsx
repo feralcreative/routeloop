@@ -25,8 +25,11 @@ import {
   buildNativeJson,
   loadNativeRide,
   loadRideForExport,
+  rideStartDate,
   type ExportRide,
 } from './maps/export'
+import { buildExportName } from './maps/filename'
+import { buildZip } from './maps/zip'
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -251,6 +254,11 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     csvUrl: `/api/public/maps/${m.slug}/csv`,
     // The only lossless one — days, colours, times and via points survive it.
     nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
+    // One file per day, zipped and named by the convention. Offered only for a
+    // multi-day ride: a one-day trip zips to an archive holding the file you
+    // could have downloaded directly, which is a worse version of the button
+    // sitting next to it.
+    dayZipBase: routesOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
     // A page, not a file: the printable stop-by-stop sheet.
     roadbookUrl: `/m/${m.slug}/roadbook`,
     externalUrl: m.externalUrl || null,
@@ -271,7 +279,14 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
 // that is four places for one of them to drift.
 const DOWNLOADS: Record<
   string,
-  { type: string; stored: StoredExt; hasStored: (m: RideRow) => boolean; build: (r: ExportRide) => string }
+  {
+    type: string
+    stored: StoredExt
+    hasStored: (m: RideRow) => boolean
+    // firstDay is only passed by the per-day zip, where each file holds one
+    // route that is day N of a trip rather than day 1 of itself.
+    build: (r: ExportRide, firstDay?: number) => string
+  }
 > = {
   kml: {
     type: 'application/vnd.google-earth.kml+xml',
@@ -308,6 +323,18 @@ const DOWNLOADS: Record<
 // store 'mixed', which matches nothing, so those rides always generate from the
 // rows — and the rows are the merged trip, which is the correct answer.
 
+// Every download names itself by the convention in maps/filename.ts, so a
+// folder of them re-imports as the trip it came from rather than as whatever
+// order the browser happened to list them in.
+//
+// A whole-ride download carries the trip's start date and no day field: it is
+// all the days, so there is no one day to name. The per-day zip below is what
+// gets a date onto each individual day, which for GPX and KML is the only place
+// a date can survive at all.
+async function attachment(m: RideRow, ext: string): Promise<string> {
+  const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext })
+  return `attachment; filename="${name}"`
+}
 
 // The lossless one, and its own route because it carries ride-level fields the
 // others do not and is never streamed from a stored file — a native JSON is
@@ -328,10 +355,64 @@ app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
     'X-Content-Type-Options': 'nosniff',
   }
   if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.tankbag.json"`
+    headers['Content-Disposition'] = await attachment(m, 'tankbag.json')
   }
   return new Response(buildNativeJson(native), { headers })
+})
+
+// One file per day, zipped, each named by the convention.
+//
+// This is the download that makes a round trip lossless for the formats that
+// are not: a day's date cannot live inside a GPX or a KML, so it lives in the
+// filename, and one file per day is what gives every day a filename of its own.
+// Drag the archive back into /import and the trip comes back with its days in
+// order and dated.
+//
+// Always generated, never streamed from stored originals. A stored file is one
+// file for the whole ride by definition — an imported ride's original has no
+// per-day split to hand back — so preferring it here would silently answer a
+// different question than the one asked.
+//
+// Its own path segment rather than a `.zip` suffix on the existing route: a
+// suffix would have to be spelled inside the format regex, and a `:format`
+// param that sometimes carries an extension is exactly the kind of thing that
+// reads fine and matches wrong.
+app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => {
+  const format = c.req.param('format')
+  const spec = DOWNLOADS[format]
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !spec) return c.text('Not found', 404)
+
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.routes.length === 0) return c.text('Not found', 404)
+
+  const files = ride.routes.map((route, i) => ({
+    name: buildExportName({
+      ride: m.title,
+      day: i + 1,
+      date: route.startAt,
+      title: route.title,
+      ext: format,
+    }),
+    // One route, built by the same serializer the whole-ride download uses —
+    // there is no second code path for a day, only a ride that happens to have
+    // one route in it. firstDay keeps that route calling itself day i+1.
+    body: Buffer.from(spec.build({ ...ride, routes: [route] }, i + 1), 'utf8'),
+  }))
+
+  // The trip's own start date on every entry, so extracting an archive does not
+  // stamp a rider's files with today. Falls back to the zip epoch, which is
+  // what keeps an undated ride's archive byte-identical between exports.
+  const zip = buildZip(files, ride.routes[0].startAt ?? undefined)
+  const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext: `${format}.zip` })
+
+  return new Response(zip, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': `attachment; filename="${name}"`,
+    },
+  })
 })
 
 app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
@@ -344,10 +425,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
     'Content-Type': `${spec.type}; charset=utf-8`,
     'X-Content-Type-Options': 'nosniff',
   }
-  if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.${format}"`
-  }
+  if (c.req.query('dl') !== undefined) headers['Content-Disposition'] = await attachment(m, format)
 
   // The stored original wins where there is one. Generating it instead would
   // be lossy for no reason: the file carries styling, folders and per-point
