@@ -6,7 +6,7 @@ Tankbag is a motorcycle ride planner: plan a whole multi-day ride on one map, ha
 
 Read [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md) for the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
 
-**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialised against other schema work, because schema work has to be applied in order.
+**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialized against other schema work, because schema work has to be applied in order.
 
 ## Setup
 

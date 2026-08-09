@@ -113,18 +113,18 @@ importRoutes.get('/import', requireActive, (c) => {
                 </p>
 
                 {/*
-                  A colour per field, carried from the example down to the line
+                  A color per field, carried from the example down to the line
                   that defines it, so which part of the name is being described
                   needs no counting of underscores.
 
-                  The colours are their own tokens ($ride, $day, $date, $label)
-                  rather than the existing palette: every colour already defined
+                  The colors are their own tokens ($ride, $day, $date, $label)
+                  rather than the existing palette: every color already defined
                   means something — $gpx, $kml and $pending are format and state
                   — and a field that borrowed one would inherit a meaning it does
                   not have. See the note in _tokens.scss for how they are picked.
 
                   The definitions stay in the order of the example, and each one
-                  still names its field in words, because colour cannot be the
+                  still names its field in words, because color cannot be the
                   only cue: $day and $label converge under protanopia.
                 */}
                 <p class="naming-example">

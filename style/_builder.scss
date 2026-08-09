@@ -462,7 +462,7 @@
       align-items: center;
       gap: 0.4em;
     }
-    // Inherits the band's --day-color rather than carrying its own grey: the
+    // Inherits the band's --day-color rather than carrying its own gray: the
     // stop number and the POI dot are markers, and a marker should say which
     // day it belongs to.
     .row-num {

@@ -1,4 +1,4 @@
-// Day colours, in one place.
+// Day colors, in one place.
 //
 // The same palette the legacy viewer used, so a multi-day ride gets visually
 // distinct days without the rider picking each one.
@@ -6,9 +6,9 @@
 // This lives server-side and is injected as `window.TB.dayColors`, which is the
 // convention roles.ts already established — a table the client needs is defined
 // once here and shipped in the page shell rather than copied into a script.
-// The copy in builder.js was the only one until the importer needed to colour
+// The copy in builder.js was the only one until the importer needed to color
 // the days of a folder import too, and two copies of a palette drift the moment
-// one gains a colour.
+// one gains a color.
 export const DAY_COLORS = [
   '#0066cc',
   '#cc0000',
@@ -24,6 +24,6 @@ export const DAY_COLORS = [
   '#550000',
 ] as const
 
-// Wraps rather than running out. A ride with more days than colours repeats,
-// which is better than a day with no colour at all.
+// Wraps rather than running out. A ride with more days than colors repeats,
+// which is better than a day with no color at all.
 export const dayColor = (index: number): string => DAY_COLORS[index % DAY_COLORS.length]

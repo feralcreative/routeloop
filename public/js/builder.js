@@ -1522,7 +1522,7 @@
     $("day-color").addEventListener("input", (e) => {
       const day = editRoute();
       if (!day) return;
-      beginEdit("recolour day", "day-color");
+      beginEdit("recolor day", "day-color");
       day.color = e.target.value;
       renderDayHead();
       renderSlider();

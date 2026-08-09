@@ -80,7 +80,7 @@ devReloadRoutes.get('/__dev/reload', (c) =>
     await stream.writeSSE({ event: 'boot', data: BOOT_ID })
     const seen = { ...versions }
     // Two abort checks because they fail independently: `stream.aborted` covers
-    // a cancelled response body, the request signal covers the socket closing
+    // a canceled response body, the request signal covers the socket closing
     // under it. Without both, a closed tab can leave this loop spinning for the
     // life of the process.
     while (!stream.aborted && !c.req.raw.signal.aborted) {

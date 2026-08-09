@@ -36,7 +36,7 @@ What changed:
 
 **Deliberately not renamed**, because "route" there means a path or an outside-world file, not a day: `map-common.js`'s layer functions (`addRouteLayers`, `setRouteVisible`, `setRouteDim`), `POST /api/route`, the `route-*` CSS classes, `src/routes/*` and every `*Routes` handler, and the import page's "Import a route" / "Route files" copy, which is doing the conversion from a rider's vocabulary to ours.
 
-**Verified:** typecheck clean, 765 tests passing, and in Chrome with zero console messages—the viewer renders, the builder loads all three days of a multi-day ride with per-day colours, a save round-trips losslessly (3 days / 19 points / 12 legs before and after), and forged v1 and current v2 native files both import to identical row counts.
+**Verified:** typecheck clean, 765 tests passing, and in Chrome with zero console messages—the viewer renders, the builder loads all three days of a multi-day ride with per-day colors, a save round-trips losslessly (3 days / 19 points / 12 legs before and after), and forged v1 and current v2 native files both import to identical row counts.
 
 **One bug this caught, which nothing else would have.** `GET /api/rides/:id` built its payload as a loosely-typed `out` object, so its `routes:` key was invisible to the compiler. The suite passed and the builder silently loaded zero days—a blank Day 1 over an empty map. Renaming a key that crosses the wire needs a browser, not a green suite.
 
@@ -479,7 +479,7 @@ Branch `fix/editor-interface-sizing`. All eleven items from `_PLANS/sprint-07-26
 | ------ | ----------------------------------------------------------------------- |
 | 1      | The day slider picks the working day; "All" is a view                   |
 | 2      | POIs interleaved by distance, and they carry a duration                 |
-| 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its colour |
+| 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its color |
 | 4, 5   | Time stopped replaced by **twistiness**, with an FAQ entry              |
 | 6      | Panel terms link to their FAQ answers                                   |
 | 8      | Nav's last four items folded into an About submenu                      |
@@ -546,7 +546,7 @@ Every format goes through the pipeline unchanged: auth → origin → Turnstile 
 
 ### Multi-file import
 
-Several files posted at once become the days of one ride, in order, because that is what a rider with a per-day folder actually has—importing them one at a time makes one ride per day and no trip. Day titles come from filenames, colours walk the shared palette, and every original is kept (`{ride_id}-{n}.{ext}` from day 2 on). Verified against a real 3-day ride exported to three GPX files and re-imported: per-day twistiness came back **79/69/53**, identical, with exact point counts.
+Several files posted at once become the days of one ride, in order, because that is what a rider with a per-day folder actually has—importing them one at a time makes one ride per day and no trip. Day titles come from filenames, colors walk the shared palette, and every original is kept (`{ride_id}-{n}.{ext}` from day 2 on). Verified against a real 3-day ride exported to three GPX files and re-imported: per-day twistiness came back **79/69/53**, identical, with exact point counts.
 
 Files are all validated before any is parsed, so a bad tenth file fails the upload and names itself rather than leaving nine days half-imported.
 
@@ -689,7 +689,7 @@ tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
  marker     ride     day    date       title
 ```
 
-**What a filename does not carry, stated once so it does not get relitigated:** roles, dwell, via points, per-day colours and the stop/POI distinction. They do not fit and are not going in. `tankbag.json` remains the only lossless format. The ask that started this sprint was "all metadata intact", and the honest answer is that a filename is a four-field index, not a container.
+**What a filename does not carry, stated once so it does not get relitigated:** roles, dwell, via points, per-day colors and the stop/POI distinction. They do not fit and are not going in. `tankbag.json` remains the only lossless format. The ask that started this sprint was "all metadata intact", and the honest answer is that a filename is a four-field index, not a container.
 
 **Visibility is deliberately not a field**—a file named `public` that publishes a ride on import is a footgun with no upside. **Nor is a timezone**, for the same reason the timeline work gave: `datetime-local` carries none and the app stores what the rider typed in their own zone.
 
