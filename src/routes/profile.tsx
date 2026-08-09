@@ -248,7 +248,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
 
         <fieldset>
           <legend>Splitting costs</legend>
-          <p class="field-hint">Optional. For settling up on hotels, gas and meals along a trip.</p>
+          <p class="field-hint">Optional. For settling up on hotels, gas and meals along a ride.</p>
           <Field name="cashApp" label="Cash App" values={v} errors={errors} />
           <Field name="venmo" label="Venmo" values={v} errors={errors} />
           <Field name="paypal" label="PayPal" values={v} errors={errors} />

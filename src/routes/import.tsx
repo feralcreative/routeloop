@@ -66,9 +66,9 @@ importRoutes.get('/import', requireActive, (c) => {
                 <span class="dropzone-sub">or click to choose</span>
               </span>
               {/*
-                `multiple` because a rider with a multi-day trip has one file
-                per day, and importing them one at a time makes one ride per day
-                and no trip. Several files become several days of one ride.
+                `multiple` because a rider with a multi-day ride has one file
+                per day, and importing them one at a time makes a separate ride
+                out of each day. Several files become several days of one ride.
                 Order comes from the day field in the filename where the files
                 carry one, and from the browser's listing otherwise.
               */}
@@ -109,19 +109,28 @@ importRoutes.get('/import', requireActive, (c) => {
               <div class="naming-help-body">
                 <p>
                   Anything you download from Tankbag is already named this way, so a folder you exported here drops
-                  straight back in and comes out as the same trip.
+                  straight back in and comes out as the same ride.
                 </p>
 
                 {/*
-                  One accent for every variable part rather than a colour per
-                  field: the tokens that exist are semantic ($gpx, $kml, $pending)
-                  and borrowing them to mean "day number" would put a red
-                  error colour on a date. The distinction that earns a colour is
-                  the one between the literal marker and the parts you fill in.
+                  A colour per field, carried from the example down to the line
+                  that defines it, so which part of the name is being described
+                  needs no counting of underscores.
+
+                  The colours are their own tokens ($ride, $day, $date, $label)
+                  rather than the existing palette: every colour already defined
+                  means something — $gpx, $kml and $pending are format and state
+                  — and a field that borrowed one would inherit a meaning it does
+                  not have. See the note in _tokens.scss for how they are picked.
+
+                  The definitions stay in the order of the example, and each one
+                  still names its field in words, because colour cannot be the
+                  only cue: $day and $label converge under protanopia.
                 */}
                 <p class="naming-example">
                   <code>
-                    tankbag_<b>big-sur-run</b>_<b>d02</b>_<b>2026-08-14</b>_<b>lost-coast</b>.gpx
+                    tankbag_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_
+                    <b class="f-date">2026-08-14</b>_<b class="f-label">lost-coast</b>.gpx
                   </code>
                 </p>
 
@@ -131,15 +140,16 @@ importRoutes.get('/import', requireActive, (c) => {
                     this applies and your file imports the way it always did.
                   </li>
                   <li>
-                    Then <b>the trip</b>, <b>d</b> plus the day number, <b>the date</b> that day starts, and{' '}
-                    <b>what you call it</b>. Everything after the trip name is optional.
+                    Then <b class="f-ride">the ride</b>, <b class="f-day">d plus the day number</b>,{' '}
+                    <b class="f-date">the date</b> that day starts, and <b class="f-label">what you call it</b>.
+                    Everything after the ride name is optional.
                   </li>
                   <li>Underscores separate the parts, so hyphens are what go inside one.</li>
                 </ul>
 
                 <p>
                   <strong>The date is the part worth having.</strong> A GPX or KML file has nowhere inside it to put
-                  one, so if you plan a trip here, export it for your GPS and bring it back, the schedule is the one
+                  one, so if you plan a ride here, export it for your GPS and bring it back, the schedule is the one
                   thing that would otherwise be lost.
                 </p>
 

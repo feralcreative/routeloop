@@ -45,13 +45,13 @@ A note on sequencing: P1 is where the product stops being single-player, and it 
 
 ## Vision
 
-MyRouteApp, but far better: entire-trip focused, with a slicker UI and smoother UX.
+MyRouteApp, but far better: entire-ride focused, with a slicker UI and smoother UX.
 
-Tankbag is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** trip: every leg, every session, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole trip at once. Tankbag has no such limits.
+Tankbag is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** ride: every leg, every day, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole ride at once. Tankbag has no such limits.
 
 The model that everything else follows:
 
-- A **Ride** is the shareable package—many routes over many sessions/days, with a start and an end that bound the whole trip.
+- A **Ride** is the shareable package—many days, with a start and an end that bound the whole ride.
 - A **Route** is one day/session: an ordered list of stops joined by road-snapped legs, with its own start and end date-time.
 - Three kinds of dots:
   - **Waypoint**—an ephemeral shaping point that only keeps the route on course. Nothing remarkable about the spot; we do not stop there.
@@ -67,9 +67,9 @@ The signature interaction is the **timeline**: a slider across the bottom of eve
 
 Built and deployed today (see STATUS.md for the living detail):
 
-- **Data model**—rides → routes → stops/POIs → routed legs, plus the 17-role stop taxonomy.
+- **Data model**—rides → days → stops/POIs → routed legs, plus the 17-role stop taxonomy.
 - **Import**—KML/GPX upload becomes a structured, editable ride, through an XXE-safe, quota-enforced pipeline.
-- **Ride builder**—plan a road-snapped route, classify stops, save. Now **multi-day**: every day of a trip is drawn on one map, with a day-focus slider.
+- **Ride builder**—plan a road-snapped route, classify stops, save. Now **multi-day**: every day of a ride is drawn on one map, with a day-focus slider.
 - **Native viewer**—shared rides render from the database.
 - **User profiles & authorization**—`users.status` gates who may use the app; profile page; home-address seeding.
 - **Auth**—Google OAuth + emailed magic link, replacing Cloudflare Access.
@@ -79,7 +79,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
 - **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
 - **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
-- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native Tankbag JSON), five out, several files at once becoming the days of one trip, and every original kept so nothing an upload contained is destroyed.
+- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native Tankbag JSON), five out, several files at once becoming the days of one ride, and every original kept so nothing an upload contained is destroyed.
 - **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
 - **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
 - **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
@@ -108,19 +108,19 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Status.** Done, bar one thing. Mapbox is retired, the two viewer shells are one, the legal pages shipped, the favicons were regenerated on 2026-07-31, and the GCP console work landed 2026-08-02 (quota caps applied, 23 unused Maps APIs disabled). The tracking issue #6 is closed; the single remaining item—removing the Cloudflare Access policy at the edge—moved to #58, because it is gated on a verified prod deploy and nothing in this repo will ever tick it.
 
-### 2. The trip timeline
+### 2. The ride timeline
 
-**Goal.** Ship the signature feature from the vision: a date-time slider that focuses a trip in time.
+**Goal.** Ship the signature feature from the vision: a date-time slider that focuses a ride in time.
 
 **Work.**
 
-- [x] A date-time UI in the builder that writes `routes.start_at` / `routes.end_at` (the columns exist and already load into builder state; nothing sets them yet).
+- [x] A date-time UI in the builder that writes `days.start_at` / `days.end_at` (the columns exist and already load into builder state; nothing sets them yet).
 - [x] A timeline slider across the viewer and builder that maps a moment to the leg/section active then, dimming the rest without hiding anything.
 - [x] Sensible defaults: derive a route's duration from its legs, and seed each day's start from the previous day's end.
 
 **Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/rides.ts`, `src/index.tsx` (the `ride.json` contract has to start carrying per-leg data—it currently flattens every leg into one track).
 
-**Status.** done on `feat/trip-timeline-slider`, closing #7 and #19. Duration is derived as legs **plus** stop dwell, and deliberately kept separate from `routes.duration_s`, which caches riding time only. `ride.json` now carries per-leg spans—the viewer could not map a moment to a leg without them. The time model is shared by both clients in `public/js/ride-time.js` so they cannot disagree. See docs/STATUS.md for the rest, including the two properties of leg spans that real data will break a naive assumption about.
+**Status.** done on `feat/trip-timeline-slider`, closing #7 and #19. Duration is derived as legs **plus** stop dwell, and deliberately kept separate from `days.duration_s`, which caches riding time only. `ride.json` now carries per-leg spans—the viewer could not map a moment to a leg without them. The time model is shared by both clients in `public/js/ride-time.js` so they cannot disagree. See docs/STATUS.md for the rest, including the two properties of leg spans that real data will break a naive assumption about.
 
 ### 3. Route shaping and server-side export
 

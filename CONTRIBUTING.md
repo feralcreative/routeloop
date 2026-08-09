@@ -1,12 +1,12 @@
 # Contributing to Tankbag
 
-Tankbag is a motorcycle trip planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
+Tankbag is a motorcycle ride planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
 
 ## Before you start
 
 Read [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md) for the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
 
-**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialised against other schema work, because the schema is push-only.
+**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialised against other schema work, because schema work has to be applied in order.
 
 ## Setup
 
@@ -36,7 +36,7 @@ Do this once per clone. Git does not enable repo hooks by default and nothing wi
 ```bash
 npm run dev          # the app on port 6686, plus the SCSS watcher and live reload
 npm run dev:server   # the app alone, if you want to run sass yourself
-npm test             # the suite, ~370 tests, no database needed
+npm test             # the suite, 765 tests, no database needed
 npm run test:watch   # the same, watching
 npm run typecheck    # tsc --noEmit
 npm run sass         # compile SCSS — never an IDE extension
@@ -77,7 +77,7 @@ curl -b cookies.txt -H "Origin: http://127.0.0.1:6686" \
 
 - **Coordinate order.** The app stores and speaks `[lng, lat]` (GeoJSON order); Google's JS objects speak `{lat, lng}`. Getting it backwards still renders a map, just in the wrong place. Exactly two functions convert—`toGoogleWaypoint` on the server and `toLatLng` / `fromLatLng` in `map-common.js`—keep it that way.
 - **`public/js/map-common.js` is the only file that touches `google.maps`.** The viewer and builder go through the handles it returns. Preserve that boundary.
-- **Schema is push-only.** `npx drizzle-kit push`, no migration files. Read the statement list before applying it; riders hold data that cannot be rebuilt from an upload.
+- **Schema is push-first, not push-only.** `npx drizzle-kit push` for ordinary changes—read the statement list before applying it; riders hold data that cannot be rebuilt from an upload. Anything push cannot express safely gets a hand-written file in [utils/deploy/sql/](utils/deploy/sql/): renames, which push would otherwise drop and recreate, and changed column defaults, which Postgres applies to new rows only. Those files are the exception to the `*.sql` gitignore rule and are tracked deliberately.
 - **SCSS compiles with `npm run sass`**, never an IDE extension, and the compiled CSS is git-ignored.
 - **Prose is never hard-wrapped.** One line per paragraph, and let the editor soft-wrap. Em dashes are tight—`word—word`, never `word — word`.
 

@@ -4,7 +4,7 @@
 // complete an import.
 //
 // What it adds is the part a rider should not have to type: filenames written by
-// this app's export already say which trip they belong to, which day they are
+// this app's export already say which ride they belong to, which day they are
 // and when that day starts, so dropping a folder fills the form in from what the
 // files already know. See public/js/filename.js for the convention, and
 // src/maps/filename.ts for why it is shaped that way.
@@ -25,7 +25,7 @@
 
   var SUBMIT_LABEL = submit.textContent;
 
-  // Whether the trip name in the box was put there by us. A rider's own typing
+  // Whether the ride name in the box was put there by us. A rider's own typing
   // outranks anything read off a filename and must survive a re-drop — the same
   // distinction the builder's end-time field draws with its endManual flag, and
   // for the same reason: inferring it by comparison breaks the moment the

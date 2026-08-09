@@ -1,7 +1,7 @@
 // CSV import, and the round-trip back out through the exporter.
 //
 // The parser is hand-written, so the tests that matter are the ones about the
-// grammar rather than about routes: a quoted comma, a doubled quote, an
+// grammar rather than about days: a quoted comma, a doubled quote, an
 // embedded newline, CRLF. Those are what separate a parser from a `split(',')`,
 // and "Chevron, Petaluma" is a name a rider will actually type.
 import { describe, expect, it } from 'vitest'
@@ -147,7 +147,7 @@ describe('buildCsv → processCsv round-trip', () => {
   const ride: ExportRide = {
     title: 'Bodega weekend',
     description: null,
-    routes: [
+    days: [
       {
         title: 'Day 1',
         color: '#cc0000',

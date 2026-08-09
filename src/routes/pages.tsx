@@ -12,7 +12,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
+import { rides, days as daysTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
@@ -68,9 +68,9 @@ pageRoutes.get('/explore', async (c) => {
 
   // One extra row answers "is there a next page" without a second count query.
   const rows = await db
-    .select({ ride: rides, color: routesTable.color })
+    .select({ ride: rides, color: daysTable.color })
     .from(rides)
-    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
     .where(eq(rides.visibility, 'public'))
     .orderBy(...order)
     .limit(PER_PAGE + 1)
@@ -215,9 +215,9 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   if (!row?.username || row.status !== 'active') return c.text('Not found', 404)
 
   const cards = await db
-    .select({ ride: rides, color: routesTable.color })
+    .select({ ride: rides, color: daysTable.color })
     .from(rides)
-    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
     .where(and(eq(rides.ownerId, row.id), eq(rides.visibility, 'public')))
     .orderBy(desc(rides.viewCount), desc(rides.createdAt))
     .limit(50)

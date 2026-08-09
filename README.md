@@ -2,7 +2,7 @@
 
 Tankbag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -23,17 +23,17 @@ Auth changed because Cloudflare Access is billed **per seat**, which cannot surv
 
 Delivered in phases:
 
-- [x] **Data model**—rides → routes → stops/POIs → routed legs; the 17-role taxonomy
+- [x] **Data model**—rides → days → stops/POIs → routed legs; the 17-role taxonomy
 - [x] **Import**—KML/GPX upload becomes a structured, editable ride
 - [x] **Ride builder**—plan a road-snapped route, classify stops, save
 - [x] **Native viewer**—shared rides render from the database
 - [x] **User profiles**—`users.status` authorization, profile page, home-address seeding
 - [x] **Auth replacement**—Google OAuth + magic link _(deployed to production 2026-07-30)_
 - [x] **Maps migration**—rendering, search and routing on Google _(deployed 2026-07-30)_
-- [x] **Multi-day builder**—every day of a trip drawn on one map, with a day-focus slider
+- [x] **Multi-day builder**—every day of a ride drawn on one map, with a day-focus slider
 - [x] **Admin panel**—owner approves, blocks and reinstates rider accounts
-- [x] **Trip timeline**—per-day date-times and the timeline slider
-- [x] **Import and export**—six formats in, five out; several files become the days of one trip
+- [x] **Ride timeline**—per-day date-times and the timeline slider
+- [x] **Import and export**—six formats in, five out; several files become the days of one ride
 - [x] **Roadbook**—a printable stop-by-stop sheet
 - [x] **Expand + the Google Maps hand-off**—`/m/:slug/navigate`, nine waypoints per link
 - [x] **Shaping**—drag the route line onto the road you meant
@@ -44,9 +44,9 @@ Delivered in phases:
 ## What it does
 
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
-- **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
+- **Organize**—a ride packages one or more days, all drawn on **one map at the same time** so you see the whole ride; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
-- **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one trip, and files following the naming convention below arrive already named, ordered and dated.
+- **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one ride, and files following the naming convention below arrive already named, ordered and dated.
 - **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
@@ -259,7 +259,7 @@ Icons live in `public/img/icons/`, designed in [this Figma document](https://www
 
 ## The file naming convention
 
-Every file Tankbag exports names itself so that dropping a folder of them back in reconstructs the trip. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
+Every file Tankbag exports names itself so that dropping a folder of them back in reconstructs the ride. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
 
 ```text
 tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
@@ -270,7 +270,7 @@ tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
 | Field  | Shape                                | Optional | Notes                                                    |
 | ------ | ------------------------------------ | -------- | -------------------------------------------------------- |
 | marker | literal `tankbag`                    | no       | its absence means the name is not read as structured     |
-| ride   | slug                                 | no       | the trip                                                 |
+| ride   | slug                                 | no       | the ride                                                 |
 | day    | `d` + digits, zero-padded to two     | yes      | so `d10` sorts after `d09`                               |
 | date   | `YYYY-MM-DD`, or `…THHMM` with a time | yes      | the day's start; a bare date means no time was set       |
 | title  | slug                                 | yes      | the day's own name                                       |
@@ -300,7 +300,7 @@ tankbag_big-sur-run.gpx.zip
   └ tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx
 ```
 
-That archive drags straight back into `/import` and comes out as the trip it left as. A whole-ride download is unchanged and still one file: it is all the days, so there is no one day to name, and it carries the trip's start date and no day field.
+That archive drags straight back into `/import` and comes out as the ride it left as. A whole-ride download is unchanged and still one file: it is all the days, so there is no one day to name, and it carries the ride's start date and no day field.
 
 ## Deployment
 

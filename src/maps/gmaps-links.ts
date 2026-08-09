@@ -27,7 +27,7 @@
 // blob that resolves to a single place on mobile.
 import { expandTrack } from './expand'
 import { distFromStartAlongTrack, type Track } from './kml'
-import type { ExportPoint, ExportRoute } from './export'
+import type { ExportPoint, ExportDay } from './export'
 
 // Origin + 9 waypoints + destination. The 9 is Google's documented ceiling and
 // the tested one; the two ends are not waypoints and do not count against it.
@@ -151,23 +151,23 @@ function weave(anchors: ExportPoint[], track: Track, shaping: Track): { seq: Lin
   return { seq: span.map((m) => m.p), longestGapM }
 }
 
-// One route's points as an ordered series of links. Never batches across a
-// route boundary: day 2 starting where day 1 ended is a rest, not a leg.
-export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRouteLinks {
+// One day's points as an ordered series of links. Never batches across a
+// day boundary: day 2 starting where day 1 ended is a rest, not a leg.
+export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLinks {
   // POIs are excluded on purpose. A POI is somewhere worth knowing about, not a
   // place the route has to pass through, and handing one to Maps as a waypoint
   // bends the road to reach it. Stops are the routing anchors, which is exactly
   // the distinction the schema draws.
-  const anchors = route.points.filter((p) => p.kind !== 'poi')
-  const skippedPois = route.points.length - anchors.length
+  const anchors = day.points.filter((p) => p.kind !== 'poi')
+  const skippedPois = day.points.length - anchors.length
 
   // A single point is a destination, not a route: one link, no waypoints.
   if (anchors.length < 2) {
-    if (anchors.length === 0) return { title: route.title, links: [], skippedPois, longestGapM: null }
+    if (anchors.length === 0) return { title: day.title, links: [], skippedPois, longestGapM: null }
     const params = new URLSearchParams({ api: '1', destination: coord(anchors[0]) })
     params.set('travelmode', opts.travelMode ?? 'driving')
     return {
-      title: route.title,
+      title: day.title,
       links: [
         {
           url: `https://www.google.com/maps/dir/?${params.toString()}`,
@@ -183,8 +183,8 @@ export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRou
   }
 
   const budget = Math.max(0, Math.floor(opts.shapingPoints ?? 0))
-  const expansion = budget > 0 && route.track.length > 2 ? expandTrack(route.track, { maxPoints: budget }) : null
-  const { seq, longestGapM } = weave(anchors, route.track, expansion?.points ?? [])
+  const expansion = budget > 0 && day.track.length > 2 ? expandTrack(day.track, { maxPoints: budget }) : null
+  const { seq, longestGapM } = weave(anchors, day.track, expansion?.points ?? [])
 
   // A link that omits its origin holds one planned point fewer. The rider's
   // current location fills the origin slot, so the point that would have been
@@ -214,7 +214,7 @@ export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRou
   }
 
   return {
-    title: route.title,
+    title: day.title,
     links: batches.map((batch, i) => ({
       url: buildUrl(batch, opts, i === 0),
       part: i + 1,
@@ -228,7 +228,7 @@ export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRou
 }
 
 // "Day 2 · part 1 of 3", or just the day when it fits in one link.
-export function linkLabel(route: GmapsRouteLinks, link: GmapsLink, dayIndex: number): string {
-  const day = route.title?.trim() || `Day ${dayIndex + 1}`
+export function linkLabel(links: GmapsRouteLinks, link: GmapsLink, dayIndex: number): string {
+  const day = links.title?.trim() || `Day ${dayIndex + 1}`
   return link.parts > 1 ? `${day} · part ${link.part} of ${link.parts}` : day
 }

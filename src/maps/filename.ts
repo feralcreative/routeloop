@@ -2,9 +2,9 @@
 //
 // Two lossy edges meet in a filename. GPX and KML carry no dates at all, so a
 // ride exported as the format every GPS actually reads loses its schedule —
-// `routes.start_at` survives a trip through Tankbag JSON and nowhere else. And
+// `days.start_at` survives a round trip through Tankbag JSON and nowhere else. And
 // importing a folder is data entry the files already describe: day order comes
-// from whatever order the browser lists them in, and the trip name is typed by
+// from whatever order the browser lists them in, and the ride name is typed by
 // hand every time.
 //
 //   tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
@@ -87,14 +87,14 @@ export function titleFromSlug(slug: string): string {
     .join(' ')
 }
 
-// `routes.start_at` is `timestamptz`, and the roadbook renders it with
+// `days.start_at` is `timestamptz`, and the roadbook renders it with
 // `timeZone: 'UTC'` (roadbook.tsx). Formatting a filename any other way would
 // let a roadbook and a filename disagree about which day a route is on, so
 // these two are UTC for the same reason and must stay matched to it.
 //
 // No zone in the filename itself: `datetime-local` carries none and the app
 // already stores what the rider typed in their own zone (docs/STATUS.md, the
-// trip-timeline section, decision 3). A filename claiming a zone would invent one.
+// ride-timeline section, decision 3). A filename claiming a zone would invent one.
 function fmtDate(d: Date): string {
   const iso = d.toISOString()
   const date = iso.slice(0, 10)
@@ -231,7 +231,7 @@ export type PlannedFile = {
 }
 
 export type ImportPlan = {
-  /** The trip title, recovered from the shared ride field. Null if nothing conformed. */
+  /** The ride title, recovered from the shared ride field. Null if nothing conformed. */
   ride: string | null
   files: PlannedFile[]
   /** True only when every file carried the marker. */

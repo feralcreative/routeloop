@@ -5,7 +5,7 @@
 // batching exists because Maps silently drops what it cannot carry.
 import { describe, expect, it } from 'vitest'
 import { MAX_POINTS_PER_LINK, linkLabel, routeLinks } from '../src/maps/gmaps-links'
-import type { ExportPoint, ExportRoute } from '../src/maps/export'
+import type { ExportPoint, ExportDay } from '../src/maps/export'
 
 const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
   lat: 37 + n / 100,
@@ -18,7 +18,7 @@ const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
   distFromStartM: null,
 })
 
-const routeOf = (points: ExportPoint[], title: string | null = 'Day 1'): ExportRoute => ({
+const routeOf = (points: ExportPoint[], title: string | null = 'Day 1'): ExportDay => ({
   title,
   color: '#cc0000',
   distanceM: 0,

@@ -18,7 +18,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides } from '../db/schema'
 import type { AuthEnv } from '../auth/middleware'
-import { loadRideForExport, type ExportPoint, type ExportRoute } from '../maps/export'
+import { loadRideForExport, type ExportPoint, type ExportDay } from '../maps/export'
 import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
 import { page } from '../views/layout'
@@ -67,7 +67,7 @@ export type Row = {
 // on that tank rather than the 0 you are about to reset to. That is the number
 // worth printing: it tells you what the bike actually did on the last tank, and
 // the 0 says nothing you did not already know from the word "Gas" in the row.
-export function dayRows(route: ExportRoute): Row[] {
+export function dayRows(route: ExportDay): Row[] {
   // A point with no measured distance goes last and reports nothing. Sorting it
   // to zero would put it at the start of the day and print "0.0" beside it,
   // which is a claim about where it is rather than an admission that nobody
@@ -140,11 +140,11 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   if (!m || !viewable) return c.text('Not found', 404)
 
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
-  if (ride.routes.length === 0) return c.text('Not found', 404)
+  if (ride.days.length === 0) return c.text('Not found', 404)
 
-  const totalM = ride.routes.reduce((n, r) => n + r.distanceM, 0)
-  const totalS = ride.routes.reduce((n, r) => n + r.durationS, 0)
-  const anyClock = ride.routes.some((r) => r.startAt)
+  const totalM = ride.days.reduce((n, r) => n + r.distanceM, 0)
+  const totalS = ride.days.reduce((n, r) => n + r.durationS, 0)
+  const anyClock = ride.days.some((r) => r.startAt)
 
   return c.html(
     page({
@@ -156,7 +156,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
           <header class="rb-head">
             <h1>{m.title}</h1>
             <p class="rb-summary">
-              {ride.routes.length} {ride.routes.length === 1 ? 'day' : 'days'} · {fmtMi(totalM)} mi
+              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'} · {fmtMi(totalM)} mi
               {totalS > 0 && <> · {fmtDuration(totalS)} riding</>}
             </p>
             {m.description && <p class="rb-note">{m.description}</p>}
@@ -168,7 +168,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
             )}
           </header>
 
-          {ride.routes.map((r, i) => {
+          {ride.days.map((r, i) => {
             const rows = dayRows(r)
             return (
               <section class="rb-day">

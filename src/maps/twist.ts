@@ -72,7 +72,7 @@ const DEG = 180 / Math.PI
 
 // The labels, ordered high to low because the lookup takes the first match.
 //
-// Calibrated against the 19 distinct route-days in the dev database at the
+// Calibrated against the 19 distinct days in the dev database at the
 // settings above, whose distribution is min 16, p25 53, median 83, p75 143,
 // p90 190, max 252. For scale, a road that is *continuously* 400m-radius
 // sweepers scores 226 and one at 200m scores 442, so a whole day at 250 means
@@ -80,7 +80,7 @@ const DEG = 180 / Math.PI
 // itself with transit.
 //
 // Those are machine-generated rides between real California towns, not rides
-// anyone chose for being good, so real trips will skew twistier and these will
+// anyone chose for being good, so real rides will skew twistier and these will
 // want moving up. One table, one place to change.
 export const TWIST_BANDS: { min: number; label: string }[] = [
   { min: 240, label: 'Very twisty' },

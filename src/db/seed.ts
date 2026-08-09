@@ -2,7 +2,7 @@ import 'dotenv/config'
 import { readFile } from 'node:fs/promises'
 import { sql } from 'drizzle-orm'
 import { db } from './index'
-import { users, rides, routes, points, routeLegs } from './schema'
+import { users, rides, days, points, routeLegs } from './schema'
 import { distFromStartAlongTrack, METERS_PER_MILE, processKml } from '../maps/kml'
 
 // Dev seed: one user + the sample ride, structured rows extracted from the KML
@@ -40,7 +40,7 @@ async function main() {
     .returning()
 
   const [route] = await db
-    .insert(routes)
+    .insert(days)
     .values({ rideId: ride.id, position: 0, color: '#0066cc', distanceM: distM })
     .returning()
 
@@ -48,7 +48,7 @@ async function main() {
   if (kml.points.length > 0) {
     await db.insert(points).values(
       kml.points.map((p, i) => ({
-        routeId: route.id,
+        dayId: route.id,
         kind: 'stop' as const,
         position: i,
         lat: p.lat,
@@ -60,7 +60,7 @@ async function main() {
       })),
     )
   }
-  await db.insert(routeLegs).values({ routeId: route.id, position: 0, geometry: kml.track, distanceM: distM })
+  await db.insert(routeLegs).values({ dayId: route.id, position: 0, geometry: kml.track, distanceM: distM })
 
   console.log(
     `seeded user #${u.id} + ride 'sample-route-one' (${kml.points.length} stops, ${(kml.trackMeters / METERS_PER_MILE).toFixed(1)} mi)`,

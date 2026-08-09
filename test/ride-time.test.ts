@@ -55,12 +55,12 @@ describe('leg duration', () => {
 
 describe('elapsed time', () => {
   it('is riding plus every planned stop, not riding alone', () => {
-    expect(T.routeElapsedS(day())).toBe(3600 + 7200 + 1800)
+    expect(T.dayElapsedS(day())).toBe(3600 + 7200 + 1800)
   })
 
   it('splits riding from stopped', () => {
-    expect(T.routeRidingS(day())).toBe(5400)
-    expect(T.routeStoppedS(day())).toBe(7200)
+    expect(T.dayRidingS(day())).toBe(5400)
+    expect(T.dayStoppedS(day())).toBe(7200)
   })
 })
 
@@ -101,8 +101,8 @@ describe('placing a moment across days', () => {
   const both = () => {
     const a = day()
     const b = day2()
-    a.endAt = new Date((T.routeStartS(a) + T.routeElapsedS(a)) * 1000).toISOString()
-    b.endAt = new Date((T.routeStartS(b) + T.routeElapsedS(b)) * 1000).toISOString()
+    a.endAt = new Date((T.dayStartS(a) + T.dayElapsedS(a)) * 1000).toISOString()
+    b.endAt = new Date((T.dayStartS(b) + T.dayElapsedS(b)) * 1000).toISOString()
     return [a, b]
   }
   const secs = (iso: string) => Math.floor(new Date(iso).getTime() / 1000)
@@ -125,27 +125,27 @@ describe('placing a moment across days', () => {
 describe('trip span', () => {
   it('covers a dated day', () => {
     const d = day()
-    d.endAt = new Date((T.routeStartS(d) + T.routeElapsedS(d)) * 1000).toISOString()
-    expect(T.tripSpan([d])).toEqual({
+    d.endAt = new Date((T.dayStartS(d) + T.dayElapsedS(d)) * 1000).toISOString()
+    expect(T.rideSpan([d])).toEqual({
       from: Math.floor(new Date(at('2026-08-01T09:00')).getTime() / 1000),
       to: Math.floor(new Date(at('2026-08-01T12:30')).getTime() / 1000),
     })
   })
 
   it('is nothing at all for an undated ride', () => {
-    expect(T.tripSpan([{ startAt: null, endAt: null, stops: [], pois: [], legs: [] }])).toBeNull()
+    expect(T.rideSpan([{ startAt: null, endAt: null, stops: [], pois: [], legs: [] }])).toBeNull()
   })
 
   it('does not let an undated day stretch it', () => {
     const d = day()
-    d.endAt = new Date((T.routeStartS(d) + T.routeElapsedS(d)) * 1000).toISOString()
+    d.endAt = new Date((T.dayStartS(d) + T.dayElapsedS(d)) * 1000).toISOString()
     const undated = { startAt: null, endAt: null, stops: [stop('X')], pois: [], legs: [] }
-    expect(T.tripSpan([d, undated])).toEqual(T.tripSpan([d]))
+    expect(T.rideSpan([d, undated])).toEqual(T.rideSpan([d]))
   })
 
   it('falls back to elapsed when a day has a start but no stored end', () => {
     const d = day()
-    expect(T.tripSpan([d])!.to).toBe(T.routeStartS(d) + T.routeElapsedS(d))
+    expect(T.rideSpan([d])!.to).toBe(T.dayStartS(d) + T.dayElapsedS(d))
   })
 })
 
@@ -162,13 +162,13 @@ describe('a POI you stop at', () => {
   const MI = 1609.344
 
   it('adds its dwell to the day, so the day ends later', () => {
-    const without = T.routeElapsedS(withPoi(null, 20000 / MI))
-    expect(T.routeElapsedS(withPoi(30, 20000 / MI))).toBe(without + 1800)
+    const without = T.dayElapsedS(withPoi(null, 20000 / MI))
+    expect(T.dayElapsedS(withPoi(30, 20000 / MI))).toBe(without + 1800)
   })
 
   it('costs nothing when you ride past without stopping', () => {
-    expect(T.routeStoppedS(withPoi(null, 20000 / MI))).toBe(7200)
-    expect(T.routeStoppedS(withPoi(0, 20000 / MI))).toBe(7200)
+    expect(T.dayStoppedS(withPoi(null, 20000 / MI))).toBe(7200)
+    expect(T.dayStoppedS(withPoi(0, 20000 / MI))).toBe(7200)
   })
 
   it('interrupts the leg it falls in, rather than waiting for the next stop', () => {
@@ -192,13 +192,13 @@ describe('a POI you stop at', () => {
 
   it('takes its time at the end when it projects past the last leg', () => {
     const r = withPoi(30, 999)
-    expect(T.routeElapsedS(r)).toBe(3600 + 1800 + 7200 + 1800)
+    expect(T.dayElapsedS(r)).toBe(3600 + 1800 + 7200 + 1800)
   })
 })
 
 describe('the schedule and the elapsed time cannot disagree', () => {
-  // routeElapsedS drives every stored end time and the whole timeline slider,
-  // while routeSchedule drives what the map highlights. If they ever diverge the
+  // dayElapsedS drives every stored end time and the whole timeline slider,
+  // while daySchedule drives what the map highlights. If they ever diverge the
   // slider would run off the end of the day, so this is the invariant that
   // matters most in this file.
   const cases: Route[] = [
@@ -209,14 +209,14 @@ describe('the schedule and the elapsed time cannot disagree', () => {
     { startAt: null, endAt: null, stops: [stop('Only')], pois: [], legs: [] },
   ]
 
-  it.each(cases.map((c, i) => [i, c] as const))('holds for case %i', (_i, route) => {
-    const segs = T.routeSchedule(route)
+  it.each(cases.map((c, i) => [i, c] as const))('holds for case %i', (_i, day) => {
+    const segs = T.daySchedule(day)
     const total = segs.length ? segs[segs.length - 1].end : 0
-    expect(total).toBeCloseTo(T.routeElapsedS(route), 6)
+    expect(total).toBeCloseTo(T.dayElapsedS(day), 6)
   })
 
   it('never emits a gap or an overlap', () => {
-    const segs = T.routeSchedule(cases[2])
+    const segs = T.daySchedule(cases[2])
     for (let i = 1; i < segs.length; i++) expect(segs[i].start).toBeCloseTo(segs[i - 1].end, 6)
   })
 })

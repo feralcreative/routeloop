@@ -5,18 +5,18 @@
 // over. That split is what lets the interesting half be tested with no database,
 // exactly as src/survey/score.ts is.
 //
-// Five queries rather than one. A single statement joining rides to routes to
+// Five queries rather than one. A single statement joining rides to days to
 // points AND legs would multiply rows against each other — every leg once per
-// point on the same route — and produce sums that are silently several times too
+// point on the same day — and produce sums that are silently several times too
 // large. That class of bug looks like enthusiasm rather than arithmetic, so the
 // join fan-out is avoided rather than corrected for.
 //
 // Every aggregate is scoped by rides.owner_id, which is indexed (idx_owner) and
-// is the only ownership concept in the schema; routes, points and legs inherit
+// is the only ownership concept in the schema; days, points and legs inherit
 // it through the FK chain.
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { points, rides, routeLegs, routes, users } from '../db/schema'
+import { points, rides, routeLegs, days, users } from '../db/schema'
 import { ACTIVITY_MONTHS } from './shape'
 import type { RawMonth, RawRecords, RawRole, RawStats, RawTotals, RawTwist } from './shape'
 
@@ -44,16 +44,16 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .from(rides)
     .where(owned)
 
-  const [routeRow] = await db
+  const [dayRow] = await db
     .select({
-      routes: int(sql`count(*)`),
-      // distanceM here is the per-route cache; the leg sum below is the one used
+      days: int(sql`count(*)`),
+      // distanceM here is the per-day cache; the leg sum below is the one used
       // for the hero figure. Kept for the longest-day record, where it is the
       // natural grain.
-      longestDayM: int(sql`max(${routes.distanceM})`),
+      longestDayM: int(sql`max(${days.distanceM})`),
     })
-    .from(routes)
-    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .from(days)
+    .innerJoin(rides, eq(rides.id, days.rideId))
     .where(owned)
 
   const [legRow] = await db
@@ -67,8 +67,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       viaPoints: int(sql`sum(jsonb_array_length(${routeLegs.viaPoints}))`),
     })
     .from(routeLegs)
-    .innerJoin(routes, eq(routes.id, routeLegs.routeId))
-    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .innerJoin(days, eq(days.id, routeLegs.dayId))
+    .innerJoin(rides, eq(rides.id, days.rideId))
     .where(owned)
 
   const [pointRow] = await db
@@ -78,8 +78,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       pois: int(sql`count(*) filter (where ${points.kind} = 'poi')`),
     })
     .from(points)
-    .innerJoin(routes, eq(routes.id, points.routeId))
-    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .innerJoin(days, eq(days.id, points.dayId))
+    .innerJoin(rides, eq(rides.id, days.rideId))
     .where(owned)
 
   // Roles is a waypoint_role[] with up to 4 entries, so unnest gives one row per
@@ -88,18 +88,18 @@ export async function loadStats(userId: number): Promise<RawStats> {
   const roleRows = await db
     .select({ role: sql<string>`unnest(${points.roles})::text`, n: int(sql`count(*)`) })
     .from(points)
-    .innerJoin(routes, eq(routes.id, points.routeId))
-    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .innerJoin(days, eq(days.id, points.dayId))
+    .innerJoin(rides, eq(rides.id, days.rideId))
     .where(owned)
     .groupBy(sql`1`)
 
   // Nulls filtered HERE rather than in shape.ts, so "no rows" means "nothing
   // measured" and the rollup never has to distinguish a null from a zero.
   const twistRows = await db
-    .select({ dpm: sql<number>`${routes.twistinessDpm}::int`, distanceM: sql<number>`${routes.distanceM}::int` })
-    .from(routes)
-    .innerJoin(rides, eq(rides.id, routes.rideId))
-    .where(and(owned, sql`${routes.twistinessDpm} is not null`, sql`${routes.distanceM} > 0`))
+    .select({ dpm: sql<number>`${days.twistinessDpm}::int`, distanceM: sql<number>`${days.distanceM}::int` })
+    .from(days)
+    .innerJoin(rides, eq(rides.id, days.rideId))
+    .where(and(owned, sql`${days.twistinessDpm} is not null`, sql`${days.distanceM} > 0`))
 
   const monthRows = await db
     .select({
@@ -119,8 +119,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       slug: rides.slug,
     })
     .from(rides)
-    .innerJoin(routes, eq(routes.rideId, rides.id))
-    .innerJoin(routeLegs, eq(routeLegs.routeId, routes.id))
+    .innerJoin(days, eq(days.rideId, rides.id))
+    .innerJoin(routeLegs, eq(routeLegs.dayId, days.id))
     .where(owned)
     .groupBy(rides.id, rides.title, rides.slug)
     .orderBy(sql`1 desc`)
@@ -134,9 +134,9 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .limit(1)
 
   const [bestTwist] = await db
-    .select({ dpm: sql<number>`max(${routes.twistinessBestDpm})::int` })
-    .from(routes)
-    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .select({ dpm: sql<number>`max(${days.twistinessBestDpm})::int` })
+    .from(days)
+    .innerJoin(rides, eq(rides.id, days.rideId))
     .where(owned)
 
   const [me] = await db
@@ -147,7 +147,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
 
   const totals: RawTotals = {
     rides: rideRow?.rides ?? 0,
-    routes: routeRow?.routes ?? 0,
+    days: dayRow?.days ?? 0,
     legs: legRow?.legs ?? 0,
     points: pointRow?.points ?? 0,
     stops: pointRow?.stops ?? 0,
@@ -163,7 +163,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
   }
 
   const records: RawRecords = {
-    longestDayM: routeRow?.longestDayM || null,
+    longestDayM: dayRow?.longestDayM || null,
     biggestRideM: biggest ? Number(biggest.m) : null,
     biggestRideTitle: biggest?.title ?? null,
     biggestRideSlug: biggest?.slug ?? null,

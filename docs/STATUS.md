@@ -18,6 +18,28 @@ Two migrations drove the branch `refactor/google-maps-and-auth`, which is long s
 | Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
 
+## The naming is settled: ride > day > leg, 2026-08-09
+
+**`routes` is now `days`.** The hierarchy is **ride > day > leg > stop/POI**, and those are the only four words for them. Everything below this line in this document predates the rename and is left as written—where an older entry says "route" for what is now a day, the entry is history, not instruction.
+
+Why it moved: every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field, the `#one-file-per-day` FAQ anchor—while the table said `routes`. Meanwhile "route" was doing two other jobs in the same files: the import page's word for a whole ride, and the ~130 `adminRoutes` / `app.route()` / `src/routes/` identifiers that mean HTTP handlers. The clearest single symptom was `viewer.js`: `const day = ... state.ride.routes[active.dayIndex]`—a variable called `day`, indexed by `dayIndex`, reading an array called `routes`.
+
+Rejected alternatives, both considered and dropped: **"trip"** for the top level (it appears in older copy, but renaming `rides` buys nothing a rider ever sees) and **"leg"** for the middle level (it would have evicted `route_legs` from its own accurate name).
+
+What changed:
+
+- **Schema**—`routes` → `days`; `points.route_id` and `route_legs.route_id` → `day_id`; four indexes and three constraints renamed to match. Migration in [utils/deploy/sql/2026-08-09-routes-to-days.sql](../utils/deploy/sql/2026-08-09-routes-to-days.sql), applied to dev. **Every statement is a catalog rename**—no table rewrite, no rows touched, safe against a populated stage or prod.
+- **`route_legs` deliberately keeps its name.** The "route" in it is the path a day traces, which is what those legs compose, not a reference to the renamed table. Only the foreign key moved.
+- **Three wire formats** renamed their `routes` key to `days`: the viewer's `ride.json`, the builder's load/save, and native Tankbag JSON.
+- **Native JSON went to format version 2.** Version 1 files still import—`upgradeNativeRide()` in `src/maps/export.ts` maps the old key. That is done there rather than by teaching `ridePayload` to accept either key, because the same schema validates live builder saves, and a builder that can still post `routes` is a second name kept alive by accident.
+- **`MAX_ROUTES` → `MAX_DAYS`**, `ExportRoute` → `ExportDay`, `RouteRow` → `DayRow`, and the `route*` day helpers in `ride-time.js` / `twist.js` → `day*`. `tripSpan` → `rideSpan`.
+
+**Deliberately not renamed**, because "route" there means a path or an outside-world file, not a day: `map-common.js`'s layer functions (`addRouteLayers`, `setRouteVisible`, `setRouteDim`), `POST /api/route`, the `route-*` CSS classes, `src/routes/*` and every `*Routes` handler, and the import page's "Import a route" / "Route files" copy, which is doing the conversion from a rider's vocabulary to ours.
+
+**Verified:** typecheck clean, 765 tests passing, and in Chrome with zero console messages—the viewer renders, the builder loads all three days of a multi-day ride with per-day colours, a save round-trips losslessly (3 days / 19 points / 12 legs before and after), and forged v1 and current v2 native files both import to identical row counts.
+
+**One bug this caught, which nothing else would have.** `GET /api/rides/:id` built its payload as a loosely-typed `out` object, so its `routes:` key was invisible to the compiler. The suite passed and the builder silently loaded zero days—a blank Day 1 over an empty map. Renaming a key that crosses the wire needs a browser, not a green suite.
+
 ## Renamed back to tankbag, 2026-07-29
 
 The `routeloop` name lasted five days. `tankbag.app` is canonical again, `routeloop.app` 301s to it, and the reasoning is that a tank bag is the thing with the map pocket on top—the pre-GPS object that held your route. The known cost is SEO: "tank bag" is a generic luggage category, so the name competes with Nelson-Rigg and Givi for its own search results.
@@ -252,7 +274,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 <!--| PAGE-BREAK -->
 
-## Trip timeline—done, 2026-08-01
+## Ride timeline—done, 2026-08-01
 
 Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://github.com/feralcreative/tankbag/issues/7) (ROADMAP item 2) and [issue #19](https://github.com/feralcreative/tankbag/issues/19), which is folded in because it is the same widget. The full plan is in `_PLANS/issue-7-trip-timeline.md`—local only, since `_PLANS` is gitignored as of `7d0db74`.
 

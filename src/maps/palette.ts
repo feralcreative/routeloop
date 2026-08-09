@@ -1,6 +1,6 @@
 // Day colours, in one place.
 //
-// The same palette the legacy viewer used, so a multi-day trip gets visually
+// The same palette the legacy viewer used, so a multi-day ride gets visually
 // distinct days without the rider picking each one.
 //
 // This lives server-side and is injected as `window.TB.dayColors`, which is the
@@ -24,6 +24,6 @@ export const DAY_COLORS = [
   '#550000',
 ] as const
 
-// Wraps rather than running out. A trip with more days than colours repeats,
+// Wraps rather than running out. A ride with more days than colours repeats,
 // which is better than a day with no colour at all.
 export const dayColor = (index: number): string => DAY_COLORS[index % DAY_COLORS.length]

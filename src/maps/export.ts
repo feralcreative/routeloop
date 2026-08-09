@@ -13,7 +13,7 @@
 // survive a trip through KML or GPX. See the note on ExtractedPoint.kind.
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { points as pointsTable, routes as routesTable, routeLegs } from '../db/schema'
+import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
 
@@ -28,7 +28,7 @@ export type ExportPoint = {
   distFromStartM: number | null
 }
 
-export type ExportRoute = {
+export type ExportDay = {
   title: string | null
   color: string
   distanceM: number
@@ -47,7 +47,7 @@ export type ExportRoute = {
 export type ExportRide = {
   title: string
   description: string | null
-  routes: ExportRoute[]
+  days: ExportDay[]
 }
 
 // Legs are stored per routed segment and share their joints, so consecutive
@@ -68,19 +68,19 @@ export async function loadRideForExport(
   rideId: number,
   meta: { title: string; description: string | null },
 ): Promise<ExportRide> {
-  const routeRows = await db
+  const dayRows = await db
     .select()
-    .from(routesTable)
-    .where(eq(routesTable.rideId, rideId))
-    .orderBy(routesTable.position)
+    .from(daysTable)
+    .where(eq(daysTable.rideId, rideId))
+    .orderBy(daysTable.position)
 
-  const out: ExportRoute[] = []
-  for (const r of routeRows) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+  const out: ExportDay[] = []
+  for (const r of dayRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db
       .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
-      .where(eq(routeLegs.routeId, r.id))
+      .where(eq(routeLegs.dayId, r.id))
       .orderBy(routeLegs.position)
 
     out.push({
@@ -108,23 +108,23 @@ export async function loadRideForExport(
     })
   }
 
-  return { title: meta.title, description: meta.description, routes: out }
+  return { title: meta.title, description: meta.description, days: out }
 }
 
 /**
- * The trip's start, for naming a download. Its own query because the stored-
+ * The ride's start, for naming a download. Its own query because the stored-
  * original branch of a download never loads the ride and would otherwise have
  * to, just to name the file it is about to stream back untouched.
  *
- * Position 0 rather than the earliest date: the rider's day order is the trip's
+ * Position 0 rather than the earliest date: the rider's day order is the ride's
  * order, and a day dated before day 1 is a mistake to preserve, not to sort away.
  */
 export async function rideStartDate(rideId: number): Promise<Date | null> {
   const [first] = await db
-    .select({ startAt: routesTable.startAt })
-    .from(routesTable)
-    .where(eq(routesTable.rideId, rideId))
-    .orderBy(routesTable.position)
+    .select({ startAt: daysTable.startAt })
+    .from(daysTable)
+    .where(eq(daysTable.rideId, rideId))
+    .orderBy(daysTable.position)
     .limit(1)
   return first?.startAt ?? null
 }
@@ -134,12 +134,12 @@ const mi = (m: number | null): number | null => (m == null ? null : Math.round((
 type Feature = { type: 'Feature'; geometry: unknown; properties: Record<string, unknown> }
 
 // `firstDay` exists for the per-day zip, where each file holds one route but is
-// day N of a trip. Without it every file in the archive would call itself day 1,
+// day N of a ride. Without it every file in the archive would call itself day 1,
 // and the `day` property is the only thing in a GeoJSON that says otherwise.
 export function buildGeoJson(ride: ExportRide, firstDay = 1): string {
   const features: Feature[] = []
 
-  ride.routes.forEach((r, n) => {
+  ride.days.forEach((r, n) => {
     const i = firstDay + n - 1
     const dayName = r.title || `Day ${i + 1}`
 
@@ -224,7 +224,7 @@ const CSV_HEADER = ['day', 'kind', 'name', 'lat', 'lng', 'roles', 'durationMin',
 export function buildCsv(ride: ExportRide, firstDay = 1): string {
   const lines = [CSV_HEADER.join(',')]
 
-  ride.routes.forEach((r, n) => {
+  ride.days.forEach((r, n) => {
     const i = firstDay + n - 1
     for (const p of r.points) {
       lines.push(
@@ -294,14 +294,14 @@ export function buildKml(ride: ExportRide, firstDay = 1): string {
   ]
   if (ride.description) out.push(`    <description>${xml(ride.description)}</description>`)
 
-  ride.routes.forEach((r, n) => {
+  ride.days.forEach((r, n) => {
     const i = firstDay + n - 1
     out.push(
       `    <Style id="day${i + 1}"><LineStyle><color>${kmlColor(r.color)}</color><width>4</width></LineStyle></Style>`,
     )
   })
 
-  ride.routes.forEach((r, n) => {
+  ride.days.forEach((r, n) => {
     const i = firstDay + n - 1
     const dayName = r.title || `Day ${i + 1}`
     // A Folder per day so Google Earth's sidebar shows the days separately.
@@ -365,19 +365,19 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 
   // Waypoints before tracks, which is the element order the GPX schema
   // requires (wpt, then rte, then trk) rather than a stylistic choice.
-  for (const r of ride.routes) {
+  for (const r of ride.days) {
     for (const p of r.points) {
       out.push(`  <wpt lat="${p.lat}" lon="${p.lng}">`, `    <name>${xml(formatRoleName(p.roles, p.name))}</name>`)
       if (p.description) out.push(`    <desc>${xml(p.description)}</desc>`)
       // `type` is where a GPX can carry a category, and some devices show it.
       // The importer does not read it back — the name prefix is what round
-      // trips — but writing it costs a line and loses nothing.
+      // rides — but writing it costs a line and loses nothing.
       if (p.roles.length > 0) out.push(`    <type>${xml(p.roles.join('/'))}</type>`)
       out.push('  </wpt>')
     }
   }
 
-  ride.routes.forEach((r, n) => {
+  ride.days.forEach((r, n) => {
     if (r.track.length === 0) return
     out.push('  <trk>', `    <name>${xml(r.title || `Day ${firstDay + n}`)}</name>`, '    <trkseg>')
     for (const [lng, lat] of r.track) out.push(`      <trkpt lat="${lat}" lon="${lng}"/>`)
@@ -402,7 +402,11 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 // `tankbag` is a version, not decoration: the importer refuses a file without
 // it rather than guessing, which is also what keeps a plain GeoJSON from being
 // mistaken for one.
-export const NATIVE_FORMAT_VERSION = 1
+//
+// Version 2 (2026-08-09) renamed the ride's `routes` array to `days`, following
+// the table. Version 1 files still import — see upgradeNativeRide below, which
+// is why the version is worth having at all.
+export const NATIVE_FORMAT_VERSION = 2
 
 export type NativeRide = {
   tankbag: number
@@ -413,6 +417,28 @@ export type NativeRide = {
 export const isNativeRide = (v: unknown): v is NativeRide =>
   typeof v === 'object' && v !== null && typeof (v as NativeRide).tankbag === 'number'
 
+/**
+ * Brings an older native file up to the current format, in place of the caller
+ * having to know what changed between versions.
+ *
+ * Only one migration so far: v1 called the array of days `routes`. The rename
+ * is done here rather than by teaching `ridePayload` to accept either key,
+ * because the schema also validates live builder saves — and a builder that can
+ * still post `routes` is a second name kept alive forever by accident, which is
+ * the thing this whole rename was undoing.
+ *
+ * Returns the ride payload for `ridePayload` to validate. An unrecognised or
+ * newer version is not this function's problem: the caller checks that first.
+ */
+export function upgradeNativeRide(file: NativeRide): object {
+  const ride = (file.ride ?? {}) as Record<string, unknown>
+  if (file.tankbag < 2 && Array.isArray(ride.routes) && ride.days === undefined) {
+    const { routes, ...rest } = ride
+    return { ...rest, days: routes }
+  }
+  return ride
+}
+
 // Straight from the rows, in the shape ridePayload validates. Note this reads
 // legs rather than the concatenated track: the leg boundaries are where the
 // stops are, and losing them is what makes every other format lossy.
@@ -420,16 +446,16 @@ export async function loadNativeRide(
   rideId: number,
   meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
 ): Promise<NativeRide> {
-  const routeRows = await db
+  const dayRows = await db
     .select()
-    .from(routesTable)
-    .where(eq(routesTable.rideId, rideId))
-    .orderBy(routesTable.position)
+    .from(daysTable)
+    .where(eq(daysTable.rideId, rideId))
+    .orderBy(daysTable.position)
 
   const out = []
-  for (const r of routeRows) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
-    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
+  for (const r of dayRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
 
     const point = (p: (typeof pts)[number]) => ({
       lat: p.lat,
@@ -464,7 +490,7 @@ export async function loadNativeRide(
       description: meta.description ?? '',
       visibility: meta.visibility,
       external_url: meta.externalUrl ?? '',
-      routes: out,
+      days: out,
     },
   }
 }

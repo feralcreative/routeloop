@@ -244,11 +244,6 @@
         white-space: nowrap;
         color: $text;
       }
-
-      // Every variable part, against the literal `tankbag_` around it.
-      b {
-        color: $url;
-      }
     }
 
     .naming-fields {
@@ -258,10 +253,26 @@
       li + li {
         margin-top: 0.3rem;
       }
+    }
 
-      b {
-        color: $url;
-      }
+    // One color per field, shared by the example line and the definition that
+    // explains it — that pairing is the whole point, so the two must never be
+    // styled apart. Scoped to .naming-help rather than to either block for the
+    // same reason.
+    .f-ride {
+      color: $ride;
+    }
+
+    .f-day {
+      color: $day;
+    }
+
+    .f-date {
+      color: $date;
+    }
+
+    .f-label {
+      color: $label;
     }
   }
 

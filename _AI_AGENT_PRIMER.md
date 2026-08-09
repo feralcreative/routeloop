@@ -20,10 +20,12 @@ Importing existing files (KML, KMZ, GPX, GeoJSON, CSV, or a zip of them) is a **
 
 From `docs/ideas.md`:
 
-- **Ride**—the shareable package (has the slug, visibility, title). Holds many routes across many days/sessions—the holistic view of an entire trip.
-- **Route**—one session/day within a ride: an ordered list of stops joined by routed legs, with a start/end date-time. The builder edits several routes per ride as of 2026-07-30; the date-time fields exist in the schema and load into state but nothing sets them yet.
+**The hierarchy is `ride > day > leg > stop/POI`, and those four words are the only ones to use for them.** Settled 2026-08-09, when the `routes` table was renamed to `days`: every rider-facing surface already said "day" (the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field) while the code said "route", and "route" was simultaneously the import copy's word for a whole ride and the ~130 `adminRoutes`/`app.route()` identifiers that mean HTTP handlers. "Route" now means only a path—`route_legs` keeps its name because the route there is the path a day traces—or a route *file* from another app.
+
+- **Ride**—the shareable package (has the slug, visibility, title). Holds many days. Not "trip", not "map".
+- **Day**—one day within a ride: an ordered list of stops joined by routed legs, with a start/end date-time. A *position*, not a calendar date: two days may share a date, and an undated ride still has days. The builder edits several days per ride as of 2026-07-30.
 - **Three kinds of dots:**
-  - **Waypoint**—an ephemeral shaping point that just keeps the route on course. Modeled as **leg via-points** (`route_legs.via_points`), _not_ rows in `points`.
+  - **Waypoint**—an ephemeral shaping point that just keeps the day's route on course. Modeled as **leg via-points** (`route_legs.via_points`), _not_ rows in `points`.
   - **POI**—an interesting place near the route that does _not_ affect routing. `points.kind = 'poi'`, unordered.
   - **Stop**—a real stop (gas, food, hotel…); always has a duration; "ends" are stops with no duration. `points.kind = 'stop'`, ordered—these are the routing anchors.
 
@@ -38,15 +40,15 @@ From `docs/ideas.md`:
 
 ## One map engine
 
-There is now **one** viewer and one shell. The legacy `public/js/main.js`—1,135 lines of `google.maps` predating everything else, which served imported rides on their own shell and read `window.MOTO` rather than `window.TB`—was deleted on 2026-08-01. It had survived the Mapbox era as the reference implementation for the port _back_ to Google, and once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one route with one leg. Retiring it was flipping a conditional and deleting the file, not porting a renderer.
+There is now **one** viewer and one shell. The legacy `public/js/main.js`—1,135 lines of `google.maps` predating everything else, which served imported rides on their own shell and read `window.MOTO` rather than `window.TB`—was deleted on 2026-08-01. It had survived the Mapbox era as the reference implementation for the port _back_ to Google, and once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one day with one leg. Retiring it was flipping a conditional and deleting the file, not porting a renderer.
 
 The client is now:
 
 - **`public/js/map-common.js`**—the shared engine, `window.TBMap`.
 - **`public/js/viewer.js`** (read-only) and **`public/js/builder.js`** (editing), both reading `ride.json`.
-- Four pure helpers that own arithmetic rather than DOM: **`ride-time.js`** (`window.TBTime`, the trip time model), **`twist.js`** (`window.TBTwist`), **`route-shape.js`** (`window.TBShape`, drag-to-shape index math) and **`builder-history.js`** (`window.TBHistory`, undo plus crash-recovery drafts). Each is `eval`'d by its own test file, which is the whole reason it is not inside `builder.js`.
+- Four pure helpers that own arithmetic rather than DOM: **`ride-time.js`** (`window.TBTime`, the ride time model), **`twist.js`** (`window.TBTwist`), **`route-shape.js`** (`window.TBShape`, drag-to-shape index math) and **`builder-history.js`** (`window.TBHistory`, undo plus crash-recovery drafts). Each is `eval`'d by its own test file, which is the whole reason it is not inside `builder.js`.
 
-The marker/tooltip/mileage behavior in `map-common.js` was ported from the legacy viewer's hard-won logic (colored `currentColor` SVG icons, the `From Start / From Gas / From Charge` tooltip columns, direction arrows, per-route hover-dim)—first onto Mapbox, then back onto Google.
+The marker/tooltip/mileage behavior in `map-common.js` was ported from the legacy viewer's hard-won logic (colored `currentColor` SVG icons, the `From Start / From Gas / From Charge` tooltip columns, direction arrows, per-day hover-dim)—first onto Mapbox, then back onto Google.
 
 **`map-common.js` is the only file that touches `google.maps`.** That boundary is load-bearing. The Mapbox version left marker construction to its callers, so `viewer.js` and `builder.js` each reached for `new mapboxgl.Marker` directly—which is exactly why swapping engines had to touch three files instead of one. They now go through `addMarker`, `removeMarker`, `onMarkerDragEnd`, `onMapClick`, `panTo` and `searchPlaces`, and name no vendor API at all. Preserve that.
 
@@ -54,23 +56,23 @@ Three things to know before editing the engine:
 
 - **Coordinate order.** The app stores and speaks `[lng, lat]`; `google.maps` speaks `{lat, lng}`. `toLatLng` and `fromLatLng` in `map-common.js` are the only client-side conversion, matching `toGoogleWaypoint` in `src/routes/routing.ts` on the server. Reversed pairs still render—just in the wrong hemisphere, or subtly off. Routes API accepts `polylineEncoding: GEO_JSON_LINESTRING`, so `route_legs.geometry` keeps its `[lng,lat][]` shape and **no stored ride ever needed migrating**.
 - **`.tb-marker` is deliberately `0×0`** in `_map.scss`. An `AdvancedMarkerElement` anchors its content at the content's _bottom-center_, so a zero-size wrapper puts that anchor exactly on the point and the legacy negative-margin offsets keep working. Give that wrapper a size and every marker drifts off its own coordinates.
-- **A day is drawn as one polyline**, the concatenated geometry of every leg. That is what makes drag-to-shape non-trivial: a drag hands back a vertex index into that flat path, and turning it back into a leg plus a via-point slot is `route-shape.js`'s entire job. Legs share their joint vertex, because the concat drops the duplicate where one leg's last coordinate meets the next leg's first, and a leg with no geometry consumes no indices—an index calculation has to handle both. The leg highlight is one spare `Polyline` per map, sliced from the route's own line, rather than a `Polyline` per leg: per-leg lines would have changed the layer-id contract every caller depends on.
+- **A day is drawn as one polyline**, the concatenated geometry of every leg. That is what makes drag-to-shape non-trivial: a drag hands back a vertex index into that flat path, and turning it back into a leg plus a via-point slot is `route-shape.js`'s entire job. Legs share their joint vertex, because the concat drops the duplicate where one leg's last coordinate meets the next leg's first, and a leg with no geometry consumes no indices—an index calculation has to handle both. The leg highlight is one spare `Polyline` per map, sliced from the day's own line, rather than a `Polyline` per leg: per-leg lines would have changed the layer-id contract every caller depends on.
 
 <!--| PAGE-BREAK -->
 
 ## The builder is multi-day, on one map
 
-This is the feature the product model was designed around, and until 2026-07-30 it was the one thing missing: the schema, the API (`MAX_ROUTES = 31`) and the viewer all handled several routes per ride, while the builder held a single `state.route`, hardcoded route index `0` on the map layer, and loaded `ride.routes[0]` while warning that saving would drop the rest. A multi-day ride was effectively read-only.
+This is the feature the product model was designed around, and until 2026-07-30 it was the one thing missing: the schema, the API (`MAX_DAYS = 31`) and the viewer all handled several days per ride, while the builder held a single `state.route`, hardcoded day index `0` on the map layer, and loaded `ride.routes[0]` while warning that saving would drop the rest. A multi-day ride was effectively read-only.
 
-**The rule that shapes the UI: every route is drawn at once, always.** Seeing the whole trip on a single map is the point of the app, so the day slider is a _focus_ control and never a navigation one—sliding to a day dims the others via `setRouteDim` (the same call the viewer's legend hover uses) and hides nothing. Position 0 is "all days" and dims nothing at all.
+**The rule that shapes the UI: every day is drawn at once, always.** Seeing the whole ride on a single map is the point of the app, so the day slider is a _focus_ control and never a navigation one—sliding to a day dims the others via `setRouteDim` (the same call the viewer's legend hover uses) and hides nothing. Position 0 is "all days" and dims nothing at all.
 
 Consequences worth knowing before editing `public/js/builder.js`:
 
 - **Edits always target exactly one day.** `editIndex()` is the focused day, or the _last_ day when the slider sits on "all"—that being the day you are extending. The label says which (`All days · editing Day 3`) so the color swatch is never ambiguous.
 - **Clicking a marker on a dimmed day focuses that day first**, otherwise the row it scrolls to would not be in the rendered list.
 - **A new day is seeded with the previous day's last stop**, because a day begins where the last one ended.
-- **Layers are keyed by route index**, so a delete or reorder invalidates every key at or after it. `rebuildLayers()` tears down and re-adds all of them rather than patching—O(routes) on a list capped at 31, and it removes a whole class of stale-layer bug.
-- **Empty days are dropped at save time.** The API requires `stops.min(1)` per route, so a day added but never filled would fail validation for the entire ride; `payload()` filters them and `save()` says how many went.
+- **Layers are keyed by day index**, so a delete or reorder invalidates every key at or after it. `rebuildLayers()` tears down and re-adds all of them rather than patching—O(days) on a list capped at 31, and it removes a whole class of stale-layer bug.
+- **Empty days are dropped at save time.** The API requires `stops.min(1)` per day, so a day added but never filled would fail validation for the entire ride; `payload()` filters them and `save()` says how many went.
 
 ## Data model (PostgreSQL via Drizzle)
 
@@ -80,11 +82,11 @@ Consequences worth knowing before editing `public/js/builder.js`:
 - **`user_identities`**—one row per login method, so a rider can arrive by Google or by magic link and land on the same account. Legacy Google and GitHub identity rows remain valid.
 - **`sessions`**—PK is the SHA-256 hash of the browser token, never the token.
 - **`rides`**—`owner_id`, unguessable `slug`, `title`, `description`, `visibility` (public/unlisted/private), **`source`** (native | imported), `external_url`, byte columns + generated `size_bytes` (imported originals + quota), and caches `total_miles`, `total_duration_s`, `stop_count`.
-- **`routes`**—`ride_id`, `position`, `title`, **`color`** (per-route, feeds the legend), `start_at`/`end_at` (nullable; timeline model), `distance_m`, `duration_s`.
-- **`points`**—`route_id`, `kind` (stop | poi), `position` (stop order; null for POIs), `lat`/`lng`, `name`, `description`, **`roles waypoint_role[]`** (≤ 4, DB-checked), `duration_min` (null = no duration), `dist_from_start_m` (server-computed).
-- **`route_legs`**—`route_id`, `position` (leg i = stop i → i+1), `geometry jsonb` (`[lng,lat][]`, 6-decimal), `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
+- **`days`**—`ride_id`, `position`, `title`, **`color`** (per-day, feeds the legend), `start_at`/`end_at` (nullable; timeline model), `distance_m`, `duration_s`.
+- **`points`**—`day_id`, `kind` (stop | poi), `position` (stop order; null for POIs), `lat`/`lng`, `name`, `description`, **`roles waypoint_role[]`** (≤ 4, DB-checked), `duration_min` (null = no duration), `dist_from_start_m` (server-computed).
+- **`route_legs`**—`day_id`, `position` (leg i = stop i → i+1), `geometry jsonb` (`[lng,lat][]`, 6-decimal), `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
 
-**One rendering path for both sources.** An **imported** ride is stored as one route with a single leg at `position 0` holding the whole track; a **native** ride has one leg per pair of stops. Viewers always render `concat(legs)` per route—so imported and native rides render identically.
+**One rendering path for both sources.** An **imported** ride is stored as one day with a single leg at `position 0` holding the whole track; a **native** ride has one leg per pair of stops. Viewers always render `concat(legs)` per day—so imported and native rides render identically.
 
 **Enums:** `provider`, `visibility`, `ride_source`, `point_kind`, `waypoint_role` (the 17 roles—keep in sync with `src/maps/roles.ts`).
 
@@ -99,7 +101,7 @@ Consequences worth knowing before editing `public/js/builder.js`:
 - `parseRoleName("GAS/FOOD - Chevron")` → `{ roles: ['gas','food'], name: 'Chevron' }`
 - `formatRoleName(['gas'], 'Chevron')` → `"GAS - Chevron"` (for export/round-trip)
 
-The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the import/export boundary**. In the DB, roles are first-class enum values. Page shells inject `ROLE_META` as `window.TB.roles` so client code never re-declares it. Icons are in `public/img/icons/icon-<role>.svg`, filled with `currentColor` so they tint to the route color.
+The `ROLE - Name` / `GAS/FOOD - Name` string convention now lives **only at the import/export boundary**. In the DB, roles are first-class enum values. Page shells inject `ROLE_META` as `window.TB.roles` so client code never re-declares it. Icons are in `public/img/icons/icon-<role>.svg`, filled with `currentColor` so they tint to the day color.
 
 ## The file naming convention
 
@@ -113,7 +115,7 @@ tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
 - **Underscores separate fields, hyphens live inside one.** `slugField` guarantees no field ever contains an underscore, which is what stops a day title with a dash from splitting the filename. There is a test asserting exactly that; do not "simplify" the separator to a hyphen throughout.
 - **The `tankbag_` marker is load-bearing.** `parseExportName` returns `null` without it, and every caller then does precisely what it did before the convention existed. A rider's own `day-2.gpx` must never be reinterpreted, and there is a table of realistic non-conforming names asserting it is not.
 - **Optional fields are matched by shape, not position.**
-- **Dates are formatted and parsed in UTC**, because the roadbook renders `routes.start_at` with `timeZone: 'UTC'`. Local getters would let a roadbook and a filename disagree about which day a route is on. Pinned by a test using an instant that falls on different calendar days in Pacific and UTC.
+- **Dates are formatted and parsed in UTC**, because the roadbook renders `days.start_at` with `timeZone: 'UTC'`. Local getters would let a roadbook and a filename disagree about which day it is on. Pinned by a test using an instant that falls on different calendar days in Pacific and UTC.
 - **A title read off a filename is a guess**—`avenue-of-giants` comes back "Avenue Of Giants"—so the importer prefers a file's own internal name. **The date has no such competition and is authoritative**, and for GPX and KML it is the only place a schedule can survive at all.
 - **Visibility and timezone are deliberately not fields.** A file named `public` that publishes a ride on import is a footgun; a filename claiming a zone would invent one.
 
@@ -131,7 +133,7 @@ Public (gated by `getViewable(slug, viewer)`—public/unlisted for anyone, priva
 - `GET /m/:slug`—viewer page. **One shell for both sources** since `main.js` was retired
 - `GET /m/:slug/navigate`—the Google Maps hand-off page: each day as an ordered series of `/maps/dir/?api=1` links, with an Expand density control (off / light / tight) and the longest stretch Maps still routes for itself. Same visibility gate as the viewer. In `src/routes/handoff.tsx`
 - `GET /m/:slug/roadbook`—the printable stop-by-stop sheet, server-rendered with no JavaScript. In `src/routes/roadbook.tsx`
-- `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `routes[]` each with `track`, `stops[]`, `pois[]`, and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track`
+- `GET /api/public/rides/:slug/ride.json`—normalized viewer contract (both sources): ride meta + `days[]` each with `track`, `stops[]`, `pois[]`, and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track`
 - `GET /api/public/maps/:slug/:format{kml|gpx|geojson|csv}` and `/tankbag.json`—gated downloads. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in, and every other format is generated from the rows
 - `GET /explore`, `/riders`, `/faq`, `/privacy`, `/terms`, and `/@:username` public profiles—in `src/routes/pages.tsx`. `/riders` is signed-in only, because an anonymous list of every account is a scraping target with no upside
 
@@ -152,7 +154,7 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSO
 
 ```json
 { "title": "...", "description": "", "visibility": "private", "external_url": "",
-  "routes": [ { "title": "", "color": "#0066cc", "startAt": null, "endAt": null,
+  "days": [ { "title": "", "color": "#0066cc", "startAt": null, "endAt": null,
     "stops": [ { "lat": 0, "lng": 0, "name": "", "description": "",
                  "roles": ["gas"], "durationMin": null } ],
     "pois":  [ { "lat": 0, "lng": 0, "name": "", "description": "", "roles": [] } ],
@@ -160,7 +162,7 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSO
                  "viaPoints": [] } ] } ] }
 ```
 
-Server-side integrity on save (`src/routes/rides.ts`): all text is sanitized, coords rounded to 6 decimals, and each leg's claimed `distanceM` is clamped to the haversine length of its geometry if it deviates > 15 % (Directions stays authoritative in the honest case; spoofing is bounded). Caps: 31 routes/ride, 200 stops + 200 POIs/route, ≤ 4 roles/point, 25k pts/leg, 200k pts/ride.
+Server-side integrity on save (`src/routes/rides.ts`): all text is sanitized, coords rounded to 6 decimals, and each leg's claimed `distanceM` is clamped to the haversine length of its geometry if it deviates > 15 % (Directions stays authoritative in the honest case; spoofing is bounded). Caps: 31 days/ride, 200 stops + 200 POIs/day, ≤ 4 roles/point, 25k pts/leg, 200k pts/ride.
 
 ## The security pipeline (imports)
 
@@ -212,7 +214,7 @@ src/
     slug.ts           22-char base62 unguessable share ids
     twist.ts          Twistiness: degrees of heading change per mile
     expand.ts         Shaping points that bound the longest unpinned stretch
-    gmaps-links.ts    A route as batched Google Maps directions URLs
+    gmaps-links.ts    A day as batched Google Maps directions URLs
     turnstile.ts      Feature-flagged siteverify
   routes/
     maps.ts           Import API + edit/delete (exports ownRide/canEditRide)
@@ -310,7 +312,7 @@ APP_ORIGIN=http://127.0.0.1:6686
 Done and merged:
 
 - **Rename + production cutover** ✅ `tankbag` → `routeloop` everywhere, with a full production cutover on 2026-07-24. **Reverted on 2026-07-29:** the name is `tankbag` again and `routeloop.app` 301s to `tankbag.app`.
-- **Phase 1—Data model + roles + structured import** ✅ `rides` / `routes` / `points` / `route_legs`, `roles.ts`, import produces structured rows.
+- **Phase 1—Data model + roles + structured import** ✅ `rides` / `days` / `points` / `route_legs`, `roles.ts`, import produces structured rows.
 - **Phase 2—Builder MVP + native viewer** ✅ ride API (gating, validation, CSRF), the builder, the native viewer. Save round-trip confirmed in a browser.
 - **Unified shell + SCSS split** ✅ one `page()` for every surface, global nav, alpha modal, SCSS partials, sign-in splash with background clip.
 - **Sprint 2—user profiles** ✅ `users.status` authorization, `user_profiles`, `/profile`, `/welcome`, home-address seeding.
@@ -319,7 +321,7 @@ Done and merged:
 - **Maps—Mapbox → Google** ✅ **deployed 2026-07-30** (`942e1d9`), browser-verified end to end. See [\_PLANS/AMENDMENTS-google-auth-and-maps.md](_PLANS/AMENDMENTS-google-auth-and-maps.md) for the four places the original plan was wrong—notably that `TWO_WHEELER` returns an empty HTTP 200 in the US and must be `DRIVE`.
 - **Phase 4—retire Mapbox and the legacy viewer** ✅ 2026-08-01. `main.js` deleted (1,135 lines), `POST /api/geocode` took the last Mapbox call server-side, and every `MAPBOX_*` value is gone from config, compose, the deploy guards and `.env.example`.
 - **Phase 3—Via-point shaping + server exports** ✅ both halves, in two pieces. Exports landed in sprint 09 (`src/maps/export.ts`, six formats in and five out, source-aware downloads); **drag-to-shape landed 2026-08-06**, so a rider can pull the line onto the road they meant and the dropped point becomes a via point on the right leg.
-- **Trip timeline** ✅ 2026-08-01. `routes.start_at` / `end_at` are written by a real date-time UI, and the timeline and day slider write one shared focus model.
+- **Ride timeline** ✅ 2026-08-01. `days.start_at` / `end_at` are written by a real date-time UI, and the timeline and day slider write one shared focus model.
 - **Admin panel** ✅ `users.status` has its reader: `/admin` approves, blocks and reinstates.
 - **Public surfaces** ✅ `/explore`, `/riders`, `/@username` profiles, `/faq`, `/privacy`, `/terms`.
 - **Autosave, undo and crash-recovery drafts** ✅ 2026-08-05.

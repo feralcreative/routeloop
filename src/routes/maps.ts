@@ -14,7 +14,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
-import { rides, routes, points, routeLegs, users as usersTable } from '../db/schema'
+import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
   FORMAT_INFO,
@@ -35,8 +35,8 @@ import {
 } from '../maps/kml'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
-import { isNativeRide, NATIVE_FORMAT_VERSION } from '../maps/export'
-import { MAX_ROUTES, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
+import { isNativeRide, NATIVE_FORMAT_VERSION, upgradeNativeRide } from '../maps/export'
+import { MAX_DAYS, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { parseExportName, titleFromSlug, type ParsedName } from '../maps/filename'
 import { readZipEntries } from '../maps/zip'
@@ -169,7 +169,7 @@ mapsRoutes.post(
     //
     // Several files become several days of one ride, in the order given. That
     // is what a rider with a folder of per-day GPX files actually has, and
-    // importing them one at a time would make one ride per day and no trip.
+    // importing them one at a time would make a separate ride per day rather than one ride with days.
     const asFiles = (v: unknown): File[] =>
       (Array.isArray(v) ? v : [v]).filter((f): f is File => f instanceof File && f.size > 0)
     const posted = asFiles(body.route).length > 0 ? asFiles(body.route) : asFiles(body.kml)
@@ -177,7 +177,7 @@ mapsRoutes.post(
 
     // A zip becomes the files inside it, before anything asks what format
     // anything is. This is the other half of the per-day zip download: an
-    // archive this app wrote drags straight back in and comes out as the trip
+    // archive this app wrote drags straight back in and comes out as the ride
     // it left as.
     const uploads: File[] = []
     try {
@@ -249,7 +249,7 @@ mapsRoutes.post(
         if (parsed.tankbag > NATIVE_FORMAT_VERSION) {
           return fail(`this file was written by a newer version of Tankbag (format ${parsed.tankbag})`, 400)
         }
-        const check = ridePayload.safeParse({ ...(parsed.ride as object), title: meta.title })
+        const check = ridePayload.safeParse({ ...upgradeNativeRide(parsed), title: meta.title })
         if (!check.success) return fail(firstIssue(check.error), 400)
         const payload = check.data
         // The uploader owns what they upload, and a restored ride lands
@@ -260,7 +260,7 @@ mapsRoutes.post(
         const totals = rideTotals(payload)
 
         // No file is stored and no quota is charged: a native ride is rows, and
-        // the caps that bound it are structural (MAX_ROUTES, MAX_STOPS, the
+        // the caps that bound it are structural (MAX_DAYS, MAX_STOPS, the
         // per-ride point ceiling) rather than byte-based. That is exactly how a
         // ride built in the builder is treated.
         const created = await db.transaction(async (tx) => {
@@ -434,9 +434,9 @@ mapsRoutes.post(
     // silent data loss this whole change exists to remove, and a rider who is
     // told the number can split the file themselves. A merge step in the
     // importer is the real answer (#70) and this is what holds until then.
-    if (days.length > MAX_ROUTES) {
+    if (days.length > MAX_DAYS) {
       return fail(
-        `that import comes to ${days.length} days and the limit is ${MAX_ROUTES} — split it and import the parts as separate rides`,
+        `that import comes to ${days.length} days and the limit is ${MAX_DAYS} — split it and import the parts as separate rides`,
         400,
       )
     }
@@ -494,7 +494,7 @@ mapsRoutes.post(
           })
           .returning()
 
-        // One route per file, in the order they were given. A single upload is
+        // One day per file, in the order they were given. A single upload is
         // the same code path with one day in the list.
         for (const [i, day] of days.entries()) {
           const distM = Math.round(day.trackMeters)
@@ -502,11 +502,11 @@ mapsRoutes.post(
           // An imported ride never touches the router, so this is the only shape
           // information it will ever have — which is exactly why twistiness is
           // computed from geometry rather than from routing maneuvers. It is
-          // per-day: averaging a whole trip would bury the good road in the
+          // per-day: averaging a whole ride would bury the good road in the
           // straight one that got you there.
           const twist = twistiness(day.track)
-          const [route] = await tx
-            .insert(routes)
+          const [dayRow] = await tx
+            .insert(daysTable)
             .values({
               rideId: ride.id,
               position: i,
@@ -551,7 +551,7 @@ mapsRoutes.post(
               day.points.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
-                  routeId: route.id,
+                  dayId: dayRow.id,
                   kind: isPoi ? ('poi' as const) : ('stop' as const),
                   position: isPoi ? null : stopPos++,
                   lat: p.lat,
@@ -566,7 +566,7 @@ mapsRoutes.post(
             )
           }
           if (day.track.length > 0) {
-            await tx.insert(routeLegs).values({ routeId: route.id, position: 0, geometry: day.track, distanceM: distM })
+            await tx.insert(routeLegs).values({ dayId: dayRow.id, position: 0, geometry: day.track, distanceM: distM })
           }
 
           fileRideId = ride.id
@@ -659,10 +659,10 @@ mapsRoutes.patch('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c)
     })
     .where(eq(rides.id, ride.id))
     .returning()
-  // Color lives on routes now; a meta-level color change recolors the whole
-  // ride (single-route for imports; per-route colors are edited in the builder).
+  // Color lives on days now; a meta-level color change recolors the whole
+  // ride (one day for imports; per-day colors are edited in the builder).
   if (p.color !== undefined) {
-    await db.update(routes).set({ color: p.color }).where(eq(routes.rideId, ride.id))
+    await db.update(daysTable).set({ color: p.color }).where(eq(daysTable.rideId, ride.id))
   }
   return c.json({ id: updated.id, slug: updated.slug, title: updated.title, visibility: updated.visibility })
 })
@@ -673,7 +673,7 @@ mapsRoutes.delete('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   await db.transaction(async (tx) => {
-    await tx.delete(rides).where(eq(rides.id, ride.id)) // routes/points/legs cascade
+    await tx.delete(rides).where(eq(rides.id, ride.id)) // days/points/legs cascade
     // Clamped at zero: a drifted cache must never wedge the account negative.
     await tx
       .update(usersTable)
