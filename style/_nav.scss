@@ -98,13 +98,19 @@
   }
 }
 
+// The drawer. This is the narrow-viewport shape and the map-page shape at every
+// width; the bar below takes over at LG.
+//
+// Closed by default in CSS rather than with the `hidden` attribute: the same
+// markup becomes the desktop bar, and `hidden` left on a visible element tells
+// a screen reader to skip a nav everyone else can see.
 .site-nav {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
   z-index: $z-nav;
   min-width: 200px;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 0.15rem;
   padding: 0.5rem;
@@ -113,13 +119,29 @@
   border-radius: 10px;
   box-shadow: 0 4px 16px $panel-shadow;
 
-  &[hidden] {
-    display: none;
+  .nav-primary,
+  .nav-end {
+    display: contents;
   }
 
+  // A rule above the account and About block, so the drawer still reads as
+  // sections rather than one undifferentiated list.
+  .nav-end {
+    .nav-sub:first-child {
+      margin-top: 0.35rem;
+      padding-top: 0.35rem;
+      border-top: 1px solid $grey;
+    }
+  }
+
+  // border-box because there is no global reset in this project: with the
+  // default content-box, `width: 100%` plus the padding below made every item
+  // wider than the panel holding it, so the labels ran off the right edge of the
+  // drawer and pushed the document into a horizontal scroll.
   a,
   .linkbtn {
     display: block;
+    box-sizing: border-box;
     width: 100%;
     padding: 0.5em 0.65em;
     border-radius: 6px;
@@ -204,6 +226,10 @@
   }
 }
 
+.site-header.open .site-nav {
+  display: flex;
+}
+
 .nav-user {
   display: block;
   padding: 0.5em 0.65em 0.15em;
@@ -211,6 +237,116 @@
   font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+//@ LG >992px — the drawer becomes a bar
+// Same elements, laid out as a row. The toggle goes away entirely at this width,
+// which was the point: a hamburger on a 1600px screen hides seven destinations
+// behind a click for no reason.
+//
+// Map pages are excluded and keep the drawer at every width — their header is a
+// floating badge over live canvas, and a full bar there would eat the map.
+@media (min-width: 992px) {
+  html:not(.map-page) {
+    .nav-toggle {
+      display: none;
+    }
+
+    .site-nav {
+      position: static;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.1rem;
+      width: 100%;
+      min-width: 0;
+      padding: 0;
+      background: none;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+
+      // `display: contents` in the drawer let both groups flatten into one
+      // column. Here they are real boxes again: primary takes the space, and
+      // margin-left auto on the end group pins About and the account right.
+      .nav-primary,
+      .nav-end {
+        display: flex;
+        align-items: center;
+        gap: 0.1rem;
+      }
+
+      .nav-end {
+        margin-left: auto;
+      }
+
+      // The drawer's section rule has no meaning in a row.
+      .nav-end .nav-sub:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      a,
+      .linkbtn {
+        width: auto;
+        padding: 0.45em 0.6em;
+        white-space: nowrap;
+        font-size: 0.95rem;
+      }
+
+      // A row of links needs no separators; the drawer's rules would draw
+      // vertical hairlines between items here.
+      > hr {
+        display: none;
+      }
+
+      // The two dropdowns. The summary stays inline in the bar and the panel
+      // hangs off it, which is the only part that has to be positioned.
+      .nav-sub {
+        position: relative;
+
+        summary {
+          padding: 0.45em 0.6em;
+          white-space: nowrap;
+          font-size: 0.95rem;
+        }
+
+        .nav-sub-items {
+          position: absolute;
+          top: calc(100% + 6px);
+          right: 0;
+          z-index: $z-nav;
+          min-width: 190px;
+          margin: 0;
+          padding: 0.4rem;
+          background: $white;
+          border: 1px solid $grey;
+          border-left: 1px solid $grey;
+          border-radius: 10px;
+          box-shadow: 0 4px 16px $panel-shadow;
+
+          a,
+          .linkbtn {
+            width: 100%;
+            white-space: normal;
+          }
+        }
+      }
+
+      // The one element whose width is a rider's own text. Bounded so a long
+      // display name cannot push the bar into wrapping — the bar has roughly
+      // 900px to work with and everything else in it is a known string.
+      .nav-account-name {
+        display: inline-block;
+        max-width: 12ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+      }
+    }
+  }
 }
 
 //@ Map pages — the header floats over a full-viewport canvas

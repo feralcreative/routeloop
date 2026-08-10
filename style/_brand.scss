@@ -1,0 +1,269 @@
+@use "sass:color";
+@use "tokens" as *;
+
+// The brand page. A workbench rather than a designed page: the job is to make
+// every color comparable at a glance and every stray one findable, so the
+// styling stays out of the way of the swatches.
+
+.brand-summary {
+  margin: 0 0 2rem;
+  padding: 0.6rem 0.9rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.brand-sub {
+  margin: -0.4rem 0 1rem;
+  max-width: 68ch;
+  color: #666;
+  font-size: 0.92rem;
+}
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.9rem;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.brand-swatch {
+  display: flex;
+  flex-direction: column;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+// Fixed height so every swatch presents the same area of color — an unequal
+// field makes two similar colors look less similar than they are, which is the
+// one comparison this page exists to support.
+.brand-field {
+  display: block;
+  height: 74px;
+  border-bottom: 1px solid $grey;
+}
+
+// Alpha tokens need something behind them or they read as opaque.
+//
+// The checks are derived from $grey rather than picked, for the same reason the
+// chips below are: this page reports every hex written straight into a partial,
+// and inventing new ones to build it would put its own styling at the top of
+// its own trim list.
+.brand-field.is-alpha {
+  $check: color.adjust($grey, $lightness: -3%);
+
+  position: relative;
+  background-color: $white;
+  background-image:
+    linear-gradient(45deg, $check 25%, transparent 25%),
+    linear-gradient(-45deg, $check 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, $check 75%),
+    linear-gradient(-45deg, transparent 75%, $check 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+
+  > span {
+    position: absolute;
+    inset: 0;
+  }
+}
+
+.brand-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem 0.7rem;
+}
+
+.brand-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: $text;
+}
+
+.brand-value {
+  font-size: 0.78rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.brand-alias {
+  color: #999;
+}
+
+// Clamped, because the notes are wildly uneven: most tokens carry a sentence
+// and $ride carries the four paragraphs explaining the whole filename group.
+// Unclamped, that one card runs four times the height of its neighbours and the
+// grid stops being a grid — which defeats the only thing a swatch grid is for,
+// putting colors side by side at the same size. The full text is on the title
+// attribute, and the source is one click away in the SCSS.
+.brand-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #666;
+}
+
+.brand-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.brand-chip {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  b {
+    font-weight: 700;
+  }
+
+  // Derived from $gpx rather than a green picked by eye. Reusing the token's
+  // hue does mean the pass chip sits in the same family as the $gpx swatch, but
+  // the alternative was two invented values on a page whose whole argument is
+  // that the palette already has too many — and a pale tint beside a saturated
+  // swatch is not hard to tell apart.
+  &.is-pass {
+    background: color.adjust($gpx, $lightness: 45%);
+    color: color.adjust($gpx, $lightness: -14%);
+  }
+
+  // Deliberately not red. Below 4.5:1 only matters if the color is text, and
+  // most of these are grounds and hairlines working exactly as intended.
+  &.is-low {
+    background: color.adjust($grey, $lightness: 6%);
+    color: #666;
+  }
+}
+
+.brand-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.brand-day {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 6px;
+}
+
+.brand-dot {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.brand-day-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+
+  b {
+    font-size: 0.78rem;
+  }
+
+  code {
+    font-size: 0.72rem;
+    color: #666;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// A long table of hexes is the one thing here that can overflow a narrow
+// screen, so it scrolls inside its own box rather than pushing the page.
+.brand-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 2.5rem;
+}
+
+.brand-table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th,
+  td {
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid $grey;
+  }
+
+  th {
+    color: #888;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  .brand-hex {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .brand-files {
+    color: #777;
+    font-size: 0.8rem;
+  }
+
+  .brand-count {
+    width: 4.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.brand-mini {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 0.45rem;
+  vertical-align: -2px;
+  border: 1px solid color.adjust($grey, $lightness: -8%);
+  border-radius: 3px;
+}
+
+.brand-none {
+  color: #999;
+}
+
+.brand-plain {
+  margin: 0 0 2.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+
+  code + code {
+    margin-left: 0.4rem;
+    color: #666;
+  }
+}
+
+.brand-foot {
+  max-width: 68ch;
+  color: #777;
+  font-size: 0.85rem;
+}

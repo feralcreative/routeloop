@@ -133,7 +133,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
 
   const body = (
     <>
-      <h1>Riders</h1>
+      <h1>Admin</h1>
       <div class="sub">
         {riders.length} account{riders.length === 1 ? '' : 's'}
         {pending ? ` · ${pending} waiting for approval` : ''}
@@ -151,7 +151,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
     </>
   ).toString()
 
-  return c.html(page({ title: 'Riders', user: me, navKey: 'admin', body }))
+  return c.html(page({ title: 'Admin', user: me, navKey: 'admin', body }))
 })
 
 adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, async (c) => {

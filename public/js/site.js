@@ -39,33 +39,71 @@
     const nav = document.getElementById("site-nav");
     if (!header || !toggle || !nav) return;
 
+    // Open state is a class on the header, not the `hidden` attribute. The same
+    // markup is the drawer below 992px and the bar above it, and `hidden` left
+    // on the bar would tell assistive tech to skip a nav that is plainly on
+    // screen. CSS owns which shape applies; this only says open or closed.
+    const isOpen = () => header.classList.contains("open");
+
+    // The two dropdowns inside the nav. Native <details> handles opening; what
+    // it does not do is close when you click somewhere else, which is the one
+    // behavior people expect from a menu in a bar.
+    const subs = () => nav.querySelectorAll("details.nav-sub");
+    function closeSubs(except) {
+      subs().forEach(function (d) {
+        if (d !== except) d.open = false;
+      });
+    }
+
     function setOpen(open) {
-      nav.hidden = !open;
       header.classList.toggle("open", open);
       toggle.setAttribute("aria-expanded", String(open));
       if (open) {
         const first = nav.querySelector(FOCUSABLE);
         if (first) first.focus();
+      } else {
+        closeSubs();
       }
     }
 
     toggle.addEventListener("click", function (e) {
       e.stopPropagation();
-      setOpen(nav.hidden);
+      setOpen(!isOpen());
     });
 
-    // Any activation inside the drawer closes it — links navigate, and the
-    // "About this alpha" button opens the modal on top.
+    // Only one dropdown open at a time. In the bar two open panels would
+    // overlap; in the drawer they just make a long list longer.
+    nav.addEventListener("toggle", function (e) {
+      const d = e.target;
+      if (d instanceof HTMLDetailsElement && d.open) closeSubs(d);
+    }, true);
+
+    // Any activation inside closes the drawer — links navigate, and the
+    // "About this alpha" button opens the modal on top. A <summary> is exempt:
+    // it opens the panel the click was aimed at, so closing on it would make
+    // the dropdowns unopenable.
     nav.addEventListener("click", function (e) {
+      if (e.target.closest("summary")) return;
       if (e.target.closest("a,button")) setOpen(false);
     });
 
     document.addEventListener("click", function (e) {
-      if (!nav.hidden && !e.target.closest("#site-header")) setOpen(false);
+      if (e.target.closest("#site-header")) return;
+      // At desktop the drawer is never open, but a dropdown can be — so the
+      // outside click has to reach both rather than returning early on one.
+      if (isOpen()) setOpen(false);
+      closeSubs();
     });
 
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !nav.hidden) {
+      if (e.key !== "Escape") return;
+      const openSub = nav.querySelector("details.nav-sub[open]");
+      if (openSub) {
+        // Innermost first: Escape shuts the panel you are in, not the whole nav.
+        openSub.open = false;
+        const summary = openSub.querySelector("summary");
+        if (summary) summary.focus();
+      } else if (isOpen()) {
         setOpen(false);
         toggle.focus();
       }

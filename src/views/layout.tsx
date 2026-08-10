@@ -94,6 +94,9 @@ export type PageOpts = {
   noscript?: string
 }
 
+// The destinations that earn a place in the bar itself. "Your profile" used to
+// be here and moved into the account menu: it is a thing you do to yourself
+// rather than a place the app takes you, and at desktop the bar has to fit.
 const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'home', href: '/', label: 'Home' },
   { key: 'explore', href: '/explore', label: 'Explore' },
@@ -101,7 +104,6 @@ const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'import', href: '/import', label: 'Import a route' },
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
-  { key: 'profile', href: '/profile', label: 'Your profile' },
 ]
 
 function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
@@ -130,49 +132,46 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
       <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
         <span class="nav-bars" aria-hidden="true"></span>
       </button>
-      <nav class="site-nav" id="site-nav" hidden>
-        {user ? (
-          <>
-            {NAV_LINKS.map((l) => (
-              <NavLink item={l} navKey={navKey} />
-            ))}
-            {/*
-              The capability-gated items, appended here rather than living in
-              the static NAV_LINKS list because each is shown to some signed-in
-              riders and not others.
-            */}
-            {user.surveyInvitedAt && (
-              <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
-            )}
-            {user.canManageRiders && (
-              <>
-                <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />
-                <NavLink item={{ key: 'invites', href: '/admin/invites', label: 'Invitations' }} navKey={navKey} />
-              </>
-            )}
-            <hr />
-            <span class="nav-user">{user.displayName}</span>
-            <form method="post" action="/logout">
-              <button class="linkbtn" type="submit">
-                Sign out
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <NavLink item={NAV_LINKS[0]} navKey={navKey} />
-            {/*
-              "Join the beta", not "Sign in". Nobody can sign themselves in —
-              alpha is developers and beta is invite-only — so a nav that offers
-              sign-in contradicts the page it links to. Approved riders returning
-              from a signed-out session land on the same page through the same
-              controls, and /login says so directly under them.
-            */}
-            <a href="/login">Join the beta</a>
-          </>
-        )}
-        <hr />
-        <NavAboutMenu />
+      {/*
+        One markup tree for both shapes. Below 992px it is the drawer it always
+        was; at 992 and up _nav.scss lays the same elements out as a bar with two
+        menus on the right. Visibility is a class on the header rather than the
+        `hidden` attribute, because `hidden` means "not relevant" to a screen
+        reader — leaving it on an element CSS has made visible would hide the
+        whole desktop nav from assistive tech while showing it to everyone else.
+      */}
+      <nav class="site-nav" id="site-nav">
+        <div class="nav-primary">
+          {user ? (
+            <>
+              {NAV_LINKS.map((l) => (
+                <NavLink item={l} navKey={navKey} />
+              ))}
+              {/*
+                Capability-gated, so it cannot live in the static list. Its own
+                slot in the bar rather than a line in the account menu: it is a
+                destination that is growing into a panel, not a personal setting.
+              */}
+              {user.canManageRiders && <NavLink item={{ key: 'admin', href: '/admin', label: 'Admin' }} navKey={navKey} />}
+            </>
+          ) : (
+            <>
+              <NavLink item={NAV_LINKS[0]} navKey={navKey} />
+              {/*
+                "Join the beta", not "Sign in". Nobody can sign themselves in —
+                alpha is developers and beta is invite-only — so a nav that offers
+                sign-in contradicts the page it links to. Approved riders returning
+                from a signed-out session land on the same page through the same
+                controls, and /login says so directly under them.
+              */}
+              <a href="/login">Join the beta</a>
+            </>
+          )}
+        </div>
+        <div class="nav-end">
+          <NavAboutMenu />
+          {user && <NavAccountMenu user={user} navKey={navKey} />}
+        </div>
       </nav>
     </header>
   )
@@ -245,6 +244,10 @@ const SiteLinkRow = () => (
 //
 // <details> rather than a JS menu: it is a disclosure, and the platform already
 // handles the keyboard and the ARIA for one.
+// About, at the top level rather than at the bottom of a list. It is where the
+// legal pages live and the only route to the alpha note, and burying it under
+// everything else made the two things a new rider most wants — what is this,
+// and what happens to my data — the last two things they could find.
 const NavAboutMenu = () => (
   <details class="nav-sub">
     <summary>About</summary>
@@ -253,6 +256,35 @@ const NavAboutMenu = () => (
         About this app
       </button>
       <SiteLinkRow />
+    </div>
+  </details>
+)
+
+// The person, not the product: who you are signed in as, and the handful of
+// things that act on that account.
+//
+// Invitations sits here for now because it has nowhere better to be. It is
+// admin-only and almost certainly belongs inside /admin once that page grows
+// past rider approvals — at which point this entry should go, not move.
+const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) => (
+  <details class="nav-sub nav-account">
+    <summary>
+      <span class="nav-account-name">{user.displayName}</span>
+    </summary>
+    <div class="nav-sub-items">
+      <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
+      {user.surveyInvitedAt && (
+        <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
+      )}
+      {user.canManageRiders && (
+        <NavLink item={{ key: 'invites', href: '/admin/invites', label: 'Invitations' }} navKey={navKey} />
+      )}
+      <hr />
+      <form method="post" action="/logout">
+        <button class="linkbtn" type="submit">
+          Sign out
+        </button>
+      </form>
     </div>
   </details>
 )
