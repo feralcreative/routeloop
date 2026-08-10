@@ -1,10 +1,45 @@
 # AI Agent Primer: tankbag
 
-**Last Updated:** 2026-08-06
+**Last Updated:** 2026-08-09
 **Project:** Motorcycle/road-trip ride planning, sharing & organizing app (tankbag.app)
 **Status:** **Live in production on the new stack.** The product moved from "upload KML files" to "plan rides in-app"; upload survives as an import path. The app was renamed `tankbag` → `routeloop` on 2026-07-24 and **renamed back to `tankbag` on 2026-07-29**. Both migrations that defined branch `refactor/google-maps-and-auth` are **done and deployed**: **Cloudflare Access → Google OAuth + magic link**, and **Mapbox → Google Maps**. Since then the app has gained multi-day rides on one map, the trip timeline, an admin panel, public profiles, import/export across six formats, a printable roadbook, the Expand hand-off to Google Maps, undo plus crash-recovery drafts, and drag-to-shape. See "Where things stand" at the end of this document before starting anything.
 
 This document orients an AI agent working on the codebase. Read it first, then [docs/STATUS.md](docs/STATUS.md) for exactly where things stand—that file moves faster than this one and wins where they disagree. Where either disagrees with the code, **the code is right**; that has happened more than once and has already caused a bogus GitHub issue to be filed for work already finished.
+
+## Rules of engagement
+
+**This section outranks the rest of this document and the codebase.** It exists because an agent read the code, inferred a set of rules nobody had imposed, and then designed around them. That is the failure mode to avoid, and it is worse than getting a fact wrong: a wrong fact gets corrected, an invented constraint quietly narrows every decision after it.
+
+### Ask, do not infer
+
+The comments in this codebase are unusually dense and explain *why* things are the way they are. **They describe how something ended up, not a policy you must uphold.** A comment saying a form avoids fetch+JSON is history. It is not a ban on fetch.
+
+**Always offer options rather than picking silently.** When there is a real choice—a library, an approach, a shape—lay out the two or three candidates with their trade-offs and let Ziad choose. Do not present one path as though it were the only one, and do not quietly adopt a constraint to make a decision easier.
+
+If something looks like a rule and it is not written here, ask. A one-line question is cheaper than a design built on a guess.
+
+### Settled: these are NOT constraints
+
+All four were inferred from code and docs by an agent, and all four were wrong. Confirmed with Ziad on 2026-08-09:
+
+- **No JavaScript / progressive enhancement.** Never a requirement. Use as much client JS as the job needs. `src/routes/import.tsx` says a form "should not stop working without JavaScript"—that is one comment's rationale, not a project rule.
+- **Vanilla JS, no bundler.** Where it landed, not a decision to defend. A framework or a build step is fair game if it earns its place.
+- **Zero dependencies.** No such rule. Add what is useful rather than reinventing it.
+- **Tests must not need a database.** They happen not to today. A database-backed test is fine when that is the honest test.
+
+### Settled: these ARE real
+
+- **The hierarchy is `ride > day > leg > stop/POI`.** See the product model below. Not negotiable, and not to be re-litigated.
+- **American English** everywhere—code, comments, copy, docs. `color`, not `colour`. The SCSS token `$grey` keeps its spelling because it is an identifier.
+- **Never commit, push or deploy without being asked**, and never put AI attribution in a commit message or PR body.
+
+### Open, and Ziad's call
+
+- **`public/js/map-common.js` as the only file touching `google.maps`.** Currently intact—9 references, all in that file. It is what made the Mapbox → Google migration a one-file rewrite, and it is why the pure modules are unit-testable. Costs indirection and a file that only grows (772 lines, 24 exports). Not yet ruled on either way; ask before either enforcing or breaking it.
+
+### The standing preference
+
+Best practices, but not at the cost of the thing working—no cutting off the nose to spite the face. The goal is not a bloated app, and not a purist one either. **A library, script or framework that genuinely earns its keep will be considered on its merits;** the bar is whether it pays for its weight, not whether it is a dependency.
 
 > **Neither Cloudflare Access nor Mapbox exists in this codebase any more.** Where this document names them it is describing history or explaining why something is shaped as it is. No `MAPBOX_*` value is read anywhere, and `public/js/main.js` is deleted. The Access _policy_ still exists at the Cloudflare edge and should be removed—it is redundant, not protective, since the deployed app has not read the header it injects since 2026-07-30.
 
@@ -209,7 +244,7 @@ src/
     ride-graph.ts     The ride payload schema, normalize, insertRideGraph —
                       shared by the builder's save and the native import
     fields.ts         Scalar field rules shared by every ride-shaped request
-    palette.ts        Day colours; injected as window.TB.dayColors
+    palette.ts        Day colors; injected as window.TB.dayColors
     storage.ts        Integer-id file paths, containment-checked writes
     slug.ts           22-char base62 unguessable share ids
     twist.ts          Twistiness: degrees of heading change per mile
@@ -394,7 +429,7 @@ Since then: a file holding several tracks lands as several days rather than only
 - **`rides.size_bytes` must name every byte column.** The app increments `used_bytes` on import, the database decrements it from `size_bytes` on delete. A column missing from that expression leaks quota on every delete, silently and forever.
 - **Production is not precious.** Three accounts, all the owner's. Be careful with the _mechanics_ of a migration—`drizzle-kit push` without `--force`, additive DDL by hand in `utils/deploy/sql/`—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
 - **The pre-commit tightener rewrites em dashes**, including in test fixtures. `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
-- **A filename is not a format.** `src/maps/filename.ts` carries four fields; everything else about a ride lives in the file or in Tankbag JSON. The temptation when someone asks for "all metadata in the filename" is to keep adding fields—roles, colours, dwell. Do not. The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work.
+- **A filename is not a format.** `src/maps/filename.ts` carries four fields; everything else about a ride lives in the file or in Tankbag JSON. The temptation when someone asks for "all metadata in the filename" is to keep adding fields—roles, colors, dwell. Do not. The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work.
 - **A snapshot shares what the builder never mutates in place, and that set changes.** `leg.geometry` is shared by reference because it is always replaced wholesale; `point.roles` must be copied because `splice()` mutates it. `leg.viaPoints` moved from the first group to the second the day drag-to-shape shipped, and nothing failed loudly—the snapshot just quietly gained the edit it existed to protect against. Check this whenever you add a feature that edits in place.
 
 ### Pick up here
