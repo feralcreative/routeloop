@@ -20,7 +20,8 @@ export function alphaSplash(): string {
   return (
     <div class="modal-backdrop" id="alpha-splash" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="alpha-title" aria-describedby="alpha-body">
-        <img class="modal-logo" src="/img/logo-tankbag-vert-light.svg" alt="" width="864" height="618" />
+        {/* .modal is $white, so this takes the black artwork, not the reversed one. */}
+        <img class="modal-logo" src="/img/logo-tankbag-vert.svg" alt="" width="920" height="648" />
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
@@ -86,7 +87,13 @@ export function SplashPage({
     <>
       <SplashMedia />
       <main class="splash">
-        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1456" height="426" />
+        {/*
+          The reversed lockup — `-dark` names the ground it sits on, not the
+          ink. This is over the darkened video, and it was the black artwork
+          here until 2026-08-09, at 1456x426 against a file that was actually
+          1595x456, so it was both invisible and stretched 2%.
+        */}
+        <img class="splash-logo" src="/img/logo-tankbag-horiz-dark.svg" alt="Tankbag" width="1595" height="456" />
         <p class="eyebrow">{eyebrow}</p>
         <h1>{heading}</h1>
         {children}

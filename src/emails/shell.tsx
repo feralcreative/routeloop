@@ -131,9 +131,13 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 
 // The wordmark, one asset per scheme.
 //
-// Both are 360x103 and about 6 KB, drawn for this purpose — not the site's
-// logo-tankbag-horiz-light@2x.png, which is 2911x852 and 84 KB and has no place
-// in an inbox. Displayed at half size, so the source is the 2x asset.
+// Both are 360x103 and about 6 KB, drawn for this purpose — not a scaled copy
+// of the site lockup, which is a 51 KB SVG most clients will not render at all.
+// Displayed at half size, so the source is the 2x asset.
+//
+// The `-dark` suffix names the ground, not the ink: LOGO_DARK is the reversed
+// white artwork, for a dark client. Same convention as the site's SVG pair in
+// src/views/layout.tsx.
 //
 // Both are also OPAQUE, which is the property that makes this work at all and
 // is worth checking before swapping either file. A transparent PNG disappears

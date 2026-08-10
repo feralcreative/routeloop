@@ -465,7 +465,7 @@ Fixed twice over, on purpose:
 
 All but one of these is now done. Kept because the reasoning is still worth having, and struck through so nobody works them again:
 
-- ~~**Favicons** still carry the old routeloop mark, including the `og:image` social card.~~ **Done**—regenerated 2026-07-31 in `22610b8`, [#55](https://github.com/feralcreative/tankbag/issues/55) closed 2026-08-02. `og:image` points at `logo-tankbag-horiz-light@2x.png`. This item was restated as outstanding in two later sections of this file for four days after it was finished; see the note on checking assets before believing a checklist.
+- ~~**Favicons** still carry the old routeloop mark, including the `og:image` social card.~~ **Done**—regenerated 2026-07-31 in `22610b8`, [#55](https://github.com/feralcreative/tankbag/issues/55) closed 2026-08-02. `og:image` points at `og-card.png` since 2026-08-09 (it was the bare `logo-tankbag-horiz-light@2x.png` strip until then). This item was restated as outstanding in two later sections of this file for four days after it was finished; see the note on checking assets before believing a checklist.
 - **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`. **Still open**, and the only edge-side item left.
 - ~~**Set per-API daily quota caps** on the GCP project.~~ **Done 2026-08-02**—five metrics capped, see "Console hardening" above.
 

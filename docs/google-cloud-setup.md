@@ -87,7 +87,7 @@ Both localhost forms are listed deliberately—`isAllowedOrigin` in [src/config.
 Publishing status **In production**, user type **External**. With only non-sensitive scopes this needs no review. Fill in:
 
 - App name, user support email, developer contact email
-- App logo—use `logo-tankbag-vert-light@2x.png`
+- App logo—use `_assets/logo-tankbag-vert@2x.png` (1840×1296, the black artwork; Google renders it on a white consent screen). It is not under `public/`, because nothing on the site links to it and the console upload is a one-off.
 - Authorized domains: `tankbag.app`
 - A privacy policy URL and terms URL. These are required fields for a published external app, and neither exists yet. Two static pages.
 

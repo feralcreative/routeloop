@@ -131,17 +131,17 @@ function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: s
 function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
-  // it is 62px wide against the horizontal lockup's 102px, so it takes less of
-  // the map. Both are the light (black-on-transparent) artwork, which is what
-  // the panel backing in _nav.scss exists to keep legible over terrain.
+  // it is 131px wide against the horizontal lockup's 168px, so it takes less of
+  // the map.
+  //
+  // Both are the unsuffixed artwork. The suffix names the *background*, not the
+  // ink: no suffix is the black lockup for a light ground, `-dark` is the
+  // reversed white one for a dark ground. It reads backwards at a glance, which
+  // is why it is written down — but it is the convention src/emails/shell.tsx
+  // was already using, so the alternative was two conventions instead of one.
   const logo = isMap
-    ? { src: '/img/logo-tankbag-vert-light.svg', w: 871, h: 618 }
-    : // `-dark` is the current horizontal artwork despite the name: it is the
-      // one carrying the red dot, and it is drawn in black, so it belongs on a
-      // light ground. The `-light` file is the pre-dot version from 2026-07-31.
-      // The vertical pair names the same idea the other way round, which is why
-      // this needs saying rather than looking like a typo.
-      { src: '/img/logo-tankbag-horiz-dark.svg', w: 1595, h: 456 }
+    ? { src: '/img/logo-tankbag-vert.svg', w: 920, h: 648 }
+    : { src: '/img/logo-tankbag-horiz.svg', w: 1595, h: 456 }
 
   return (
     <header class="site-header" id="site-header">
@@ -366,7 +366,14 @@ export function page(opts: PageOpts): string {
   ${siteIconLinks()}
   <meta property="og:title" content="${title}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="${asset('/img/logo-tankbag-horiz-light@2x.png')}">
+  <!--
+    A composed 1280x640 card, not a crop of the logo. twitter:card below asks
+    for a large image, and what used to sit here was the bare horizontal lockup
+    at 2911x852 — a 3.4:1 strip that every scraper letterboxed into a 1.91:1
+    slot, so most of the preview was padding. The wordmark on this card is the
+    pre-dot artwork and wants redrawing.
+  -->
+  <meta property="og:image" content="${asset('/img/og-card.png')}">
   <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
