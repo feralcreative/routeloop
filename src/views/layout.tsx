@@ -62,9 +62,12 @@ export type NavKey =
   | 'import'
   | 'places'
   | 'profile'
+  | 'settings'
   | 'admin'
+  | 'approvals'
   | 'invites'
   | 'survey'
+  | 'survey-results'
 
 export type PageOpts = {
   /** Without the " – Tankbag" suffix; page() appends it. */
@@ -94,17 +97,28 @@ export type PageOpts = {
   noscript?: string
 }
 
-// The destinations that earn a place in the bar itself. "Your profile" used to
-// be here and moved into the account menu: it is a thing you do to yourself
-// rather than a place the app takes you, and at desktop the bar has to fit.
-const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
-  { key: 'home', href: '/', label: 'Home' },
-  { key: 'explore', href: '/explore', label: 'Explore' },
-  { key: 'riders', href: '/riders', label: 'Riders' },
-  { key: 'builder', href: '/builder', label: 'Plan a ride' },
-  { key: 'import', href: '/import', label: 'Import a route' },
+// The menu, exactly as docs/main-menu.md specifies it. That file is the spec and
+// this is the implementation; change the spec first.
+//
+// No Home entry on purpose — the logo goes there and duplicating it spends a
+// slot in the bar on the one destination nobody has to be told about.
+type NavItem = { key: NavKey; href: string; label: string }
+
+const RIDES_LINKS: NavItem[] = [
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
+  { key: 'builder', href: '/builder', label: 'Plan a ride' },
+  { key: 'explore', href: '/explore', label: 'Find a ride' },
+  { key: 'import', href: '/import', label: 'Import / Export' },
 ]
+
+const ADMIN_LINKS: NavItem[] = [
+  { key: 'admin', href: '/admin', label: 'Admin' },
+  { key: 'approvals', href: '/admin/approvals', label: 'Approvals' },
+  { key: 'invites', href: '/admin/invites', label: 'Invitations' },
+  { key: 'survey-results', href: '/admin/survey', label: 'Survey results' },
+]
+
+const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
 
 function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
   return (
@@ -122,57 +136,59 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
   // the panel backing in _nav.scss exists to keep legible over terrain.
   const logo = isMap
     ? { src: '/img/logo-tankbag-vert-light.svg', w: 871, h: 618 }
-    : { src: '/img/logo-tankbag-horiz-light.svg', w: 1414, h: 426 }
+    : // `-dark` is the current horizontal artwork despite the name: it is the
+      // one carrying the red dot, and it is drawn in black, so it belongs on a
+      // light ground. The `-light` file is the pre-dot version from 2026-07-31.
+      // The vertical pair names the same idea the other way round, which is why
+      // this needs saying rather than looking like a typo.
+      { src: '/img/logo-tankbag-horiz-dark.svg', w: 1595, h: 456 }
 
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
         <img src={logo.src} alt="Tankbag" width={logo.w} height={logo.h} />
       </a>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
-        <span class="nav-bars" aria-hidden="true"></span>
-      </button>
       {/*
-        One markup tree for both shapes. Below 992px it is the drawer it always
-        was; at 992 and up _nav.scss lays the same elements out as a bar with two
-        menus on the right. Visibility is a class on the header rather than the
-        `hidden` attribute, because `hidden` means "not relevant" to a screen
-        reader — leaving it on an element CSS has made visible would hide the
-        whole desktop nav from assistive tech while showing it to everyone else.
+        A <details>, not a button plus a script. The browser owns open/closed,
+        which means the menu works with no JavaScript at all — the whole nav used
+        to vanish if site.js failed to load, on every page at once.
+
+        One markup tree for both shapes. Below 992px this is the drawer; at 992
+        and up _nav.scss reveals the same <nav> in flow as a bar and hides the
+        summary, so the desktop nav needs neither the disclosure nor any script.
       */}
-      <nav class="site-nav" id="site-nav">
-        <div class="nav-primary">
-          {user ? (
-            <>
-              {NAV_LINKS.map((l) => (
-                <NavLink item={l} navKey={navKey} />
-              ))}
-              {/*
-                Capability-gated, so it cannot live in the static list. Its own
-                slot in the bar rather than a line in the account menu: it is a
-                destination that is growing into a panel, not a personal setting.
-              */}
-              {user.canManageRiders && <NavLink item={{ key: 'admin', href: '/admin', label: 'Admin' }} navKey={navKey} />}
-            </>
-          ) : (
-            <>
-              <NavLink item={NAV_LINKS[0]} navKey={navKey} />
-              {/*
-                "Join the beta", not "Sign in". Nobody can sign themselves in —
-                alpha is developers and beta is invite-only — so a nav that offers
-                sign-in contradicts the page it links to. Approved riders returning
-                from a signed-out session land on the same page through the same
-                controls, and /login says so directly under them.
-              */}
-              <a href="/login">Join the beta</a>
-            </>
-          )}
-        </div>
-        <div class="nav-end">
-          <NavAboutMenu />
-          {user && <NavAccountMenu user={user} navKey={navKey} />}
-        </div>
-      </nav>
+      <details class="site-menu">
+        <summary class="nav-toggle" aria-label="Menu">
+          <span class="nav-bars" aria-hidden="true"></span>
+        </summary>
+        <nav class="site-nav" id="site-nav">
+          <div class="nav-primary">
+            {user ? (
+              <>
+                <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
+                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavAboutMenu user={user} navKey={navKey} />
+                {user.canManageRiders && <NavGroup label="Admin" items={ADMIN_LINKS} navKey={navKey} />}
+              </>
+            ) : (
+              <>
+                <NavLink item={{ ...RIDES_LINKS[2] }} navKey={navKey} />
+                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavAboutMenu user={null} navKey={navKey} />
+                {/*
+                  "Join the beta", not "Sign in". Nobody can sign themselves in —
+                  alpha is developers and beta is invite-only — so a nav that offers
+                  sign-in contradicts the page it links to. Approved riders returning
+                  from a signed-out session land on the same page through the same
+                  controls, and /login says so directly under them.
+                */}
+                <a href="/login">Join the beta</a>
+              </>
+            )}
+          </div>
+          <div class="nav-end">{user && <NavAccountMenu user={user} navKey={navKey} />}</div>
+        </nav>
+      </details>
     </header>
   )
 }
@@ -244,50 +260,76 @@ const SiteLinkRow = () => (
 //
 // <details> rather than a JS menu: it is a disclosure, and the platform already
 // handles the keyboard and the ARIA for one.
-// About, at the top level rather than at the bottom of a list. It is where the
-// legal pages live and the only route to the alpha note, and burying it under
-// everything else made the two things a new rider most wants — what is this,
-// and what happens to my data — the last two things they could find.
-const NavAboutMenu = () => (
+// One group in the bar: a summary that opens a panel of links.
+const NavGroup = ({ label, items, navKey }: { label: string; items: NavItem[]; navKey?: NavKey }) => (
   <details class="nav-sub">
-    <summary>About</summary>
+    <summary>{label}</summary>
     <div class="nav-sub-items">
-      <button type="button" class="linkbtn" data-open-alpha>
-        About this app
-      </button>
-      <SiteLinkRow />
+      {items.map((i) => (
+        <NavLink item={i} navKey={navKey} />
+      ))}
     </div>
   </details>
 )
 
-// The person, not the product: who you are signed in as, and the handful of
-// things that act on that account.
-//
-// Invitations sits here for now because it has nowhere better to be. It is
-// admin-only and almost certainly belongs inside /admin once that page grows
-// past rider approvals — at which point this entry should go, not move.
-const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) => (
-  <details class="nav-sub nav-account">
-    <summary>
-      <span class="nav-account-name">{user.displayName}</span>
-    </summary>
+// About. Privacy and Terms are deliberately not here — the footer carries them
+// on every chrome page and the splash carries them signed out, so repeating them
+// would make this the longest menu in the bar for the two links hardest to lose.
+// "About this app" stays because it is the alpha modal's only trigger.
+const NavAboutMenu = ({ user, navKey }: { user: UserRow | null; navKey?: NavKey }) => (
+  <details class="nav-sub">
+    <summary>About</summary>
     <div class="nav-sub-items">
-      <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
-      {user.surveyInvitedAt && (
+      <NavLink item={{ key: 'places', href: '/faq', label: 'FAQ' }} navKey={navKey} />
+      {user?.surveyInvitedAt && (
         <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
       )}
-      {user.canManageRiders && (
-        <NavLink item={{ key: 'invites', href: '/admin/invites', label: 'Invitations' }} navKey={navKey} />
-      )}
-      <hr />
-      <form method="post" action="/logout">
-        <button class="linkbtn" type="submit">
-          Sign out
-        </button>
-      </form>
+      <button type="button" class="linkbtn" data-open-alpha>
+        About this app
+      </button>
     </div>
   </details>
 )
+
+// The person, not the product: who you are signed in as, and the things that act
+// on that account. Pinned right, away from the four destination groups.
+//
+// The avatar falls back to initials on a tinted disc: avatar_url is populated
+// from Google sign-in, so every rider who came in through a magic link has none,
+// and a broken image in the header would be the most visible bug on the site.
+const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) => {
+  const initials = user.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
+
+  return (
+    <details class="nav-sub nav-account">
+      <summary>
+        {user.avatarUrl ? (
+          <img class="nav-avatar" src={user.avatarUrl} alt="" width="24" height="24" />
+        ) : (
+          <span class="nav-avatar is-initials" aria-hidden="true">
+            {initials || '?'}
+          </span>
+        )}
+        <span class="nav-account-name">{user.displayName}</span>
+      </summary>
+      <div class="nav-sub-items">
+        <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
+        <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
+        <hr />
+        <form method="post" action="/logout">
+          <button class="linkbtn" type="submit">
+            Sign out
+          </button>
+        </form>
+      </div>
+    </details>
+  )
+}
 
 function siteFooter(splash: boolean): string {
   // The splash is a signed-out landing page over video: it gets the links and

@@ -260,7 +260,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Your riders</legend>
           {user.canManageRiders ? (
             <p class="field-hint">
-              Rider management is enabled for your account—<a href="/admin">approve and manage riders</a>.
+              Rider management is enabled for your account—<a href="/admin/approvals">approve and manage riders</a>.
             </p>
           ) : (
             <p class="field-hint">Adding riders is closed during the alpha.</p>

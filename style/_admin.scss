@@ -110,3 +110,40 @@
   background: rgba($brand, 0.14);
   color: color.adjust($brand, $lightness: -6%);
 }
+
+// The admin overview. Four destinations, each with the one fact worth knowing
+// before you click.
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.8rem;
+  margin: 1.2rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    height: 100%;
+    padding: 0.9rem 1rem;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 10px;
+    text-decoration: none;
+    color: $text;
+
+    &:hover {
+      border-color: $url;
+    }
+  }
+
+  strong {
+    font-size: 1.02rem;
+  }
+
+  span {
+    color: #666;
+    font-size: 0.85rem;
+  }
+}

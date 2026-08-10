@@ -45,6 +45,7 @@ import { importRoutes } from './routes/import'
 import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
+import { settingsRoutes } from './routes/settings'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -127,6 +128,7 @@ app.route('/', rideRoutes)
 app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
+app.route('/', settingsRoutes)
 app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
