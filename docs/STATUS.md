@@ -343,7 +343,9 @@ Branch `style/ui-tweaks-and-cleanup`, nine commits, from `_PLANS/sprint-04-26080
 
 **Everything about usernames lives in [auth/username.ts](../src/auth/username.ts)**—reserved list, schema, availability, `publicIdFor`, `claimUsername`. Two callers now (the prompt and the profile form) and they must not drift.
 
-### Read this before the next `drizzle-kit push`
+### Read this before the next schema change
+
+Kept because the hazard outlived the tool. The workflow moved to generated migrations on 2026-08-10, which removes the prompt below—but not the underlying problem, which is a differ that does not know what you meant.
 
 Adding a nullable column and a table sounds harmless. The push offered to destroy the users table to do it:
 
@@ -356,6 +358,8 @@ Adding a nullable column and a table sounds harmless. The push offered to destro
 **`--force` auto-answers prompts like that.** It would have wiped every account to make room for a constraint that did not need it—existing `public_id` was NULL everywhere, and NULLs never collide in a unique constraint. The correct answer is no.
 
 The DDL was applied by hand in a transaction instead, matching drizzle's own naming, and a follow-up `push` reported no changes, which is how you confirm the names line up. Do that rather than gambling on a prompt default you cannot see in a non-TTY.
+
+Under generated migrations the same case shows up as SQL in a file you can edit before anything runs—the constraint statement is there to read, and the fix is to keep it and drop the truncate. **`push` reporting no changes remains the way to verify a database matches `src/db/schema.ts`**, which is exactly the check a baseline depends on.
 
 ### What a returning rider will hit
 
@@ -757,7 +761,7 @@ Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and 
 - **Coordinate order** stays the likeliest bug. The app stores and speaks `[lng, lat]`; google.maps speaks `{lat, lng}`. Getting it backwards still renders, just in the wrong place. Routes API with `polylineEncoding: GEO_JSON_LINESTRING` returns `[lng, lat]`, so **no stored ride ever needed migrating**. Two functions do the conversion and only two: `toGoogleWaypoint` in [src/routes/routing.ts](../src/routes/routing.ts) on the server, and `toLatLng`/`fromLatLng` in [public/js/map-common.js](../public/js/map-common.js) on the client. Keep it that way.
 - **The shared residential egress IP**—see above. Both environments and the workstation ride on one address.
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
-- **Schema is push-only, and `--force` is genuinely dangerous.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first. This is not theoretical: adding a nullable column plus a unique constraint on 2026-08-01 produced a prompt offering to **truncate the users table**, which `--force` would have accepted. Hand-written additive DDL in `utils/deploy/sql/` is the way through; see the sprint 4 section.
+- **Schema is generated migrations as of 2026-08-10, not `push`.** `drizzle/` exists and is committed; `npm run db:generate` then `npm run db:migrate`, and the deploy hook runs `migrate`. The `--force` hazard is gone with the flag—`migrate` has no prompts to auto-answer, which is why `deploy-utils.sh migrate` no longer passes it. **The new sharp edge is generation, not application:** the differ writes a rename as a drop plus an add, so read and rewrite the SQL before it runs. Full workflow in [database.md](database.md). Any database built by the old `push` workflow needs a one-time baseline before `migrate` will work against it—**prod and stage still do.**
 - **The danger is the flag, not the database.** Production is a closed alpha with three accounts and they are all the owner's. Migrations and redeploys are cheap and should not be deferred out of caution—doing so on 2026-08-03 is what shipped GeoJSON and CSV imports that stored no original file, destroying multi-day structure that a stored file would have preserved. Be careful with the mechanics, not about whether to proceed.
 - **`rides.size_bytes` must name every byte column.** It is generated from `kml_bytes + gpx_bytes + source_bytes`, and `used_bytes` is incremented by the app on import but decremented by this column on delete. A new byte column left out of the expression leaks quota on every delete, permanently and with no error.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
@@ -770,8 +774,8 @@ cd /Users/ziad/www/moto/tankbag
 npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
-npx drizzle-kit push
-npx tsx src/db/seed.ts        # demo user + sample ride
+npm run db:migrate            # generated migrations; npm run dev does this too
+npx tsx src/db/seed.ts        # demo user + sample ride (needs moto-storage/1/1.kml)
 npm run dev                   # http://localhost:6686
 ```
 

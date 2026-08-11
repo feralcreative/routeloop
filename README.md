@@ -97,9 +97,13 @@ Delivered in phases:
 3. Apply the schema and seed a sample ride:
 
    ```bash
-   npx drizzle-kit push
+   npm run db:migrate
    npx tsx src/db/seed.ts
    ```
+
+   `npm run dev` applies pending migrations too, via `predev`, so switching between machines needs no separate step. Schema changes are generated files under `drizzle/`—see [docs/database.md](docs/database.md), which also covers the one-time baseline an older database needs.
+
+   The seed reads `moto-storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a fresh checkout that file is absent and the seed stops there; `utils/seed-dev.sh --rides-only` seeds generated native rides instead.
 
 4. Compile styles if you changed the SCSS:
 
@@ -200,6 +204,8 @@ utils/
 .qlty/                Code quality (biome, prettier, markdownlint, actionlint)
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
+drizzle/              Generated migrations + meta/ snapshots — committed;
+                      applied by db:migrate and the post-deploy hook
 vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
                       ideas.md (vision), decisions-auth-and-search.md,
@@ -328,7 +334,7 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 > **Compose derives its project name from the directory it runs in**, and the volume prefix from that. Renaming a checkout therefore orphans the database: the stack comes back up on a brand-new empty volume while the rows sit in the old one, and the container name collides rather than failing cleanly. `docker-compose.yml` pins `name: tankbag` so the local prefix no longer depends on the path. The deployed stacks set `COMPOSE_PROJECT_NAME` explicitly for the same reason—which also means a stale volume from an earlier era can be silently adopted by a fresh deploy. Check `docker volume ls` before assuming a new environment is empty.
 
-> **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push` runs non-interactively and cannot resolve a table rename. Production sidestepped this by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
+> **Note on the `maps` → `rides` rename.** When the deploy still ran `drizzle-kit push`, this could not be resolved non-interactively. Production sidestepped it by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed. Renames are still the sharp edge under generated migrations—the differ writes a drop plus an add unless you rewrite the file—but it is now a diff you read before it runs, not a prompt nobody sees.
 
 ## Provenance
 

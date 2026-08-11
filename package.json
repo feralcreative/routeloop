@@ -8,8 +8,12 @@
   },
   "description": "Multi-tenant motorcycle route map sharing app (TypeScript + Hono).",
   "scripts": {
+    "predev": "npm run db:migrate",
     "dev": "sass --watch style/main.scss public/style/main.min.css & SASS=$!; trap \"kill $SASS 2>/dev/null\" EXIT INT TERM; tsx watch src/index.tsx",
     "dev:server": "tsx watch src/index.tsx",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:baseline": "tsx utils/db-baseline.ts",
     "start": "tsx src/index.tsx",
     "typecheck": "tsc --noEmit",
     "sass": "sass style/main.scss public/style/main.min.css --style=compressed --no-source-map",

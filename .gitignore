@@ -141,6 +141,11 @@ storybook-static/
 # the record of how a deployed database was brought back in line with the schema
 # and have to be readable by whoever hits the same drift next.
 !utils/deploy/sql/*.sql
+# ...and except the generated migrations, which are the whole point of adopting
+# drizzle-kit generate: a schema change that is not in the diff does not reach
+# the other dev machine, and reappears there as a 500. `*.sql` silently ignored
+# drizzle/0000_baseline.sql the moment it was generated.
+!drizzle/*.sql
 # Compressed dumps too. deploy-utils.sh writes its safety backups to the repo
 # root — db-backup as <container>-db-<ts>.sql.gz, db-clone as
 # <env>-db-before-clone-<ts>.sql.gz — so a bare `git add -A` after a clone would
@@ -257,7 +262,7 @@ _PLANS
 # The macOS Finder "Icon\r" file. Must be anchored to the carriage return:
 # a bare `Icon?` matches any five-character name, which silently swallowed
 # public/img/icons/ — every role icon — for as long as it was there.
-Icon
+Icon
 ._*
 .Spotlight-V100
 .Trashes

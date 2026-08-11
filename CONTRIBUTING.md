@@ -16,7 +16,7 @@ You need **Node.js 20 or newer**, **Docker** for Postgres, and Google Cloud cred
 npm install
 docker compose up -d --wait db
 cp .env.example .env        # then fill it in
-npx drizzle-kit push        # apply the schema
+npm run db:migrate          # apply the schema
 npx tsx src/db/seed.ts      # one sample ride
 npm run sass                # compile styles (the CSS is a build artifact, git-ignored)
 ```
@@ -77,7 +77,7 @@ curl -b cookies.txt -H "Origin: http://127.0.0.1:6686" \
 
 - **Coordinate order.** The app stores and speaks `[lng, lat]` (GeoJSON order); Google's JS objects speak `{lat, lng}`. Getting it backwards still renders a map, just in the wrong place. Exactly two functions convert—`toGoogleWaypoint` on the server and `toLatLng` / `fromLatLng` in `map-common.js`—keep it that way.
 - **`public/js/map-common.js` is the only file that touches `google.maps`.** The viewer and builder go through the handles it returns. Preserve that boundary.
-- **Schema is push-first, not push-only.** `npx drizzle-kit push` for ordinary changes—read the statement list before applying it; riders hold data that cannot be rebuilt from an upload. Anything push cannot express safely gets a hand-written file in [utils/deploy/sql/](utils/deploy/sql/): renames, which push would otherwise drop and recreate, and changed column defaults, which Postgres applies to new rows only. Those files are the exception to the `*.sql` gitignore rule and are tracked deliberately.
+- **Schema changes are generated migrations, committed with the change that caused them.** `npm run db:generate` after editing `src/db/schema.ts`, then `npm run db:migrate`; commit `drizzle/` (SQL **and** `meta/`) alongside `schema.ts`. **Read the generated SQL before applying it**, and rewrite it when the differ guessed wrong—a rename comes out as a drop plus an add, and a `NOT NULL` on a populated column needs a backfill ahead of it. Riders hold data that cannot be rebuilt from an upload. Full workflow, including the one-time baseline an older database needs, is in [docs/database.md](docs/database.md). The dated files in [utils/deploy/sql/](utils/deploy/sql/) are the `push`-era record and stay as history; new work does not go there.
 - **SCSS compiles with `npm run sass`**, never an IDE extension, and the compiled CSS is git-ignored.
 - **Prose is never hard-wrapped.** One line per paragraph, and let the editor soft-wrap. Em dashes are tight—`word—word`, never `word — word`.
 

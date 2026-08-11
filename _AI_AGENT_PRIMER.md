@@ -111,7 +111,7 @@ Consequences worth knowing before editing `public/js/builder.js`:
 
 ## Data model (PostgreSQL via Drizzle)
 
-`src/db/schema.ts` is the **source of truth**. Schema is applied with `npx drizzle-kit push` (declarative—there are no migration files; the NAS post-deploy hook runs the same push).
+`src/db/schema.ts` is the **source of truth**. Schema reaches a database through **generated migrations** in `drizzle/`, committed to the repo and applied with `npm run db:migrate`; the NAS post-deploy hook runs the same `migrate`. This replaced `drizzle-kit push` on 2026-08-10, because push left no artifact: a schema change lived only in the database it was run against, so it reached neither the second dev machine nor a reviewer's diff, and resurfaced as a 500 on whichever machine had not run it. `npm run dev` migrates first, via `predev`. Workflow, and the one-time baseline any push-era database needs, in [docs/database.md](docs/database.md)—**prod and stage are not baselined yet.**
 
 - **`users`**—identity, `quota_bytes`, denormalized `used_bytes`.
 - **`user_identities`**—one row per login method, so a rider can arrive by Google or by magic link and land on the same account. Legacy Google and GitHub identity rows remain valid.
@@ -289,6 +289,8 @@ style/main.scss       SCSS source + partials (_splash, _builder, _map, …)
 moto-storage/         Imported originals (git-ignored) — {owner}/{ride}.{ext}
 test/                 Vitest — pure logic only, no database or browser
 docs/STATUS.md        Current state + next steps — READ THIS SECOND
+docs/database.md      Schema workflow: generate, migrate, baseline
+drizzle/              Generated migrations + meta/ snapshots (committed)
 docs/ROADMAP.md       The durable plan; GitHub issue labels outrank it
 docs/ideas.md         The product vision
 .github/workflows/    CI — typecheck + tests, Node 20 and 22
@@ -310,7 +312,7 @@ app/, utils/schema.sql  LEGACY PHP/MySQL (reference only)
 npm install
 docker compose up -d --wait db          # Postgres on 127.0.0.1:5432
 # create .env (see .env.example), then:
-npx drizzle-kit push                     # apply schema
+npm run db:migrate                       # apply pending migrations
 npx tsx src/db/seed.ts                   # user #1 + sample ride
 npm run sass                             # compile CSS if SCSS changed
 npm run dev                              # sass --watch + tsx watch → :6686
@@ -427,7 +429,7 @@ Since then: a file holding several tracks lands as several days rather than only
 - **`[lng, lat]` everywhere.** Only `google.maps` speaks `{lat, lng}`, and exactly two places convert. GeoJSON agrees with us; do not "fix" it. Pinned in `test/round-trip.test.ts` across all five formats, which is the test that would catch a transposition that each format's own suite would not.
 - **null is not zero.** Twistiness null means "nothing measured it"; 0 means "the road is straight". Same for `dist_from_start_m` on a trackless import. A format that guesses is indistinguishable from one that knows.
 - **`rides.size_bytes` must name every byte column.** The app increments `used_bytes` on import, the database decrements it from `size_bytes` on delete. A column missing from that expression leaks quota on every delete, silently and forever.
-- **Production is not precious.** Three accounts, all the owner's. Be careful with the _mechanics_ of a migration—`drizzle-kit push` without `--force`, additive DDL by hand in `utils/deploy/sql/`—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
+- **Production is not precious.** Three accounts, all the owner's. Be careful with the _mechanics_ of a migration—read the generated SQL in `drizzle/` before it runs, and rewrite it when the differ guesses wrong—and not about whether to do one. Deferring a schema change out of caution on 2026-08-03 is what shipped imports that destroyed multi-day structure.
 - **The pre-commit tightener rewrites em dashes**, including in test fixtures. `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
 - **A filename is not a format.** `src/maps/filename.ts` carries four fields; everything else about a ride lives in the file or in Tankbag JSON. The temptation when someone asks for "all metadata in the filename" is to keep adding fields—roles, colors, dwell. Do not. The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work.
 - **A snapshot shares what the builder never mutates in place, and that set changes.** `leg.geometry` is shared by reference because it is always replaced wholesale; `point.roles` must be copied because `splice()` mutates it. `leg.viaPoints` moved from the first group to the second the day drag-to-shape shipped, and nothing failed loudly—the snapshot just quietly gained the edit it existed to protect against. Check this whenever you add a feature that edits in place.
