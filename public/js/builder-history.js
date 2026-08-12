@@ -148,7 +148,7 @@
   // splash. A draft written by an older shape must never be handed to a newer
   // builder that expects different fields.
   const DRAFT_VERSION = 1;
-  const PREFIX = "tankbag.builderDraft.";
+  const PREFIX = "routeloop.builderDraft.";
   const KEEP = 10;
 
   const keyFor = (rideId) => PREFIX + (rideId == null || rideId === "" ? "new" : String(rideId));

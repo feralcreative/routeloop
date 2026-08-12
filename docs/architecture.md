@@ -27,7 +27,7 @@ How the app is put together, and which boundaries are load-bearing. Operating in
 | `maps/zip.ts` | Zip read and write; caps the decompressed size during inflate |
 | `maps/geojson.ts` | GeoJSON in—the only interchange format that keeps roles, stop/POI and dwell |
 | `maps/csv.ts` | RFC 4180 stop lists—no geometry, and none invented |
-| `maps/export.ts` | Generates KML, GPX, GeoJSON, CSV and lossless Tankbag JSON |
+| `maps/export.ts` | Generates KML, GPX, GeoJSON, CSV and lossless RouteLoop JSON |
 | `maps/ride-graph.ts` | The ride payload schema, `normalize`, `insertRideGraph`, and the caps |
 | `maps/filename.ts` | The export filename convention—parse, build, plan |
 | `maps/storage.ts` | Integer-id file paths, containment-checked writes |
@@ -88,12 +88,12 @@ Adding a role means all four: `ROLES` and `ROLE_META` in `roles.ts`, the `waypoi
 `src/maps/filename.ts` is the source of truth; `public/js/filename.js` mirrors it for the drop box and `test/filename-client.test.ts` holds the two together—the same arrangement `twist.ts`/`twist.js` and `ride-time.js` already use, and for the same reason.
 
 ```text
-tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
  marker     ride     day    date       title
 ```
 
 - **Underscores separate fields, hyphens live inside one.** `slugField` guarantees no field contains an underscore, which stops a day title with a dash from splitting the filename. A test asserts exactly that.
-- **The `tankbag_` marker is load-bearing.** `parseExportName` returns `null` without it, and every caller then behaves as it did before the convention existed. There is a table of realistic non-conforming names asserting a rider's own `day-2.gpx` is never reinterpreted.
+- **The `routeloop_` marker is load-bearing.** `parseExportName` returns `null` without it, and every caller then behaves as it did before the convention existed. There is a table of realistic non-conforming names asserting a rider's own `day-2.gpx` is never reinterpreted.
 - **Optional fields are matched by shape, not position.**
 - **Dates are formatted and parsed in UTC**, because the roadbook renders `days.start_at` with `timeZone: 'UTC'`. Pinned by a test using an instant that falls on different calendar days in Pacific and UTC.
 - **A title read off a filename is a guess**—`avenue-of-giants` comes back "Avenue Of Giants"—so the importer prefers a file's own internal name. **The date has no such competition and is authoritative**, and for GPX and KML it is the only place a schedule can survive at all.

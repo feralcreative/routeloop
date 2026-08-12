@@ -29,14 +29,14 @@ const FORMATS = SUPPORTED_FORMATS.map((ext) => ({ ext, ...FORMAT_INFO[ext] }))
 const MAX_BYTES = Math.max(...FORMATS.map((f) => f.maxBytes))
 
 // The formats a ride can leave as. `dl` forces a download rather than letting
-// the browser render the XML, and tankbag.json is listed last because it is the
+// the browser render the XML, and routeloop.json is listed last because it is the
 // lossless one — the others all drop something (see maps/export.ts).
 const EXPORTS: { path: string; label: string; note?: string }[] = [
   { path: 'gpx', label: 'GPX' },
   { path: 'kml', label: 'KML' },
   { path: 'geojson', label: 'GeoJSON' },
   { path: 'csv', label: 'CSV' },
-  { path: 'tankbag.json', label: 'Tankbag', note: 'Lossless — re-imports as the same ride' },
+  { path: 'routeloop.json', label: 'RouteLoop', note: 'Lossless — re-imports as the same ride' },
 ]
 
 importRoutes.get('/import', requireActive, async (c) => {
@@ -132,7 +132,7 @@ importRoutes.get('/import', requireActive, async (c) => {
               <summary>File names can carry metadata like the ride date (optional)</summary>
               <div class="naming-help-body">
                 <p>
-                  Anything you download from Tankbag is already named this way, so a folder you exported here drops
+                  Anything you download from RouteLoop is already named this way, so a folder you exported here drops
                   straight back in and comes out as the same ride.
                 </p>
 
@@ -153,14 +153,14 @@ importRoutes.get('/import', requireActive, async (c) => {
                 */}
                 <p class="naming-example">
                   <code>
-                    tankbag_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_<b class="f-date">2026-08-14</b>_
+                    routeloop_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_<b class="f-date">2026-08-14</b>_
                     <b class="f-label">lost-coast</b>.gpx
                   </code>
                 </p>
 
                 <ul class="naming-fields">
                   <li>
-                    <code>tankbag_</code> is literal, and it is what marks the name as structured. Without it none of
+                    <code>routeloop_</code> is literal, and it is what marks the name as structured. Without it none of
                     this applies and your file imports the way it always did.
                   </li>
                   <li>

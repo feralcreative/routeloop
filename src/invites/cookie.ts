@@ -19,7 +19,7 @@ import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { SECURE_COOKIES } from '../auth/session'
 
-export const INVITE_COOKIE = 'tankbag_invite'
+export const INVITE_COOKIE = 'routeloop_invite'
 
 // 60 minutes, not the 10 the OAuth handshake uses. The magic-link path is
 // request, go to your mail app, come back — and the link itself is good for 15

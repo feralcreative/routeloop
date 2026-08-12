@@ -1,4 +1,4 @@
-# tankbag — NAS stack (app + Postgres).
+# routeloop — NAS stack (app + Postgres).
 #
 # This file is transferred to the NAS as docker-compose.yml by
 # utils/deploy/deploy.sh, which also writes the .env beside it that supplies
@@ -31,10 +31,10 @@ services:
       # Vector Map ID. Advanced Markers render NOTHING without it — no error,
       # no marker, an empty map that looks like a data bug.
       GMAPS_MAP_ID: ${GMAPS_MAP_ID}
-      DATABASE_URL: postgresql://tankbag:${DB_PASSWORD}@db:5432/tankbag
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
       # Set from $DOMAIN by deploy.sh. APP_ORIGIN decides the Secure flag on the
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
-      # must be the canonical host — https://tankbag.app, not the alias.
+      # must be the canonical host — https://routeloop.app, not the alias.
       APP_ORIGIN: ${APP_ORIGIN}
       # Sign-in. Cloudflare Access no longer authenticates at the edge, so these
       # are the only way in: omit them and the deployed site has no sign-in at
@@ -59,7 +59,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - tankbag
+      - routeloop
 
   db:
     image: postgres:17-alpine
@@ -67,22 +67,22 @@ services:
     restart: unless-stopped
     # No ports: — Postgres is reachable only from the app over the bridge.
     environment:
-      POSTGRES_USER: tankbag
+      POSTGRES_USER: routeloop
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: tankbag
+      POSTGRES_DB: routeloop
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tankbag -d tankbag"]
+      test: ["CMD-SHELL", "pg_isready -U routeloop -d routeloop"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
-      - tankbag
+      - routeloop
 
 volumes:
   db-data:
 
 networks:
-  tankbag:
+  routeloop:
     driver: bridge

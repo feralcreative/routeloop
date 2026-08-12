@@ -183,6 +183,6 @@ export const MAGIC_LINK_ENABLED = MAIL_ENABLED
 // one off. They are also never written by the deploy, so the empty-string
 // hazard env() exists for cannot reach them.
 export const ALPHA_GITHUB_URL =
-  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/tankbag/issues'
+  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'

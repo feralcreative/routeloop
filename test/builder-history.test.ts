@@ -318,8 +318,8 @@ describe('drafts', () => {
   })
 
   it('keys a never-saved ride separately from a saved one', () => {
-    expect(H.Draft.key(null)).toBe('tankbag.builderDraft.new')
-    expect(H.Draft.key(41)).toBe('tankbag.builderDraft.41')
+    expect(H.Draft.key(null)).toBe('routeloop.builderDraft.new')
+    expect(H.Draft.key(41)).toBe('routeloop.builderDraft.41')
     H.Draft.write(null, stateOf())
     H.Draft.write(41, stateOf())
     expect(H.Draft.read(null)).not.toBe(null)
@@ -339,7 +339,7 @@ describe('drafts', () => {
   it('is small enough to matter — a 500-point leg does not go to disk', () => {
     const s = stateOf()
     H.Draft.write(41, s)
-    const raw = store.getItem('tankbag.builderDraft.41') as string
+    const raw = store.getItem('routeloop.builderDraft.41') as string
     // The geometry alone would be several times this.
     expect(raw.length).toBeLessThan(2000)
   })
@@ -358,15 +358,15 @@ describe('drafts', () => {
   })
 
   it('discards a draft written by an older schema rather than guessing', () => {
-    store.setItem('tankbag.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, days: [] }))
+    store.setItem('routeloop.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, days: [] }))
     expect(H.Draft.read(41)).toBe(null)
-    expect(store.getItem('tankbag.builderDraft.41')).toBe(null)
+    expect(store.getItem('routeloop.builderDraft.41')).toBe(null)
   })
 
   it('discards unparseable junk instead of leaving it in the quota forever', () => {
-    store.setItem('tankbag.builderDraft.41', 'not json')
+    store.setItem('routeloop.builderDraft.41', 'not json')
     expect(H.Draft.read(41)).toBe(null)
-    expect(store.getItem('tankbag.builderDraft.41')).toBe(null)
+    expect(store.getItem('routeloop.builderDraft.41')).toBe(null)
   })
 
   it('prunes to the newest N', () => {

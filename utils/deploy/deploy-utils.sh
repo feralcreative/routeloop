@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ################################################################################
-# tankbag — post-deploy management for the NAS stack.
+# routeloop — post-deploy management for the NAS stack.
 #
 # Defaults to production. For staging, prefix with DEPLOY_ENV=stage:
 #   DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh logs
@@ -82,7 +82,7 @@ cmd_shell() {
 cmd_psql() {
   check_ssh_key
   $(get_ssh_cmd) -t "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec -it ${DB_CONTAINER_NAME} psql -U tankbag -d tankbag"
+    "/usr/local/bin/docker exec -it ${DB_CONTAINER_NAME} psql -U routeloop -d routeloop"
 }
 # Applies pending generated migrations. This used `push --force` until
 # 2026-08-10, which the project's own docs called out as dangerous in the same
@@ -110,7 +110,7 @@ cmd_db_backup() {
   local f="${CONTAINER_NAME}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
   log_info "Dumping database to $f"
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U tankbag -d tankbag | gzip" > "./$f"
+    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U routeloop -d routeloop | gzip" > "./$f"
   log_success "Database backup saved to ./$f"
 }
 # User-uploaded KML/GPX from the mounted storage volume.
@@ -134,7 +134,7 @@ cmd_backup() {
 # a container name with prod's; they never collide because one is on this
 # machine and the other is on the NAS, but every function below has to be
 # explicit about WHICH host it means.
-DEV_DB_CONTAINER_NAME="tankbag-db"
+DEV_DB_CONTAINER_NAME="routeloop-db"
 
 valid_env() {
   case "$1" in prod|stage|dev) return 0 ;; *) return 1 ;; esac
@@ -186,10 +186,10 @@ env_dump() {
   local e="$1" c
   c="$(env_db_container "$e")"
   if [ "$e" = "dev" ]; then
-    docker exec "$c" pg_dump -U tankbag -d tankbag --clean --if-exists
+    docker exec "$c" pg_dump -U routeloop -d routeloop --clean --if-exists
   else
     check_ssh_key
-    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec ${c} pg_dump -U tankbag -d tankbag --clean --if-exists"
+    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec ${c} pg_dump -U routeloop -d routeloop --clean --if-exists"
   fi
 }
 
@@ -197,10 +197,10 @@ env_load() {
   local e="$1" c
   c="$(env_db_container "$e")"
   if [ "$e" = "dev" ]; then
-    docker exec -i "$c" psql -U tankbag -d tankbag -v ON_ERROR_STOP=1 -q
+    docker exec -i "$c" psql -U routeloop -d routeloop -v ON_ERROR_STOP=1 -q
   else
     check_ssh_key
-    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec -i ${c} psql -U tankbag -d tankbag -v ON_ERROR_STOP=1 -q"
+    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec -i ${c} psql -U routeloop -d routeloop -v ON_ERROR_STOP=1 -q"
   fi
 }
 
@@ -209,10 +209,10 @@ env_row_counts() {
   c="$(env_db_container "$e")"
   sql="select 'users=' || (select count(*) from users) || ' rides=' || (select count(*) from rides)"
   if [ "$e" = "dev" ]; then
-    docker exec "$c" psql -U tankbag -d tankbag -tAc "$sql" 2>/dev/null || echo "(unreadable)"
+    docker exec "$c" psql -U routeloop -d routeloop -tAc "$sql" 2>/dev/null || echo "(unreadable)"
   else
     check_ssh_key
-    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec ${c} psql -U tankbag -d tankbag -tAc \"$sql\"" 2>/dev/null || echo "(unreadable)"
+    $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker exec ${c} psql -U routeloop -d routeloop -tAc \"$sql\"" 2>/dev/null || echo "(unreadable)"
   fi
 }
 
@@ -266,7 +266,7 @@ cmd_db_clone() {
   log_info "Backing up ${dst} first → ${safety}"
   env_dump "$dst" | gzip > "$safety"
 
-  stamp="$(mktemp -t tankbag-clone)"
+  stamp="$(mktemp -t routeloop-clone)"
   log_info "Dumping ${src}..."
   env_dump "$src" > "$stamp"
   log_info "Loading into ${dst}..."
@@ -289,7 +289,7 @@ cmd_db_clone() {
 clone_storage() {
   local src="$1" dst="$2" sp dp tar
   sp="$(env_storage_path "$src")"; dp="$(env_storage_path "$dst")"
-  tar="$(mktemp -t tankbag-storage).tar.gz"
+  tar="$(mktemp -t routeloop-storage).tar.gz"
 
   log_info "Syncing storage ${src} → ${dst}"
   if [ "$src" = "dev" ]; then

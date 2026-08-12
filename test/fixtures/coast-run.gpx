@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Tankbag test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="RouteLoop test fixture" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata><name>Coast run</name></metadata>
   <wpt lat="36.9741" lon="-122.0308"><ele>12</ele><name>START - Santa Cruz</name><desc>Meet at the wharf.</desc></wpt>
   <wpt lat="37.0113" lon="-122.1922"><ele>30</ele><name>GAS - Davenport</name></wpt>

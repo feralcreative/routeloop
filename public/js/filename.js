@@ -15,11 +15,16 @@
 (function (window) {
   "use strict";
 
-  var MARKER = "tankbag";
+  var MARKER = "routeloop";
+  // Written: MARKER. Accepted: these. See READ_MARKERS in src/maps/filename.ts —
+  // dropping the legacy marker loses day order and dates on every file a rider
+  // exported under the old name, and loses them silently.
+  var READ_MARKERS = [MARKER, "tankbag"];
   var MAX_FIELD = 60;
   var DAY_RE = /^d(\d{1,3})$/;
   var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})(\d{2}))?$/;
-  var COMPOUND_EXTS = ["tankbag.json"];
+  var NATIVE_EXT = "routeloop.json";
+  var COMPOUND_EXTS = [NATIVE_EXT, "tankbag.json"];
 
   function slugField(s, max) {
     if (max === undefined) max = MAX_FIELD;
@@ -73,7 +78,7 @@
   function parseExportName(fileName) {
     var split = splitExt(fileName);
     var tokens = split.stem.split("_");
-    if (tokens.length < 2 || tokens[0].toLowerCase() !== MARKER) return null;
+    if (tokens.length < 2 || READ_MARKERS.indexOf(tokens[0].toLowerCase()) === -1) return null;
 
     var rest = tokens.slice(1);
     var ride = slugField(rest[0]);

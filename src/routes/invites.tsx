@@ -49,9 +49,9 @@ export const inviteRoutes = new Hono<AuthEnv>()
 
 /** What the invite is for, in a sentence the recipient reads before signing in. */
 function grantsSentence(inv: { grantsBeta: boolean; grantsSurvey: boolean }): string {
-  if (inv.grantsBeta && inv.grantsSurvey) return 'the Tankbag beta and the rider survey'
-  if (inv.grantsBeta) return 'the Tankbag beta'
-  return 'the Tankbag rider survey'
+  if (inv.grantsBeta && inv.grantsSurvey) return 'the RouteLoop beta and the rider survey'
+  if (inv.grantsBeta) return 'the RouteLoop beta'
+  return 'the RouteLoop rider survey'
 }
 
 const REFUSALS: Record<string, string> = {

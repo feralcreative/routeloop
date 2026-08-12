@@ -1,4 +1,4 @@
-// The native Tankbag format: the one export that loses nothing.
+// The native RouteLoop format: the one export that loses nothing.
 //
 // Every other format flattens something and the round-trip tests say so. This
 // one has to survive intact, and the way it does that is by being the builder's
@@ -6,7 +6,14 @@
 // exactly what `ridePayload` accepts. A field that drifts out of that schema
 // makes the file unimportable, and it would do so silently.
 import { describe, expect, it } from 'vitest'
-import { NATIVE_FORMAT_VERSION, buildNativeJson, isNativeRide, type NativeRide } from '../src/maps/export'
+import {
+  NATIVE_FORMAT_VERSION,
+  buildNativeJson,
+  isNativeRide,
+  nativeVersion,
+  upgradeNativeRide,
+  type NativeRide,
+} from '../src/maps/export'
 import { normalize, ridePayload } from '../src/maps/ride-graph'
 
 const ride = {
@@ -64,10 +71,13 @@ const ride = {
   ],
 }
 
-const native: NativeRide = { tankbag: NATIVE_FORMAT_VERSION, exportedFrom: 'tankbag.app', ride }
+const native: NativeRide = { routeloop: NATIVE_FORMAT_VERSION, exportedFrom: 'routeloop.app', ride }
+
+/** The same file as a rider downloaded it before 2026-08-11: v2, `tankbag` key. */
+const legacyNative: NativeRide = { tankbag: 2, exportedFrom: 'tankbag.app', ride }
 
 describe('isNativeRide', () => {
-  it('recognises a Tankbag export', () => {
+  it('recognises a RouteLoop export', () => {
     expect(isNativeRide(JSON.parse(buildNativeJson(native)))).toBe(true)
   })
 
@@ -78,9 +88,42 @@ describe('isNativeRide', () => {
   })
 
   it('rejects anything without a numeric version', () => {
-    for (const v of [null, undefined, 42, 'tankbag', [], {}, { tankbag: 'one' }]) {
+    for (const v of [null, undefined, 42, 'routeloop', [], {}, { routeloop: 'one' }, { tankbag: 'one' }]) {
       expect(isNativeRide(v), JSON.stringify(v)).toBe(false)
     }
+  })
+})
+
+// The version key was renamed with the product at v3. Every file a rider
+// downloaded before that carries the old key, and it is the only lossless copy
+// of their ride they hold — so it stays readable, and this is what says so.
+describe('the legacy tankbag version key', () => {
+  it('is still recognised as a native ride', () => {
+    expect(isNativeRide(legacyNative)).toBe(true)
+    expect(isNativeRide(JSON.parse(buildNativeJson(legacyNative)))).toBe(true)
+  })
+
+  it('reports its version from whichever key carries it', () => {
+    expect(nativeVersion(legacyNative)).toBe(2)
+    expect(nativeVersion(native)).toBe(NATIVE_FORMAT_VERSION)
+    expect(nativeVersion({ tankbag: 1, exportedFrom: 'tankbag.app', ride: {} })).toBe(1)
+  })
+
+  it('imports to exactly what the current key imports to', () => {
+    expect(upgradeNativeRide(legacyNative)).toEqual(upgradeNativeRide(native))
+  })
+
+  // v1 called the array of days `routes`, and a v1 file necessarily carries the
+  // old key — so the oldest upgrade path is only reachable through it.
+  it('still upgrades a v1 file, which can only have the old key', () => {
+    const v1: NativeRide = { tankbag: 1, exportedFrom: 'tankbag.app', ride: { title: 'x', routes: [] } }
+    expect(upgradeNativeRide(v1)).toEqual({ title: 'x', days: [] })
+  })
+
+  it('is never written back out', () => {
+    const written = JSON.parse(buildNativeJson(native))
+    expect(written.routeloop).toBe(NATIVE_FORMAT_VERSION)
+    expect(written).not.toHaveProperty('tankbag')
   })
 })
 

@@ -23,17 +23,22 @@
   display: block;
   line-height: 0;
 
-  // 48px. It went 24 → 34 when the tankbag lockup replaced the routeloop
-  // wordmark, because most of the new height is the bag icon and the word itself
-  // was coming out around 8px tall. 34 was still too small: the mark reads as a
-  // favicon beside a nav bar that now carries five items at 0.95rem.
+  // 28px, and the height is the only dimension set — the lockup is 8.15:1, so
+  // this renders 228px wide.
   //
-  // Taller than the 40px nav toggle it sits beside, which is fine — the toggle
+  // The number is not the old one nudged. It went 24 → 34 → 48 while the mark
+  // was an icon-plus-word lockup, where most of the height was the icon and the
+  // word came out around 8px tall. The mark is a pure wordmark again, so every
+  // pixel of the height is now letterform: 48px here would be a 391px banner
+  // across the header, and 28px is what puts the word at the weight 48px used to
+  // buy. Set by eye against a nav bar carrying five items at 0.95rem.
+  //
+  // Shorter than the 40px nav toggle it sits beside, which is fine — the toggle
   // only exists below LG, where the header has nothing else competing with it.
   img {
     display: block;
     width: auto;
-    height: 48px;
+    height: 28px;
   }
 }
 
@@ -446,11 +451,14 @@ html.map-page {
     border-radius: 0;
     box-shadow: none;
 
-    // The stacked mark, and deliberately much taller than the 30px the
-    // horizontal lockup used here: most of its height is the bag icon sitting
-    // above the wordmark, so the word needs the extra to stay readable.
+    // The stacked mark, and deliberately taller than the 28px the horizontal
+    // lockup takes in the bar: this one is two lines of letterform rather than
+    // one, so the same per-line weight costs roughly double the box. 64px puts
+    // it at 114px wide (1.78:1), which is narrower than the 228px the
+    // horizontal lockup would need and is the whole reason the map badge uses
+    // the stacked artwork.
     img {
-      height: 92px;
+      height: 64px;
     }
   }
 

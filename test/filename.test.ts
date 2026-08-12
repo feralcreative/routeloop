@@ -3,6 +3,11 @@
 // The assertions that matter most are the negative ones: a rider's own file
 // must NOT be read as structured, because the fallback path (upload order is
 // day order) is correct for it and reinterpreting it silently is not.
+//
+// Second most: the legacy-marker block at the bottom. This app wrote `tankbag_`
+// names between 2026-07-29 and 2026-08-11, and a rename that stops reading them
+// fails silently — the files still import, just stripped of day order and dates,
+// which is precisely the information the convention exists to carry.
 import { describe, expect, it } from 'vitest'
 import { buildExportName, parseExportName, planImport, slugField, splitExt, titleFromSlug } from '../src/maps/filename'
 
@@ -46,10 +51,10 @@ describe('titleFromSlug', () => {
 })
 
 describe('splitExt', () => {
-  it('treats .tankbag.json as one extension', () => {
-    expect(splitExt('tankbag_big-sur_d01.tankbag.json')).toEqual({
-      stem: 'tankbag_big-sur_d01',
-      ext: 'tankbag.json',
+  it('treats .routeloop.json as one extension', () => {
+    expect(splitExt('routeloop_big-sur_d01.routeloop.json')).toEqual({
+      stem: 'routeloop_big-sur_d01',
+      ext: 'routeloop.json',
     })
   })
 
@@ -66,27 +71,27 @@ describe('buildExportName', () => {
 
   it('writes every field in order', () => {
     expect(buildExportName({ ride: 'Big Sur Run', day: 2, date, title: 'Lost Coast', ext: 'gpx' })).toBe(
-      'tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx',
+      'routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx',
     )
   })
 
   it('zero-pads the day so d10 sorts after d09', () => {
     const names = [9, 10].map((d) => buildExportName({ ride: 'r', day: d, ext: 'gpx' }))
-    expect(names).toEqual(['tankbag_r_d09.gpx', 'tankbag_r_d10.gpx'])
+    expect(names).toEqual(['routeloop_r_d09.gpx', 'routeloop_r_d10.gpx'])
     expect([...names].sort()).toEqual(names)
   })
 
   it('skips absent optional fields rather than writing them empty', () => {
-    expect(buildExportName({ ride: 'r', ext: 'gpx' })).toBe('tankbag_r.gpx')
-    expect(buildExportName({ ride: 'r', day: 1, ext: 'gpx' })).toBe('tankbag_r_d01.gpx')
-    expect(buildExportName({ ride: 'r', date, ext: 'gpx' })).toBe('tankbag_r_2026-08-14.gpx')
+    expect(buildExportName({ ride: 'r', ext: 'gpx' })).toBe('routeloop_r.gpx')
+    expect(buildExportName({ ride: 'r', day: 1, ext: 'gpx' })).toBe('routeloop_r_d01.gpx')
+    expect(buildExportName({ ride: 'r', date, ext: 'gpx' })).toBe('routeloop_r_2026-08-14.gpx')
     expect(buildExportName({ ride: 'r', day: 1, title: 'x', ext: 'gpx' })).not.toContain('__')
   })
 
   it('omits a midnight time and keeps any other', () => {
-    expect(buildExportName({ ride: 'r', date, ext: 'gpx' })).toBe('tankbag_r_2026-08-14.gpx')
+    expect(buildExportName({ ride: 'r', date, ext: 'gpx' })).toBe('routeloop_r_2026-08-14.gpx')
     expect(buildExportName({ ride: 'r', date: new Date(Date.UTC(2026, 7, 14, 8, 30)), ext: 'gpx' })).toBe(
-      'tankbag_r_2026-08-14T0830.gpx',
+      'routeloop_r_2026-08-14T0830.gpx',
     )
   })
 
@@ -97,13 +102,19 @@ describe('buildExportName', () => {
   // runs in UTC, where both agree — this guard bites hardest on a workstation.
   it('formats the date in UTC, matching the roadbook', () => {
     expect(buildExportName({ ride: 'r', date: new Date(Date.UTC(2026, 7, 14, 5, 0)), ext: 'gpx' })).toBe(
-      'tankbag_r_2026-08-14T0500.gpx',
+      'routeloop_r_2026-08-14T0500.gpx',
     )
+  })
+
+  // The legacy marker is read, never written. If this ever produces a
+  // `tankbag_` name again, the two markers have been wired together somewhere.
+  it('never writes the legacy marker', () => {
+    expect(buildExportName({ ride: 'r', day: 1, ext: 'gpx' })).not.toContain('tankbag')
   })
 
   it('survives a title that was full of separators', () => {
     const name = buildExportName({ ride: 'r', day: 1, title: 'day_two: the_good_part', ext: 'gpx' })
-    expect(name).toBe('tankbag_r_d01_day-two-the-good-part.gpx')
+    expect(name).toBe('routeloop_r_d01_day-two-the-good-part.gpx')
     expect(parseExportName(name)?.title).toBe('day-two-the-good-part')
   })
 })
@@ -117,8 +128,10 @@ describe('parseExportName — what it refuses', () => {
     'coast.kml',
     '2026-08-14.gpx',
     'd02_2026-08-14_lost-coast.gpx', // fields but no marker
-    'tankbag.gpx', // marker with no ride
-    'my_tankbag_ride.gpx', // marker present but not first
+    'routeloop.gpx', // marker with no ride
+    'tankbag.gpx', // legacy marker with no ride
+    'my_routeloop_ride.gpx', // marker present but not first
+    'my_tankbag_ride.gpx', // legacy marker present but not first
     'Track_001.gpx',
   ])('returns null for %s', (name) => {
     expect(parseExportName(name)).toBeNull()
@@ -127,7 +140,7 @@ describe('parseExportName — what it refuses', () => {
 
 describe('parseExportName', () => {
   it('reads every field back', () => {
-    const p = parseExportName('tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx')!
+    const p = parseExportName('routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx')!
     expect(p.ride).toBe('big-sur-run')
     expect(p.day).toBe(2)
     expect(p.date?.toISOString()).toBe('2026-08-14T00:00:00.000Z')
@@ -137,32 +150,32 @@ describe('parseExportName', () => {
   })
 
   it('reads a time when the date carries one', () => {
-    const p = parseExportName('tankbag_r_d01_2026-08-14T0830.gpx')!
+    const p = parseExportName('routeloop_r_d01_2026-08-14T0830.gpx')!
     expect(p.date?.toISOString()).toBe('2026-08-14T08:30:00.000Z')
     expect(p.hasTime).toBe(true)
   })
 
   it('identifies optional fields by shape, not position', () => {
-    expect(parseExportName('tankbag_r_d02.gpx')).toMatchObject({ day: 2, date: null, title: null })
-    expect(parseExportName('tankbag_r_2026-08-14.gpx')).toMatchObject({ day: null, title: null })
-    expect(parseExportName('tankbag_r_lost-coast.gpx')).toMatchObject({ day: null, date: null, title: 'lost-coast' })
+    expect(parseExportName('routeloop_r_d02.gpx')).toMatchObject({ day: 2, date: null, title: null })
+    expect(parseExportName('routeloop_r_2026-08-14.gpx')).toMatchObject({ day: null, title: null })
+    expect(parseExportName('routeloop_r_lost-coast.gpx')).toMatchObject({ day: null, date: null, title: 'lost-coast' })
   })
 
   it('is forgiving inside a marked name', () => {
-    expect(parseExportName('tankbag_r_d2.gpx')?.day).toBe(2)
-    expect(parseExportName('TANKBAG_r_d02.gpx')?.day).toBe(2)
+    expect(parseExportName('routeloop_r_d2.gpx')?.day).toBe(2)
+    expect(parseExportName('ROUTELOOP_r_d02.gpx')?.day).toBe(2)
     // Tokens past the title are folded in rather than failing the parse.
-    expect(parseExportName('tankbag_r_d01_2026-08-14_a_b.gpx')?.title).toBe('a-b')
+    expect(parseExportName('routeloop_r_d01_2026-08-14_a_b.gpx')?.title).toBe('a-b')
   })
 
   it('leaves an impossible date to be read as title text', () => {
-    const p = parseExportName('tankbag_r_2026-02-30.gpx')!
+    const p = parseExportName('routeloop_r_2026-02-30.gpx')!
     expect(p.date).toBeNull()
     expect(p.title).toBe('2026-02-30')
   })
 
   it('does not read d00 as a day', () => {
-    const p = parseExportName('tankbag_r_d00.gpx')!
+    const p = parseExportName('routeloop_r_d00.gpx')!
     expect(p.day).toBeNull()
     expect(p.title).toBe('d00')
   })
@@ -171,7 +184,7 @@ describe('parseExportName', () => {
     const cases = [
       { ride: 'Big Sur Run', day: 2, date: new Date(Date.UTC(2026, 7, 14)), title: 'Lost Coast', ext: 'gpx' },
       { ride: 'Big Sur Run', day: 12, date: new Date(Date.UTC(2026, 11, 1, 7, 5)), title: 'Rest Day', ext: 'kml' },
-      { ride: 'r', day: 1, ext: 'tankbag.json' },
+      { ride: 'r', day: 1, ext: 'routeloop.json' },
       { ride: 'Solo', ext: 'csv' },
       { ride: 'Cañón Trip', day: 3, title: 'Côte', ext: 'geojson' },
     ]
@@ -187,11 +200,57 @@ describe('parseExportName', () => {
   })
 })
 
+// Files exported while the app was called tankbag. A rider still holds these,
+// and they are the only copy of a day's date once the ride is a GPX. Every
+// assertion here is about not losing that.
+describe('parseExportName — the legacy tankbag marker', () => {
+  it('reads a legacy name exactly as it reads a current one', () => {
+    const legacy = parseExportName('tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx')!
+    const current = parseExportName('routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx')!
+    expect(legacy).toEqual(current)
+  })
+
+  it('is case-insensitive on the legacy marker too', () => {
+    expect(parseExportName('TANKBAG_r_d02.gpx')?.day).toBe(2)
+  })
+
+  it('still treats .tankbag.json as one extension', () => {
+    expect(splitExt('tankbag_big-sur_d01.tankbag.json')).toEqual({
+      stem: 'tankbag_big-sur_d01',
+      ext: 'tankbag.json',
+    })
+  })
+
+  // The whole point: a folder downloaded before the rename still comes back in
+  // day order with its dates, rather than in upload order with none.
+  it('orders and dates a legacy folder', () => {
+    const plan = planImport([
+      'tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx',
+      'tankbag_big-sur-run_d01_2026-08-13_coast-start.gpx',
+      'tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx',
+    ])
+    expect(plan.ride).toBe('Big Sur Run')
+    expect(plan.allConforming).toBe(true)
+    expect(plan.reordered).toBe(true)
+    expect(plan.files.map((f) => f.day)).toEqual([1, 2, 3])
+    expect(plan.files.every((f) => f.date !== null)).toBe(true)
+  })
+
+  // A rider who exported before the rename and again after has one folder with
+  // both markers in it. Same ride, so it must not read as a ride conflict.
+  it('reads a mixed folder as one ride', () => {
+    const plan = planImport(['tankbag_big-sur-run_d01.gpx', 'routeloop_big-sur-run_d02.gpx'])
+    expect(plan.rideConflict).toBe(false)
+    expect(plan.allConforming).toBe(true)
+    expect(plan.files.map((f) => f.day)).toEqual([1, 2])
+  })
+})
+
 describe('planImport', () => {
   const names = [
-    'tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx',
-    'tankbag_big-sur-run_d01_2026-08-13_coast-start.gpx',
-    'tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx',
+    'routeloop_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx',
+    'routeloop_big-sur-run_d01_2026-08-13_coast-start.gpx',
+    'routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx',
   ]
 
   it('recovers the trip and orders by day, not by upload order', () => {
@@ -211,14 +270,14 @@ describe('planImport', () => {
   // A partial set has no defensible order: sorting it would interleave numbered
   // and unnumbered days by an invented rule.
   it('keeps the supplied order when any file lacks a day', () => {
-    const plan = planImport(['tankbag_r_d02.gpx', 'whatever.gpx', 'tankbag_r_d01.gpx'])
+    const plan = planImport(['routeloop_r_d02.gpx', 'whatever.gpx', 'routeloop_r_d01.gpx'])
     expect(plan.reordered).toBe(false)
     expect(plan.allConforming).toBe(false)
-    expect(plan.files.map((f) => f.fileName)).toEqual(['tankbag_r_d02.gpx', 'whatever.gpx', 'tankbag_r_d01.gpx'])
+    expect(plan.files.map((f) => f.fileName)).toEqual(['routeloop_r_d02.gpx', 'whatever.gpx', 'routeloop_r_d01.gpx'])
   })
 
   it('flags files that disagree about which ride they belong to', () => {
-    expect(planImport(['tankbag_a_d01.gpx', 'tankbag_b_d02.gpx']).rideConflict).toBe(true)
+    expect(planImport(['routeloop_a_d01.gpx', 'routeloop_b_d02.gpx']).rideConflict).toBe(true)
   })
 
   it('says nothing about a folder of ordinary files', () => {
@@ -234,7 +293,7 @@ describe('planImport', () => {
   })
 
   it('ties break on supplied order rather than unpredictably', () => {
-    const plan = planImport(['tankbag_r_d02_b.gpx', 'tankbag_r_d02_a.gpx'])
+    const plan = planImport(['routeloop_r_d02_b.gpx', 'routeloop_r_d02_a.gpx'])
     expect(plan.files.map((f) => f.title)).toEqual(['b', 'a'])
   })
 })

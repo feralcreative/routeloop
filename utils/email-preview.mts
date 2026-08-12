@@ -18,7 +18,7 @@
 // most likely previewing. EMAIL_ASSET_ORIGIN rewrites just those URLs on the way
 // out:
 //
-//   EMAIL_ASSET_ORIGIN=https://tankbag.app npx tsx utils/email-preview.mts
+//   EMAIL_ASSET_ORIGIN=https://routeloop.app npx tsx utils/email-preview.mts
 //
 // It is read here and nowhere else on purpose. The app has no business knowing
 // that a developer's laptop is unreachable, so this stays a property of the
@@ -59,14 +59,14 @@ const withAssets = (html: string) =>
 if (!ASSET_ORIGIN && !APP_ORIGIN.startsWith('https://')) {
   console.warn(
     `warning: images point at ${APP_ORIGIN}, which an inbox cannot reach — the wordmark will be broken.\n` +
-      '         set EMAIL_ASSET_ORIGIN=https://tankbag.app to preview it.\n',
+      '         set EMAIL_ASSET_ORIGIN=https://routeloop.app to preview it.\n',
   )
 }
 
 for (const tpl of ALL_EMAILS) {
   const out = renderEmail(tpl, tpl.sample)
   await transport.sendMail({
-    from: `Tankbag <${from}>`,
+    from: `RouteLoop <${from}>`,
     to: TO,
     subject: out.subject,
     text: out.text,

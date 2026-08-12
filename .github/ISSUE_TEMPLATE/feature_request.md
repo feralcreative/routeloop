@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something Tankbag should do and does not
+about: Something RouteLoop should do and does not
 title: ''
 labels: enhancement
 assignees: ''
