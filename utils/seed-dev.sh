@@ -137,7 +137,7 @@ npx tsx utils/seed-demo-rides.ts --reset "${PASSTHRU[@]:-}"
 echo
 ok "Done. The database now holds:"
 psql_q "SELECT '  rides: ' || count(*) FROM rides"
-psql_q "SELECT '  routes: ' || count(*) FROM routes"
+psql_q "SELECT '  days: ' || count(*) FROM days"
 psql_q "SELECT '  legs: ' || count(*) FROM route_legs"
 psql_q "SELECT '  users: ' || count(*) FROM users"
 echo

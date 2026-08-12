@@ -248,7 +248,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
 
         <fieldset>
           <legend>Splitting costs</legend>
-          <p class="field-hint">Optional. For settling up on hotels, gas and meals along a trip.</p>
+          <p class="field-hint">Optional. For settling up on hotels, gas and meals along a ride.</p>
           <Field name="cashApp" label="Cash App" values={v} errors={errors} />
           <Field name="venmo" label="Venmo" values={v} errors={errors} />
           <Field name="paypal" label="PayPal" values={v} errors={errors} />
@@ -260,7 +260,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Your riders</legend>
           {user.canManageRiders ? (
             <p class="field-hint">
-              Rider management is enabled for your account—<a href="/admin">approve and manage riders</a>.
+              Rider management is enabled for your account—<a href="/admin/approvals">approve and manage riders</a>.
             </p>
           ) : (
             <p class="field-hint">Adding riders is closed during the alpha.</p>

@@ -1,11 +1,11 @@
 # Status and handoff
 
-**Updated:** 2026-08-06
-**Branch:** `feat/drag-to-shape`, based on `origin/main`—424 tests across 20 files, all passing
+**Updated:** 2026-08-09
+**Branch:** `feat/import-export`, based on `origin/main`—765 tests across 33 files, all passing
 **Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
-Read [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md) for architecture, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
 
 ## TL;DR
 
@@ -17,6 +17,28 @@ Two migrations drove the branch `refactor/google-maps-and-auth`, which is long s
 | ---- | ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
+
+## The naming is settled: ride > day > leg, 2026-08-09
+
+**`routes` is now `days`.** The hierarchy is **ride > day > leg > stop/POI**, and those are the only four words for them. Everything below this line in this document predates the rename and is left as written—where an older entry says "route" for what is now a day, the entry is history, not instruction.
+
+Why it moved: every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field, the `#one-file-per-day` FAQ anchor—while the table said `routes`. Meanwhile "route" was doing two other jobs in the same files: the import page's word for a whole ride, and the ~130 `adminRoutes` / `app.route()` / `src/routes/` identifiers that mean HTTP handlers. The clearest single symptom was `viewer.js`: `const day = ... state.ride.routes[active.dayIndex]`—a variable called `day`, indexed by `dayIndex`, reading an array called `routes`.
+
+Rejected alternatives, both considered and dropped: **"trip"** for the top level (it appears in older copy, but renaming `rides` buys nothing a rider ever sees) and **"leg"** for the middle level (it would have evicted `route_legs` from its own accurate name).
+
+What changed:
+
+- **Schema**—`routes` → `days`; `points.route_id` and `route_legs.route_id` → `day_id`; four indexes and three constraints renamed to match. Migration in [utils/deploy/sql/2026-08-09-routes-to-days.sql](../utils/deploy/sql/2026-08-09-routes-to-days.sql), applied to dev. **Every statement is a catalog rename**—no table rewrite, no rows touched, safe against a populated stage or prod.
+- **`route_legs` deliberately keeps its name.** The "route" in it is the path a day traces, which is what those legs compose, not a reference to the renamed table. Only the foreign key moved.
+- **Three wire formats** renamed their `routes` key to `days`: the viewer's `ride.json`, the builder's load/save, and native Tankbag JSON.
+- **Native JSON went to format version 2.** Version 1 files still import—`upgradeNativeRide()` in `src/maps/export.ts` maps the old key. That is done there rather than by teaching `ridePayload` to accept either key, because the same schema validates live builder saves, and a builder that can still post `routes` is a second name kept alive by accident.
+- **`MAX_ROUTES` → `MAX_DAYS`**, `ExportRoute` → `ExportDay`, `RouteRow` → `DayRow`, and the `route*` day helpers in `ride-time.js` / `twist.js` → `day*`. `tripSpan` → `rideSpan`.
+
+**Deliberately not renamed**, because "route" there means a path or an outside-world file, not a day: `map-common.js`'s layer functions (`addRouteLayers`, `setRouteVisible`, `setRouteDim`), `POST /api/route`, the `route-*` CSS classes, `src/routes/*` and every `*Routes` handler, and the import page's "Import a route" / "Route files" copy, which is doing the conversion from a rider's vocabulary to ours.
+
+**Verified:** typecheck clean, 765 tests passing, and in Chrome with zero console messages—the viewer renders, the builder loads all three days of a multi-day ride with per-day colors, a save round-trips losslessly (3 days / 19 points / 12 legs before and after), and forged v1 and current v2 native files both import to identical row counts.
+
+**One bug this caught, which nothing else would have.** `GET /api/rides/:id` built its payload as a loosely-typed `out` object, so its `routes:` key was invisible to the compiler. The suite passed and the builder silently loaded zero days—a blank Day 1 over an empty map. Renaming a key that crosses the wire needs a browser, not a green suite.
 
 ## Renamed back to tankbag, 2026-07-29
 
@@ -252,7 +274,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 <!--| PAGE-BREAK -->
 
-## Trip timeline—done, 2026-08-01
+## Ride timeline—done, 2026-08-01
 
 Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://github.com/feralcreative/tankbag/issues/7) (ROADMAP item 2) and [issue #19](https://github.com/feralcreative/tankbag/issues/19), which is folded in because it is the same widget. The full plan is in `_PLANS/issue-7-trip-timeline.md`—local only, since `_PLANS` is gitignored as of `7d0db74`.
 
@@ -321,7 +343,9 @@ Branch `style/ui-tweaks-and-cleanup`, nine commits, from `_PLANS/sprint-04-26080
 
 **Everything about usernames lives in [auth/username.ts](../src/auth/username.ts)**—reserved list, schema, availability, `publicIdFor`, `claimUsername`. Two callers now (the prompt and the profile form) and they must not drift.
 
-### Read this before the next `drizzle-kit push`
+### Read this before the next schema change
+
+Kept because the hazard outlived the tool. The workflow moved to generated migrations on 2026-08-10, which removes the prompt below—but not the underlying problem, which is a differ that does not know what you meant.
 
 Adding a nullable column and a table sounds harmless. The push offered to destroy the users table to do it:
 
@@ -334,6 +358,8 @@ Adding a nullable column and a table sounds harmless. The push offered to destro
 **`--force` auto-answers prompts like that.** It would have wiped every account to make room for a constraint that did not need it—existing `public_id` was NULL everywhere, and NULLs never collide in a unique constraint. The correct answer is no.
 
 The DDL was applied by hand in a transaction instead, matching drizzle's own naming, and a follow-up `push` reported no changes, which is how you confirm the names line up. Do that rather than gambling on a prompt default you cannot see in a non-TTY.
+
+Under generated migrations the same case shows up as SQL in a file you can edit before anything runs—the constraint statement is there to read, and the fix is to keep it and drop the truncate. **`push` reporting no changes remains the way to verify a database matches `src/db/schema.ts`**, which is exactly the check a baseline depends on.
 
 ### What a returning rider will hit
 
@@ -443,7 +469,7 @@ Fixed twice over, on purpose:
 
 All but one of these is now done. Kept because the reasoning is still worth having, and struck through so nobody works them again:
 
-- ~~**Favicons** still carry the old routeloop mark, including the `og:image` social card.~~ **Done**—regenerated 2026-07-31 in `22610b8`, [#55](https://github.com/feralcreative/tankbag/issues/55) closed 2026-08-02. `og:image` points at `logo-tankbag-horiz-light@2x.png`. This item was restated as outstanding in two later sections of this file for four days after it was finished; see the note on checking assets before believing a checklist.
+- ~~**Favicons** still carry the old routeloop mark, including the `og:image` social card.~~ **Done**—regenerated 2026-07-31 in `22610b8`, [#55](https://github.com/feralcreative/tankbag/issues/55) closed 2026-08-02. `og:image` points at `og-card.png` since 2026-08-09 (it was the bare `logo-tankbag-horiz-light@2x.png` strip until then). This item was restated as outstanding in two later sections of this file for four days after it was finished; see the note on checking assets before believing a checklist.
 - **Remove the Cloudflare Access policy** at the edge. The app has ignored its header since `17de208`. **Still open**, and the only edge-side item left.
 - ~~**Set per-API daily quota caps** on the GCP project.~~ **Done 2026-08-02**—five metrics capped, see "Console hardening" above.
 
@@ -457,7 +483,7 @@ Branch `fix/editor-interface-sizing`. All eleven items from `_PLANS/sprint-07-26
 | ------ | ----------------------------------------------------------------------- |
 | 1      | The day slider picks the working day; "All" is a view                   |
 | 2      | POIs interleaved by distance, and they carry a duration                 |
-| 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its colour |
+| 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its color |
 | 4, 5   | Time stopped replaced by **twistiness**, with an FAQ entry              |
 | 6      | Panel terms link to their FAQ answers                                   |
 | 8      | Nav's last four items folded into an About submenu                      |
@@ -524,7 +550,7 @@ Every format goes through the pipeline unchanged: auth → origin → Turnstile 
 
 ### Multi-file import
 
-Several files posted at once become the days of one ride, in order, because that is what a rider with a per-day folder actually has—importing them one at a time makes one ride per day and no trip. Day titles come from filenames, colours walk the shared palette, and every original is kept (`{ride_id}-{n}.{ext}` from day 2 on). Verified against a real 3-day ride exported to three GPX files and re-imported: per-day twistiness came back **79/69/53**, identical, with exact point counts.
+Several files posted at once become the days of one ride, in order, because that is what a rider with a per-day folder actually has—importing them one at a time makes one ride per day and no trip. Day titles come from filenames, colors walk the shared palette, and every original is kept (`{ride_id}-{n}.{ext}` from day 2 on). Verified against a real 3-day ride exported to three GPX files and re-imported: per-day twistiness came back **79/69/53**, identical, with exact point counts.
 
 Files are all validated before any is parsed, so a bad tenth file fails the upload and names itself rather than leaving nine days half-imported.
 
@@ -654,6 +680,64 @@ Verified in Chrome at 1440×900, 1280×720, 844×390 and 390×844 with zero cons
 
 <!--| PAGE-BREAK -->
 
+## The file naming convention and the drop box—2026-08-09
+
+Sprint 11, from `_PLANS/sprint-11-260809T0206Z.md`, on a **second** branch named `feat/import-export`—the sprint 09 branch of the same name is long merged, so a search for that name finds two unrelated pieces of work. Route files now name themselves so a folder of them re-imports as the trip it came from, and the import page takes a drag.
+
+### Why it exists, since the filename looks like decoration
+
+**GPX and KML cannot carry a date.** `routes.start_at` survived a trip through Tankbag JSON and nowhere else, so exporting a planned trip as the format every GPS actually reads lost the schedule. That is the field the convention exists for; the trip name, day number and day title come along because they are free once there is a structure to put them in.
+
+```text
+tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+ marker     ride     day    date       title
+```
+
+**What a filename does not carry, stated once so it does not get relitigated:** roles, dwell, via points, per-day colors and the stop/POI distinction. They do not fit and are not going in. `tankbag.json` remains the only lossless format. The ask that started this sprint was "all metadata intact", and the honest answer is that a filename is a four-field index, not a container.
+
+**Visibility is deliberately not a field**—a file named `public` that publishes a ride on import is a footgun with no upside. **Nor is a timezone**, for the same reason the timeline work gave: `datetime-local` carries none and the app stores what the rider typed in their own zone.
+
+### The three rules, and what breaks without each
+
+- **Underscores separate fields, hyphens live inside one.** `slugField` guarantees no field contains an underscore. Drop that and a day titled "Lost_Coast" splits the filename into two fields and the date lands in the title.
+- **The `tankbag_` marker is what makes a name structured.** Without it `parseExportName` returns null and every caller takes the pre-convention path. `test/filename.test.ts` carries a table of realistic rider filenames—`day-2.gpx`, `Track_001.gpx`, `Big Sur Run.gpx`—asserting none of them is read as structured.
+- **Dates are UTC on both sides**, matching `fmtDate` in the roadbook. Local getters would let a roadbook and a filename disagree about which day a route is on. The test pins an instant that falls on 2026-08-13 in Pacific and 2026-08-14 in UTC, so it fails on a local-getter implementation when run on a workstation. **CI runs UTC, where both agree**—this guard bites hardest locally, which is the opposite of the usual arrangement and worth knowing before trusting a green CI run on it.
+
+### Two implementations, held together by a test
+
+`src/maps/filename.ts` and `public/js/filename.js`, because the drop box has to say what it read out of a filename before anything is uploaded and the server has no bundler to hand the TypeScript to a browser. `test/filename-client.test.ts` runs both over the same fixtures. Same arrangement as `twist.ts`/`twist.js` and `ride-time.js`, same reason.
+
+### `src/maps/zip.ts` owns both directions now
+
+The reader was `kmz.ts`'s private internals until the per-day archive gave the app a second reason to open a zip. It moved out unchanged and `kmz.ts` kept the policy that made it careful—one entry, the first `.kml`, everything else ignored. All 16 KMZ tests pass untouched, which is what made the refactor safe to do at all.
+
+Two things the writer needed that the reader never did:
+
+- **A correct CRC-32.** The reader does not verify CRCs, so nothing in the suite would have caught a wrong one—but `unzip` and macOS Archive Utility both refuse it, and a rider would have found out instead. Asserted against the standard check value, `crc32("123456789") == 0xCBF43926`.
+- **`test/helpers/zip.ts` stays and is a different writer.** It builds deliberately malformed archives for the reader's tests and writes no CRC. Merging the two would take away the thing the KMZ tests are for.
+
+**A per-entry cap does not bound an archive.** Fifty entries each a byte under the cap is fifty times the cap, so `readZipEntries` carries a running total and checks it as it accumulates rather than after the loop.
+
+**macOS `__MACOSX/._name` resource forks are dropped.** Right-click → Compress on three files produces six entries; left in, the ride imports as six days with three of them binary junk.
+
+### The route-ordering trap, which actually fired
+
+`GET /api/public/maps/:slug/zip/:format` was registered *after* the generic `:format` download route and was silently shadowed by it—`/zip/gpx` answered 200 with a plain GPX body and no attachment header. `/api/public/maps/:slug/nonsense/gpx` did the same, so the generic route is matching two-segment paths. Registering the zip route first fixes it. **Found by requesting it, not by reading the code**, which is the only way it was going to be found.
+
+### Where a rider is told about it
+
+Three places, and the first was initially missed—the convention shipped with nothing on the page where it gets used, which made it a format only the docs knew about.
+
+- **`/import` carries a collapsed `<details>`** with the annotated example, what is literal, what is optional, and one line on why the date is the field that matters. Collapsed and labelled optional on purpose: every file that ignores the convention imports exactly as it always did, and a form that opens with a naming spec reads like a requirement. It explains itself inline rather than only linking out, because sending someone off the page to learn how to name files they are already holding is how it goes unread.
+- **The viewer's per-day zip row links to `/faq#one-file-per-day`.** The panel is 380px wide and the answer is three paragraphs, so that one does link out.
+- **Two FAQ entries**, `file-names` and `one-file-per-day`. Both are new ids, added to the `FAQ_IDS` contract in `test/content.test.ts` deliberately—that test exists to stop ids being renamed or dropped silently, and it failed until the list was updated, which is exactly what it is for.
+
+### Verified
+
+Against the running dev server, end to end: a three-day ride exported as `zip/gpx`, `unzip -t` clean, filenames carrying dates, re-imported through `POST /api/maps`, and the result compared against the original—**3 days in order, dates exact, twistiness identical at 79/69/53**, distances within 0.02 % (six-decimal coordinate rounding on export). Whole-ride download names also confirmed conforming. Typecheck clean, SCSS clean, 765 tests across 33 files.
+
+**Not verified: the drop box in a browser.** `public/js/import.js` is checked by the parts of it that are pure—the convention it reads is covered on both sides—but the DOM wiring (dragover cancellation, `input.files` assignment from `dataTransfer`, the click-through to the picker) has not been driven in Chrome. The page renders the zone and both scripts with correct cache-busted URLs; that is as far as it was taken.
+
 ## Next steps, in order
 
 **The Mapbox track that used to live here is finished** and its steps were removed on 2026-08-02 because they described work already done. Checked against the code rather than taken on trust: `public/js/main.js` does not exist, `nativeViewHtml` is gone and `viewHtml` is the only shell, no `MAPBOX_*` value is read anywhere (only historical comments remain), and `profile.js` geocoding already goes through `POST /api/geocode`. If you find a claim in this file that the code disagrees with, the code is right—that is what happened here, and it had already caused one bogus GitHub issue to be filed.
@@ -677,7 +761,7 @@ Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and 
 - **Coordinate order** stays the likeliest bug. The app stores and speaks `[lng, lat]`; google.maps speaks `{lat, lng}`. Getting it backwards still renders, just in the wrong place. Routes API with `polylineEncoding: GEO_JSON_LINESTRING` returns `[lng, lat]`, so **no stored ride ever needed migrating**. Two functions do the conversion and only two: `toGoogleWaypoint` in [src/routes/routing.ts](../src/routes/routing.ts) on the server, and `toLatLng`/`fromLatLng` in [public/js/map-common.js](../public/js/map-common.js) on the client. Keep it that way.
 - **The shared residential egress IP**—see above. Both environments and the workstation ride on one address.
 - **Gmail sending caps** at roughly 2,000 recipients/day on Workspace, 500 on a consumer account. Fine for an alpha, a wall later.
-- **Schema is push-only, and `--force` is genuinely dangerous.** No `drizzle/` directory, no generated migrations. Run `npx drizzle-kit push` without `--force` and read the statement list first. This is not theoretical: adding a nullable column plus a unique constraint on 2026-08-01 produced a prompt offering to **truncate the users table**, which `--force` would have accepted. Hand-written additive DDL in `utils/deploy/sql/` is the way through; see the sprint 4 section.
+- **Schema is generated migrations as of 2026-08-10, not `push`.** `drizzle/` exists and is committed; `npm run db:generate` then `npm run db:migrate`, and the deploy hook runs `migrate`. The `--force` hazard is gone with the flag—`migrate` has no prompts to auto-answer, which is why `deploy-utils.sh migrate` no longer passes it. **The new sharp edge is generation, not application:** the differ writes a rename as a drop plus an add, so read and rewrite the SQL before it runs. Full workflow in [database.md](database.md). Any database built by the old `push` workflow needs a one-time baseline before `migrate` will work against it—**prod and stage still do.**
 - **The danger is the flag, not the database.** Production is a closed alpha with three accounts and they are all the owner's. Migrations and redeploys are cheap and should not be deferred out of caution—doing so on 2026-08-03 is what shipped GeoJSON and CSV imports that stored no original file, destroying multi-day structure that a stored file would have preserved. Be careful with the mechanics, not about whether to proceed.
 - **`rides.size_bytes` must name every byte column.** It is generated from `kml_bytes + gpx_bytes + source_bytes`, and `used_bytes` is incremented by the app on import but decremented by this column on delete. A new byte column left out of the expression leaks quota on every delete, permanently and with no error.
 - **Deploy the new auth code before removing the Cloudflare Access policy.** In the window between pulling the policy and shipping the code that stops trusting the injected header, the deployed build is wide open. The order is not a preference.
@@ -690,8 +774,8 @@ cd /Users/ziad/www/moto/tankbag
 npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
-npx drizzle-kit push
-npx tsx src/db/seed.ts        # demo user + sample ride
+npm run db:migrate            # generated migrations; npm run dev does this too
+npx tsx src/db/seed.ts        # demo user + sample ride (needs moto-storage/1/1.kml)
 npm run dev                   # http://localhost:6686
 ```
 

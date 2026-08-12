@@ -7,7 +7,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
 import {
   rides,
-  routes as routesTable,
+  days as daysTable,
   points as pointsTable,
   routeLegs,
   type RideRow,
@@ -25,8 +25,11 @@ import {
   buildNativeJson,
   loadNativeRide,
   loadRideForExport,
+  rideStartDate,
   type ExportRide,
 } from './maps/export'
+import { buildExportName } from './maps/filename'
+import { buildZip } from './maps/zip'
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -41,11 +44,14 @@ import { rideRoutes } from './routes/rides'
 import { importRoutes } from './routes/import'
 import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
+import { brandRoutes } from './routes/brand'
+import { settingsRoutes } from './routes/settings'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
 import { asset } from './views/assets'
-import { GMAPS_KEY, GMAPS_MAP_ID, PORT } from './config'
+import { devReloadRoutes, startLiveReload } from './dev/livereload'
+import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -97,6 +103,14 @@ app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
 
+// Live reload, development only — see src/dev/livereload.ts. Mounted up here
+// with the static assets so a connection that stays open for the whole session
+// never holds a session lookup behind it.
+if (IS_DEV) {
+  app.route('/', devReloadRoutes)
+  startLiveReload()
+}
+
 // Resolves the session once per request so every template can render the right
 // header. Mounted after the static assets so they skip the database entirely.
 app.use('*', withSession)
@@ -113,6 +127,8 @@ app.route('/', mapsRoutes)
 app.route('/', rideRoutes)
 app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
+app.route('/', brandRoutes)
+app.route('/', settingsRoutes)
 app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
@@ -129,7 +145,7 @@ app.get('/m/:slug', async (c) => {
     .set({ viewCount: sql`${rides.viewCount} + 1` })
     .where(eq(rides.id, m.id))
   // One shell for both sources. ride.json has served them identically since the
-  // timeline work added per-leg spans — an imported ride is one route with one
+  // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
   return c.html(viewHtml(m, viewer))
 })
@@ -141,24 +157,24 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
 
-  const routeRows = await db
+  const dayRows = await db
     .select()
-    .from(routesTable)
-    .where(eq(routesTable.rideId, m.id))
-    .orderBy(routesTable.position)
-  if (routeRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
+    .from(daysTable)
+    .where(eq(daysTable.rideId, m.id))
+    .orderBy(daysTable.position)
+  if (dayRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
 
-  const routesOut = []
-  for (const r of routeRows) {
+  const daysOut = []
+  for (const r of dayRows) {
     const pts = await db
       .select()
       .from(pointsTable)
-      .where(eq(pointsTable.routeId, r.id))
+      .where(eq(pointsTable.dayId, r.id))
       .orderBy(pointsTable.position)
     const legs = await db
       .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
-      .where(eq(routeLegs.routeId, r.id))
+      .where(eq(routeLegs.dayId, r.id))
       .orderBy(routeLegs.position)
 
     // Concatenate leg geometries and record where each leg lands in the result.
@@ -208,14 +224,14 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       roles: p.roles,
       distFromStartMi: p.distFromStartM == null ? null : Math.round((p.distFromStartM / METERS_PER_MILE) * 10) / 10,
     })
-    routesOut.push({
+    daysOut.push({
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
       endAt: r.endAt?.toISOString() ?? null,
       distanceMi: Math.round((r.distanceM / METERS_PER_MILE) * 10) / 10,
       // Degrees of heading change per mile, and the same over the twistiest
-      // 20-mile stretch. Null on any route stored before the column existed, or
+      // 20-mile stretch. Null on any day stored before the column existed, or
       // one with no geometry at all — a client must not render null as 0.
       twistinessDpm: r.twistinessDpm,
       twistinessBestDpm: r.twistinessBestDpm,
@@ -251,10 +267,15 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     csvUrl: `/api/public/maps/${m.slug}/csv`,
     // The only lossless one — days, colours, times and via points survive it.
     nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
+    // One file per day, zipped and named by the convention. Offered only for a
+    // multi-day ride: a one-day ride zips to an archive holding the file you
+    // could have downloaded directly, which is a worse version of the button
+    // sitting next to it.
+    dayZipBase: daysOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
     // A page, not a file: the printable stop-by-stop sheet.
     roadbookUrl: `/m/${m.slug}/roadbook`,
     externalUrl: m.externalUrl || null,
-    routes: routesOut,
+    days: daysOut,
   })
 })
 
@@ -271,7 +292,14 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
 // that is four places for one of them to drift.
 const DOWNLOADS: Record<
   string,
-  { type: string; stored: StoredExt; hasStored: (m: RideRow) => boolean; build: (r: ExportRide) => string }
+  {
+    type: string
+    stored: StoredExt
+    hasStored: (m: RideRow) => boolean
+    // firstDay is only passed by the per-day zip, where each file holds one
+    // day that is day N of a ride rather than day 1 of itself.
+    build: (r: ExportRide, firstDay?: number) => string
+  }
 > = {
   kml: {
     type: 'application/vnd.google-earth.kml+xml',
@@ -306,8 +334,20 @@ const DOWNLOADS: Record<
 // Every branch above tests source_format, which is what keeps a folder import
 // from streaming one of its files as if it were the whole ride: several files
 // store 'mixed', which matches nothing, so those rides always generate from the
-// rows — and the rows are the merged trip, which is the correct answer.
+// rows — and the rows are the merged ride, which is the correct answer.
 
+// Every download names itself by the convention in maps/filename.ts, so a
+// folder of them re-imports as the ride it came from rather than as whatever
+// order the browser happened to list them in.
+//
+// A whole-ride download carries the ride's start date and no day field: it is
+// all the days, so there is no one day to name. The per-day zip below is what
+// gets a date onto each individual day, which for GPX and KML is the only place
+// a date can survive at all.
+async function attachment(m: RideRow, ext: string): Promise<string> {
+  const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext })
+  return `attachment; filename="${name}"`
+}
 
 // The lossless one, and its own route because it carries ride-level fields the
 // others do not and is never streamed from a stored file — a native JSON is
@@ -321,17 +361,71 @@ app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
     visibility: m.visibility,
     externalUrl: m.externalUrl,
   })
-  if ((native.ride as { routes: unknown[] }).routes.length === 0) return c.text('Not found', 404)
+  if ((native.ride as { days: unknown[] }).days.length === 0) return c.text('Not found', 404)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
   }
   if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.tankbag.json"`
+    headers['Content-Disposition'] = await attachment(m, 'tankbag.json')
   }
   return new Response(buildNativeJson(native), { headers })
+})
+
+// One file per day, zipped, each named by the convention.
+//
+// This is the download that makes a round trip lossless for the formats that
+// are not: a day's date cannot live inside a GPX or a KML, so it lives in the
+// filename, and one file per day is what gives every day a filename of its own.
+// Drag the archive back into /import and the ride comes back with its days in
+// order and dated.
+//
+// Always generated, never streamed from stored originals. A stored file is one
+// file for the whole ride by definition — an imported ride's original has no
+// per-day split to hand back — so preferring it here would silently answer a
+// different question than the one asked.
+//
+// Its own path segment rather than a `.zip` suffix on the existing route: a
+// suffix would have to be spelled inside the format regex, and a `:format`
+// param that sometimes carries an extension is exactly the kind of thing that
+// reads fine and matches wrong.
+app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => {
+  const format = c.req.param('format')
+  const spec = DOWNLOADS[format]
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !spec) return c.text('Not found', 404)
+
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  if (ride.days.length === 0) return c.text('Not found', 404)
+
+  const files = ride.days.map((day, i) => ({
+    name: buildExportName({
+      ride: m.title,
+      day: i + 1,
+      date: day.startAt,
+      title: day.title,
+      ext: format,
+    }),
+    // One day, built by the same serializer the whole-ride download uses —
+    // there is no second code path for a day, only a ride that happens to have
+    // one day in it. firstDay keeps that day calling itself day i+1.
+    body: Buffer.from(spec.build({ ...ride, days: [day] }, i + 1), 'utf8'),
+  }))
+
+  // The ride's own start date on every entry, so extracting an archive does not
+  // stamp a rider's files with today. Falls back to the zip epoch, which is
+  // what keeps an undated ride's archive byte-identical between exports.
+  const zip = buildZip(files, ride.days[0].startAt ?? undefined)
+  const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext: `${format}.zip` })
+
+  return new Response(zip, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': `attachment; filename="${name}"`,
+    },
+  })
 })
 
 app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
@@ -344,10 +438,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
     'Content-Type': `${spec.type}; charset=utf-8`,
     'X-Content-Type-Options': 'nosniff',
   }
-  if (c.req.query('dl') !== undefined) {
-    const safe = m.title.replace(/[^A-Za-z0-9._-]+/g, '-') || 'route'
-    headers['Content-Disposition'] = `attachment; filename="${safe}.${format}"`
-  }
+  if (c.req.query('dl') !== undefined) headers['Content-Disposition'] = await attachment(m, format)
 
   // The stored original wins where there is one. Generating it instead would
   // be lossy for no reason: the file carries styling, folders and per-point
@@ -367,7 +458,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   }
 
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
-  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
+  if (ride.days.length === 0) return c.text('Not found', 404) // pre-pivot rows
   return new Response(spec.build(ride), { headers })
 })
 
@@ -410,7 +501,7 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
           no dates, which is the same answer the opt-in used to give imported
           rides.
         */}
-        <div class="trip-timeline" id="trip-timeline" hidden>
+        <div class="ride-timeline" id="ride-timeline" hidden>
           <input
             id="time-slider"
             class="time-slider"
@@ -419,13 +510,13 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
             max="0"
             step="60"
             value="0"
-            aria-label="Move through the trip in time"
-            title="Drag to move through the trip"
+            aria-label="Move through the ride in time"
+            title="Drag to move through the ride"
           />
           <div class="time-readout" id="time-readout"></div>
         </div>
-        <div class="routes">
-          <table class="route-table"></table>
+        <div class="days">
+          <table class="day-table"></table>
           <label class="toggle-checkbox">
             <input type="checkbox" id="toggle-arrows" checked />
             Show Direction of Travel

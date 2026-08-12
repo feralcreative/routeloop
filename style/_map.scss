@@ -281,7 +281,7 @@
   }
 }
 
-table.route-table {
+table.day-table {
   min-width: 100%;
   tr {
     height: 100%;
@@ -301,7 +301,7 @@ table.route-table {
         display: inline-block;
       }
       &.label,
-      &.route-label-cell {
+      &.day-row-label-cell {
         width: fit-content;
         height: 1.1em;
         padding: 0.25em 0;
@@ -319,28 +319,28 @@ table.route-table {
     }
   }
 
-  // Ensure hover/focus effect always applies to div.route-label
-  .route-label:hover,
-  .route-label:focus {
-    background: var(--route-color-bg, color.adjust($url, $lightness: 43%));
+  // Ensure hover/focus effect always applies to div.day-row-label
+  .day-row-label:hover,
+  .day-row-label:focus {
+    background: var(--day-color-bg, color.adjust($url, $lightness: 43%));
   }
 
   // Route table line icon
-  .route-table-line-icon {
+  .day-table-line-icon {
     display: inline-flex;
     margin-right: 0;
     vertical-align: middle;
   }
 
   // Route icon background
-  .route-icon-bg {
+  .day-icon-bg {
   }
 
   // Checkbox styling
   input {
     margin-right: 0 !important;
   }
-  .route-checkbox {
+  .day-checkbox {
     margin-right: 0;
     &.custom-accent {
     }
@@ -429,7 +429,7 @@ table.route-table {
 // is not. In the builder it sits under the day controls and goes inert without
 // dates; in the viewer it is hidden outright when a ride has none, since a
 // viewer cannot fix that by typing one.
-.trip-timeline {
+.ride-timeline {
   margin-top: 0.6em;
 }
 
@@ -547,26 +547,26 @@ table.route-table {
 }
 
 // Viewer legend rows
-.route-table {
+.day-table {
   width: 100%;
   border-collapse: collapse;
 
-  .route-row td {
+  .day-row td {
     padding: 0.35em 0.25em;
   }
-  .route-toggle {
+  .day-toggle {
     display: flex;
     align-items: center;
     gap: 0.5em;
     cursor: pointer;
     input {
-      accent-color: var(--route-color, $url);
+      accent-color: var(--day-color, $url);
     }
   }
   // Sits under the route name rather than beside it: the legend cell is already
   // narrow and the mileage owns the right-hand column. Indented to clear the
   // checkbox so it reads as a note on the route above it.
-  .route-twist {
+  .day-twist {
     display: block;
     margin-left: 1.6em;
     color: $text;
@@ -574,16 +574,49 @@ table.route-table {
     font-size: 0.8em;
     cursor: help;
   }
-  .route-miles {
+  .day-miles {
     text-align: right;
     color: $text;
     white-space: nowrap;
   }
-  .route-downloads-row td {
+  .day-downloads-row td {
     padding-top: 0.6em;
   }
+  // The per-day archives. Deliberately not .day-dl-btn chips: they are a
+  // second way to download the same four formats, and giving them equal weight
+  // would double the size of the download block and make a rider read eight
+  // buttons to find the one they wanted.
+  .day-zip-row td {
+    padding-top: 0.35em;
+    font-size: 0.8em;
+    // No muted token exists; lightening $text is the idiom the rest of this
+    // file already uses for a secondary line.
+    color: color.adjust($text, $lightness: 25%);
+  }
 }
-.route-dl-btn {
+// Links to the FAQ answer rather than carrying its own explanation — the panel
+// has no room for one. Dotted underline so it reads as "there is more here"
+// rather than as another download.
+.day-zip-label {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted $grey;
+  cursor: help;
+  &:hover {
+    color: $url;
+  }
+}
+.day-zip {
+  margin-left: 0.4em;
+  color: $text;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dotted $grey;
+  &:hover {
+    border-bottom-style: solid;
+  }
+}
+.day-dl-btn {
   display: inline-block;
   padding: 0.3em 0.7em;
   // Bottom margin as well as right: there are four formats plus an optional
@@ -602,7 +635,7 @@ table.route-table {
 }
 
 // Shown in the viewer panel only to a rider who can open this ride in the
-// builder. Distinct from .route-dl-btn: those are file downloads, this changes
+// builder. Distinct from .day-dl-btn: those are file downloads, this changes
 // the ride, so it reads as an action rather than another grey chip.
 .panel-clone {
   display: inline-block;
@@ -639,7 +672,7 @@ table.route-table {
   font-size: 0.9em;
 
   // brightness() rather than a Sass colour function: the button's background is
-  // whatever --route-color happens to be at runtime, so there is no compile-time
+  // whatever --day-color happens to be at runtime, so there is no compile-time
   // value to adjust in the first place.
   &:hover {
     filter: brightness(0.92);

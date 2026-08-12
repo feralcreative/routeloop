@@ -29,45 +29,65 @@
 
   const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-  // --- Nav drawer ----------------------------------------------------------
-  // Deliberately NOT a focus trap: a menu is not modal, so Tab should be able
-  // to leave it. Escape and outside-click close it, and focus returns to the
-  // toggle so keyboard users don't get dropped at the top of the document.
+  // --- Nav --------------------------------------------------------------
+  // The drawer and both dropdowns are native <details>, so opening and closing
+  // is the browser's job and the whole nav works with this file absent. What is
+  // left is the three things <details> does not do on its own.
+  //
+  // Deliberately NOT a focus trap: a menu is not modal, so Tab should leave it.
   function initNav() {
     const header = document.getElementById("site-header");
-    const toggle = header && header.querySelector(".nav-toggle");
-    const nav = document.getElementById("site-nav");
-    if (!header || !toggle || !nav) return;
+    const menu = header && header.querySelector(".site-menu");
+    if (!header || !menu) return;
 
-    function setOpen(open) {
-      nav.hidden = !open;
-      header.classList.toggle("open", open);
-      toggle.setAttribute("aria-expanded", String(open));
-      if (open) {
-        const first = nav.querySelector(FOCUSABLE);
-        if (first) first.focus();
+    const subs = () => menu.querySelectorAll("details.nav-sub");
+    const closeSubs = (except) => {
+      subs().forEach((d) => {
+        if (d !== except) d.open = false;
+      });
+    };
+
+    // 1. One dropdown at a time. Two open panels overlap in the bar, and make a
+    //    long list longer in the drawer. `toggle` does not bubble, hence capture.
+    menu.addEventListener(
+      "toggle",
+      (e) => {
+        const d = e.target;
+        if (d instanceof HTMLDetailsElement && d.open && d.classList.contains("nav-sub")) closeSubs(d);
+      },
+      true,
+    );
+
+    // 2. Clicking away closes everything. The drawer is a disclosure, not a
+    //    dialog, so nothing dismisses it for us.
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("#site-header")) return;
+      closeSubs();
+      menu.open = false;
+    });
+
+    // 3. Escape, innermost first: shut the panel you are in, then the drawer.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const openSub = menu.querySelector("details.nav-sub[open]");
+      if (openSub) {
+        openSub.open = false;
+        const summary = openSub.querySelector("summary");
+        if (summary) summary.focus();
+      } else if (menu.open) {
+        menu.open = false;
+        const toggle = menu.querySelector(".nav-toggle");
+        if (toggle) toggle.focus();
       }
-    }
-
-    toggle.addEventListener("click", function (e) {
-      e.stopPropagation();
-      setOpen(nav.hidden);
     });
 
-    // Any activation inside the drawer closes it — links navigate, and the
-    // "About this alpha" button opens the modal on top.
-    nav.addEventListener("click", function (e) {
-      if (e.target.closest("a,button")) setOpen(false);
-    });
-
-    document.addEventListener("click", function (e) {
-      if (!nav.hidden && !e.target.closest("#site-header")) setOpen(false);
-    });
-
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !nav.hidden) {
-        setOpen(false);
-        toggle.focus();
+    // A link navigates and a new page arrives closed, but the alpha-splash
+    // button opens a modal on top of a drawer that would otherwise stay open.
+    menu.addEventListener("click", (e) => {
+      if (e.target.closest("summary")) return;
+      if (e.target.closest("a,button")) {
+        closeSubs();
+        menu.open = false;
       }
     });
   }

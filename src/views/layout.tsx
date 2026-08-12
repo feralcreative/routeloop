@@ -9,6 +9,8 @@ export { esc } from './esc'
 import { esc } from './esc'
 import { raw } from 'hono/html'
 import { asset } from './assets'
+import { IS_DEV } from '../config'
+import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
 // root /favicon.ico is requested by browsers directly and cannot be versioned.
@@ -60,9 +62,12 @@ export type NavKey =
   | 'import'
   | 'places'
   | 'profile'
+  | 'settings'
   | 'admin'
+  | 'approvals'
   | 'invites'
   | 'survey'
+  | 'survey-results'
 
 export type PageOpts = {
   /** Without the " – Tankbag" suffix; page() appends it. */
@@ -92,15 +97,28 @@ export type PageOpts = {
   noscript?: string
 }
 
-const NAV_LINKS: { key: NavKey; href: string; label: string }[] = [
-  { key: 'home', href: '/', label: 'Home' },
-  { key: 'explore', href: '/explore', label: 'Explore' },
-  { key: 'riders', href: '/riders', label: 'Riders' },
-  { key: 'builder', href: '/builder', label: 'Plan a ride' },
-  { key: 'import', href: '/import', label: 'Import a route' },
+// The menu, exactly as docs/main-menu.md specifies it. That file is the spec and
+// this is the implementation; change the spec first.
+//
+// No Home entry on purpose — the logo goes there and duplicating it spends a
+// slot in the bar on the one destination nobody has to be told about.
+type NavItem = { key: NavKey; href: string; label: string }
+
+const RIDES_LINKS: NavItem[] = [
   { key: 'rides', href: '/dashboard', label: 'Your rides' },
-  { key: 'profile', href: '/profile', label: 'Your profile' },
+  { key: 'builder', href: '/builder', label: 'Plan a ride' },
+  { key: 'explore', href: '/explore', label: 'Find a ride' },
+  { key: 'import', href: '/import', label: 'Import / Export' },
 ]
+
+const ADMIN_LINKS: NavItem[] = [
+  { key: 'admin', href: '/admin', label: 'Admin' },
+  { key: 'approvals', href: '/admin/approvals', label: 'Approvals' },
+  { key: 'invites', href: '/admin/invites', label: 'Invitations' },
+  { key: 'survey-results', href: '/admin/survey', label: 'Survey results' },
+]
+
+const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
 
 function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
   return (
@@ -113,65 +131,64 @@ function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: s
 function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
-  // it is 62px wide against the horizontal lockup's 102px, so it takes less of
-  // the map. Both are the light (black-on-transparent) artwork, which is what
-  // the panel backing in _nav.scss exists to keep legible over terrain.
+  // it is 131px wide against the horizontal lockup's 168px, so it takes less of
+  // the map.
+  //
+  // Both are the unsuffixed artwork. The suffix names the *background*, not the
+  // ink: no suffix is the black lockup for a light ground, `-dark` is the
+  // reversed white one for a dark ground. It reads backwards at a glance, which
+  // is why it is written down — but it is the convention src/emails/shell.tsx
+  // was already using, so the alternative was two conventions instead of one.
   const logo = isMap
-    ? { src: '/img/logo-tankbag-vert-light.svg', w: 871, h: 618 }
-    : { src: '/img/logo-tankbag-horiz-light.svg', w: 1414, h: 426 }
+    ? { src: '/img/logo-tankbag-vert.svg', w: 920, h: 648 }
+    : { src: '/img/logo-tankbag-horiz.svg', w: 1595, h: 456 }
 
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
         <img src={logo.src} alt="Tankbag" width={logo.w} height={logo.h} />
       </a>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
-        <span class="nav-bars" aria-hidden="true"></span>
-      </button>
-      <nav class="site-nav" id="site-nav" hidden>
-        {user ? (
-          <>
-            {NAV_LINKS.map((l) => (
-              <NavLink item={l} navKey={navKey} />
-            ))}
-            {/*
-              The capability-gated items, appended here rather than living in
-              the static NAV_LINKS list because each is shown to some signed-in
-              riders and not others.
-            */}
-            {user.surveyInvitedAt && (
-              <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
-            )}
-            {user.canManageRiders && (
+      {/*
+        A <details>, not a button plus a script. The browser owns open/closed,
+        which means the menu works with no JavaScript at all — the whole nav used
+        to vanish if site.js failed to load, on every page at once.
+
+        One markup tree for both shapes. Below 992px this is the drawer; at 992
+        and up _nav.scss reveals the same <nav> in flow as a bar and hides the
+        summary, so the desktop nav needs neither the disclosure nor any script.
+      */}
+      <details class="site-menu">
+        <summary class="nav-toggle" aria-label="Menu">
+          <span class="nav-bars" aria-hidden="true"></span>
+        </summary>
+        <nav class="site-nav" id="site-nav">
+          <div class="nav-primary">
+            {user ? (
               <>
-                <NavLink item={{ key: 'admin', href: '/admin', label: 'Riders' }} navKey={navKey} />
-                <NavLink item={{ key: 'invites', href: '/admin/invites', label: 'Invitations' }} navKey={navKey} />
+                <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
+                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavAboutMenu user={user} navKey={navKey} />
+                {user.canManageRiders && <NavGroup label="Admin" items={ADMIN_LINKS} navKey={navKey} />}
+              </>
+            ) : (
+              <>
+                <NavLink item={{ ...RIDES_LINKS[2] }} navKey={navKey} />
+                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavAboutMenu user={null} navKey={navKey} />
+                {/*
+                  "Join the beta", not "Sign in". Nobody can sign themselves in —
+                  alpha is developers and beta is invite-only — so a nav that offers
+                  sign-in contradicts the page it links to. Approved riders returning
+                  from a signed-out session land on the same page through the same
+                  controls, and /login says so directly under them.
+                */}
+                <a href="/login">Join the beta</a>
               </>
             )}
-            <hr />
-            <span class="nav-user">{user.displayName}</span>
-            <form method="post" action="/logout">
-              <button class="linkbtn" type="submit">
-                Sign out
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <NavLink item={NAV_LINKS[0]} navKey={navKey} />
-            {/*
-              "Join the beta", not "Sign in". Nobody can sign themselves in —
-              alpha is developers and beta is invite-only — so a nav that offers
-              sign-in contradicts the page it links to. Approved riders returning
-              from a signed-out session land on the same page through the same
-              controls, and /login says so directly under them.
-            */}
-            <a href="/login">Join the beta</a>
-          </>
-        )}
-        <hr />
-        <NavAboutMenu />
-      </nav>
+          </div>
+          <div class="nav-end">{user && <NavAccountMenu user={user} navKey={navKey} />}</div>
+        </nav>
+      </details>
     </header>
   )
 }
@@ -243,17 +260,76 @@ const SiteLinkRow = () => (
 //
 // <details> rather than a JS menu: it is a disclosure, and the platform already
 // handles the keyboard and the ARIA for one.
-const NavAboutMenu = () => (
+// One group in the bar: a summary that opens a panel of links.
+const NavGroup = ({ label, items, navKey }: { label: string; items: NavItem[]; navKey?: NavKey }) => (
   <details class="nav-sub">
-    <summary>About</summary>
+    <summary>{label}</summary>
     <div class="nav-sub-items">
-      <button type="button" class="linkbtn" data-open-alpha>
-        About this app
-      </button>
-      <SiteLinkRow />
+      {items.map((i) => (
+        <NavLink item={i} navKey={navKey} />
+      ))}
     </div>
   </details>
 )
+
+// About. Privacy and Terms are deliberately not here — the footer carries them
+// on every chrome page and the splash carries them signed out, so repeating them
+// would make this the longest menu in the bar for the two links hardest to lose.
+// "About this app" stays because it is the alpha modal's only trigger.
+const NavAboutMenu = ({ user, navKey }: { user: UserRow | null; navKey?: NavKey }) => (
+  <details class="nav-sub">
+    <summary>About</summary>
+    <div class="nav-sub-items">
+      <NavLink item={{ key: 'places', href: '/faq', label: 'FAQ' }} navKey={navKey} />
+      {user?.surveyInvitedAt && (
+        <NavLink item={{ key: 'survey', href: '/survey', label: 'Rider survey' }} navKey={navKey} />
+      )}
+      <button type="button" class="linkbtn" data-open-alpha>
+        About this app
+      </button>
+    </div>
+  </details>
+)
+
+// The person, not the product: who you are signed in as, and the things that act
+// on that account. Pinned right, away from the four destination groups.
+//
+// The avatar falls back to initials on a tinted disc: avatar_url is populated
+// from Google sign-in, so every rider who came in through a magic link has none,
+// and a broken image in the header would be the most visible bug on the site.
+const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) => {
+  const initials = user.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
+
+  return (
+    <details class="nav-sub nav-account">
+      <summary>
+        {user.avatarUrl ? (
+          <img class="nav-avatar" src={user.avatarUrl} alt="" width="24" height="24" />
+        ) : (
+          <span class="nav-avatar is-initials" aria-hidden="true">
+            {initials || '?'}
+          </span>
+        )}
+        <span class="nav-account-name">{user.displayName}</span>
+      </summary>
+      <div class="nav-sub-items">
+        <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
+        <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
+        <hr />
+        <form method="post" action="/logout">
+          <button class="linkbtn" type="submit">
+            Sign out
+          </button>
+        </form>
+      </div>
+    </details>
+  )
+}
 
 function siteFooter(splash: boolean): string {
   // The splash is a signed-out landing page over video: it gets the links and
@@ -290,7 +366,14 @@ export function page(opts: PageOpts): string {
   ${siteIconLinks()}
   <meta property="og:title" content="${title}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="${asset('/img/logo-tankbag-horiz-light@2x.png')}">
+  <!--
+    A composed 1280x640 card, not a crop of the logo. twitter:card below asks
+    for a large image, and what used to sit here was the bare horizontal lockup
+    at 2911x852 — a 3.4:1 strip that every scraper letterboxed into a 1.91:1
+    slot, so most of the preview was padding. The wordmark on this card is the
+    pre-dot artwork and wants redrawing.
+  -->
+  <meta property="og:image" content="${asset('/img/og-card.png')}">
   <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
@@ -303,6 +386,7 @@ ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></n
 ${opts.tb ? jsonScript('TB', opts.tb) : ''}
 <script src="${asset('/js/site.js')}" defer></script>
 ${opts.scripts ?? ''}
+${IS_DEV ? liveReloadScript() : ''}
 </body>
 </html>`
 }

@@ -2,7 +2,7 @@
 
 Tankbag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day trip. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [AGENTS.md](AGENTS.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -17,23 +17,23 @@ Two replacements drove the `refactor/google-maps-and-auth` branch. **Both are fi
 | Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed 2026-07-30** and signing in ever since; the Access policy at the Cloudflare edge still has to be pulled |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Done.** Rendering, search, routing and geocoding all on Google; no `MAPBOX_*` value is read anywhere             |
 
-Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
+Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions.md](docs/decisions.md).
 
 **The only loose end is at the edge, not in the repo:** the Cloudflare Access policy is still defined and is now pure redundancy, since the deployed app has not read the header it injects since 2026-07-30. That ordering mattered—pulling the policy before the code shipped would have left the running app open—and it is satisfied, so the policy can go whenever.
 
 Delivered in phases:
 
-- [x] **Data model**—rides → routes → stops/POIs → routed legs; the 17-role taxonomy
+- [x] **Data model**—rides → days → stops/POIs → routed legs; the 17-role taxonomy
 - [x] **Import**—KML/GPX upload becomes a structured, editable ride
 - [x] **Ride builder**—plan a road-snapped route, classify stops, save
 - [x] **Native viewer**—shared rides render from the database
 - [x] **User profiles**—`users.status` authorization, profile page, home-address seeding
 - [x] **Auth replacement**—Google OAuth + magic link _(deployed to production 2026-07-30)_
 - [x] **Maps migration**—rendering, search and routing on Google _(deployed 2026-07-30)_
-- [x] **Multi-day builder**—every day of a trip drawn on one map, with a day-focus slider
+- [x] **Multi-day builder**—every day of a ride drawn on one map, with a day-focus slider
 - [x] **Admin panel**—owner approves, blocks and reinstates rider accounts
-- [x] **Trip timeline**—per-day date-times and the timeline slider
-- [x] **Import and export**—six formats in, five out; several files become the days of one trip
+- [x] **Ride timeline**—per-day date-times and the timeline slider
+- [x] **Import and export**—six formats in, five out; several files become the days of one ride
 - [x] **Roadbook**—a printable stop-by-stop sheet
 - [x] **Expand + the Google Maps hand-off**—`/m/:slug/navigate`, nine waypoints per link
 - [x] **Shaping**—drag the route line onto the road you meant
@@ -44,10 +44,10 @@ Delivered in phases:
 ## What it does
 
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
-- **Organize**—a ride packages one or more routes (days/sessions), all drawn on **one map at the same time** so you see the whole trip; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
+- **Organize**—a ride packages one or more days, all drawn on **one map at the same time** so you see the whole ride; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
-- **Import**—bring in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv` to migrate from other tools. Pick several files at once and each becomes a day of one trip.
-- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride.
+- **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one ride, and files following the naming convention below arrive already named, ordered and dated.
+- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Tankbag JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
@@ -97,9 +97,13 @@ Delivered in phases:
 3. Apply the schema and seed a sample ride:
 
    ```bash
-   npx drizzle-kit push
+   npm run db:migrate
    npx tsx src/db/seed.ts
    ```
+
+   `npm run dev` applies pending migrations too, via `predev`, so switching between machines needs no separate step. Schema changes are generated files under `drizzle/`—see [docs/database.md](docs/database.md), which also covers the one-time baseline an older database needs.
+
+   The seed reads `moto-storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a fresh checkout that file is absent and the seed stops there; `utils/seed-dev.sh --rides-only` seeds generated native rides instead.
 
 4. Compile styles if you changed the SCSS:
 
@@ -112,6 +116,8 @@ Delivered in phases:
 ```bash
 npm run dev
 ```
+
+This runs the server, the SCSS watcher and live reload together—edit a stylesheet and the page updates without reloading. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details and for `dev:server`, which starts the server alone.
 
 Then open <http://localhost:6686>. The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
@@ -156,8 +162,10 @@ src/                  TypeScript app (Hono)
                       shell.tsx (the one document), theme.ts (palette
                       pinned to _tokens.scss), rules.ts (when to send)
   maps/               roles.ts, kml/kmz/gpx/geojson/csv parsers, export.ts,
-                      ride-graph.ts, expand.ts, gmaps-links.ts, twist.ts,
-                      storage.ts, slug.ts, palette.ts, turnstile.ts
+                      filename.ts (the naming convention), zip.ts (read +
+                      write; kmz.ts is its policy layer), ride-graph.ts,
+                      expand.ts, gmaps-links.ts, twist.ts, storage.ts,
+                      slug.ts, palette.ts, turnstile.ts
   routes/             maps.ts (import), rides.ts (builder), routing.ts (Routes
                       + Geocoding proxies), admin.tsx (rider approval),
                       dashboard.tsx, profile.tsx, auth.tsx, pages.tsx
@@ -173,13 +181,16 @@ public/
   js/route-shape.js   Drag-to-shape index math—pure and tested
   js/ride-time.js     Trip time model, shared by builder and viewer
   js/twist.js         Client twistiness, kept equal to the server's
+  js/filename.js      The naming convention, kept equal to the server's
+  js/import.js        The import drop box — enhancement over a plain form
   js/profile.js       Profile page (address geocoding via /api/geocode)
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
   img/icons/          Role SVGs (currentColor) + UI icons—22 files
 style/main.scss       SCSS source
 test/                 Vitest suite — pure logic only, no database
   fixtures/           Sample KML/GPX/GeoJSON/CSV of one ride, per format
-  helpers/            Test-only helpers (zip.ts builds a KMZ in memory)
+  helpers/            Test-only helpers. zip.ts builds deliberately MALFORMED
+                      archives for the reader's tests and is not src/maps/zip.ts
 utils/
   seed-demo-rides.ts  Generates varied, road-routed demo rides in dev
   seed-dev.sh         Rebuilds the dev dataset, carrying accounts across it
@@ -193,9 +204,11 @@ utils/
 .qlty/                Code quality (biome, prettier, markdownlint, actionlint)
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
+drizzle/              Generated migrations + meta/ snapshots — committed;
+                      applied by db:migrate and the post-deploy hook
 vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
-                      ideas.md (vision), decisions-auth-and-search.md,
+                      ideas.md (vision), decisions.md,
                       google-cloud-setup.md
 CONTRIBUTING.md       Setup, gotchas, conventions — start here to contribute
 _PLANS/               Plans + session handoff
@@ -250,6 +263,51 @@ The 17 roles, and the alternate words each matches when parsing an imported name
 
 Icons live in `public/img/icons/`, designed in [this Figma document](https://www.figma.com/design/pFQck3CUIa5twKqMu1IxD5/moto-router). Their fill is `currentColor` so each icon tints to match its route color.
 
+## The file naming convention
+
+Every file Tankbag exports names itself so that dropping a folder of them back in reconstructs the ride. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
+
+```text
+tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+\_____/ \__________/ \_/ \________/ \_________/
+ marker     ride     day    date       title
+```
+
+| Field  | Shape                                | Optional | Notes                                                    |
+| ------ | ------------------------------------ | -------- | -------------------------------------------------------- |
+| marker | literal `tankbag`                    | no       | its absence means the name is not read as structured     |
+| ride   | slug                                 | no       | the ride                                                 |
+| day    | `d` + digits, zero-padded to two     | yes      | so `d10` sorts after `d09`                               |
+| date   | `YYYY-MM-DD`, or `…THHMM` with a time | yes      | the day's start; a bare date means no time was set       |
+| title  | slug                                 | yes      | the day's own name                                       |
+
+Three rules the format rests on:
+
+- **Underscores separate fields, hyphens live inside one.** A day title with a dash in it cannot split the filename.
+- **The `tankbag_` marker is what makes a name structured.** Without it the importer does exactly what it always did—upload order is day order—so your own `day-2.gpx` is never silently reinterpreted.
+- **Optional fields are found by shape, not position.** `tankbag_big-sur-run_d02.gpx` and `tankbag_big-sur-run_2026-08-14.gpx` both parse.
+
+**A filename does not carry the ride, and is not trying to.** Roles, dwell, via points, per-day colours and the stop/POI distinction do not fit in one—`tankbag.json` remains the only lossless format. What the convention carries is the handful of fields the other formats drop, and the one that matters most is the date: **neither GPX nor KML can hold a date at all**, so for those formats the filename is the only place a planned schedule survives a round trip.
+
+Two fields are deliberately absent. **Visibility**, because a file named `public` that publishes a ride on import is a footgun with no upside. And **a timezone**, because the app stores what you typed in your own zone and a filename claiming otherwise would be inventing one.
+
+On the way back in, a title recovered from a filename is a *guess*—`avenue-of-giants` comes back "Avenue Of Giants"—so a file's own internal name (`<trk><name>`, a KML `<Folder>`) wins over it. The date has no such competition and is taken as authoritative.
+
+### Per-day archives
+
+A multi-day ride can be downloaded as one conforming file per day, zipped:
+
+```text
+GET /api/public/maps/:slug/zip/{kml|gpx|geojson|csv}
+
+tankbag_big-sur-run.gpx.zip
+  ├ tankbag_big-sur-run_d01_2026-08-13_coast-start.gpx
+  ├ tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
+  └ tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx
+```
+
+That archive drags straight back into `/import` and comes out as the ride it left as. A whole-ride download is unchanged and still one file: it is all the days, so there is no one day to name, and it carries the ride's start date and no day field.
+
 ## Deployment
 
 Target host is a Synology NAS. The app runs as a Docker container behind a Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at Cloudflare's edge and no inbound ports are open on the NAS.
@@ -276,7 +334,7 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 > **Compose derives its project name from the directory it runs in**, and the volume prefix from that. Renaming a checkout therefore orphans the database: the stack comes back up on a brand-new empty volume while the rows sit in the old one, and the container name collides rather than failing cleanly. `docker-compose.yml` pins `name: tankbag` so the local prefix no longer depends on the path. The deployed stacks set `COMPOSE_PROJECT_NAME` explicitly for the same reason—which also means a stale volume from an earlier era can be silently adopted by a fresh deploy. Check `docker volume ls` before assuming a new environment is empty.
 
-> **Note on the `maps` → `rides` rename.** The post-deploy `drizzle-kit push` runs non-interactively and cannot resolve a table rename. Production sidestepped this by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed.
+> **Note on the `maps` → `rides` rename.** When the deploy still ran `drizzle-kit push`, this could not be resolved non-interactively. Production sidestepped it by being redeployed onto a fresh, empty database, so it is settled there. Any older database that still has a `maps` table needs `DROP TABLE IF EXISTS maps CASCADE;` before a deploy will succeed. Renames are still the sharp edge under generated migrations—the differ writes a drop plus an add unless you rewrite the file—but it is now a diff you read before it runs, not a prompt nobody sees.
 
 ## Provenance
 

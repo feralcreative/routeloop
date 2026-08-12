@@ -60,22 +60,22 @@
     }
   }
 
-  .panel-band--trip {
+  .panel-band--ride {
     background: rgba(0, 0, 0, 0.035);
   }
 
   // Accented in the day's own colour, which is also what every role icon inside
-  // it inherits. --route-color is set from renderDayHead(); the fallback covers
+  // it inherits. --day-color is set from renderDayHead(); the fallback covers
   // the first paint before any day is selected.
   .panel-band--day {
     background: rgba(0, 0, 0, 0.035);
-    border-left: 3px solid var(--route-color, #{$grey});
+    border-left: 3px solid var(--day-color, #{$grey});
 
     // The icons are SVGs drawn with fill="currentColor", so one `color` here
     // tints every one of them — role chips, the picker, the stop numbers and
     // the POI dots. Scoped to this band on purpose: the collapse toggle and any
     // other panel chrome must stay as they are.
-    color: var(--route-color, #{$text});
+    color: var(--day-color, #{$text});
 
     // Text is not tinted — a whole panel of coloured prose is unreadable, and
     // the point is the icons.
@@ -251,7 +251,7 @@
     align-items: center;
     gap: 0.4em;
     margin-bottom: 0.6em;
-    #route-title {
+    #day-title {
       flex: 1 1 auto;
       min-width: 0;
       font: inherit;
@@ -344,7 +344,7 @@
     display: flex;
     align-items: center;
     gap: 0.5em;
-    #route-color {
+    #day-color {
       width: 2.2em;
       height: 2em;
       padding: 0;
@@ -429,7 +429,7 @@
     // Two lines once there are several days: the trip total leads, because on a
     // multi-day ride that is the number being planned against, and the focused
     // day's own figures sit under it.
-    .totals-trip,
+    .totals-ride,
     .totals-day {
       display: block;
     }
@@ -462,7 +462,7 @@
       align-items: center;
       gap: 0.4em;
     }
-    // Inherits the band's --route-color rather than carrying its own grey: the
+    // Inherits the band's --day-color rather than carrying its own gray: the
     // stop number and the POI dot are markers, and a marker should say which
     // day it belongs to.
     .row-num {
@@ -484,7 +484,7 @@
       font: inherit;
       // Without this the chips inside stay black: the UA sheet gives every
       // <button> `color: buttontext`, and no author rule was overriding it, so
-      // the band's --route-color never reached the currentColor in the SVGs.
+      // the band's --day-color never reached the currentColor in the SVGs.
       color: inherit;
       display: flex;
       align-items: center;

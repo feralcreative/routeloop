@@ -14,7 +14,7 @@ const ride = {
   description: 'Two days.',
   visibility: 'unlisted' as const,
   external_url: 'https://example.com/thread',
-  routes: [
+  days: [
     {
       title: 'Day 1',
       color: '#0066cc',
@@ -96,7 +96,7 @@ describe('the exported shape is what the importer accepts', () => {
   it('keeps every field through parse and normalize', () => {
     const out = ridePayload.parse(JSON.parse(buildNativeJson(native)).ride)
     normalize(out)
-    const day = out.routes[0]
+    const day = out.days[0]
     expect(day.title).toBe('Day 1')
     expect(day.color).toBe('#0066cc')
     expect(day.startAt).toBe('2026-08-03T15:00:00.000Z')
@@ -122,7 +122,7 @@ describe('the exported shape is what the importer accepts', () => {
 
 describe('what the importer refuses', () => {
   it('refuses a payload whose legs do not connect its stops', () => {
-    const broken = { ...ride, routes: [{ ...ride.routes[0], legs: [] }] }
+    const broken = { ...ride, days: [{ ...ride.days[0], legs: [] }] }
     const parsed = ridePayload.safeParse(broken)
     expect(parsed.success).toBe(false)
     expect(JSON.stringify(parsed.error?.issues)).toMatch(/legs must connect/)
@@ -136,10 +136,10 @@ describe('what the importer refuses', () => {
   it('refuses a coordinate outside the world', () => {
     const bad = {
       ...ride,
-      routes: [
+      days: [
         {
-          ...ride.routes[0],
-          stops: [{ ...ride.routes[0].stops[0], lat: 991 }, ride.routes[0].stops[1]],
+          ...ride.days[0],
+          stops: [{ ...ride.days[0].stops[0], lat: 991 }, ride.days[0].stops[1]],
         },
       ],
     }
@@ -151,15 +151,15 @@ describe('what the importer refuses', () => {
   it('strips markup out of names on the way in', () => {
     const nasty = {
       ...ride,
-      routes: [
+      days: [
         {
-          ...ride.routes[0],
-          stops: [{ ...ride.routes[0].stops[0], name: '<script>alert(1)</script>Santa Cruz' }, ride.routes[0].stops[1]],
+          ...ride.days[0],
+          stops: [{ ...ride.days[0].stops[0], name: '<script>alert(1)</script>Santa Cruz' }, ride.days[0].stops[1]],
         },
       ],
     }
     const out = ridePayload.parse(nasty)
     normalize(out)
-    expect(out.routes[0].stops[0].name).toBe('alert(1)Santa Cruz')
+    expect(out.days[0].stops[0].name).toBe('alert(1)Santa Cruz')
   })
 })

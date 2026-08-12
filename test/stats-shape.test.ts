@@ -36,7 +36,7 @@ const NOW = new Date('2026-08-08T12:00:00Z')
 
 const totals = (over: Partial<RawTotals> = {}): RawTotals => ({
   rides: 0,
-  routes: 0,
+  days: 0,
   legs: 0,
   points: 0,
   stops: 0,
@@ -89,7 +89,7 @@ describe('rollUpTwist', () => {
     expect(rollUpTwist([{ dpm: 100, distanceM: MI }, { dpm: 200, distanceM: MI }])?.dpm).toBe(150)
   })
 
-  // Null is not zero. routes.twistiness_dpm is nullable and query.ts filters
+  // Null is not zero. days.twistiness_dpm is nullable and query.ts filters
   // nulls out before they arrive, so an empty list means "nothing measured" —
   // and the one thing it must never do is fall through to the 0 band.
   it('returns null when nothing has been measured, rather than "Straight"', () => {
@@ -102,7 +102,7 @@ describe('rollUpTwist', () => {
   })
 
   // A route with no distance carries no weight and must not divide by zero.
-  it('ignores zero-length routes', () => {
+  it('ignores zero-length days', () => {
     expect(rollUpTwist([{ dpm: 999, distanceM: 0 }])).toBeNull()
     expect(rollUpTwist([{ dpm: 999, distanceM: 0 }, { dpm: 100, distanceM: MI }])?.dpm).toBe(100)
   })
@@ -141,7 +141,7 @@ describe('roleBars', () => {
   })
 
   // Every ride has a start and an end, so both arrive with a count equal to the
-  // number of routes and sit at the top of a chart called "what you stop for" —
+  // number of days and sit at the top of a chart called "what you stop for" —
   // burying the categories the rider actually chose. Caught by rendering it.
   it('drops start and finish, which every route has by construction', () => {
     const bars = roleBars([
@@ -245,7 +245,7 @@ describe('shapeStats', () => {
 
   // The builder-only rider. This is the case that made the meter conditional.
   it('hides the meter entirely when nothing has been imported', () => {
-    expect(shapeStats(raw({ totals: totals({ rides: 9, routes: 20 }) }), 0, NOW).meter).toBeNull()
+    expect(shapeStats(raw({ totals: totals({ rides: 9, days: 20 }) }), 0, NOW).meter).toBeNull()
   })
 
   it('shows the meter once something is stored', () => {
@@ -275,7 +275,7 @@ describe('shapeStats', () => {
   })
 
   it('uses singular labels for one of a thing', () => {
-    const s = shapeStats(raw({ totals: totals({ rides: 1, routes: 1, legs: 1, points: 1 }) }), 0, NOW)
+    const s = shapeStats(raw({ totals: totals({ rides: 1, days: 1, legs: 1, points: 1 }) }), 0, NOW)
     expect(s.tiles.map((t) => t.label)).toEqual(['ride', 'day', 'leg', 'waypoint'])
   })
 

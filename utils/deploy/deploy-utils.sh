@@ -84,12 +84,25 @@ cmd_psql() {
   $(get_ssh_cmd) -t "$NAS_SSH_HOST" \
     "/usr/local/bin/docker exec -it ${DB_CONTAINER_NAME} psql -U tankbag -d tankbag"
 }
+# Applies pending generated migrations. This used `push --force` until
+# 2026-08-10, which the project's own docs called out as dangerous in the same
+# breath as using it: --force does not mean "unattended", it means "answer yes",
+# and push's prompts include offering to truncate the users table. migrate() has
+# no prompts to answer, so the flag has no successor.
 cmd_migrate() {
   check_ssh_key
-  log_info "Applying Drizzle schema in ${CONTAINER_NAME}..."
+  log_info "Applying Drizzle migrations in ${CONTAINER_NAME}..."
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${CONTAINER_NAME} npx drizzle-kit push --force"
-  log_success "Schema applied"
+    "/usr/local/bin/docker exec ${CONTAINER_NAME} npx drizzle-kit migrate"
+  log_success "Migrations applied"
+}
+# One-time, for a database created before drizzle/ existed. Records the
+# migrations as applied without running them. See docs/database.md.
+cmd_db_baseline() {
+  check_ssh_key
+  log_info "Baselining migration history in ${CONTAINER_NAME}..."
+  $(get_ssh_cmd) "$NAS_SSH_HOST" \
+    "/usr/local/bin/docker exec ${CONTAINER_NAME} npx tsx utils/db-baseline.ts"
 }
 # Postgres dump — the real backup. Map files are backed up separately.
 cmd_db_backup() {
@@ -318,7 +331,9 @@ Commands:
   start        Start the stack
   shell        Shell into the app container
   psql         Open psql against the app database
-  migrate      Re-apply the Drizzle schema (drizzle-kit push)
+  migrate      Apply pending Drizzle migrations (drizzle-kit migrate)
+  db-baseline  Record migrations as applied WITHOUT running them — one-time,
+               for a database created before drizzle/ existed
   db-backup    Dump Postgres to ./<container>-db-<ts>.sql.gz
   backup       Archive user KML/GPX to ./<container>-storage-<ts>.tar.gz
   help         Show this help
@@ -368,7 +383,8 @@ case "${1:-help}" in
   start)      cmd_start ;;
   shell)      cmd_shell ;;
   psql)       cmd_psql ;;
-  migrate)    cmd_migrate ;;
+  migrate)     cmd_migrate ;;
+  db-baseline) cmd_db_baseline ;;
   db-backup)  cmd_db_backup ;;
   backup)     cmd_backup ;;
   db-clone)   cmd_db_clone "${2:-}" "${3:-}" ;;

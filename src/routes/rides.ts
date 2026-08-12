@@ -1,8 +1,7 @@
 // The ride builder's API and page shells. A ride payload is the full graph —
-// ride meta + routes + stops/POIs + routed legs — saved whole (PUT is a
-// full-replace inside one transaction). The builder MVP sends exactly one
-// route; the API accepts many from day one (multi-day rides are the trip
-// phase, the schema and this surface are already shaped for them).
+// ride meta + days + stops/POIs + routed legs — saved whole (PUT is a
+// full-replace inside one transaction). The builder MVP sent exactly one day;
+// the API accepted many from day one, and the builder caught up on 2026-07-30.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -11,7 +10,7 @@ import { z } from 'zod'
 import { db } from '../db/index'
 import {
   rides,
-  routes as routesTable,
+  days as daysTable,
   points as pointsTable,
   routeLegs,
   userProfiles,
@@ -32,7 +31,7 @@ import { canEditRide, ownRide } from './maps'
 import { fields, firstIssue } from '../maps/fields'
 import {
   MAX_POIS,
-  MAX_ROUTES,
+  MAX_DAYS,
   MAX_STOPS,
   insertRideGraph,
   normalize,
@@ -129,21 +128,21 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
 
   const srcRoutes = await db
     .select()
-    .from(routesTable)
-    .where(eq(routesTable.rideId, src.id))
-    .orderBy(routesTable.position)
+    .from(daysTable)
+    .where(eq(daysTable.rideId, src.id))
+    .orderBy(daysTable.position)
 
-  const payloadRoutes = []
+  const payloadDays = []
   for (const r of srcRoutes) {
     const pts = await db
       .select()
       .from(pointsTable)
-      .where(eq(pointsTable.routeId, r.id))
+      .where(eq(pointsTable.dayId, r.id))
       .orderBy(pointsTable.position)
     const legs = await db
       .select()
       .from(routeLegs)
-      .where(eq(routeLegs.routeId, r.id))
+      .where(eq(routeLegs.dayId, r.id))
       .orderBy(routeLegs.position)
 
     const point = (p: (typeof pts)[number]) => ({
@@ -154,10 +153,10 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
       roles: p.roles,
     })
 
-    payloadRoutes.push({
+    payloadDays.push({
       title: r.title,
       color: r.color,
-      // Times belong to the trip the author planned, not to whenever the cloner
+      // Times belong to the ride the author planned, not to whenever the cloner
       // rides it. The timeline re-derives from legs and stops either way.
       startAt: null,
       endAt: null,
@@ -179,7 +178,7 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
     description: '',
     visibility: 'private',
     external_url: '',
-    routes: payloadRoutes,
+    days: payloadDays,
   }
 
   const created = await db.transaction(async (tx) => {
@@ -229,7 +228,7 @@ rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit,
       })
       .where(eq(rides.id, ride.id))
     // Full replace: routes cascade to points and legs.
-    await tx.delete(routesTable).where(eq(routesTable.rideId, ride.id))
+    await tx.delete(daysTable).where(eq(daysTable.rideId, ride.id))
     await insertRideGraph(tx, ride.id, p)
   })
   return c.json({ id: ride.id, slug: ride.slug })
@@ -244,11 +243,11 @@ rideRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
 })
 
 export async function loadRidePayload(ride: RideRow) {
-  const routeRows = await db
+  const dayRows = await db
     .select()
-    .from(routesTable)
-    .where(eq(routesTable.rideId, ride.id))
-    .orderBy(routesTable.position)
+    .from(daysTable)
+    .where(eq(daysTable.rideId, ride.id))
+    .orderBy(daysTable.position)
   const out = {
     id: ride.id,
     slug: ride.slug,
@@ -257,12 +256,12 @@ export async function loadRidePayload(ride: RideRow) {
     description: ride.description ?? '',
     visibility: ride.visibility,
     external_url: ride.externalUrl ?? '',
-    routes: [] as unknown[],
+    days: [] as unknown[],
   }
-  for (const r of routeRows) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
-    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
-    out.routes.push({
+  for (const r of dayRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
+    out.days.push({
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
@@ -357,15 +356,15 @@ function builderHtml(
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
-  // emphasised. Seeing the whole trip on one map is the product.
-  // Three bands, each naming the scope of what it holds: the ride, the trip
+  // emphasised. Seeing the whole ride on one map is the product.
+  // Three bands, each naming the scope of what it holds: the ride, the day
   // across all its days, and the one day being edited. Before this the panel was
   // a flat run of divs and nothing said whether a given control changed one day
   // or the whole ride — the day scrubber sat next to the day's own colour
-  // picker, and the trip timeline sat between two day-level blocks.
+  // picker, and the ride timeline sat between two day-level blocks.
   //
   // The order changed with the grouping: the timeline and the totals moved up
-  // into the trip band, which is where they always belonged.
+  // into the ride band, which is where they always belonged.
   const contents = `        <div class="panel-band panel-band--ride">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
@@ -382,7 +381,7 @@ function builderHtml(
           </div>
         </div>
 
-        <div class="panel-band panel-band--trip">
+        <div class="panel-band panel-band--ride">
           <div class="day-scrub" id="day-scrub">
             <div class="day-scrub-head">
               <span class="day-scrub-label" id="day-label">All days</span>
@@ -393,9 +392,9 @@ function builderHtml(
             <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
           </div>
 
-          <div class="trip-timeline" id="trip-timeline">
+          <div class="ride-timeline" id="ride-timeline">
             <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
-                   aria-label="Move through the trip in time" title="Drag to move through the trip">
+                   aria-label="Move through the ride in time" title="Drag to move through the ride">
             <div class="time-readout" id="time-readout"></div>
           </div>
 
@@ -406,8 +405,8 @@ function builderHtml(
 
         <div class="panel-band panel-band--day" id="day-band">
           <div class="day-head" id="day-head" hidden>
-            <input id="route-color" name="route-color" type="color" value="#0066cc" title="Day color">
-            <input id="route-title" name="route-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
+            <input id="day-color" name="day-color" type="color" value="#0066cc" title="Day color">
+            <input id="day-title" name="day-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
             <span class="day-actions">
               <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
               <button type="button" id="day-up" title="Move day earlier">↑</button>
@@ -419,11 +418,11 @@ function builderHtml(
           <div class="day-times" id="day-times">
             <label class="day-time">
               <span>Starts</span>
-              <input id="route-start" name="route-start" type="datetime-local">
+              <input id="day-start" name="day-start" type="datetime-local">
             </label>
             <label class="day-time">
               <span>Ends</span>
-              <input id="route-end" name="route-end" type="datetime-local"
+              <input id="day-end" name="day-end" type="datetime-local"
                      title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
             </label>
             <span class="day-times-note" id="day-times-note"></span>

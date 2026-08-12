@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "tokens" as *;
 
 // Global header. Before this existed there was no way off the builder or viewer
@@ -22,19 +23,31 @@
   display: block;
   line-height: 0;
 
-  // 34px, not the 24px the old wordmark used. The tankbag lockup is 3.3:1 where
-  // the routeloop one was 8.2:1 — most of the new height is the bag icon, so at
-  // 24px the word itself came out around 8px tall. This restores the wordmark to
-  // roughly its former size and still clears the 40px nav toggle beside it.
+  // 48px. It went 24 → 34 when the tankbag lockup replaced the routeloop
+  // wordmark, because most of the new height is the bag icon and the word itself
+  // was coming out around 8px tall. 34 was still too small: the mark reads as a
+  // favicon beside a nav bar that now carries five items at 0.95rem.
+  //
+  // Taller than the 40px nav toggle it sits beside, which is fine — the toggle
+  // only exists below LG, where the header has nothing else competing with it.
   img {
     display: block;
     width: auto;
-    height: 34px;
+    height: 48px;
   }
 }
 
-.nav-toggle {
+// The disclosure that owns the drawer. Native <details>, so open and closed are
+// the browser's job and the menu still works with JavaScript off.
+.site-menu {
   margin-left: auto;
+  position: relative;
+}
+
+// A <summary>, styled as the button it used to be. `list-style: none` plus the
+// webkit pseudo suppress the platform triangle, which would otherwise sit beside
+// the three bars.
+.nav-toggle {
   width: 40px;
   height: 40px;
   display: flex;
@@ -45,6 +58,12 @@
   border-radius: 8px;
   cursor: pointer;
   color: $text;
+  list-style: none;
+
+  &::marker,
+  &::-webkit-details-marker {
+    display: none;
+  }
 
   &:hover {
     border-color: $grey;
@@ -87,7 +106,7 @@
   }
 }
 
-.site-header.open .nav-bars {
+.site-menu[open] .nav-bars {
   background: transparent;
 
   &::before {
@@ -98,6 +117,12 @@
   }
 }
 
+// The drawer. This is the narrow-viewport shape and the map-page shape at every
+// width; the bar below takes over at LG.
+//
+// No display:none here — the <details> around it is what hides it when closed,
+// which is the whole point of using one. Setting it here as well would hide the
+// drawer even while open.
 .site-nav {
   position: absolute;
   top: calc(100% + 6px);
@@ -113,13 +138,29 @@
   border-radius: 10px;
   box-shadow: 0 4px 16px $panel-shadow;
 
-  &[hidden] {
-    display: none;
+  .nav-primary,
+  .nav-end {
+    display: contents;
   }
 
+  // A rule above the account and About block, so the drawer still reads as
+  // sections rather than one undifferentiated list.
+  .nav-end {
+    .nav-sub:first-child {
+      margin-top: 0.35rem;
+      padding-top: 0.35rem;
+      border-top: 1px solid $grey;
+    }
+  }
+
+  // border-box because there is no global reset in this project: with the
+  // default content-box, `width: 100%` plus the padding below made every item
+  // wider than the panel holding it, so the labels ran off the right edge of the
+  // drawer and pushed the document into a horizontal scroll.
   a,
   .linkbtn {
     display: block;
+    box-sizing: border-box;
     width: 100%;
     padding: 0.5em 0.65em;
     border-radius: 6px;
@@ -149,9 +190,10 @@
     border-top: 1px solid $grey;
   }
 
-  // The About disclosure. Its summary is styled to match the links above it so
-  // the menu reads as one list rather than a list with a widget stuck on the
-  // end; only the marker says it opens.
+  // A group's summary, styled to match the links beside it so the menu reads as
+  // one list rather than a list with widgets stuck in it. The caret is what
+  // distinguishes the two here — in a vertical list a group and a link are
+  // otherwise identical until you click one. The bar drops it; see LG below.
   .nav-sub {
     summary {
       display: flex;
@@ -176,7 +218,7 @@
         background: rgba(0, 0, 0, 0.05);
       }
 
-      // The caret, drawn rather than typed so it can rotate on open.
+      // Drawn rather than typed so it can rotate on open.
       &::after {
         content: "";
         width: 0.45em;
@@ -204,6 +246,31 @@
   }
 }
 
+// The account trigger's avatar. Fixed square so the bar's height does not depend
+// on whether a rider signed in with Google (image) or a magic link (initials).
+.nav-avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.nav-avatar.is-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color.adjust($url, $lightness: 46%);
+  color: color.adjust($url, $lightness: -8%);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nav-account > summary {
+  gap: 0.45em;
+}
+
 .nav-user {
   display: block;
   padding: 0.5em 0.65em 0.15em;
@@ -211,6 +278,142 @@
   font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+//@ LG >992px — the drawer becomes a bar
+// Same elements, laid out as a row. The toggle goes away entirely at this width,
+// which was the point: a hamburger on a 1600px screen hides seven destinations
+// behind a click for no reason.
+//
+// Map pages are excluded and keep the drawer at every width — their header is a
+// floating badge over live canvas, and a full bar there would eat the map.
+@media (min-width: 992px) {
+  html:not(.map-page) {
+    .nav-toggle {
+      display: none;
+    }
+
+    // Reveal the disclosure's contents without opening it. Author styles beat
+    // the UA rules that hide a closed <details>, so the same element that is a
+    // drawer on a phone is a plain flex row here — no duplicate markup, and no
+    // script needed to keep the two in step.
+    //
+    // `display: contents` on the details itself so the bar's flex row is a
+    // direct child of the header rather than nested in a box that has to be
+    // taught to stretch.
+    .site-menu {
+      display: contents;
+
+      // `display: contents` on the <details> is not enough on its own. The
+      // browser wraps a details' children in a ::details-content box, and that
+      // box would otherwise be a flex item in its own right — the groups have to
+      // reach the header to be spaced against the logo.
+      &::details-content {
+        display: contents;
+        content-visibility: visible;
+        block-size: auto;
+      }
+    }
+
+    // Three flex items on the header: the logo, the group row, and the account.
+    // space-between puts the gaps where the eye reads structure — mark at one
+    // edge, you at the other, destinations between them — rather than pushing
+    // everything left and leaving one dead margin on the right.
+    .site-header {
+      justify-content: space-between;
+    }
+
+    // Collapsed too, so .nav-primary and .nav-end are the header's own children
+    // and space-between has three things to distribute rather than one.
+    .site-nav {
+      display: contents;
+    }
+
+    .nav-primary,
+    .nav-end {
+      display: flex;
+      align-items: center;
+      // Roomy on purpose. At 0.1rem the groups read as one run-on string; this
+      // is wide enough that each is its own target without the row sprawling.
+      gap: 1.25rem;
+    }
+
+    .site-nav {
+
+      // The drawer's section rule has no meaning in a row.
+      .nav-end .nav-sub:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      a,
+      .linkbtn {
+        width: auto;
+        padding: 0.45em 0.6em;
+        white-space: nowrap;
+        font-size: 0.95rem;
+      }
+
+      // A row of links needs no separators; the drawer's rules would draw
+      // vertical hairlines between items here.
+      > hr {
+        display: none;
+      }
+
+      // The two dropdowns. The summary stays inline in the bar and the panel
+      // hangs off it, which is the only part that has to be positioned.
+      .nav-sub {
+        position: relative;
+
+        // No caret in the bar. In the panel it earns its place — a group and a
+        // link look identical in a vertical list — but along a row the panel
+        // dropping open is the affordance, and four chevrons is four too many.
+        summary {
+          padding: 0.45em 0.6em;
+          white-space: nowrap;
+          font-size: 0.95rem;
+
+          &::after {
+            display: none;
+          }
+        }
+
+        .nav-sub-items {
+          position: absolute;
+          top: calc(100% + 6px);
+          right: 0;
+          z-index: $z-nav;
+          min-width: 190px;
+          margin: 0;
+          padding: 0.4rem;
+          background: $white;
+          border: 1px solid $grey;
+          border-left: 1px solid $grey;
+          border-radius: 10px;
+          box-shadow: 0 4px 16px $panel-shadow;
+
+          a,
+          .linkbtn {
+            width: 100%;
+            white-space: normal;
+          }
+        }
+      }
+
+      // The one element whose width is a rider's own text. Bounded so a long
+      // display name cannot push the bar into wrapping — the bar has roughly
+      // 900px to work with and everything else in it is a known string.
+      .nav-account-name {
+        display: inline-block;
+        max-width: 12ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+      }
+    }
+  }
 }
 
 //@ Map pages — the header floats over a full-viewport canvas

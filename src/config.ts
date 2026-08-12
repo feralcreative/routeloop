@@ -23,6 +23,14 @@ export const PORT = Number(env('PORT', '6686'))
 export const APP_ORIGIN = env('APP_ORIGIN', 'http://127.0.0.1:6686')
 export const IS_HTTPS_ORIGIN = APP_ORIGIN.startsWith('https://')
 
+// "Is this someone's laptop?" Asked of APP_ORIGIN rather than NODE_ENV, which
+// nothing in this project sets, and deliberately the same signal DEV_LOGIN_ENABLED
+// calls its strongest gate below: stage and prod must set an https origin or
+// OAuth redirects and the session cookie's Secure flag break, so this cannot be
+// quietly true in a deployed environment. Gates the live-reload endpoint and the
+// snippet that talks to it (src/dev/livereload.ts).
+export const IS_DEV = !IS_HTTPS_ORIGIN
+
 // Production is strict. In development the map libraries want localhost while
 // APP_ORIGIN may say 127.0.0.1, so accept both names on the same port.
 //

@@ -87,39 +87,39 @@ describe('the two implementations agree', () => {
   })
 })
 
-describe('routeTwistiness', () => {
+describe('dayTwistiness', () => {
   // distanceM is optional because the client's cache signature reads it
   // (`l.distanceM || 0`), so the tests that exercise the cache have to be able
   // to set it. Untyped until now, which the tsconfig did not check.
-  const route = (legs: { geometry: Track; distanceM?: number }[]) => ({ legs })
+  const day = (legs: { geometry: Track; distanceM?: number }[]) => ({ legs })
 
   it('concatenates legs before measuring, so a leg join is not a corner', () => {
     const whole = arc(200, 180)
     const half = Math.floor(whole.length / 2)
-    const split = route([{ geometry: whole.slice(0, half) }, { geometry: whole.slice(half) }])
-    expect(C.routeTwistiness(split)!.dpm).toBe(serverTwistiness(whole)!.dpm)
+    const split = day([{ geometry: whole.slice(0, half) }, { geometry: whole.slice(half) }])
+    expect(C.dayTwistiness(split)!.dpm).toBe(serverTwistiness(whole)!.dpm)
   })
 
   it('is null for a day with no legs at all', () => {
-    expect(C.routeTwistiness(route([]))).toBeNull()
-    expect(C.routeTwistiness(null)).toBeNull()
+    expect(C.dayTwistiness(day([]))).toBeNull()
+    expect(C.dayTwistiness(null)).toBeNull()
   })
 
   it('caches when nothing changed', () => {
-    const r = route([{ geometry: arc(200, 180), distanceM: 100 }])
-    const first = C.routeTwistiness(r)
-    expect(C.routeTwistiness(r)).toBe(first) // same object, not merely equal
+    const r = day([{ geometry: arc(200, 180), distanceM: 100 }])
+    const first = C.dayTwistiness(r)
+    expect(C.dayTwistiness(r)).toBe(first) // same object, not merely equal
   })
 
   it('recomputes when the legs are mutated IN PLACE, which is what the builder does', () => {
     // The whole reason the cache is keyed on a signature and not on the legs
-    // array's identity. `route.legs[i] = leg` when the router answers, and
+    // array's identity. `day.legs[i] = leg` when the router answers, and
     // `legs.splice()` on a delete, both leave the array object untouched — an
     // identity-keyed cache would serve the pre-reroute figure forever.
-    const r: any = route([{ geometry: arc(600, 180), distanceM: 1000 }])
-    const before = C.routeTwistiness(r).dpm
+    const r: any = day([{ geometry: arc(600, 180), distanceM: 1000 }])
+    const before = C.dayTwistiness(r).dpm
     r.legs[0] = { geometry: arc(80, 180), distanceM: 200 }
-    const after = C.routeTwistiness(r).dpm
+    const after = C.dayTwistiness(r).dpm
     expect(after).not.toBe(before)
     expect(after).toBe(serverTwistiness(arc(80, 180))!.dpm)
   })
@@ -142,7 +142,7 @@ describe('POI distances agree with the server', () => {
 
   it('matches on a curved track, and off it', () => {
     const curve = arc(300, 270)
-    // Deliberately off-route: nearest-vertex has to pick the same vertex in
+    // Deliberately off-day: nearest-vertex has to pick the same vertex in
     // both implementations or ordering could differ between builder and server.
     const off = curve.map((p) => ({ lng: p[0] + 0.01, lat: p[1] - 0.01 })).filter((_, i) => i % 40 === 0)
     expect(C.distFromStartAlongTrack(curve, off)).toEqual(serverDistFromStart(curve, off))
@@ -153,12 +153,12 @@ describe('POI distances agree with the server', () => {
     expect(C.distFromStartAlongTrack([], pts)).toEqual(serverDistFromStart([], pts))
   })
 
-  it('orders POIs along the route, which is what the interleaved list needs', () => {
+  it('orders POIs along the day, which is what the interleaved list needs', () => {
     const r: any = {
       legs: [{ geometry: straightTrack, distanceM: 20000 }],
       pois: [at(0.75), at(0.25), at(0.5)],
     }
-    const d = C.routePoiDistances(r)
+    const d = C.dayPoiDistances(r)
     expect(d[1]).toBeLessThan(d[2])
     expect(d[2]).toBeLessThan(d[0])
   })
@@ -168,8 +168,8 @@ describe('POI distances agree with the server', () => {
       legs: [{ geometry: straightTrack, distanceM: 20000 }],
       pois: [at(0.25)],
     }
-    const before = C.routePoiDistances(r)[0]
+    const before = C.dayPoiDistances(r)[0]
     r.pois[0] = at(0.9)
-    expect(C.routePoiDistances(r)[0]).toBeGreaterThan(before)
+    expect(C.dayPoiDistances(r)[0]).toBeGreaterThan(before)
   })
 })

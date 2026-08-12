@@ -403,8 +403,8 @@ export const surveyResponses = pgTable(
   (t) => [index('idx_survey_submitted').on(t.submittedAt)],
 )
 
-// The shareable package (docs/ideas.md): a ride holds many routes over many
-// days/sessions. The slug is the share id; visibility gates viewing. Byte
+// The shareable package (docs/ideas.md), and the top of the hierarchy:
+// ride > day > leg > stop/POI. The slug is the share id; visibility gates. Byte
 // columns describe imported originals on disk and drive quota — native rides
 // have zero bytes and no files. totalMiles/totalDurationS/stopCount are caches
 // recomputed on every save/import.
@@ -451,11 +451,20 @@ export const rides = pgTable(
   ],
 )
 
-// One session/day within a ride: ordered stops joined by routed legs. The time
-// model (startAt/endAt) exists now so the timeline slider is pure UI later.
-// distanceM/durationS are caches over the route's legs.
-export const routes = pgTable(
-  'routes',
+// One day within a ride: ordered stops joined by routed legs. The time model
+// (startAt/endAt) exists now so the timeline slider is pure UI later.
+// distanceM/durationS are caches over the day's legs.
+//
+// Called `routes` until 2026-08-09, which collided twice: with `route` meaning
+// a whole ride in the import copy, and with the ~130 `adminRoutes`/`app.route()`
+// identifiers that mean HTTP handlers. Every rider-facing surface already said
+// "day" — the builder slider, the viewer legend, DAY_COLORS, the `d02` filename
+// field — so the table moved to meet them rather than the other way around.
+//
+// A day is a *position* within a ride, not a calendar date: two days can share
+// a date, and a ride with no dates at all still has days.
+export const days = pgTable(
+  'days',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     rideId: bigint('ride_id', { mode: 'number' })
@@ -474,7 +483,7 @@ export const routes = pgTable(
     //
     // Nullable on purpose, and null is NOT the same as 0: 0 claims the road is
     // straight, null says nothing has measured it. Every row predating this
-    // column is null until utils/backfill-twistiness.ts runs, and a route with
+    // column is null until utils/backfill-twistiness.ts runs, and a day with
     // no legs stays null forever.
     twistinessDpm: integer('twistiness_dpm'),
     // The same figure over the twistiest 20-mile stretch of the day, which is
@@ -482,22 +491,22 @@ export const routes = pgTable(
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
   },
-  (t) => [uniqueIndex('uq_route_ride_pos').on(t.rideId, t.position)],
+  (t) => [uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position)],
 )
 
 // The dots (docs/ideas.md). Stops are the ordered routing anchors — not riding
 // for a while; durationMin null = no duration (ride ends). POIs are unordered
-// annotations near the route and never affect routing. The third dot kind —
-// ephemeral shaping waypoints — lives in route_legs.via_points, not here.
+// annotations near the day's route and never affect routing. The third dot kind
+// — ephemeral shaping waypoints — lives in route_legs.via_points, not here.
 export const points = pgTable(
   'points',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    routeId: bigint('route_id', { mode: 'number' })
+    dayId: bigint('day_id', { mode: 'number' })
       .notNull()
-      .references(() => routes.id, { onDelete: 'cascade' }),
+      .references(() => days.id, { onDelete: 'cascade' }),
     kind: pointKindEnum('kind').notNull(),
-    position: smallint('position'), // stop order along the route; null for POIs
+    position: smallint('position'), // stop order along the day; null for POIs
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
@@ -508,8 +517,8 @@ export const points = pgTable(
   },
   (t) => [
     // Stops get distinct positions; POIs all carry null (NULLS DISTINCT).
-    uniqueIndex('uq_point_route_pos').on(t.routeId, t.position),
-    index('idx_point_route').on(t.routeId),
+    uniqueIndex('uq_point_day_pos').on(t.dayId, t.position),
+    index('idx_point_day').on(t.dayId),
     check('ck_point_roles_max4', sql`cardinality(roles) <= 4`),
     check('ck_point_stop_pos', sql`kind <> 'stop' OR position IS NOT NULL`),
   ],
@@ -520,20 +529,25 @@ export const points = pgTable(
 // mileage authority). via_points are the rider's ephemeral shaping waypoints.
 // Imported rides store one leg at position 0 holding the whole track, so the
 // viewer always renders concat(legs) — one code path for both sources.
+//
+// Still `route_legs` after days stopped being called routes, deliberately: the
+// "route" here is the path a day traces, which is what these legs compose, not
+// a reference to the renamed table. The column below is the reference, and it
+// moved.
 export const routeLegs = pgTable(
   'route_legs',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    routeId: bigint('route_id', { mode: 'number' })
+    dayId: bigint('day_id', { mode: 'number' })
       .notNull()
-      .references(() => routes.id, { onDelete: 'cascade' }),
+      .references(() => days.id, { onDelete: 'cascade' }),
     position: smallint('position').notNull(),
     geometry: jsonb('geometry').$type<[number, number][]>().notNull(), // [lng,lat] pairs, 6-decimal
     distanceM: integer('distance_m').notNull().default(0),
     durationS: integer('duration_s').notNull().default(0),
     viaPoints: jsonb('via_points').$type<[number, number][]>().notNull().default(sql`'[]'::jsonb`),
   },
-  (t) => [uniqueIndex('uq_leg_route_pos').on(t.routeId, t.position)],
+  (t) => [uniqueIndex('uq_leg_day_pos').on(t.dayId, t.position)],
 )
 
 export type UserRow = typeof users.$inferSelect
@@ -549,6 +563,6 @@ export type SurveyResponseRow = typeof surveyResponses.$inferSelect
 /** The three ways an invite is handed out, derived from the enum so the two cannot drift. */
 export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
 export type RideRow = typeof rides.$inferSelect
-export type RouteRow = typeof routes.$inferSelect
+export type DayRow = typeof days.$inferSelect
 export type PointRow = typeof points.$inferSelect
 export type RouteLegRow = typeof routeLegs.$inferSelect

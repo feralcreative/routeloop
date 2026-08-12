@@ -10,6 +10,16 @@ COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
 COPY tsconfig.json drizzle.config.ts ./
+# drizzle/ holds the generated migrations and their journal. The post-deploy
+# hook runs `drizzle-kit migrate` inside this container, so without this COPY it
+# finds no migrations, applies nothing, and reports success — the exact silent
+# drift the hook was made fatal to prevent.
+COPY drizzle ./drizzle
+# utils/ comes along for utils/db-baseline.ts, which has to run once inside a
+# container whose database predates drizzle/. It computes migration hashes with
+# drizzle's own readMigrationFiles, so it cannot be replaced by hand-written SQL
+# without risking a hash that migrate() disagrees with.
+COPY utils ./utils
 COPY src ./src
 COPY public ./public
 COPY style ./style

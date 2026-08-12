@@ -26,7 +26,7 @@ export const ACTIVITY_MONTHS = 12
 
 export type RawTotals = {
   rides: number
-  routes: number
+  days: number
   legs: number
   /** Every dot: stops AND POIs. `rides.stop_count` counts only stops, so it is
    *  deliberately not the source here. */
@@ -111,7 +111,7 @@ export type TwistRollup = { dpm: number; label: string } | null
  * day, which is the exact mistake builder.js:1211-1255 documents on the client.
  *
  * Returns null when nothing has been measured. That is NOT the same as zero:
- * `routes.twistiness_dpm` is nullable and a null means no track was long enough
+ * `days.twistiness_dpm` is nullable and a null means no track was long enough
  * to measure, while 0 is a genuine claim that the road is straight. Reporting an
  * unmeasured library as "Straight" would be a lie the rider cannot see through.
  */
@@ -137,7 +137,7 @@ export type RoleBar = { role: string; label: string; icon: string; n: number; sh
  * Roles that describe the shape of a route rather than a choice the rider made.
  *
  * Every ride has a start and an end, so they arrive at the top of the histogram
- * with a count equal to the number of routes and push everything interesting
+ * with a count equal to the number of days and push everything interesting
  * into the bottom third. The chart is titled "what you stop for"; nobody stops
  * for the start.
  *
@@ -242,7 +242,7 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): D
 
   const tiles: Tile[] = [
     { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides) },
-    { label: t.routes === 1 ? 'day' : 'days', value: fmtCount(t.routes) },
+    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days) },
     { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs) },
     {
       label: t.points === 1 ? 'waypoint' : 'waypoints',
@@ -290,7 +290,7 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): D
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
-      label: 'Biggest trip',
+      label: 'Biggest ride',
       value: `${fmtMiles(r.biggestRideM)} mi`,
       hint: r.biggestRideTitle ?? undefined,
     })

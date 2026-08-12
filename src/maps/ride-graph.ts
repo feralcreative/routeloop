@@ -10,14 +10,14 @@ import { z } from 'zod'
 // Only the transaction type is needed here; the queries all run on the `tx`
 // the caller passes in.
 import type { db } from '../db/index'
-import { routes as routesTable, points as pointsTable, routeLegs } from '../db/schema'
+import { days as daysTable, points as pointsTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, round6, type Track } from './kml'
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
 
-// 31 rather than 30: a month-long trip plus the day you get home.
-export const MAX_ROUTES = 31
+// 31 rather than 30: a month-long ride plus the day you get home.
+export const MAX_DAYS = 31
 
 export const MAX_STOPS = 200
 export const MAX_POIS = 200
@@ -50,7 +50,7 @@ const legSchema = z.object({
   viaPoints: z.array(lngLat).max(MAX_VIAS_PER_LEG).default([]),
 })
 
-const routeSchema = z
+const daySchema = z
   .object({
     title: z.string().max(150).default(''),
     color: fields.color.default('#0000cc'),
@@ -70,10 +70,10 @@ export const ridePayload = z
     description: fields.description.default(''),
     visibility: fields.visibility.default('private'),
     external_url: fields.external_url.default(''),
-    routes: z.array(routeSchema).min(1).max(MAX_ROUTES),
+    days: z.array(daySchema).min(1).max(MAX_DAYS),
   })
   .refine(
-    (p) => p.routes.reduce((n, r) => n + r.legs.reduce((m, l) => m + l.geometry.length, 0), 0) <= MAX_PTS_PER_RIDE,
+    (p) => p.days.reduce((n, r) => n + r.legs.reduce((m, l) => m + l.geometry.length, 0), 0) <= MAX_PTS_PER_RIDE,
     { message: `ride exceeds ${MAX_PTS_PER_RIDE} track points` },
   )
 
@@ -87,7 +87,7 @@ export type RidePayload = z.infer<typeof ridePayload>
 // deviates > 15 % from the haversine length of the submitted geometry is
 // replaced by the haversine value, so spoofing is bounded.
 export function normalize(p: RidePayload): void {
-  for (const r of p.routes) {
+  for (const r of p.days) {
     r.title = sanitizeText(r.title)
     for (const s of [...r.stops, ...r.pois]) {
       s.lat = round6(s.lat)
@@ -109,7 +109,7 @@ export function rideTotals(p: RidePayload) {
   let meters = 0
   let seconds = 0
   let stops = 0
-  for (const r of p.routes) {
+  for (const r of p.days) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
     seconds += r.stops.reduce((n, s) => n + (s.durationMin ?? 0) * 60, 0)
@@ -119,19 +119,19 @@ export function rideTotals(p: RidePayload) {
   return { totalMiles: (meters / METERS_PER_MILE).toFixed(1), totalDurationS: seconds, stopCount: stops }
 }
 
-// Inserts the route graph for a ride. Callers run this inside a transaction,
-// on a ride that has no routes (fresh insert or after a full-replace delete).
+// Inserts the ride graph. Callers run this inside a transaction,
+// on a ride that has no days (fresh insert or after a full-replace delete).
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<void> {
-  for (let ri = 0; ri < p.routes.length; ri++) {
-    const r = p.routes[ri]
+  for (let ri = 0; ri < p.days.length; ri++) {
+    const r = p.days[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
     // The same concatenation the POI projection below uses, hoisted so the
     // track is walked once for both.
     const track = r.legs.flatMap((l) => l.geometry) as Track
     const twist = twistiness(track)
-    const [route] = await tx
-      .insert(routesTable)
+    const [day] = await tx
+      .insert(daysTable)
       .values({
         rideId,
         position: ri,
@@ -151,7 +151,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
     const stopRows = r.stops.map((s, i) => ({
-      routeId: route.id,
+      dayId: day.id,
       kind: 'stop' as const,
       position: i,
       lat: s.lat,
@@ -166,7 +166,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     // POIs: projected onto the route's concatenated track (built above).
     const poiDists = distFromStartAlongTrack(track, r.pois)
     const poiRows = r.pois.map((s, i) => ({
-      routeId: route.id,
+      dayId: day.id,
       kind: 'poi' as const,
       position: null,
       lat: s.lat,
@@ -183,7 +183,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     if (r.legs.length > 0) {
       await tx.insert(routeLegs).values(
         r.legs.map((l, i) => ({
-          routeId: route.id,
+          dayId: day.id,
           position: i,
           geometry: l.geometry as Track,
           distanceM: l.distanceM,

@@ -107,7 +107,7 @@ function Notice({ query }: { query: (k: string) => string | undefined }) {
   return <></>
 }
 
-adminRoutes.get('/admin', requireManageRiders, async (c) => {
+adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
   const me = currentUser(c)
 
   // Pending first (they are the ones waiting on an action), then active, then
@@ -133,7 +133,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
 
   const body = (
     <>
-      <h1>Riders</h1>
+      <h1>Approvals</h1>
       <div class="sub">
         {riders.length} account{riders.length === 1 ? '' : 's'}
         {pending ? ` · ${pending} waiting for approval` : ''}
@@ -151,7 +151,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
     </>
   ).toString()
 
-  return c.html(page({ title: 'Riders', user: me, navKey: 'admin', body }))
+  return c.html(page({ title: 'Approvals', user: me, navKey: 'approvals', body }))
 })
 
 adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, async (c) => {
@@ -161,10 +161,10 @@ adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, as
 
   // Guard self-lockout before touching the body: whatever was posted, a manager
   // cannot flip their own status here.
-  if (id === me.id) return c.redirect('/admin?error=self', 302)
+  if (id === me.id) return c.redirect('/admin/approvals?error=self', 302)
 
   const parsed = statusSchema.safeParse(await c.req.parseBody())
-  if (!parsed.success) return c.redirect('/admin?error=bad', 302)
+  if (!parsed.success) return c.redirect('/admin/approvals?error=bad', 302)
 
   const [target] = await db
     .select({
@@ -203,5 +203,58 @@ adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, as
   }
 
   // Redirect rather than re-render so a refresh cannot resubmit the change.
-  return c.redirect('/admin?updated=1', 302)
+  return c.redirect('/admin/approvals?updated=1', 302)
+})
+
+// --- Overview ----------------------------------------------------------------
+//
+// /admin used to *be* the approvals screen. It became a landing page when the
+// menu grew an Admin group (docs/main-menu.md): the group's first item needs
+// somewhere to point, and four sibling screens with no shared entry is how you
+// end up navigating by URL.
+//
+// Deliberately thin. It lists what is there and the one number worth surfacing
+// before you click — how many riders are waiting — and nothing else. A dashboard
+// that duplicates each page's own summary goes stale the day one of them changes.
+adminRoutes.get('/admin', requireManageRiders, async (c) => {
+  const me = currentUser(c)
+
+  const [counts] = await db
+    .select({
+      riders: sql<number>`count(*)::int`,
+      pending: sql<number>`count(*) filter (where ${users.status} = 'pending')::int`,
+    })
+    .from(users)
+
+  const cards: { href: string; title: string; note: string }[] = [
+    {
+      href: '/admin/approvals',
+      title: 'Approvals',
+      note: counts.pending
+        ? `${counts.pending} rider${counts.pending === 1 ? '' : 's'} waiting`
+        : `${counts.riders} account${counts.riders === 1 ? '' : 's'}, none waiting`,
+    },
+    { href: '/admin/invites', title: 'Invitations', note: 'Create, revoke and regenerate invite links' },
+    { href: '/admin/survey', title: 'Survey results', note: 'Responses from invited riders' },
+    { href: '/brand', title: 'Brand', note: 'Every color the app defines, read live from the SCSS' },
+  ]
+
+  const body = (
+    <>
+      <h1>Admin</h1>
+      <p class="lede">Everything that manages the app rather than a ride.</p>
+      <ul class="cards admin-cards">
+        {cards.map((card) => (
+          <li>
+            <a href={card.href}>
+              <strong>{card.title}</strong>
+              <span>{card.note}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </>
+  ).toString()
+
+  return c.html(page({ title: 'Admin', user: me, navKey: 'admin', body }))
 })

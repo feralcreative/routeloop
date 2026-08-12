@@ -56,7 +56,7 @@
   function snapshot(state) {
     return {
       meta: { ...state.meta },
-      routes: (state.routes || []).map(snapshotRoute),
+      days: (state.days || []).map(snapshotRoute),
     };
   }
 
@@ -65,13 +65,13 @@
   // Two reasons, both load-bearing. A snapshot can be restored more than once
   // (undo, redo, undo again) and must not be aliased by the live state after
   // the first. And the async leg completion in builder.js guards on object
-  // identity — `state.routes[r] !== route` — so fresh objects make an
+  // identity — `state.days[r] !== day` — so fresh objects make an
   // in-flight routing response discard itself. Reuse the references and a
   // response that left before the undo lands on the leg after it.
   function restore(state, snap) {
     state.meta = { ...snap.meta };
-    state.routes = snap.routes.map(snapshotRoute);
-    // Sequence numbers indexed the old routes. Anything still in flight is
+    state.days = snap.days.map(snapshotRoute);
+    // Sequence numbers indexed the old days. Anything still in flight is
     // now unwanted, and a stale counter would let it through.
     state.legSeq = [];
     return state;
@@ -176,9 +176,9 @@
   // ride serialised whole can pass the ~5 MB origin limit and take the write
   // down with it. Legs are derived data — the router can rebuild them — while
   // the stops are the thing that cannot be recovered from anywhere. So a draft
-  // keeps what is irreplaceable and re-routes the rest.
-  function stripped(routes) {
-    return (routes || []).map((r) => ({
+  // keeps what is irreplaceable and re-days the rest.
+  function stripped(days) {
+    return (days || []).map((r) => ({
       ...r,
       stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice() })),
       pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice() })),
@@ -244,10 +244,10 @@
         rideId: rideId == null ? null : rideId,
         legsStripped: true,
         meta: { ...state.meta },
-        // From state.routes, not payload(): payload() drops days with no
+        // From state.days, not payload(): payload() drops days with no
         // stops, and a day you added and have not filled in yet is exactly
         // the kind of work a draft exists to keep.
-        routes: stripped(state.routes),
+        days: stripped(state.days),
       });
       const key = keyFor(rideId);
       try {
@@ -278,7 +278,7 @@
         return null;
       }
       // A draft from an older schema is discarded rather than guessed at.
-      if (!v || v.v !== DRAFT_VERSION || !Array.isArray(v.routes)) {
+      if (!v || v.v !== DRAFT_VERSION || !Array.isArray(v.days)) {
         safeRemove(keyFor(rideId));
         return null;
       }

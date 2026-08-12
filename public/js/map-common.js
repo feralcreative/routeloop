@@ -485,7 +485,7 @@
 
     const request = { input, sessionToken };
     // Bias, not restrict: a rider planning from home still wants to find the
-    // far end of the trip.
+    // far end of the ride.
     const bounds = mapBounds(map);
     if (bounds) request.locationBias = bounds;
 

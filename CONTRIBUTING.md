@@ -1,12 +1,12 @@
 # Contributing to Tankbag
 
-Tankbag is a motorcycle trip planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
+Tankbag is a motorcycle ride planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
 
 ## Before you start
 
-Read [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md) for the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
+Read [AGENTS.md](AGENTS.md) for the operating rules and the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
 
-**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialised against other schema work, because the schema is push-only.
+**Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialized against other schema work, because schema work has to be applied in order.
 
 ## Setup
 
@@ -16,7 +16,7 @@ You need **Node.js 20 or newer**, **Docker** for Postgres, and Google Cloud cred
 npm install
 docker compose up -d --wait db
 cp .env.example .env        # then fill it in
-npx drizzle-kit push        # apply the schema
+npm run db:migrate          # apply the schema
 npx tsx src/db/seed.ts      # one sample ride
 npm run sass                # compile styles (the CSS is a build artifact, git-ignored)
 ```
@@ -34,14 +34,21 @@ Do this once per clone. Git does not enable repo hooks by default and nothing wi
 ## Running it
 
 ```bash
-npm run dev          # the app, on port 6686
-npm test             # the suite, ~370 tests, no database needed
+npm run dev          # the app on port 6686, plus the SCSS watcher and live reload
+npm run dev:server   # the app alone, if you want to run sass yourself
+npm test             # the suite — pure logic, no database needed
 npm run test:watch   # the same, watching
 npm run typecheck    # tsc --noEmit
 npm run sass         # compile SCSS — never an IDE extension
 ```
 
 The app is at <http://localhost:6686>; `127.0.0.1` works equally well. The seeded ride is at `/m/sample-route-one` and the builder is at `/builder`.
+
+### Live reload
+
+`npm run dev` starts `sass --watch` alongside the server and the page picks the result up on its own—see [src/dev/livereload.ts](src/dev/livereload.ts). Save a `.scss` file and the stylesheet is swapped in place, without a page reload, so a map keeps its instance, its viewport and whatever ride you had loaded. Save anything under [public/js/](public/js/) and the page reloads; save anything under `src/` and `tsx watch` restarts the server, which the browser notices and reloads for.
+
+It is development-only in the strict sense: both the `/__dev/reload` endpoint and the snippet that talks to it are gated on `IS_DEV`, which is `APP_ORIGIN` not being HTTPS—the same signal the dev sign-in leans on below. Nothing about it can render in stage or prod.
 
 **Port 6686 belongs to this project.** If it is already bound, kill whatever holds it and reuse the port rather than starting on another one. Two instances on two ports is how you end up debugging the one you are not looking at.
 
@@ -70,7 +77,7 @@ curl -b cookies.txt -H "Origin: http://127.0.0.1:6686" \
 
 - **Coordinate order.** The app stores and speaks `[lng, lat]` (GeoJSON order); Google's JS objects speak `{lat, lng}`. Getting it backwards still renders a map, just in the wrong place. Exactly two functions convert—`toGoogleWaypoint` on the server and `toLatLng` / `fromLatLng` in `map-common.js`—keep it that way.
 - **`public/js/map-common.js` is the only file that touches `google.maps`.** The viewer and builder go through the handles it returns. Preserve that boundary.
-- **Schema is push-only.** `npx drizzle-kit push`, no migration files. Read the statement list before applying it; riders hold data that cannot be rebuilt from an upload.
+- **Schema changes are generated migrations, committed with the change that caused them.** `npm run db:generate` after editing `src/db/schema.ts`, then `npm run db:migrate`; commit `drizzle/` (SQL **and** `meta/`) alongside `schema.ts`. **Read the generated SQL before applying it**, and rewrite it when the differ guessed wrong—a rename comes out as a drop plus an add, and a `NOT NULL` on a populated column needs a backfill ahead of it. Riders hold data that cannot be rebuilt from an upload. Full workflow, including the one-time baseline an older database needs, is in [docs/database.md](docs/database.md). The dated files in [utils/deploy/sql/](utils/deploy/sql/) are the `push`-era record and stay as history; new work does not go there.
 - **SCSS compiles with `npm run sass`**, never an IDE extension, and the compiled CSS is git-ignored.
 - **Prose is never hard-wrapped.** One line per paragraph, and let the editor soft-wrap. Em dashes are tight—`word—word`, never `word — word`.
 

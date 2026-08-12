@@ -13,7 +13,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 
-type Snap = { meta: Record<string, unknown>; routes: any[] }
+type Snap = { meta: Record<string, unknown>; days: any[] }
 type Store = { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void; key(i: number): string | null; length: number }
 
 let H: any
@@ -77,7 +77,7 @@ function stateOf(): any {
     layerCount: 3,
     legSeq: [[1, 2]],
     meta: { title: 'Three days', description: 'd', visibility: 'private', external_url: '' },
-    routes: [
+    days: [
       {
         title: 'Day 1',
         color: '#cc0000',
@@ -102,15 +102,15 @@ describe('what a snapshot carries', () => {
     const s = stateOf()
     const snap: Snap = H.snapshot(s)
     expect(snap.meta.title).toBe('Three days')
-    expect(snap.routes).toHaveLength(1)
-    expect(snap.routes[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
+    expect(snap.days).toHaveLength(1)
+    expect(snap.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
   })
 
   // payload() drops this, so deriving the snapshot from payload() would lose
   // a hand-typed end time on every undo — silently, and only for the rider
   // who bothered to set one.
   it('keeps endManual, which payload() does not carry', () => {
-    expect(H.snapshot(stateOf()).routes[0].endManual).toBe(true)
+    expect(H.snapshot(stateOf()).days[0].endManual).toBe(true)
   })
 
   it('carries no UI state, identity or map handles', () => {
@@ -129,7 +129,7 @@ describe('what a snapshot copies and what it shares', () => {
   it('shares leg geometry by reference, because it is never mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.routes[0].legs[0].geometry).toBe(s.routes[0].legs[0].geometry)
+    expect(snap.days[0].legs[0].geometry).toBe(s.days[0].legs[0].geometry)
   })
 
   // Regression: viaPoints was shared by reference because nothing wrote vias.
@@ -139,20 +139,20 @@ describe('what a snapshot copies and what it shares', () => {
   it('copies viaPoints, which drag-to-shape splices in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.routes[0].legs[0].viaPoints).not.toBe(s.routes[0].legs[0].viaPoints)
-    s.routes[0].legs[0].viaPoints.splice(0, 0, [-122.05, 37.05])
-    expect(snap.routes[0].legs[0].viaPoints).toEqual([])
+    expect(snap.days[0].legs[0].viaPoints).not.toBe(s.days[0].legs[0].viaPoints)
+    s.days[0].legs[0].viaPoints.splice(0, 0, [-122.05, 37.05])
+    expect(snap.days[0].legs[0].viaPoints).toEqual([])
   })
 
   it('copies the legs array and each leg object, which are mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.routes[0].legs).not.toBe(s.routes[0].legs)
-    expect(snap.routes[0].legs[0]).not.toBe(s.routes[0].legs[0])
+    expect(snap.days[0].legs).not.toBe(s.days[0].legs)
+    expect(snap.days[0].legs[0]).not.toBe(s.days[0].legs[0])
     // viaPoints is reassigned wholesale on drag; a shared leg object would
     // let that reach into history.
-    s.routes[0].legs[0].viaPoints = [[-121.5, 37.5]]
-    expect(snap.routes[0].legs[0].viaPoints).toEqual([])
+    s.days[0].legs[0].viaPoints = [[-121.5, 37.5]]
+    expect(snap.days[0].legs[0].viaPoints).toEqual([])
   })
 
   // The asymmetry that makes this file worth having. geometry is immutable by
@@ -160,25 +160,25 @@ describe('what a snapshot copies and what it shares', () => {
   it('copies roles arrays, which ARE mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.routes[0].stops[1].roles).not.toBe(s.routes[0].stops[1].roles)
-    s.routes[0].stops[1].roles.push('hotel')
-    expect(snap.routes[0].stops[1].roles).toEqual(['gas', 'food'])
+    expect(snap.days[0].stops[1].roles).not.toBe(s.days[0].stops[1].roles)
+    s.days[0].stops[1].roles.push('hotel')
+    expect(snap.days[0].stops[1].roles).toEqual(['gas', 'food'])
   })
 
   it('survives every in-place mutation the builder actually performs', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     // Each of these mirrors a real site in builder.js.
-    s.routes[0].stops.reverse() // reverseDay
-    s.routes[0].stops[0].lat = 99 // marker dragend
-    s.routes[0].stops[0].name = 'typed' // row input
-    s.routes[0].pois.splice(0, 1) // deletePoi
-    s.routes[0].legs.splice(0, 1) // deleteStop
+    s.days[0].stops.reverse() // reverseDay
+    s.days[0].stops[0].lat = 99 // marker dragend
+    s.days[0].stops[0].name = 'typed' // row input
+    s.days[0].pois.splice(0, 1) // deletePoi
+    s.days[0].legs.splice(0, 1) // deleteStop
     s.meta.title = 'renamed' // ride-title input
-    expect(snap.routes[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
-    expect(snap.routes[0].stops[0].lat).toBe(37)
-    expect(snap.routes[0].pois).toHaveLength(1)
-    expect(snap.routes[0].legs).toHaveLength(1)
+    expect(snap.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
+    expect(snap.days[0].stops[0].lat).toBe(37)
+    expect(snap.days[0].pois).toHaveLength(1)
+    expect(snap.days[0].legs).toHaveLength(1)
     expect(snap.meta.title).toBe('Three days')
   })
 })
@@ -187,34 +187,34 @@ describe('restore', () => {
   it('puts the snapshot back', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    s.routes[0].stops.pop()
+    s.days[0].stops.pop()
     s.meta.title = 'wrong'
     H.restore(s, snap)
-    expect(s.routes[0].stops).toHaveLength(2)
+    expect(s.days[0].stops).toHaveLength(2)
     expect(s.meta.title).toBe('Three days')
   })
 
-  // The async leg completion guards on `state.routes[r] !== route`. Fresh
+  // The async leg completion guards on `state.days[r] !== route`. Fresh
   // objects make an in-flight routing response drop itself; handing back the
   // stored reference lets a response that left before the undo land after it,
   // writing a leg the rider already took back.
   it('builds fresh route objects rather than aliasing the snapshot', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    const beforeRoute = s.routes[0]
+    const beforeRoute = s.days[0]
     H.restore(s, snap)
-    expect(s.routes[0]).not.toBe(beforeRoute)
-    expect(s.routes[0]).not.toBe(snap.routes[0])
-    expect(s.routes[0].stops[0]).not.toBe(snap.routes[0].stops[0])
+    expect(s.days[0]).not.toBe(beforeRoute)
+    expect(s.days[0]).not.toBe(snap.days[0])
+    expect(s.days[0].stops[0]).not.toBe(snap.days[0].stops[0])
   })
 
   it('can be restored twice without the first restore aliasing the second', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     H.restore(s, snap)
-    s.routes[0].stops[0].name = 'clobbered'
+    s.days[0].stops[0].name = 'clobbered'
     H.restore(s, snap)
-    expect(s.routes[0].stops[0].name).toBe('A')
+    expect(s.days[0].stops[0].name).toBe('A')
   })
 
   it('resets legSeq, so nothing in flight is let through', () => {
@@ -314,7 +314,7 @@ describe('drafts', () => {
     const back = H.Draft.read(41)
     expect(back.rideId).toBe(41)
     expect(back.meta.title).toBe('Three days')
-    expect(back.routes[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
+    expect(back.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
   })
 
   it('keys a never-saved ride separately from a saved one', () => {
@@ -332,8 +332,8 @@ describe('drafts', () => {
     H.Draft.write(41, stateOf())
     const back = H.Draft.read(41)
     expect(back.legsStripped).toBe(true)
-    expect(back.routes[0].legs[0]).not.toHaveProperty('geometry')
-    expect(back.routes[0].legs[0].distanceM).toBe(1000)
+    expect(back.days[0].legs[0]).not.toHaveProperty('geometry')
+    expect(back.days[0].legs[0].distanceM).toBe(1000)
   })
 
   it('is small enough to matter — a 500-point leg does not go to disk', () => {
@@ -346,9 +346,9 @@ describe('drafts', () => {
 
   it('keeps empty days, which payload() drops', () => {
     const s = stateOf()
-    s.routes.push({ title: '', color: '#0000cc', startAt: null, endAt: null, endManual: false, stops: [], pois: [], legs: [] })
+    s.days.push({ title: '', color: '#0000cc', startAt: null, endAt: null, endManual: false, stops: [], pois: [], legs: [] })
     H.Draft.write(41, s)
-    expect(H.Draft.read(41).routes).toHaveLength(2)
+    expect(H.Draft.read(41).days).toHaveLength(2)
   })
 
   it('clears', () => {
@@ -358,7 +358,7 @@ describe('drafts', () => {
   })
 
   it('discards a draft written by an older schema rather than guessing', () => {
-    store.setItem('tankbag.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, routes: [] }))
+    store.setItem('tankbag.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, days: [] }))
     expect(H.Draft.read(41)).toBe(null)
     expect(store.getItem('tankbag.builderDraft.41')).toBe(null)
   })

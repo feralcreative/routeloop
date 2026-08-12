@@ -3,7 +3,7 @@
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, routes as routesTable, type RideRow } from '../db/schema'
+import { rides, days as daysTable, type RideRow } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 
@@ -37,9 +37,9 @@ dashboardRoutes.get('/dashboard', requireActive, async (c) => {
   const user = currentUser(c)
 
   const rows = await db
-    .select({ ride: rides, color: routesTable.color })
+    .select({ ride: rides, color: daysTable.color })
     .from(rides)
-    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
     .where(eq(rides.ownerId, user.id))
     .orderBy(desc(rides.createdAt))
 

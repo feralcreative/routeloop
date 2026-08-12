@@ -167,7 +167,7 @@ describe('buildGeoJson → processGeoJson round-trip', () => {
   const ride: ExportRide = {
     title: 'Bodega weekend',
     description: 'two days',
-    routes: [
+    days: [
       {
         title: 'Day 1',
         color: '#cc0000',
@@ -207,7 +207,7 @@ describe('buildGeoJson → processGeoJson round-trip', () => {
   const out = processGeoJson(buildGeoJson(ride))
 
   it('returns the same geometry, in the same order', () => {
-    expect(out.track).toEqual(ride.routes[0].track)
+    expect(out.track).toEqual(ride.days[0].track)
   })
 
   // Everything the app models, not just the geometry: roles, the stop/POI

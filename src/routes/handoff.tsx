@@ -56,10 +56,10 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
   if (!m || !viewable) return c.text('Not found', 404)
 
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
-  if (ride.routes.length === 0) return c.text('Not found', 404)
+  if (ride.days.length === 0) return c.text('Not found', 404)
 
   const density = densityOf(c.req.query('density'))
-  const days: GmapsRouteLinks[] = ride.routes.map((r) => routeLinks(r, { shapingPoints: density.points }))
+  const days: GmapsRouteLinks[] = ride.days.map((r) => routeLinks(r, { shapingPoints: density.points }))
   const totalLinks = days.reduce((n, d) => n + d.links.length, 0)
   // The worst day is what the rider should be told about, not an average that
   // hides it.
@@ -76,8 +76,8 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
           <header class="ho-head">
             <h1>{m.title}</h1>
             <p class="ho-summary">
-              {totalLinks} {totalLinks === 1 ? 'link' : 'links'} across {ride.routes.length}{' '}
-              {ride.routes.length === 1 ? 'day' : 'days'}
+              {totalLinks} {totalLinks === 1 ? 'link' : 'links'} across {ride.days.length}{' '}
+              {ride.days.length === 1 ? 'day' : 'days'}
             </p>
             <p class="ho-note">
               Open a link and Google Maps starts from where you are. Ride it, and when you arrive open the next one.
@@ -105,7 +105,7 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
             )}
           </section>
 
-          {ride.routes.map((r, dayIndex) => {
+          {ride.days.map((r, dayIndex) => {
             const day = days[dayIndex]
             return (
               <section class="ho-day">

@@ -273,7 +273,7 @@ describe('a ride survives export and re-import', () => {
   const ride: ExportRide = {
     title: 'Coast run',
     description: 'Highway 1 north from Santa Cruz.',
-    routes: [
+    days: [
       {
         title: 'Day 1',
         color: '#cc0000',
@@ -382,7 +382,7 @@ describe('the fidelity that is knowingly lost', () => {
   const twoDays: ExportRide = {
     title: 'Two days',
     description: null,
-    routes: [
+    days: [
       {
         title: 'Day 1',
         color: '#cc0000',
@@ -478,7 +478,7 @@ describe('the fidelity that is knowingly lost', () => {
 // several days was exported correctly and re-imported as one day, because every
 // parser kept only its longest line. The app could not read its own export.
 describe('a multi-day ride survives its own export', () => {
-  const day = (n: number, pts: Track): ExportRide['routes'][number] => ({
+  const day = (n: number, pts: Track): ExportRide['days'][number] => ({
     title: `Day ${n}`,
     color: '#cc0000',
     distanceM: 1000,
@@ -507,7 +507,7 @@ describe('a multi-day ride survives its own export', () => {
   const ride: ExportRide = {
     title: 'Three days',
     description: null,
-    routes: [
+    days: [
       day(1, [
         [-122.0, 37.0],
         [-122.1, 37.1],
@@ -537,13 +537,13 @@ describe('a multi-day ride survives its own export', () => {
       })
 
       it('keeps each day in order, with its own geometry', () => {
-        expect(back().tracks.map((t) => t.track)).toEqual(ride.routes.map((r) => r.track))
+        expect(back().tracks.map((t) => t.track)).toEqual(ride.days.map((r) => r.track))
       })
 
       it('does not invent geometry between days', () => {
         // The gap from day 1's finish to day 2's start is roughly 200 km of
         // nothing. Joining the tracks would add it to the total.
-        const joined = trackMeters(ride.routes.flatMap((r) => r.track))
+        const joined = trackMeters(ride.days.flatMap((r) => r.track))
         const kept = back().tracks.reduce((m, t) => m + t.meters, 0)
         expect(kept).toBeLessThan(joined / 2)
       })

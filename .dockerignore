@@ -22,8 +22,10 @@ utils/schema.sql
 # Docs and tooling the runtime does not need.
 docs
 _PLANS
-_AI_AGENT_PRIMER.md
+AGENTS.md
+CLAUDE.md
 README.md
+CONTRIBUTING.md
 .vscode
 .claude
 utils/deploy

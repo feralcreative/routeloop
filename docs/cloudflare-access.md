@@ -5,7 +5,7 @@
 
 ## Why this is going away
 
-Cloudflare Zero Trust is billed **per seat**: free to 50 users, then $7/user/month applied to *every* user, with no partial billing. That is $700/month at 100 riders and $70,000 at 10,000. It is an employee-access product, and it cannot survive opening signups—see [decisions-auth-and-search.md](decisions-auth-and-search.md).
+Cloudflare Zero Trust is billed **per seat**: free to 50 users, then $7/user/month applied to *every* user, with no partial billing. That is $700/month at 100 riders and $70,000 at 10,000. It is an employee-access product, and it cannot survive opening signups—see [decisions.md](decisions.md).
 
 It is replaced by Google OAuth plus an emailed magic link, both owned by the app. `users.status` continues to do the authorization that the Access allowlist used to do, which is the part worth keeping: approving a rider is now a column you control rather than a dashboard edit in two places.
 
@@ -25,7 +25,7 @@ tankbag uses Cloudflare Access for authentication while keeping authorization an
 
 ## How it works
 
-Access authenticates at the edge and injects `Cf-Access-Authenticated-User-Email`. The application—in `src/auth/access.ts`, now deleted—normalized and validated that address, linked it to an existing user with the same verified email when one existed, added a `cloudflare` row to `user_identities`, and created the normal tankbag session. Missing or malformed identity headers failed closed. `/auth/cloudflare` ([src/routes/auth.ts](../src/routes/auth.ts)) is the only path that needs a policy.
+Access authenticates at the edge and injects `Cf-Access-Authenticated-User-Email`. The application—in `src/auth/access.ts`, now deleted—normalized and validated that address, linked it to an existing user with the same verified email when one existed, added a `cloudflare` row to `user_identities`, and created the normal tankbag session. Missing or malformed identity headers failed closed. `/auth/cloudflare` (in `src/routes/auth.tsx`) is the only path that needs a policy.
 
 Direct Google/GitHub OAuth was removed in this work—`src/auth/oauth.ts` is deleted and the `arctic` dependency is uninstalled. Cloudflare owns the upstream login and the allowlist; the app owns users, sessions, and ride ownership.
 

@@ -82,7 +82,7 @@ export const SECTIONS: readonly Section[] = [
 
 // WHAT IS NOT HERE IS AS DELIBERATE AS WHAT IS.
 //
-// Nothing on this list is table stakes. The whole trip on one map, routing
+// Nothing on this list is table stakes. The whole ride on one map, routing
 // between stops, dragging the line onto the road you meant, import and export,
 // a share link that needs no account — every one of those is either the premise
 // of the app or a line in its own tagline, and none of them is going away

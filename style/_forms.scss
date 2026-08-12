@@ -83,6 +83,199 @@
     }
   }
 
+  // The drop target. Unhidden by import.js — a rider without JavaScript never
+  // sees it, and the file input below is the control in both cases.
+  //
+  // `display: block` is set here rather than in the markup because the element
+  // is a <span>: it sits inside the <p class="field"> that holds the label and
+  // the input, and a <div> there would be invalid.
+  .dropzone {
+    display: block;
+    margin-bottom: 0.6rem;
+    padding: 1.6rem 1rem;
+    border: 2px dashed $grey;
+    border-radius: 10px;
+    background: $white;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      border-color 0.12s,
+      background 0.12s;
+
+    &:hover {
+      border-color: $url;
+    }
+
+    // While something is actually over the box. Distinct from :hover, which
+    // fires for a plain pointer and would say "drop here" to someone who is
+    // not carrying anything.
+    &.is-over {
+      border-color: $url;
+      background: color.adjust($url, $lightness: 52%);
+    }
+  }
+
+  .dropzone-hint {
+    display: block;
+    color: $text;
+    font-weight: 700;
+  }
+
+  .dropzone-sub {
+    display: block;
+    margin-top: 0.15rem;
+    color: #777;
+    font-size: 0.85rem;
+  }
+
+  // What the filenames were read as. Deliberately a plain list rather than a
+  // set of editable fields: the day order and dates are read from the files and
+  // the place to change them is the files or the builder, so this reports and
+  // does not pretend to be a form.
+  .import-plan {
+    margin: 0 0 1.1rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid $grey;
+    border-radius: 8px;
+    background: $white;
+    font-size: 0.9rem;
+
+    .plan-head {
+      margin: 0 0 0.5rem;
+      color: #555;
+    }
+
+    .plan-ride {
+      color: $text;
+    }
+
+    .plan-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plan-row {
+      display: flex;
+      gap: 0.6rem;
+      align-items: baseline;
+      padding: 0.2rem 0;
+
+      + .plan-row {
+        border-top: 1px solid color.adjust($grey, $lightness: 6%);
+      }
+    }
+
+    // A file that carried no structured name. Dimmed rather than flagged: it
+    // still imports, it just brought less with it.
+    .plan-row.is-plain {
+      color: #888;
+    }
+
+    .plan-day {
+      min-width: 2.6em;
+      color: $url;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .plan-when {
+      min-width: 8.5em;
+      white-space: nowrap;
+    }
+
+    // Takes the slack so the extension stays pinned right and the names form a
+    // readable column between the two fixed edges.
+    .plan-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .plan-ext {
+      color: #888;
+      font-size: 0.85em;
+    }
+
+    .plan-notes {
+      margin: 0.6rem 0 0;
+      padding-left: 1.1rem;
+      color: #777;
+      font-size: 0.85em;
+    }
+  }
+
+  // The naming convention, explained where it gets used. Collapsed by default:
+  // it is genuinely optional, and a form that opens with a naming spec reads
+  // like a requirement.
+  .naming-help {
+    margin: 0 0 1.1rem;
+    font-size: 0.9rem;
+
+    summary {
+      color: $url;
+      cursor: pointer;
+    }
+
+    // Indented under the summary so the disclosure triangle stays the leftmost
+    // thing and the body reads as belonging to it.
+    .naming-help-body {
+      margin-top: 0.6rem;
+      padding-left: 1.1rem;
+      border-left: 2px solid $grey;
+      color: #555;
+    }
+
+    p {
+      margin: 0 0 0.7rem;
+    }
+
+    .naming-example {
+      // The one line a rider might copy, so it gets room and may not wrap
+      // mid-field — a field broken across two lines is the thing this whole
+      // block is trying to explain.
+      overflow-x: auto;
+      padding: 0.5rem 0.6rem;
+      border-radius: 6px;
+      background: color.adjust($grey, $lightness: 6%);
+
+      code {
+        white-space: nowrap;
+        color: $text;
+      }
+    }
+
+    .naming-fields {
+      margin: 0 0 0.7rem;
+      padding-left: 1.1rem;
+
+      li + li {
+        margin-top: 0.3rem;
+      }
+    }
+
+    // One color per field, shared by the example line and the definition that
+    // explains it — that pairing is the whole point, so the two must never be
+    // styled apart. Scoped to .naming-help rather than to either block for the
+    // same reason.
+    .f-ride {
+      color: $ride;
+    }
+
+    .f-day {
+      color: $day;
+    }
+
+    .f-date {
+      color: $date;
+    }
+
+    .f-label {
+      color: $label;
+    }
+  }
+
   // Turnstile renders a fixed-size iframe; give it room without it colliding
   // with the submit button.
   .cf-turnstile {
@@ -216,5 +409,74 @@
 
   .handle-dates {
     opacity: 0.75;
+  }
+}
+
+// The export half of /import. A list rather than cards: it is a lookup — find
+// your ride, take the format — and cards would give equal visual weight to the
+// title and the six buttons beside it.
+.transfer-head {
+  margin: 2.5rem 0 0.6rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid $grey;
+  font-size: 1.2rem;
+}
+
+.import-form + .transfer-head,
+h1 + .transfer-head {
+  margin-top: 1.5rem;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.export-list {
+  max-width: 560px;
+  margin: 0 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+
+  + .export-row {
+    border-top: 1px solid $grey;
+  }
+}
+
+.export-title {
+  flex: 1 1 12rem;
+  font-weight: 700;
+  color: $text;
+  text-decoration: none;
+
+  &:hover {
+    color: $url;
+  }
+}
+
+.export-formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.export-btn {
+  padding: 0.15rem 0.45rem;
+  background: color.adjust($grey, $lightness: 8%);
+  border-radius: 5px;
+  color: $text;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+
+  &:hover {
+    background: $url;
+    color: $white;
   }
 }

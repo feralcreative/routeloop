@@ -128,27 +128,27 @@ window.TBTwist = (function () {
   // — and both are invalidated by a *signature* rather than by array identity.
   //
   // Identity looked like the obvious key and is wrong here: the builder mutates
-  // these arrays in place (`route.legs[i] = leg` when the router answers,
+  // these arrays in place (`day.legs[i] = leg` when the router answers,
   // `legs.splice()` on a delete, `pois.push()` on an add), so the array object
   // never changes and a cache keyed on it would serve the pre-reroute answer
   // forever. The signatures are O(n) over the leg or POI list, which is nothing
   // beside the walk they are protecting.
-  const legsSignature = (route) => {
-    let sig = route.legs.length + ":";
-    for (const l of route.legs) sig += (l.distanceM || 0) + "," + ((l.geometry && l.geometry.length) || 0) + ";";
+  const legsSignature = (day) => {
+    let sig = day.legs.length + ":";
+    for (const l of day.legs) sig += (l.distanceM || 0) + "," + ((l.geometry && l.geometry.length) || 0) + ";";
     return sig;
   };
 
   const cache = new WeakMap();
-  function routeTwistiness(route) {
-    if (!route || !route.legs || route.legs.length === 0) return null;
-    const sig = legsSignature(route);
-    const hit = cache.get(route);
+  function dayTwistiness(day) {
+    if (!day || !day.legs || day.legs.length === 0) return null;
+    const sig = legsSignature(day);
+    const hit = cache.get(day);
     if (hit && hit.sig === sig) return hit.value;
     const track = [];
-    for (const leg of route.legs) for (const p of leg.geometry || []) track.push(p);
+    for (const leg of day.legs) for (const p of leg.geometry || []) track.push(p);
     const value = twistiness(track);
-    cache.set(route, { sig, value });
+    cache.set(day, { sig, value });
     return value;
   }
 
@@ -190,25 +190,25 @@ window.TBTwist = (function () {
   // both — dragging a POI marker changes neither array's identity nor its
   // length.
   const poiCache = new WeakMap();
-  function routePoiDistances(route) {
-    if (!route || !route.pois || route.pois.length === 0) return [];
-    let sig = legsSignature(route) + "|" + route.pois.length + ":";
-    for (const p of route.pois) sig += p.lng + "," + p.lat + ";";
-    const hit = poiCache.get(route);
+  function dayPoiDistances(day) {
+    if (!day || !day.pois || day.pois.length === 0) return [];
+    let sig = legsSignature(day) + "|" + day.pois.length + ":";
+    for (const p of day.pois) sig += p.lng + "," + p.lat + ";";
+    const hit = poiCache.get(day);
     if (hit && hit.sig === sig) return hit.dists;
     const track = [];
-    for (const leg of route.legs || []) for (const p of leg.geometry || []) track.push(p);
-    const dists = distFromStartAlongTrack(track, route.pois);
-    poiCache.set(route, { sig, dists });
+    for (const leg of day.legs || []) for (const p of leg.geometry || []) track.push(p);
+    const dists = distFromStartAlongTrack(track, day.pois);
+    poiCache.set(day, { sig, dists });
     return dists;
   }
 
   return {
     twistiness,
     twistLabel,
-    routeTwistiness,
+    dayTwistiness,
     distFromStartAlongTrack,
-    routePoiDistances,
+    dayPoiDistances,
     SPACING_M,
     DEADBAND_DEG,
     WINDOW_MI,

@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-08
 
-How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md); this covers the mail subsystem alone.
+How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
 
 ## The shape of it
 
@@ -107,7 +107,9 @@ The header wordmark is a PNG, one per color scheme, swapped by the dark-mode blo
 
 **Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 180×52 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
 
-Do **not** reach for `public/img/logo-tankbag-horiz-light@2x.png`—it is 2911×852 and 84 KB, an absurd payload for every inbox.
+Do **not** reach for the site lockup in `public/img/logo-tankbag-horiz*.svg`. It is a 51 KB SVG, and SVG is not a format you can rely on in an inbox—Gmail, Outlook and most Android clients drop it outright.
+
+The `-dark` suffix names the ground rather than the ink, here and in `src/views/layout.tsx`: no suffix is the black artwork for a light ground, `-dark` is the reversed white one.
 
 ### Dark mode
 

@@ -20,7 +20,7 @@ import 'dotenv/config'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { and, eq, inArray, like } from 'drizzle-orm'
 import { db } from '../src/db/index'
-import { users, rides, routes, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
+import { users, rides, days, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
 import { generateSlug } from '../src/maps/slug'
 import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
 
@@ -406,7 +406,7 @@ async function main(): Promise<void> {
       const spec = routeSpecs[r]
       const distanceM = spec.legs.reduce((t, l) => t + l.distanceM, 0)
       const [route] = await db
-        .insert(routes)
+        .insert(days)
         .values({
           rideId: ride.id,
           position: r,
@@ -423,7 +423,7 @@ async function main(): Promise<void> {
       const stopRows = spec.stops.map((s, i) => {
         const distFromStartM = i === 0 ? 0 : (cum += spec.legs[i - 1].distanceM)
         return {
-          routeId: route.id,
+          dayId: route.id,
           kind: 'stop' as const,
           position: i,
           lat: s.lngLat[1],
@@ -442,7 +442,7 @@ async function main(): Promise<void> {
       if (pois.length) {
         await db.insert(points).values(
           pois.map((p) => ({
-            routeId: route.id,
+            dayId: route.id,
             kind: 'poi' as const,
             position: null,
             lat: p.lngLat[1],
@@ -456,7 +456,7 @@ async function main(): Promise<void> {
 
       await db.insert(routeLegs).values(
         spec.legs.map((l, i) => ({
-          routeId: route.id,
+          dayId: route.id,
           position: i,
           geometry: l.geometry,
           distanceM: l.distanceM,

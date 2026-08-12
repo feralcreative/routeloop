@@ -6,7 +6,7 @@
 // would notice until they are standing beside a dry bike.
 import { describe, expect, it } from 'vitest'
 import { dayRows } from '../src/routes/roadbook'
-import type { ExportPoint, ExportRoute } from '../src/maps/export'
+import type { ExportPoint, ExportDay } from '../src/maps/export'
 
 const MI = 1609.344
 
@@ -21,7 +21,7 @@ const pt = (over: Partial<ExportPoint> & { distFromStartM: number | null }): Exp
   ...over,
 })
 
-const day = (points: ExportPoint[], over: Partial<ExportRoute> = {}): ExportRoute => ({
+const day = (points: ExportPoint[], over: Partial<ExportDay> = {}): ExportDay => ({
   title: 'Day 1',
   color: '#0066cc',
   distanceM: 200 * MI,
