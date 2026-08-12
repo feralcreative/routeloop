@@ -2,18 +2,18 @@
 //
 // Two lossy edges meet in a filename. GPX and KML carry no dates at all, so a
 // ride exported as the format every GPS actually reads loses its schedule —
-// `days.start_at` survives a round trip through Tankbag JSON and nowhere else. And
+// `days.start_at` survives a round trip through RouteLoop JSON and nowhere else. And
 // importing a folder is data entry the files already describe: day order comes
 // from whatever order the browser lists them in, and the ride name is typed by
 // hand every time.
 //
-//   tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx
-//   \_____/ \__________/ \_/ \________/ \_________/
-//   marker    ride      day     date       title
+//   routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
+//   \_______/ \__________/ \_/ \________/ \_________/
+//    marker      ride      day     date       title
 //
 // **A filename cannot hold the ride and is not trying to.** Roles, dwell, via
-// points, per-day colours and the stop/POI distinction do not fit in one and are
-// not going in one — Tankbag JSON stays the lossless format (see export.ts).
+// points, per-day colors and the stop/POI distinction do not fit in one and are
+// not going in one — RouteLoop JSON stays the lossless format (see export.ts).
 // This carries the four fields the lossy formats drop, and nothing else.
 //
 // Three rules the whole design rests on:
@@ -21,19 +21,29 @@
 // - **Underscores separate fields; hyphens live inside one.** A field never
 //   contains an underscore, so a day title with a dash in it cannot split the
 //   filename. This is the entire reason the separator is not a hyphen throughout.
-// - **The `tankbag_` marker is load-bearing, not decoration.** Its presence is
-//   what says "this name is structured". Without it `parseExportName` returns
-//   null and the caller takes the path it always took — a rider's own
-//   `day-2.gpx` is never silently reinterpreted.
+// - **The marker is load-bearing, not decoration.** Its presence is what says
+//   "this name is structured". Without it `parseExportName` returns null and the
+//   caller takes the path it always took — a rider's own `day-2.gpx` is never
+//   silently reinterpreted.
 // - **Optional fields are identified by shape, not position**, so
-//   `tankbag_big-sur-run_d02.gpx` and `tankbag_big-sur-run_2026-08-14.gpx` both
-//   parse. Order among those that are present is still fixed.
+//   `routeloop_big-sur-run_d02.gpx` and `routeloop_big-sur-run_2026-08-14.gpx`
+//   both parse. Order among those that are present is still fixed.
 //
 // Deliberately NOT fields: visibility (a file named `public` that publishes a
 // ride on import is a footgun with no upside) and timezone (see fmtDate below).
 
-/** The literal first field. Its presence is the whole signal. */
-export const MARKER = 'tankbag'
+/** The literal first field on every name this app writes. Its presence is the whole signal. */
+export const MARKER = 'routeloop'
+
+/**
+ * Markers accepted on read, newest first. `tankbag` is the name this app shipped
+ * under between 2026-07-29 and 2026-08-11, so every file exported in that window
+ * carries it — and the date field is the one thing GPX and KML cannot hold
+ * internally. Refusing the old marker would lose day order and dates on
+ * re-import, and would do it silently: the files still import, just as one ride
+ * in upload order. Write MARKER, read all of these, forever.
+ */
+const READ_MARKERS = [MARKER, 'tankbag']
 
 /** Cap per text field. Five fields well under any filesystem's 255-byte limit. */
 const MAX_FIELD = 60
@@ -41,9 +51,13 @@ const MAX_FIELD = 60
 const DAY_RE = /^d(\d{1,3})$/
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})(\d{2}))?$/
 
-// Native export is `.tankbag.json` — two dots, one extension. Stripping only the
-// last part would leave `.tankbag` on the end of the ride field.
-const COMPOUND_EXTS = ['tankbag.json']
+/** No leading dot. The native extension this app writes. */
+export const NATIVE_EXT = 'routeloop.json'
+
+// Native export is `.routeloop.json` — two dots, one extension. Stripping only
+// the last part would leave `.routeloop` on the end of the ride field. The
+// legacy `.tankbag.json` is listed for the same reason READ_MARKERS exists.
+const COMPOUND_EXTS = [NATIVE_EXT, 'tankbag.json']
 
 /**
  * Normalize one field: lowercase, diacritics folded, everything else to hyphens.
@@ -115,7 +129,7 @@ function parseDate(token: string): { date: Date; hasTime: boolean } | null {
   return { date, hasTime: Boolean(hh) }
 }
 
-/** Split `a_b.tankbag.json` into its stem and its full extension. */
+/** Split `a_b.routeloop.json` into its stem and its full extension. */
 export function splitExt(fileName: string): { stem: string; ext: string } {
   const lower = fileName.toLowerCase()
   for (const ext of COMPOUND_EXTS) {
@@ -132,7 +146,7 @@ export type ExportNameParts = {
   day?: number | null
   date?: Date | null
   title?: string | null
-  /** No leading dot. `tankbag.json` for the native format. */
+  /** No leading dot. `routeloop.json` for the native format. */
   ext: string
 }
 
@@ -167,9 +181,9 @@ export type ParsedName = {
 }
 
 /**
- * Read a conforming filename. Returns null for anything without the marker,
- * which is the signal to callers that they should do exactly what they did
- * before this convention existed.
+ * Read a conforming filename. Returns null for anything carrying none of
+ * READ_MARKERS, which is the signal to callers that they should do exactly what
+ * they did before this convention existed.
  *
  * Forgiving within a marked name, because the likeliest author of a malformed
  * one is a rider renaming a file rather than an attacker: text fields are
@@ -181,7 +195,7 @@ export type ParsedName = {
 export function parseExportName(fileName: string): ParsedName | null {
   const { stem, ext } = splitExt(fileName)
   const tokens = stem.split('_')
-  if (tokens.length < 2 || tokens[0].toLowerCase() !== MARKER) return null
+  if (tokens.length < 2 || !READ_MARKERS.includes(tokens[0].toLowerCase())) return null
 
   const rest = tokens.slice(1)
   const ride = slugField(rest[0])

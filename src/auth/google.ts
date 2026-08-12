@@ -15,8 +15,8 @@ export const GOOGLE_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET)
 
 const SCOPES = ['openid', 'email', 'profile']
 
-const STATE_COOKIE = 'tankbag_oauth_state'
-const VERIFIER_COOKIE = 'tankbag_oauth_verifier'
+const STATE_COOKIE = 'routeloop_oauth_state'
+const VERIFIER_COOKIE = 'routeloop_oauth_verifier'
 // Long enough to pick an account and type a password, short enough that an
 // abandoned attempt does not leave a usable verifier lying around.
 const HANDSHAKE_TTL_S = 10 * 60

@@ -29,16 +29,16 @@ const EXPIRY = 'This link works once and expires in 15 minutes. If you didn’t 
 export const magicLinkEmail = defineEmail<Props>({
   key: 'magic-link',
 
-  subject: () => 'Your Tankbag sign-in link',
+  subject: () => 'Your RouteLoop sign-in link',
 
   preheader: () => 'Works once, expires in 15 minutes.',
 
-  text: ({ url }) => ['Sign in to Tankbag:', '', url, '', EXPIRY].join('\n'),
+  text: ({ url }) => ['Sign in to RouteLoop:', '', url, '', EXPIRY].join('\n'),
 
   html: ({ url }) =>
     (
       <>
-        <P>Sign in to Tankbag:</P>
+        <P>Sign in to RouteLoop:</P>
         <Button href={url}>Sign in</Button>
         <Muted>
           Or paste this into your browser: <A href={url}>{url}</A>
@@ -50,5 +50,5 @@ export const magicLinkEmail = defineEmail<Props>({
   // A syntactically real link, because the render tests assert every href is
   // absolute and a placeholder like 'https://example.com' would pass that while
   // hiding the shape of the actual value.
-  sample: { url: 'https://tankbag.app/auth/magic/0123456789abcdef0123456789abcdef' },
+  sample: { url: 'https://routeloop.app/auth/magic/0123456789abcdef0123456789abcdef' },
 })

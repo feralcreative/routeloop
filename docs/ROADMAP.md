@@ -1,6 +1,6 @@
-# Tankbag roadmap
+# RouteLoop roadmap
 
-The durable plan for where Tankbag is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
+The durable plan for where RouteLoop is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
 
 - **The code**—the actual source of truth, above everything on this list. This file is a thinking surface, not a spec or a commitment: ideas get tried, abandoned and replaced without it being edited first. Where it conflicts with what shipped, or uses a name the code no longer uses, **the code is right and this file is out of date**. Nothing here should ever be cited as evidence that something is planned, required, or already decided.
 - **This file**—the narrative: the vision, the phases, and why each matters. It changes slowly.
@@ -28,25 +28,25 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | Entry                             | What changed on 2026-08-10                                                             | Issue to match                                                        |
 | --------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Vision → the model                | `Route` as level 2 became **Day**; **Leg** added as its own bullet                     | none—not tracked as an issue                                          |
-| 2. The ride timeline              | "a route's duration" → "a day's duration"                                              | [#7](https://github.com/feralcreative/tankbag/issues/7) (closed)—title still reads "**Trip** timeline" |
-| 5. One-tap Google Maps links      | batching described per route → **per day**, in three places                            | [#66](https://github.com/feralcreative/tankbag/issues/66) (closed)     |
-| 9. Import and export breadth      | "colours" → "colors"                                                                   | [#13](https://github.com/feralcreative/tankbag/issues/13)             |
-| 12. Quality and platform          | test count 424/20 files → **777/34**                                                   | [#16](https://github.com/feralcreative/tankbag/issues/16)             |
-| 13. Rider Subgroups               | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**   | [#67](https://github.com/feralcreative/tankbag/issues/67)             |
-| 14. Alternate routes and voting   | "day/route-level" → **day-level**                                                      | [#68](https://github.com/feralcreative/tankbag/issues/68)             |
-| 15. On-the-road mobile interface  | "a route's Google Maps legs" → "a day's"                                               | [#69](https://github.com/feralcreative/tankbag/issues/69)             |
-| Backlog → elevation profile       | "per route" → **per day**                                                              | [#23](https://github.com/feralcreative/tankbag/issues/23)             |
-| Backlog → reverse and duplicate   | marked **shipped**; it was still listed as unbuilt                                     | [#26](https://github.com/feralcreative/tankbag/issues/26) already closed—no action |
+| 2. The ride timeline              | "a route's duration" → "a day's duration"                                              | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
+| 5. One-tap Google Maps links      | batching described per route → **per day**, in three places                            | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)     |
+| 9. Import and export breadth      | "colours" → "colors"                                                                   | [#13](https://github.com/feralcreative/routeloop/issues/13)             |
+| 12. Quality and platform          | test count 424/20 files → **777/34**                                                   | [#16](https://github.com/feralcreative/routeloop/issues/16)             |
+| 13. Rider Subgroups               | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**   | [#67](https://github.com/feralcreative/routeloop/issues/67)             |
+| 14. Alternate routes and voting   | "day/route-level" → **day-level**                                                      | [#68](https://github.com/feralcreative/routeloop/issues/68)             |
+| 15. On-the-road mobile interface  | "a route's Google Maps legs" → "a day's"                                               | [#69](https://github.com/feralcreative/routeloop/issues/69)             |
+| Backlog → elevation profile       | "per route" → **per day**                                                              | [#23](https://github.com/feralcreative/routeloop/issues/23)             |
+| Backlog → reverse and duplicate   | marked **shipped**; it was still listed as unbuilt                                     | [#26](https://github.com/feralcreative/routeloop/issues/26) already closed—no action |
 | **16. The builder panel** (new)   | whole item added from the 2026-08-10 click-through                                     | **needs a new issue**                                                 |
 | **17. Avatar upload** (new)       | whole item added from the 2026-08-10 click-through                                     | **needs a new issue**                                                 |
-| 7. Bikes and range planning       | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/tankbag/issues/11)             |
-| Backlog → drag-to-reorder         | affordance decided: a textured drag bar, not arrows                                    | [#39](https://github.com/feralcreative/tankbag/issues/39)             |
+| 7. Bikes and range planning       | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)             |
+| Backlog → drag-to-reorder         | affordance decided: a textured drag bar, not arrows                                    | [#39](https://github.com/feralcreative/routeloop/issues/39)             |
 
 Three issues carry the old vocabulary in their **titles**, which is a separate edit from their bodies:
 
-- **[#49](https://github.com/feralcreative/tankbag/issues/49) "Split a long route into day routes"**—should be "into days". The only one of the three where the stale word is also the feature's name.
-- **[#23](https://github.com/feralcreative/tankbag/issues/23) "Elevation and grade profile per route"**—should be "per day", matching the row above.
-- **[#70](https://github.com/feralcreative/tankbag/issues/70) "Never drop tracks on import; land them all as routes"**—closed, but the title is the clearest surviving statement of the old model.
+- **[#49](https://github.com/feralcreative/routeloop/issues/49) "Split a long route into day routes"**—should be "into days". The only one of the three where the stale word is also the feature's name.
+- **[#23](https://github.com/feralcreative/routeloop/issues/23) "Elevation and grade profile per route"**—should be "per day", matching the row above.
+- **[#70](https://github.com/feralcreative/routeloop/issues/70) "Never drop tracks on import; land them all as routes"**—closed, but the title is the clearest surviving statement of the old model.
 
 ## Priorities
 
@@ -63,13 +63,13 @@ Every open issue carries a **P0–P3** label. The labels are the authority on wh
 
 **P0 is empty as of 2026-08-06.** The tier that used to hold this section has been cleared:
 
-- ~~**[#8](https://github.com/feralcreative/tankbag/issues/8) Route shaping.**~~ **Shipped 2026-08-06.** A rider can pull a route onto the road they meant; everything else in the planner had been assuming the line was right with no way to correct it.
-- ~~**[#38](https://github.com/feralcreative/tankbag/issues/38) Autosave and undo.**~~ **Shipped 2026-08-05.** The competitive research filed undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
-- **[#69](https://github.com/feralcreative/tankbag/issues/69) On-the-road mobile interface** is now labelled **P2**, not P0. The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal. That is still the difference between a demo and the feature, but the label is the authority and the label says P2.
+- ~~**[#8](https://github.com/feralcreative/routeloop/issues/8) Route shaping.**~~ **Shipped 2026-08-06.** A rider can pull a route onto the road they meant; everything else in the planner had been assuming the line was right with no way to correct it.
+- ~~**[#38](https://github.com/feralcreative/routeloop/issues/38) Autosave and undo.**~~ **Shipped 2026-08-05.** The competitive research filed undo as a defection trigger rather than a nicety: "works pretty good at route planning until I mess up, then can't undo the mistake and have to start a new trip."
+- **[#69](https://github.com/feralcreative/routeloop/issues/69) On-the-road mobile interface** is now labelled **P2**, not P0. The navigate page exists and is not yet usable in gloves at a fuel stop: no finished-leg marking, no progress memory, no tolerance for losing signal. That is still the difference between a demo and the feature, but the label is the authority and the label says P2.
 
 **With P0 clear, P1 is the work.**
 
-**P1—the group layer, in dependency order.** [#71](https://github.com/feralcreative/tankbag/issues/71) ride membership, then [#72](https://github.com/feralcreative/tankbag/issues/72) friendships, then [#73](https://github.com/feralcreative/tankbag/issues/73) the visibility levels that need both. [#12](https://github.com/feralcreative/tankbag/issues/12) sits on top of all three. [#16](https://github.com/feralcreative/tankbag/issues/16) is here for one reason: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than accounts—that has to exist before rides are shared widely.
+**P1—the group layer, in dependency order.** [#71](https://github.com/feralcreative/routeloop/issues/71) ride membership, then [#72](https://github.com/feralcreative/routeloop/issues/72) friendships, then [#73](https://github.com/feralcreative/routeloop/issues/73) the visibility levels that need both. [#12](https://github.com/feralcreative/routeloop/issues/12) sits on top of all three. [#16](https://github.com/feralcreative/routeloop/issues/16) is here for one reason: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than accounts—that has to exist before rides are shared widely.
 
 A note on sequencing: P1 is where the product stops being single-player, and it is the reason a rider brings anyone else. It is second only because P0 makes the thing worth showing them.
 
@@ -77,7 +77,7 @@ A note on sequencing: P1 is where the product stops being single-player, and it 
 
 MyRouteApp, but far better: entire-ride focused, with a slicker UI and smoother UX.
 
-Tankbag is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** ride: every leg, every day, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole ride at once. Tankbag has no such limits.
+RouteLoop is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** ride: every leg, every day, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole ride at once. RouteLoop has no such limits.
 
 The model that everything else follows:
 
@@ -112,7 +112,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
 - **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
 - **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
-- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native Tankbag JSON), five out, several files at once becoming the days of one ride, and every original kept so nothing an upload contained is destroyed.
+- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native RouteLoop JSON), five out, several files at once becoming the days of one ride, and every original kept so nothing an upload contained is destroyed.
 - **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
 - **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
 - **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
@@ -132,7 +132,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
 - [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
 - [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
-- [x] Regenerate the favicons and social image from the current Tankbag mark. Done 2026-07-31; the files live in `public/img/favicon/`.
+- [x] Regenerate the favicons and social image from the current RouteLoop mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
 - [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
@@ -170,7 +170,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 **Touches.** `public/js/builder.js`, `public/js/route-shape.js`, `public/js/map-common.js`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/maps/roles.ts`.
 
-**Status.** shipped—export in sprint 09 (2026-08-03), drag-to-shape on 2026-08-06 ([#8](https://github.com/feralcreative/tankbag/issues/8)). The index arithmetic that turns a drag on the day's single concatenated polyline back into "leg 3, between via 1 and via 2" lives in `route-shape.js`, kept pure so `test/route-shape.test.ts` can drive it.
+**Status.** shipped—export in sprint 09 (2026-08-03), drag-to-shape on 2026-08-06 ([#8](https://github.com/feralcreative/routeloop/issues/8)). The index arithmetic that turns a drag on the day's single concatenated polyline back into "leg 3, between via 1 and via 2" lives in `route-shape.js`, kept pure so `test/route-shape.test.ts` can drive it.
 
 <!--| PAGE-BREAK -->
 
@@ -182,7 +182,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 - [ ] Densify a route by sampling extra shaping waypoints along the stored leg geometry (`route_legs.geometry` already holds the full, 6-decimal, road-snapped polyline), so a hand-off follows the planned roads instead of the nav app's own guess between distant stops.
 - [ ] Rider-controllable density—a target point count or spacing. The owner's habit: expand a 10–20-point route to at least 30.
-- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—Tankbag's own viewer renders the exact path already, so Expand matters only when leaving the app.
+- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—RouteLoop's own viewer renders the exact path already, so Expand matters only when leaving the app.
 - [ ] Refinement: bias added points toward junctions and decision points, where a nav app is most likely to diverge, rather than purely even spacing.
 - [ ] Expand-added points are shaping points, not stops: written as Garmin/TomTom _shaping_ points in the file exports (item 3) and counted as plain waypoints in the Google Maps links (item 5).
 
@@ -243,7 +243,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 - [ ] Per-rider comfort limits—these belong to the rider, not the bike, and stay on the profile.
 - [ ] Fuel/charge range rings and low-range warnings between stops.
 - [ ] Suggest rest cadence from rider limits and leg durations.
-- [ ] EV counterpart—battery and consumption in place of tank and mpg. Tracked separately as [#31](https://github.com/feralcreative/tankbag/issues/31); the schema should not make it awkward.
+- [ ] EV counterpart—battery and consumption in place of tank and mpg. Tracked separately as [#31](https://github.com/feralcreative/routeloop/issues/31); the schema should not make it awkward.
 
 **Open questions.**
 
@@ -252,7 +252,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Touches.** `src/db/schema.ts`, new routes, `src/routes/profile.ts`, `public/js/builder.js`.
 
-**Status.** planned—the model landed 2026-08-10 from a click-through; before that this item was a one-line stub. Note [#52 "Group-aware range planning"](https://github.com/feralcreative/tankbag/issues/52) is already open and depends on this: range only becomes a group problem once each rider on a ride has a bike, which needs items 8 and 13 as well.
+**Status.** planned—the model landed 2026-08-10 from a click-through; before that this item was a one-line stub. Note [#52 "Group-aware range planning"](https://github.com/feralcreative/routeloop/issues/52) is already open and depends on this: range only becomes a group problem once each rider on a ride has a bike, which needs items 8 and 13 as well.
 
 ### 8. Riders and group rides
 
@@ -275,7 +275,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [x] **Native Tankbag JSON export/import**—`/tankbag.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colors, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `tankbag` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
+- [x] **Native RouteLoop JSON export/import**—`/routeloop.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colors, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `routeloop` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the _decompressed_ size.
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
@@ -423,7 +423,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] **Autosave to the server; retire the Save button.** Today a save is explicit, and between saves the only copy is a `localStorage` crash-draft (`public/js/builder-history.js`)—device-bound, so the server's copy is stale until someone presses a button. **Acceptance bar: no more than five minutes of work is ever lost, and tightening it further must not cost other features.** A flush on idle is cheap: `PUT /api/rides/:id` replaces the ride's days in one transaction and makes no billable Maps call. Keep the debounce on the *route request*, which is the part that costs money—persisting an already-computed day does not.
 - [ ] **Say that autosave is happening.** An indicator in the panel, in place of the Save button it replaces. Nobody trusts a tool that saves silently.
 - [ ] **An X in the panel's top corner that exits the map.** It currently collapses the panel, which is the wrong verb for that glyph and that position—an X means close. Collapse moves to a bar or minimize icon. The only exit today is the nav hamburger in the opposite corner, which nobody finds, and the builder reads as a black hole.
-- [ ] **Drag to reorder, not arrows.** A textured drag bar replaces the per-row `↑`/`↓` pair. See [#39](https://github.com/feralcreative/tankbag/issues/39), which this decides the affordance for. It also reclaims real width: a stop row's name field is 113px against a POI row's 152px, and that 39px difference *is* the arrow pair.
+- [ ] **Drag to reorder, not arrows.** A textured drag bar replaces the per-row `↑`/`↓` pair. See [#39](https://github.com/feralcreative/routeloop/issues/39), which this decides the affordance for. It also reclaims real width: a stop row's name field is 113px against a POI row's 152px, and that 39px difference *is* the arrow pair.
 - [ ] **One menu per row, not a row of buttons.** `✎` (notes) and `✕` (delete) collapse into a single control holding edit, delete, **duplicate** and whatever else a point grows. With the drag bar above, a row goes from six buttons to two, and `.row-actions`—80px of a 320px row—mostly returns to the name field. Note that duplicate-a-point does not exist today, so this adds a capability rather than only rearranging one. **Build the menu on open, never per row:** the role picker already renders 17 buttons for every point (119 in the DOM at 7 stops, 340 at 20), and a second eager per-row menu would repeat that exactly.
 - [ ] **The two sliders are eating the panel.** The day scrubber, the ride timeline and the totals line come to 185px—**30% of the 620px visible panel**—and `#time-slider` is `disabled` on any ride without a day start time, so most of that is spent on a control doing nothing, under a note explaining why. Ziad's direction: one is a *view* slider and one is an *edit* slider, so possibly one edit mode and one view mode with a single slider each. Merge or tighten; the current stack is not defensible.
 - [ ] **The ride's name is the headline.** The panel titles itself "Edit ride" and puts the actual name in a text input directly beneath, spending the most prominent line on a label. Show the ride's name as the heading with a pencil to edit it, and move the summary line—`3 days · 500.3 mi · 11h 48m riding · Twisty`—directly under it, out of the second band where it currently sits below both sliders.
@@ -500,7 +500,7 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 **Platform and quality.**
 
 - Autosave and undo in the builder. Undo shipped; autosave-to-server is item 16.
-- Drag-to-reorder stops ([#39](https://github.com/feralcreative/tankbag/issues/39))—the affordance is decided, a textured drag bar replacing the arrows. See item 16.
+- Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows. See item 16.
 - Keyboard shortcuts for the builder.
 - Usage analytics that respect privacy (self-hosted, no third-party trackers).
 
@@ -518,15 +518,15 @@ Things deliberately not built, recorded so they do not get proposed twice. These
 | **Inventing new vocabulary**          | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them.                                                                                                                                                           |
 | **Paywalling export or sharing**      | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not.                                                                                                                                                                                  |
 
-One wording correction that falls out of this: the vision above says Tankbag is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
+One wording correction that falls out of this: the vision above says RouteLoop is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
 
 ## Good first contributions
 
 Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These carry the _good first issue_ label on GitHub.
 
-- **[#35](https://github.com/feralcreative/tankbag/issues/35) Round-trip fidelity tests per format.** Pure test work in `test/`, no app context needed—assert what each format can and cannot carry, so import → export never silently drops a stop.
-- **[#40](https://github.com/feralcreative/tankbag/issues/40) Keyboard shortcuts for the builder.** Contained to `public/js/builder.js` and its key handling.
-- **[#51](https://github.com/feralcreative/tankbag/issues/51) Layer stacking with per-layer opacity.** A self-contained map-engine feature with a clear reference implementation in Gaia GPS.
+- **[#35](https://github.com/feralcreative/routeloop/issues/35) Round-trip fidelity tests per format.** Pure test work in `test/`, no app context needed—assert what each format can and cannot carry, so import → export never silently drops a stop.
+- **[#40](https://github.com/feralcreative/routeloop/issues/40) Keyboard shortcuts for the builder.** Contained to `public/js/builder.js` and its key handling.
+- **[#51](https://github.com/feralcreative/routeloop/issues/51) Layer stacking with per-layer opacity.** A self-contained map-engine feature with a clear reference implementation in Gaia GPS.
 
 The three tasks previously listed here—privacy and terms pages, the day-slider tick labels, and the `profile.js` geocoding proxy—all shipped, as #18, #19 and #20.
 

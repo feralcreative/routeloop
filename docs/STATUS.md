@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-09
-**Branch:** `feat/import-export`, based on `origin/main`—765 tests across 33 files, all passing
+**Updated:** 2026-08-12
+**Branch:** `chore/another-fucking-rebrand`, based on `origin/main`—792 tests across 34 files
 **Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
@@ -9,7 +9,7 @@ Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where thin
 
 ## TL;DR
 
-tankbag is a ride **planning / sharing / organizing** app, not navigation. It is live at `tankbag.app` on a Synology NAS behind Cloudflare Tunnel.
+routeloop is a ride **planning / sharing / organizing** app, not navigation. It is live at `routeloop.app` on a Synology NAS behind Cloudflare Tunnel.
 
 Two migrations drove the branch `refactor/google-maps-and-auth`, which is long since merged. **Both are finished**—this table is kept as history, not as work:
 
@@ -17,6 +17,73 @@ Two migrations drove the branch `refactor/google-maps-and-auth`, which is long s
 | ---- | ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
+
+## The new brand assets are wired up, 2026-08-12
+
+New artwork was drawn rather than recovered from `e8d5873^`, and it is **not** the old RouteLoop set. Two aspect ratios moved far enough that no width or height anywhere is a nudge of the previous one—every number was re-derived from a target height:
+
+| Lockup | Was | Is |
+| --- | --- | --- |
+| Horizontal | 1595×456 (3.50:1) | 1500×184 (**8.15:1**) |
+| Stacked | 920×648 (1.42:1) | 920×518 (**1.78:1**) |
+| Email | 360×103 (3.50:1) | 800×100 @2x (**8.15:1**) |
+
+What that forced, and what to look at first if any of it reads wrong:
+
+- **The splash uses the stacked mark now**, where it has always used the horizontal one. At 8.15:1 the horizontal lockup renders 52px tall in the 420px the splash gave it, against the 123px it used to have, and no width this layout can spend buys that back—1000px would. The stacked mark gets there, and sits at 200px wide / 113px tall after the fit pass below.
+- **The nav lockup is 28px tall**, down from 48px. Every pixel of that height is letterform now, where most of it used to be the bag icon; 48px would draw a 391px banner across the header.
+- **The map badge is 64px**, down from 92px, for the same reason on two lines instead of one.
+- **The email wordmark displays at 400×50**, up from 180×52, which is nearly the full 536px the cell has.
+- **`-dk` is the delivered spelling** of the reversed variant on the site's four SVGs. The suffix still names the *ground*, not the ink. The two email PNGs keep `-dark`, also as delivered—`src/emails/shell.tsx` and `docs/email.md` both say so.
+- **The stacked mark carries no axis suffix**: it is `logo-routeloop.svg`, not `-vt`. `_assets/logo-routeloop-vt.png` is byte-identical to `logo-routeloop-dk@2x.png` and is a mislabeled duplicate; nothing ships from it.
+- **The favicon set is generated, not hand-cut.** `node utils/build-favicons.mjs` renders all eight files in `public/img/favicon/` from `_assets/favicon.svg` through `rsvg-convert`. The `.ico` is assembled in that script from PNG payloads, so the repo needs no icon encoder for it.
+- **The mark inside the 1000×1000 favicon canvas is only 1000×502**, with transparent bands top and bottom. So the manifest's own icons are `purpose: "any"`, and a separate opaque `maskable-*` pair on `#ffdd00` carries the 80% safe zone Android wants. Declaring the transparent, letterboxed icon `any maskable`—which it did—crops a launcher straight into the loop.
+- **`public/site.webmanifest` and the repo-root `site.webmanifest` are gone.** Neither was linked from anywhere, they disagreed with each other on name and theme color, and the root one pointed at paths that do not exist. `public/img/site.webmanifest` is the one `siteIconLinks()` serves.
+
+Two things to know before redrawing any of it. The email PNGs are **opaque by design**—both are currently 800×100 with zero non-opaque pixels, and `test/email-dark-mode.test.ts` reads their corner pixels to keep it that way. And `_assets/` is the source of record—the same test asserts the served copy in `public/img/` is byte-identical, so updating one without the other ships nothing.
+
+Still open: `_assets/github/tankbag-github-share.png` is the GitHub repo social image, uploaded through GitHub's settings UI rather than served from here, and no replacement was drawn.
+
+### The sign-in page fits its fold again
+
+`/login` scrolled, and the logo was not why. **`.splash` held `min-height: 100svh` while the footer sat after it inside `.page-wrap`**, so the document was one viewport *plus* the footer—it scrolled by exactly 52px at every viewport height, and no amount of shrinking the copy could have fixed it, because a `min-height` that large just pads the slack back in. The viewport height moved up to `.page-wrap`, which is now the flex column, and `.splash` takes what the footer leaves via `flex: 1; min-height: 0`.
+
+With that corrected the content still overran the two short tiers, so both were re-cut and a third added. `.splash` is a **flex container, so none of its children's margins collapse**—every margin in that stack is spent in full, which is why the trims are spread across padding, the eyebrow's gaps, the headline and the mark rather than taken out of the logo alone:
+
+| Viewport height | Logo | Headline (max) |
+| --- | --- | --- |
+| Base | 200×113 | 4.5rem |
+| ≤760px | 128×72 | 3rem |
+| ≤700px | 112×63 | 2.5rem |
+| ≤600px | 88×50 | 2.5rem |
+
+The `≤700px` tier was keyed on `620px` before this: the tier above it ran out of budget around 700, so anything between 621 and 700 scrolled with neither tier trimming it. **537px is the measured floor**—below that the page scrolls, and it should. `.providers` is 152px of email field, Google button and note and `.splash-gate` another 94px, and trimming either further means taking away something a visitor came to use.
+
+## Renamed back to routeloop, 2026-08-11
+
+The third flip. `routeloop.app` is canonical, `tankbag.app` 301s to it. Entries below this line that say "tankbag" are history and are left as written.
+
+**What made this one cheap:** none of the routeloop infrastructure was ever torn down. Both hostname pairs still have live tunnel routes, the container has been publishing both host ports the whole time, and the Cloudflare Access applications were still named "RouteLoop Login". Each hostname reaches the same port it always has—`routeloop.app` on `:16703`, `tankbag.app` on `:6686`—so `deploy.config` swaps which one is canonical and nothing at Cloudflare moves. **`src/db/schema.ts` contains no brand string at all, so there is no migration and no backfill.**
+
+**The two file-format contracts are write-new, read-both, permanently:**
+
+- **The filename marker.** `buildExportName` writes `routeloop_`; `parseExportName` accepts `routeloop` and `tankbag` via `READ_MARKERS`, and `COMPOUND_EXTS` carries both `.routeloop.json` and `.tankbag.json`. Mirrored in `public/js/filename.js`, with the legacy names in the shared fixture list so the two implementations cannot drift apart on the compatibility rule either.
+- **Native JSON went to format version 3**, which renamed the envelope's version key from `tankbag` to `routeloop`. `nativeVersion()` reads whichever key is present and `isNativeRide` accepts either. `upgradeNativeRide` needed no new arm—v3 changed the envelope, not the ride payload—but note a v1 file necessarily carries the old key, so the oldest upgrade path is now only reachable through it.
+
+Dropping either would have failed **silently**: the files still import, just stripped of day order and dates, which is exactly the information a filename exists to carry because GPX and KML cannot. `test/filename.test.ts` and `test/native.test.ts` both have explicit legacy blocks, because a mass find-and-replace through those fixtures goes green while breaking every file a rider holds.
+
+`GET /api/public/maps/:slug/tankbag.json` stays registered alongside the routeloop path—the ride page linked it, so it is in bookmarks. Both sit ahead of the generic `:format` route, same as the zip route and for the same reason.
+
+**Cookies were renamed with no legacy read**, deliberately: they are host-scoped with no `domain` attribute, so moving the canonical host invalidates them regardless. Everyone signs in once and the alpha splash reappears once. `routeloop_session`, `routeloop_oauth_state`, `routeloop_oauth_verifier`, `routeloop_invite`, and the two `routeloop.*` localStorage keys.
+
+**Corrected while passing through:** `deploy.config` claimed Compose derives its project name from the deploy directory. That stopped being true when `deploy.sh` started pinning `COMPOSE_PROJECT_NAME`—the volume follows `$PROJECT_NAME`, so anyone following the old comment would migrate the wrong thing. The `$accent` comment in `_tokens.scss` was also inverted: the yellow *was* lifted from the RouteLoop wordmark's dashed center line, and now matches the mark again.
+
+**Not done, and not scriptable from the repo:**
+
+1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones *before* the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
+2. **`CLOUDFLARE_ZONE_ID`** in `.env` still points at the tankbag.app zone. The purge failure is non-fatal, so a wrong zone means stale assets behind a green deploy.
+3. **The infrastructure rename needs a data migration.** `PROJECT_NAME`, the container/image/network names and the Postgres role and database all move to `routeloop`. The deploy directory follows `$DOMAIN` and carries the bind-mounted `data/storage` with it; the named volume follows `$PROJECT_NAME` and does not follow a `mv`. Back up first, bring the old stack down from the old directory by hand (the deploy's own `down` runs in the new one and cannot see it), and do not trust the deploy's verification—the origin curl is a warning only and the container check passes against an empty database.
+4. **GCP console object names are left alone**, following the precedent set at the last rename. The project cannot be renamed in place and the keys are identified by uid.
 
 ## The naming is settled: ride > day > leg, 2026-08-09
 

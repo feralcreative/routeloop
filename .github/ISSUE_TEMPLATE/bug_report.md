@@ -12,7 +12,7 @@ assignees: ''
 
 **Where**
 
-<!-- tankbag.app, stage, or local—and the page or URL. If a ride is involved,
+<!-- routeloop.app, stage, or local—and the page or URL. If a ride is involved,
      its slug helps. Phone or desktop, and which browser, if it looks visual. -->
 
 **How to reproduce**

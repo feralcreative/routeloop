@@ -122,7 +122,7 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
     <>
       <h1>The rider survey</h1>
       <p class="lede">
-        I am building Tankbag on my own judgement about what a trip needs, and my judgement is one rider’s. This is
+        I am building RouteLoop on my own judgement about what a trip needs, and my judgement is one rider’s. This is
         how I find out where it is wrong. Everything below is genuinely undecided—the parts I have already made my
         mind up about are not on the list, because asking about those would waste the only 5 minutes you owe me.
       </p>
@@ -310,7 +310,7 @@ surveyRoutes.get('/survey/thanks', requireSurvey, (c) => {
           Change an answer
         </a>{' '}
         <a class="linkbtn" href="/">
-          Back to Tankbag
+          Back to RouteLoop
         </a>
       </p>
     </>
@@ -499,7 +499,7 @@ surveyRoutes.get('/admin/survey.csv', requireManageRiders, async (c) => {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'Content-Disposition': 'attachment; filename="tankbag-rider-survey.csv"',
+      'Content-Disposition': 'attachment; filename="routeloop-rider-survey.csv"',
     },
   })
 })

@@ -22,26 +22,37 @@ beforeAll(() => {
 
 // Everything the server can write, plus the shapes a rider might hand-edit into
 // and the ordinary files that must not be read as structured at all.
+//
+// The legacy `tankbag_` names are in here deliberately. Both implementations
+// have to keep reading them, and two implementations of a compatibility rule
+// drift exactly as readily as two implementations of the rule itself.
 const NAMES = [
+  'routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx',
+  'routeloop_big-sur-run_d01_2026-08-13T0830_coast-start.kml',
+  'routeloop_r_d10_2026-12-01.geojson',
+  'routeloop_r_d02.gpx',
+  'routeloop_r_2026-08-14.gpx',
+  'routeloop_r_lost-coast.csv',
+  'routeloop_r.routeloop.json',
+  'routeloop_r_d2.gpx',
+  'ROUTELOOP_r_d02.gpx',
+  'routeloop_r_d00.gpx',
+  'routeloop_r_2026-02-30.gpx',
+  'routeloop_r_d01_2026-08-14_a_b.gpx',
+  'routeloop_canon-trip_d03_2026-08-14_cote.geojson',
+  // Written under the old name, still held by riders, still read by both sides.
   'tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx',
-  'tankbag_big-sur-run_d01_2026-08-13T0830_coast-start.kml',
   'tankbag_r_d10_2026-12-01.geojson',
-  'tankbag_r_d02.gpx',
-  'tankbag_r_2026-08-14.gpx',
-  'tankbag_r_lost-coast.csv',
   'tankbag_r.tankbag.json',
-  'tankbag_r_d2.gpx',
   'TANKBAG_r_d02.gpx',
-  'tankbag_r_d00.gpx',
-  'tankbag_r_2026-02-30.gpx',
-  'tankbag_r_d01_2026-08-14_a_b.gpx',
-  'tankbag_canon-trip_d03_2026-08-14_cote.geojson',
   // Not the convention. Every one of these must parse to null on both sides.
   'day-2.gpx',
   'Big Sur Run.gpx',
   '2026-08-14.gpx',
   'd02_2026-08-14_lost-coast.gpx',
+  'routeloop.gpx',
   'tankbag.gpx',
+  'my_routeloop_ride.gpx',
   'my_tankbag_ride.gpx',
   'Track_001.gpx',
 ]
@@ -84,14 +95,21 @@ describe('filename.js agrees with filename.ts', () => {
   it('plans a folder identically', () => {
     const folders = [
       [
+        'routeloop_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx',
+        'routeloop_big-sur-run_d01_2026-08-13_coast-start.gpx',
+        'routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx',
+      ],
+      ['routeloop_r_d02.gpx', 'whatever.gpx', 'routeloop_r_d01.gpx'],
+      ['routeloop_a_d01.gpx', 'routeloop_b_d02.gpx'],
+      ['day-1.gpx', 'day-2.gpx'],
+      ['routeloop_r_d02_b.gpx', 'routeloop_r_d02_a.gpx'],
+      // A folder downloaded before the rename, and one downloaded across it.
+      [
         'tankbag_big-sur-run_d03_2026-08-15_avenue-of-giants.gpx',
         'tankbag_big-sur-run_d01_2026-08-13_coast-start.gpx',
         'tankbag_big-sur-run_d02_2026-08-14_lost-coast.gpx',
       ],
-      ['tankbag_r_d02.gpx', 'whatever.gpx', 'tankbag_r_d01.gpx'],
-      ['tankbag_a_d01.gpx', 'tankbag_b_d02.gpx'],
-      ['day-1.gpx', 'day-2.gpx'],
-      ['tankbag_r_d02_b.gpx', 'tankbag_r_d02_a.gpx'],
+      ['tankbag_big-sur-run_d01.gpx', 'routeloop_big-sur-run_d02.gpx'],
       [],
     ]
     const flat = (p: any) => ({
@@ -109,7 +127,7 @@ describe('filename.js agrees with filename.ts', () => {
     const cases = [
       { ride: 'Big Sur Run', day: 2, date: new Date(Date.UTC(2026, 7, 14)), title: 'Lost Coast', ext: 'gpx' },
       { ride: 'Big Sur Run', day: 12, date: new Date(Date.UTC(2026, 11, 1, 7, 5)), title: 'Rest Day', ext: 'kml' },
-      { ride: 'r', day: 1, ext: 'tankbag.json' },
+      { ride: 'r', day: 1, ext: 'routeloop.json' },
       { ride: 'Solo', ext: 'csv' },
     ]
     for (const c of cases) {

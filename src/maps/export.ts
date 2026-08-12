@@ -399,40 +399,59 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 // same ride — days, colours, times, via points and all — because it goes
 // through the same schema and the same insert the builder's save does.
 //
-// `tankbag` is a version, not decoration: the importer refuses a file without
-// it rather than guessing, which is also what keeps a plain GeoJSON from being
-// mistaken for one.
+// The version key is a version, not decoration: the importer refuses a file
+// without one rather than guessing, which is also what keeps a plain GeoJSON
+// from being mistaken for one.
 //
 // Version 2 (2026-08-09) renamed the ride's `routes` array to `days`, following
-// the table. Version 1 files still import — see upgradeNativeRide below, which
-// is why the version is worth having at all.
-export const NATIVE_FORMAT_VERSION = 2
+// the table. Version 3 (2026-08-11) renamed the version key itself from
+// `tankbag` to `routeloop` with the product. Both older shapes still import —
+// see nativeVersion and upgradeNativeRide below, which is why the version is
+// worth having at all.
+export const NATIVE_FORMAT_VERSION = 3
 
 export type NativeRide = {
-  tankbag: number
+  /** Written by this app. */
+  routeloop?: number
+  /** The same field, under the name this app shipped under until 2026-08-11. */
+  tankbag?: number
   exportedFrom: string
   ride: unknown
 }
 
+/**
+ * The format version, from whichever key carries it.
+ *
+ * Two keys mean the same thing here because the file is the only lossless way a
+ * rider holds a ride, and refusing the ones they already downloaded would make
+ * them unrestorable. Read both; `loadNativeRide` writes only the current one.
+ */
+export const nativeVersion = (file: NativeRide): number => file.routeloop ?? file.tankbag ?? 0
+
 export const isNativeRide = (v: unknown): v is NativeRide =>
-  typeof v === 'object' && v !== null && typeof (v as NativeRide).tankbag === 'number'
+  typeof v === 'object' &&
+  v !== null &&
+  (typeof (v as NativeRide).routeloop === 'number' || typeof (v as NativeRide).tankbag === 'number')
 
 /**
  * Brings an older native file up to the current format, in place of the caller
  * having to know what changed between versions.
  *
- * Only one migration so far: v1 called the array of days `routes`. The rename
- * is done here rather than by teaching `ridePayload` to accept either key,
- * because the schema also validates live builder saves — and a builder that can
- * still post `routes` is a second name kept alive forever by accident, which is
- * the thing this whole rename was undoing.
+ * Only one migration touches the ride payload: v1 called the array of days
+ * `routes`. The rename is done here rather than by teaching `ridePayload` to
+ * accept either key, because the schema also validates live builder saves — and
+ * a builder that can still post `routes` is a second name kept alive forever by
+ * accident, which is the thing that rename was undoing.
  *
- * Returns the ride payload for `ridePayload` to validate. An unrecognised or
+ * v3 changed only the envelope's version key, which `nativeVersion` already
+ * absorbs, so there is nothing for this function to do about it.
+ *
+ * Returns the ride payload for `ridePayload` to validate. An unrecognized or
  * newer version is not this function's problem: the caller checks that first.
  */
 export function upgradeNativeRide(file: NativeRide): object {
   const ride = (file.ride ?? {}) as Record<string, unknown>
-  if (file.tankbag < 2 && Array.isArray(ride.routes) && ride.days === undefined) {
+  if (nativeVersion(file) < 2 && Array.isArray(ride.routes) && ride.days === undefined) {
     const { routes, ...rest } = ride
     return { ...rest, days: routes }
   }
@@ -483,8 +502,8 @@ export async function loadNativeRide(
   }
 
   return {
-    tankbag: NATIVE_FORMAT_VERSION,
-    exportedFrom: 'tankbag.app',
+    routeloop: NATIVE_FORMAT_VERSION,
+    exportedFrom: 'routeloop.app',
     ride: {
       title: meta.title,
       description: meta.description ?? '',

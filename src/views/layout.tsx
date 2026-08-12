@@ -70,7 +70,7 @@ export type NavKey =
   | 'survey-results'
 
 export type PageOpts = {
-  /** Without the " – Tankbag" suffix; page() appends it. */
+  /** Without the " – RouteLoop" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -131,22 +131,26 @@ function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: s
 function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
-  // it is 131px wide against the horizontal lockup's 168px, so it takes less of
-  // the map.
+  // it is 114px wide against the horizontal lockup's 228px, so it takes half as
+  // much of the map. The gap is much wider than it used to be, because the
+  // horizontal lockup is now 8.15:1 where the old one was 3.5:1.
   //
   // Both are the unsuffixed artwork. The suffix names the *background*, not the
-  // ink: no suffix is the black lockup for a light ground, `-dark` is the
-  // reversed white one for a dark ground. It reads backwards at a glance, which
-  // is why it is written down — but it is the convention src/emails/shell.tsx
-  // was already using, so the alternative was two conventions instead of one.
+  // ink: no suffix is the dark lockup for a light ground, `-dk` is the reversed
+  // white one for a dark ground. It reads backwards at a glance, which is why it
+  // is written down — but it is the convention src/emails/shell.tsx was already
+  // using, so the alternative was two conventions instead of one.
+  //
+  // `-hz` is the one-line lockup; the stacked one carries no axis suffix at all.
+  // Both names are the artwork's own, as delivered.
   const logo = isMap
-    ? { src: '/img/logo-tankbag-vert.svg', w: 920, h: 648 }
-    : { src: '/img/logo-tankbag-horiz.svg', w: 1595, h: 456 }
+    ? { src: '/img/logo-routeloop.svg', w: 920, h: 518 }
+    : { src: '/img/logo-routeloop-hz.svg', w: 1500, h: 184 }
 
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
-        <img src={logo.src} alt="Tankbag" width={logo.w} height={logo.h} />
+        <img src={logo.src} alt="RouteLoop" width={logo.w} height={logo.h} />
       </a>
       {/*
         A <details>, not a button plus a script. The browser owns open/closed,
@@ -339,7 +343,7 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">Tankbag is in a closed alpha.</p>}
+      {!splash && <p class="site-footer-note">RouteLoop is in a closed alpha.</p>}
     </footer>
   ).toString()
 }
@@ -352,9 +356,9 @@ export function page(opts: PageOpts): string {
     .filter(Boolean)
     .join(' ')
   // A spaced EN dash, not an em dash. Em dashes are tight everywhere in this
-  // product, and "Coast Run—Tankbag" reads as one compound word rather than a
+  // product, and "Coast Run—RouteLoop" reads as one compound word rather than a
   // page inside a site. A title separator is the case the en dash exists for.
-  const title = `${esc(opts.title)} – Tankbag`
+  const title = `${esc(opts.title)} – RouteLoop`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>

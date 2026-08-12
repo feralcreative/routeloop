@@ -38,9 +38,12 @@
   --control-width: 416px;
   padding: clamp(2rem, 9vh, 7rem) 0;
 
+  // Trimmed from clamp(2.5rem, 7vw, 5.5rem) on 2026-08-12. At 5.5rem the pitch
+  // ran to three lines on a laptop and left the sign-in controls sharing the fold
+  // with nothing to spare; 4.5rem holds two lines at the same measure.
   h1 {
     max-width: 700px;
-    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    font-size: clamp(2.25rem, 6vw, 4.5rem);
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
@@ -55,13 +58,17 @@
 .splash-logo {
   display: block;
   width: 100%;
-  // The horizontal mark is 1456x426 (~3.4:1) against the vertical one's
-  // 871x618 (~1.4:1), so these widths are not the old ones nudged. They are
-  // picked so the mark lands on the same *height* the vertical one had —
-  // 420px wide is 123px tall, against the vertical's 128px at 180px wide —
-  // because height is what reads as the logo's weight beside the headline.
-  // Both breakpoints below hold the same ratio.
-  max-width: 420px;
+  // Height is what reads as the logo's weight beside the headline, and every
+  // width in this file and the two below it is picked backwards from a height
+  // rather than nudged from the last one.
+  //
+  // The old horizontal lockup gave ~123px at 420px wide. The current horizontal
+  // mark is 8.15:1 and cannot reach that — 420px is 52px tall, and it would take
+  // 1000px of width to get there — so this is the STACKED mark at 1.776:1. 200px
+  // lands on 113px, a little under the old height, which is where it sits after
+  // the 2026-08-12 pass at making the sign-in page fit its fold with room over.
+  // See src/views/splash.tsx.
+  max-width: 200px;
   height: auto;
   margin-bottom: 1.5rem;
 }
@@ -420,30 +427,50 @@ body.splash-page {
   background: $splash-ink; // what shows before the first frame decodes
   color: $white;
 
-  // This page must never scroll, so exactly one element owns the vertical space.
-  // .page-wrap keeps its side gutter and gives up its 2rem top and bottom, which
-  // would otherwise stack on top of a full-height child.
-  .page-wrap {
-    padding: 0 2rem;
-  }
-
-  // page() renders no header on this variant, so the hero is the whole document.
+  // This page must never scroll, so exactly one element owns the vertical space —
+  // and that element is .page-wrap, not .splash. page() renders no header on this
+  // variant, so the document is the hero plus the footer, and BOTH have to fit
+  // inside the one viewport between them.
+  //
+  // .splash held the 100svh itself until 2026-08-12, which put the footer below
+  // the fold on every viewport at every size: the page scrolled by exactly the
+  // footer's height, 52px, no matter what the content did. Shrinking the copy
+  // could never have fixed it — a min-height that large simply pads the slack
+  // back in — so the height moved up one level and .splash now takes whatever the
+  // footer leaves.
+  //
   // border-box is what keeps this honest: min-height then *includes* the padding
-  // instead of adding to it, so the page measures exactly one viewport. svh is
+  // instead of adding to it, so the wrap measures exactly one viewport. svh is
   // the primary unit — it is the height with the mobile URL bar showing, so the
   // bar appearing can never push content out of view; vh sits behind @supports as
   // the fallback rather than a duplicate declaration.
+  //
+  // .page-wrap keeps its side gutter and gives up its 2rem top and bottom, which
+  // would otherwise stack on top of a full-height child.
+  .page-wrap {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 0 2rem;
+
+    @supports (height: 100svh) {
+      min-height: 100svh;
+    }
+  }
+
+  // flex: 1 rather than a height of its own, and `min-height: 0` so a tall stack
+  // shrinks the hero instead of pushing the footer out — the default `min-height:
+  // auto` on a flex item refuses to go below its content and would restore the
+  // exact overflow this arrangement removes.
   .splash {
     display: flex;
     flex-direction: column;
     justify-content: center;
     box-sizing: border-box;
-    min-height: 100vh;
+    flex: 1;
+    min-height: 0;
     padding: 2rem 0;
-
-    @supports (height: 100svh) {
-      min-height: 100svh;
-    }
   }
 
   // Each block carries its own shadow so the scrim above can stay light. A wide,
@@ -585,25 +612,46 @@ body.splash-page {
   }
 }
 
-// Nothing below scrolls the page — .splash is pinned to one viewport, so these
-// exist to keep its contents from *overflowing* that box. Both are keyed on
-// height rather than width because height is the axis that runs out. The sign-in
-// page is the tallest stack of the three splash pages and therefore the one that
-// sets the budget; .splash-gate is the newest thing spending it, so it is
-// trimmed at both tiers alongside everything else.
-
+// Nothing below scrolls the page — .page-wrap is pinned to one viewport and the
+// footer sits inside that budget, so these exist to keep the hero's contents from
+// *overflowing* it. Both are keyed on height rather than width because height is
+// the axis that runs out. The sign-in page is the tallest stack of the three
+// splash pages and therefore the one that sets the budget; .splash-gate is the
+// newest thing spending it, so it is trimmed at both tiers alongside everything
+// else.
+//
+// Measured, not estimated. At 700px the untrimmed stack is 779px — the six
+// children, their margins, .splash's own 4rem of padding and the footer's 52px.
+// Note that .splash is a flex container, so none of those margins collapse and
+// every one of them is spent in full; that is why this tier takes 79px out of
+// four places rather than all of it out of the logo, which would have had to
+// vanish entirely to pay for it alone.
 //@ Short viewports — laptop windows and landscape tablets
 @media (max-height: 760px) {
-  .splash-logo {
-    max-width: 350px;
-    // The taller mark spends the slack this layout had at ~700px high, and the
-    // page is meant not to scroll. Buying the 2px back from the gap under the
-    // logo rather than from its width, which is the thing being asked for.
-    margin-bottom: 1.25rem;
+  // 4rem of padding is a quarter of what this tier has to find.
+  body.splash-page .splash {
+    padding: 1.25rem 0;
   }
 
+  .splash-logo {
+    // 72px tall. Below the 100px the old lockup rendered here, because this tier
+    // exists to keep the page off a scrollbar and the height budget outranks the
+    // logo wherever the two disagree.
+    max-width: 128px;
+    margin-bottom: 1rem;
+  }
+
+  // The gaps either side of the eyebrow, halved. It is a 24px line of 16px caps
+  // and does not need 16px of air on both sides at this height.
+  .eyebrow {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  // 48px rather than 64px. The headline is two short sentences and holds one
+  // line at this size on any laptop this tier catches.
   .splash h1 {
-    font-size: clamp(2rem, 5.5vw, 4rem);
+    font-size: clamp(2rem, 5.5vw, 3rem);
   }
 
   .splash-gate {
@@ -613,15 +661,16 @@ body.splash-page {
 }
 
 //@ Very short viewports — landscape phones
-@media (max-height: 620px) {
-  // Scoped to match the base rule this overrides — that one lives under
-  // body.splash-page, so a bare .splash here would lose on specificity.
-  body.splash-page .splash {
-    padding: 1.25rem 0;
-  }
-
+//
+// 700px, not the 620px this was keyed on until 2026-08-12. The tier above runs
+// out of budget at about 700 — measured, 640px of viewport overflowed by 51px —
+// so between 621 and 700 the page scrolled with neither tier trimming it. The
+// boundary is where the first tier stops fitting, not a round number.
+@media (max-height: 700px) {
   .splash-logo {
-    max-width: 280px;
+    // 63px tall. Same reasoning as the tier above: below the height the old
+    // lockup rendered here, because the budget outranks the logo.
+    max-width: 112px;
     margin-bottom: 0.75rem;
   }
 
@@ -648,5 +697,39 @@ body.splash-page {
 
   .providers {
     margin: 1.25rem 0 0;
+  }
+}
+
+//@ Landscape phones and short tablet windows
+//
+// The last tier that can still fit. 537px is the measured floor — below it the
+// page scrolls and is meant to: .providers is 152px of email field, Google
+// button and note, and
+// .splash-gate another 94px, and neither can be trimmed further without taking
+// away something a visitor came here to use. Everything cut here is spacing and
+// the mark — nothing that carries information.
+@media (max-height: 600px) {
+  body.splash-page .splash {
+    padding: 0.75rem 0;
+  }
+
+  .splash-logo {
+    // 50px tall. Small, and correct at a height where the sign-in controls are
+    // the only reason anyone opened the page.
+    max-width: 88px;
+    margin-bottom: 0.5rem;
+  }
+
+  .splash-copy {
+    margin: 0.6rem 0;
+  }
+
+  .providers {
+    margin: 0.75rem 0 0;
+  }
+
+  // 2rem of air above three links, at a height with none to spare.
+  body.splash-page .site-footer.is-splash {
+    margin-top: 0.75rem;
   }
 }

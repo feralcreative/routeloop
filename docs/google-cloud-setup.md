@@ -1,4 +1,4 @@
-# Google Cloud setup for tankbag
+# Google Cloud setup for routeloop
 
 **Written:** 2026-07-26
 **Updated:** 2026-07-27—both API keys now exist; see the checklist for what is left
@@ -76,8 +76,8 @@ The server-side flow means only redirect URIs matter; JavaScript origins are not
 ```text
 http://localhost:6686/auth/google/callback
 http://127.0.0.1:6686/auth/google/callback
-https://stage.tankbag.app/auth/google/callback
-https://tankbag.app/auth/google/callback
+https://stage.routeloop.app/auth/google/callback
+https://routeloop.app/auth/google/callback
 ```
 
 Both localhost forms are listed deliberately—`isAllowedOrigin` in [src/config.ts](../src/config.ts) already accepts either in development, and the two are not interchangeable to Google.
@@ -87,8 +87,8 @@ Both localhost forms are listed deliberately—`isAllowedOrigin` in [src/config.
 Publishing status **In production**, user type **External**. With only non-sensitive scopes this needs no review. Fill in:
 
 - App name, user support email, developer contact email
-- App logo—use `_assets/logo-tankbag-vert@2x.png` (1840×1296, the black artwork; Google renders it on a white consent screen). It is not under `public/`, because nothing on the site links to it and the console upload is a one-off.
-- Authorized domains: `tankbag.app`
+- App logo—use `_assets/logo-routeloop@2x.png` (1840×1036, the stacked dark artwork; Google renders it on a white consent screen). It is not under `public/`, because nothing on the site links to it and the console upload is a one-off.
+- Authorized domains: `routeloop.app`
 - A privacy policy URL and terms URL. These are required fields for a published external app, and neither exists yet. Two static pages.
 
 <!--| PAGE-BREAK -->
@@ -102,7 +102,7 @@ Create **two**, and never let the server key reach the browser.
 Used by Maps JavaScript API and any Places call made from the page.
 
 - Application restriction: **HTTP referrers**
-- Referrers: `https://tankbag.app/*`, `https://www.tankbag.app/*`, `https://stage.tankbag.app/*`, `http://localhost:6686/*`, plus the matching `routeloop.app` hosts until the 301s are retired
+- Referrers: `https://routeloop.app/*`, `https://www.routeloop.app/*`, `https://stage.routeloop.app/*`, `http://localhost:6686/*`, plus the matching `tankbag.app` hosts until the 301s are retired
 - API restriction: Maps JavaScript API, Places API (New)
 
 A browser key is public by definition—it ships in the page source. Referrer restriction is the only thing standing between it and someone else's bill, so it is not optional.
@@ -151,6 +151,8 @@ The existing `GMAPS_KEY` belongs to the legacy Google viewer that Phase 4 retire
 
 Status as of 2026-07-27. The project is **`routeloop-503503`** (display name `routeloop`)—worth stating plainly, because `tankbag`, `routeloop-app-stage` and `feralcreative-routeloop-prod` all exist and none of them owns the Maps keys.
 
+Console object names are deliberately left alone across product renames, so the names in this section are the literal ones in the console and are not to be "corrected" to match the current brand. A GCP project cannot be renamed in place anyway, and the keys are identified by uid.
+
 ```text
 [x] Create or choose the Cloud project        routeloop-503503
 [x] Attach billing                            billingAccounts/011AE1-146DA6-11525A
@@ -174,7 +176,7 @@ Status as of 2026-07-27. The project is **`routeloop-503503`** (display name `ro
 
 ### What the keys ended up as
 
-- **Browser key**—uid `010d908a-9158-4169-b5cb-98d8f08f6b16`. It was created with **no referrer restriction at all** and authorization for 35 APIs, which is how it shipped in page source for a while. It is now limited to `tankbag.app`, `www.tankbag.app`, `stage.tankbag.app`, `127.0.0.1:6686`, `localhost:6686`, and to Maps JavaScript + Places only.
+- **Browser key**—uid `010d908a-9158-4169-b5cb-98d8f08f6b16`. It was created with **no referrer restriction at all** and authorization for 35 APIs, which is how it shipped in page source for a while. It is now limited to `tankbag.app`, `www.tankbag.app`, `stage.tankbag.app`, `127.0.0.1:6686`, `localhost:6686`, and to Maps JavaScript + Places only. **This is the state as audited and it is not yet correct for routeloop.app**—the referrer list has to gain the routeloop hosts before that name goes canonical, or the browser key is blocked on its own site and the map never draws (`RefererNotAllowedMapError`) while every other part of the page looks fine.
 - **Server key**—uid `a321c95b-05e3-4f11-82db-25baa39a9c55`, "routeloop server (Routes + Geocoding, IP-restricted)". Limited to IP `69.209.26.137` and to Routes + Geocoding. The NAS and the development workstation share that one residential address, so a lease change breaks server-side calls while the browser key keeps working.
 - **Map ID**—not created. This is console-only despite appearances: `mapmanagement.googleapis.com` is enabled and appears in the key's API target list, but every REST path returns 404 and there is no `gcloud maps` command group. `DEMO_MAP_ID` works for local development and must not ship.
 

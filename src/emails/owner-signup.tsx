@@ -29,7 +29,7 @@ const ADMIN_URL = `${APP_ORIGIN}/admin`
 // it was decided rather than mid-domain in someone's list view.
 const MAX_SUBJECT = 78
 function subjectFor(email: string): string {
-  const prefix = 'New Tankbag signup: '
+  const prefix = 'New RouteLoop signup: '
   const room = MAX_SUBJECT - prefix.length
   return prefix + (email.length <= room ? email : `${email.slice(0, room - 1)}…`)
 }
@@ -44,7 +44,7 @@ export const ownerSignupEmail = defineEmail<Props>({
 
   text: ({ email, provider, pendingCount }) =>
     [
-      `${email} just signed up for Tankbag.`,
+      `${email} just signed up for RouteLoop.`,
       '',
       `Signed in with: ${provider}`,
       `Waiting for approval: ${pendingCount}`,

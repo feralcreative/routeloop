@@ -37,7 +37,7 @@ To mint a session with no browser at all:
 
 ```bash
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
-# send it as: Cookie: tankbag_session=<token>
+# send it as: Cookie: routeloop_session=<token>
 ```
 
 ## A 500 on sign-in saying `column users.<something> does not exist`

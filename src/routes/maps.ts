@@ -35,7 +35,7 @@ import {
 } from '../maps/kml'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
-import { isNativeRide, NATIVE_FORMAT_VERSION, upgradeNativeRide } from '../maps/export'
+import { isNativeRide, nativeVersion, NATIVE_FORMAT_VERSION, upgradeNativeRide } from '../maps/export'
 import { MAX_DAYS, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { parseExportName, titleFromSlug, type ParsedName } from '../maps/filename'
@@ -232,11 +232,11 @@ mapsRoutes.post(
     const single = sources.length === 1 ? sources[0] : null
     const ext = single?.ext ?? 'mixed'
 
-    // A native Tankbag JSON is a different door entirely: it is the builder's
+    // A native RouteLoop JSON is a different door entirely: it is the builder's
     // own save payload, so it skips extraction and goes through the same schema
     // and the same insert a save does. Nothing about it is a route *file* — it
     // is a ride, restored. It arrives as .json like GeoJSON does, so the two
-    // are told apart by the `tankbag` version field rather than by extension.
+    // are told apart by the version field rather than by extension.
     if (single && (single.ext === 'json' || single.ext === 'geojson')) {
       const text = await single.file.text()
       let parsed: unknown
@@ -246,8 +246,9 @@ mapsRoutes.post(
         return fail('that file is not valid JSON', 400)
       }
       if (isNativeRide(parsed)) {
-        if (parsed.tankbag > NATIVE_FORMAT_VERSION) {
-          return fail(`this file was written by a newer version of Tankbag (format ${parsed.tankbag})`, 400)
+        const version = nativeVersion(parsed)
+        if (version > NATIVE_FORMAT_VERSION) {
+          return fail(`this file was written by a newer version of RouteLoop (format ${version})`, 400)
         }
         const check = ridePayload.safeParse({ ...upgradeNativeRide(parsed), title: meta.title })
         if (!check.success) return fail(firstIssue(check.error), 400)

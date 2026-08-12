@@ -1,4 +1,4 @@
-# Tankbag goals
+# RouteLoop goals
 
 The original vision document. Only the vocabulary has been touched since: what this doc called a "route" within a ride is called a **day** as of 2026-08-09, so the hierarchy reads `ride > day > leg > stop/POI` throughout. Nothing else was rewritten.
 
