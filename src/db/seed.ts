@@ -16,7 +16,7 @@ async function main() {
     .insert(users)
     // The dev owner: active (the schema default) and able to manage riders, so
     // /admin is reachable locally without a hand-written UPDATE.
-    .values({ displayName: 'Demo Rider', email: 'demo@tankbag.app', canManageRiders: true })
+    .values({ displayName: 'Demo Rider', email: 'demo@routeloop.app', canManageRiders: true })
     .returning()
 
   const kml = processKml(await readFile('moto-storage/1/1.kml', 'utf8'))

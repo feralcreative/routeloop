@@ -1,4 +1,4 @@
-// Shared Google Maps helpers for the tankbag viewer and builder.
+// Shared Google Maps helpers for the routeloop viewer and builder.
 // Ports the hard-won behavior of the legacy Google Maps viewer (main.js):
 // per-route colored tracks with direction arrows, role-icon markers tinted via
 // currentColor, and the waypoint tooltip with its mileage columns.

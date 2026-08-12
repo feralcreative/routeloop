@@ -3,7 +3,7 @@
 //
 // This is the message /login promises and /welcome repeats, and until now
 // nothing sent it: a rider joined, saw a holding page, and then heard nothing
-// from Tankbag ever again. A rider who joined with Google never received any
+// from RouteLoop ever again. A rider who joined with Google never received any
 // mail at all.
 //
 // No name in it, deliberately. At the moment this fires, users.display_name is
@@ -26,13 +26,13 @@ const FAQ_URL = `${APP_ORIGIN}/faq#invites`
 export const waitlistEmail = defineEmail<Props>({
   key: 'waitlist',
 
-  subject: () => 'You’re on the Tankbag list',
+  subject: () => 'You’re on the RouteLoop list',
 
   preheader: () => 'Nothing to do now. Riders are approved by hand, a few at a time.',
 
   text: () =>
     [
-      'You’re on the list for Tankbag.',
+      'You’re on the list for RouteLoop.',
       '',
       'Beta is invite-only and I approve riders by hand, a few at a time. There’s',
       'nothing else for you to do—you’ll get an email when your turn comes up.',
@@ -44,7 +44,7 @@ export const waitlistEmail = defineEmail<Props>({
   html: () =>
     (
       <>
-        <P>You’re on the list for Tankbag.</P>
+        <P>You’re on the list for RouteLoop.</P>
         <P>
           Beta is invite-only and I approve riders by hand, a few at a time. There’s nothing else for you to do—
           you’ll get an email when your turn comes up.

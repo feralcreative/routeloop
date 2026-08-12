@@ -26,7 +26,7 @@ The `routes` table was renamed to `days` because every rider-facing surface alre
 
 ## The export filename carries four fields and no more
 
-The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Tankbag JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
+The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with RouteLoop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
 
 ## Turnstile, and why it is off
 

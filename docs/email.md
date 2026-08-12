@@ -2,13 +2,13 @@
 
 **Updated:** 2026-08-08
 
-How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
+How RouteLoop sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
 
 ## The shape of it
 
 **Sending is Resend over plain SMTP.** Not Resend's HTTP API, and the distinction is the whole design: because every transactional provider speaks SMTP, changing provider is a change to five values in `.env` and nothing else. The app moved off a personal Gmail account without `src/auth/mailer.ts` changing shape.
 
-**Receiving is Cloudflare Email Routing**, which forwards `@tankbag.app` to an existing inbox. Free and unlimited on the plan the domain is already on. There is no mailbox to pay for and no mail server anywhere—a mail server on the NAS was considered and rejected: residential IPs sit on blocklists, outbound port 25 is usually blocked by the ISP, and the PTR record you would need is not yours to set.
+**Receiving is Cloudflare Email Routing**, which forwards `@routeloop.app` to an existing inbox. Free and unlimited on the plan the domain is already on. There is no mailbox to pay for and no mail server anywhere—a mail server on the NAS was considered and rejected: residential IPs sit on blocklists, outbound port 25 is usually blocked by the ISP, and the PTR record you would need is not yours to set.
 
 **Cloudflare Email Sending was rejected** for the outbound half. It is still in beta, requires the Workers Paid plan, and is REST-only, so `mailer.ts` would have been rewritten around `fetch()` to get something SMTP already does. Worth revisiting once it is GA.
 
@@ -18,7 +18,7 @@ How Tankbag sends mail, what it sends, and what to do when it stops working. Arc
 | `SMTP_PORT` | `587` (STARTTLS; 465 would be implicit TLS and `mailer.ts` switches on it) |
 | `SMTP_USER` | the literal string `resend`—**not** an address |
 | `SMTP_PASS` | the Resend API key |
-| `MAIL_FROM` | a **bare** address, e.g. `hello@tankbag.app` |
+| `MAIL_FROM` | a **bare** address, e.g. `hello@routeloop.app` |
 
 Free tier is 3,000 messages a month, which is far beyond what a hand-approved beta uses.
 
@@ -26,9 +26,9 @@ Free tier is 3,000 messages a month, which is far beyond what a hand-approved be
 
 **`SMTP_USER` is `resend`, so `MAIL_FROM` must be set explicitly.** `MAIL_FROM` used to default to `SMTP_USER`, which was right under Gmail where the SMTP user *is* the address. Under Resend that default would make `MAIL_FROM` the string `resend`—truthy, so `MAIL_ENABLED` goes true, the sign-in form renders, and every send fails at the server with a 550 that nothing local would have caught. The default is now `''` (`src/config.ts`).
 
-**`MAIL_FROM` must be a bare address, never `Tankbag <hello@tankbag.app>`.** The display name is composed in `mailer.ts`. The bracketed form has to survive `printf` into a compose `.env`, where quoting rules differ from a shell's and a `#` starts a comment. `deploy.sh` rejects it rather than shipping a malformed envelope that only shows up in a recipient's headers.
+**`MAIL_FROM` must be a bare address, never `RouteLoop <hello@routeloop.app>`.** The display name is composed in `mailer.ts`. The bracketed form has to survive `printf` into a compose `.env`, where quoting rules differ from a shell's and a `#` starts a comment. `deploy.sh` rejects it rather than shipping a malformed envelope that only shows up in a recipient's headers.
 
-**Do not set `OWNER_EMAIL` to the same address as `MAIL_FROM`.** With Routing forwarding `@tankbag.app` back to Gmail, the owner alert would go Resend → Cloudflare → Gmail from and to the same domain, which reads as a loop to filters and lands in spam.
+**Do not set `OWNER_EMAIL` to the same address as `MAIL_FROM`.** With Routing forwarding `@routeloop.app` back to Gmail, the owner alert would go Resend → Cloudflare → Gmail from and to the same domain, which reads as a loop to filters and lands in spam.
 
 ## What it sends
 
@@ -97,17 +97,17 @@ Not stylistic. Outlook on Windows renders with Word's engine, Gmail clips a long
 
 ### The logo, and why there are two of them
 
-The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="tankbag."` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
+The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="routeloop."` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
 
 | | |
 | --- | --- |
-| Source | `_assets/logo-tankbag-email-horiz.png`, `…-dark.png` |
+| Source | `_assets/logo-routeloop-email-horiz.png`, `…-dark.png` |
 | Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
 | Size | 360×103, ~6 KB each, displayed at 180×52 so the source is the 2x asset |
 
 **Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 180×52 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
 
-Do **not** reach for the site lockup in `public/img/logo-tankbag-horiz*.svg`. It is a 51 KB SVG, and SVG is not a format you can rely on in an inbox—Gmail, Outlook and most Android clients drop it outright.
+Do **not** reach for the site lockup in `public/img/logo-routeloop-horiz*.svg`. It is a 51 KB SVG, and SVG is not a format you can rely on in an inbox—Gmail, Outlook and most Android clients drop it outright.
 
 The `-dark` suffix names the ground rather than the ink, here and in `src/views/layout.tsx`: no suffix is the black artwork for a light ground, `-dark` is the reversed white one.
 
@@ -130,21 +130,21 @@ The dark palette is in `DARK` in `theme.ts`, derived from the site's own dark-su
 
 Outside the repo, in this order:
 
-1. **Resend**—add `tankbag.app`, put the SPF and DKIM records it gives you into Cloudflare DNS, wait for verification, create an API key. Domain management needs a **full access** key while the key that ends up in `SMTP_PASS` should be sending-only, so make a full-access one for setup and revoke it afterwards. A sending-only key returns `401 restricted_api_key` on every `/domains` call.
-2. **DMARC**—add a TXT record at `_dmarc.tankbag.app`.
-3. **Cloudflare Email Routing**—enable on `tankbag.app`, verify the destination inbox, route `hello@` and `no-reply@` to it. Do this even if only sending: replies to an address that hard-bounces hurt sender reputation.
+1. **Resend**—add `routeloop.app`, put the SPF and DKIM records it gives you into Cloudflare DNS, wait for verification, create an API key. Domain management needs a **full access** key while the key that ends up in `SMTP_PASS` should be sending-only, so make a full-access one for setup and revoke it afterwards. A sending-only key returns `401 restricted_api_key` on every `/domains` call.
+2. **DMARC**—add a TXT record at `_dmarc.routeloop.app`.
+3. **Cloudflare Email Routing**—enable on `routeloop.app`, verify the destination inbox, route `hello@` and `no-reply@` to it. Do this even if only sending: replies to an address that hard-bounces hurt sender reputation.
 
 Then set the five SMTP values in `.env`. They are already on the deploy allow-list in `utils/deploy/deploy.sh` and already forwarded in `docker-compose.prod.yml`, so no plumbing changes.
 
 ### What is actually deployed, as of 2026-08-07
 
-Steps 1 and 2 are done. `tankbag.app` is verified in Resend, and the zone carries DKIM at `resend._domainkey`, SPF at `send`, and the SES bounce MX at `send`. A message from `hello@tankbag.app` reaches a Gmail inbox with `dkim=pass header.i=@tankbag.app`, `spf=pass` and `dmarc=pass header.from=tankbag.app`.
+Steps 1 and 2 are done. `routeloop.app` is verified in Resend, and the zone carries DKIM at `resend._domainkey`, SPF at `send`, and the SES bounce MX at `send`. A message from `hello@routeloop.app` reaches a Gmail inbox with `dkim=pass header.i=@routeloop.app`, `spf=pass` and `dmarc=pass header.from=routeloop.app`.
 
-**DMARC is live as `v=DMARC1; p=none; rua=mailto:ziad@feralcreative.co`**, not the `p=quarantine` to `dmarc@tankbag.app` that step 2 implies. Both differences follow from step 3 being undone: with no Email Routing there is no `dmarc@tankbag.app` to deliver reports to, and `p=none` gathers those reports without quarantining mail from a domain whose alignment has a day of history behind it. Tighten to `quarantine` once the reports come back clean.
+**DMARC is live as `v=DMARC1; p=none; rua=mailto:ziad@feralcreative.co`**, not the `p=quarantine` to `dmarc@routeloop.app` that step 2 implies. Both differences follow from step 3 being undone: with no Email Routing there is no `dmarc@routeloop.app` to deliver reports to, and `p=none` gathers those reports without quarantining mail from a domain whose alignment has a day of history behind it. Tighten to `quarantine` once the reports come back clean.
 
-**Step 3 is outstanding, so the apex accepts no inbound mail at all**—there are no MX records on `tankbag.app` itself, and a reply to any notification hard-bounces. Worth closing before real riders start receiving mail.
+**Step 3 is outstanding, so the apex accepts no inbound mail at all**—there are no MX records on `routeloop.app` itself, and a reply to any notification hard-bounces. Worth closing before real riders start receiving mail.
 
-Note also that SPF aligns in relaxed mode only: the envelope sender is on `send.tankbag.app` while the From header is the apex. That is DMARC's default and passes, but an `aspf=s` policy would fail SPF alignment and leave DKIM as the single passing mechanism.
+Note also that SPF aligns in relaxed mode only: the envelope sender is on `send.routeloop.app` while the From header is the apex. That is DMARC's default and passes, but an `aspf=s` policy would fail SPF alignment and leave DKIM as the single passing mechanism.
 
 ## Checking it works
 
@@ -155,7 +155,7 @@ npm run typecheck && npm test
 To send all four to a real inbox:
 
 ```bash
-EMAIL_ASSET_ORIGIN=https://tankbag.app npx tsx utils/email-preview.mts [recipient]
+EMAIL_ASSET_ORIGIN=https://routeloop.app npx tsx utils/email-preview.mts [recipient]
 ```
 
 **`EMAIL_ASSET_ORIGIN` is what makes the logo visible.** The wordmark's `<img src>` is built from `APP_ORIGIN`, which is `http://127.0.0.1:6686` in development—an address no inbox can reach—so without it every preview arrives with a broken header. Only `/img/` URLs are rewritten; the links in the body are left pointing at the dev origin, because those are being previewed too and silently aiming them at production would make a magic-link preview actively misleading. The script warns when the variable is unset and `APP_ORIGIN` is not https.

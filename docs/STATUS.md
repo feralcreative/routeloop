@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-09
-**Branch:** `feat/import-export`, based on `origin/main`—765 tests across 33 files, all passing
+**Updated:** 2026-08-11
+**Branch:** `chore/another-fucking-rebrand`, based on `origin/main`—792 tests across 34 files
 **Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
@@ -9,7 +9,7 @@ Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where thin
 
 ## TL;DR
 
-tankbag is a ride **planning / sharing / organizing** app, not navigation. It is live at `tankbag.app` on a Synology NAS behind Cloudflare Tunnel.
+routeloop is a ride **planning / sharing / organizing** app, not navigation. It is live at `routeloop.app` on a Synology NAS behind Cloudflare Tunnel.
 
 Two migrations drove the branch `refactor/google-maps-and-auth`, which is long since merged. **Both are finished**—this table is kept as history, not as work:
 
@@ -17,6 +17,33 @@ Two migrations drove the branch `refactor/google-maps-and-auth`, which is long s
 | ---- | ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
+
+## Renamed back to routeloop, 2026-08-11
+
+The third flip. `routeloop.app` is canonical, `tankbag.app` 301s to it. Entries below this line that say "tankbag" are history and are left as written.
+
+**What made this one cheap:** none of the routeloop infrastructure was ever torn down. Both hostname pairs still have live tunnel routes, the container has been publishing both host ports the whole time, and the Cloudflare Access applications were still named "RouteLoop Login". Each hostname reaches the same port it always has—`routeloop.app` on `:16703`, `tankbag.app` on `:6686`—so `deploy.config` swaps which one is canonical and nothing at Cloudflare moves. **`src/db/schema.ts` contains no brand string at all, so there is no migration and no backfill.**
+
+**The two file-format contracts are write-new, read-both, permanently:**
+
+- **The filename marker.** `buildExportName` writes `routeloop_`; `parseExportName` accepts `routeloop` and `tankbag` via `READ_MARKERS`, and `COMPOUND_EXTS` carries both `.routeloop.json` and `.tankbag.json`. Mirrored in `public/js/filename.js`, with the legacy names in the shared fixture list so the two implementations cannot drift apart on the compatibility rule either.
+- **Native JSON went to format version 3**, which renamed the envelope's version key from `tankbag` to `routeloop`. `nativeVersion()` reads whichever key is present and `isNativeRide` accepts either. `upgradeNativeRide` needed no new arm—v3 changed the envelope, not the ride payload—but note a v1 file necessarily carries the old key, so the oldest upgrade path is now only reachable through it.
+
+Dropping either would have failed **silently**: the files still import, just stripped of day order and dates, which is exactly the information a filename exists to carry because GPX and KML cannot. `test/filename.test.ts` and `test/native.test.ts` both have explicit legacy blocks, because a mass find-and-replace through those fixtures goes green while breaking every file a rider holds.
+
+`GET /api/public/maps/:slug/tankbag.json` stays registered alongside the routeloop path—the ride page linked it, so it is in bookmarks. Both sit ahead of the generic `:format` route, same as the zip route and for the same reason.
+
+**Cookies were renamed with no legacy read**, deliberately: they are host-scoped with no `domain` attribute, so moving the canonical host invalidates them regardless. Everyone signs in once and the alpha splash reappears once. `routeloop_session`, `routeloop_oauth_state`, `routeloop_oauth_verifier`, `routeloop_invite`, and the two `routeloop.*` localStorage keys.
+
+**Corrected while passing through:** `deploy.config` claimed Compose derives its project name from the deploy directory. That stopped being true when `deploy.sh` started pinning `COMPOSE_PROJECT_NAME`—the volume follows `$PROJECT_NAME`, so anyone following the old comment would migrate the wrong thing. The `$accent` comment in `_tokens.scss` was also inverted: the yellow *was* lifted from the RouteLoop wordmark's dashed center line, and now matches the mark again.
+
+**Not done, and not scriptable from the repo:**
+
+1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones *before* the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
+2. **`CLOUDFLARE_ZONE_ID`** in `.env` still points at the tankbag.app zone. The purge failure is non-fatal, so a wrong zone means stale assets behind a green deploy.
+3. **The infrastructure rename needs a data migration.** `PROJECT_NAME`, the container/image/network names and the Postgres role and database all move to `routeloop`. The deploy directory follows `$DOMAIN` and carries the bind-mounted `data/storage` with it; the named volume follows `$PROJECT_NAME` and does not follow a `mv`. Back up first, bring the old stack down from the old directory by hand (the deploy's own `down` runs in the new one and cannot see it), and do not trust the deploy's verification—the origin curl is a warning only and the container check passes against an empty database.
+4. **Brand assets.** The eight RouteLoop logo files deleted in `e8d5873` are recoverable from `e8d5873^` and their `-dark` variants already follow the current background-named convention. Two caveats: the artwork is a pure wordmark where the tankbag mark was icon-plus-wordmark, so the header lockups change shape; and the vertical reversed variant renders "ROUTE" near-white against a mid-grey "LOOP", which reads as a fading wordmark on a dark ground. There are no email PNG variants in that set. Favicons and `og-card.png` carry the wordmark in their pixels and need re-rendering, not renaming.
+5. **GCP console object names are left alone**, following the precedent set at the last rename. The project cannot be renamed in place and the keys are identified by uid.
 
 ## The naming is settled: ride > day > leg, 2026-08-09
 

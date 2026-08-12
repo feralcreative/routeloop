@@ -28,7 +28,7 @@ import {
   rideStartDate,
   type ExportRide,
 } from './maps/export'
-import { buildExportName } from './maps/filename'
+import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
 import { mapFilePath, type StoredExt } from './maps/storage'
 import { adminRoutes } from './routes/admin'
@@ -73,15 +73,19 @@ const app = new Hono<AuthEnv>()
 // runs ahead of every route, so a request arriving on a legacy hostname is
 // redirected before any auth handler sees it.
 //
-// The direction reversed on 2026-07-29: tankbag.app is canonical again and the
-// routeloop.app names now redirect to it. Both hostnames still resolve to the
-// same container over their own tunnel routes, so no tunnel change is needed —
-// only which name wins.
+// The direction has now reversed twice: to routeloop.app, back to tankbag.app on
+// 2026-07-29, and back to routeloop.app on 2026-08-11. Both hostnames still
+// resolve to the same container over their own tunnel routes, so no tunnel
+// change is needed — only which name wins.
+//
+// This table is inverted on a flip, never find-and-replaced. Replacing the
+// strings in place maps a host to itself, and a 301 to itself is an infinite
+// redirect loop that takes the whole site down.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
-  'routeloop.app': 'tankbag.app',
-  'www.routeloop.app': 'tankbag.app',
-  'stage.routeloop.app': 'stage.tankbag.app',
-  'www.tankbag.app': 'tankbag.app',
+  'tankbag.app': 'routeloop.app',
+  'www.tankbag.app': 'routeloop.app',
+  'stage.tankbag.app': 'stage.routeloop.app',
+  'www.routeloop.app': 'routeloop.app',
 }
 
 app.use('*', async (c, next) => {
@@ -266,7 +270,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     csvUrl: `/api/public/maps/${m.slug}/csv`,
     // The only lossless one — days, colours, times and via points survive it.
-    nativeUrl: `/api/public/maps/${m.slug}/tankbag.json`,
+    nativeUrl: `/api/public/maps/${m.slug}/${NATIVE_EXT}`,
     // One file per day, zipped and named by the convention. Offered only for a
     // multi-day ride: a one-day ride zips to an archive holding the file you
     // could have downloaded directly, which is a worse version of the button
@@ -352,7 +356,12 @@ async function attachment(m: RideRow, ext: string): Promise<string> {
 // The lossless one, and its own route because it carries ride-level fields the
 // others do not and is never streamed from a stored file — a native JSON is
 // generated from the rows by definition.
-app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
+//
+// Registered under both names. `tankbag.json` is what this route was called
+// until 2026-08-11, and the ride page linked it, so it is in riders' bookmarks
+// and in whatever scripts they pointed at it. Both must stay ahead of the
+// generic `:format` route below for the same reason the zip route does.
+app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/tankbag.json'], async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
   const native = await loadNativeRide(m.id, {
@@ -368,7 +377,7 @@ app.get('/api/public/maps/:slug/tankbag.json', async (c) => {
     'X-Content-Type-Options': 'nosniff',
   }
   if (c.req.query('dl') !== undefined) {
-    headers['Content-Disposition'] = await attachment(m, 'tankbag.json')
+    headers['Content-Disposition'] = await attachment(m, NATIVE_EXT)
   }
   return new Response(buildNativeJson(native), { headers })
 })
@@ -558,5 +567,5 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
 
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`tankbag dev → http://127.0.0.1:${info.port}`)
+  console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
 })

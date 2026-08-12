@@ -64,7 +64,7 @@ fi
 # container even with -T, so without it the queries below eat the confirmation
 # keystrokes — or, when stdin is a pipe, consume it entirely and leave `read`
 # at EOF, which under `set -e` kills the script with no message at all.
-psql_q() { docker compose exec -T db psql -U tankbag -d tankbag -tAc "$1" </dev/null; }
+psql_q() { docker compose exec -T db psql -U routeloop -d routeloop -tAc "$1" </dev/null; }
 docker compose ps --status running --format '{{.Service}}' </dev/null | grep -qx db \
   || die "The dev database container is not running. Try: docker compose up -d --wait db"
 
@@ -101,7 +101,7 @@ if [ -z "$RIDES_ONLY" ]; then
   # rows in a variable across a truncate. id is deliberately omitted: seed.ts
   # RESTARTs IDENTITY and takes id 1 for its demo user, so the original ids
   # would collide. Nothing references these rows by id after the truncate.
-  SNAPSHOT="$(mktemp -t tankbag-users)"
+  SNAPSHOT="$(mktemp -t routeloop-users)"
   psql_q "SELECT format(
             'INSERT INTO users (email, display_name, username, avatar_url, status, can_manage_riders) VALUES (%L, %L, %L, %L, %L, %L) ON CONFLICT (email) DO UPDATE SET status = EXCLUDED.status, can_manage_riders = EXCLUDED.can_manage_riders;',
             email, display_name, username, avatar_url, status, can_manage_riders)
@@ -112,7 +112,7 @@ if [ -z "$RIDES_ONLY" ]; then
   npx tsx src/db/seed.ts
 
   info "Restoring accounts..."
-  docker compose exec -T db psql -U tankbag -d tankbag -v ON_ERROR_STOP=1 -q < "$SNAPSHOT"
+  docker compose exec -T db psql -U routeloop -d routeloop -v ON_ERROR_STOP=1 -q < "$SNAPSHOT"
   rm -f "$SNAPSHOT"
   ok "Accounts restored"
 else

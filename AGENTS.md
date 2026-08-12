@@ -1,6 +1,6 @@
-# tankbag
+# routeloop
 
-Multi-tenant motorcycle ride planner (TypeScript + Hono + Postgres), live in production at `tankbag.app`. Plan a multi-day ride on one map, share it by link, hand it off to Google Maps, import and export six formats.
+Multi-tenant motorcycle ride planner (TypeScript + Hono + Postgres), live in production at `routeloop.app`. Plan a multi-day ride on one map, share it by link, hand it off to Google Maps, import and export six formats.
 
 ## Rules of engagement
 
@@ -108,7 +108,8 @@ Things an agent gets wrong by default. This section is why the file exists.
 - **`.tb-marker` is deliberately `0×0`** in `style/_map.scss`. An `AdvancedMarkerElement` anchors its content at bottom-center, so a zero-size wrapper puts the anchor on the point and the negative-margin offsets keep working. Give it a size and every marker drifts.
 - **A day is drawn as one polyline**, the concatenated geometry of all its legs, with the duplicate vertex dropped at each joint and no indices consumed by an empty leg. Turning a drag index back into a leg plus a via-point slot is the entire job of `public/js/route-shape.js`. Do not switch to one polyline per leg—the layer-id contract every caller depends on assumes otherwise.
 - **The zip download route is registered ahead of the generic `:format` route on purpose** in `src/index.tsx`. Registered after it, the generic route swallows `/zip/gpx` and answers with a plain GPX. Observed, not theorised.
-- **The `tankbag_` filename marker is load-bearing.** `parseExportName` returns `null` without it, so a rider's own `day-2.gpx` is never reinterpreted. Underscores separate fields and hyphens live inside one; do not simplify the separator. Dates are formatted and parsed in UTC because the roadbook renders `days.start_at` with `timeZone: 'UTC'`.
+- **The `routeloop_` filename marker is load-bearing.** `parseExportName` returns `null` without it, so a rider's own `day-2.gpx` is never reinterpreted. Underscores separate fields and hyphens live inside one; do not simplify the separator. Dates are formatted and parsed in UTC because the roadbook renders `days.start_at` with `timeZone: 'UTC'`.
+- **Two brand names are read where one is written, and that is permanent.** `READ_MARKERS` in `src/maps/filename.ts` accepts `tankbag_` alongside `routeloop_`, `COMPOUND_EXTS` accepts `.tankbag.json`, `nativeVersion()` in `src/maps/export.ts` reads either version key, and `/api/public/maps/:slug/tankbag.json` is still routed. None of that is leftover debris from the rename—it is what keeps every file a rider already downloaded importable, and dropping it fails silently: the files still import, just stripped of the day order and dates that GPX and KML cannot carry internally. `public/js/filename.js` mirrors all of it. Tidying any of it away needs a decision, not a cleanup pass.
 - **A filename is not a format.** It carries four fields and the date is the one doing the work, because GPX and KML cannot hold a schedule. Resist adding roles, colors or dwell to it.
 - **The pre-commit tightener rewrites em dashes in test fixtures too.** `test/em-dashes.test.ts` was once committed comparing strings to themselves because of it.
 - **`utils/` is not in `tsconfig.json`.** `npm run typecheck` does not cover it, and a bad import there fails only at runtime. Check a `utils/` change by hand:

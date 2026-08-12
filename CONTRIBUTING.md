@@ -1,6 +1,6 @@
-# Contributing to Tankbag
+# Contributing to RouteLoop
 
-Tankbag is a motorcycle ride planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
+RouteLoop is a motorcycle ride planner: plan a whole multi-day ride on one map, hand it off to whatever you navigate with, share it over a link. This document is everything you need to get it running and land a change. If something here is wrong or missing, that is a bug in this file—say so.
 
 ## Before you start
 
@@ -60,7 +60,7 @@ To mint a session without a browser at all:
 
 ```bash
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
-# send it as: Cookie: tankbag_session=<token>
+# send it as: Cookie: routeloop_session=<token>
 ```
 
 ### Calling the API by hand

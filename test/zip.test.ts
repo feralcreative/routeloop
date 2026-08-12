@@ -35,11 +35,11 @@ const body = (s: string) => Buffer.from(s, 'utf8')
 describe('buildZip', () => {
   it('round-trips through our own reader', () => {
     const zip = buildZip([
-      { name: 'tankbag_r_d01.gpx', body: body('<gpx/>') },
-      { name: 'tankbag_r_d02.gpx', body: body('<gpx>two</gpx>') },
+      { name: 'routeloop_r_d01.gpx', body: body('<gpx/>') },
+      { name: 'routeloop_r_d02.gpx', body: body('<gpx>two</gpx>') },
     ])
     const out = readZipEntries(zip, opts())
-    expect(out.map((e) => e.name)).toEqual(['tankbag_r_d01.gpx', 'tankbag_r_d02.gpx'])
+    expect(out.map((e) => e.name)).toEqual(['routeloop_r_d01.gpx', 'routeloop_r_d02.gpx'])
     expect(out[1].data.toString('utf8')).toBe('<gpx>two</gpx>')
   })
 
@@ -104,10 +104,10 @@ describe('entryBaseName', () => {
 
 describe('isArchiveCruft', () => {
   it('recognises what macOS Compress adds', () => {
-    expect(isArchiveCruft('__MACOSX/._tankbag_r_d01.gpx')).toBe(true)
-    expect(isArchiveCruft('folder/._tankbag_r_d01.gpx')).toBe(true)
+    expect(isArchiveCruft('__MACOSX/._routeloop_r_d01.gpx')).toBe(true)
+    expect(isArchiveCruft('folder/._routeloop_r_d01.gpx')).toBe(true)
     expect(isArchiveCruft('.DS_Store')).toBe(true)
-    expect(isArchiveCruft('tankbag_r_d01.gpx')).toBe(false)
+    expect(isArchiveCruft('routeloop_r_d01.gpx')).toBe(false)
   })
 })
 

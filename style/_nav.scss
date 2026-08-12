@@ -23,10 +23,13 @@
   display: block;
   line-height: 0;
 
-  // 48px. It went 24 → 34 when the tankbag lockup replaced the routeloop
-  // wordmark, because most of the new height is the bag icon and the word itself
+  // 48px. It went 24 → 34 when the tankbag lockup replaced the RouteLoop
+  // wordmark, because most of that height was the bag icon and the word itself
   // was coming out around 8px tall. 34 was still too small: the mark reads as a
   // favicon beside a nav bar that now carries five items at 0.95rem.
+  //
+  // Worth re-measuring now the wordmark is back: this height was set around an
+  // icon-plus-word lockup, and a pure wordmark fills it differently.
   //
   // Taller than the 40px nav toggle it sits beside, which is fine — the toggle
   // only exists below LG, where the header has nothing else competing with it.

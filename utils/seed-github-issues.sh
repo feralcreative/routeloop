@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Seed GitHub issues for the Tankbag roadmap (docs/ROADMAP.md).
+# Seed GitHub issues for the RouteLoop roadmap (docs/ROADMAP.md).
 #
 # Creates one tracking issue per roadmap item, a set of "good first
 # contributions", and the unscheduled idea backlog — each tagged with area:*
@@ -22,7 +22,7 @@
 
 set -uo pipefail
 
-REPO="feralcreative/tankbag"
+REPO="feralcreative/routeloop"
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
@@ -72,7 +72,7 @@ read -r -d '' B <<'EOF' || true
 - [ ] Move `profile.js` geocoding to a server proxy alongside `POST /api/route`.
 - [ ] Teach the current engine to draw an imported ride's single-leg track, then delete `public/js/main.js` and collapse the two viewer shells.
 - [ ] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION`, `MAPBOX_CSS_LINK` and their config/deploy references.
-- [ ] Regenerate favicons and the social image from the current Tankbag mark.
+- [ ] Regenerate favicons and the social image from the current RouteLoop mark.
 - [ ] Add privacy-policy and terms pages.
 - [ ] Set per-API daily quota caps on the GCP project.
 
@@ -174,7 +174,7 @@ create_issue "Riders and group rides" "roadmap,enhancement,area:schema" "$B"
 read -r -d '' B <<'EOF' || true
 **Goal.** Handle as many open route/map formats as possible, in both directions.
 
-- [ ] Native Tankbag JSON export/import (lossless; the save=load payload already exists).
+- [ ] Native RouteLoop JSON export/import (lossless; the save=load payload already exists).
 - [ ] Import KMZ (zipped KML) and CSV.
 - [ ] Import/export GeoJSON.
 - [ ] Export GPX flavors that load cleanly on Garmin/TomTom (shaping points, not stops).
@@ -232,9 +232,9 @@ create_issue "Quality and platform" "roadmap,enhancement,area:ops" "$B"
 
 # --- Good first contributions (grabbable, small) ----------------------------
 
-create_issue "Regenerate favicons and social image from the Tankbag mark" \
+create_issue "Regenerate favicons and social image from the RouteLoop mark" \
   "good first issue,help wanted" \
-  "Favicons and the social preview still carry the old routeloop mark. Regenerate from the current Tankbag artwork. Pure asset work, no app logic. Part of docs/ROADMAP.md item 1."
+  "Favicons and the social preview still carry the old tankbag mark. Regenerate from the current RouteLoop artwork. Pure asset work, no app logic. Part of docs/ROADMAP.md item 1."
 
 create_issue "Add privacy policy and terms pages" \
   "good first issue,documentation" \

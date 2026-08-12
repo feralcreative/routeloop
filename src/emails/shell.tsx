@@ -146,8 +146,8 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 // client does to the surrounding table.
 const LOGO_W = 180
 const LOGO_H = 52
-const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-tankbag-email-horiz.png`
-const LOGO_DARK = `${APP_ORIGIN}/img/logo-tankbag-email-horiz-dark.png`
+const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-horiz.png`
+const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-horiz-dark.png`
 
 /**
  * The header wordmark.
@@ -157,7 +157,7 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-tankbag-email-horiz-dark.png`
  * to render on first open. That is still true, and it is why every style below
  * that governs ALT TEXT — font, size, weight, color — is set on the <img> itself
  * rather than the cell. With images off, a client draws the alt string using the
- * image's own styles, so "tankbag." still renders in brand-ish shape at roughly
+ * image's own styles, so "routeloop." still renders in brand-ish shape at roughly
  * the right size. The picture carries no information that is not in the alt.
  *
  * The dark copy is a second <img> in a hidden <div> that the media query
@@ -171,7 +171,7 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-tankbag-email-horiz-dark.png`
  */
 function header(): string {
   const img = (src: string) =>
-    `<img src="${src}" width="${LOGO_W}" height="${LOGO_H}" alt="tankbag." style="display:block;width:${LOGO_W}px;height:${LOGO_H}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;color:${COLORS.text};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:26px;line-height:${LOGO_H}px;font-weight:900;letter-spacing:-0.02em;mso-line-height-rule:exactly">`
+    `<img src="${src}" width="${LOGO_W}" height="${LOGO_H}" alt="routeloop." style="display:block;width:${LOGO_W}px;height:${LOGO_H}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;color:${COLORS.text};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:26px;line-height:${LOGO_H}px;font-weight:900;letter-spacing:-0.02em;mso-line-height-rule:exactly">`
 
   return `<td class="tb-cell" style="padding:28px 32px 8px;background-color:${COLORS.white}">
         <div class="tb-logo-light"><a href="${APP_ORIGIN}" style="text-decoration:none">${img(LOGO_LIGHT)}</a></div>
@@ -184,7 +184,7 @@ function header(): string {
 function footer(): string {
   return `<td class="tb-cell tb-foot" style="padding:8px 32px 32px;background-color:${COLORS.white};border-top:1px solid ${COLORS.grey}">
         <p class="tb-muted" style="margin:16px 0 0;color:${COLORS.muted};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:13px;line-height:20px;mso-line-height-rule:exactly">
-          Tankbag—plan the whole ride.<br>
+          RouteLoop—plan the whole ride.<br>
           <a href="${APP_ORIGIN}" class="tb-muted" style="color:${COLORS.muted};background-color:${COLORS.white};text-decoration:underline">${APP_ORIGIN.replace(/^https?:\/\//, '')}</a>
         </p>
       </td>`

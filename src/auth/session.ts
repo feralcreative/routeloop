@@ -10,7 +10,10 @@ import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { sessions, users, type UserRow } from '../db/schema'
 
-export const SESSION_COOKIE = 'tankbag_session'
+// Renamed with the product on 2026-08-11. No legacy name is read: these cookies
+// are host-scoped with no `domain` attribute, so moving the canonical host to
+// routeloop.app invalidates every one of them anyway. Everybody signs in once.
+export const SESSION_COOKIE = 'routeloop_session'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SESSION_TTL_MS = 30 * DAY_MS

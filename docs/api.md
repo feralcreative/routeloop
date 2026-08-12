@@ -2,7 +2,7 @@
 
 Every route, its gate, and the shape it speaks. Handlers live in `src/routes/*` and `src/index.tsx`; the gates are in `src/auth/middleware.ts`.
 
-A host middleware runs ahead of everything: requests for `routeloop.app`, `www.routeloop.app`, `stage.routeloop.app` and `www.tankbag.app` get a 301 to the same path and query on the canonical host. A request on a non-canonical hostname is redirected before any auth handler sees it.
+A host middleware runs ahead of everything: requests for `tankbag.app`, `www.tankbag.app`, `stage.tankbag.app` and `www.routeloop.app` get a 301 to the same path and query on the canonical host. A request on a non-canonical hostname is redirected before any auth handler sees it.
 
 ## Gates
 
@@ -27,7 +27,7 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 | `GET /m/:slug/roadbook` | Printable stop-by-stop sheet, server-rendered, no JavaScript. `routes/roadbook.tsx` |
 | `GET /api/public/rides/:slug/ride.json` | The normalized viewer contract for both sources: ride meta plus `days[]`, each with `track`, `stops[]`, `pois[]` and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track` |
 | `GET /api/public/maps/:slug/:format{kml\|gpx\|geojson\|csv}` | Gated download. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in; every other format is generated from the rows |
-| `GET /api/public/maps/:slug/tankbag.json` | Lossless native export |
+| `GET /api/public/maps/:slug/routeloop.json` | Lossless native export |
 | `GET /api/public/maps/:slug/zip/:format{kml\|gpx\|geojson\|csv}` | One conforming file per day. **Registered ahead of the generic `:format` route on purpose**—after it, the generic route swallows `/zip/gpx` and answers with a plain GPX |
 | `GET /explore`, `/faq`, `/privacy`, `/terms` | `routes/pages.tsx` |
 | `GET /@username` | Public profile (`/:handle{@…}` in `routes/pages.tsx`) |
@@ -45,7 +45,7 @@ All of these carry `requireAuthApi` (or `requireActiveApi`) plus `requireSameOri
 
 | Route | Notes |
 |---|---|
-| `POST /api/maps` | Import: KML, KMZ, GPX, GeoJSON, CSV, a `.zip` of any of those, or native Tankbag JSON → structured rows. Full XXE-safe pipeline plus transactional quota. `routes/maps.ts` |
+| `POST /api/maps` | Import: KML, KMZ, GPX, GeoJSON, CSV, a `.zip` of any of those, or native RouteLoop JSON → structured rows. Full XXE-safe pipeline plus transactional quota. `routes/maps.ts` |
 | `PATCH /api/maps/:id`, `DELETE /api/maps/:id` | Edit and delete, owner-scoped, both sources |
 | `POST /api/rides`, `PUT /api/rides/:id`, `GET /api/rides/:id` | Builder create, full-replace save, owner load. `routes/rides.ts` |
 | `POST /api/rides/:id/clone` | Rebuilds a public native ride through the same `insertRideGraph`. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands private. Private and imported rides 404 rather than 403, so the endpoint confirms nothing |

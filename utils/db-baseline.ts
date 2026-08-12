@@ -86,7 +86,7 @@ async function main() {
     if (!present[0]?.exists) {
       console.error(
         `[baseline] This database has no "${SENTINEL_TABLE}" table, so it is not an existing\n` +
-          '           tankbag database. Run `npm run db:migrate` instead—it will create the\n' +
+          '           routeloop database. Run `npm run db:migrate` instead—it will create the\n' +
           '           schema and record itself. Baselining an empty database would mark the\n' +
           '           migrations applied when they never ran.',
       )

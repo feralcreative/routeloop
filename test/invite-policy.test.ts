@@ -116,11 +116,11 @@ describe('normalizeInviteToken', () => {
 
 describe('inviteUrl', () => {
   it('builds an absolute link', () => {
-    expect(inviteUrl('https://tankbag.app', 'abc')).toBe('https://tankbag.app/i/abc')
+    expect(inviteUrl('https://routeloop.app', 'abc')).toBe('https://routeloop.app/i/abc')
   })
 
   it('does not double the slash when the origin carries one', () => {
-    expect(inviteUrl('https://tankbag.app/', 'abc')).toBe('https://tankbag.app/i/abc')
+    expect(inviteUrl('https://routeloop.app/', 'abc')).toBe('https://routeloop.app/i/abc')
   })
 })
 
