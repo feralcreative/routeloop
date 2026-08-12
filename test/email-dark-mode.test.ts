@@ -74,8 +74,8 @@ describe('the dark-mode block', () => {
 })
 
 describe('the wordmark', () => {
-  const LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-horiz.png`
-  const DARK_SRC = `${APP_ORIGIN}/img/logo-routeloop-email-horiz-dark.png`
+  const LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
+  const DARK_SRC = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
 
   for (const t of ALL_EMAILS) {
     it(`${t.key} carries both copies, absolute`, () => {
@@ -91,7 +91,7 @@ describe('the wordmark', () => {
   it('puts the wordmark in alt text on both copies', () => {
     const alts = [...html.matchAll(/<img[^>]*\balt="([^"]*)"/g)].map((m) => m[1])
     expect(alts).toHaveLength(2)
-    for (const alt of alts) expect(alt).toBe('routeloop.')
+    for (const alt of alts) expect(alt).toBe('RouteLoop')
   })
 
   // Hidden by default and revealed by the query, never the reverse: a client
@@ -146,18 +146,18 @@ describe('the logo assets', () => {
   // The reason cardBg is pinned to pure black. These are opaque PNGs, so each
   // one's own ground shows wherever the card does not match it exactly.
   it('the dark logo is drawn on the dark card color', () => {
-    expect(groundOf('_assets/logo-routeloop-email-horiz-dark.png')).toBe('#000000')
+    expect(groundOf('_assets/logo-routeloop-email-hz-dark@2x.png')).toBe('#000000')
     expect(DARK.cardBg).toBe('#000')
   })
 
   it('the light logo is drawn on the light card color', () => {
-    expect(groundOf('_assets/logo-routeloop-email-horiz.png')).toBe('#ffffff')
+    expect(groundOf('_assets/logo-routeloop-email-hz@2x.png')).toBe('#ffffff')
     expect(COLORS.white).toBe('#fff')
   })
 
   // _assets holds the artwork; public/img is what /img/* actually serves. The
   // email points at the served copy, so updating only the source ships nothing.
-  for (const name of ['logo-routeloop-email-horiz.png', 'logo-routeloop-email-horiz-dark.png']) {
+  for (const name of ['logo-routeloop-email-hz@2x.png', 'logo-routeloop-email-hz-dark@2x.png']) {
     it(`${name} is identical in _assets and public/img`, () => {
       const src = readFileSync(`_assets/${name}`)
       const served = readFileSync(`public/img/${name}`)

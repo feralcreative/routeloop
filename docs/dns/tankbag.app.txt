@@ -1,0 +1,44 @@
+;;
+;; Domain:     tankbag.app.
+;; Exported:   2026-08-12 16:36:31
+;;
+;; This file is intended for use for informational and archival
+;; purposes ONLY and MUST be edited before use on a production
+;; DNS server.  In particular, you must:
+;;   -- update the SOA record with the correct authoritative name server
+;;   -- update the SOA record with the contact e-mail address information
+;;   -- update the NS record(s) with the authoritative name servers for this domain.
+;;
+;; For further information, please consult the BIND documentation
+;; located on the following website:
+;;
+;; http://www.isc.org/
+;;
+;; And RFC 1035:
+;;
+;; http://www.ietf.org/rfc/rfc1035.txt
+;;
+;; Please note that we do NOT offer technical support for any use
+;; of this zone data, the BIND name server, or any other third-party
+;; DNS software.
+;;
+;; Use at your own risk.
+;; SOA Record
+tankbag.app	3600	IN	SOA	boyd.ns.cloudflare.com. dns.cloudflare.com. 2053821919 10000 2400 604800 3600
+
+;; NS Records
+tankbag.app.	86400	IN	NS	boyd.ns.cloudflare.com.
+tankbag.app.	86400	IN	NS	hope.ns.cloudflare.com.
+
+;; CNAME Records
+stage.tankbag.app.	1	IN	CNAME	9b28cb3b-667f-4eba-b443-8e8e9b841913.cfargotunnel.com. ; cf_tags=cf-proxied:true
+tankbag.app.	1	IN	CNAME	9b28cb3b-667f-4eba-b443-8e8e9b841913.cfargotunnel.com. ; cf_tags=cf-proxied:true
+www.tankbag.app.	1	IN	CNAME	9b28cb3b-667f-4eba-b443-8e8e9b841913.cfargotunnel.com. ; cf_tags=cf-proxied:true
+
+;; MX Records
+send.tankbag.app.	60	IN	MX	10 feedback-smtp.us-east-1.amazonses.com.
+
+;; TXT Records
+_dmarc.tankbag.app.	60	IN	TXT	"v=DMARC1; p=none; rua=mailto:ziad@feralcreative.co"
+resend._domainkey.tankbag.app.	60	IN	TXT	"p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCw12KpcrpcPwN+Y1Qhoyvc2DvGV3BlJY9FJYSkaGcGxYQvl2LadydCVkoezRRABM34xSkzzszvnyEJ7V4j/FwzNloHYGDeoYcAdbjwJVez4tEDGj26r3Whw92LCl7ok2GkNa5fiOWi076pqYrH8MB4n3jKSLG3XhlINajykDoR+wIDAQAB"
+send.tankbag.app.	60	IN	TXT	"v=spf1 include:amazonses.com ~all"

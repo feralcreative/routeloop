@@ -20,8 +20,8 @@ export function alphaSplash(): string {
   return (
     <div class="modal-backdrop" id="alpha-splash" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="alpha-title" aria-describedby="alpha-body">
-        {/* .modal is $white, so this takes the black artwork, not the reversed one. */}
-        <img class="modal-logo" src="/img/logo-routeloop-vert.svg" alt="" width="920" height="648" />
+        {/* .modal is $white, so this takes the dark artwork, not the reversed one. */}
+        <img class="modal-logo" src="/img/logo-routeloop.svg" alt="" width="920" height="518" />
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
@@ -88,12 +88,18 @@ export function SplashPage({
       <SplashMedia />
       <main class="splash">
         {/*
-          The reversed lockup — `-dark` names the ground it sits on, not the
-          ink. This is over the darkened video, and it was the black artwork
-          here until 2026-08-09, at 1456x426 against a file that was actually
-          1595x456, so it was both invisible and stretched 2%.
+          The reversed lockup — `-dk` names the ground it sits on, not the ink.
+          This is over the darkened video, and it was the dark artwork here until
+          2026-08-09, at 1456x426 against a file that was actually 1595x456, so
+          it was both invisible and stretched 2%.
+
+          The STACKED mark, where every other splash-era version of this was the
+          horizontal one. That lockup is now 8.15:1, and nothing this page can do
+          with width buys back the height a logo needs to hold its own beside the
+          headline: at the 420px it used to occupy it renders 52px tall against
+          the old 123px. The stacked mark gets there at 240px wide.
         */}
-        <img class="splash-logo" src="/img/logo-routeloop-horiz-dark.svg" alt="RouteLoop" width="1595" height="456" />
+        <img class="splash-logo" src="/img/logo-routeloop-dk.svg" alt="RouteLoop" width="920" height="518" />
         <p class="eyebrow">{eyebrow}</p>
         <h1>{heading}</h1>
         {children}

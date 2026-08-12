@@ -87,7 +87,7 @@ Both localhost forms are listed deliberately—`isAllowedOrigin` in [src/config.
 Publishing status **In production**, user type **External**. With only non-sensitive scopes this needs no review. Fill in:
 
 - App name, user support email, developer contact email
-- App logo—use `_assets/logo-routeloop-vert@2x.png` (1840×1296, the black artwork; Google renders it on a white consent screen). It is not under `public/`, because nothing on the site links to it and the console upload is a one-off.
+- App logo—use `_assets/logo-routeloop@2x.png` (1840×1036, the stacked dark artwork; Google renders it on a white consent screen). It is not under `public/`, because nothing on the site links to it and the console upload is a one-off.
 - Authorized domains: `routeloop.app`
 - A privacy policy URL and terms URL. These are required fields for a published external app, and neither exists yet. Two static pages.
 

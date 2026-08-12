@@ -36,6 +36,7 @@ This section outranks everything else in this file and everything in the codebas
 | Typecheck | `npm run typecheck` |
 | Compile CSS | `npm run sass` |
 | Prose dash check / fix | `npm run check:dashes` / `npm run fix:dashes` |
+| Regenerate the favicon set | `node utils/build-favicons.mjs` (needs `rsvg-convert`; writes all eight files in `public/img/favicon/`) |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath .githooks` |
 
 `npm run dev` runs `db:migrate` first via `predev`. Port 6686 belongs to this project: if it is bound, kill what holds it and reuse the port—never start on another one.

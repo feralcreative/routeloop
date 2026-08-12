@@ -131,23 +131,31 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 
 // The wordmark, one asset per scheme.
 //
-// Both are 360x103 and about 6 KB, drawn for this purpose — not a scaled copy
-// of the site lockup, which is a 51 KB SVG most clients will not render at all.
-// Displayed at half size, so the source is the 2x asset.
+// Both are 800x100 and about 10 KB, drawn for this purpose — not a scaled copy
+// of the site lockup, which is an SVG most clients will not render at all.
+// Displayed at half size, so the file named here is the 2x asset and the name
+// says so.
 //
 // The `-dark` suffix names the ground, not the ink: LOGO_DARK is the reversed
 // white artwork, for a dark client. Same convention as the site's SVG pair in
-// src/views/layout.tsx.
+// src/views/layout.tsx, which spells it `-dk`; these two keep `-dark` because
+// that is how the artwork was delivered.
 //
 // Both are also OPAQUE, which is the property that makes this work at all and
 // is worth checking before swapping either file. A transparent PNG disappears
 // wherever the client repaints the cell behind it; these carry their own ground
 // (white / #000), so each one is correct on its own regardless of what the
-// client does to the surrounding table.
-const LOGO_W = 180
-const LOGO_H = 52
-const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-horiz.png`
-const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-horiz-dark.png`
+// client does to the surrounding table. test/email-dark-mode.test.ts reads the
+// corner pixel of each rather than trusting this paragraph.
+//
+// The mark went from 3.5:1 to 8.15:1 in the 2026-08-11 rebrand, so this is 400
+// wide where it was 180 — nearly the full 536px the cell has — and 50 tall where
+// it was 52. Anything narrower renders a wordmark too short to read beside 16px
+// body copy.
+const LOGO_W = 400
+const LOGO_H = 50
+const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
+const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
 
 /**
  * The header wordmark.
@@ -157,7 +165,7 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-horiz-dark.png`
  * to render on first open. That is still true, and it is why every style below
  * that governs ALT TEXT — font, size, weight, color — is set on the <img> itself
  * rather than the cell. With images off, a client draws the alt string using the
- * image's own styles, so "routeloop." still renders in brand-ish shape at roughly
+ * image's own styles, so "RouteLoop" still renders in brand-ish shape at roughly
  * the right size. The picture carries no information that is not in the alt.
  *
  * The dark copy is a second <img> in a hidden <div> that the media query
@@ -171,7 +179,7 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-horiz-dark.png`
  */
 function header(): string {
   const img = (src: string) =>
-    `<img src="${src}" width="${LOGO_W}" height="${LOGO_H}" alt="routeloop." style="display:block;width:${LOGO_W}px;height:${LOGO_H}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;color:${COLORS.text};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:26px;line-height:${LOGO_H}px;font-weight:900;letter-spacing:-0.02em;mso-line-height-rule:exactly">`
+    `<img src="${src}" width="${LOGO_W}" height="${LOGO_H}" alt="RouteLoop" style="display:block;width:${LOGO_W}px;height:${LOGO_H}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;color:${COLORS.text};background-color:${COLORS.white};font-family:${FONT_STACK};font-size:26px;line-height:${LOGO_H}px;font-weight:900;letter-spacing:-0.02em;mso-line-height-rule:exactly">`
 
   return `<td class="tb-cell" style="padding:28px 32px 8px;background-color:${COLORS.white}">
         <div class="tb-logo-light"><a href="${APP_ORIGIN}" style="text-decoration:none">${img(LOGO_LIGHT)}</a></div>

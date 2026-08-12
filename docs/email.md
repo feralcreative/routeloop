@@ -97,19 +97,21 @@ Not stylistic. Outlook on Windows renders with Word's engine, Gmail clips a long
 
 ### The logo, and why there are two of them
 
-The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="routeloop."` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
+The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="RouteLoop"` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
 
 | | |
 | --- | --- |
-| Source | `_assets/logo-routeloop-email-horiz.png`, `…-dark.png` |
+| Source | `_assets/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png` |
 | Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
-| Size | 360×103, ~6 KB each, displayed at 180×52 so the source is the 2x asset |
+| Size | 800×100, ~10 KB each, displayed at 400×50 so the file named is the 2x asset |
 
-**Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 180×52 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
+The mark is 8.15:1 since the 2026-08-11 rebrand, against 3.5:1 before it, which is why the display size went from 180×52 to 400×50—nearly the full 536px the cell has. Anything narrower renders a wordmark too short to read beside 16px body copy.
 
-Do **not** reach for the site lockup in `public/img/logo-routeloop-horiz*.svg`. It is a 51 KB SVG, and SVG is not a format you can rely on in an inbox—Gmail, Outlook and most Android clients drop it outright.
+**Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 400×50 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
 
-The `-dark` suffix names the ground rather than the ink, here and in `src/views/layout.tsx`: no suffix is the black artwork for a light ground, `-dark` is the reversed white one.
+Do **not** reach for the site lockup in `public/img/logo-routeloop-hz*.svg`. It is a 10 KB SVG, and SVG is not a format you can rely on in an inbox—Gmail, Outlook and most Android clients drop it outright.
+
+The `-dark` suffix names the ground rather than the ink, here and in `src/views/layout.tsx`: no suffix is the dark artwork for a light ground, `-dark` is the reversed white one. The site's SVG pair spells the same idea `-dk`; the two email PNGs keep `-dark` because that is how the artwork was delivered.
 
 ### Dark mode
 

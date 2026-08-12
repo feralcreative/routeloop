@@ -131,17 +131,21 @@ function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: s
 function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
-  // it is 131px wide against the horizontal lockup's 168px, so it takes less of
-  // the map.
+  // it is 114px wide against the horizontal lockup's 228px, so it takes half as
+  // much of the map. The gap is much wider than it used to be, because the
+  // horizontal lockup is now 8.15:1 where the old one was 3.5:1.
   //
   // Both are the unsuffixed artwork. The suffix names the *background*, not the
-  // ink: no suffix is the black lockup for a light ground, `-dark` is the
-  // reversed white one for a dark ground. It reads backwards at a glance, which
-  // is why it is written down — but it is the convention src/emails/shell.tsx
-  // was already using, so the alternative was two conventions instead of one.
+  // ink: no suffix is the dark lockup for a light ground, `-dk` is the reversed
+  // white one for a dark ground. It reads backwards at a glance, which is why it
+  // is written down — but it is the convention src/emails/shell.tsx was already
+  // using, so the alternative was two conventions instead of one.
+  //
+  // `-hz` is the one-line lockup; the stacked one carries no axis suffix at all.
+  // Both names are the artwork's own, as delivered.
   const logo = isMap
-    ? { src: '/img/logo-routeloop-vert.svg', w: 920, h: 648 }
-    : { src: '/img/logo-routeloop-horiz.svg', w: 1595, h: 456 }
+    ? { src: '/img/logo-routeloop.svg', w: 920, h: 518 }
+    : { src: '/img/logo-routeloop-hz.svg', w: 1500, h: 184 }
 
   return (
     <header class="site-header" id="site-header">
