@@ -1,14 +1,51 @@
-# Auth and place-search: cost and architecture
+# Decisions
 
-**Written:** 2026-07-26
-**Status:** analysis for a decision, nothing implemented
+Why the load-bearing choices were made, what was rejected, and what would have to be true to revisit them. Read this before undoing something that looks arbitrary. Operating rules are in [AGENTS.md](../AGENTS.md); how the pieces fit is in [architecture.md](architecture.md).
+
+## Mapbox to Google Maps, 2026-07-30
+
+**The driver was place-search quality, not rendering.** The reason it was a whole-engine swap rather than a search swap is that Google's terms forbid displaying Places content on a non-Google map, so "keep Mapbox rendering, use Google search" was never available. The full cost analysis that preceded the decision is preserved below.
+
+It cost one file rather than three because `public/js/map-common.js` already owned every vendor call. The Mapbox version had left marker construction to its callers, which is exactly why the earlier engine change touched three.
+
+`TWO_WHEELER` looks like the obvious travel mode for a motorcycle app and does not work in the United States—the Routes API answers HTTP 200 with an empty body. `DRIVE` is deliberate; see [debugging.md](debugging.md).
+
+## Retiring the second viewer, 2026-08-01
+
+`public/js/main.js` was 1,135 lines of `google.maps` that predated everything else, served imported rides on their own shell, and read `window.MOTO` rather than `window.TB`. It survived the Mapbox era as the reference implementation for the port *back* to Google. Once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one day with one leg. Retiring it was flipping a conditional and deleting a file, not porting a renderer.
+
+## `drizzle-kit push` to generated migrations, 2026-08-10
+
+`push` left no artifact, so a schema change existed only in the database it was run against: it reached neither the second dev machine nor a reviewer's diff, and resurfaced as a 500 on whichever machine had not run it. `migrate` also cannot prompt, which matters more than it looks—`push`'s interactive questions are what made the deploy step unrunnable over SSH and what made `--force` tempting, and `--force` means "answer yes to everything", including "do you want to truncate the users table?". Full reasoning and the baseline procedure: [database.md](database.md).
+
+The dated files in `utils/deploy/sql/` are the `push`-era record of what ran against production. They stay as history; new schema work does not go there.
+
+## `ride > day > leg > stop/POI`, settled 2026-08-09
+
+The `routes` table was renamed to `days` because every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field—while the code said "route", and "route" was simultaneously the import copy's word for a whole ride and the ~130 `app.route()` identifiers that mean HTTP handlers. "Route" now means only a path, or a route *file* from another app. `route_legs` keeps its name because the route there is the path a day traces.
+
+## The export filename carries four fields and no more
+
+The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Tankbag JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
+
+## Turnstile, and why it is off
+
+Cloudflare Turnstile guards uploads and saves but is feature-flagged off until keys are set, so an unconfigured environment is not silently unprotected-looking-protected. Cloudflare **Access** was removed from the codebase entirely on 2026-07-30—it is billed per seat and could not survive open signups. The Access *policy* still exists at the Cloudflare edge and is pure redundancy; the app has not read the header it injects since that date.
+
+## Qlty over SonarCloud, 2026-08-03
+
+SonarCloud reported 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs. Nobody reads 258 of anything. Only the two secret scanners block; everything else comments. The reasoning per plugin, including why SCSS is excluded from prettier there, is in `.qlty/qlty.toml`.
+
+## Appendix: auth and place-search cost analysis, 2026-07-26
+
+Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
 
 Two questions, both of which turn out to have a single dominant factor rather than a close trade-off.
 
 1. Multi-provider passwordless auth (Google, Apple, magic link) with a small audience now and an open door later.
 2. Whether to move place search from Mapbox to Google, and what that costs at 100 / 1,000 / 10,000 / 100,000 users.
 
-## Summary
+### Summary
 
 **Auth.** Cloudflare Access cannot be the long-term answer at any price you would accept—it is billed per seat, at $7/user/month for *every* user once you pass 50. It is an employee-access product being used as a consumer identity system. Move authentication into the app now, keep `users.status` as the capacity lever, and delete the Access trust path in the same change.
 
@@ -16,9 +53,9 @@ Two questions, both of which turn out to have a single dominant factor rather th
 
 <!--| PAGE-BREAK -->
 
-## Part 1—Auth
+### Part 1—Auth
 
-### The cost that decides it
+#### The cost that decides it
 
 Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go plan is **$7 per user per month applied to all users**—there is no partial billing, so user 51 moves the whole roster onto the paid rate.
 
@@ -32,7 +69,7 @@ Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go p
 
 App-level auth has no per-user licence cost. The only variable is transactional email for magic links, which is fractions of a cent per message.
 
-### What you already have
+#### What you already have
 
 More than it looks like. The pieces for this were built and then half removed:
 
@@ -43,7 +80,7 @@ More than it looks like. The pieces for this were built and then half removed:
 
 So the work is: reinstate Arctic, add an Apple provider, add a magic-link table and two routes, and delete the Access bridge. The user model does not change.
 
-### Magic link
+#### Magic link
 
 One new table, following the `sessions` pattern exactly—store the hash, never the token:
 
@@ -63,7 +100,7 @@ Three things that are easy to get wrong and expensive to get wrong late:
 - **Rate limit per email and per IP.** Without it the endpoint is a free spam cannon pointed at arbitrary inboxes, and your sending domain pays for it.
 - **Do not reveal whether an address has an account.** The response is identical either way; only the email content differs.
 
-### Apple, specifically
+#### Apple, specifically
 
 Sign in with Apple is the fiddliest of the three, and worth knowing before you commit:
 
@@ -72,7 +109,7 @@ Sign in with Apple is the fiddliest of the three, and worth knowing before you c
 - Apple posts back with `response_mode=form_post`, so the callback is a POST, not a GET like Google's. Your CSRF `requireSameOrigin` gate will reject it as written—it needs an explicit exemption on that one route.
 - Apple's private relay hands you a `@privaterelay.appleid.com` address. Treat it as a real address; do not try to match it against a Google identity by email.
 
-### The migration hazard
+#### The migration hazard
 
 This one is worth stating on its own because it is a full authentication bypass if missed.
 
@@ -80,7 +117,7 @@ This one is worth stating on its own because it is a full authentication bypass 
 
 **Delete the header trust in the same commit that removes the Access application.** Not before, not after. The same applies to the `DEV_AUTH_EMAIL` fallback, which is currently guarded only by `APP_ORIGIN` not being HTTPS.
 
-### Recommendation
+#### Recommendation
 
 Build it now, as you suggested. The reasoning is not that Access is bad—it is that Access is billed per seat, so the migration is not optional, only delayed. Doing it now costs a sprint. Doing it after you open signups means migrating live accounts across an identity boundary, which is materially harder.
 
@@ -88,9 +125,9 @@ Keep `users.status` as the gate. That is what lets you open signups on your own 
 
 <!--| PAGE-BREAK -->
 
-## Part 2—Place search
+### Part 2—Place search
 
-### The constraint that comes before cost
+#### The constraint that comes before cost
 
 Google Maps Platform terms prohibit using Google Maps Core Services with, or near, a non-Google map. Displaying Places content on a Mapbox map is explicitly called out as not permitted.
 
@@ -101,13 +138,13 @@ That removes the option you were probably considering—keeping Mapbox GL for re
 
 There is no supported middle path.
 
-### You may be comparing the wrong Mapbox product
+#### You may be comparing the wrong Mapbox product
 
-The builder currently calls the **Geocoding v6 forward** endpoint ([public/js/builder.js:428](../public/js/builder.js#L428)). Geocoding is an address-resolution service—it is built to turn "1600 Pennsylvania Ave" into a coordinate, not to find "coffee near this pass."
+The builder currently calls the **Geocoding v6 forward** endpoint (the `geocode` call in `public/js/builder.js`). Geocoding is an address-resolution service—it is built to turn "1600 Pennsylvania Ave" into a coordinate, not to find "coffee near this pass."
 
 Mapbox's product for business and POI search is the **Search Box API**, which is session-based, POI-aware and interactive-autocomplete oriented. Before concluding Mapbox loses to Google on quality, it is worth trying the product that is actually aimed at the thing you are doing. This is a contained experiment—one endpoint swap in one file.
 
-### Cost model
+#### Cost model
 
 Cost scales with **usage, not user count**, so everything below rests on an assumed usage profile. Adjust this first if it looks wrong for your riders.
 
@@ -124,7 +161,7 @@ Per active user per month:
 | 10,000 | 160,000 | 100,000 | 400,000 |
 | 100,000 | 1,600,000 | 1,000,000 | 4,000,000 |
 
-### The comparison
+#### The comparison
 
 | | Mapbox as built (Geocoding) | Mapbox + Search Box | Google (full switch) |
 | --- | --- | --- | --- |
@@ -149,7 +186,7 @@ Unit rates behind those figures:
 | Map loads | $5/1k after 50k free, to $2.50 at volume | Dynamic Maps $7/1k after 10k free |
 | Directions | $2/1k after 100k free, to $1.20 at volume | $5/1k Essentials after 10k free · $10/1k Advanced |
 
-### Reading the table
+#### Reading the table
 
 **Below roughly 1,000 users none of this matters.** Every option is free or close to it. Choosing on cost at your current scale is optimising a rounding error—choose on quality and on migration risk.
 
@@ -159,7 +196,7 @@ Unit rates behind those figures:
 
 **The Place Details tier is the biggest unknown in the Google column.** If the fields you need (display name, formatted address) fall in Pro rather than Essentials, that line goes from $5 to $17 per 1,000—roughly $19,000/month more at 100,000 users. Verify the field tiers before taking Google seriously.
 
-### Recommendation
+#### Recommendation
 
 Try Search Box before switching engines. It is one endpoint in one file, it keeps every option open, and it directly tests the hypothesis that the quality gap is Google-versus-Mapbox rather than geocoder-versus-search-product. If Search Box closes the gap, you keep a cheaper stack, a renderer you already know, and the freedom to change your mind later.
 
@@ -167,7 +204,7 @@ If Search Box still disappoints, then the Google question becomes real—and it 
 
 <!--| PAGE-BREAK -->
 
-## Confidence and gaps
+### Confidence and gaps
 
 Verified against primary sources this session:
 
@@ -184,7 +221,7 @@ Not verified, and load-bearing if you act on it:
 - **Email provider pricing** for magic links. The order of magnitude is right; the specific figure is not researched.
 - **Mapbox Search Box preview pricing.** Mapbox currently shows a lower introductory rate ($3/1k, 500 free) alongside standard pricing. The table uses standard rates, on the assumption that preview pricing ends.
 
-## Sources
+### Sources
 
 - [Cloudflare Zero Trust pricing](https://zerotrustcost.com/cloudflare-zero-trust-pricing)
 - [Cloudflare Access pricing](https://costbench.com/software/ztna/cloudflare-access/)
