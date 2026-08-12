@@ -201,7 +201,7 @@ Verified this session:
 Not verified:
 
 - Whether Routes API can be called directly from a browser. The proxy recommendation above avoids needing to know.
-- The exact Places API field-to-SKU-tier mapping, which is the largest cost variable in the switch—see [decisions-auth-and-search.md](decisions-auth-and-search.md).
+- The exact Places API field-to-SKU-tier mapping, which is the largest cost variable in the switch—see [decisions.md](decisions.md).
 - Current Workspace and consumer Gmail sending limits.
 
 ## Sources

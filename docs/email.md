@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-08
 
-How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [\_AI_AGENT_PRIMER.md](../_AI_AGENT_PRIMER.md); this covers the mail subsystem alone.
+How Tankbag sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
 
 ## The shape of it
 

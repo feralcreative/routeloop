@@ -1,4 +1,26 @@
-# Database schema workflow
+# Database
+
+`src/db/schema.ts` is the source of truth. This file covers what the tables are for and how a change to them reaches a database.
+
+## The tables
+
+Read `schema.ts` for columns; this is what each one is *for* and the constraints that are not obvious from a type.
+
+- **`users`**—identity, `quota_bytes`, and `used_bytes`, a denormalized cache incremented on import and decremented on delete with no reconciler, so it drifts. The dashboard computes the authoritative sum alongside it and reports the disagreement.
+- **`user_identities`**—one row per login method, so a rider can arrive by Google or by magic link and land on the same account. Legacy Google and GitHub identity rows remain valid.
+- **`sessions`**—the PK is the SHA-256 hash of the browser token, never the token.
+- **`rides`**—`owner_id`, unguessable `slug`, `title`, `description`, `visibility` (public / unlisted / private), `source` (native | imported), `external_url`, the byte columns plus generated `size_bytes`, and the caches `total_miles`, `total_duration_s`, `stop_count`.
+- **`days`**—`ride_id`, `position`, `title`, `color` (feeds the legend), `start_at`/`end_at` (nullable), `distance_m`, `duration_s`. A position, not a calendar date: two days may share a date, and an undated ride still has days.
+- **`points`**—`day_id`, `kind` (stop | poi), `position` (stop order, null for POIs), `lat`/`lng`, `name`, `description`, `roles waypoint_role[]` (at most 4, checked by the database), `duration_min` (null means no duration), `dist_from_start_m` (server-computed).
+- **`route_legs`**—`day_id`, `position` (leg *i* joins stop *i* to *i+1*), `geometry jsonb` as `[lng,lat][]` at 6 decimals, `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
+
+Enums: `provider`, `visibility`, `ride_source`, `point_kind`, and `waypoint_role`—the 17 roles, which must stay in sync with `src/maps/roles.ts`.
+
+**`rides.size_bytes` is generated as the sum of every byte column.** A column missing from that expression leaks quota on every delete, silently and permanently, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete.
+
+**One rendering path for both sources.** An imported ride is stored as one day with a single leg at position 0 holding the whole track; a native ride has one leg per pair of stops. Viewers always render `concat(legs)` per day.
+
+## Migrations
 
 `src/db/schema.ts` is the source of truth for the schema. Since 2026-08-10 changes to it reach a database through **generated migration files** in [drizzle/](../drizzle/), committed to the repo and applied with `drizzle-kit migrate`. This replaced `drizzle-kit push`.
 

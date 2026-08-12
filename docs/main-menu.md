@@ -54,5 +54,5 @@ Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta
 
 ## Open
 
-- **What Settings holds.** Units (miles/km), default ride visibility, and email preferences are the obvious candidates; none is decided.
+- **What Settings holds.** Two entries are now decided, both from the 2026-08-10 builder click-through and both tracked under roadmap item 16: **the stop-duration format** (hours to one decimal by default, switchable to hours+minutes or plain minutes), and **un-dismissing the exit confirmation**, if that confirmation survives the autosave work at all. Units (miles/km), default ride visibility and email preferences remain the obvious untaken candidates.
 - **The avatar.** `users.avatar_url` exists and is populated from Google sign-in. Riders who used a magic link have none, so the account trigger needs a fallback—initials on a tinted disc is the cheapest, but it is not decided.

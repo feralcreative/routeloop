@@ -4,7 +4,7 @@ Tankbag is a motorcycle ride planner: plan a whole multi-day ride on one map, ha
 
 ## Before you start
 
-Read [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md) for the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
+Read [AGENTS.md](AGENTS.md) for the operating rules and the architecture, then [docs/STATUS.md](docs/STATUS.md) for where things actually stand. [docs/ROADMAP.md](docs/ROADMAP.md) is the plan; this file is the mechanics.
 
 **Picking something up.** Every open issue carries a **P0–P3** label and those labels are the authority on what matters, not the issue numbers. Anything tagged `good first issue` is scoped to be landable without holding the whole app in your head. The `area:*` labels say which part of the codebase a change touches—`area:schema` in particular means it has to be serialized against other schema work, because schema work has to be applied in order.
 
@@ -36,7 +36,7 @@ Do this once per clone. Git does not enable repo hooks by default and nothing wi
 ```bash
 npm run dev          # the app on port 6686, plus the SCSS watcher and live reload
 npm run dev:server   # the app alone, if you want to run sass yourself
-npm test             # the suite, 765 tests, no database needed
+npm test             # the suite — pure logic, no database needed
 npm run test:watch   # the same, watching
 npm run typecheck    # tsc --noEmit
 npm run sass         # compile SCSS — never an IDE extension

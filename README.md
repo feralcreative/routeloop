@@ -2,7 +2,7 @@
 
 Tankbag (tankbag.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [\_AI_AGENT_PRIMER.md](_AI_AGENT_PRIMER.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Tankbag has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [AGENTS.md](AGENTS.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -17,7 +17,7 @@ Two replacements drove the `refactor/google-maps-and-auth` branch. **Both are fi
 | Auth | Cloudflare Access                  | Google OAuth + emailed magic link, owned by the app | **Deployed 2026-07-30** and signing in ever since; the Access policy at the Cloudflare edge still has to be pulled |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places (New) + Routes              | **Done.** Rendering, search, routing and geocoding all on Google; no `MAPBOX_*` value is read anywhere             |
 
-Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions-auth-and-search.md](docs/decisions-auth-and-search.md).
+Auth changed because Cloudflare Access is billed **per seat**, which cannot survive opening signups. Maps changed because place search on Mapbox Geocoding was not good enough for finding businesses, and each provider's terms tie their search results to their own basemap—so it was the whole engine or nothing. The reasoning for both is recorded in [docs/decisions.md](docs/decisions.md).
 
 **The only loose end is at the edge, not in the repo:** the Cloudflare Access policy is still defined and is now pure redundancy, since the deployed app has not read the header it injects since 2026-07-30. That ordering mattered—pulling the policy before the code shipped would have left the running app open—and it is satisfied, so the policy can go whenever.
 
@@ -208,7 +208,7 @@ drizzle/              Generated migrations + meta/ snapshots — committed;
                       applied by db:migrate and the post-deploy hook
 vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
-                      ideas.md (vision), decisions-auth-and-search.md,
+                      ideas.md (vision), decisions.md,
                       google-cloud-setup.md
 CONTRIBUTING.md       Setup, gotchas, conventions — start here to contribute
 _PLANS/               Plans + session handoff
