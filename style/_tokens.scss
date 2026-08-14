@@ -14,7 +14,20 @@ $text: #333;
 $pending: #b26a00;
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
-$font: lato;
+// Unquoted to match every other token here; CSS family names are case-
+// insensitive identifiers, so this matches the "Archivo" the webfont declares.
+//
+// Archivo is variable on both axes — weight 100–900 and width 62–125% — which
+// is why it replaced Barlow, whose single static width read as cramped. Two
+// consequences worth knowing before touching type here:
+//
+// Any weight is now a real cut. Under Lato, 500 and 600 did not exist and a
+// request for either silently rounded up to 700.
+//
+// Width is a knob, not a fixed property. `font-stretch: 105%` on a rule opens
+// the text up further without changing the typeface; the default instance is
+// 100%. Reach for that before reaching for another family.
+$font: archivo;
 
 // Forward-looking alias. `$url` is historical — it is the generic accent, not a
 // link color — so new work should reach for `$brand`.

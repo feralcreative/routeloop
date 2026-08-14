@@ -13,9 +13,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { content } from '../src/views/content'
 
 const FAQ_IDS = [
-  'tank-bag',
   'need-a-motorcycle',
-  'luggage-brands',
   'is-it-navigation',
   'gps-ignores-route',
   'vs-google-maps',

@@ -9,10 +9,10 @@ Synology NAS running Docker, behind Cloudflare Tunnel; HTTPS terminates at the e
 The app always listens on 6686 *inside* the container. Each container publishes **two** host ports and answers on both, which is what let the canonical name change without touching tunnel config: the alias hostname 301s to the canonical one in app code.
 
 ```text
-routeloop.app          → localhost:6686   (canonical, prod)
-routeloop.app        → localhost:16703  (same container, 301s away)
-stage.routeloop.app    → localhost:16687  (canonical, stage)
-stage.routeloop.app  → localhost:6687   (same container, 301s away)
+routeloop.app          → localhost:16703  (canonical, prod)
+tankbag.app            → localhost:6686   (same container, 301s away)
+stage.routeloop.app    → localhost:6687   (canonical, stage)
+stage.tankbag.app      → localhost:16687  (same container, 301s away)
 ```
 
 `www.routeloop.app` has a DNS record but no tunnel route, so it returns a bare Cloudflare 404. The app already 301s `www` to the apex in `LEGACY_HOSTS`; it just never receives the request.

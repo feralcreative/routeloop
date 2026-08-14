@@ -379,7 +379,22 @@ export function page(opts: PageOpts): string {
   -->
   <meta property="og:image" content="${asset('/img/og-card.png')}">
   <meta name="twitter:card" content="summary_large_image">
-  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet">
+  <!--
+    Archivo, the whole design space in one request: weight 100–900 and width
+    62–125%, upright and italic. Both ranges are axes on a variable font rather
+    than a list of cuts, so this asks for six subset files, not the 36 the same
+    matrix would cost as static instances.
+
+    The axis order in the URL is not stylistic — the css2 API requires axes in
+    alphabetical order (ital, wdth, wght) and rejects any other arrangement.
+
+    display=swap renders fallback text immediately and repaints when Archivo
+    arrives. The default would instead blank the text for up to three seconds on
+    a slow connection.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>

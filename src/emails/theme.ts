@@ -112,8 +112,10 @@ export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.v
 
 // No webfont. layout.tsx links Google Fonts for the site; an email must not,
 // because a <link> in a mail body is stripped or ignored by every major client
-// and the fallback is what renders anyway. Lato where it happens to be
-// installed, Arial everywhere else — which is the realistic outcome regardless.
+// and the fallback is what renders anyway. Archivo where it happens to be
+// installed, Arial everywhere else — which is the realistic outcome regardless,
+// and more so than it was under Lato: Archivo is the rarer face to find sitting
+// on a reader's machine, so mail is now Arial in all but a handful of cases.
 //
 // UNQUOTED on purpose, and this is not a style preference. These strings end up
 // inside a style="" attribute rendered by Hono's JSX, which escapes ' to &#39;
@@ -123,7 +125,7 @@ export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.v
 // family name to be a sequence of identifiers, so `Helvetica Neue` unquoted is
 // valid and sidesteps the question entirely. Keep every value in this file free
 // of quote characters.
-export const FONT_STACK = 'Lato, Helvetica Neue, Helvetica, Arial, sans-serif'
+export const FONT_STACK = 'Archivo, Helvetica Neue, Helvetica, Arial, sans-serif'
 
 // The width every serious email client agrees on. Wider than this and Outlook's
 // reading pane clips rather than scrolls.
