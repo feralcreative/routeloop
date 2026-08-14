@@ -46,9 +46,12 @@
 
 .hero-value {
   font-size: clamp(2.75rem, 9vw, 4rem);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.03em;
+  // Was -0.03em; loosened with the move to Overpass for the same reason as the
+  // splash h1. Digits take the tightening worse than letters do here, because
+  // tabular-nums already fixes the advance width.
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -83,7 +86,7 @@
 
 .stat-value {
   font-size: 1.6rem;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -279,7 +282,7 @@
 
 .record-value {
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .record-hint {
@@ -311,7 +314,7 @@
   }
 
   th[scope="row"] {
-    font-weight: 400;
+    font-weight: 300;
     color: #666;
     width: 5rem;
   }

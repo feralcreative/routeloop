@@ -172,7 +172,7 @@
     text-align: left;
     text-decoration: none;
     color: $text;
-    font-weight: 600;
+    font-weight: 500;
 
     &:hover {
       background: rgba(0, 0, 0, 0.05);
@@ -209,7 +209,7 @@
       border-radius: 6px;
       cursor: pointer;
       color: $text;
-      font-weight: 600;
+      font-weight: 500;
       // Suppress the platform triangle so the caret below is the only marker —
       // ::marker covers Firefox, ::-webkit-details-marker older Safari.
       list-style: none;
@@ -268,7 +268,7 @@
   background: color.adjust($url, $lightness: 46%);
   color: color.adjust($url, $lightness: -8%);
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 

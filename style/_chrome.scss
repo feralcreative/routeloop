@@ -50,7 +50,7 @@ h1 {
   border-radius: 8px;
   padding: 0.6rem 1.2rem;
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 
@@ -158,7 +158,7 @@ a.card {
   a {
     color: $text;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 500;
 
     &:hover {
       color: $brand;
@@ -230,7 +230,7 @@ a.card {
   border-bottom: 1px solid $text;
   color: $text;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 
@@ -249,7 +249,7 @@ a.card {
     padding: 0;
     color: $url;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 }
@@ -278,7 +278,7 @@ a.card {
     // now win on treatment rather than on size, so a question can sit at body
     // size and read as an item within a section.
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.35;
     // The platform triangle is replaced by the caret below, and hiding it takes
     // both of these: ::marker for Firefox and current Chrome, the -webkit rule
@@ -339,7 +339,7 @@ a.card {
     border-bottom: 2px solid transparent;
     color: #666;
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .is-on {
@@ -355,7 +355,7 @@ a.card {
   margin-top: 2rem;
 
   a {
-    font-weight: 700;
+    font-weight: 600;
   }
 }
 
@@ -399,7 +399,7 @@ a.card {
 }
 
 .rider-display {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .rider-handle {

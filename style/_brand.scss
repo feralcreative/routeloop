@@ -83,7 +83,7 @@
 
 .brand-name {
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 600;
   color: $text;
 }
 
@@ -129,7 +129,7 @@
   white-space: nowrap;
 
   b {
-    font-weight: 700;
+    font-weight: 600;
   }
 
   // Derived from $gpx rather than a green picked by eye. Reusing the token's
@@ -215,7 +215,7 @@
   th {
     color: #888;
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.07em;
   }

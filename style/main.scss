@@ -6,6 +6,7 @@
 // components. Responsive last so its media queries win against equal-specificity
 // rules above.
 @use "tokens";
+@use "fonts";
 @use "base";
 @use "chrome";
 @use "nav";

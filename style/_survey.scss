@@ -35,7 +35,7 @@
   margin-bottom: 0.5rem;
   font-size: 1rem;
   line-height: 1.35;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .rate-strip {
@@ -67,7 +67,7 @@
     padding: 0.25rem 0.25rem;
     text-align: center;
     font-size: 0.85rem;
-    font-weight: 700;
+    font-weight: 600;
     color: #555;
     background: $white;
     border: 1px solid $grey;
@@ -199,7 +199,7 @@ $rate-tones: (
 
   legend {
     padding: 0 0.5rem;
-    font-weight: 900;
+    font-weight: 800;
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -392,7 +392,7 @@ $rate-tones: (
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 

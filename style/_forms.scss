@@ -25,7 +25,7 @@
 
   legend {
     padding: 0 0.4rem;
-    font-weight: 900;
+    font-weight: 800;
     text-transform: uppercase;
     font-size: 0.78rem;
     letter-spacing: 0.1em;
@@ -118,7 +118,7 @@
   .dropzone-hint {
     display: block;
     color: $text;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .dropzone-sub {
@@ -175,7 +175,7 @@
     .plan-day {
       min-width: 2.6em;
       color: $url;
-      font-weight: 700;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
@@ -290,7 +290,7 @@
   .field-label {
     display: block;
     margin-bottom: 0.3rem;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.92rem;
   }
 
@@ -348,7 +348,7 @@
   margin-top: 0.3rem;
   color: $kml;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .field-hint {
@@ -377,7 +377,7 @@
   background: rgba(67, 160, 71, 0.12);
   border: 1px solid rgba(67, 160, 71, 0.35);
   color: color.adjust($gpx, $lightness: -12%);
-  font-weight: 700;
+  font-weight: 600;
 
   &.is-error {
     background: rgba(211, 47, 47, 0.1);
@@ -404,7 +404,7 @@
   }
 
   .handle {
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .handle-dates {
@@ -451,7 +451,7 @@ h1 + .transfer-head {
 
 .export-title {
   flex: 1 1 12rem;
-  font-weight: 700;
+  font-weight: 600;
   color: $text;
   text-decoration: none;
 
@@ -472,7 +472,7 @@ h1 + .transfer-head {
   border-radius: 5px;
   color: $text;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 
   &:hover {

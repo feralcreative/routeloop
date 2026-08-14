@@ -380,21 +380,34 @@ export function page(opts: PageOpts): string {
   <meta property="og:image" content="${asset('/img/og-card.png')}">
   <meta name="twitter:card" content="summary_large_image">
   <!--
-    Archivo, the whole design space in one request: weight 100–900 and width
-    62–125%, upright and italic. Both ranges are axes on a variable font rather
-    than a list of cuts, so this asks for six subset files, not the 36 the same
-    matrix would cost as static instances.
+    Overpass is self-hosted — the @font-face rules live in style/_fonts.scss and
+    the files in public/font/. There is deliberately no Google Fonts <link> and
+    no preconnect to gstatic: nothing about the page reaches a third party for
+    type any more.
 
-    The axis order in the URL is not stylistic — the css2 API requires axes in
-    alphabetical order (ital, wdth, wght) and rejects any other arrangement.
+    This preload is the one thing the stylesheet cannot do for itself. A
+    @font-face inside main.min.css is not discovered until the CSS has been
+    fetched and parsed, so without this the upright latin file starts one full
+    round trip late and every visitor sees the fallback flash. Only the upright
+    latin subset is preloaded: latin-ext and the italics are needed by a
+    minority of pages, and preloading a file the page never uses is a warning in
+    the console and wasted bandwidth on a phone.
 
-    display=swap renders fallback text immediately and repaints when Archivo
-    arrives. The default would instead blank the text for up to three seconds on
-    a slow connection.
+    The crossorigin attribute is required even though the file is same-origin.
+    Fonts are fetched in CORS mode regardless, and a preload without it is a
+    second, separate fetch rather than a warm cache entry.
+
+    Deliberately NOT wrapped in asset(). The URL here has to be byte-identical
+    to the one in the @font-face rule, and the stylesheet cannot carry a content
+    hash — SCSS emits a static string. A version query on one side and not the
+    other gives two different URLs: the preload warms a cache entry nothing asks
+    for, the console warns that a preloaded resource went unused, and the font is
+    fetched twice. Version a font by renaming the file instead.
+
+    Note for anyone editing this comment: it sits inside a JS template literal,
+    so a backtick here is a syntax error, not punctuation.
   -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&display=swap" rel="stylesheet">
+  <link rel="preload" href="/font/overpass-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>

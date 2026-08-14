@@ -45,7 +45,11 @@
     max-width: 700px;
     font-size: clamp(2.25rem, 6vw, 4.5rem);
     line-height: 0.98;
-    letter-spacing: -0.04em;
+    // Was -0.04em, set when the face was a wide grotesque. Overpass is drawn
+    // from Highway Gothic and already sets narrow, so the same negative value
+    // closed the counters up. Tracking is face-specific — re-check this line
+    // whenever the typeface changes rather than carrying the number across.
+    letter-spacing: -0.01em;
   }
 }
 
@@ -73,9 +77,13 @@
   margin-bottom: 1.5rem;
 }
 
+// 700 against the h1's 500 inverts the usual arrangement — the small label is
+// heavier than the headline above it. That is deliberate: at 0.12em tracking the
+// eyebrow has air between every letter, so it needs weight to hold as a block,
+// while the h1 has size doing that job for it.
 .eyebrow {
   color: $url;
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
@@ -136,7 +144,7 @@
 .splash-gate-lede {
   color: $white;
   font-size: 1.15rem;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .splash-gate-note {
@@ -164,7 +172,7 @@
   border-radius: 8px;
   text-decoration: none;
   color: $text;
-  font-weight: 700;
+  font-weight: 600;
 
   &:hover {
     border-color: #bbb;
@@ -297,7 +305,7 @@
 
 .name-label {
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -328,7 +336,7 @@
     box-sizing: border-box;
     padding: 0.75rem 1rem;
     text-align: center;
-    font-weight: 700;
+    font-weight: 600;
     text-decoration: none;
     color: $text;
     background: $white;

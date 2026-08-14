@@ -110,12 +110,15 @@ export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.v
   c.toLowerCase(),
 )
 
-// No webfont. layout.tsx links Google Fonts for the site; an email must not,
-// because a <link> in a mail body is stripped or ignored by every major client
-// and the fallback is what renders anyway. Archivo where it happens to be
-// installed, Arial everywhere else — which is the realistic outcome regardless,
-// and more so than it was under Lato: Archivo is the rarer face to find sitting
-// on a reader's machine, so mail is now Arial in all but a handful of cases.
+// No webfont. The site self-hosts Overpass via @font-face in style/_fonts.scss;
+// an email cannot do the equivalent, because both a <link> and an @font-face in
+// a mail body are stripped or ignored by every major client, and the fallback is
+// what renders anyway. Overpass where it happens to be installed, Arial
+// everywhere else — and in practice that means Arial almost always, since
+// Overpass is a rarer face to find on a reader's machine than Lato ever was.
+//
+// Naming it first still costs nothing and is what keeps mail consistent with the
+// site for the handful of readers who do have it.
 //
 // UNQUOTED on purpose, and this is not a style preference. These strings end up
 // inside a style="" attribute rendered by Hono's JSX, which escapes ' to &#39;
@@ -125,7 +128,7 @@ export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.v
 // family name to be a sequence of identifiers, so `Helvetica Neue` unquoted is
 // valid and sidesteps the question entirely. Keep every value in this file free
 // of quote characters.
-export const FONT_STACK = 'Archivo, Helvetica Neue, Helvetica, Arial, sans-serif'
+export const FONT_STACK = 'Overpass, Helvetica Neue, Helvetica, Arial, sans-serif'
 
 // The width every serious email client agrees on. Wider than this and Outlook's
 // reading pane clips rather than scrolls.

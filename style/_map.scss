@@ -27,14 +27,14 @@
     overflow: hidden;
     margin-bottom: 0;
     font-size: 1.5em;
-    font-weight: 600;
+    font-weight: 500;
     color: $text;
     text-overflow: ellipsis;
     white-space: nowrap;
     & {
       margin-bottom: 2px;
       font-size: 1.5em;
-      font-weight: 800;
+      font-weight: 700;
       color: $text;
     }
   }
@@ -49,7 +49,7 @@
     padding-left: 0;
     border: none;
     font-size: 1em;
-    font-weight: 600;
+    font-weight: 500;
     color: #666;
     text-align: center;
     white-space: nowrap;
@@ -58,27 +58,27 @@
     display: block;
     margin-bottom: 0.05em;
     font-size: 0.95em;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.1;
   }
   &-value {
     display: block;
     margin-top: 0;
     font-size: 1em;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.1;
   }
   &-name {
     margin-bottom: 2px;
     font-size: 1em;
-    font-weight: 400;
+    font-weight: 300;
     color: $text;
   }
   &-desc {
     max-width: 240px;
     margin-top: 3px;
     font-size: 0.92em;
-    font-weight: 400;
+    font-weight: 300;
     line-height: 1.3;
     color: #666;
     white-space: normal;
@@ -161,12 +161,12 @@
     .title {
       margin-bottom: 8px;
       font-size: 1em;
-      font-weight: bold;
+      font-weight: 600;
       color: $text;
       letter-spacing: 0.02em;
     }
     p.description {
-      font: 400 0.9rem/1.1em $font;
+      font: 300 0.9rem/1.1em $font;
       color: $text;
     }
     table.details-table {
@@ -180,7 +180,7 @@
     // Without this the title inherits the body's 1.5, which on a two-line ride
     // name opens a gap wider than the descenders and reads as two headings.
     line-height: 1.15;
-    font-weight: 500;
+    font-weight: 400;
     color: $text;
     max-width: 500px !important;
     display: inline-block;
@@ -276,7 +276,7 @@
       position: relative;
       z-index: 2;
       font-size: 1rem;
-      font-weight: 800;
+      font-weight: 700;
     }
   }
 }
@@ -489,7 +489,7 @@ table.day-table {
     background: $white;
     border: 3px solid currentColor;
     box-sizing: border-box;
-    font: 700 9px/10px $font;
+    font: 600 9px/10px $font;
     color: $text;
     text-align: center;
     display: flex;
@@ -609,7 +609,7 @@ table.day-table {
 .day-zip {
   margin-left: 0.4em;
   color: $text;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
   border-bottom: 1px dotted $grey;
   &:hover {
@@ -627,7 +627,7 @@ table.day-table {
   background: $grey;
   color: $text;
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.85em;
   &:hover {
     background: color.adjust($grey, $lightness: -8%);
@@ -646,7 +646,7 @@ table.day-table {
   background: $white;
   color: $text;
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.9em;
   cursor: pointer;
 
@@ -668,7 +668,7 @@ table.day-table {
   background: $brand;
   color: $white;
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.9em;
 
   // brightness() rather than a Sass colour function: the button's background is

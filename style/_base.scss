@@ -9,13 +9,40 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font: 400 16px/1.5 $font, system-ui, sans-serif;
+  font: 300 16px/1.5 $font, system-ui, sans-serif;
   color: $text;
 }
 
 html.map-page,
 html.map-page body {
-  font: 400 14px/1.1em $font;
+  font: 300 14px/1.1em $font;
+}
+
+// Headings and inline emphasis carry no weight rule of their own anywhere else,
+// so they were rendering at the user agent's `bold` — 700 — and were the one
+// thing the sheet-wide thinning could not reach. Naming them here puts them on
+// the same step as everything else. Overpass has every hundred as a real cut, so
+// these are genuine interpolated weights against 300 body copy, not synthesized
+// ones.
+//
+// h1 sits a step below the rest on purpose. It is the only heading that renders
+// large enough for weight to read as mass rather than as emphasis, and at
+// display sizes 500 carries the same authority 600 gives an h3 at 1.1rem.
+h1 {
+  font-weight: 500;
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+}
+
+strong,
+b {
+  font-weight: 600;
 }
 
 a {
@@ -27,7 +54,7 @@ a {
 // only ever reached map pages by accident.
 html.map-page a {
   &:link {
-    font-weight: 600;
+    font-weight: 500;
     text-decoration: none;
   }
   &:hover {

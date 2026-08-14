@@ -15,19 +15,22 @@ $pending: #b26a00;
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
 // Unquoted to match every other token here; CSS family names are case-
-// insensitive identifiers, so this matches the "Archivo" the webfont declares.
+// insensitive identifiers, so this matches the "Overpass" the @font-face in
+// _fonts.scss declares.
 //
-// Archivo is variable on both axes — weight 100–900 and width 62–125% — which
-// is why it replaced Barlow, whose single static width read as cramped. Two
-// consequences worth knowing before touching type here:
+// Overpass is drawn from Highway Gothic, the US road-sign face, which is why it
+// is here rather than a neutral UI grotesque. It replaced Archivo, which was
+// technically fine but set noticeably heavier at every step; Archivo replaced
+// Barlow, which replaced Lato. Two things to know before touching type:
 //
-// Any weight is now a real cut. Under Lato, 500 and 600 did not exist and a
-// request for either silently rounded up to 700.
+// Any weight is a real cut. The face is variable across 100–900, so 340 or 550
+// interpolate rather than rounding to a static instance. Under Lato, 500 and
+// 600 did not exist at all and silently became 700.
 //
-// Width is a knob, not a fixed property. `font-stretch: 105%` on a rule opens
-// the text up further without changing the typeface; the default instance is
-// 100%. Reach for that before reaching for another family.
-$font: archivo;
+// There is no width axis. Archivo had one and `font-stretch` worked; here it
+// does nothing, because Overpass ships a weight axis only. Reaching for
+// letter-spacing is the substitute.
+$font: overpass;
 
 // Forward-looking alias. `$url` is historical — it is the generic accent, not a
 // link color — so new work should reach for `$brand`.

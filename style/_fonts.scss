@@ -1,0 +1,65 @@
+// Overpass, self-hosted. Four files, not forty: this is one variable font per
+// subset with the weight axis declared as a range, so `font-weight: 340` is a
+// real interpolated cut rather than a browser-synthesized fake.
+//
+// Self-hosted rather than linked from Google on purpose. The bytes are
+// identical either way — these files came from gstatic — but serving them
+// ourselves hands no visitor IP to a third party, removes a DNS lookup and TLS
+// handshake from the critical path, and lets a future CSP name only our own
+// origin. Since Chrome 86 partitioned the HTTP cache per site, the old
+// already-cached-from-another-site argument for a font CDN no longer holds.
+//
+// Overpass is dual licensed SIL OFL 1.1 and LGPL 2.1, which is what makes
+// redistributing it here legitimate. Source: github.com/RedHatOfficial/Overpass
+//
+// Only latin and latin-ext are carried. Cyrillic, Greek and Vietnamese exist
+// upstream and are deliberately omitted — this app's copy is American English,
+// and a rider name outside these ranges falls back to the system stack rather
+// than costing every visitor the download.
+//
+// The unicode-range values are copied verbatim from Google's css2 response.
+// Getting one wrong does not error; it silently makes the browser download a
+// file it cannot use, or skip one it needed.
+
+// latin-ext first, latin second. Both orders work — the browser picks by
+// unicode-range, not by source order — but keeping the narrower set last
+// matches how Google writes it and makes a diff against their CSS readable.
+@font-face {
+  font-family: "Overpass";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/font/overpass-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Overpass";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/font/overpass-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Overpass";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/font/overpass-italic-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Overpass";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/font/overpass-italic-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

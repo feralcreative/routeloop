@@ -51,7 +51,7 @@
     padding: 0;
 
     #ride-title {
-      font-weight: 700;
+      font-weight: 600;
       width: 100%;
     }
     #ride-description {
@@ -104,7 +104,7 @@
   }
   .day-scrub-label {
     font-size: 0.85em;
-    font-weight: 700;
+    font-weight: 600;
     color: $text;
   }
   .day-add {
@@ -223,7 +223,7 @@
     border-radius: 6px;
     color: $text;
     font: inherit;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
 
     &:hover:not(:disabled) {
@@ -325,7 +325,7 @@
     color: $text;
     opacity: 0.45;
     font-size: 0.75em;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1;
     text-decoration: none;
     // Superscript-ish without shifting the line box it sits in.
@@ -423,7 +423,7 @@
   }
 
   .totals {
-    font-weight: 700;
+    font-weight: 600;
     margin-bottom: 0.5em;
     min-height: 1em;
     // Two lines once there are several days: the trip total leads, because on a
@@ -434,7 +434,7 @@
       display: block;
     }
     .totals-day {
-      font-weight: 400;
+      font-weight: 300;
       font-size: 0.85em;
       opacity: 0.8;
     }
@@ -468,7 +468,7 @@
     .row-num {
       flex: 0 0 1.5em;
       text-align: center;
-      font-weight: 700;
+      font-weight: 600;
       &.poi-dot::before {
         content: "◦";
       }
@@ -562,7 +562,7 @@
         &.on {
           border-color: currentColor;
           background: rgba(0, 0, 0, 0.06);
-          font-weight: 700;
+          font-weight: 600;
         }
       }
     }
@@ -580,7 +580,7 @@
     margin-top: 0.9em;
     .btn {
       font: inherit;
-      font-weight: 700;
+      font-weight: 600;
       background: $url;
       color: $white;
       border: 0;
