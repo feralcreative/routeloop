@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-12
-**Branch:** `chore/another-fucking-rebrand`, based on `origin/main`—792 tests across 34 files
+**Updated:** 2026-08-13
+**Branch:** `main`, 2 commits ahead of `origin/main` at the time of writing—792 tests across 34 files
 **Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
 **For:** the next agent, or the owner returning cold
 
@@ -17,6 +17,36 @@ Two migrations drove the branch `refactor/google-maps-and-auth`, which is long s
 | ---- | ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auth | Cloudflare Access                  | Google OAuth + magic link, owned by the app | **Done.** Deployed to stage and production 2026-07-30 and signing in ever since. One edge remains and it is at the Cloudflare edge, not in the repo: the Access policy is still defined and is now pure redundancy                                    |
 | Maps | Mapbox GL + Directions + Geocoding | Google Maps JS + Places + Routes            | **Done.** Builder, viewer, search and geocoding all run on Google; `main.js` and every `MAPBOX_*` value are gone. Verified against the code 2026-08-02 and again 2026-08-06, because this row claimed otherwise for a day after it stopped being true |
+
+## The site typeface is Overpass, self-hosted, 2026-08-13
+
+**None of this is deployed.** Production still serves Archivo from Google Fonts; everything below is local and pushed no further than `main`.
+
+The face is now **Overpass**, drawn from Highway Gothic, and it is served from `public/font/` rather than linked from Google. Four `woff2` files, one variable font per subset: upright and italic, latin and latin-ext, each declaring `font-weight: 100 900`, so every hundred is a genuine interpolated cut. The `@font-face` rules live in `style/_fonts.scss`, `@use`d from `main.scss` immediately after tokens.
+
+Self-hosting was chosen over the CDN for three reasons that survive scrutiny: no visitor IP reaches a third party, the critical path loses a DNS lookup and a TLS handshake to `gstatic.com`, and a future CSP can name only this origin. The often-cited fourth reason—that a visitor may already hold the file cached from another site—has not been true since Chrome 86 partitioned the HTTP cache per site. Overpass is dual licensed SIL OFL 1.1 and LGPL 2.1, which is what makes redistributing it here legitimate.
+
+Three traps are already paid for, and re-check them if any of this is touched:
+
+- **The preload in `layout.tsx` is deliberately not wrapped in `asset()`.** It has to be byte-identical to the URL in the `@font-face` rule, and SCSS cannot emit a content hash. A `?v=` on one side only gives two URLs, a double fetch, and a console warning that a preloaded resource went unused. Version a font by renaming the file.
+- **Only the upright latin subset is preloaded.** A `@font-face` is not discovered until the CSS is parsed, so without a preload the common case starts a full round trip late; preloading the other three would waste bandwidth on pages that never ask for them.
+- **Overpass has no width axis.** Archivo had one and `font-stretch` worked. Here it is inert—there are no `font-stretch` declarations left, and letter-spacing is the substitute.
+
+The weight scale came down with the swap. Every weight in `style/` dropped one step of 100 (72 lines across 12 partials), `font-weight: bold` was rewritten numerically so it lands on a real cut, and five `font:` shorthand declarations that carried a weight were caught too. Then the part the sweep could not reach: **headings and `strong`/`b` had no weight rule anywhere in the stylesheet** and were rendering at the user agent's `bold`. They are now named in `_base.scss`—`h1` at 500, `h2`–`h6` and `strong`/`b` at 600, against 300 body copy. The splash `.eyebrow` sits at 700, heavier than the `h1` above it, because 0.12em of tracking needs weight to hold as a block.
+
+Headline tracking was loosened for the same reason the weights were. `-0.04em` on the splash `h1` and `-0.03em` on `.hero-value` had been carried across Lato, Barlow and Archivo without re-examination; Overpass sets narrower, so both closed up and are now `-0.01em`. **Tracking is face-specific and does not survive a typeface swap**—re-check those two lines whenever the face changes.
+
+### Lint configs, the README, and a renamed remote
+
+- **Three root config symlinks are gone.** `.markdownlint.json`, `.hadolint.yaml` and `.shellcheckrc` were absolute symlinks into `~/www/moto/tankbag/.qlty/configs/` and broke when the checkout was renamed. Qlty reads `.qlty/configs/` natively and never needed them; they existed only so editor extensions could find a root config. `.vscode/settings.json` now points markdownlint at the real path and is tracked, since `.vscode` came out of `.gitignore`. `shellcheck` and `hadolint` have no equivalent setting—neither binary is installed locally and neither extension is recommended, so nothing reads them outside `qlty check`.
+- **The README carries the stacked logo**, theme-switched with `<picture>` and `prefers-color-scheme`, above the H1 behind a scoped `MD041` disable. GitHub strips every `style` attribute, so the spacing below it is `<br>` tags rather than CSS.
+- **The filename-convention diagram was misaligned** and is now checked column by column against the example filename.
+- **`origin` is `github.com/feralcreative/routeloop.git`.** The GitHub repo was renamed; the local remote had been riding GitHub's redirect.
+- **`riders/` is gitignored** and holds a readable extract of the two non-owner accounts, pulled from a production dump. Real email addresses—never commit them.
+
+Production, as of a read-only `db-backup` on 2026-08-13: five accounts. Three are the owner's, one outside rider is `active`, and one is `pending`. `invites` and `invite_redemptions` are both empty.
+
+**Open, and it will bite the next person to run `docker compose up`:** the local dev database volume. Compose pins project `routeloop` and declares `routeloop-db-data`, so it wants `routeloop_routeloop-db-data`, which does not exist. The running container predates the rename and is still mounted on `tankbag_tankbag-db-data`. The moment it is recreated, the dev database comes up empty while every local row stays in the old volume. Migrate the volume, restore a dump into a fresh one, or start clean—but do it deliberately rather than by accident.
 
 ## The new brand assets are wired up, 2026-08-12
 
