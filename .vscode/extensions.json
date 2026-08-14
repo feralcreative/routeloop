@@ -1,0 +1,4 @@
+{
+  "recommendations": ["aaron-bond.better-comments", "qlty.qlty-vscode"],
+  "unwantedRecommendations": ["sonarsource.sonarlint-vscode"]
+}

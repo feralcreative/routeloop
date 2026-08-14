@@ -253,7 +253,6 @@ serverless.yml.bak
 # Miscellaneous
 .playwright-mcp
 .secrets
-.vscode
 .augment
 .claude
 .codex

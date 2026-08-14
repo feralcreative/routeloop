@@ -1,0 +1,16 @@
+{
+  // Lint configs live in .qlty/configs/, which is where Qlty wants them: it
+  // reads that directory natively and keeps the repo root tidy. Editor
+  // extensions do not know about it, so each one has to be pointed there
+  // explicitly. This replaced three root symlinks that pointed at an absolute
+  // path and broke the day the checkout was renamed.
+  "markdownlint.configFile": ".qlty/configs/.markdownlint.json"
+
+  // .shellcheckrc and .hadolint.yaml have no equivalent setting — both
+  // extensions rely on their linter discovering a file in the project root.
+  // Nothing reads them here today (neither binary is installed locally, and
+  // neither extension is recommended in extensions.json), and `qlty check`
+  // finds them in .qlty/configs/ on its own. If you later install either
+  // extension and want live diagnostics, the options are a root copy of the
+  // file or shellcheck's --rcfile via "shellcheck.customArgs".
+}
