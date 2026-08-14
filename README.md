@@ -1,6 +1,14 @@
+<!-- markdownlint-disable-next-line MD041 -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/img/logo-routeloop-dk.svg">
+  <img src="public/img/logo-routeloop.svg" alt="RouteLoop" width="196">
+</picture>
+
+<br><br>
+
 # RouteLoop
 
-RouteLoop (routeloop.app) is a web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
+A web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
 It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—RouteLoop has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [AGENTS.md](AGENTS.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
@@ -269,17 +277,17 @@ Every file RouteLoop exports names itself so that dropping a folder of them back
 
 ```text
 routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
-\_____/ \__________/ \_/ \________/ \_________/
- marker     ride     day    date       title
+\_______/ \_________/ \_/ \________/ \________/
+ marker      ride     day    date      title
 ```
 
-| Field  | Shape                                | Optional | Notes                                                    |
-| ------ | ------------------------------------ | -------- | -------------------------------------------------------- |
-| marker | literal `routeloop`                    | no       | its absence means the name is not read as structured     |
-| ride   | slug                                 | no       | the ride                                                 |
-| day    | `d` + digits, zero-padded to two     | yes      | so `d10` sorts after `d09`                               |
-| date   | `YYYY-MM-DD`, or `…THHMM` with a time | yes      | the day's start; a bare date means no time was set       |
-| title  | slug                                 | yes      | the day's own name                                       |
+| Field  | Shape                                 | Optional | Notes                                                |
+| ------ | ------------------------------------- | -------- | ---------------------------------------------------- |
+| marker | literal `routeloop`                   | no       | its absence means the name is not read as structured |
+| ride   | slug                                  | no       | the ride                                             |
+| day    | `d` + digits, zero-padded to two      | yes      | so `d10` sorts after `d09`                           |
+| date   | `YYYY-MM-DD`, or `…THHMM` with a time | yes      | the day's start; a bare date means no time was set   |
+| title  | slug                                  | yes      | the day's own name                                   |
 
 Three rules the format rests on:
 
@@ -291,7 +299,7 @@ Three rules the format rests on:
 
 Two fields are deliberately absent. **Visibility**, because a file named `public` that publishes a ride on import is a footgun with no upside. And **a timezone**, because the app stores what you typed in your own zone and a filename claiming otherwise would be inventing one.
 
-On the way back in, a title recovered from a filename is a *guess*—`avenue-of-giants` comes back "Avenue Of Giants"—so a file's own internal name (`<trk><name>`, a KML `<Folder>`) wins over it. The date has no such competition and is taken as authoritative.
+On the way back in, a title recovered from a filename is a _guess_—`avenue-of-giants` comes back "Avenue Of Giants"—so a file's own internal name (`<trk><name>`, a KML `<Folder>`) wins over it. The date has no such competition and is taken as authoritative.
 
 ### Per-day archives
 
