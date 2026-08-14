@@ -250,6 +250,11 @@ docker-compose.override.yml
 .serverless/
 serverless.yml.bak
 
+# Rider records pulled out of a database dump for reading. Real people's email
+# addresses — never commit, and note that the dumps these come from are covered
+# separately by the *.sql.gz rule.
+riders/
+
 # Miscellaneous
 .playwright-mcp
 .secrets
