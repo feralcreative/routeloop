@@ -13,7 +13,7 @@
 }
 
 .rider-id {
-  color: #bbb;
+  color: $neutral-76;
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
@@ -35,13 +35,13 @@
 }
 
 .rider-email {
-  color: #777;
+  color: $neutral-50;
   font-size: 0.9em;
   overflow-wrap: anywhere;
 }
 
 .rider-meta {
-  color: #999;
+  color: $neutral-63;
   font-size: 0.8em;
 }
 
@@ -62,7 +62,7 @@
 }
 
 .rider-you {
-  color: #aaa;
+  color: $neutral-70;
   font-size: 0.85em;
   font-style: italic;
 }
@@ -155,7 +155,7 @@
   }
 
   span {
-    color: #666;
+    color: $neutral-43;
     font-size: 0.85rem;
   }
 }

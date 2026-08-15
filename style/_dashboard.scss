@@ -32,11 +32,11 @@
   // Categorical slots, validated as a set. Order is fixed: public, unlisted,
   // private. Colour follows the meaning, never the size of the group.
   --viz-cat-1: #{$disabled};
-  --viz-cat-2: #{$construction};
+  --viz-cat-2: #{$detour};
   --viz-cat-3: #{$interstate};
-  --viz-ink-muted: #777;
+  --viz-ink-muted: #{$neutral-50};
   --viz-grid: #{color.adjust($grey, $lightness: 6%)};
-  --viz-track: #eee;
+  --viz-track: #{$neutral-94};
 }
 
 // --- Hero --------------------------------------------------------------------
@@ -62,7 +62,7 @@
 
 .hero-label {
   font-size: 1.05rem;
-  color: #666;
+  color: $neutral-43;
 }
 
 // --- KPI tiles ---------------------------------------------------------------
@@ -98,7 +98,7 @@
 
 .stat-label {
   font-size: 0.85rem;
-  color: #777;
+  color: $neutral-50;
 }
 
 // --- Blocks ------------------------------------------------------------------
@@ -115,7 +115,7 @@
 .stat-note {
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
-  color: #888;
+  color: $neutral-57;
 }
 
 // --- Meter -------------------------------------------------------------------
@@ -155,7 +155,7 @@
 }
 
 .role-label {
-  color: #444;
+  color: $neutral-29;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -181,7 +181,7 @@
 .role-n {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #555;
+  color: $neutral-36;
 }
 
 //@ XS <560px — the fixed label column stops fitting, so the label goes above
@@ -241,7 +241,7 @@
   gap: 0.4rem 1.25rem;
   font-size: 0.9rem;
   // Text wears text tokens; the dot beside it carries the identity.
-  color: #555;
+  color: $neutral-36;
 
   li {
     display: flex;
@@ -282,7 +282,7 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #888;
+  color: $neutral-57;
 }
 
 .record-value {
@@ -292,7 +292,7 @@
 
 .record-hint {
   font-size: 0.85rem;
-  color: #888;
+  color: $neutral-57;
 }
 
 // --- The chart, and the table that is its accessible twin --------------------
@@ -320,7 +320,7 @@
 
   th[scope="row"] {
     font-weight: 300;
-    color: #666;
+    color: $neutral-43;
     width: 5rem;
   }
 
@@ -336,7 +336,7 @@
   top: 4px;
   bottom: 4px;
   z-index: -1;
-  background: rgba(21, 101, 192, 0.14);
+  background: rgba($brand, 0.14);
   border-radius: 3px;
 }
 
@@ -421,12 +421,12 @@
 
 .u-hz .u-cursor-x {
   height: 100%;
-  border-right: 1px dashed #b0b0b0;
+  border-right: 1px dashed $neutral-70;
 }
 
 .u-hz .u-cursor-y {
   width: 100%;
-  border-bottom: 1px dashed #b0b0b0;
+  border-bottom: 1px dashed $neutral-70;
 }
 
 .u-cursor-pt {

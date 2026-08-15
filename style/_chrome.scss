@@ -17,7 +17,7 @@
 }
 
 body {
-  background: #f4f4f4;
+  background: $neutral-96;
 }
 
 html.map-page body {
@@ -29,7 +29,7 @@ h1 {
 }
 
 .sub {
-  color: #777;
+  color: $neutral-50;
   margin-bottom: 2rem;
 }
 
@@ -271,7 +271,7 @@ a.card {
 }
 
 .meta {
-  color: #888;
+  color: $neutral-57;
   font-size: 0.85em;
   margin-left: auto;
 }
@@ -282,12 +282,12 @@ a.card {
   letter-spacing: 0.04em;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: #eee;
-  color: #666;
+  background: $neutral-94;
+  color: $neutral-43;
 }
 
 .empty {
-  color: #999;
+  color: $neutral-63;
 }
 
 .cardrow {
@@ -336,7 +336,7 @@ a.card {
 
 .site-footer-note {
   margin: 0.5rem 0 0;
-  color: #777;
+  color: $neutral-50;
 }
 
 .site-footer.is-splash {
@@ -377,12 +377,12 @@ a.card {
 
 .lede {
   font-size: 1.15rem;
-  color: #555;
+  color: $neutral-36;
 }
 
 .effective {
   margin-top: -0.5rem;
-  color: #777;
+  color: $neutral-50;
   font-size: 0.9rem;
 }
 
@@ -504,7 +504,7 @@ a.card {
   a {
     padding-bottom: 0.25rem;
     border-bottom: 2px solid transparent;
-    color: #666;
+    color: $neutral-43;
     text-decoration: none;
     font-weight: 600;
   }
@@ -560,7 +560,7 @@ a.card {
     color: $text;
 
     &:hover {
-      background: #f0f0f0;
+      background: $neutral-94;
     }
   }
 }
@@ -570,6 +570,6 @@ a.card {
 }
 
 .rider-handle {
-  color: #777;
+  color: $neutral-50;
   font-size: 0.9em;
 }

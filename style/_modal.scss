@@ -49,7 +49,7 @@ body.modal-open {
 
 .modal-body {
   text-align: left;
-  color: #666;
+  color: $neutral-43;
 
   p {
     margin: 0 0 1rem;
@@ -66,14 +66,14 @@ body.modal-open {
   a {
     display: block;
     padding: 0.6em 0.8em;
-    background: #f4f4f4;
+    background: $neutral-96;
     border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     color: $url;
 
     &:hover {
-      background: #ebebeb;
+      background: $neutral-94;
     }
   }
 }
@@ -84,7 +84,7 @@ body.modal-open {
   justify-content: center;
   gap: 0.45em;
   margin-bottom: 1.1rem;
-  color: #666;
+  color: $neutral-43;
   font-size: 0.9em;
   cursor: pointer;
 

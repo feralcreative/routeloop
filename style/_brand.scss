@@ -18,7 +18,7 @@
 .brand-sub {
   margin: -0.4rem 0 1rem;
   max-width: 68ch;
-  color: #666;
+  color: $neutral-43;
   font-size: 0.92rem;
 }
 
@@ -89,13 +89,13 @@
 
 .brand-value {
   font-size: 0.78rem;
-  color: #666;
+  color: $neutral-43;
   font-variant-numeric: tabular-nums;
   word-break: break-all;
 }
 
 .brand-alias {
-  color: #999;
+  color: $neutral-63;
 }
 
 // Clamped, because the notes are wildly uneven: most tokens carry a sentence
@@ -112,7 +112,7 @@
   overflow: hidden;
   font-size: 0.78rem;
   line-height: 1.45;
-  color: #666;
+  color: $neutral-43;
 }
 
 .brand-chips {
@@ -146,7 +146,7 @@
   // most of these are grounds and hairlines working exactly as intended.
   &.is-low {
     background: color.adjust($grey, $lightness: 6%);
-    color: #666;
+    color: $neutral-43;
   }
 }
 
@@ -187,7 +187,7 @@
 
   code {
     font-size: 0.72rem;
-    color: #666;
+    color: $neutral-43;
     font-variant-numeric: tabular-nums;
   }
 }
@@ -213,7 +213,7 @@
   }
 
   th {
-    color: #888;
+    color: $neutral-57;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -226,7 +226,7 @@
   }
 
   .brand-files {
-    color: #777;
+    color: $neutral-50;
     font-size: 0.8rem;
   }
 
@@ -248,7 +248,7 @@
 }
 
 .brand-none {
-  color: #999;
+  color: $neutral-63;
 }
 
 .brand-plain {
@@ -258,12 +258,12 @@
 
   code + code {
     margin-left: 0.4rem;
-    color: #666;
+    color: $neutral-43;
   }
 }
 
 .brand-foot {
   max-width: 68ch;
-  color: #777;
+  color: $neutral-50;
   font-size: 0.85rem;
 }

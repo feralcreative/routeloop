@@ -18,8 +18,8 @@
     // A disabled fieldset is how the alpha-gated sections read as present but
     // closed, rather than being hidden and unexplained.
     &[disabled] {
-      background: #fafafa;
-      color: #888;
+      background: $neutral-98;
+      color: $neutral-57;
     }
   }
 
@@ -29,7 +29,7 @@
     text-transform: uppercase;
     font-size: 0.78rem;
     letter-spacing: 0.1em;
-    color: #777;
+    color: $neutral-50;
   }
 }
 
@@ -60,7 +60,7 @@
     flex-direction: column;
     gap: 0.2rem;
     margin: -0.6rem 0 1.1rem;
-    color: #777;
+    color: $neutral-50;
     font-size: 0.85rem;
 
     .format {
@@ -124,7 +124,7 @@
   .dropzone-sub {
     display: block;
     margin-top: 0.15rem;
-    color: #777;
+    color: $neutral-50;
     font-size: 0.85rem;
   }
 
@@ -142,7 +142,7 @@
 
     .plan-head {
       margin: 0 0 0.5rem;
-      color: #555;
+      color: $neutral-36;
     }
 
     .plan-ride {
@@ -169,7 +169,7 @@
     // A file that carried no structured name. Dimmed rather than flagged: it
     // still imports, it just brought less with it.
     .plan-row.is-plain {
-      color: #888;
+      color: $neutral-57;
     }
 
     .plan-day {
@@ -194,14 +194,14 @@
     }
 
     .plan-ext {
-      color: #888;
+      color: $neutral-57;
       font-size: 0.85em;
     }
 
     .plan-notes {
       margin: 0.6rem 0 0;
       padding-left: 1.1rem;
-      color: #777;
+      color: $neutral-50;
       font-size: 0.85em;
     }
   }
@@ -224,7 +224,7 @@
       margin-top: 0.6rem;
       padding-left: 1.1rem;
       border-left: 2px solid $grey;
-      color: #555;
+      color: $neutral-36;
     }
 
     p {
@@ -354,7 +354,7 @@
 .field-hint {
   display: block;
   margin-top: 0.3rem;
-  color: #888;
+  color: $neutral-57;
   font-size: 0.85rem;
 }
 
@@ -371,17 +371,24 @@
   }
 }
 
+// The tint and the ink both come from the token, which sounds obvious and was
+// not true until 2026-08-15. These were written as `rgba(67, 160, 71, …)` —
+// $gpx's value at the time — so when the road-sign palette moved $gpx to $go,
+// the ink here followed and the tint behind it did not. The result was a green
+// notice whose background and text were two different greens, in nine places
+// across five partials, with nothing to fail. A tint of a token must name the
+// token; a literal is a copy that cannot be told it is out of date.
 .notice {
   padding: 0.7rem 0.9rem;
   border-radius: 8px;
-  background: rgba(67, 160, 71, 0.12);
-  border: 1px solid rgba(67, 160, 71, 0.35);
+  background: rgba($gpx, 0.12);
+  border: 1px solid rgba($gpx, 0.35);
   color: color.adjust($gpx, $lightness: -12%);
   font-weight: 600;
 
   &.is-error {
-    background: rgba(211, 47, 47, 0.1);
-    border-color: rgba(211, 47, 47, 0.35);
+    background: rgba($kml, 0.1);
+    border-color: rgba($kml, 0.35);
     color: color.adjust($kml, $lightness: -8%);
   }
 }

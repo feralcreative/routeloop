@@ -17,18 +17,18 @@
 
   .rb-summary {
     margin: 0;
-    color: #555;
+    color: $neutral-36;
     font-weight: 600;
   }
 
   .rb-note {
     margin: 0.5rem 0 0;
-    color: #555;
+    color: $neutral-36;
   }
 
   .rb-caveat {
     margin: 0.7rem 0 0;
-    color: #666;
+    color: $neutral-43;
     font-size: 0.85rem;
     font-style: italic;
   }
@@ -54,13 +54,13 @@
 
   .rb-day-meta {
     margin: 0 0 0.6rem;
-    color: #555;
+    color: $neutral-36;
     font-size: 0.9rem;
   }
 
   .rb-empty {
     margin: 0;
-    color: #777;
+    color: $neutral-50;
     font-style: italic;
   }
 
@@ -82,7 +82,7 @@
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: #555;
+      color: $neutral-36;
     }
   }
 
@@ -98,14 +98,14 @@
   .rb-n {
     width: 1%;
     text-align: right;
-    color: #777;
+    color: $neutral-50;
     font-variant-numeric: tabular-nums;
   }
 
   // A POI is not a stop and must not read as one at a glance — it is a thing
   // worth seeing, not a place the day is planned around.
   .rb-poi {
-    color: #555;
+    color: $neutral-36;
 
     .rb-name {
       font-weight: 300;
@@ -120,14 +120,14 @@
 
   .rb-roles {
     display: block;
-    color: #666;
+    color: $neutral-43;
     font-size: 0.8rem;
   }
 
   .rb-desc {
     display: block;
     margin-top: 0.15rem;
-    color: #444;
+    color: $neutral-29;
     font-size: 0.82rem;
   }
 
@@ -156,7 +156,7 @@
     }
 
     background: $white;
-    color: #000;
+    color: $black;
     font-size: 10.5pt;
 
     // A day split across a page boundary is the one thing that makes this
@@ -182,11 +182,11 @@
 
       th,
       td {
-        border-bottom-color: #999;
+        border-bottom-color: $neutral-63;
       }
 
       th {
-        color: #000;
+        color: $black;
       }
     }
 
@@ -198,7 +198,7 @@
     .rb-desc,
     .rb-n,
     .rb-poi {
-      color: #000;
+      color: $black;
     }
 
     .rb-caveat {
@@ -212,7 +212,7 @@
     .rb-day-swatch {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
-      border: 1px solid #000;
+      border: 1px solid $black;
     }
   }
 }

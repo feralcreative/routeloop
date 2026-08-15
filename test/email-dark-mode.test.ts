@@ -145,14 +145,23 @@ describe('the logo assets', () => {
 
   // The reason cardBg is pinned to pure black. These are opaque PNGs, so each
   // one's own ground shows wherever the card does not match it exactly.
+  //
+  // Compared as COLORS, not as strings. groundOf() always returns six digits
+  // because it reads three bytes out of the PNG, while the palette is free to
+  // spell the same color either way — `$white` was `#fff` until it joined the
+  // road-sign block on 2026-08-15 and became `#ffffff`, which failed this on a
+  // spelling change that could not possibly have shown up in an inbox.
+  const expand = (hex: string) =>
+    hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join('')}`.toLowerCase() : hex.toLowerCase()
+
   it('the dark logo is drawn on the dark card color', () => {
     expect(groundOf('_assets/logo-routeloop-email-hz-dark@2x.png')).toBe('#000000')
-    expect(DARK.cardBg).toBe('#000')
+    expect(expand(DARK.cardBg)).toBe('#000000')
   })
 
   it('the light logo is drawn on the light card color', () => {
     expect(groundOf('_assets/logo-routeloop-email-hz@2x.png')).toBe('#ffffff')
-    expect(COLORS.white).toBe('#fff')
+    expect(expand(COLORS.white)).toBe('#ffffff')
   })
 
   // _assets holds the artwork; public/img is what /img/* actually serves. The

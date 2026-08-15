@@ -90,7 +90,7 @@
 
 .splash-copy {
   max-width: 620px;
-  color: #666;
+  color: $neutral-43;
   font-size: 1.25rem;
 }
 
@@ -175,7 +175,7 @@
   font-weight: 600;
 
   &:hover {
-    border-color: #bbb;
+    border-color: $neutral-76;
   }
 }
 
@@ -204,7 +204,7 @@
 }
 
 .note {
-  color: #999;
+  color: $neutral-63;
   font-size: 0.9em;
   max-width: 480px;
 }
@@ -345,7 +345,7 @@
 
     &:hover,
     &:focus-visible {
-      border-color: #bbb;
+      border-color: $neutral-76;
     }
   }
 }
@@ -529,7 +529,7 @@ body.splash-page {
     &:hover,
     &:focus-visible {
       border-color: transparent;
-      background: #f4f4f4;
+      background: $neutral-96;
     }
   }
 

@@ -28,9 +28,14 @@ export const TOKEN_COLORS = {
   // `$url: $disabled` and fail. `COLORS.url` below keeps the name the templates
   // read, and the test pins the alias so this stays a safe substitution.
   disabled: '#0a539c',
-  text: '#333',
-  white: '#fff',
-  grey: '#ddd',
+  'neutral-21': '#333333',
+  // Six digits, not three. `$white` was `#fff` until 2026-08-15, when it joined
+  // the road-sign palette and took that block's six-digit spelling. The pinning
+  // test compares the two strings after lowercasing, so `#fff` here and
+  // `#ffffff` there is a failure even though it is the same color — which is the
+  // test doing its job, since it cannot tell a spelling drift from a value one.
+  white: '#ffffff',
+  'neutral-88': '#dddddd',
   // The dark surface. Mirrored under its SCSS name rather than a friendlier one
   // because the pinning test looks the key up verbatim; `DARK.cardBg` below is
   // the name the templates actually read.
@@ -59,7 +64,13 @@ export const EMAIL_ONLY_COLORS = {
 // what it means in a mail — link and button. It is not a second value: it points
 // at the mirrored `$disabled`, the same one-level indirection _tokens.scss has
 // between `$url` and `$disabled`, and test/email-theme.test.ts pins both ends.
-export const COLORS = { ...TOKEN_COLORS, ...EMAIL_ONLY_COLORS, url: TOKEN_COLORS.disabled } as const
+export const COLORS = {
+  ...TOKEN_COLORS,
+  ...EMAIL_ONLY_COLORS,
+  url: TOKEN_COLORS.disabled,
+  text: TOKEN_COLORS['neutral-21'],
+  grey: TOKEN_COLORS['neutral-88'],
+} as const
 
 /**
  * The dark-mode palette, used ONLY inside the `prefers-color-scheme` block in

@@ -454,7 +454,7 @@
       border-bottom: 1px solid rgba(0, 0, 0, 0.07);
       padding: 0.35em 0;
       &.flash {
-        background: rgba(21, 101, 192, 0.12);
+        background: rgba($brand, 0.12);
       }
     }
     .row-main {

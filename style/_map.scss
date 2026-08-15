@@ -50,7 +50,7 @@
     border: none;
     font-size: 1em;
     font-weight: 500;
-    color: #666;
+    color: $neutral-43;
     text-align: center;
     white-space: nowrap;
   }
@@ -80,7 +80,7 @@
     font-size: 0.92em;
     font-weight: 300;
     line-height: 1.3;
-    color: #666;
+    color: $neutral-43;
     white-space: normal;
   }
 }
@@ -144,8 +144,11 @@
     margin-bottom: 0.5em;
     padding: 0.4em;
     font-size: 0.7em;
+    // $concrete, not the CSS keyword `gray`. They are not the same color —
+    // `gray` is #808080 — and more to the point a keyword is outside the
+    // palette entirely, so it cannot follow a theme or a retune.
     input[type="checkbox"] {
-      accent-color: gray;
+      accent-color: $concrete;
     }
   }
   div.details {
@@ -153,7 +156,7 @@
     padding-bottom: 1em;
     table {
       tr {
-        border-bottom: 1px dotted #000;
+        border-bottom: 1px dotted $black;
         td {
         }
       }
@@ -656,7 +659,7 @@ table.day-table {
   cursor: pointer;
 
   &:hover {
-    border-color: #bbb;
+    border-color: $neutral-76;
   }
 
   &:disabled {

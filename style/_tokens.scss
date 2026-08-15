@@ -5,6 +5,40 @@
 
 // Color Variables
 
+// THE NEUTRAL SCALE. Greys are not road-sign colors and do not belong in the
+// palette below — the app needs a full ramp of them for text and surfaces, and
+// a sign has exactly one grey, the post it stands on.
+//
+// **The number is CIE L\*, perceptual lightness.** Numbered that way rather than
+// 50–900 because L* predicts behavior and an ordinal does not: the gap between
+// two steps IS the perceived difference, and contrast against white or black
+// follows from the number without looking anything up. Systems that number by
+// hundreds have to publish a table to tell you the same thing.
+//
+// The values are the ones the app was already using, and that is not laziness —
+// they were measured first, and from $neutral-21 to $neutral-76 they were
+// already an even ramp, 7 L* per step to within half a point. A "best practice"
+// scale imposed over that would have moved the two most-used greys by 3 and 5
+// L* to buy nothing. Three near-duplicates WERE collapsed, all imperceptible:
+// #b0b0b0 -> -70 (dE 2.2), #ebebeb and #f0f0f0 -> -94 (dE 1.0 and 0.7).
+//
+// The step from -76 to -88 is 12, double the rest. That gap is real: the app has
+// text greys and surface greys and nothing that wants to live between them. Fill
+// it if something ever does, rather than pretending the ramp is even up there.
+$neutral-21: #333333;
+$neutral-29: #444444;
+$neutral-36: #555555;
+$neutral-43: #666666;
+$neutral-50: #777777;
+$neutral-57: #888888;
+$neutral-63: #999999;
+$neutral-70: #aaaaaa;
+$neutral-76: #bbbbbb;
+$neutral-88: #dddddd;
+$neutral-94: #eeeeee;
+$neutral-96: #f4f4f4;
+$neutral-98: #fafafa;
+
 // The road-sign palette. Named for what each color is on a road rather than for
 // where it is used in the app, so a name stays true when a component moves.
 //
@@ -19,20 +53,33 @@
 // #9d001d, both closer to black than to anything wanted on a screen. These are
 // what those colors look like in daylight memory, which is the useful target.
 //
-// Two names to read carefully. `$yield` is amber: a yield sign has been red and
-// white since 1971, and this is the warning-and-construction family instead.
-// `$disabled` is the blue of an accessible-parking sign, and it is the app's
-// generic accent through `$url` below rather than an accessibility signal.
+// Three names to read carefully. `$yield` and `$warning` are two different
+// yellows and the split is the useful part: `$warning` is the amber of a
+// warning diamond, `$yield` the brighter yellow of a signal head and a school
+// zone. `$disabled` is the blue of an accessible-parking sign, and it is the
+// app's generic accent through `$url` below rather than an accessibility
+// signal. `$tarmac` is the palette's black — road surface, and what a black
+// sign field like ONE WAY is.
+//
+// `$concrete` is the one entry that takes its value from the neutral scale
+// rather than holding its own. It is the post and the gantry — genuinely a grey,
+// so a grey it should be, rather than the slightly cool #7e8386 it was sampled
+// as. $neutral-57 is the nearest step (dE 3.4, against 5.1 for -50) and the
+// better one on the other axis too: its black legend measures 5.9:1 where the
+// sampled value managed 5.5:1.
 $interstate: #266149;
 $speed: #efefef;
 $stop: #dd0000;
-$construction: #f54d00;
-$blacktop: #291507;
-$recreation: #603d15;
-$yield: #ffac00;
+$detour: #f56100;
+$warning: #ffac00;
+$yield: #ffdd00;
 $go: #41ae4d;
-$concrete: #7e8386;
 $disabled: #0a539c;
+$recreation: #603d15;
+$tarmac: #291507;
+$concrete: $neutral-57;
+$white: #ffffff;
+$black: #000000;
 
 // WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
 // from the contrast numbers — it is copied off the signs the palette was sampled
@@ -40,14 +87,15 @@ $disabled: #0a539c;
 // picks its legend color by taste.
 //
 //   WHITE legend    $stop (STOP, WRONG WAY), $interstate (guide sign, airport),
-//                   $disabled (parking symbol, I-95 shield), $blacktop (ONE WAY,
-//                   DETOUR), $recreation (brown recreational)
-//   BLACK legend    $yield (warning diamonds), $construction (work zone, the
-//                   orange DETOUR), $speed (SPEED LIMIT, the Route 66 shield)
+//                   $disabled (parking symbol, I-95 shield), $tarmac (ONE WAY,
+//                   the black DETOUR), $recreation (brown recreational)
+//   BLACK legend    $warning (warning diamonds), $yield (signal head, school
+//                   zone), $detour (work zone, the orange DETOUR), $speed
+//                   (SPEED LIMIT, the Route 66 shield)
 //
 // Measured, both directions: every white-legend field clears 4.5:1 against
-// $white and every black-legend field clears 4.5:1 against $blacktop. Every one
-// of them FAILS on the other ink — $yield is 1.9:1 behind white, $interstate is
+// $white and every black-legend field clears 4.5:1 against $black. Every one of
+// them FAILS on the other ink — $yield is 1.4:1 behind white, $interstate is
 // 2.9:1 behind black. There is no field here that takes either.
 //
 // $go and $concrete carry no legend on a real sign: $go is the green traffic
@@ -61,8 +109,7 @@ $disabled: #0a539c;
 // takes 6.1:1 down to 4.3:1, and the -15% the map buttons use lands on 3.1:1.
 // Lighten those instead; +8% takes $go to 7.6:1.
 //
-// The two ink tokens are declared under $white below, which is the first point
-// in this file where both of their operands exist.
+// The two ink tokens are declared below, beside the rest of the semantic set.
 
 $url: $disabled;
 // The semantic tokens below now take their value from the road-sign palette
@@ -73,27 +120,42 @@ $url: $disabled;
 // disagreement with it, and deriving keeps one source per hue.
 $gpx: $go;
 $kml: $stop;
-$white: #fff;
-$grey: #ddd;
-$text: #333;
+// Both were literals that happened to sit exactly on the neutral scale — #ddd
+// is $neutral-88 and #333 is $neutral-21, to the byte. Pointing at the step
+// rather than repeating the hex costs nothing and means the scale is the only
+// place a grey is written down. They keep their own names because those names
+// say what they are FOR, which a number never will: $text is body copy, $grey is
+// a border.
+$grey: $neutral-88;
+$text: $neutral-21;
 
 // The two legends, named for the job rather than the color, so a rule reads as
 // "this field takes the dark ink" rather than as a color choice someone is free
 // to second-guess. Which one a given field takes is the pairing table above.
 //
-// $ink-dark is $blacktop and not $text: the signs use black, $blacktop IS the
-// palette's black (1.2:1 against #000), and $text is a soft grey meant for body
-// copy on white. On a colored field that softness costs contrast for nothing —
-// $text on $go is 4.4:1 where $blacktop is 6.1:1.
+// $ink-dark is $black and not $text: the signs use black, and $text is a soft
+// grey meant for body copy on white. On a colored field that softness costs
+// contrast for nothing — $text on $go is 4.4:1 where black is 7.4:1.
+//
+// It was $tarmac until the palette gained a real $black on 2026-08-15. The two
+// are 1.2:1 apart and indistinguishable as ink; $black is simply the honest
+// name for the job now that it exists. $tarmac stays what it always was, a
+// FIELD — the black sign panel, which takes the white legend.
 $ink-light: $white;
-$ink-dark: $blacktop;
+$ink-dark: $black;
 // Rider-approval "waiting" state on the admin panel. Amber reads as attention-
 // needed without the alarm of $kml, and stays legible as dark-on-tint.
 //
-// Derived rather than set to $yield: this is text on a 16% tint of itself, and
-// $yield measures 1.9:1 on white — invisible. At -20% it is 4.9:1, which also
+// Derived rather than set flat: this is text on a 16% tint of itself, and the
+// amber measures 1.9:1 on white — invisible. At -20% it is 4.9:1, which also
 // quietly fixes the 4.24:1 the hand-picked #b26a00 was failing at.
-$pending: color.adjust($yield, $lightness: -20%);
+//
+// $warning, NOT $yield, and the distinction is load-bearing. It was $yield until
+// the palette split the two yellows on 2026-08-15; $warning inherited that exact
+// amber, so this value did not move, while the same expression against the new
+// brighter $yield lands on 3.7:1 and fails. Whenever a token here is text, it
+// derives from the amber.
+$pending: color.adjust($warning, $lightness: -20%);
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
 // Unquoted to match every other token here; CSS family names are case-
@@ -130,9 +192,11 @@ $brand: $url;
 // bad format. The palette has one red, so they are now the same color. If they
 // ever need to differ again, that is a second red in the palette, not a hex here.
 //
-// $label is derived rather than set to $yield for the reason $pending is: it is
-// text on a tint, and $yield does not survive there. -22% lands on 5.5:1, the
-// same figure the hand-picked #925e00 measured, so nothing on /import moves.
+// $label is derived from $warning for the reason $pending is: it is text on a
+// tint, and no yellow in this palette survives there undarkened. -22% lands on
+// 5.5:1, the same figure the hand-picked #925e00 measured, so nothing on
+// /import moves. Against the brighter $yield the same expression gives 4.2:1
+// and fails, which is why it names the amber explicitly.
 //
 // All four still clear 4.5:1 on that tint. The definitions stay in the order of
 // the example and still name their field in words, because color cannot be the
@@ -140,7 +204,7 @@ $brand: $url;
 $ride: $url;
 $day: $stop;
 $date: $interstate;
-$label: color.adjust($yield, $lightness: -22%);
+$label: color.adjust($warning, $lightness: -22%);
 
 // Google Blue, for the sign-in button's hover and focus edge. Sourced from
 // Google's own brand palette rather than picked by eye, because it sits beside
@@ -151,7 +215,14 @@ $google-blue: #4285f4;
 // lifted from the RouteLoop wordmark's dashed center line, became a standalone
 // accent while the tankbag artwork was in use because that mark carries no
 // yellow, and is back to matching the wordmark now that RouteLoop is.
-$accent: #ffdd00;
+//
+// It held #ffdd00 as its own literal until 2026-08-15, when the palette's new
+// $yield landed on exactly that value — the wordmark's yellow and the signal
+// yellow turn out to be the same yellow. Pointing at the token rather than
+// keeping a second copy means the two cannot drift apart silently; if the
+// wordmark is ever redrawn in a different yellow, THAT is when this gets its own
+// value back, and the comment above says why it would deserve one.
+$accent: $yield;
 
 // Base for the dark, full-bleed sign-in page: what shows under the video before
 // a frame decodes, and the color every scrim over it is mixed from.

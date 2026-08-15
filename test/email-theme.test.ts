@@ -52,6 +52,23 @@ describe('the email palette mirrors style/_tokens.scss', () => {
   it('COLORS.url is the mirrored $disabled', () => {
     expect(COLORS.url).toBe(TOKEN_COLORS.disabled)
   })
+
+  // Same arrangement for the two greys, which became aliases when the neutral
+  // scale landed on 2026-08-15: $grey is $neutral-88 and $text is $neutral-21,
+  // exactly, so the scale is the only place a grey is written down. The emails
+  // mirror the steps and keep the semantic names for the templates.
+  it('$text is still an alias of $neutral-21', () => {
+    expect(SCSS).toMatch(/^\$text:\s*\$neutral-21\s*;/m)
+  })
+
+  it('$grey is still an alias of $neutral-88', () => {
+    expect(SCSS).toMatch(/^\$grey:\s*\$neutral-88\s*;/m)
+  })
+
+  it('COLORS.text and COLORS.grey are the mirrored steps', () => {
+    expect(COLORS.text).toBe(TOKEN_COLORS['neutral-21'])
+    expect(COLORS.grey).toBe(TOKEN_COLORS['neutral-88'])
+  })
 })
 
 describe('no template invents a color', () => {

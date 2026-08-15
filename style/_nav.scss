@@ -182,7 +182,7 @@
 
   a[aria-current="page"] {
     color: $url;
-    background: rgba(21, 101, 192, 0.08);
+    background: rgba($brand, 0.08);
   }
 
   form {
@@ -279,7 +279,7 @@
 .nav-user {
   display: block;
   padding: 0.5em 0.65em 0.15em;
-  color: #888;
+  color: $neutral-57;
   font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.04em;

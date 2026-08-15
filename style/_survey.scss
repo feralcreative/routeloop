@@ -26,7 +26,7 @@
   // Marked on the row, not the input, because the thing that is wrong is "you
   // did not answer this question" and the question is the row.
   &.has-error {
-    background: rgba(211, 47, 47, 0.05);
+    background: rgba($kml, 0.05);
     box-shadow: inset 3px 0 0 $kml;
   }
 }
@@ -68,7 +68,7 @@
     text-align: center;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #555;
+    color: $neutral-36;
     background: $white;
     border: 1px solid $grey;
     border-radius: 8px;
@@ -86,7 +86,7 @@
   }
 
   &:hover input:not(:checked) + span {
-    border-color: #bbb;
+    border-color: $neutral-76;
   }
 }
 
@@ -203,7 +203,7 @@ $rate-tones: (
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #777;
+    color: $neutral-50;
   }
 }
 
@@ -246,7 +246,7 @@ $rate-tones: (
   border: 1px solid $grey;
 
   &:hover {
-    border-color: #bbb;
+    border-color: $neutral-76;
   }
 }
 
@@ -277,7 +277,7 @@ $rate-tones: (
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #555;
+    color: $neutral-36;
     white-space: nowrap;
   }
 
@@ -288,7 +288,7 @@ $rate-tones: (
   }
 
   tbody tr:hover {
-    background: #fafafa;
+    background: $neutral-98;
   }
 }
 
@@ -303,7 +303,7 @@ $rate-tones: (
   height: 10px;
   overflow: hidden;
   border-radius: 5px;
-  background: #eee;
+  background: $neutral-94;
 
   span {
     display: block;
@@ -339,7 +339,7 @@ $rate-tones: (
   position: absolute;
   inset: 0 auto 0 0;
   z-index: -1;
-  background: rgba(21, 101, 192, 0.14);
+  background: rgba($brand, 0.14);
   border-radius: 4px;
 }
 
@@ -398,7 +398,7 @@ $rate-tones: (
 
 .invite-meta {
   font-size: 0.85rem;
-  color: #777;
+  color: $neutral-50;
 }
 
 .invite-actions {
@@ -419,7 +419,7 @@ $rate-tones: (
   height: 6px;
   margin-top: 0.35rem;
   border-radius: 3px;
-  background: #eee;
+  background: $neutral-94;
   overflow: hidden;
 
   span {
