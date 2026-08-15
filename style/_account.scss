@@ -1,0 +1,59 @@
+@use "sass:color";
+@use "tokens" as *;
+
+// GTFO — the account exits on /settings.
+//
+// One row per action: what it does on the left, the button on the right. The
+// rows are deliberately uniform even though they are not equally reversible,
+// because the difference belongs in the copy and in the confirmation screen, not
+// in a button that looks scarier than its neighbour. A rider leaving is doing
+// something legitimate and the page should not editorialize about it.
+.gtfo {
+  margin-top: 3rem;
+  border: 1px solid $grey;
+  border-radius: 10px;
+  padding: 1.5rem;
+
+  h2 {
+    margin-top: 0;
+  }
+
+  > .lede {
+    margin-bottom: 1.5rem;
+  }
+}
+
+.gtfo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid $grey;
+
+  h3 {
+    margin: 0 0 0.35rem;
+  }
+
+  p {
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  // The button never shrinks to fit a long paragraph beside it.
+  .btn {
+    flex: 0 0 auto;
+  }
+}
+
+//@ XS <576px — the two-column row stops fitting, so the button drops below.
+@media (max-width: 575px) {
+  .gtfo-item {
+    flex-direction: column;
+    align-items: stretch;
+
+    .btn {
+      text-align: center;
+    }
+  }
+}

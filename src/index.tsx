@@ -17,20 +17,11 @@ import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
-import {
-  buildCsv,
-  buildGeoJson,
-  buildGpx,
-  buildKml,
-  buildNativeJson,
-  loadNativeRide,
-  loadRideForExport,
-  rideStartDate,
-  type ExportRide,
-} from './maps/export'
+import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from './maps/export'
+import { DOWNLOADS, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
-import { mapFilePath, type StoredExt } from './maps/storage'
+import { mapFilePath } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -46,6 +37,7 @@ import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { settingsRoutes } from './routes/settings'
+import { accountRoutes } from './routes/account'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -133,6 +125,7 @@ app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
+app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
@@ -283,63 +276,6 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   })
 })
 
-// Downloads, source-aware.
-//
-// An imported ride streams its stored original for the format it arrived in —
-// byte-for-byte what the rider uploaded, which is the entire reason the file is
-// kept. Every other format, and every format of a native ride, is generated
-// from the rows. So a KML import can be downloaded as GPX and a ride built here
-// can be downloaded as either, neither of which was possible before.
-//
-// One table rather than four handlers: the visibility gate, the nosniff header
-// and the attachment naming are identical for all of them, and four copies of
-// that is four places for one of them to drift.
-const DOWNLOADS: Record<
-  string,
-  {
-    type: string
-    stored: StoredExt
-    hasStored: (m: RideRow) => boolean
-    // firstDay is only passed by the per-day zip, where each file holds one
-    // day that is day N of a ride rather than day 1 of itself.
-    build: (r: ExportRide, firstDay?: number) => string
-  }
-> = {
-  kml: {
-    type: 'application/vnd.google-earth.kml+xml',
-    stored: 'kml',
-    // A KMZ is stored as the KML from inside it, so it answers here too. Rows
-    // predating source_format have it backfilled from whichever file they kept.
-    hasStored: (m) => m.kmlBytes > 0 && (m.sourceFormat === 'kml' || m.sourceFormat === 'kmz'),
-    build: buildKml,
-  },
-  gpx: {
-    type: 'application/gpx+xml',
-    stored: 'gpx',
-    hasStored: (m) => m.gpxPresent && m.sourceFormat === 'gpx',
-    build: buildGpx,
-  },
-  // These two have no byte column of their own; source_format is what says the
-  // ride arrived as one, and source_bytes that the file is on disk.
-  geojson: {
-    type: 'application/geo+json',
-    stored: 'geojson',
-    hasStored: (m) => m.sourceBytes > 0 && (m.sourceFormat === 'geojson' || m.sourceFormat === 'json'),
-    build: buildGeoJson,
-  },
-  csv: {
-    type: 'text/csv',
-    stored: 'csv',
-    hasStored: (m) => m.sourceBytes > 0 && m.sourceFormat === 'csv',
-    build: buildCsv,
-  },
-}
-
-// Every branch above tests source_format, which is what keeps a folder import
-// from streaming one of its files as if it were the whole ride: several files
-// store 'mixed', which matches nothing, so those rides always generate from the
-// rows — and the rows are the merged ride, which is the correct answer.
-
 // Every download names itself by the convention in maps/filename.ts, so a
 // folder of them re-imports as the ride it came from rather than as whatever
 // order the browser happened to list them in.
@@ -453,10 +389,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   // be lossy for no reason: the file carries styling, folders and per-point
   // detail this app does not model and therefore cannot reproduce.
   if (spec.hasStored(m)) {
-    // A .json upload is stored under .json, not .geojson — the extension is the
-    // one the rider sent. Both are the same format and both answer /geojson.
-    const ext = spec.stored === 'geojson' && m.sourceFormat === 'json' ? 'json' : spec.stored
-    const path = mapFilePath(m.ownerId, m.id, ext)
+    const path = mapFilePath(m.ownerId, m.id, storedExtFor(spec, m))
     if (path) {
       const buf = await readFile(path).catch(() => null)
       if (buf) return new Response(buf, { headers })

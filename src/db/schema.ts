@@ -555,6 +555,7 @@ export type UserRow = typeof users.$inferSelect
 export type UserStatus = (typeof userStatusEnum.enumValues)[number]
 export type UserProfileRow = typeof userProfiles.$inferSelect
 export type UsernameHistoryRow = typeof usernameHistory.$inferSelect
+export type UserIdentityRow = typeof userIdentities.$inferSelect
 export type LoginTokenRow = typeof loginTokens.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
