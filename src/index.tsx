@@ -10,6 +10,7 @@ import {
   days as daysTable,
   points as pointsTable,
   routeLegs,
+  users,
   type RideRow,
   type UserRow,
 } from './db/schema'
@@ -48,10 +49,28 @@ import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
 // slug) is treated as not-found so we never confirm it exists.
+//
+// The owner join is what makes "Delete Me" darken a rider's links immediately.
+// It has to be asked here rather than inferred from anything on the ride: this
+// function reads only the rides row, so no owner state has ever reached it, and
+// a blocked owner's public rides are still served today for exactly that reason.
+//
+// Answering not-found rather than gone, deliberately — the same answer an
+// unknown slug gets, so a link cannot be used to learn that an account existed
+// and is on its way out. Nothing about the ride changes, which is what makes
+// Save Me free: clearing the flag brings every link back.
 async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRow | undefined> {
   if (!slug) return undefined
-  const [r] = await db.select().from(rides).where(eq(rides.slug, slug)).limit(1)
-  if (!r) return undefined
+  const [row] = await db
+    .select({ ride: rides, ownerLeavingAt: users.deletionRequestedAt })
+    .from(rides)
+    .innerJoin(users, eq(users.id, rides.ownerId))
+    .where(eq(rides.slug, slug))
+    .limit(1)
+  if (!row) return undefined
+  if (row.ownerLeavingAt) return undefined
+
+  const r = row.ride
   if (r.visibility === 'public' || r.visibility === 'unlisted') return r
   if (viewer && viewer.id === r.ownerId) return r
   return undefined

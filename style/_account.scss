@@ -40,10 +40,59 @@
     max-width: 60ch;
   }
 
-  // The button never shrinks to fit a long paragraph beside it.
-  .btn {
+  // The button never shrinks to fit a long paragraph beside it. The form wrapper
+  // is here too, because Save Me posts rather than links.
+  .btn,
+  form {
     flex: 0 0 auto;
   }
+}
+
+// An action that exists but has nothing to act on — Save Me with no deletion
+// pending. Stated in words rather than shown as a disabled button, which would
+// imply the control is real and merely switched off.
+.gtfo-note {
+  flex: 0 0 auto;
+  color: $text;
+  opacity: 0.6;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+// The one destructive action in the app. Red because it deserves to be picked
+// out of a column of otherwise identical buttons, not because it is dangerous
+// in the moment — Delete Me is reversible for thirty days.
+.btn.btn-danger {
+  background: $kml;
+
+  &:hover {
+    background: color.adjust($kml, $lightness: -8%);
+  }
+}
+
+.gtfo-confirm {
+  margin-top: 2rem;
+  max-width: 48ch;
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  input[type='text'] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid $grey;
+    border-radius: 8px;
+    font: inherit;
+  }
+}
+
+.gtfo-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
 }
 
 //@ XS <576px — the two-column row stops fitting, so the button drops below.

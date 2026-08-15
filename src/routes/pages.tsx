@@ -10,7 +10,7 @@
 // should go back to that file.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, days as daysTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
@@ -67,11 +67,16 @@ pageRoutes.get('/explore', async (c) => {
   const order = sort === 'new' ? [desc(rides.createdAt)] : [desc(rides.viewCount), desc(rides.createdAt)]
 
   // One extra row answers "is there a next page" without a second count query.
+  // The owner join drops a leaving rider's rides from the listing the moment
+  // they hit Delete Me. It is an inner join on users rather than a filter on the
+  // ride, because nothing on a rides row knows anything about its owner — this
+  // query never looked at users at all before.
   const rows = await db
     .select({ ride: rides, color: daysTable.color })
     .from(rides)
+    .innerJoin(users, eq(users.id, rides.ownerId))
     .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
-    .where(eq(rides.visibility, 'public'))
+    .where(and(eq(rides.visibility, 'public'), isNull(users.deletionRequestedAt)))
     .orderBy(...order)
     .limit(PER_PAGE + 1)
     .offset(offset)
@@ -132,11 +137,15 @@ pageRoutes.get('/riders', requireActive, async (c) => {
     .select({ displayName: users.displayName, username: users.username })
     .from(users)
     .where(
+      // deletion_requested_at is null keeps a leaving rider off the roster from
+      // the moment they ask, the same as it keeps their rides off /explore.
       q
         ? sql`${users.status} = 'active' and ${users.username} is not null
+              and ${users.deletionRequestedAt} is null
               and (lower(${users.username}) like lower(${'%' + q + '%'})
                    or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
-        : sql`${users.status} = 'active' and ${users.username} is not null`,
+        : sql`${users.status} = 'active' and ${users.username} is not null
+              and ${users.deletionRequestedAt} is null`,
     )
     .orderBy(users.displayName)
     .limit(200)
@@ -202,6 +211,7 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
       displayName: users.displayName,
       username: users.username,
       status: users.status,
+      deletionRequestedAt: users.deletionRequestedAt,
       lastName: userProfiles.lastName,
       shareLastName: userProfiles.shareLastName,
     })
@@ -210,9 +220,14 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     .where(sql`lower(${users.username}) = lower(${handle})`)
     .limit(1)
 
-  // A pending or blocked account has no public presence. Same 404 as a handle
-  // that was never claimed, so the page cannot be used to probe account states.
-  if (!row?.username || row.status !== 'active') return c.text('Not found', 404)
+  // A pending or blocked account has no public presence, and neither does one on
+  // its way out. Same 404 as a handle that was never claimed, so the page cannot
+  // be used to probe account states — including "did this rider just leave".
+  //
+  // The name itself stays reserved through the hold: username_history is
+  // untouched until the purge, so nobody else can claim it while the rider can
+  // still change their mind.
+  if (!row?.username || row.status !== 'active' || row.deletionRequestedAt) return c.text('Not found', 404)
 
   const cards = await db
     .select({ ride: rides, color: daysTable.color })

@@ -41,6 +41,12 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
   // their address rather than one they chose. /choose-name and /logout run on
   // requireAuth, so neither can loop back into this.
   if (!user.username) return c.redirect('/choose-name', 302)
+  // Before status, and that ordering is the point: a rider who was pending or
+  // blocked when they asked to leave still needs the page that offers Save Me,
+  // not /welcome, whose whole job is to say they cannot use the app. Their
+  // status is untouched and comes back with them. /account/gone runs on
+  // requireAuth, so it cannot loop back into this.
+  if (user.deletionRequestedAt) return c.redirect('/account/gone', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
   await next()
 }
@@ -93,6 +99,9 @@ export const requireAuthApi: MiddlewareHandler<AuthEnv> = async (c, next) => {
 export const requireActiveApi: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.json({ error: 'authentication required' }, 401)
+  // 403 rather than 401 for the same reason a pending rider gets one: the
+  // session is perfectly valid and re-logging in would change nothing.
+  if (user.deletionRequestedAt) return c.json({ error: 'account scheduled for deletion' }, 403)
   if (user.status !== 'active') return c.json({ error: 'account not approved' }, 403)
   await next()
 }
