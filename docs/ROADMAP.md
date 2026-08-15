@@ -37,21 +37,10 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 15. On-the-road mobile interface  | "a route's Google Maps legs" → "a day's"                                               | [#69](https://github.com/feralcreative/routeloop/issues/69)             |
 | Backlog → elevation profile       | "per route" → **per day**                                                              | [#23](https://github.com/feralcreative/routeloop/issues/23)             |
 | Backlog → reverse and duplicate   | marked **shipped**; it was still listed as unbuilt                                     | [#26](https://github.com/feralcreative/routeloop/issues/26) already closed—no action |
-| **16. The builder panel** (new)   | whole item added from the 2026-08-10 click-through                                     | **needs a new issue**                                                 |
-| **17. Avatar upload** (new)       | whole item added from the 2026-08-10 click-through                                     | **needs a new issue**                                                 |
 | 7. Bikes and range planning       | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)             |
 | Backlog → drag-to-reorder         | affordance decided: a textured drag bar, not arrows                                    | [#39](https://github.com/feralcreative/routeloop/issues/39)             |
 
-Added 2026-08-15, from a brainstorm. Three new entries and one change to an existing one; none has an issue yet.
-
-<!-- col-widths: 22% 44% 34% -->
-
-| Entry                          | What changed on 2026-08-15                                                                  | Issue to match        |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | --------------------- |
-| 17. Avatar upload              | PNG/JPEG only, 1 MB cap, 1000×1000; profile-top placement; the crop circle's outside is shaded | **needs a new issue** |
-| **18. Profile autosave** (new) | whole item                                                                                  | **needs a new issue** |
-| **19. Address autocomplete** (new) | whole item                                                                              | **needs a new issue** |
-| **20. Theme selection** (new)  | whole item                                                                                  | **needs a new issue** |
+Cleared on 2026-08-15: every entry that read "needs a new issue" now has one. Items 16, 17, 18, 19 and 20 became [#88](https://github.com/feralcreative/routeloop/issues/88) (an epic with eleven children, one of which is the pre-existing [#39](https://github.com/feralcreative/routeloop/issues/39)), [#99](https://github.com/feralcreative/routeloop/issues/99), [#100](https://github.com/feralcreative/routeloop/issues/100), [#101](https://github.com/feralcreative/routeloop/issues/101) and [#102](https://github.com/feralcreative/routeloop/issues/102). The dashboard got its first issue ever, [#103](https://github.com/feralcreative/routeloop/issues/103), and its own `area:dashboard` label.
 
 Three issues carry the old vocabulary in their **titles**, which is a separate edit from their bodies:
 
@@ -61,16 +50,28 @@ Three issues carry the old vocabulary in their **titles**, which is a separate e
 
 ## Priorities
 
-Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. Reviewed 2026-08-06.
+Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. **Re-scoped 2026-08-15**—the tiers below mean something different than they did, so an issue's label is only as good as the last sweep. See "What changed, and why" underneath the table.
 
 <!-- col-widths: 12% 88% -->
 
-| Tier   | What it means                                                                      |
-| ------ | ---------------------------------------------------------------------------------- |
-| **P0** | Blocks real use of something that already ships. Do these next                     |
-| **P1** | The group layer, plus the platform work that has to exist before anyone is invited |
-| **P2** | Real gaps riders will hit, none of them urgent at this size                        |
-| **P3** | Good ideas with no timeline, and the whole idea backlog                            |
+| Tier   | What it means                                                                         |
+| ------ | -------------------------------------------------------------------------------------- |
+| **P0** | Blocks real use of something that already ships. Do these next                        |
+| **P1** | The builder page, its tool panel, and the map engine                                  |
+| **P2** | The dashboard at `/`, plus real gaps riders will hit                                  |
+| **P3** | Everything else, including the group layer and the whole idea backlog                 |
+
+### What changed, and why
+
+P1 used to be *the group layer*. It is now *the builder*. The reasoning, recorded because a tier that changes meaning silently is worse than no tier at all:
+
+**Planning a ride fluidly and intuitively is what this app is for.** Everything else in the product—sharing, hand-off, the group layer, the roadbook—is downstream of a plan that was pleasant to make. The map and the builder's tool panel are where that happens, and the panel has never been designed as one surface; it grew a control at a time. Item 16 measures the damage: 198 interactive elements in a 380px column, 807px of content in a 620px window, and a layout that jumps on nearly every edit.
+
+**The group layer went to P3, not P2.** Nobody is in the beta and nobody will be for a while, so nothing needs #71, #72 or #73 to work. The dependency chain those three describe is still correct and still in item 8—it just is not next. #12 sits on top of all three and went with them.
+
+**#16 stays at P1** despite being platform work, for the one reason it was already there: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than with accounts. That has to exist before rides are shared widely, and it is indifferent to what the rest of the tiers mean.
+
+**The dashboard is P2 and had no issues at all.** `/` carries the stats, and until 2026-08-15 the nav did not link to it—the only way in was the logo. That gap is closed; nothing else about the page has been specified.
 
 **P0 is empty as of 2026-08-06.** The tier that used to hold this section has been cleared:
 
@@ -80,9 +81,13 @@ Every open issue carries a **P0–P3** label. The labels are the authority on wh
 
 **With P0 clear, P1 is the work.**
 
-**P1—the group layer, in dependency order.** [#71](https://github.com/feralcreative/routeloop/issues/71) ride membership, then [#72](https://github.com/feralcreative/routeloop/issues/72) friendships, then [#73](https://github.com/feralcreative/routeloop/issues/73) the visibility levels that need both. [#12](https://github.com/feralcreative/routeloop/issues/12) sits on top of all three. [#16](https://github.com/feralcreative/routeloop/issues/16) is here for one reason: rate limiting. Every anonymous view of a shared ride is a billable Maps load, so cost scales with strangers rather than accounts—that has to exist before rides are shared widely.
+**P1—the builder, and item 16 first within it.** The panel is the app's primary work surface and the one that has never been designed as one. Item 16 is where its twelve decided changes live, and it sequences itself: **autosave lands before the action row** (which deletes the Save button and probably Discard with it, so the row that survives is not the row that exists today) and **before the exit-guard question** (autosave may remove the reason for a confirm dialog entirely). Everything else on the list is independent of that pair.
 
-A note on sequencing: P1 is where the product stops being single-player, and it is the reason a rider brings anyone else. It is second only because P0 makes the thing worth showing them.
+The rest of P1 is the issues that touch `public/js/builder.js` and the map engine—drag-to-reorder ([#39](https://github.com/feralcreative/routeloop/issues/39)), keyboard shortcuts ([#40](https://github.com/feralcreative/routeloop/issues/40)), splitting a long day ([#49](https://github.com/feralcreative/routeloop/issues/49)), lodging as a day boundary ([#54](https://github.com/feralcreative/routeloop/issues/54)), detour-radius discovery ([#50](https://github.com/feralcreative/routeloop/issues/50)), layer stacking ([#51](https://github.com/feralcreative/routeloop/issues/51)), saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)).
+
+**[#16](https://github.com/feralcreative/routeloop/issues/16) stays P1 on its own argument**—rate limiting, per the note above. It is the one P1 that is not builder work.
+
+**The group layer moved to P3**, in the dependency order it always had: [#71](https://github.com/feralcreative/routeloop/issues/71) ride membership, then [#72](https://github.com/feralcreative/routeloop/issues/72) friendships, then [#73](https://github.com/feralcreative/routeloop/issues/73) the visibility levels that need both, with [#12](https://github.com/feralcreative/routeloop/issues/12) on top of all three. That chain is unchanged and still correct; only its position moved. P1 used to say this was "where the product stops being single-player, and the reason a rider brings anyone else"—still true, and it waits, because a rider brought to a planner that is awkward to plan in does not stay.
 
 ## Vision
 
