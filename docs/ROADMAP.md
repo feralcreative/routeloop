@@ -42,6 +42,17 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 7. Bikes and range planning       | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)             |
 | Backlog → drag-to-reorder         | affordance decided: a textured drag bar, not arrows                                    | [#39](https://github.com/feralcreative/routeloop/issues/39)             |
 
+Added 2026-08-15, from a brainstorm. Three new entries and one change to an existing one; none has an issue yet.
+
+<!-- col-widths: 22% 44% 34% -->
+
+| Entry                          | What changed on 2026-08-15                                                                  | Issue to match        |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | --------------------- |
+| 17. Avatar upload              | PNG/JPEG only, 1 MB cap, 1000×1000; profile-top placement; the crop circle's outside is shaded | **needs a new issue** |
+| **18. Profile autosave** (new) | whole item                                                                                  | **needs a new issue** |
+| **19. Address autocomplete** (new) | whole item                                                                              | **needs a new issue** |
+| **20. Theme selection** (new)  | whole item                                                                                  | **needs a new issue** |
+
 Three issues carry the old vocabulary in their **titles**, which is a separate edit from their bodies:
 
 - **[#49](https://github.com/feralcreative/routeloop/issues/49) "Split a long route into day routes"**—should be "into days". The only one of the three where the stale word is also the feature's name.
@@ -449,20 +460,88 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] An upload control on the profile page, plus remove-and-revert-to-fallback.
+- [ ] **A section at the top of the profile page, beside the username**, holding the avatar, the upload control, and remove-and-revert-to-fallback. Placement decided 2026-08-15.
 - [ ] **Raster only. No SVG, ever.** Decided 2026-08-10—an SVG avatar is stored XSS, and `src/views/layout.tsx` renders the avatar in the nav on every page of the app. This is a security boundary, not a format preference.
-- [ ] **Square, 500×500 maximum.** Decided. Stored square; **circular is a display treatment only**—`.nav-avatar` already carries `border-radius: 50%`, so nothing round is ever written to disk.
-- [ ] **A circular crop box the rider sizes and positions**, working on any aspect ratio—decided 2026-08-10, in place of a server-side center-crop, which beheads anyone who uploads a landscape photo. The circle is the *guide*; what gets written is the 500×500 square that bounds it, so the corners are still stored and a square display keeps working if we ever want one.
+- [ ] **PNG or JPEG only, 1 MB maximum, 1000×1000 maximum.** Added 2026-08-15. The two format names are the concrete expression of the raster-only rule above—accept exactly these and reject everything else by sniffing the bytes, not by trusting the extension or the `Content-Type`. The 1 MB bound is a cheap first gate that rejects most of what a phone camera produces before any decode happens, which matters because decoding is where a malicious image does its damage.
+- [ ] **Square. Stored square; circular is a display treatment only**—`.nav-avatar` already carries `border-radius: 50%`, so nothing round is ever written to disk.
+- [ ] **A circular crop box the rider sizes and positions**, working on any aspect ratio—decided 2026-08-10, in place of a server-side center-crop, which beheads anyone who uploads a landscape photo. The circle is the *guide*; what gets written is the square that bounds it, so the corners are still stored and a square display keeps working if we ever want one. **Outside the circle is shaded**, not hidden, so the rider can see what they are cutting off while they position it.
 - [ ] **Re-encode every upload server-side** to a known raster format at or under that bound. Never store or serve the bytes as received. **The client-side crop is convenience, not enforcement**—the browser's output is attacker-controlled, so the server re-validates dimensions and re-encodes regardless of what arrived.
 - [ ] Strip EXIF—phone photos carry GPS, and a rider's avatar should not publish where they took it.
 - [ ] Serve through a route, not a static path: `src/maps/storage.ts` deliberately writes outside the web root, and avatars follow the same rule.
 - [ ] Confirm `STORAGE_PATH` is a named volume in prod before anything user-uploaded depends on it surviving a redeploy.
 
-**Open question.** **Which crop library, if any.** Pinch-zoom, drag-to-position and touch handling on a crop box is a lot of fiddly work to get right, and this is the first item on the list that plausibly earns a dependency rather than bespoke code. See the standing preference in `AGENTS.md`: a library that earns its keep is welcome, options get presented rather than assumed.
+**Open questions.**
+
+- **Which crop library, if any.** Pinch-zoom, drag-to-position and touch handling on a crop box is a lot of fiddly work to get right, and this is the first item on the list that plausibly earns a dependency rather than bespoke code. See the standing preference in `AGENTS.md`: a library that earns its keep is welcome, options get presented rather than assumed.
+- **1000×1000 supersedes a decision, and that is worth a second look.** This item recorded "Square, 500×500 maximum. Decided" on 2026-08-10; the 2026-08-15 note says 1000. Two readings and they are not the same feature: 1000 is the largest file the *upload* accepts and the server still re-encodes down to a stored bound, or 1000 is what gets *stored* and 500 was simply wrong. The second doubles what the nav avatar ships on every page of the app for a control rendered at 32px. Written as the stored bound above; say if it was meant as the accepted-upload bound instead.
 
 **Touches.** `src/routes/profile.ts`, `src/maps/storage.ts` (or a sibling that follows its containment pattern), `src/db/schema.ts` if the source of an avatar needs distinguishing from Google's, `src/views/layout.tsx`.
 
 **Status.** planned—raised 2026-08-10. This is the first user-uploaded binary the app serves *publicly*; the stored map originals are downloads behind auth, which is a materially different risk profile. The initials-on-a-tinted-disc fallback stays for riders who upload nothing—see `docs/main-menu.md`.
+
+### 18. Profile autosave
+
+**Goal.** The profile saves on a button today, so a rider who edits a field and navigates away loses it silently. Autosave after a few idle seconds, the way an editor does, and say so.
+
+**Work.**
+
+- [ ] Flush the profile form to the server after a short idle pause, and on blur of the last-touched field.
+- [ ] An indicator that says saved / saving / failed, in place of the button it replaces. Silent saving is worse than an explicit button, not better.
+- [ ] Per-field validation errors already come back from the `profile.tsx` schema; an autosave has to surface them without stealing focus or reverting what the rider typed.
+- [ ] Decide what happens to a partially valid form. A profile is not a ride: individual fields are independent, so a bad postal code should not block a good display name from persisting.
+
+**Open questions.**
+
+- **Whether it shares a mechanism with item 16.** The builder's autosave has the same shape—idle debounce, flush, status indicator—but a different failure model: the builder's `PUT` replaces the whole ride in one transaction, while a profile is a set of independent fields. Worth one helper if the debounce and the indicator are genuinely the same; not worth forcing if the persistence halves differ. Look at both before writing either.
+- **The address fields interact with item 19.** Autosaving mid-typing in an address field would fire while the rider is still choosing from the dropdown. Sequence the two, or exclude the address block from idle flush until a selection is made.
+
+**Touches.** `src/routes/profile.tsx`, `public/js/profile.js`, `style/_forms.scss`.
+
+**Status.** planned—raised 2026-08-15.
+
+### 19. Address autocomplete that fills the form
+
+**Goal.** Typing an address should offer matches in a dropdown attached to the field, and picking one should fill address, city, state and postal code in a single action. Today the rider types every field by hand and a status line appears *below* the input reporting what the geocoder made of it, which is feedback after the fact rather than help during.
+
+**Work.**
+
+- [ ] Attach a suggestion dropdown to the address input itself, replacing the after-the-fact `#geocode-status` line as the primary feedback.
+- [ ] On selection, populate `addressLine`, `city`, `state` and `postalCode` from the structured result, plus the coordinates the geocoder already writes—one action instead of five fields and a guess.
+- [ ] Apply to **both** address blocks on the profile: the home address and the separate ride-start address, which are two copies of the same five fields today.
+- [ ] Keep manual entry working unchanged. An address the provider does not know must still save as typed—the existing rule that a bad geocode yields null coordinates and never a validation failure stays exactly as it is.
+- [ ] Keyboard-navigable list with the usual arrow/enter/escape semantics and correct ARIA, not a mouse-only menu.
+
+**Open questions.**
+
+- **Which API, and what it costs.** Places Autocomplete (New) is already enabled for the builder's search box, but it is billed per session and per request, and this puts it behind every keystroke on the profile. Session tokens are the mechanism that keeps that from being priced per character—use them, and confirm the SKU before it ships. The daily quota caps from item 1 apply.
+- **Server proxy or browser call.** The builder calls Places from the client with the referrer-restricted browser key; the profile's geocoding was deliberately moved *server-side* in item 1 so `GMAPS_SERVER_KEY` never reaches a client. Decide which side this sits on rather than inheriting whichever is nearer to hand.
+- **Coverage outside the US.** The four field names are US-shaped. A provider returning a structured result for an address that does not decompose that way should degrade to filling the line and leaving the rest, not to filling them wrongly.
+
+**Touches.** `src/routes/profile.tsx`, `public/js/profile.js`, `src/routes/routing.ts` (the existing geocode proxy), `style/_forms.scss`.
+
+**Status.** planned—raised 2026-08-15. Related to item 6 (saved places), which will want the same picker when a rider adds a place.
+
+### 20. Theme selection: default, high contrast, colorblind
+
+**Goal.** A section on the settings page letting a rider choose the site's colors—**default**, **high contrast**, or **colorblind**—as three radio options. This is the first real content `/settings` gets; it currently says "Not much to set yet."
+
+**Work.**
+
+- [ ] Three named themes behind a rider preference, persisted to the account and applied server-side on render so there is no flash of the wrong theme.
+- [ ] **Default** is the road-sign palette as it stands, including the ink pairing—which field takes the white legend and which takes the black—recorded in `style/_tokens.scss`.
+- [ ] **High contrast** raises every foreground/background pair well past 4.5:1, including the pairs that only just clear it today and the ones that deliberately do not because they are decoration rather than text.
+- [ ] **Colorblind** addresses the collisions the palette has by construction. `$stop` and `$go` are a red/green pair and converge under deuteranopia and protanopia; `$yield` and `$construction` are adjacent ambers. The existing note under the `/import` filename fields—that color is never the only cue—becomes a rule the whole app has to hold to, not a line in one comment.
+- [ ] Audit where color is currently the *only* signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
+
+**Open questions.**
+
+- **Mechanism.** CSS custom properties on `:root` swapped by a `data-theme` attribute is the obvious shape, but the palette is currently Sass variables compiled to literal values, and several tokens are *derived* (`color.adjust($yield, -20%)`). Sass cannot derive from a custom property at build time, so either the derived tokens become authored values per theme, or the derivations move to `color-mix()` in CSS. Decide before writing the second theme, not after.
+- **Does it interact with `prefers-contrast` / `prefers-color-scheme`?** The OS already reports both. Whether the setting overrides the OS, defers to it, or offers "system" as a fourth option is undecided—and note the emails have their own dark palette already, in `src/emails/theme.ts`, which no site-level setting can reach.
+- **Dark mode is not on this list, and someone will ask.** These three are about legibility, not preference. Whether a dark theme joins them is a separate question with a much larger surface—the splash page is photo-backed and the map has its own styling.
+
+**Touches.** `src/routes/settings.tsx`, `src/db/schema.ts` (the preference), `src/views/layout.tsx` (applying it at render), `style/_tokens.scss` and every partial that reads a token, `docs/main-menu.md`.
+
+**Status.** planned—raised 2026-08-15. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
 <!--| PAGE-BREAK -->
 

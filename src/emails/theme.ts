@@ -21,13 +21,13 @@
  */
 export const TOKEN_COLORS = {
   // The accent, mirrored under the token that actually holds the hex. `$url` is
-  // now a one-level alias of `$handicap` in _tokens.scss — the road-sign palette
+  // now a one-level alias of `$disabled` in _tokens.scss — the road-sign palette
   // names colors for what they are on a road, and the accent is the blue of an
   // accessible-parking sign. The pinning test looks each key up verbatim and
   // deliberately refuses to follow an alias, so mirroring `url` here would find
-  // `$url: $handicap` and fail. `COLORS.url` below keeps the name the templates
+  // `$url: $disabled` and fail. `COLORS.url` below keeps the name the templates
   // read, and the test pins the alias so this stays a safe substitution.
-  handicap: '#0a539c',
+  disabled: '#0a539c',
   text: '#333',
   white: '#fff',
   grey: '#ddd',
@@ -57,9 +57,9 @@ export const EMAIL_ONLY_COLORS = {
 
 // `url` is the name every template reads for the accent, kept because that is
 // what it means in a mail — link and button. It is not a second value: it points
-// at the mirrored `$handicap`, the same one-level indirection _tokens.scss has
-// between `$url` and `$handicap`, and test/email-theme.test.ts pins both ends.
-export const COLORS = { ...TOKEN_COLORS, ...EMAIL_ONLY_COLORS, url: TOKEN_COLORS.handicap } as const
+// at the mirrored `$disabled`, the same one-level indirection _tokens.scss has
+// between `$url` and `$disabled`, and test/email-theme.test.ts pins both ends.
+export const COLORS = { ...TOKEN_COLORS, ...EMAIL_ONLY_COLORS, url: TOKEN_COLORS.disabled } as const
 
 /**
  * The dark-mode palette, used ONLY inside the `prefers-color-scheme` block in
@@ -117,9 +117,7 @@ export const DARK = {
  * the <style> block rather than on an element, but the test reads the bytes and
  * does not care which.
  */
-export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.values(DARK)].map((c) =>
-  c.toLowerCase(),
-)
+export const PALETTE: readonly string[] = [...Object.values(COLORS), ...Object.values(DARK)].map((c) => c.toLowerCase())
 
 // No webfont. The site self-hosts Overpass via @font-face in style/_fonts.scss;
 // an email cannot do the equivalent, because both a <link> and an @font-face in

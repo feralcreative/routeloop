@@ -26,7 +26,7 @@
   --viz-series-1: #{$brand};
   // Categorical slots, validated as a set. Order is fixed: public, unlisted,
   // private. Colour follows the meaning, never the size of the group.
-  --viz-cat-1: #{$handicap};
+  --viz-cat-1: #{$disabled};
   --viz-cat-2: #{$construction};
   --viz-cat-3: #{$interstate};
   --viz-ink-muted: #777;

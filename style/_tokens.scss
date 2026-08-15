@@ -21,7 +21,7 @@
 //
 // Two names to read carefully. `$yield` is amber: a yield sign has been red and
 // white since 1971, and this is the warning-and-construction family instead.
-// `$handicap` is the blue of an accessible-parking sign, and it is the app's
+// `$disabled` is the blue of an accessible-parking sign, and it is the app's
 // generic accent through `$url` below rather than an accessibility signal.
 $interstate: #266149;
 $speed: #efefef;
@@ -32,7 +32,7 @@ $recreation: #603d15;
 $yield: #ffac00;
 $go: #41ae4d;
 $concrete: #7e8386;
-$handicap: #0a539c;
+$disabled: #0a539c;
 
 // WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
 // from the contrast numbers — it is copied off the signs the palette was sampled
@@ -40,7 +40,7 @@ $handicap: #0a539c;
 // picks its legend color by taste.
 //
 //   WHITE legend    $stop (STOP, WRONG WAY), $interstate (guide sign, airport),
-//                   $handicap (parking symbol, I-95 shield), $blacktop (ONE WAY,
+//                   $disabled (parking symbol, I-95 shield), $blacktop (ONE WAY,
 //                   DETOUR), $recreation (brown recreational)
 //   BLACK legend    $yield (warning diamonds), $construction (work zone, the
 //                   orange DETOUR), $speed (SPEED LIMIT, the Route 66 shield)
@@ -64,7 +64,7 @@ $handicap: #0a539c;
 // The two ink tokens are declared under $white below, which is the first point
 // in this file where both of their operands exist.
 
-$url: $handicap;
+$url: $disabled;
 // The semantic tokens below now take their value from the road-sign palette
 // instead of holding one of their own. Where a token is only ever a fill, it
 // points straight at a palette entry. Where it is TEXT, it points at a darkened
