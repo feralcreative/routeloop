@@ -1,10 +1,11 @@
 @use "sass:color";
+@use "sass:map";
 @use "tokens" as *;
 
 // Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
 // chrome and map pages share one stylesheet and one accent color. The old
-// inline copy hardcoded #06c while the map used $url (#1565c0) — same intent,
-// two different blues.
+// inline copy hardcoded its own blue while the map used $url — same intent, two
+// different values, which is the whole reason the move happened.
 
 // Page padding and the reading-width cap used to live on `body`, which made a
 // full-bleed map page impossible without fighting them. They belong to a
@@ -61,6 +62,172 @@ h1 {
   &:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+}
+
+// Highway guide-sign treatment: green field, white legend, and a white keyline
+// set in from the edge so a band of green still shows outside it. That inset
+// border is the whole construction of a US guide sign, and Overpass is drawn
+// from Highway Gothic (see $font), so the type was already most of the way
+// there — this is just the panel around it.
+//
+// The keyline is two stacked inset shadows rather than a pseudo-element, so it
+// works on both a <button> and an <a> with nothing extra in the markup. The
+// first repaints the outer 3px in the field color; the second would fill the
+// outer 5px white; what survives is a 2px white ring inset by 3px. Inset
+// shadows follow the border-radius, so the inner corners curve on their own —
+// squaring them off is what makes a hand-built version look wrong.
+//
+// Padding is looser than .btn's because the legend now has a keyline to clear,
+// and tighter on the arrow's side because its bounding box carries air the
+// glyphs of a word do not.
+//
+// Two independent modifiers ride along:
+//
+//   .btn.btn-sign                      arrow at the left, pointing west
+//   .btn.btn-sign.arrow-right          arrow at the right, pointing east
+//   .btn.btn-sign.arrow-ne             arrow at the left, pointing northeast
+//   .btn.btn-sign.arrow-right.arrow-s  arrow at the right, pointing south
+//
+// Side and bearing are deliberately separate classes and not one .arrow-left-ne
+// per combination: there are 8 bearings on 2 sides, and a fused name means 16
+// rules to keep in step. The bearing defaults to whichever way the button's own
+// side faces, which is the pairing a real sign uses, so the common cases need no
+// bearing class at all.
+$sign-arrow-bearings: (
+  "e": 0deg,
+  "se": 45deg,
+  "s": 90deg,
+  "sw": 135deg,
+  "w": 180deg,
+  "nw": 225deg,
+  "n": 270deg,
+  "ne": 315deg,
+);
+
+.btn.btn-sign {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background: $interstate;
+  color: $white;
+  border-radius: 10px;
+  // The legend is nudged down a tenth of an em, chosen by eye against the real
+  // login form rather than derived. `align-items: center` centres the text's
+  // line BOX, and the box is not centred on the letters: the baseline sits
+  // (ascent − descent) / 2 below the box's middle, so the glyphs ride high. The
+  // vertical padding still sums to 1.5rem, so the button's height does not move.
+  //
+  // Worth knowing before touching it: that offset is independent of
+  // line-height. Setting `line-height: 1` was tried as the principled fix and
+  // moved nothing, because the term cancels — it only shrinks the box around an
+  // already off-centre baseline. There is no line-height that centres the type
+  // and no arithmetic that lands on 0.1em; this is a taste value.
+  //
+  // It reads worse on /login than anywhere else, which is a red herring rather
+  // than a second bug: `.magic-form` stretches the button to the email field's
+  // 53px against the 45px it takes standing alone, and the extra field around
+  // the same offset is what makes it visible.
+  //
+  // There is no element around the label to shift on its own — it is a bare text
+  // node, and giving it a wrapper would cost this treatment the property worth
+  // having, that adding the class is the whole job. So the padding moves the
+  // whole flex line and the arrow is put back below.
+  padding: calc(0.75rem + 0.1em) 1.4rem calc(0.75rem - 0.1em) 1.05rem;
+  letter-spacing: 0.01em;
+  box-shadow:
+    inset 0 0 0 3px $interstate,
+    inset 0 0 0 5px $white;
+
+  // The directional arrow, as an inline SVG in a background rather than markup:
+  // the treatment stays a class you add, with nothing to remember to put inside
+  // the element. It is one path — a 32-unit shaft meeting a head 80 units tall —
+  // because a road-sign arrow is a single solid shape, not a line with a
+  // chevron on it. Thin it and it stops reading as signage.
+  //
+  // The coordinates are the original 24-unit drawing multiplied by four. That
+  // buys nothing on its own; it is what keeps the shaft an integer after it was
+  // lengthened by a quarter, 36 to 45. At the original scale that step was 9 to
+  // 11.25 and every number in the path would have carried a decimal.
+  //
+  // It is drawn pointing east and rotated to everything else, so there is one
+  // path to correct if the shape is ever revised rather than eight that can
+  // drift apart. East is 0deg because CSS rotation is clockwise from the
+  // positive x-axis, which makes the bearing map below read like a compass.
+  //
+  // The BOX is square even though the arrow is not. `contain` preserves aspect
+  // ratio, so a square box still draws it 1.3125em × 1.2em — the same size as a
+  // fitted box would — but a fitted box would be too short to hold the arrow
+  // once it is rotated a quarter turn, and north and south would spill past the
+  // keyline. 1.3125em is 1.2em × 105/96, the viewBox's own ratio.
+  //
+  // The fill is baked white rather than tracking currentColor through a mask.
+  // The legend on this button is $white in every state including hover, so a
+  // mask would buy nothing and cost the prefix dance. Revisit only if a variant
+  // ever changes the legend color. `%23` is a literal `#` — unencoded, the
+  // browser reads the rest of the data URI as a fragment and the arrow vanishes.
+  //
+  // `top` undoes the padding nudge for the arrow alone, so the legend moves and
+  // the arrow stays centred — its drawn shape is symmetric about its box, so
+  // centred is already right for it. Relative offset rather than a negative
+  // margin on purpose: margin would resize the flex line and drag the legend
+  // part of the way back up with it.
+  &::before {
+    content: "";
+    flex: none;
+    position: relative;
+    top: -0.1em;
+    width: 1.3125em;
+    height: 1.3125em;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    transform: rotate(map.get($sign-arrow-bearings, "w"));
+  }
+
+  // Side, by reversing the flex line rather than moving the arrow to ::after.
+  // There are only two items on it, so reversing swaps them, and it keeps one
+  // definition of the arrow instead of a mixin included in two places. The
+  // element order the DOM sees does not change, which is right — the arrow is
+  // decoration and was never in the accessibility tree to begin with.
+  //
+  // The horizontal padding swaps with it, so the tighter side stays the side the
+  // arrow is on.
+  &.arrow-right {
+    flex-direction: row-reverse;
+    padding-right: 1.05rem;
+    padding-left: 1.4rem;
+
+    &::before {
+      transform: rotate(map.get($sign-arrow-bearings, "e"));
+    }
+  }
+
+  // Explicit bearings, last so they beat both defaults. Each is (0,3,1), the
+  // same as `.btn.btn-sign.arrow-right::before` above, so it is source order
+  // and not specificity doing the work — these have to stay below it.
+  @each $name, $bearing in $sign-arrow-bearings {
+    &.arrow-#{$name}::before {
+      transform: rotate($bearing);
+    }
+  }
+
+  // The field darkens and the keyline stays white, so the sign reads as lit
+  // differently rather than as a different sign. Both inset layers have to move
+  // together — leaving the first at $interstate would show the old green as a
+  // hairline outside the keyline.
+  &:hover {
+    $lit: color.adjust($interstate, $lightness: -6%);
+
+    background: $lit;
+    box-shadow:
+      inset 0 0 0 3px $lit,
+      inset 0 0 0 5px $white;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
   }
 }
 

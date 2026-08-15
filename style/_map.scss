@@ -287,7 +287,7 @@ table.day-table {
     height: 100%;
     border-bottom: 1px dotted;
     &:last-child {
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid $text;
     }
     td {
       // border: 1px solid red;
@@ -376,12 +376,17 @@ table.day-table {
           height: 1em;
         }
       }
+      // Dark ink and a lightening hover, unlike its .kml-btn sibling below:
+      // $gpx is $go, a black-legend field in the ink pairing in _tokens.scss,
+      // while $kml is $stop and takes white like the sign it comes from. The
+      // border still darkens — it carries no text, so it is free to go the way
+      // that reads as an edge.
       &.btn.gpx-btn {
         background: $gpx;
         border-color: color.adjust($gpx, $lightness: -20%);
-        color: $white;
+        color: $ink-dark;
         &:hover {
-          background: color.adjust($gpx, $lightness: -15%);
+          background: color.adjust($gpx, $lightness: 8%);
           border-color: color.adjust($gpx, $lightness: -20%);
         }
         &::before {

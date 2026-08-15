@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { ALL_EMAILS } from '../src/emails/index'
 import { renderEmail } from '../src/emails/shell'
-import { PALETTE, TOKEN_COLORS } from '../src/emails/theme'
+import { COLORS, PALETTE, TOKEN_COLORS } from '../src/emails/theme'
 
 const SCSS = readFileSync('style/_tokens.scss', 'utf8')
 
@@ -34,11 +34,23 @@ describe('the email palette mirrors style/_tokens.scss', () => {
     })
   }
 
-  // $brand is a one-level alias of $url (_tokens.scss:20), which is why the
-  // emails mirror `url` and not `brand`. Asserted so that if someone gives
-  // $brand its own value, this stops being a safe substitution and says so.
-  it('$brand is still an alias of $url, so mirroring `url` is correct', () => {
+  // Two one-level aliases sit between the accent's name and its value:
+  // `$brand: $url` and `$url: $handicap`. The emails mirror `handicap`, the only
+  // one of the three that is a literal hex, and expose it as `COLORS.url`.
+  // Both links are asserted so that giving either its own value stops being a
+  // silent substitution and says so here instead.
+  it('$url is still an alias of $handicap, so mirroring `handicap` is correct', () => {
+    expect(SCSS).toMatch(/^\$url:\s*\$handicap\s*;/m)
+  })
+
+  it('$brand is still an alias of $url, so the accent has one source', () => {
     expect(SCSS).toMatch(/^\$brand:\s*\$url\s*;/m)
+  })
+
+  // COLORS.url is what the templates read; it must be the mirrored token and not
+  // a value of its own.
+  it('COLORS.url is the mirrored $handicap', () => {
+    expect(COLORS.url).toBe(TOKEN_COLORS.handicap)
   })
 })
 

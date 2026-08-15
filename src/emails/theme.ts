@@ -20,7 +20,14 @@
  * Only what the emails actually use. Adding one here means adding it there.
  */
 export const TOKEN_COLORS = {
-  url: '#1565c0',
+  // The accent, mirrored under the token that actually holds the hex. `$url` is
+  // now a one-level alias of `$handicap` in _tokens.scss — the road-sign palette
+  // names colors for what they are on a road, and the accent is the blue of an
+  // accessible-parking sign. The pinning test looks each key up verbatim and
+  // deliberately refuses to follow an alias, so mirroring `url` here would find
+  // `$url: $handicap` and fail. `COLORS.url` below keeps the name the templates
+  // read, and the test pins the alias so this stays a safe substitution.
+  handicap: '#0a539c',
   text: '#333',
   white: '#fff',
   grey: '#ddd',
@@ -48,7 +55,11 @@ export const EMAIL_ONLY_COLORS = {
   pageBg: '#f4f5f6',
 } as const
 
-export const COLORS = { ...TOKEN_COLORS, ...EMAIL_ONLY_COLORS } as const
+// `url` is the name every template reads for the accent, kept because that is
+// what it means in a mail — link and button. It is not a second value: it points
+// at the mirrored `$handicap`, the same one-level indirection _tokens.scss has
+// between `$url` and `$handicap`, and test/email-theme.test.ts pins both ends.
+export const COLORS = { ...TOKEN_COLORS, ...EMAIL_ONLY_COLORS, url: TOKEN_COLORS.handicap } as const
 
 /**
  * The dark-mode palette, used ONLY inside the `prefers-color-scheme` block in
