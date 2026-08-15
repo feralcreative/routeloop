@@ -462,18 +462,15 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 - [ ] **A section at the top of the profile page, beside the username**, holding the avatar, the upload control, and remove-and-revert-to-fallback. Placement decided 2026-08-15.
 - [ ] **Raster only. No SVG, ever.** Decided 2026-08-10—an SVG avatar is stored XSS, and `src/views/layout.tsx` renders the avatar in the nav on every page of the app. This is a security boundary, not a format preference.
-- [ ] **PNG or JPEG only, 1 MB maximum, 1000×1000 maximum.** Added 2026-08-15. The two format names are the concrete expression of the raster-only rule above—accept exactly these and reject everything else by sniffing the bytes, not by trusting the extension or the `Content-Type`. The 1 MB bound is a cheap first gate that rejects most of what a phone camera produces before any decode happens, which matters because decoding is where a malicious image does its damage.
-- [ ] **Square. Stored square; circular is a display treatment only**—`.nav-avatar` already carries `border-radius: 50%`, so nothing round is ever written to disk.
+- [ ] **PNG or JPEG only, 1 MB maximum.** Added 2026-08-15. The two format names are the concrete expression of the raster-only rule above—accept exactly these and reject everything else by sniffing the bytes, not by trusting the extension or the `Content-Type`. The 1 MB bound is a cheap first gate that rejects most of what a phone camera produces before any decode happens, which matters because decoding is where a malicious image does its damage.
+- [ ] **Square, 500×500 maximum.** Decided 2026-08-10 and reaffirmed 2026-08-15 against a 1000 proposal. Stored square; **circular is a display treatment only**—`.nav-avatar` already carries `border-radius: 50%`, so nothing round is ever written to disk.
 - [ ] **A circular crop box the rider sizes and positions**, working on any aspect ratio—decided 2026-08-10, in place of a server-side center-crop, which beheads anyone who uploads a landscape photo. The circle is the *guide*; what gets written is the square that bounds it, so the corners are still stored and a square display keeps working if we ever want one. **Outside the circle is shaded**, not hidden, so the rider can see what they are cutting off while they position it.
 - [ ] **Re-encode every upload server-side** to a known raster format at or under that bound. Never store or serve the bytes as received. **The client-side crop is convenience, not enforcement**—the browser's output is attacker-controlled, so the server re-validates dimensions and re-encodes regardless of what arrived.
 - [ ] Strip EXIF—phone photos carry GPS, and a rider's avatar should not publish where they took it.
 - [ ] Serve through a route, not a static path: `src/maps/storage.ts` deliberately writes outside the web root, and avatars follow the same rule.
 - [ ] Confirm `STORAGE_PATH` is a named volume in prod before anything user-uploaded depends on it surviving a redeploy.
 
-**Open questions.**
-
-- **Which crop library, if any.** Pinch-zoom, drag-to-position and touch handling on a crop box is a lot of fiddly work to get right, and this is the first item on the list that plausibly earns a dependency rather than bespoke code. See the standing preference in `AGENTS.md`: a library that earns its keep is welcome, options get presented rather than assumed.
-- **1000×1000 supersedes a decision, and that is worth a second look.** This item recorded "Square, 500×500 maximum. Decided" on 2026-08-10; the 2026-08-15 note says 1000. Two readings and they are not the same feature: 1000 is the largest file the *upload* accepts and the server still re-encodes down to a stored bound, or 1000 is what gets *stored* and 500 was simply wrong. The second doubles what the nav avatar ships on every page of the app for a control rendered at 32px. Written as the stored bound above; say if it was meant as the accepted-upload bound instead.
+**Open question.** **Which crop library, if any.** Pinch-zoom, drag-to-position and touch handling on a crop box is a lot of fiddly work to get right, and this is the first item on the list that plausibly earns a dependency rather than bespoke code. See the standing preference in `AGENTS.md`: a library that earns its keep is welcome, options get presented rather than assumed.
 
 **Touches.** `src/routes/profile.ts`, `src/maps/storage.ts` (or a sibling that follows its containment pattern), `src/db/schema.ts` if the source of an avatar needs distinguishing from Google's, `src/views/layout.tsx`.
 
@@ -490,10 +487,15 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] Per-field validation errors already come back from the `profile.tsx` schema; an autosave has to surface them without stealing focus or reverting what the rider typed.
 - [ ] Decide what happens to a partially valid form. A profile is not a ride: individual fields are independent, so a bad postal code should not block a good display name from persisting.
 
-**Open questions.**
+**Sequencing against item 19—build this one first, and leave the address block out of it.**
 
-- **Whether it shares a mechanism with item 16.** The builder's autosave has the same shape—idle debounce, flush, status indicator—but a different failure model: the builder's `PUT` replaces the whole ride in one transaction, while a profile is a set of independent fields. Worth one helper if the debounce and the indicator are genuinely the same; not worth forcing if the persistence halves differ. Look at both before writing either.
-- **The address fields interact with item 19.** Autosaving mid-typing in an address field would fire while the rider is still choosing from the dropdown. Sequence the two, or exclude the address block from idle flush until a selection is made.
+Autosave and address autocomplete both watch the same fields and both act on a pause in typing, so shipped naively they fight: a rider types four characters of a street name, stops to read the suggestion list, and the idle timer fires and saves the fragment. The stored address is now `123 Ma`, the geocode against it is wrong or null, and if the save re-renders the field from the server the dropdown closes underneath them mid-choice.
+
+- [ ] Build autosave with the address block **excluded**, saving every other field on idle. The address fields keep their explicit save until item 19 lands. This is a real state to ship in, not a stepping stone—the rest of the profile is the part with no save affordance problem.
+- [ ] When item 19 lands, the address block joins autosave on a **different trigger**: it flushes when a suggestion is *selected*, or when the field is left with the dropdown closed. Never on an idle timer, because idle is exactly the state a rider is in while reading suggestions.
+- [ ] Whichever ships second owns the integration test: type into an address field, pause longer than the idle delay with the dropdown open, and assert nothing was saved and the dropdown is still there.
+
+**Open question.** **Whether it shares a mechanism with item 16.** The builder's autosave has the same shape—idle debounce, flush, status indicator—but a different failure model: the builder's `PUT` replaces the whole ride in one transaction, while a profile is a set of independent fields. Worth one helper if the debounce and the indicator are genuinely the same; not worth forcing if the persistence halves differ. Look at both before writing either.
 
 **Touches.** `src/routes/profile.tsx`, `public/js/profile.js`, `style/_forms.scss`.
 
@@ -510,6 +512,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] Apply to **both** address blocks on the profile: the home address and the separate ride-start address, which are two copies of the same five fields today.
 - [ ] Keep manual entry working unchanged. An address the provider does not know must still save as typed—the existing rule that a bad geocode yields null coordinates and never a validation failure stays exactly as it is.
 - [ ] Keyboard-navigable list with the usual arrow/enter/escape semantics and correct ARIA, not a mouse-only menu.
+- [ ] **Take over the address block's persistence from item 18**, which deliberately ships with those fields excluded from idle autosave. Flush on selection, or on leaving the field with the dropdown closed—never on an idle timer, which is the state a rider is in while reading the list. See the sequencing note under item 18 for why.
 
 **Open questions.**
 
@@ -533,9 +536,25 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] **Colorblind** addresses the collisions the palette has by construction. `$stop` and `$go` are a red/green pair and converge under deuteranopia and protanopia; `$yield` and `$construction` are adjacent ambers. The existing note under the `/import` filename fields—that color is never the only cue—becomes a rule the whole app has to hold to, not a line in one comment.
 - [ ] Audit where color is currently the *only* signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
 
+**Mechanism—decided 2026-08-15: Sass generates, custom properties carry, `data-theme` switches.**
+
+The obstacle is that several tokens are *derived* rather than authored—`$pending` is `color.adjust($yield, -20%)`, `$label` is `-22%`—and Sass runs at build time, so it cannot recompute them when a custom property changes at runtime. Three ways out, and the third is the one to take:
+
+1. **Author every derived value per theme.** Three themes times every derived token, maintained by hand. It throws away the property the palette was just given—one source per hue—and guarantees drift the first time a base color moves.
+2. **Move the derivations to `color-mix()` in CSS.** Genuinely runtime-derivable and well enough supported. But it relocates color arithmetic out of the one file that documents it, and the contrast figures the palette is built on stop being checkable in the place the values live.
+3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the *authored* palette per theme; an `@each` emits one `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied three times. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
+
+**The real migration cost is not the tokens, it is the 46 inline derivations.** `color.adjust($gpx, -8%)` and friends appear 46 times across the partials, in rules rather than in `_tokens.scss`—hover states, borders, tints. Every one of them reads a Sass variable that will no longer hold the live value once a theme can change it, and `color.adjust()` cannot operate on a `var()`. Each has to become a token emitted per theme. That is the bulk of the work and it should be sized before anything is drawn.
+
+**Work, in order.**
+
+- [ ] Promote all 46 inline derivations to named tokens. No behavior change, and it can land on its own well before any theme exists—which is the point of doing it first.
+- [ ] Restructure `_tokens.scss` around a `$themes` map with one entry, `default`, emitting today's values as custom properties. Still no behavior change; the compiled output should be equivalent.
+- [ ] Add `high-contrast` and `colorblind` as further map entries.
+- [ ] Wire the preference and the `data-theme` attribute.
+
 **Open questions.**
 
-- **Mechanism.** CSS custom properties on `:root` swapped by a `data-theme` attribute is the obvious shape, but the palette is currently Sass variables compiled to literal values, and several tokens are *derived* (`color.adjust($yield, -20%)`). Sass cannot derive from a custom property at build time, so either the derived tokens become authored values per theme, or the derivations move to `color-mix()` in CSS. Decide before writing the second theme, not after.
 - **Does it interact with `prefers-contrast` / `prefers-color-scheme`?** The OS already reports both. Whether the setting overrides the OS, defers to it, or offers "system" as a fourth option is undecided—and note the emails have their own dark palette already, in `src/emails/theme.ts`, which no site-level setting can reach.
 - **Dark mode is not on this list, and someone will ask.** These three are about legibility, not preference. Whether a dark theme joins them is a separate question with a much larger surface—the splash page is photo-backed and the map has its own styling.
 
