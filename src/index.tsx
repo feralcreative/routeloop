@@ -92,10 +92,22 @@ const app = new Hono<AuthEnv>()
 // This table is inverted on a flip, never find-and-replaced. Replacing the
 // strings in place maps a host to itself, and a 301 to itself is an infinite
 // redirect loop that takes the whole site down.
+//
+// rollchart.app is a third name Ziad owns and has never used. Its entries are
+// deliberately INERT: nothing routes that hostname to this container, so no
+// request can arrive under it and nothing here runs. They exist so that if the
+// name is ever pointed at the tunnel, it lands on the canonical host instead of
+// serving a second copy of the site with its own session cookies — which is the
+// actual failure an unlisted hostname causes, and a quiet one, because the site
+// looks fine under the wrong name. No stage entry, because there is no
+// stage.rollchart.app and inventing one would be config for a thing that has
+// never existed.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
   'tankbag.app': 'routeloop.app',
   'www.tankbag.app': 'routeloop.app',
   'stage.tankbag.app': 'stage.routeloop.app',
+  'rollchart.app': 'routeloop.app',
+  'www.rollchart.app': 'routeloop.app',
   'www.routeloop.app': 'routeloop.app',
 }
 
