@@ -1,17 +1,99 @@
+@use "sass:color";
+
 // Design tokens. Every name that existed before the partial split is preserved
 // verbatim so no rule had to be rewritten when it moved.
 
 // Color Variables
 
-$url: #1565c0;
-$gpx: #43a047;
-$kml: #d32f2f;
+// The road-sign palette. Named for what each color is on a road rather than for
+// where it is used in the app, so a name stays true when a component moves.
+//
+// These are stylized, NOT conversions of the federal spec, and the difference is
+// worth knowing before anyone "corrects" one of them toward a published value.
+// There is no official hex for a US road sign and no official RGB either: the
+// regulation (23 CFR 655) defines chromaticity coordinates for retroreflective
+// sheeting, and the Pantone numbers FHWA publishes beside them are a printing
+// guide the agency explicitly marks as not for use in sign fabrication. Sheeting
+// is engineered to be read under headlights, so a faithful conversion lands much
+// darker than these — spec green converts to around #004b37, spec red to around
+// #9d001d, both closer to black than to anything wanted on a screen. These are
+// what those colors look like in daylight memory, which is the useful target.
+//
+// Two names to read carefully. `$yield` is amber: a yield sign has been red and
+// white since 1971, and this is the warning-and-construction family instead.
+// `$disabled` is the blue of an accessible-parking sign, and it is the app's
+// generic accent through `$url` below rather than an accessibility signal.
+$interstate: #266149;
+$speed: #efefef;
+$stop: #dd0000;
+$construction: #f54d00;
+$blacktop: #291507;
+$recreation: #603d15;
+$yield: #ffac00;
+$go: #41ae4d;
+$concrete: #7e8386;
+$disabled: #0a539c;
+
+// WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
+// from the contrast numbers — it is copied off the signs the palette was sampled
+// from, and the numbers happen to agree, which is the point. A real sign never
+// picks its legend color by taste.
+//
+//   WHITE legend    $stop (STOP, WRONG WAY), $interstate (guide sign, airport),
+//                   $disabled (parking symbol, I-95 shield), $blacktop (ONE WAY,
+//                   DETOUR), $recreation (brown recreational)
+//   BLACK legend    $yield (warning diamonds), $construction (work zone, the
+//                   orange DETOUR), $speed (SPEED LIMIT, the Route 66 shield)
+//
+// Measured, both directions: every white-legend field clears 4.5:1 against
+// $white and every black-legend field clears 4.5:1 against $blacktop. Every one
+// of them FAILS on the other ink — $yield is 1.9:1 behind white, $interstate is
+// 2.9:1 behind black. There is no field here that takes either.
+//
+// $go and $concrete carry no legend on a real sign: $go is the green traffic
+// signal and $concrete is the post and gantry. Both are dark enough for black
+// and too light for white (2.8:1 and 3.8:1), so they follow the black-legend
+// rule when they have to carry text at all.
+//
+// The consequence that catches people: a black-legend field must get LIGHTER on
+// hover, not darker. `.btn`'s reflex is `color.adjust(..., $lightness: -8%)`,
+// which raises contrast under white ink and lowers it under black — on $go it
+// takes 6.1:1 down to 4.3:1, and the -15% the map buttons use lands on 3.1:1.
+// Lighten those instead; +8% takes $go to 7.6:1.
+//
+// The two ink tokens are declared under $white below, which is the first point
+// in this file where both of their operands exist.
+
+$url: $disabled;
+// The semantic tokens below now take their value from the road-sign palette
+// instead of holding one of their own. Where a token is only ever a fill, it
+// points straight at a palette entry. Where it is TEXT, it points at a darkened
+// palette entry instead, because several of these colors cannot carry or sit
+// under type at 4.5:1 as drawn — that is a property of the palette, not a
+// disagreement with it, and deriving keeps one source per hue.
+$gpx: $go;
+$kml: $stop;
 $white: #fff;
 $grey: #ddd;
 $text: #333;
+
+// The two legends, named for the job rather than the color, so a rule reads as
+// "this field takes the dark ink" rather than as a color choice someone is free
+// to second-guess. Which one a given field takes is the pairing table above.
+//
+// $ink-dark is $blacktop and not $text: the signs use black, $blacktop IS the
+// palette's black (1.2:1 against #000), and $text is a soft grey meant for body
+// copy on white. On a colored field that softness costs contrast for nothing —
+// $text on $go is 4.4:1 where $blacktop is 6.1:1.
+$ink-light: $white;
+$ink-dark: $blacktop;
 // Rider-approval "waiting" state on the admin panel. Amber reads as attention-
 // needed without the alarm of $kml, and stays legible as dark-on-tint.
-$pending: #b26a00;
+//
+// Derived rather than set to $yield: this is text on a 16% tint of itself, and
+// $yield measures 1.9:1 on white — invisible. At -20% it is 4.9:1, which also
+// quietly fixes the 4.24:1 the hand-picked #b26a00 was failing at.
+$pending: color.adjust($yield, $lightness: -20%);
 $panel-bg: rgba(255, 255, 255, 0.9);
 $panel-shadow: rgba(0, 0, 0, 0.18);
 // Unquoted to match every other token here; CSS family names are case-
@@ -40,28 +122,25 @@ $brand: $url;
 // carries its color from the example line down to the definition that explains
 // it, so the pairing is visible rather than positional.
 //
-// Their own tokens rather than the existing palette, which is semantic: $gpx,
-// $kml and $pending mean format and state, and a field that borrowed one would
-// inherit a meaning it does not have. These mean nothing but "same field", so
-// they can be tuned for telling each other apart without moving anything else.
-// $ride is $url because the ride name is the field the whole convention is
-// built around and blue is already the accent.
+// These used to hold four hand-picked values so they could be tuned for telling
+// each other apart without moving anything else. They now come from the palette,
+// which costs one thing worth recording: $day and $kml were deliberately two
+// different reds — the note here used to say they "need to stay free to
+// diverge", because one means a filename field and the other means error and
+// bad format. The palette has one red, so they are now the same color. If they
+// ever need to differ again, that is a second red in the palette, not a hex here.
 //
-// $day is red by request, and deliberately not $kml (#d32f2f) — that red is the
-// error and bad-format color and the two need to stay free to diverge. It is
-// also a shade darker, which #d32f2f needs anyway to clear 4.5:1 here.
+// $label is derived rather than set to $yield for the reason $pending is: it is
+// text on a tint, and $yield does not survive there. -22% lands on 5.5:1, the
+// same figure the hand-picked #925e00 measured, so nothing on /import moves.
 //
-// $label is an amber orange rather than the brown it started as. Hue is what
-// separates it from $day; it cannot also be bright, because orange gets light
-// fast and 4.5:1 against the example's tint runs out around here.
-//
-// All four clear 4.5:1 on that tint and more on white. The definitions stay in
-// the order of the example and still name their field in words, because color
-// cannot be the only cue — red and amber converge under protanopia.
+// All four still clear 4.5:1 on that tint. The definitions stay in the order of
+// the example and still name their field in words, because color cannot be the
+// only cue — red and amber converge under protanopia.
 $ride: $url;
-$day: #c62828;
-$date: #00695c;
-$label: #925e00;
+$day: $stop;
+$date: $interstate;
+$label: color.adjust($yield, $lightness: -22%);
 
 // Google Blue, for the sign-in button's hover and focus edge. Sourced from
 // Google's own brand palette rather than picked by eye, because it sits beside

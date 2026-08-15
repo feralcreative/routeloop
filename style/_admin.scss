@@ -73,11 +73,19 @@
   font-size: 0.85em;
 }
 
+// $gpx is $go, the green traffic signal, which is a BLACK-legend field — see the
+// ink pairing in _tokens.scss. White on it is 2.8:1, which is what this rule
+// inherited from .btn and what it looked like before the palette landed.
+//
+// Hover lightens rather than darkens for the same reason: under dark ink,
+// -8% took 6.1:1 down to 4.3:1. +8% goes to 7.6:1 and still reads as a state
+// change, because the direction of the change is not what carries the meaning.
 .btn.btn-approve {
   background: $gpx;
+  color: $ink-dark;
 
   &:hover {
-    background: color.adjust($gpx, $lightness: -8%);
+    background: color.adjust($gpx, $lightness: 8%);
   }
 }
 
@@ -91,9 +99,13 @@
 
 // Status pills, tinted from the same tokens the buttons use so color reads
 // consistently across the page.
+// -14%, not the -12% the other pills use: $gpx moved from Material Green 600 to
+// $go, which is lighter, and -12% landed on 4.21:1 against its own tint. This is
+// 4.6:1. The pills are text on a tint rather than a legend on a field, so the
+// ink pairing does not apply — they need a darkened step either way.
 .pill.is-active {
   background: rgba($gpx, 0.15);
-  color: color.adjust($gpx, $lightness: -12%);
+  color: color.adjust($gpx, $lightness: -14%);
 }
 
 .pill.is-pending {

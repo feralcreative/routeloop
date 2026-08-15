@@ -2,7 +2,7 @@
 // ids ({STORAGE}/{ownerId}/{mapId}.{ext}) and containment-checked against the
 // root — path traversal is structurally impossible, the check is belt and
 // braces.
-import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 
 export const STORAGE = resolve(process.env.STORAGE_PATH ?? './moto-storage')
@@ -61,6 +61,68 @@ export async function deleteMapFiles(ownerId: number, mapId: number): Promise<vo
       await unlink(path).catch(() => {})
     }
   }
+}
+
+// The directory holding one rider's stored originals. Same containment check as
+// mapFilePath and for the same reason — the id is an integer, so this is belt
+// and braces rather than the only guard.
+//
+// Account-level operations need this because they work per rider rather than per
+// ride: the export has to list what is actually on disk, and a purge has to
+// remove the directory itself rather than the files it can name.
+export function ownerDirPath(ownerId: number): string | undefined {
+  if (!Number.isInteger(ownerId) || ownerId <= 0) return undefined
+  const path = resolve(STORAGE, String(ownerId))
+  if (path === STORAGE || !path.startsWith(STORAGE + sep)) return undefined
+  return path
+}
+
+export type StoredFile = { rideId: number; index: number; ext: StoredExt }
+
+/**
+ * The inverse of the naming rule in mapFilePath: `19.kml` and `19-2.gpx` back
+ * into their parts, anything else to null.
+ *
+ * Strict on purpose, so it is a true inverse. `19-0.kml` is rejected because day
+ * 0 is written bare, and a name that round-trips to a different name would let a
+ * stray file be attributed to a ride it does not belong to.
+ */
+export function parseStoredName(fileName: string): StoredFile | null {
+  const m = /^(\d+)(?:-(\d+))?\.([a-z]+)$/.exec(fileName)
+  if (!m) return null
+
+  const ext = m[3] as StoredExt
+  if (!STORED_EXTS.includes(ext)) return null
+
+  const rideId = Number(m[1])
+  if (!Number.isSafeInteger(rideId) || rideId <= 0 || String(rideId) !== m[1]) return null
+
+  // Absent means day 0. Present means it must not be 0, and must not be padded.
+  if (m[2] === undefined) return { rideId, index: 0, ext }
+  const index = Number(m[2])
+  if (index <= 0 || index >= MAX_SOURCE_FILES || String(index) !== m[2]) return null
+  return { rideId, index, ext }
+}
+
+/**
+ * Every stored original a rider actually has, read from disk rather than
+ * inferred from the rows.
+ *
+ * One readdir instead of the 150 probes per ride that deleteMapFiles does, and
+ * it answers the question the export needs: what is on disk, whatever the rows
+ * believe. A missing directory is not an error — a rider who has only ever used
+ * the builder has never had one.
+ */
+export async function listOwnerFiles(ownerId: number): Promise<StoredFile[]> {
+  const dir = ownerDirPath(ownerId)
+  if (!dir) return []
+  const names = await readdir(dir).catch(() => [] as string[])
+  const out: StoredFile[] = []
+  for (const name of names) {
+    const parsed = parseStoredName(name)
+    if (parsed) out.push(parsed)
+  }
+  return out
 }
 
 export { MAX_SOURCE_FILES }

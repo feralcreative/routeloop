@@ -139,11 +139,38 @@ export const users = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     lastLoginAt: timestamp('last_login_at'),
+
+    // GTFO — "Delete Me" and the 30-day hold before anything is destroyed.
+    //
+    // Three nullable timestamps rather than a fourth user_status value, and the
+    // reason is that status has to survive the round trip. A pending rider and a
+    // blocked rider can both delete their account, and "Save Me" has to put them
+    // back exactly where they were — a 'deleted' status destroys that fact and
+    // forces a previous_status column anyway, at which point the enum value
+    // bought nothing and cost an ALTER TYPE. Additive columns also leave every
+    // existing `status !== 'active'` check alone.
+    //
+    // Nullable with no default, for the reason approved_email_at documents
+    // above: a schema push stamps a default onto every existing row. Null here
+    // means "has never asked to leave", which is true of every row today, so
+    // there is no backfill to get wrong.
+    deletionRequestedAt: timestamp('deletion_requested_at'),
+    // The deadline, stored rather than derived from deletion_requested_at +
+    // DELETION_HOLD_DAYS. It is a promise made to a person on a date, and
+    // deriving it means changing that constant later retroactively moves a purge
+    // date a rider was already shown. Same reasoning as invites.expires_at.
+    purgeAfter: timestamp('purge_after'),
+    // Claimed by the purge before it starts, so a crash cannot wedge the row and
+    // two triggers cannot both run it. See src/account/purge.ts.
+    purgeStartedAt: timestamp('purge_started_at'),
   },
   (t) => [
     index('idx_user_status').on(t.status),
     // Case-insensitive: "Ziad" and "ziad" are the same handle.
     uniqueIndex('uq_username_lower').on(sql`lower(${t.username})`),
+    // The sweep asks "who is due" and nothing else; without this it is a scan of
+    // every rider to find the none of them that usually qualify.
+    index('idx_users_purge_due').on(t.purgeAfter),
   ],
 )
 
@@ -325,9 +352,18 @@ export const invites = pgTable(
     usedCount: integer('used_count').notNull().default(0),
     expiresAt: timestamp('expires_at').notNull(),
     revokedAt: timestamp('revoked_at'),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    // SET NULL, not cascade, and nullable for that reason alone.
+    //
+    // Cascading here means purging a manager deletes their invites, and
+    // invite_redemptions cascades from invites — so it would take OTHER riders'
+    // record of how they got in as a side effect of a third party leaving. That
+    // audit trail is not the departing rider's to take. The departing rider's own
+    // redemption row still goes, via invite_redemptions.user_id, which is
+    // correct because that row is theirs.
+    //
+    // Losing "who minted it" is the cheapest thing to lose: label already
+    // carries the human meaning of a link ("MC Discord #general").
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -555,6 +591,7 @@ export type UserRow = typeof users.$inferSelect
 export type UserStatus = (typeof userStatusEnum.enumValues)[number]
 export type UserProfileRow = typeof userProfiles.$inferSelect
 export type UsernameHistoryRow = typeof usernameHistory.$inferSelect
+export type UserIdentityRow = typeof userIdentities.$inferSelect
 export type LoginTokenRow = typeof loginTokens.$inferSelect
 export type SessionRow = typeof sessions.$inferSelect
 export type InviteRow = typeof invites.$inferSelect

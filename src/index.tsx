@@ -10,6 +10,7 @@ import {
   days as daysTable,
   points as pointsTable,
   routeLegs,
+  users,
   type RideRow,
   type UserRow,
 } from './db/schema'
@@ -17,20 +18,11 @@ import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
-import {
-  buildCsv,
-  buildGeoJson,
-  buildGpx,
-  buildKml,
-  buildNativeJson,
-  loadNativeRide,
-  loadRideForExport,
-  rideStartDate,
-  type ExportRide,
-} from './maps/export'
+import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from './maps/export'
+import { DOWNLOADS, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
-import { mapFilePath, type StoredExt } from './maps/storage'
+import { mapFilePath } from './maps/storage'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -46,6 +38,7 @@ import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { settingsRoutes } from './routes/settings'
+import { accountRoutes } from './routes/account'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell } from './views/layout'
@@ -56,10 +49,28 @@ import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
 // slug) is treated as not-found so we never confirm it exists.
+//
+// The owner join is what makes "Delete Me" darken a rider's links immediately.
+// It has to be asked here rather than inferred from anything on the ride: this
+// function reads only the rides row, so no owner state has ever reached it, and
+// a blocked owner's public rides are still served today for exactly that reason.
+//
+// Answering not-found rather than gone, deliberately — the same answer an
+// unknown slug gets, so a link cannot be used to learn that an account existed
+// and is on its way out. Nothing about the ride changes, which is what makes
+// Save Me free: clearing the flag brings every link back.
 async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRow | undefined> {
   if (!slug) return undefined
-  const [r] = await db.select().from(rides).where(eq(rides.slug, slug)).limit(1)
-  if (!r) return undefined
+  const [row] = await db
+    .select({ ride: rides, ownerLeavingAt: users.deletionRequestedAt })
+    .from(rides)
+    .innerJoin(users, eq(users.id, rides.ownerId))
+    .where(eq(rides.slug, slug))
+    .limit(1)
+  if (!row) return undefined
+  if (row.ownerLeavingAt) return undefined
+
+  const r = row.ride
   if (r.visibility === 'public' || r.visibility === 'unlisted') return r
   if (viewer && viewer.id === r.ownerId) return r
   return undefined
@@ -81,10 +92,22 @@ const app = new Hono<AuthEnv>()
 // This table is inverted on a flip, never find-and-replaced. Replacing the
 // strings in place maps a host to itself, and a 301 to itself is an infinite
 // redirect loop that takes the whole site down.
+//
+// rollchart.app is a third name Ziad owns and has never used. Its entries are
+// deliberately INERT: nothing routes that hostname to this container, so no
+// request can arrive under it and nothing here runs. They exist so that if the
+// name is ever pointed at the tunnel, it lands on the canonical host instead of
+// serving a second copy of the site with its own session cookies — which is the
+// actual failure an unlisted hostname causes, and a quiet one, because the site
+// looks fine under the wrong name. No stage entry, because there is no
+// stage.rollchart.app and inventing one would be config for a thing that has
+// never existed.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
   'tankbag.app': 'routeloop.app',
   'www.tankbag.app': 'routeloop.app',
   'stage.tankbag.app': 'stage.routeloop.app',
+  'rollchart.app': 'routeloop.app',
+  'www.rollchart.app': 'routeloop.app',
   'www.routeloop.app': 'routeloop.app',
 }
 
@@ -98,13 +121,14 @@ app.use('*', async (c, next) => {
   await next()
 })
 
-// Static viewer assets (js/css/img/video) straight from public/. serveStatic
+// Static viewer assets (js/css/img/video/font) straight from public/. serveStatic
 // honors Range requests, which the splash video needs — without 206 support a
 // browser cannot seek and some will refuse to start playback at all.
 app.use('/js/*', serveStatic({ root: './public' }))
 app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
+app.use('/font/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
 
 // Live reload, development only — see src/dev/livereload.ts. Mounted up here
@@ -133,6 +157,7 @@ app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
+app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
@@ -283,63 +308,6 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   })
 })
 
-// Downloads, source-aware.
-//
-// An imported ride streams its stored original for the format it arrived in —
-// byte-for-byte what the rider uploaded, which is the entire reason the file is
-// kept. Every other format, and every format of a native ride, is generated
-// from the rows. So a KML import can be downloaded as GPX and a ride built here
-// can be downloaded as either, neither of which was possible before.
-//
-// One table rather than four handlers: the visibility gate, the nosniff header
-// and the attachment naming are identical for all of them, and four copies of
-// that is four places for one of them to drift.
-const DOWNLOADS: Record<
-  string,
-  {
-    type: string
-    stored: StoredExt
-    hasStored: (m: RideRow) => boolean
-    // firstDay is only passed by the per-day zip, where each file holds one
-    // day that is day N of a ride rather than day 1 of itself.
-    build: (r: ExportRide, firstDay?: number) => string
-  }
-> = {
-  kml: {
-    type: 'application/vnd.google-earth.kml+xml',
-    stored: 'kml',
-    // A KMZ is stored as the KML from inside it, so it answers here too. Rows
-    // predating source_format have it backfilled from whichever file they kept.
-    hasStored: (m) => m.kmlBytes > 0 && (m.sourceFormat === 'kml' || m.sourceFormat === 'kmz'),
-    build: buildKml,
-  },
-  gpx: {
-    type: 'application/gpx+xml',
-    stored: 'gpx',
-    hasStored: (m) => m.gpxPresent && m.sourceFormat === 'gpx',
-    build: buildGpx,
-  },
-  // These two have no byte column of their own; source_format is what says the
-  // ride arrived as one, and source_bytes that the file is on disk.
-  geojson: {
-    type: 'application/geo+json',
-    stored: 'geojson',
-    hasStored: (m) => m.sourceBytes > 0 && (m.sourceFormat === 'geojson' || m.sourceFormat === 'json'),
-    build: buildGeoJson,
-  },
-  csv: {
-    type: 'text/csv',
-    stored: 'csv',
-    hasStored: (m) => m.sourceBytes > 0 && m.sourceFormat === 'csv',
-    build: buildCsv,
-  },
-}
-
-// Every branch above tests source_format, which is what keeps a folder import
-// from streaming one of its files as if it were the whole ride: several files
-// store 'mixed', which matches nothing, so those rides always generate from the
-// rows — and the rows are the merged ride, which is the correct answer.
-
 // Every download names itself by the convention in maps/filename.ts, so a
 // folder of them re-imports as the ride it came from rather than as whatever
 // order the browser happened to list them in.
@@ -453,10 +421,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   // be lossy for no reason: the file carries styling, folders and per-point
   // detail this app does not model and therefore cannot reproduce.
   if (spec.hasStored(m)) {
-    // A .json upload is stored under .json, not .geojson — the extension is the
-    // one the rider sent. Both are the same format and both answer /geojson.
-    const ext = spec.stored === 'geojson' && m.sourceFormat === 'json' ? 'json' : spec.stored
-    const path = mapFilePath(m.ownerId, m.id, ext)
+    const path = mapFilePath(m.ownerId, m.id, storedExtFor(spec, m))
     if (path) {
       const buf = await readFile(path).catch(() => null)
       if (buf) return new Response(buf, { headers })

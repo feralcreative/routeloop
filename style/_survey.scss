@@ -115,7 +115,7 @@ $rate-tones: (
     $text,
   ),
   "yes": (
-    #2e7d32,
+    $interstate,
     $white,
   ),
 );
@@ -127,7 +127,7 @@ $rate-tones: (
   $ink: list.nth($pair, 2);
 
   .rate-#{$tone} {
-    // Border only. Tinting the label to match would put #ffdd00 text on white
+    // Border only. Tinting the label to match would put $accent text on white
     // at about 1.3:1 for the middle option, which is not a hover state, it is a
     // disappearing one.
     &:hover input:not(:checked) + span {
