@@ -109,13 +109,14 @@ app.use('*', async (c, next) => {
   await next()
 })
 
-// Static viewer assets (js/css/img/video) straight from public/. serveStatic
+// Static viewer assets (js/css/img/video/font) straight from public/. serveStatic
 // honors Range requests, which the splash video needs — without 206 support a
 // browser cannot seek and some will refuse to start playback at all.
 app.use('/js/*', serveStatic({ root: './public' }))
 app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
+app.use('/font/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
 
 // Live reload, development only — see src/dev/livereload.ts. Mounted up here
