@@ -100,16 +100,29 @@ export type PageOpts = {
 // The menu, exactly as docs/main-menu.md specifies it. That file is the spec and
 // this is the implementation; change the spec first.
 //
-// No Home entry on purpose — the logo goes there and duplicating it spends a
-// slot in the bar on the one destination nobody has to be told about.
+// Home leads the group, added 2026-08-15. It was deliberately absent on the
+// grounds that the logo already goes to `/`, which was sound while `/` was a
+// landing page and wrong once it became the dashboard: the stats page was
+// reachable only by clicking a logo, which nobody reads as "my numbers". The
+// giveaway sat in this file — `NavKey` has always included 'home' and home.tsx
+// has always set it, but no item carried the key, so the aria-current branch
+// below could never fire.
 type NavItem = { key: NavKey; href: string; label: string }
 
 const RIDES_LINKS: NavItem[] = [
-  { key: 'rides', href: '/dashboard', label: 'Your rides' },
+  { key: 'home', href: '/', label: 'Home' },
+  { key: 'rides', href: '/rides', label: 'Your rides' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'explore', href: '/explore', label: 'Find a ride' },
   { key: 'import', href: '/import', label: 'Import / Export' },
 ]
+
+// The one entry a signed-out visitor gets from the group above. Found by key
+// rather than by index: this was `RIDES_LINKS[2]` inline, which silently became
+// the wrong link the moment Home was inserted at the front — a positional
+// reference into a list that other people edit is a trap, and it sprang the
+// first time anyone edited the list.
+const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
 
 const ADMIN_LINKS: NavItem[] = [
   { key: 'admin', href: '/admin', label: 'Admin' },
@@ -176,7 +189,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               </>
             ) : (
               <>
-                <NavLink item={{ ...RIDES_LINKS[2] }} navKey={navKey} />
+                <NavLink item={EXPLORE_LINK} navKey={navKey} />
                 <NavLink item={RIDERS_LINK} navKey={navKey} />
                 <NavAboutMenu user={null} navKey={navKey} />
                 {/*

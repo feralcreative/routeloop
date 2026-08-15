@@ -52,15 +52,20 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
 }
 
 // Rider management. Active plus the capability flag. A page gate, so a signed-in
-// rider who lacks the flag is sent to their own dashboard rather than shown a
-// 403 — the surface simply is not theirs, and the account is already known-good
+// rider who lacks the flag is sent to their own rides rather than shown a 403 —
+// the surface simply is not theirs, and the account is already known-good
 // (active), so this is authorization on top of authentication, not either alone.
+//
+// The target used to be /dashboard and the comment used to say "their own
+// dashboard", which was wrong on both counts even then: that URL was the ride
+// list, and the dashboard is /. Landing them on their rides is still the right
+// call — it is the surface a rider who mis-clicked into /riders wanted.
 export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
   if (!user.username) return c.redirect('/choose-name', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
-  if (!user.canManageRiders) return c.redirect('/dashboard', 302)
+  if (!user.canManageRiders) return c.redirect('/rides', 302)
   await next()
 }
 

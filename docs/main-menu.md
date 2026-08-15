@@ -12,7 +12,8 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 
 ```text
 Rides ▾
-  Your rides          /dashboard
+  Home                /
+  Your rides          /rides
   Plan a ride         /builder
   Find a ride         /explore
   Import / Export     /import
@@ -48,7 +49,9 @@ Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta
 
 **[decided] `/admin` becomes an overview.** Today it *is* the approvals screen. Approvals moves to `/admin/approvals` and `/admin` becomes the landing page the group's first item points at. `/admin/survey` already existed and was missing from the first draft; it is listed now.
 
-**[decided] No Home item.** The logo links to `/` and that is the convention. Dropped rather than duplicated.
+**[decided, then reversed 2026-08-15] A Home item, first in the Rides group.** The original decision was that the logo links to `/` and that is the convention, so a Home entry would be duplication. That reasoning held only while `/` was a landing page. It is not: `/` is the **dashboard**—hero miles, tiles, the storage meter, the twelve-month chart—and the only way to reach it was a logo nobody reads as "my stats". The tell was in the code: `NavKey` has carried `'home'` since the menu was built and `home.tsx` sets `navKey: 'home'`, but no item ever carried the key, so the `aria-current` state was wired and permanently unreachable.
+
+**[decided 2026-08-15] "Your rides" moved from `/dashboard` to `/rides`.** The old URL described the page as a dashboard when the dashboard is `/`. See the header of `src/routes/rides.tsx`. `/dashboard` 301s to `/rides`.
 
 **[decided] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open.
 
