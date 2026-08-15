@@ -28,11 +28,11 @@ import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
 import { inviteRoutes } from './routes/invites'
 import { surveyRoutes } from './routes/survey'
-import { dashboardRoutes } from './routes/dashboard'
+import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
-import { rideRoutes } from './routes/rides'
+import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
 import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
@@ -143,6 +143,16 @@ if (IS_DEV) {
 // header. Mounted after the static assets so they skip the database entirely.
 app.use('*', withSession)
 
+// /dashboard was the rides list until 2026-08-15, when it became /rides — see
+// the header of src/routes/rides.tsx for why the old name was wrong. This keeps
+// a bookmark or a pasted link working.
+//
+// It sits ahead of every route module rather than inside one, next to the
+// LEGACY_HOSTS redirect it is the path-level twin of, so there is one place to
+// look for "why did this URL move". A 301 rather than a 302: the move is
+// permanent and a browser caching it is the desired outcome.
+app.get('/dashboard', (c) => c.redirect('/rides', 301))
+
 app.route('/', authRoutes)
 app.route('/', adminRoutes)
 app.route('/', homeRoutes)
@@ -150,9 +160,9 @@ app.route('/', homeRoutes)
 // regex param is the greediest thing in the table.
 app.route('/', inviteRoutes)
 app.route('/', surveyRoutes)
-app.route('/', dashboardRoutes)
+app.route('/', ridesRoutes)
 app.route('/', mapsRoutes)
-app.route('/', rideRoutes)
+app.route('/', builderRoutes)
 app.route('/', importRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)

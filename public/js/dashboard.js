@@ -1,5 +1,10 @@
 // The one chart on the dashboard: rides planned per month, twelve months.
 //
+// The dashboard is `/`, served by src/routes/home.tsx — NOT src/routes/rides.tsx,
+// which is the ride list and was called dashboard.tsx until 2026-08-15. This
+// file kept its name because it names the page correctly; the route module was
+// the thing that had it wrong.
+//
 // PROGRESSIVE ENHANCEMENT, NOT THE SOURCE OF TRUTH. The same twelve numbers are
 // already in the page as a table before this file runs, and that table stays in
 // the DOM whether or not the chart draws. If uPlot fails to load, if the browser

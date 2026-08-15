@@ -1,5 +1,11 @@
-// The signed-in user's own rides. The builder CTA and per-ride actions land
-// with the builder MVP (Phase 2 of the pivot plan).
+// The signed-in user's own rides, at /rides.
+//
+// This file was `dashboard.tsx` serving `/dashboard` until 2026-08-15, and the
+// name was actively misleading: the DASHBOARD is `/` (see home.tsx) and always
+// has been — hero miles, tiles, the storage meter, the chart. This page is a
+// flat list of rides and nothing else. Two things still carry the old name and
+// are correct to: `public/js/dashboard.js` and `style/_dashboard.scss` both
+// belong to `/`, not to this file.
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -7,7 +13,7 @@ import { rides, days as daysTable, type RideRow } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 
-export const dashboardRoutes = new Hono<AuthEnv>()
+export const ridesRoutes = new Hono<AuthEnv>()
 
 // Deliberately not views/cards.tsx: this row carries a visibility pill and an
 // edit link that the public card must never show. Same shape, different
@@ -33,7 +39,7 @@ function OwnRideRow({ ride, color }: { ride: RideRow; color: string | null }) {
   )
 }
 
-dashboardRoutes.get('/dashboard', requireActive, async (c) => {
+ridesRoutes.get('/rides', requireActive, async (c) => {
   const user = currentUser(c)
 
   const rows = await db

@@ -5,7 +5,7 @@
 // and anything-goes in another is how a javascript: URL gets stored.
 //
 // Its own module because both routes/maps.ts and maps/ride-graph.ts need it and
-// routes/rides.ts imports from routes/maps.ts, so keeping it there would make a
+// routes/builder.ts imports from routes/maps.ts, so keeping it there would make a
 // cycle the moment the importer reused the ride payload.
 import { z } from 'zod'
 

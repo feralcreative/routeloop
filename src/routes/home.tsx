@@ -1,9 +1,16 @@
-// The signed-in home page: what this rider has actually planned.
+// THE DASHBOARD, at `/`. This is the page with the numbers on it: hero miles,
+// tiles, the storage meter, the twist rollup, role bars, the twelve-month chart.
 //
 // It used to be the first ten of your rides beside the first ten popular public
-// ones — which made it /dashboard with a copy of /explore?sort=popular bolted on,
-// and gave the nav two doors into the same room. The ride list now belongs to
-// /dashboard alone and this page answers a different question.
+// ones — a ride list with a copy of /explore?sort=popular bolted on, which gave
+// the nav two doors into the same room. The ride list now belongs to /rides
+// alone and this page answers a different question.
+//
+// Naming, because it has confused everyone including its own author: the file
+// is `home.tsx` and the route is `/`, but `public/js/dashboard.js` and
+// `style/_dashboard.scss` are BOTH THIS PAGE'S. They are named for what the page
+// is rather than for what the file is called, and they are the honest names —
+// `src/routes/rides.tsx` is the ride list and owns neither.
 //
 // EVERY NUMBER HERE IS RENDERED SERVER-SIDE AS TEXT. The one chart is progressive
 // enhancement over a table that is already correct without it — the roadbook and
@@ -222,7 +229,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             <h2>Picking up where you left off</h2>
             {raw(rideCards(recent))}
             <p>
-              <a class="linkbtn" href="/dashboard">
+              <a class="linkbtn" href="/rides">
                 All your rides
               </a>
             </p>

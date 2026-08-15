@@ -40,7 +40,7 @@ import {
   type RidePayload,
 } from '../maps/ride-graph'
 
-export const rideRoutes = new Hono<AuthEnv>()
+export const builderRoutes = new Hono<AuthEnv>()
 
 // A native ride is DB rows, not files — caps bound the rows since byte quota
 // does not apply. 8 MB JSON backstop over the structural caps.
@@ -64,7 +64,7 @@ async function parseRideBody(
 
 const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'payload too large' }, 413) })
 
-rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
+builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
 
   // Same bot gate as import: enforced once Turnstile keys are set. The token
@@ -114,7 +114,7 @@ rideRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, as
 //   - visibility. A clone lands private no matter what the original was; making
 //     it public is a decision the new owner takes deliberately.
 //   - via points, which are shaping for a route the cloner will now edit.
-rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, async (c) => {
+builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
@@ -203,7 +203,7 @@ rideRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, asy
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
-rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
+builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
@@ -235,7 +235,7 @@ rideRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit,
 })
 
 // Owner load for the builder — the same shape PUT accepts, vias included.
-rideRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
+builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
@@ -332,13 +332,13 @@ async function publicStart(userId: number): Promise<PublicStart | null> {
   return { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' }
 }
 
-rideRoutes.get('/builder', requireActive, async (c) => {
+builderRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
   const [home, start] = await Promise.all([homeSeed(user.id), publicStart(user.id)])
   return c.html(builderHtml(null, user, home, start))
 })
 
-rideRoutes.get('/builder/:id', requireActive, async (c) => {
+builderRoutes.get('/builder/:id', requireActive, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.text('Not found', 404)

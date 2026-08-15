@@ -1,6 +1,6 @@
 // Single source for env-derived constants. Before this existed, MAPBOX_TOKEN was
-// read independently in src/index.ts and src/routes/rides.ts, and the Mapbox GL
-// version was a const in index.ts but a hardcoded string twice in rides.ts —
+// read independently in src/index.ts and the builder's route module, and the
+// Mapbox GL version was a const in index.ts but a hardcoded string twice there —
 // so the viewer and the builder could silently load different library versions.
 import 'dotenv/config'
 

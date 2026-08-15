@@ -1,6 +1,11 @@
 @use "sass:color";
 @use "tokens" as *;
 
+// The dashboard is `/`, served by src/routes/home.tsx — NOT src/routes/rides.tsx,
+// which is the ride list and was called dashboard.tsx until 2026-08-15. This
+// file kept its name because it names the page correctly; the route module was
+// the thing that had it wrong. Nothing here styles the ride list.
+
 // The signed-in home page: hero figure, KPI tiles, a meter, two bar forms and
 // one chart.
 //
