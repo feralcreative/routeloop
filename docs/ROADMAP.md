@@ -668,7 +668,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 - **Does item 14's alternate object have to wait for item 14?** As written it does, and item 14 depends on riders (item 8), which would chain this item behind group collaboration for no good reason. Import needs only the **alternate**—two candidates, one active—and none of the voting, resolution or membership machinery around it. Splitting that object out of item 14 so it can land alone is probably the right move and would unblock this item entirely. Item 14's note now says the same from its side.
 - **What "exact" means.** A byte hash is trivial and misses the real case: the same ride exported twice by different tools is not byte-identical but is the same route. Hashing normalized parsed geometry catches it and costs a parse. Probably both, labelled differently—and see the three-threshold note above.
 - **Where the ride-name field goes for a single-file import**, where there is no table to head.
-- **How the shipped export half survives this.** `/import` **already is** Import / Export—`import.tsx` renders both under one `<h1>`, and `main-menu.md` carried that as a pending decision long after it was built. So this item is not adding a second half to the page; it is substantially redrawing one of two halves that already exist side by side, and the export half's per-format download rows have to still read as a sibling of a much heavier import half afterwards. Draw both, once. See also item 22, which widens the page they both sit in.
+- **How the export half survives this. Answered 2026-08-16: it does not—it is being replaced too, as item 23.** `/import` already is Import / Export (`import.tsx` renders both under one `<h1>`, though `main-menu.md` carried it as a pending decision long after it shipped), and the export half is now getting its own redesign around search and a cart. So both halves of this page are being redrawn at once and **should be drawn together**, not in sequence. Item 23 also depends on this item's review table for the multi-ride zip to be safe to re-import—see the zip-contract note there. Item 22 widens the page they both sit in and comes first.
 
 **Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging, and the link relation once it is named), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
 
@@ -693,7 +693,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 - [ ] Split measure from layout width in `_account.scss` and `_forms.scss`, so a cap on prose stops capping the controls under it.
 - [ ] A two-up field grid for `/prefs`, collapsing to one column at the existing `575px` breakpoint (`_account.scss:174`).
 - [ ] Decide per group whether it pairs. **Item 20's two new radio groups—Theme and Appearance—are the obvious pair** and are the reason this is worth doing now. The duration format is the counter-example: each of its rows carries a worked example that _is_ the content, so it probably wants the full width rather than half of it.
-- [ ] Widen `/import`'s two halves. The export list is a row of per-format buttons that already wraps at 560px.
+- [ ] Widen `/import`'s two halves. Note both are being redrawn—the import half as item 21, the export half as item 23—so this is width for a search box, a cart and a manifest table, not for the controls standing there today.
 - [ ] Re-measure afterwards. Item 16 is the precedent: a number is the only thing that can say whether a layout pass did anything.
 
 **This is a prerequisite for item 21, not a parallel nicety.** The import review table—ride name, per-row title, per-row date, a drag handle, a drop control and a duplicate flag—**cannot exist inside a 560px form**. Either this lands first or item 21 does it as its opening move; what must not happen is item 21 drawing a table to fit a width that was already known to be wrong.
@@ -706,6 +706,37 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 **Touches.** `style/_account.scss`, `style/_forms.scss`, `style/_chrome.scss` (only if the global cap moves), `src/routes/prefs.tsx` and `src/routes/import.tsx` (markup regrouped into a grid).
 
 **Status.** planned—raised 2026-08-16, alongside the Settings → Preferences rename recorded in `docs/main-menu.md`. Small on its own, and worth doing before items 20 and 21 rather than after.
+
+### 23. Export by search and cart, not by list
+
+**Goal.** Replace the export half of `/import` with a search box, a cart, and one zip. A rider searches their rides by name or date, adds the ones they want, picks a format per ride—mixing freely—and hits one button to get a zip of the lot.
+
+**What is there now, and why it stops working.** `import.tsx` selects **every ride the owner has**, unpaginated and unbounded, and renders one row per ride carrying a button per format. The DOM is rides × formats. At a dozen rides it is a wall; at a hundred it is a page nobody can use and a query nobody should run. There is also no way to take two rides at once—each button is a separate download—which is the actual job a rider has when they are loading a device before a trip.
+
+**The interaction to copy is the builder's, not Google's.** "Realtime like the addresses on the map" means the **shape** of `#search-results` in `public/js/builder.js`—debounced input, a list under the field, keyboard-navigable, no submit—**not** its data source, which is Google Places and has nothing to do with rides. Two of that control's hard-won details carry over: it is `position: fixed` so it can escape a scrolling container, and item 16 lists it among the variable-length readouts that reflow whatever sits below them. A results list that pushes the cart down the page as a rider types is the jumping layout item 16 spent a day removing.
+
+**Work.**
+
+- [ ] An owner-scoped ride search endpoint. Name and date, debounced, returning a short capped list. **"By date" means the days' dates, not `rides.createdAt`**—a rider searching "August" means when they rode, not when they made the record.
+- [ ] The results list, on the builder's pattern, with the space it occupies reserved rather than pushed.
+- [ ] A cart: add, remove, and a per-row format picker. A ride can appear more than once in different formats; the naming convention keeps those files distinct by extension so nothing collides inside the zip.
+- [ ] One export button producing one zip, named for the export rather than for any ride in it.
+- [ ] **Caps on the way out, mirroring the ones on the way in.** `maps.ts` already refuses a zip with too many files, an oversize member, or too large an unpacked total. `buildZip` returns a `Buffer`, so N rides × M formats is assembled in memory—the cart needs a ceiling, and it should be the same numbers the importer enforces rather than a second set invented here.
+- [ ] Retire the every-ride query and the per-ride button row.
+
+**The zip contract is the thing that will break, and it is not obvious.** A zip today means **one ride, one file per day**. `src/routes/maps.ts:180` says so directly—the per-day zip download and the zip import are two halves of one feature—and a dropped zip is expanded before anything asks what format its members are, then handed to `planImport`, which makes those files **the days of a single ride**. So a multi-ride export zip, re-imported, silently becomes one ride with every ride's days glued together in a row. That is a data-loss bug that looks like a successful import.
+
+**The fix is already sitting in the naming convention.** Every file this app writes carries the ride in its name, and `planImport` **already** computes `rideConflict` when conforming files disagree about which ride they belong to—it just currently treats that disagreement as a problem rather than as a boundary. Teach it to read the ride field as a **split point** and a multi-ride zip becomes several rides, correctly, with no manifest file and no directory convention to invent. **Item 21's review table is where a rider would confirm that split**, which makes these two items considerably more valuable together than apart: 21 gives the rider a place to see "this zip holds 3 rides, 9 days" before anything is written, and 23 is what produces such a zip in the first place.
+
+**Open questions.**
+
+- **What format an imported ride exports in.** Item 3 established that an imported ride streams its **stored original byte-for-byte** while a native ride is generated. In a mixed cart, does asking for "GPX" on an imported ride give the original bytes or a regenerated file? The original is more faithful to what the rider brought in; the regenerated one is consistent with every other row and reflects edits made since. Both are defensible and they are different files.
+- **Whether the cart survives a reload.** Session storage, a server-side draft, or nothing. Nothing is the cheapest and is probably wrong for the case this exists to serve—a rider assembling a device load before a trip is interrupted constantly.
+- **Whether search should reach shared rides**, or only owned ones. The current query is owner-scoped and this item keeps that by default; anything wider is a new authorization surface and should be decided deliberately rather than fallen into.
+
+**Touches.** `src/routes/import.tsx` (the export half, replaced), a new search endpoint under `src/routes/`, `public/js/import.js`, `src/maps/zip.ts` (`buildZip` is already there), `src/maps/filename.ts` and `src/routes/maps.ts` (reading the ride field as a split point), `style/_forms.scss` (`.export-list` and `.export-row` go away), `docs/api.md`.
+
+**Status.** planned—raised 2026-08-16. **Shares a page with item 21 and should be drawn with it**, not after it: that page is one `<h1>` over two halves, and redesigning them separately is how they end up looking like two features that happen to share a URL. Item 22's width work is a prerequisite for both.
 
 ## Idea backlog (unscheduled)
 
