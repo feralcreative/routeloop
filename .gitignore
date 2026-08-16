@@ -281,6 +281,9 @@ Icon
 /docs/ops
 _reference
 
+_assets
+
+
 # --- Moto-Rooter (LAMP rebuild) ---
 /vendor/
 config.local.php
