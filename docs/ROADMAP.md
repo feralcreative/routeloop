@@ -47,7 +47,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 - **`docs/main-menu.md`**—Settings is renamed **Preferences** at `/prefs`, with `/settings` and `/preferences` redirecting. Note the POST endpoint needs a 308 or an alias, not a 301.
 - **`docs/api.md`**—four stale route rows corrected, including `routes/rides.ts` → `routes/builder.ts` in several places.
 - **`docs/STATUS.md`**—the Maps key referrer list is now Google's two-entry recipe per domain, verified at runtime; a first round of testing produced a confident false pass and the reasoning is recorded so it is not repeated.
-- **`_PLANS/turnstile-activation-260816T2144Z.md`**—the executable plan for item 24. **`_PLANS` is git-ignored**, so this exists on Ziad's machine only.
+- **`_PLANS/turnstile-activation-260816T2144Z.md`**—the executable plan for item 24. **`_PLANS` is git-ignored**, so this exists on Ziad's machine only. The rider-feedback plan was promoted out of that directory to `docs/rider-feedback.md` the same day for exactly that reason; this one stays put as a single-sprint instruction rather than a specification.
 - **`docs/myrouteapp-formats.md`**—new, and the research behind [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
 <!-- col-widths: 22% 44% 34% -->
@@ -847,7 +847,7 @@ Two ways out, and the second is probably right:
 
 **Goal.** Give a beta tester somewhere to say "this broke just now" and "I wish it did this", and give the owner a queue to triage it. Phase 3 of the road to beta, and the thing that closes the loop from testers to a release candidate.
 
-**The detail already exists, and it is not in this repo.** A full 437-line design lives at `_PLANS/plan-260815-rider-feedback.md`, written 2026-08-15. **`_PLANS` is git-ignored** (`.gitignore:265`), so that file is on Ziad's machine and nowhere else—which is why this item exists at all. Without an entry here the work is invisible to the priority system and to anyone reading the repo.
+**The detail lives in [`docs/rider-feedback.md`](rider-feedback.md)**, a 437-line design written 2026-08-15. It sat in git-ignored `_PLANS/` until 2026-08-16 and was promoted into `docs/` that day—it is a specification rather than working scratch, and one copy on one machine was the wrong home for it. It carries phased commits, marked decision gates and four open calls of its own.
 
 What that plan settles, in brief, so this entry stands alone if the file is ever lost:
 
@@ -856,7 +856,7 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 - **Vocabulary, chosen to stay clear of `ride > day > leg > stop/POI`.** A **report** (`bug`, `idea` or `question`) has a moderation **state** and a rider-facing **status**; a **want** is a vote, and the button says "I want this". The **board** is public at `/board`, the **queue** is the owner's at `/admin/feedback`.
 - **It follows the house rule-from-query split**—`feedback/policy.ts` for pure logic that Vitest can drive with no Postgres, `feedback/service.ts` for anything touching the database—matching `invites/`, `survey/` and `stats/`.
 
-**Work.** Follow the plan file; it carries phased steps and marked decision gates. Do not restate them here—two copies of a 437-line spec will drift.
+**Work.** Follow [`docs/rider-feedback.md`](rider-feedback.md); it carries phased steps and marked decision gates. Do not restate them here—two copies of a 437-line spec will drift. **Four open calls sit at the end of that document and are explicitly not for an implementing agent to decide:** where the entry point goes, how to read map state without touching the `map-common.js` boundary, bright-sun handling, and whether the public board ships now or waits until a request has arrived five or more times.
 
 **Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
 
