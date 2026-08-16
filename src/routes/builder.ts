@@ -203,6 +203,24 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
+// THIS CHURNS EVERY POINT AND DAY ID, ON PURPOSE, AND THE BUILDER NOW CALLS IT
+// CONSTANTLY. Decided 2026-08-15 while planning autosave (#89): the full replace
+// below deletes the ride's days — cascading to points and legs — and re-inserts
+// them, so `points.id` and `days.id` are different rows after every save. The
+// builder used to save when a rider pressed a button, perhaps a dozen times in a
+// session; it now flushes on idle, which is two orders of magnitude more often.
+//
+// That is still safe TODAY for exactly one reason: nothing anywhere references a
+// point across a save. The client payload carries no ids, the exports rebuild
+// from the graph, and the roadbook reads it whole.
+//
+// It stops being safe the moment anything does — rich stop details (#15), a
+// comment on a stop, a photo attached to one. **Any feature that needs a point
+// to keep its identity has to fix this first**, and the fix is not small: send
+// ids in the payload, diff here, and update in place, which rewrites
+// insertRideGraph, ridePayload and loadRidePayload — the path the native JSON
+// import shares. Do not add the reference and hope; the failure is silent and
+// looks like data that wandered off.
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
@@ -365,6 +383,26 @@ function builderHtml(
   //
   // The order changed with the grouping: the timeline and the totals moved up
   // into the ride band, which is where they always belonged.
+  //
+  // THERE IS NO SAVE BUTTON, and no Discard either. The builder autosaves on
+  // idle — see the autosave block in public/js/builder.js for the timing and for
+  // the two conditions that hold a flush. What is left in .builder-actions is
+  // undo, redo, a status readout and the link to the public page.
+  //
+  // Two details in that row are load-bearing rather than cosmetic, both serving
+  // the rule that nothing in the panel changes size as its value changes:
+  //
+  //   #save-status is aria-hidden and #save-announce below it is the live
+  //   region. A polite region on the readout itself would say "Unsaved changes,
+  //   Saving, Saved" aloud on every edit burst — three announcements a minute
+  //   for something a sighted rider takes in peripherally. The live region
+  //   speaks only for an error or a blocked save, which are the states that
+  //   need acting on. Its width is fixed in _builder.scss for the same reason.
+  //
+  //   #view-link ships from first paint and is revealed by the first successful
+  //   save, using visibility rather than the hidden attribute. An element that
+  //   appeared would shove the status beside it, which is the exact jump this
+  //   whole epic is about.
   const contents = `        <div class="panel-band panel-band--ride">
           <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
@@ -437,12 +475,15 @@ function builderHtml(
         </div>
 
         <div class="builder-actions">
-          <button id="save" class="btn" type="button">Save ride</button>
           <button id="undo" class="btn-quiet" type="button" disabled title="Nothing to undo">Undo</button>
           <button id="redo" class="btn-quiet" type="button" disabled title="Nothing to redo">Redo</button>
-          <button id="discard" class="btn-quiet" type="button" disabled>Discard changes</button>
-          <span id="save-status" class="save-status"></span>
+          <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
+            <span class="save-dot"></span>
+            <span class="save-text">Not saved yet</span>
+          </span>
+          <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
         </div>
+        <span id="save-announce" class="visually-hidden" role="status" aria-live="polite"></span>
         <div id="recover-bar" class="tb-banner is-recover" hidden>
           <span id="recover-text"></span>
           <button id="recover-yes" class="linkbtn" type="button">Restore</button>

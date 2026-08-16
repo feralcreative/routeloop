@@ -99,6 +99,9 @@
     markers: [],
     addMode: "stop",
     dirty: false,
+    // A flush is in flight. Declared rather than sprung into existence by the
+    // first assignment, because autosave now READS it before any save has run.
+    saving: false,
     layersReady: false,
     layerCount: 0, // how many day layers are currently on the map
     legSeq: [], // legSeq[r][i]—stale routing responses are dropped
@@ -219,29 +222,130 @@
 
   function markDirty() {
     state.dirty = true;
-    $("save-status").textContent = "unsaved changes";
-    $("discard").disabled = false;
+    editSeq++;
+    setSaveStatus("dirty");
     queueDraft();
+    queueAutosave();
   }
 
-  // Throws the working copy away and reloads the saved one. A reload rather than
-  // an in-place rebuild because that is the only version guaranteed to match
-  // what the server holds — reconstructing state by hand is how a "discard"
-  // quietly keeps something. For a ride that was never saved there is nothing to
-  // fetch, so the reload lands on an empty builder, which is the same answer.
+  // --- Autosave -------------------------------------------------------------
   //
-  // state.dirty is cleared first or beforeunload asks a second time, one line
-  // after the rider already confirmed.
-  function discardChanges() {
+  // There is no Save button. A flush is a plain PUT of the whole ride, and the
+  // reason that is affordable is that it makes NO billable Maps call — the money
+  // is in the routing request, which keeps its own debounce in computeLeg() and
+  // is deliberately not coupled to this.
+  //
+  // Two timers, not one, and the second is the one that matters. An idle
+  // debounce alone has no upper bound: dragging a stop around for four minutes
+  // never goes idle and never saves. The ceiling fires regardless of activity,
+  // measured from the first edit after a clean state, so the worst case is
+  // bounded by AUTOSAVE_MAX_MS rather than by how long someone can keep typing.
+  //
+  // Both are far under the five-minute acceptance bar on purpose: the bar is what
+  // must never be exceeded, not what to aim for.
+  const AUTOSAVE_IDLE_MS = 3000;
+  const AUTOSAVE_MAX_MS = 20000;
+  // After a failed flush. Long enough not to hammer a server that is down,
+  // short enough that a dropped wifi connection recovers on its own.
+  const AUTOSAVE_RETRY_MS = 15000;
+
+  let idleTimer = null;
+  let ceilingTimer = null;
+  let retryTimer = null;
+
+  // WHICH EDITS A COMPLETED SAVE ACTUALLY COVERS, and getting this wrong is
+  // silent data loss rather than a visible bug, so it is worth the counter.
+  //
+  // payload() serializes when the fetch STARTS. A keystroke during the round trip
+  // is therefore not in that request — but the response says "saved", and the
+  // obvious thing to do on success is clear state.dirty. That marks the keystroke
+  // as saved, and every later flush then returns early on `!state.dirty`, so it
+  // is never sent at all. The status reads "Saved" the whole time.
+  //
+  // The first version of this tracked a boolean set by flushNow() when it was
+  // called mid-flight, which is a different event: a flush attempt during the
+  // request, not an edit during it. Typing does not call flushNow(), so the
+  // common case sailed straight past it.
+  //
+  // markDirty() bumps editSeq. save() records it before the fetch and compares
+  // after: equal means the response covers everything, different means more
+  // arrived and the ride is still dirty.
+  let editSeq = 0;
+
+  // Why a flush cannot happen, in the rider's words, or null.
+  //
+  // These are the same two conditions save() used to enforce with a toast and a
+  // focus jump. Neither is right for autosave: a rider who has not typed a title
+  // yet is mid-task, not in error, and a toast every three seconds saying so
+  // would be the worst thing in the app. The status line states the condition
+  // and waits.
+  function saveBlockReason() {
+    if (!state.meta.title.trim()) return "Needs a title";
+    if (!state.days.some((r) => r.stops.length > 0)) return "Needs a stop";
+    return null;
+  }
+
+  function queueAutosave() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(flushNow, AUTOSAVE_IDLE_MS);
+    // Only armed once per dirty run — re-arming it on every keystroke would make
+    // it a second idle timer and give back the unbounded case it exists to close.
+    if (!ceilingTimer) ceilingTimer = setTimeout(flushNow, AUTOSAVE_MAX_MS);
+  }
+
+  async function flushNow() {
+    clearTimeout(idleTimer);
+    clearTimeout(ceilingTimer);
+    idleTimer = ceilingTimer = null;
     if (!state.dirty) return;
-    const saved = state.rideId ? "the last saved version" : "an empty ride";
-    if (!window.confirm("Discard every unsaved change and go back to " + saved + "?\n\nThis cannot be undone.")) return;
-    state.dirty = false;
-    // Drop the draft too, or the reload lands on a recovery prompt offering
-    // back the exact thing that was just discarded.
-    clearTimeout(draftTimer);
-    HIST.Draft.clear(state.rideId);
-    window.location.reload();
+    // Coalesce rather than queue: two overlapping PUTs of the same ride would
+    // only race to write the same thing. Nothing is recorded here — save()
+    // re-queues itself from the editSeq comparison if this flush's request
+    // turns out not to have covered everything.
+    if (state.saving) return;
+    const blocked = saveBlockReason();
+    if (blocked) {
+      setSaveStatus("blocked", blocked);
+      // No timer. The condition can only clear through an edit, and every edit
+      // calls markDirty() — so re-arming here would be a spin loop that changes
+      // nothing. This is the one path that deliberately stops trying.
+      return;
+    }
+    await save();
+  }
+
+  // --- Save status ----------------------------------------------------------
+
+  // One state name in, one fixed-footprint readout out. The width is reserved in
+  // CSS for the longest string here, because #save-status was on the epic's list
+  // of variable-length readouts that reflow whatever sits beside them.
+  const SAVE_TEXT = {
+    new: "Not saved yet",
+    dirty: "Unsaved changes",
+    saving: "Saving…",
+    saved: "Saved",
+    error: "Not saved",
+  };
+
+  function setSaveStatus(name, text) {
+    const el = $("save-status");
+    if (!el) return;
+    const msg = text || SAVE_TEXT[name] || "";
+    el.dataset.state = name;
+    el.querySelector(".save-text").textContent = msg;
+    // A server error message is arbitrary length and the readout is a fixed box,
+    // so the visible text ellipsizes and the whole thing lives here.
+    el.title = msg;
+    // Only the states a rider needs told about reach the live region. The
+    // routine dirty/saving/saved cycle runs several times a minute and
+    // announcing it would make the panel unusable with a screen reader on.
+    if (name === "error" || name === "blocked") {
+      $("save-announce").textContent = text || SAVE_TEXT[name] || "";
+    } else if (name === "saved") {
+      $("save-announce").textContent = "";
+    }
   }
 
   // --- Routing --------------------------------------------------------------
@@ -1430,21 +1534,30 @@
     };
   }
 
+  // Warned once per episode rather than on every flush. Autosave calls save()
+  // several times a minute, and a rider who has added a day and not yet given it
+  // a stop would otherwise be told about it continuously for as long as it takes
+  // them to add one. Reset when nothing is being dropped, so the next episode
+  // warns again.
+  let warnedDropped = false;
+
   async function save() {
     if (state.saving) return;
-    state.meta.title = $("ride-title").value.trim();
-    if (!state.meta.title) {
-      $("ride-title").focus();
-      return toast("Give the ride a title first", true);
-    }
     const body = payload();
-    if (body.days.length === 0) return toast("Add at least one stop", true);
     const dropped = state.days.length - body.days.length;
-    if (dropped > 0) toast(dropped + " empty day" + (dropped > 1 ? "s" : "") + " skipped", true);
+    if (dropped > 0 && !warnedDropped) {
+      warnedDropped = true;
+      toast(dropped + " empty day" + (dropped > 1 ? "s" : "") + " not saved—add a stop to it");
+    } else if (dropped === 0) {
+      warnedDropped = false;
+    }
+
+    // Captured BEFORE the fetch, beside the payload it belongs to. See the
+    // editSeq comment above for why the two have to be read at the same instant.
+    const sentSeq = editSeq;
 
     state.saving = true;
-    $("save").disabled = true;
-    $("save-status").textContent = "saving…";
+    setSaveStatus("saving");
     try {
       const res = await fetch(state.rideId ? "/api/rides/" + state.rideId : "/api/rides", {
         method: state.rideId ? "PUT" : "POST",
@@ -1460,20 +1573,47 @@
         // that offers itself to the next new ride.
         HIST.Draft.adopt(state.rideId);
       }
+      if (data.slug) showViewLink(data.slug);
+
+      // Did this response cover everything, or did the rider keep working
+      // through it? Both branches are load-bearing.
+      if (editSeq !== sentSeq) {
+        // It did not. Stay dirty, keep the draft, and go round again — this is
+        // the re-queue that makes the mid-flight keystroke survive.
+        setSaveStatus("dirty");
+        queueAutosave();
+        return;
+      }
       state.dirty = false;
-      // Saved is the one moment the draft is provably redundant.
+      // Clean, and the one moment the draft is provably redundant. Note this
+      // sits AFTER the check above on purpose: clearing it on a partial save
+      // would throw away the crash copy of the very edits still outstanding.
       clearTimeout(draftTimer);
       HIST.Draft.clear(state.rideId);
       draftFailed = false;
-      $("discard").disabled = true;
-      $("save-status").innerHTML = 'saved ✓ · <a href="/m/' + esc(data.slug || "") + '">view</a>';
+      setSaveStatus("saved");
     } catch (e) {
-      toast(e.message, true);
-      $("save-status").textContent = "not saved";
+      // The message goes to the status line, not to a toast: an autosave that
+      // fails once tends to fail again, and one toast per attempt would bury the
+      // panel. The failure is also not fatal — the localStorage draft still has
+      // the work, and the retry below usually clears it without the rider ever
+      // needing to act.
+      setSaveStatus("error", e.message);
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(flushNow, AUTOSAVE_RETRY_MS);
     } finally {
       state.saving = false;
-      $("save").disabled = false;
     }
+  }
+
+  // The link to the public page, revealed once and never hidden again. It is
+  // rendered from the start and only made visible here — see the markup comment
+  // in src/routes/builder.ts for why it is `visibility` and not `hidden`.
+  function showViewLink(slug) {
+    const a = $("view-link");
+    if (!a) return;
+    a.href = "/m/" + encodeURIComponent(slug);
+    a.classList.remove("is-empty");
   }
 
   async function loadExisting() {
@@ -1507,6 +1647,10 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    // What was just loaded IS what the server holds, so the panel opens on
+    // "Saved" rather than on the "Not saved yet" a new ride starts at.
+    setSaveStatus("saved");
+    if (ride.slug) showViewLink(ride.slug);
   }
 
   // --- Init -----------------------------------------------------------------
@@ -1625,10 +1769,21 @@
         state.addMode = btn.dataset.mode;
       });
     });
-    $("save").addEventListener("click", save);
-    $("discard").addEventListener("click", discardChanges);
+    // Narrowed from "dirty" to "dirty and not yet flushed". With autosave most
+    // of a session is clean within three seconds of the last keystroke, so the
+    // old guard would have fired on almost every exit for work that was already
+    // on the server. What is left is the genuine window: an edit inside the
+    // debounce, a flush in flight, or a ride that cannot be saved at all.
     window.addEventListener("beforeunload", (e) => {
-      if (state.dirty) e.preventDefault();
+      if (state.dirty || state.saving) e.preventDefault();
+    });
+
+    // The reliable half of the pair. beforeunload is increasingly restricted and
+    // never fires at all when a phone backgrounds the tab and later kills it;
+    // visibilitychange does, and it is the documented place to persist. Flushing
+    // early here is free — a clean state returns immediately.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushNow();
     });
   }
 

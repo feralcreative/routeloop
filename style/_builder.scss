@@ -573,28 +573,108 @@
     }
   }
 
+  // Save and Discard are gone — the builder autosaves — so what is left is
+  // undo, redo and a readout. The `.btn` rule that used to live here went with
+  // the Save button; it was scoped to this row and nothing else used it.
   .builder-actions {
     display: flex;
     align-items: center;
     gap: 0.75em;
     margin-top: 0.9em;
-    .btn {
-      font: inherit;
+  }
+
+  // FIXED FOOTPRINT, and that is the whole design. This readout was on the
+  // epic's list of variable-length things that reflow whatever sits beside them:
+  // it cycles "Unsaved changes" -> "Saving…" -> "Saved" several times a minute,
+  // and at three different widths it would shove the view link back and forth
+  // continuously while a rider types.
+  //
+  // So the box is sized once, for the longest routine string, and every state
+  // renders inside it. A server error message is arbitrary length and gets
+  // ellipsized rather than being allowed to set the width — builder.js puts the
+  // full text on the title attribute.
+  .save-status {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    flex: none;
+    // "Unsaved changes" is the longest of SAVE_TEXT in builder.js. Keep the two
+    // in step: a longer state string added there needs this widened, or it
+    // silently ellipsizes.
+    width: 15ch;
+    font-size: 0.9em;
+    color: $neutral-50;
+
+    .save-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .save-dot {
+      flex: none;
+      width: 0.5em;
+      height: 0.5em;
+      border-radius: 50%;
+      background: $neutral-70;
+    }
+
+    &[data-state="saved"] .save-dot {
+      background: $go;
+    }
+
+    &[data-state="dirty"] .save-dot,
+    &[data-state="blocked"] .save-dot {
+      background: $warning;
+    }
+
+    // Blocked is not a failure — it is "you have not given me a title yet" — but
+    // it is the one routine state a rider has to act on, so it carries weight
+    // that dirty does not.
+    &[data-state="blocked"] {
+      color: $pending;
       font-weight: 600;
+    }
+
+    &[data-state="saving"] .save-dot {
       background: $url;
-      color: $white;
-      border: 0;
-      border-radius: 6px;
-      padding: 0.55em 1.2em;
-      cursor: pointer;
-      &:disabled {
-        opacity: 0.6;
-        cursor: default;
+      animation: save-pulse 1.1s ease-in-out infinite;
+    }
+
+    &[data-state="error"] {
+      color: $kml;
+      font-weight: 600;
+      .save-dot {
+        background: $kml;
       }
     }
-    .save-status {
-      font-size: 0.9em;
-      color: color.adjust($text, $lightness: 25%);
+  }
+
+  // The public page, revealed by the first successful save and never hidden
+  // again. `visibility` rather than `display` so the row's width is settled from
+  // first paint — see the markup comment in src/routes/builder.ts.
+  .view-link {
+    margin-left: auto;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: $url;
+
+    &.is-empty {
+      visibility: hidden;
     }
+  }
+}
+
+//@ Reduced motion — the pulse is decoration; the color and the text both
+// already say "saving", so removing it costs nothing.
+@media (prefers-reduced-motion: reduce) {
+  .builder-panel .save-status[data-state="saving"] .save-dot {
+    animation: none;
+  }
+}
+
+@keyframes save-pulse {
+  50% {
+    opacity: 0.25;
   }
 }
