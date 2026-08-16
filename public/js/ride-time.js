@@ -115,8 +115,25 @@
       if (dwell > 0) segs.push({ kind: "stop", index: i, start: t, end: t + dwell });
       t += dwell;
 
+      // CONTINUE, NOT BREAK, and the difference was a real bug worth naming.
+      //
+      // This used to `break` on the first missing leg, which silently abandoned
+      // every remaining stop — their dwell vanished from the schedule while
+      // dayElapsedS, which sums the stops independently, went on counting it.
+      // The two then disagreed, and the invariant that the last segment's end
+      // equals dayElapsedS — the one this file's tests call the one that matters
+      // most — was quietly false.
+      //
+      // It was reachable for real: an imported ride was stored as ONE leg
+      // holding the whole track however many stops sat along it, so on every
+      // imported ride with more than two stops the timeline ran short by the
+      // sum of all their dwell. Imports carry proper legs now
+      // (src/maps/track-split.ts) and the builder fills any gap on load, so the
+      // shape should not arrive here from either direction — but a schedule that
+      // simply stops early is the kind of wrong that nothing reports, so it
+      // absorbs the shape rather than trusting that.
       const leg = day.legs[i];
-      if (!leg) break;
+      if (!leg) continue;
       const riding = legDurationS(leg);
       const from = prefix[i];
       const span = prefix[i + 1] - from;

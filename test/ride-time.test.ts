@@ -220,3 +220,40 @@ describe('the schedule and the elapsed time cannot disagree', () => {
     for (let i = 1; i < segs.length; i++) expect(segs[i].start).toBeCloseTo(segs[i - 1].end, 6)
   })
 })
+
+describe('a day with fewer legs than its stops imply', () => {
+  // THIS WAS A LIVE BUG, and it is the reason the shape is worth a test of its
+  // own. daySchedule walks stops and legs together and stops dead at the first
+  // missing leg. Every imported ride used to be stored as ONE leg holding the
+  // whole track however many stops sat on it — so from stop 1 onward, every
+  // dwell was silently dropped from the day and the timeline ran short by
+  // exactly that much. Nothing said so; the slider just ended early.
+  //
+  // Imports are split into real legs now (src/maps/track-split.ts) and the
+  // builder fills any gap on load (fillMissingLegs in builder.js), so the shape
+  // should no longer reach here from either direction. This pins the arithmetic
+  // for the day one of those paths regresses, because the symptom is a number
+  // being quietly too small rather than anything failing.
+  const truncated: Route = {
+    startAt: at('2026-08-01T09:00'),
+    endAt: null,
+    stops: [stop('Start'), stop('Lunch', 60), stop('Fuel', 30), stop('Motel')],
+    pois: [],
+    legs: [leg(3600, 72000)],
+  }
+
+  it('still counts the dwell of stops past the last leg', () => {
+    const segs = T.daySchedule(truncated)
+    const dwelled = segs.filter((s: { kind: string }) => s.kind === 'stop').map((s: { index: number }) => s.index)
+    // Lunch is stop 1 and Fuel is stop 2. Before the fix the walk broke after
+    // stop 0's leg and Fuel never appeared at all.
+    expect(dwelled).toContain(1)
+    expect(dwelled).toContain(2)
+  })
+
+  it('keeps the schedule and the elapsed time in agreement', () => {
+    const segs = T.daySchedule(truncated)
+    const total = segs.length ? segs[segs.length - 1].end : 0
+    expect(total).toBeCloseTo(T.dayElapsedS(truncated), 6)
+  })
+})

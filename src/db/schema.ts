@@ -563,8 +563,15 @@ export const points = pgTable(
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
 // the Directions API (distance/duration are Directions-authoritative — the
 // mileage authority). via_points are the rider's ephemeral shaping waypoints.
-// Imported rides store one leg at position 0 holding the whole track, so the
-// viewer always renders concat(legs) — one code path for both sources.
+// THIS IS NOW TRUE OF IMPORTED RIDES TOO. They used to store one leg at
+// position 0 holding the whole track, which the viewer coped with because it
+// renders concat(legs) either way — but the builder's model IS this invariant,
+// so an import could never be opened, saved or exported as valid native JSON.
+// The import cuts the uploaded track at its stops now; see
+// src/maps/track-split.ts, and utils/split-imported-legs.ts for the rows that
+// predate it. The one thing that has not changed: distance/duration on an
+// imported leg come from geometry, not from Directions, because an imported
+// ride never touches the router.
 //
 // Still `route_legs` after days stopped being called routes, deliberately: the
 // "route" here is the path a day traces, which is what these legs compose, not

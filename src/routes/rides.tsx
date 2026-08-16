@@ -30,11 +30,12 @@ function OwnRideRow({ ride, color }: { ride: RideRow; color: string | null }) {
           {ride.stopCount} stops · {Number(ride.totalMiles)} mi
         </span>
       </a>
-      {ride.source === 'native' && (
-        <a class="editlink" href={`/builder/${ride.id}`}>
-          Edit
-        </a>
-      )}
+      {/* Every own ride is editable now, imported ones included — this used to
+          test `ride.source === 'native'` because the builder could not open an
+          import. It can; see canEditRide in ./maps. */}
+      <a class="editlink" href={`/builder/${ride.id}`}>
+        Edit
+      </a>
     </li>
   )
 }

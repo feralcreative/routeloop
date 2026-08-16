@@ -44,7 +44,7 @@ How the app is put together, and which boundaries are load-bearing. Operating in
 
 ## One map engine
 
-There is one viewer and one shell. The legacy `public/js/main.js` (1,135 lines of `google.maps` that served imported rides on their own shell and read `window.MOTO`) was deleted on 2026-08-01. `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one day with one leg.
+There is one viewer and one shell. The legacy `public/js/main.js` (1,135 lines of `google.maps` that served imported rides on their own shell and read `window.MOTO`) was deleted on 2026-08-01. `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride renders through the same path as a native one. (It used to be *literally* one day with one leg; since 2026-08-15 its track is split at its stops like any other ride's—see `src/maps/track-split.ts`.)
 
 The client is:
 
