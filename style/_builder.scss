@@ -50,7 +50,7 @@
     }
   }
 
-  // THE RIDE NAME IS THE HEADING, and this input is the heading rather than
+  // THE RIDE NAME IS THE HEADING, and this field is the heading rather than
   // something a pencil swaps in. A reveal would be a second mode and a layout
   // jump, which is the thing the panel redesign exists to remove; so the field
   // is drawn as the heading and only picks up a border when it is hovered or
@@ -58,22 +58,46 @@
   //
   // The selector fights the generic input rule above, which gives every text
   // input a box — hence naming the id.
+  //
+  // NO FONT-SIZE HERE, and that is a correction rather than an omission. This
+  // block carried `font-size: 1.5rem` for months and it never applied: the size
+  // comes from `#info-panel .panel-title` in _map.scss, and an id beats two
+  // classes, so the builder heading has always rendered at that rule's size. The
+  // declaration read like the builder's own size and was not. The 25% cut is in
+  // _map.scss where it actually lands, and both panels take it.
   .panel-title {
     display: block;
     margin: 0 2.6em 0 0;
-    font-size: 1.5rem;
 
+    // IT IS A TEXTAREA. An <input> cannot wrap — it is a single-line replaced
+    // element, which is why the name used to ellipsize at the panel's edge no
+    // matter how much room was under it. Everything below exists to make a
+    // textarea stop looking like one:
+    //
+    //   resize: none and overflow: hidden kill the drag corner and the scrollbar.
+    //   max-height is the two-line ceiling. It is spelled out as lines + padding
+    //   + borders rather than rounded off because the box is border-box: two
+    //   lines is 2.3em at line-height 1.15, and a max-height of a flat 2.4em
+    //   leaves the content box about 2px short, which clips the descenders on
+    //   the second line rather than the third. Past the ceiling the third line
+    //   is clipped outright, which is the truncation the heading promises.
+    //   The height itself is set inline by fitTitle() in builder.js on every
+    //   edit; without it the field would sit at one row forever and scroll.
     #ride-title {
+      display: block;
       width: 100%;
       padding: 0.05em 1.5em 0.05em 0.2em;
       margin-left: -0.2em;
       font: inherit;
       font-weight: 500;
+      line-height: 1.15;
       color: $text;
       background: transparent no-repeat right 0.25em center / 0.75em;
       border: 1px solid transparent;
       border-radius: 6px;
-      text-overflow: ellipsis;
+      resize: none;
+      overflow: hidden;
+      max-height: calc(2.3em + 0.1em + 2px);
 
       &::placeholder {
         color: $neutral-63;
@@ -103,6 +127,17 @@
   // behind it should expand the panel, not put a cursor in it — so the pencil,
   // the hover border and the pointer all go.
   //
+  // ONE LINE, whatever the expanded panel is doing. A collapsed panel is a strip
+  // saying what is behind it, and a strip two lines tall is a small panel. The
+  // `!important` on height is not decoration: fitTitle() writes an inline height
+  // sized for the expanded heading, and an inline style outranks everything here
+  // without it.
+  //
+  // A textarea cannot take `text-overflow: ellipsis` — the property only applies
+  // to a single-line box, which a textarea never is — so the overflow fades out
+  // instead. The mask runs the full width and costs nothing on a short name,
+  // because the faded strip is empty.
+  //
   // The width is deliberately left alone. It looks like it needs pinning and it
   // does not: `#info-panel .panel-title` carries `transition: font-size 0.4s`,
   // so anything measured in the same frame as the class change reads the
@@ -110,10 +145,14 @@
   // settles, the strip is 246px at every name length. **Wait out that transition
   // before believing any measurement of the collapsed panel.**
   &.collapsed .panel-title #ride-title {
+    height: 1.3em !important;
+    max-height: 1.3em;
     padding-right: 0.2em;
     background-image: none;
     border-color: transparent;
     pointer-events: none;
+    white-space: nowrap;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.5em), transparent);
   }
 
   // Three bands, one per scope: the ride, the trip across its days, and the one
@@ -143,25 +182,20 @@
   // need no container of their own — a tint here would box in the whole panel.
   //
   // This block was .ride-meta before the bands; the class was folded into the
-  // band rather than nested inside it, so the rules move here with it.
+  // band rather than nested inside it, so the rules move here with it. It was
+  // also declared twice, once here and once immediately below for the tint
+  // alone; the two are one block now.
   .panel-band--ride {
     display: flex;
     flex-direction: column;
-    gap: 0.5em;
+    gap: 0.35em;
     padding: 0;
+    background: rgba(0, 0, 0, 0.035);
 
-    #ride-title {
-      font-weight: 600;
-      width: 100%;
-    }
     #ride-description {
       width: 100%;
       resize: vertical;
     }
-  }
-
-  .panel-band--ride {
-    background: rgba(0, 0, 0, 0.035);
   }
 
   // Accented in the day's own colour, which is also what every role icon inside
@@ -305,9 +339,14 @@
       }
     }
   }
-  // Says where the end came from — derived, estimated, or typed by the rider.
+  // Says where the end came from — derived, estimated, or typed by the rider —
+  // and, on a day with no start, that typing one is what turns the map's timeline
+  // on. It was on the panel rule's list of variable-length readouts and it now
+  // has one more state than it did, so the line is reserved whether or not there
+  // is anything on it.
   .day-times-note {
     flex: 1 0 100%;
+    min-height: 1.4em;
     font-size: 0.7em;
     font-style: italic;
     opacity: 0.7;
@@ -442,18 +481,23 @@
     }
   }
 
+  // The visibility select and the click-mode pair, on one line. Everything here
+  // is scaled to 0.85em and padded tighter than a form field would be, because
+  // this row is a pair of settings rather than a pair of questions: it is read
+  // once, set once, and then sat above the work for the rest of the session.
+  //
+  // (The `#day-color` rule that used to live here was dead — the colour picker
+  // is in .day-head and never has been in this row.)
   .meta-row {
     display: flex;
     align-items: center;
-    gap: 0.5em;
-    #day-color {
-      width: 2.2em;
-      height: 2em;
-      padding: 0;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      background: $white;
+    gap: 0.35em;
+
+    #ride-visibility {
+      font-size: 0.85em;
+      padding: 0.3em 0.4em;
     }
+
     .add-mode {
       margin-left: auto;
       display: flex;
@@ -462,7 +506,7 @@
     .mode-btn {
       font: inherit;
       font-size: 0.85em;
-      padding: 0.35em 0.6em;
+      padding: 0.3em 0.55em;
       border: 1px solid $grey;
       border-radius: 6px;
       background: $white;
@@ -565,7 +609,15 @@
       // nothing. An inline menu would push every row below it — the jump the
       // panel redesign exists to remove.
       position: relative;
-      padding: 0.35em 0;
+      // 0.2em, down from 0.35em on 2026-08-15. Three numbers came down together
+      // — this padding, the gap between rows, and the control heights below —
+      // because a row's pitch is the sum of all three and trimming one alone
+      // barely shows. Anything lower than this and the drag tab has no grip left.
+      //
+      // .row-drag cancels this with a negative margin so its tab reaches the
+      // row's real edges, and .row-drag-ghost repeats it because the drag mirror
+      // deliberately inherits nothing. CHANGE ALL THREE OR NONE.
+      padding: 0.2em 0;
       background: $white;
       // A CARD PER ROW, separated, rather than a continuous run divided by
       // hairlines. The separation is what makes the drag tab read: butted
@@ -577,7 +629,7 @@
       border-radius: 8px;
 
       + .point-row {
-        margin-top: 4px;
+        margin-top: 3px;
       }
 
       &.flash {
@@ -614,12 +666,12 @@
       flex: none;
       // THE ENTIRE LEFT SIDE OF THE ROW, edge to edge. `align-self: stretch`
       // alone is not enough and that is the trap: it stretches to .row-main,
-      // while the 0.35em of vertical padding belongs to .point-row OUTSIDE it,
-      // so the tab stopped short at both ends and read as a floating stub rather
-      // than as part of the row. The negative margins cancel exactly that
-      // padding — keep the two numbers in step if either moves.
+      // while the vertical padding belongs to .point-row OUTSIDE it, so the tab
+      // stopped short at both ends and read as a floating stub rather than as
+      // part of the row. The negative margins cancel exactly that padding — keep
+      // the two numbers in step if either moves. Both are 0.2em.
       align-self: stretch;
-      margin: -0.35em 0;
+      margin: -0.2em 0;
       // 16px against the dot grid's 8px, so 4px of air each side. It was 24px
       // and the dots swam in the middle of it — the tab needs to be a grip, not
       // a margin.
@@ -676,23 +728,37 @@
     .row-main {
       display: flex;
       align-items: center;
-      gap: 0.4em;
+      gap: 0.3em;
     }
     // Inherits the band's --day-color rather than carrying its own gray: the
     // stop number and the POI dot are markers, and a marker should say which
     // day it belongs to.
     .row-num {
-      flex: 0 0 1.5em;
+      flex: 0 0 1.3em;
       text-align: center;
       font-weight: 600;
       &.poi-dot::before {
         content: "◦";
       }
     }
+    // THE ROW'S HEIGHT IS THIS PADDING. Every control in a row is either a text
+    // box or a 1.85em button, so the tallest of them sets the pitch and the two
+    // text boxes are the tallest. The generic input rule at the top of this file
+    // gives them 0.45em, which is the right amount of room for a form and too
+    // much for a list of forty of them — this overrides it for the row only,
+    // leaving every other field in the panel alone.
+    .row-name,
+    .row-dur {
+      padding: 0.28em 0.45em;
+    }
     .row-name {
       flex: 1;
       min-width: 0;
     }
+    // Stays at 4em even though the padding around it came in. The placeholder is
+    // the word "min" and the field has a spinner: at 3.6em the "n" was clipped
+    // and it read "mir", which is the sort of thing that looks like a typo in the
+    // copy rather than a width bug.
     .row-dur {
       width: 4em;
     }
@@ -705,8 +771,10 @@
     // SQUARE, because the icons are. They are drawn 1:1 and the box holding them
     // was 3.1em x 2em to leave a second column for the count, which made every
     // row carry a wide rectangle around a small square. The count is a corner
-    // badge now, so the button is 2em either way and the difference goes back to
-    // the name field.
+    // badge now, so the button is square either way and the difference goes back
+    // to the name field. 1.85em is 26px at the map page's 14px root, which is
+    // what the row's text boxes measure once their padding came down — the two
+    // have to match or the taller one sets the pitch on its own.
     .row-roles-btn {
       position: relative;
       font: inherit;
@@ -718,8 +786,8 @@
       align-items: center;
       justify-content: center;
       flex: none;
-      width: 2em;
-      height: 2em;
+      width: 1.85em;
+      height: 1.85em;
       padding: 0;
       border: 1px solid $grey;
       border-radius: 6px;
@@ -1049,13 +1117,16 @@
 // the drag image and it cannot be styled.
 //
 // It inherits nothing from the panel, so the width, surface and type all have to
-// be stated. --panel-width is declared on #info-panel and is out of scope here,
-// hence the literal fallback.
+// be stated — and the padding and gap below are therefore copies of .point-row's
+// and .row-main's. Change those and change these, or the row visibly resizes the
+// moment it is picked up. --panel-width moved from #info-panel to html.map-page
+// when the timeline became a sibling of the panel, so it is in scope here now;
+// the literal stays as the fallback for a ghost appended before the page class.
 .row-drag-ghost {
   list-style: none;
   box-sizing: border-box;
-  width: 380px;
-  padding: 0.35em 0.75em;
+  width: var(--panel-width, 380px);
+  padding: 0.2em 0.75em;
   background: $white;
   border: 1px solid $brand;
   border-radius: 6px;
@@ -1066,7 +1137,7 @@
   .row-main {
     display: flex;
     align-items: center;
-    gap: 0.4em;
+    gap: 0.3em;
   }
 
   // The picker and the notes box belong to the row in the list, not to a

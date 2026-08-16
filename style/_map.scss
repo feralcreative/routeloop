@@ -92,28 +92,52 @@
   height: 100vh;
 }
 
-#info-panel {
-  // The three numbers this panel is built from, stated once.
-  //
-  // --panel-width is the fix for the panel resizing on every edit. It used to be
-  // `width: auto !important`, which is shrink-to-fit over max-content, so a long
-  // stop name or the multi-day totals line growing to two moved the right edge
-  // while the rider typed. (Day ticks look like they would too, but they are
-  // absolutely positioned and so contribute nothing to intrinsic width.)
-  //
-  // 380px was checked in the browser rather than derived: it is the narrowest
-  // round number at which .day-times still lays its two datetime fields on one
-  // row, and it leaves most of the map visible. Below roughly 390 they wrap,
-  // which is stable but taller.
-  //
-  // --panel-top-clearance reserves room for the floating header. Measured at
-  // 1440x900 the header's bottom edge sits at 109px — a 92px logo between two
-  // 0.6rem pads, on a map page where the root font is 14px — so 120px clears it
-  // with 11px to spare.
+// The numbers the map page's furniture is built from, stated once.
+//
+// These used to live on #info-panel, which was fine while the panel was the only
+// thing floating over the map. It is not any more: .map-timeline is a SIBLING of
+// the panel, so a custom property declared on the panel is invisible to it —
+// custom properties inherit down, not sideways. They belong on the page.
+//
+// --panel-width is the fix for the panel resizing on every edit. It used to be
+// `width: auto !important`, which is shrink-to-fit over max-content, so a long
+// stop name or the multi-day totals line growing to two moved the right edge
+// while the rider typed. (Day ticks look like they would too, but they are
+// absolutely positioned and so contribute nothing to intrinsic width.)
+//
+// 380px was checked in the browser rather than derived: it is the narrowest
+// round number at which .day-times still lays its two datetime fields on one
+// row, and it leaves most of the map visible. Below roughly 390 they wrap,
+// which is stable but taller.
+//
+// --panel-top-clearance reserves room for the floating header. Measured at
+// 1440x900 the header's bottom edge sits at 109px — a 92px logo between two
+// 0.6rem pads, on a map page where the root font is 14px — so 120px clears it
+// with 11px to spare.
+//
+// --timeline-height is the timeline bar's whole footprint, declared rather than
+// measured because the phone layout stacks the panel on top of the bar and has
+// to reserve the room before either exists. It is a fixed number on purpose:
+// the readout inside it is single-line and ellipsized, so the bar cannot grow.
+//
+// --map-control-gutter is the strip Google's own zoom and recenter buttons own
+// at RIGHT_BOTTOM. Nothing of ours may cross it.
+//
+// --map-credit-height is the Google wordmark bottom-left and the attribution row
+// bottom-right. Measured at 26px on a phone. This one is not a preference: the
+// Maps terms require the logo and the data attribution to stay visible, so it is
+// a no-go zone rather than a nicety, and covering it is a licence problem and
+// not only an ugly one.
+html.map-page {
   --panel-inset: 2vw;
   --panel-width: 380px;
   --panel-top-clearance: 120px;
+  --timeline-height: 3.4em;
+  --map-control-gutter: 3.4em;
+  --map-credit-height: 2em;
+}
 
+#info-panel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -177,9 +201,20 @@
     }
   }
 
+  // 1.575rem is 2.1 less a quarter — the whole panel heading came down 25% on
+  // 2026-08-15 to buy the panel back some vertical space. Wrapping is the point
+  // of the size cut on the builder, not just the saving: a name that used to run
+  // off the end of one line now fits two (see #ride-title in _builder.scss).
+  //
+  // The right margin clears .panel-controls, which is absolutely positioned in
+  // that corner and so contributes nothing the heading could flow around. It was
+  // 0.5em here and 2.6em on the builder, which meant the VIEWER'S heading ran
+  // under the collapse and exit buttons the moment a ride name reached two lines
+  // — the builder had already found this and fixed only itself. One number, both
+  // panels; .builder-panel restates it and can go on doing so harmlessly.
   .panel-title {
     transition: font-size 0.4s cubic-bezier(0.77, 0, 0.175, 1);
-    font-size: 2.1rem;
+    font-size: 1.575rem;
     // Without this the title inherits the body's 1.5, which on a two-line ride
     // name opens a gap wider than the descenders and reads as two headings.
     line-height: 1.15;
@@ -187,7 +222,7 @@
     color: $text;
     max-width: 500px !important;
     display: inline-block;
-    margin: 0 0.5em 0 0;
+    margin: 0 2.6em 0 0;
   }
 
   // Collapse and exit, in that order, pinned to the corner a reader already
@@ -469,18 +504,59 @@ table.day-table {
   transition: opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-// Trip timeline (unified viewer + builder)
+// RIDE TIMELINE — a bar across the bottom edge of the map, not a control in the
+// panel.
 //
-// Lives here rather than in _builder.scss because both panels carry it and the
-// builder's rules are all nested under .builder-panel, which the viewer's panel
-// is not. In the builder it sits under the day controls and goes inert without
-// dates; in the viewer it is hidden outright when a ride has none, since a
-// viewer cannot fix that by typing one.
-.ride-timeline {
-  margin-top: 0.6em;
+// It was in the panel until 2026-08-15, stacked under the day scrubber, where it
+// and the scrubber together took 185px of a 620px window. That is what issue #93
+// was filed about, but the fix is not "make it shorter": the Vision has always
+// described this as "a slider across the bottom of every ride and day", and a
+// slider that scrubs the WHOLE map belongs over the map rather than inside a
+// 380px column of edit controls. The day scrubber stayed behind, which is the
+// view/edit split #93 asked for — the scrubber picks what you are editing, the
+// timeline moves through what you are looking at.
+//
+// Still lives in _map.scss rather than _builder.scss because both pages carry
+// it, and the builder's rules are all nested under .builder-panel, which the
+// viewer's panel is not.
+//
+// It is a SIBLING of #map and #info-panel, all three fixed to the viewport, so
+// the offsets below are viewport offsets and the custom properties have to come
+// from html.map-page rather than from the panel.
+//
+// The bar is fixed-height by construction: the readout is one ellipsized line
+// and the slider is one row. Nothing in it can grow, which is what lets the
+// phone layout below reserve --timeline-height for it sight unseen.
+.map-timeline {
+  position: fixed;
+  z-index: 1000;
+  bottom: var(--panel-inset);
+  // Clears the panel on the left. The panel is bottom-left at --panel-inset and
+  // --panel-width wide, so one more inset past its right edge is the first
+  // column the bar can have.
+  left: calc(var(--panel-inset) * 2 + var(--panel-width));
+  // Clears Google's zoom and recenter buttons on the right. Crossing them would
+  // put a slider thumb under a map control, and they are not ours to move.
+  right: calc(var(--panel-inset) + var(--map-control-gutter));
+  box-sizing: border-box;
+  padding: 0.45em 0.9em 0.5em;
+  background: $panel-bg;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px $panel-shadow;
+
+  // Hidden outright when the ride carries no dates, on BOTH pages now. In the
+  // panel this control stayed put and went inert, because vanishing would have
+  // reflowed everything under it the moment a date was typed. Over the map there
+  // is nothing under it to reflow, and a dead slider lying across the map is
+  // worse than no slider — so it hides, and the builder says what to do about it
+  // beside the field that fixes it (see #day-times-note).
+  &[hidden] {
+    display: none;
+  }
 }
 
 .time-slider {
+  display: block;
   width: 100%;
   margin: 0;
   accent-color: $brand;
@@ -493,13 +569,53 @@ table.day-table {
 
 // Says both the moment and what is happening at it, so the map's highlight is
 // never the only explanation of what changed.
+//
+// One line, always. It reads "3:45 PM · Day 2 · at Nepenthe", which on a long
+// stop name would wrap and change the bar's height several times a second while
+// the rider drags — so it ellipsizes instead, and min-height reserves the line
+// even while it is empty.
 .time-readout {
-  padding-top: 0.25em;
-  padding-bottom: 1em;
   min-height: 1.2em;
+  margin-bottom: 0.1em;
   font-size: 0.8em;
+  font-weight: 600;
   color: $text;
-  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+//@ Phone — the bar spans the width and the panel stacks on top of it
+//
+// At this width the panel is already the full viewport minus its insets, so
+// there is no column to the right of it for the bar to sit in. The bar takes the
+// bottom of the map and the panel is lifted clear of it.
+//
+// Both offsets are the desktop rule's problem in a smaller space rather than a
+// new one. Measured at 390x844 with the bar spanning edge to edge at the plain
+// inset, it covered Google's wordmark at the bottom-left, the attribution row
+// along the bottom, AND the bottom 30px of the zoom control — the logo and the
+// attribution are a licence condition, not a preference. So the bar sits a
+// credit-strip up from the bottom and stops short of the control gutter, exactly
+// as it does on a wide screen; it is only the panel that has to move.
+//
+// :has() rather than a body class because the reservation must only apply when
+// the bar is actually showing — a dateless ride would otherwise leave an empty
+// strip of map under the panel. If :has() ever fails the panel overlaps the bar
+// rather than breaking, which is the right way round for a progressive check.
+@media (max-width: 767px) {
+  .map-timeline {
+    left: var(--panel-inset);
+    right: calc(var(--panel-inset) + var(--map-control-gutter));
+    bottom: calc(var(--panel-inset) + var(--map-credit-height));
+  }
+
+  html.map-page:has(.map-timeline:not([hidden])) #info-panel {
+    bottom: calc(var(--panel-inset) + var(--map-credit-height) + var(--timeline-height));
+    max-height: calc(
+      100vh - var(--panel-top-clearance) - var(--panel-inset) - var(--map-credit-height) - var(--timeline-height)
+    );
+  }
 }
 
 // Role markers (unified viewer + builder)

@@ -179,6 +179,26 @@
     r.title = history_.canRedo() ? "Redo " + history_.redoLabel() : "Nothing to redo";
   }
 
+  // The ride name is a TEXTAREA, so its height is ours to set — that is the price
+  // of a heading that wraps. An <input> is single-line by definition and would
+  // only ever ellipsize; a textarea holds whatever `rows` says and scrolls the
+  // rest, so nothing sizes it to its content unless this does.
+  //
+  // Resetting to "auto" first is load-bearing rather than tidy: scrollHeight
+  // reports the larger of the content and the current box, so measuring without
+  // the reset lets the field grow and never shrink back. A name trimmed from two
+  // lines to one would keep the second line's worth of white space forever.
+  //
+  // The two-line ceiling is a max-height in _builder.scss, not a number here, so
+  // the type size and the clamp cannot drift apart. Anything taller than that is
+  // clamped by CSS and clipped, which is the truncation the heading promises.
+  function fitTitle() {
+    const el = $("ride-title");
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
   // There is no single render() in this file — this is the sequence init() runs,
   // plus the three inputs that no render function touches (they are written
   // only by loadExisting), which would otherwise keep showing pre-undo text.
@@ -192,6 +212,9 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    // Undo can shorten the name as easily as lengthen it, and the field will not
+    // notice either on its own.
+    fitTitle();
   }
 
   function applyUndo(dir) {
@@ -1135,6 +1158,7 @@
     state.moment == null ? null : activeAtMoment(state.days, state.moment, allPoiDists());
 
   function renderTimeline() {
+    const wrap = $("ride-timeline");
     const slider = $("time-slider");
     const readout = $("time-readout");
     const span = rideSpan(state.days);
@@ -1147,15 +1171,25 @@
       slider.setAttribute("aria-valuetext", text);
     };
 
-    // Same treatment the day slider gets below two days: it stays put and goes
-    // inert rather than vanishing and reflowing the panel the moment a date is
-    // typed.
+    // IT HIDES NOW RATHER THAN GOING INERT, which is the opposite of what it did
+    // in the panel and is right for the same reason it was wrong there. Inside the
+    // panel, vanishing would have reflowed every control under it the moment a
+    // date was typed — the jump this whole redesign exists to remove. Out on the
+    // map's bottom edge there is nothing under it to reflow, and a dead slider
+    // lying across someone's route is worse than no slider.
+    //
+    // What is lost is the hint the disabled state carried. It is not gone, it
+    // moved: renderTimes() puts it on #day-times-note, directly beneath the Starts
+    // field that fixes it, which is where it should have been all along. This is
+    // the only branch that can leave the bar hidden, so the two have to stay in
+    // step.
+    wrap.hidden = !span;
     slider.disabled = !span;
     if (!span) {
       slider.min = "0";
       slider.max = "0";
       slider.value = "0";
-      say(state.days.some((r) => r.startAt) ? "" : "Give a day a start time to scrub the ride");
+      say("");
       return;
     }
 
@@ -1214,7 +1248,12 @@
     end.disabled = !day.startAt;
 
     if (!day.startAt) {
-      note.textContent = day.endAt ? "add a start time to work the end out" : "";
+      // The second half of this used to live in the timeline's readout, back when
+      // the timeline sat in the panel and stayed visible-but-disabled without
+      // dates. The bar hides itself now, so the hint has to be somewhere a rider
+      // will see it — and beside the field that fixes it is a better place than
+      // under a slider that has gone grey.
+      note.textContent = day.endAt ? "add a start time to work the end out" : "add a start time to scrub the ride";
       return;
     }
     if (day.endManual) {
@@ -1976,6 +2015,7 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    fitTitle();
     // What was just loaded IS what the server holds, so the panel opens on
     // "Saved" rather than on the "Not saved yet" a new ride starts at.
     setSaveStatus("saved");
@@ -2075,9 +2115,23 @@
 
   function wireMeta() {
     $("ride-title").addEventListener("input", (e) => {
+      // A ride name is one line of text even though the control holding it is a
+      // textarea, so newlines are flattened rather than stored. They arrive by
+      // paste — a name copied out of a document brings its line break with it —
+      // and the Enter key is headed off separately below.
+      const flat = e.target.value.replace(/\s*[\r\n]+\s*/g, " ");
+      if (flat !== e.target.value) e.target.value = flat;
       beginEdit("rename ride", "ride-title");
       state.meta.title = e.target.value;
+      fitTitle();
       markDirty();
+    });
+    $("ride-title").addEventListener("keydown", (e) => {
+      // Enter in a heading means "done", not "new line".
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.target.blur();
+      }
     });
     $("ride-description").addEventListener("input", (e) => {
       beginEdit("edit description", "ride-description");
