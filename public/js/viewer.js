@@ -28,7 +28,7 @@
   // computing them, so it never touches window.TBTwist.twistiness itself.
   const { twistLabel } = window.TBTwist;
 
-  initPanelToggle();
+  initPanelToggle(() => state.map);
 
   const state = {
     map: null,

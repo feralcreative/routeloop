@@ -171,7 +171,12 @@
     if (!lngLats.length) return;
     const bounds = new Core.LatLngBounds();
     lngLats.forEach((p) => bounds.extend(toLatLng(p)));
-    map.fitBounds(bounds, padding ?? { top: 60, bottom: 60, left: 380, right: 60 });
+    // Even padding. It was `left: 380` while #map spanned the whole viewport and
+    // the panel floated over its left 380px — the fit had to push the route clear
+    // of a panel drawn on top of it. The drawer takes its own column now and the
+    // map is sized to what is left, so every edge of the map is visible and an
+    // asymmetric pad would just shove the route to the right.
+    map.fitBounds(bounds, padding ?? { top: 60, bottom: 60, left: 60, right: 60 });
     Core.event.addListenerOnce(map, "idle", () => {
       if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM);
     });
@@ -802,23 +807,58 @@
 
   // --- Panel collapse (ported from the legacy DOMContentLoaded block) -------
 
-  function initPanelToggle() {
+  // `getMap` is an optional accessor, not a map, and it is a function on
+  // purpose: both pages bind this toggle at load and create their map inside an
+  // await several hundred milliseconds later. Taking the map itself here would
+  // capture null forever. A caller that passes nothing still gets a working
+  // toggle, just without the re-centre.
+  function initPanelToggle(getMap) {
     const panel = document.getElementById("info-panel");
     const toggle = panel && panel.querySelector(".collapse-toggle");
     if (!panel || !toggle) return;
+    const rail = panel.querySelector(".drawer-rail");
     toggle.addEventListener("click", () => {
+      const map = typeof getMap === "function" ? getMap() : null;
+      // THE CENTRE IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the
+      // space beside the drawer now rather than to the whole viewport, so
+      // collapsing hands it 324 more pixels — and Google keeps the map's
+      // top-left fixed through a resize, which slides the route sideways by
+      // half that. Reinstating the centre afterwards keeps whatever the rider
+      // was looking at in the middle of what they can see.
+      const center = map && map.getCenter && map.getCenter();
+
       panel.classList.toggle("collapsed");
       const collapsed = panel.classList.contains("collapsed");
-      // The button now carries aria-expanded, so it has to be kept true. The
-      // markup ships it as "true" and this is the only thing that flips it —
-      // a stale attribute is worse than none, because it states the opposite
-      // of what a screen reader user is looking at.
+      // The button carries aria-expanded, so it has to be kept true. The markup
+      // ships it as "true" and this is the only thing that flips it — a stale
+      // attribute is worse than none, because it states the opposite of what a
+      // screen reader user is looking at.
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
+      // The rail's controls duplicate the day scrubber, so they are hidden from
+      // assistive tech while the scrubber itself is on screen and exposed only
+      // once it is not. The markup ships aria-hidden="true" to match the
+      // expanded state it also ships in.
+      if (rail) rail.setAttribute("aria-hidden", String(!collapsed));
       // The image is decorative — alt="" — because the button's own label says
       // what it does. Naming it here too would announce the action twice.
       const img = toggle.querySelector("img");
       if (img) img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
+
+      if (!center) return;
+      // Re-centred on transitionend rather than immediately: the width animates
+      // over 0.28s and a setCenter against the old width is undone by the very
+      // next frame. The timeout is the fallback for a browser that never fires
+      // the event — prefers-reduced-motion kills the transition entirely, and
+      // transitionend does not fire for a transition that did not run.
+      let done = false;
+      const settle = () => {
+        if (done) return;
+        done = true;
+        map.setCenter(center);
+      };
+      panel.addEventListener("transitionend", settle, { once: true });
+      setTimeout(settle, 350);
     });
   }
 

@@ -441,77 +441,31 @@ function builderHtml(
               <button type="button" class="mode-btn active" data-mode="stop">+ Stop</button>
               <button type="button" class="mode-btn" data-mode="poi">+ POI</button>
             </div>${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
+            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
         </div>
 
-        <div class="panel-band panel-band--ride">
-          <div class="day-scrub" id="day-scrub">
-            <div class="day-scrub-head">
-              <span class="day-scrub-label" id="day-label">All days</span>
-              <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
-            </div>
-            <input id="day-slider" class="day-slider" type="range" min="0" max="0" step="1" value="0"
-                   aria-label="Focus a day, or all days" title="Drag to focus one day">
-            <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
-          </div>
+        <div class="search-wrap">
+          <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
+          <ul id="search-results" hidden></ul>
         </div>
 
-        <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
+        <!-- EVERY DAY, ALL THE TIME. This was one #day-band showing whichever day
+             a slider at the bottom of the drawer had selected; the slider is gone
+             and renderDays() in builder.js fills this with one .day-section per
+             day instead. A fixed-height drawer has room to show the whole ride, so
+             hiding all but one of its days was a constraint of the old floating
+             panel rather than a decision.
 
-        <div class="panel-band panel-band--day" id="day-band">
-          <div class="day-head" id="day-head" hidden>
-            <input id="day-color" name="day-color" type="color" value="#0066cc" title="Day color">
-            <input id="day-title" name="day-title" type="text" maxlength="150" placeholder="Day name (optional)" autocomplete="off">
-            <span class="day-actions">
-              <button type="button" id="day-rev" title="Reverse this day—re-routes every leg">⇄</button>
-              <button type="button" id="day-up" title="Move day earlier">↑</button>
-              <button type="button" id="day-down" title="Move day later">↓</button>
-              <button type="button" id="day-del" title="Delete this day">✕</button>
-            </span>
-          </div>
+             The per-day controls are CLASSES now, not ids—there are N of each —
+             and every section and row carries data-day. wireDays() delegates on
+             this container and reads that attribute, which is also what keeps the
+             existing edit handlers correct: touching anything inside a section
+             makes that day active first, so editIndex() resolves to it. -->
+        <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
 
-          <div class="day-times" id="day-times">
-            <label class="day-time">
-              <span>Starts</span>
-              <input id="day-start" name="day-start" type="datetime-local">
-            </label>
-            <label class="day-time">
-              <span>Ends</span>
-              <input id="day-end" name="day-end" type="datetime-local"
-                     title="Worked out from the start time and the day's riding and stops. Type your own to override, or clear it to go back to automatic.">
-            </label>
-            <span class="day-times-note" id="day-times-note"></span>
-          </div>
+        <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
 
-          <div class="search-wrap">
-            <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
-            <ul id="search-results" hidden></ul>
-          </div>
-
-          <ol class="point-list" id="stop-list" data-duration-format="${prefs.durationFormat}"></ol>
-        </div>
-
-        <div class="builder-actions">
-          <!-- ONE ICON FILE, MIRRORED, for a pair that has to read as a pair.
-               Redo is icon-undo.svg under .icon-flip, which is scaleX(-1). Two
-               separately drawn files would be two chances for the arrowheads to
-               land at different angles or the strokes to differ by a hair, and
-               the whole point of undo/redo is that they are the same gesture in
-               opposite directions.
-
-               They are .tb-inline-icon rather than <img>, so hydrateIcons() in
-               builder.js inlines the SVG and its fill="currentColor" can take
-               the button's color—including the 0.35 opacity of the disabled
-               state. An <img> cannot inherit color and would stay black while
-               the button greyed out around it. -->
-          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
-          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon icon-flip" data-icon="icon-undo.svg"></span></button>
-          <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
-            <span class="save-dot"></span>
-            <span class="save-text">Not saved yet</span>
-          </span>
-          <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
-        </div>
         <span id="save-announce" class="visually-hidden" role="status" aria-live="polite"></span>
         <div id="recover-bar" class="tb-banner is-recover" hidden>
           <span id="recover-text"></span>
@@ -553,6 +507,34 @@ function builderHtml(
              aria-label="Ride name" title="Ride name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
+  // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the day list.
+  // It was `position: sticky; bottom: 0` inside .panel-contents-wrapper, which
+  // is close but not the same thing: a sticky element still belongs to the
+  // scroller, so it sat above the scrollbar and shifted with the list's own
+  // padding. As the drawer's footer it is a sibling of the scroller and cannot
+  // move at all.
+  const builderActions = `<div class="builder-actions">
+          <!-- ONE ICON FILE, MIRRORED, for a pair that has to read as a pair.
+               Redo is icon-undo.svg under .icon-flip, which is scaleX(-1). Two
+               separately drawn files would be two chances for the arrowheads to
+               land at different angles or the strokes to differ by a hair, and
+               the whole point of undo/redo is that they are the same gesture in
+               opposite directions.
+
+               They are .tb-inline-icon rather than <img>, so hydrateIcons() in
+               builder.js inlines the SVG and its fill="currentColor" can take
+               the button's color—including the 0.35 opacity of the disabled
+               state. An <img> cannot inherit color and would stay black while
+               the button greyed out around it. -->
+          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
+          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon icon-flip" data-icon="icon-undo.svg"></span></button>
+          <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
+            <span class="save-dot"></span>
+            <span class="save-text">Not saved yet</span>
+          </span>
+          <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
+        </div>`
+
   return page({
     title: rideId ? 'Edit ride' : 'Plan a ride',
     user,
@@ -566,6 +548,15 @@ function builderHtml(
       exitLabel: 'Leave the builder and go to your rides',
       extraClass: 'builder-panel',
       contents,
+      footer: builderActions,
+      // THE FOOTER IS THE ACTION BAR. The day scrubber lived here for about an hour on 2026-08-16,
+      // pinned to the drawer's bottom edge so it could not be shoved around by
+      // the day band it selected. Showing every day at once removed the thing it
+      // selected between, so the control went with it.
+      //
+      // The rail keeps a dot per day, but as a jump-to rather than a picker:
+      // clicking one scrolls that day's section into view and makes it active.
+      rail: `<div class="rail-days" id="rail-days"></div>`,
     })}\n\n  ${rideTimeline()}`,
     tb: {
       gmapsKey: GMAPS_KEY,

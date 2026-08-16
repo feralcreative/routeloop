@@ -29,7 +29,7 @@
     initPanelToggle,
   } = window.TBMap;
 
-  initPanelToggle();
+  initPanelToggle(() => state.map);
 
   // The ride's time model is shared with the viewer so the two can never
   // disagree about what is happening at a given moment. See ride-time.js.
@@ -95,9 +95,13 @@
     rideId: window.TB.rideId || null,
     meta: { title: "", description: "", visibility: "private", external_url: "" },
     days: [newDay()],
-    // Slider position: 0 means "all days", 1..N focuses that day. It is the
-    // slider's value directly, so the two can never disagree.
-    focus: 0,
+    // The active day, as a plain index into state.days. It is where a map click
+    // puts a stop and which day the map emphasises; it is NOT a filter, because
+    // every day is on screen at once.
+    //
+    // It was `focus`, a 0..N slider value with 0 meaning "all days". Both the
+    // off-by-one and the null-means-all case went with the slider.
+    active: 0,
     // The timeline's position, in epoch seconds, or null for "no moment
     // chosen". When it is set it is the single source of what is emphasised:
     // the day containing it, and the leg being ridden at it. The day slider
@@ -119,24 +123,51 @@
 
   const $ = (id) => document.getElementById(id);
 
-  // Which day edits land on, or null for "none — the rider is looking at the
-  // whole ride".
+  // WHICH DAY EDITS LAND ON. Every day is on screen at once now, so this is no
+  // longer "the one day being shown" — it is the last day the rider touched, and
+  // the only thing it decides is where a map click puts a new stop.
   //
-  // This used to return `state.days.length - 1` on "All", so edits silently
-  // landed on the LAST day for no stated reason and with no control that
-  // changed it. The panel announced "All days · editing Day 4" as though that
-  // had been asked for. The slider is the only control here, so it decides one
-  // thing: which day you are working on. "All" is a view.
+  // It was `state.focus`, a 0..N slider value where 0 meant "All days" and every
+  // day but one was hidden. Two things went with the slider: the null case, which
+  // meant edits had nowhere to land and half the panel had to hide itself, and
+  // the off-by-one, which is why this pair of helpers existed at all.
   //
-  // The single-day case is the exception and not a special case: with one day,
-  // "All" and "Day 1" are the same view of the same thing, and renderSlider
-  // already disables the slider below two days.
-  const editIndex = () => (state.focus === 0 ? (state.days.length > 1 ? null : 0) : state.focus - 1);
-  const focusedIndex = () => (state.focus === 0 ? null : state.focus - 1);
+  // It is clamped rather than allowed to go stale: deleting day 3 of 3 has to
+  // leave the active index pointing at a day that still exists, and every caller
+  // here assumes state.days[activeIndex()] is real whenever there is a day.
+  const activeIndex = () => {
+    if (!state.days.length) return null;
+    return Math.max(0, Math.min(state.days.length - 1, state.active | 0));
+  };
+  // Kept under their old names because eighteen call sites read them and none of
+  // them cared which day it was, only that it was the one being edited.
+  const editIndex = activeIndex;
+  const focusedIndex = activeIndex;
   const editRoute = () => {
-    const r = editIndex();
+    const r = activeIndex();
     return r == null ? null : state.days[r];
   };
+
+  // Makes a day the active one. Cheap and idempotent, because every row and
+  // section handler calls it before doing anything else — that is what lets the
+  // edit handlers go on reading editIndex() without each of them being rewritten
+  // to take a day.
+  function setActive(r) {
+    const next = Math.max(0, Math.min(state.days.length - 1, r | 0));
+    if (state.active === next) return;
+    state.active = next;
+    markActiveSection();
+    applyFocus();
+    renderRailDays();
+    renderTotals();
+  }
+
+  // Reads the day off whatever was clicked. Every .day-section and every
+  // .point-row carries data-day, so one lookup covers both.
+  function setActiveFromEl(el) {
+    const host = el && el.closest("[data-day]");
+    if (host) setActive(Number(host.dataset.day));
+  }
 
   // --- Toast + status -------------------------------------------------------
 
@@ -156,11 +187,12 @@
   }
 
   // Reached only when something slipped past the disabled controls — a stale
-  // keyboard shortcut, a double-click landing after the slider moved. The real
-  // defence is that these controls are inert on "All"; this is the backstop that
-  // says why rather than doing nothing.
-  function pickADayFirst() {
-    toast("Pick a day on the slider first", true);
+  // Kept as the backstop for "there is no day at all", which is now the only way
+  // editIndex() returns null — a ride always has at least one day, so in practice
+  // this fires for nothing. It used to cover the slider's "All days" position,
+  // where every day-level control was live but had nowhere to act.
+  function noDayYet() {
+    toast("Add a day first", true);
   }
 
   // Undo/redo and the crash draft. The logic lives in builder-history.js so it
@@ -215,9 +247,7 @@
   function renderEverything() {
     rebuildLayers();
     renderMarkers();
-    renderSlider();
-    renderDayHead();
-    renderList();
+    renderDays();
     refreshDerived();
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
@@ -548,14 +578,17 @@
     applyFocus();
   }
 
-  // The only thing focus does. Every day stays on the map; the unfocused ones
-  // are dimmed, and "all days" (focus 0) dims nothing.
+  // The only thing the active day does to the map. Every day stays drawn; the
+  // others are dimmed so the one being edited reads clearly against them.
   //
-  // With a moment chosen the timeline decides instead of the day slider: the
-  // day containing it stays lit and the leg being ridden at it is drawn over
-  // the top. A moment in the overnight gap belongs to no day, so everything
-  // dims and no leg is drawn — which is what "nobody is riding right now"
-  // honestly looks like.
+  // There is no longer an "all days, dim nothing" state — that was the slider's
+  // 0 position, and the slider is gone. Something is always active, because a map
+  // click always has to land somewhere.
+  //
+  // With a moment chosen the timeline decides instead: the day containing it
+  // stays lit and the leg being ridden at it is drawn over the top. A moment in
+  // the overnight gap belongs to no day, so everything dims and no leg is drawn —
+  // which is what "nobody is riding right now" honestly looks like.
   function applyFocus() {
     if (!state.map) return;
     const a = activeNow();
@@ -598,10 +631,12 @@
     const el = markerElement(stop, state.days[r].color, "stop");
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Clicking a marker on a dimmed day focuses that day — otherwise the row
-      // it scrolls to would not be in the visible list.
-      if (editIndex() !== r) setFocus(r + 1);
-      focusRow("stop", i);
+      // Clicking a marker on a dimmed day makes that day active, so the map's
+      // emphasis follows what was just clicked. Every day's rows are on screen
+      // now, so this is no longer what makes the row reachable — focusRow scrolls
+      // to it either way.
+      if (editIndex() !== r) goToDay(r);
+      focusRow("stop", i, r);
     });
     const marker = addMarker(state.map, [stop.lng, stop.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
@@ -621,8 +656,8 @@
     const el = markerElement(poi, state.days[r].color, "poi");
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (editIndex() !== r) setFocus(r + 1);
-      focusRow("poi", i);
+      if (editIndex() !== r) goToDay(r);
+      focusRow("poi", i, r);
     });
     const marker = addMarker(state.map, [poi.lng, poi.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
@@ -701,7 +736,7 @@
   function addStop(lng, lat, name) {
     beginEdit("add stop");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
     day.stops.push({
@@ -723,7 +758,7 @@
   function addPoi(lng, lat, name) {
     beginEdit("add POI");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     if (day.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
     // durationMin present from the start, matching a stop: blank means "rode
@@ -790,7 +825,7 @@
   // set changes whenever a feature like this one lands.
   function duplicatePoint(kind, i) {
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     const list = kind === "stop" ? day.stops : day.pois;
     const src = list[i];
@@ -910,17 +945,19 @@
 
   // --- Days -----------------------------------------------------------------
 
-  function setFocus(v) {
-    state.focus = Math.max(0, Math.min(state.days.length, v));
-    $("day-slider").value = String(state.focus);
-    // Picking a day picks that day's opening moment, so the timeline follows
-    // rather than competing. "All days" and any undated day mean no moment at
-    // all, which is what an undated ride uses throughout.
-    const day = state.focus === 0 ? null : state.days[state.focus - 1];
+  // Makes a day active AND puts the timeline on its opening moment. setActive()
+  // above is the cheap version that every row handler calls; this is the one for
+  // a deliberate "work on this day now" — the rail's dots, a marker click, a
+  // freshly added day.
+  //
+  // The split matters: moving the timeline is a visible jump on the map, and
+  // doing it every time a rider clicked into a stop's name field would yank the
+  // view out from under them.
+  function goToDay(r) {
+    setActive(r);
+    const day = state.days[activeIndex()];
     state.moment = day ? dayStartS(day) : null;
     applyFocus();
-    renderDayHead();
-    renderList();
     refreshDerived();
   }
 
@@ -954,8 +991,8 @@
     }
 
     state.days.push(day);
-    renderSlider();
-    setFocus(state.days.length); // focus the new day
+    renderDays();
+    goToDay(state.days.length - 1); // work on the new day
     rebuildLayers();
     renderMarkers();
     markDirty();
@@ -965,14 +1002,16 @@
     beginEdit("delete day");
     if (state.days.length <= 1) return toast("A ride needs at least one day", true);
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     state.days.splice(r, 1);
     state.legSeq.splice(r, 1);
-    renderSlider();
-    setFocus(Math.min(state.focus, state.days.length));
+    // Clamped, not preserved: deleting the last day would leave the active index
+    // one past the end, and activeIndex() would quietly clamp it on every read
+    // while the highlight sat on nothing.
+    state.active = Math.min(r, state.days.length - 1);
+    renderDays();
     rebuildLayers();
     renderMarkers();
-    renderList();
     refreshDerived();
     markDirty();
   }
@@ -988,7 +1027,7 @@
   function reverseDay() {
     beginEdit("reverse day");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     if (day.stops.length < 2) return toast("Nothing to reverse yet", true);
 
@@ -1021,81 +1060,171 @@
   function moveDay(dir) {
     beginEdit("move day");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const j = r + dir;
     if (j < 0 || j >= state.days.length) return;
     const a = state.days;
     [a[r], a[j]] = [a[j], a[r]];
     const s = state.legSeq;
     [s[r], s[j]] = [s[j] || [], s[r] || []];
-    setFocus(j + 1);
+    state.active = j;
+    renderDays();
     rebuildLayers();
     renderMarkers();
-    renderList();
     markDirty();
   }
 
-  function dayLabel(r) {
-    const day = state.days[r];
-    return day.title || "Day " + (r + 1);
-  }
-
-  function renderSlider() {
-    const slider = $("day-slider");
-    slider.max = String(state.days.length);
-    if (Number(slider.value) > state.days.length) slider.value = String(state.days.length);
-    // A single day has nothing to scrub between; the slider stays but goes
-    // inert rather than disappearing and reflowing the panel on the second day.
-    slider.disabled = state.days.length < 2;
-    // --pos is the tick's fraction of the slider's range, which the stylesheet
-    // turns into the point the thumb reaches at that value. Sent from here
-    // because only this side knows the day count.
-    const span = state.days.length; // slider runs 0..span
-    const tick = (label, pos, color) =>
-      '<span class="day-tick" style="--pos:' + pos + (color ? ";--tick-color:" + esc(color) : "") + '">' + label + "</span>";
-    $("day-ticks").innerHTML =
-      tick("All", 0) + state.days.map((day, r) => tick(String(r + 1), (r + 1) / span, day.color)).join("");
-  }
-
-  // Shows or hides everything that belongs to one day, in one place, so the
-  // panel cannot end up half in each state.
+  // THE NUMBER IS THE POSITION AND THE NAME IS THE NAME. They used to be one
+  // field: dayLabel returned `title || "Day N"`, so naming a day REPLACED its
+  // number and an unnamed day borrowed the ordinal as a name. That reads fine
+  // until days can be reordered — "Big Sur run" tells you nothing about where it
+  // sits, and a day called "Day 2" that has been dragged into third place is
+  // actively wrong and cannot be corrected, because the text is the title.
   //
-  // On "All" with several days there is no day to edit, so the day controls, the
-  // times, the search box and the point list all go and a single line takes
-  // their place. Nothing is disabled-but-visible here: unlike the sliders, these
-  // are not controls whose absence would reflow anything the rider is aiming at.
-  function renderDayEditing() {
-    const editing = editIndex() != null;
-    $("day-band").hidden = !editing;
-    $("day-pick-hint").hidden = editing;
-    // Adding by map click needs a day to add to, so the mode buttons say so
-    // rather than accepting a click that would have to be refused.
-    document.querySelectorAll(".mode-btn").forEach((b) => {
-      b.disabled = !editing;
+  // Now the ordinal is derived from the index on every render and is not
+  // editable, and the title is free text that may be empty.
+  const dayNumber = (r) => r + 1;
+  const dayName = (r) => (state.days[r] && state.days[r].title) || "";
+
+  // For prose — toasts, the timeline readout, the totals line. Both parts when
+  // there is a name, the number alone when there is not.
+  function dayLabel(r) {
+    const name = dayName(r);
+    return name ? "Day " + dayNumber(r) + " · " + name : "Day " + dayNumber(r);
+  }
+
+  // EVERY DAY, RENDERED AT ONCE. This replaces renderSlider + renderDayEditing +
+  // renderDayHead, which between them showed exactly one day and hid the rest
+  // behind a slider at the bottom of the drawer.
+  //
+  // Structure is rebuilt here; VALUES are not written back on every keystroke.
+  // That split is why typing in a day title does not lose the caret: the input
+  // handler updates state and the derived figures, and never calls this.
+  //
+  // Which means this is called only when the SET of days changes — add, delete,
+  // reorder, or first load.
+  function renderDays() {
+    const host = $("day-list");
+    if (!host) return;
+    const open = openSections();
+    host.innerHTML = state.days.map((day, r) => daySectionHtml(day, r, open)).join("");
+    state.days.forEach((_, r) => renderDayList(r));
+    markActiveSection();
+    renderRailDays();
+    $("day-empty-hint").hidden = state.days.length > 0;
+    // One Sortable per day list, all in the same group, so a stop can be dragged
+    // from one day into another. See initDragToReorder.
+    host.querySelectorAll(".point-list").forEach((el) => initDragToReorder(el));
+    initDayDrag(host);
+  }
+
+  // Which sections are currently open, so a rebuild does not spring every twirl
+  // back to its default. Keyed by day index, which is the best available: a day
+  // has no id until it is saved, and a reorder is meant to carry the open state
+  // with the position rather than with the day.
+  function openSections() {
+    const open = new Set();
+    document.querySelectorAll(".day-section").forEach((el) => {
+      if (!el.classList.contains("is-shut")) open.add(Number(el.dataset.day));
+    });
+    // First render: nothing is on the page yet and every day starts open.
+    if (!document.querySelector(".day-section")) return null;
+    return open;
+  }
+
+  function daySectionHtml(day, r, open) {
+    const shut = open && !open.has(r);
+    const single = state.days.length < 2;
+    return (
+      '<section class="day-section' + (shut ? " is-shut" : "") + '" data-day="' + r + '"' +
+      ' style="--day-color:' + esc(day.color) + '">' +
+      '<div class="day-head">' +
+      // The day's own drag handle. A separate grip rather than dragging by the
+      // header itself: the header holds a colour input, a text field and buttons,
+      // and making all of that a drag surface would mean every attempt to type in
+      // the name started a drag.
+      //
+      // A BUTTON, not a span, and that is what replaced the ↑ ↓ pair that used to
+      // sit in .day-actions. A drag handle cannot be operated from a keyboard and
+      // does not exist at all if the SortableJS CDN fails — the same two reasons
+      // AGENTS.md gives for keeping Move up / Move down on the stop rows. Making
+      // the grip focusable and giving it arrow keys covers both without spending
+      // two more buttons of a 380px header.
+      '<button type="button" class="day-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+      ' aria-label="Reorder day ' + dayNumber(r) + ', use the up and down arrow keys"></button>' +
+      '<button type="button" class="day-twirl" aria-expanded="' + (shut ? "false" : "true") +
+      '" title="Show or hide this day\'s stops"><span class="day-twirl-mark" aria-hidden="true"></span></button>' +
+      // The ordinal, rendered rather than stored. Reordering re-renders, so it is
+      // always the day's real position and there is nothing to keep in sync.
+      '<span class="day-num" aria-hidden="true">' + dayNumber(r) + "</span>" +
+      '<input class="day-color" type="color" value="' + esc(day.color) + '" title="Day color" aria-label="Color for ' + esc(dayLabel(r)) + '">' +
+      // The placeholder no longer says "Day N". It used to, which made an empty
+      // field look like it already held the name — so the number and the name
+      // were indistinguishable until you clicked in.
+      '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
+      ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
+      '<span class="day-actions">' +
+      '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg">⇄</button>' +
+      // Empty, like .panel-exit: icon-close.svg comes in through a CSS mask on
+      // ::before so it inherits the button's color and its disabled opacity.
+      // aria-label rather than the old bare ✕, which a screen reader announced as
+      // "multiplication sign".
+      '<button type="button" class="day-del" title="Delete this day" aria-label="Delete ' +
+      esc(dayLabel(r)) + '"' + (single ? " disabled" : "") + "></button>" +
+      "</span>" +
+      "</div>" +
+      '<div class="day-body">' +
+      '<div class="day-times">' +
+      '<label class="day-time"><span>Starts</span>' +
+      '<input class="day-start" type="datetime-local"></label>' +
+      '<label class="day-time"><span>Ends</span>' +
+      '<input class="day-end" type="datetime-local"' +
+      ' title="Worked out from the start time and the day\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
+      '<span class="day-times-note"></span>' +
+      "</div>" +
+      // data-duration-format rides on each list, not only on #day-list: the rule
+      // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
+      // the list itself, so putting it only on the ancestor silently stopped it
+      // matching and clipped the field.
+      '<ol class="point-list" data-day="' + r + '" data-duration-format="' + esc(durFormat) + '"></ol>' +
+      "</div>" +
+      "</section>"
+    );
+  }
+
+  const daySection = (r) => document.querySelector('.day-section[data-day="' + r + '"]');
+
+  // The active day's own section carries the class; nothing else does. Separate
+  // from renderDays() because it runs on every click into a row and must not
+  // rebuild anything.
+  function markActiveSection() {
+    const a = activeIndex();
+    document.querySelectorAll(".day-section").forEach((el) => {
+      el.classList.toggle("is-active", Number(el.dataset.day) === a);
     });
   }
 
-  function renderDayHead() {
-    const r = editIndex();
-    $("day-label").textContent = r == null ? "All days" : dayLabel(r);
-    renderDayEditing();
-    if (r == null) return;
-
-    const day = state.days[r];
-    // The band's accent and every role icon inside it read this. The icons are
-    // SVGs whose disc is fill="currentColor", so tinting them is a matter of
-    // setting `color` on an ancestor — no per-icon work, and it follows the
-    // colour picker live because this runs on its input event.
-    $("day-band").style.setProperty("--day-color", day.color);
-    const head = $("day-head");
-    // Still hidden for a lone untitled day: there is nothing to reorder, delete
-    // or distinguish, so the controls would be four disabled buttons.
-    head.hidden = state.days.length < 2 && !day.title;
-    $("day-color").value = day.color;
-    $("day-title").value = day.title;
-    $("day-up").disabled = r === 0;
-    $("day-down").disabled = r === state.days.length - 1;
-    $("day-del").disabled = state.days.length <= 1;
+  // The rail's jump list: one dot per day, no "All" — there is no all-days view
+  // to return to now that every day is on screen. Clicking one scrolls that
+  // day's section into view and makes it active.
+  //
+  // Buttons rather than a slider. A 44px-wide slider is not a usable slider, and
+  // these are also what a screen reader gets once the rail is the only thing on
+  // screen — initPanelToggle flips the container's aria-hidden so the rail and
+  // the sections are never both announced.
+  function renderRailDays() {
+    const wrap = $("rail-days");
+    if (!wrap) return;
+    const a = activeIndex();
+    wrap.innerHTML = state.days
+      .map(
+        (day, r) =>
+          '<button type="button" class="rail-day" data-day="' + r + '"' +
+          (r === a ? ' aria-current="true"' : "") +
+          ' style="--rail-color:' + esc(day.color) + '"' +
+          ' title="' + esc(dayLabel(r)) + '">' + String(r + 1) + "</button>",
+      )
+      .join("");
   }
 
   // --- Times ----------------------------------------------------------------
@@ -1262,24 +1391,31 @@
   function setMoment(momentS) {
     state.moment = momentS;
     const a = activeAtMoment(state.days, momentS, allPoiDists());
-    // A moment between days leaves the day slider where it was — there is no
-    // day to move it to, and snapping it somewhere arbitrary would be a lie.
-    if (a.dayIndex != null) {
-      state.focus = a.dayIndex + 1;
-      $("day-slider").value = String(state.focus);
-    }
+    // A moment between days leaves the active day where it was — there is no day
+    // to move it to, and snapping it somewhere arbitrary would be a lie.
+    if (a.dayIndex != null) setActive(a.dayIndex);
     applyFocus();
-    renderDayHead();
-    renderList();
     refreshDerived();
   }
 
+  // Every day's times, because every day's fields are on screen. It was one set
+  // of ids reading whichever day the slider had selected.
   function renderTimes() {
-    const day = editRoute();
-    if (!day) return; // the times block is hidden on "All"
-    const start = $("day-start");
-    const end = $("day-end");
-    const note = $("day-times-note");
+    state.days.forEach((_, r) => renderDayTimes(r));
+  }
+
+  function renderDayTimes(r) {
+    const day = state.days[r];
+    const sec = daySection(r);
+    if (!day || !sec) return;
+    const start = sec.querySelector(".day-start");
+    const end = sec.querySelector(".day-end");
+    const note = sec.querySelector(".day-times-note");
+    if (!start || !end || !note) return;
+    // Never fight the rider for a field they are in. refreshDerived() runs on
+    // every keystroke elsewhere in the panel, and rewriting a datetime input
+    // mid-edit resets the caret to the month segment.
+    if (document.activeElement === start || document.activeElement === end) return;
 
     start.value = isoToLocalInput(day.startAt);
     end.value = isoToLocalInput(day.endAt);
@@ -1384,10 +1520,13 @@
   // its pin onto the road between the rows it was dropped between. Same
   // affordance, because from the rider's side it is the same intent: put this
   // one there. See the onEnd handler in initDragToReorder for the split.
-  function pointRowHtml(kind, point, i) {
+  // data-day is what makes every handler below day-agnostic: pointOf() reads the
+  // point out of that day, and any interaction with the row makes that day active
+  // so the shared edit functions land in the right place.
+  function pointRowHtml(kind, point, i, dayIndex) {
     const isStop = kind === "stop";
     return (
-      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
+      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
       '<div class="row-main">' +
       '<span class="row-drag" title="' +
       (isStop ? "Drag to reorder" : "Drag to move it along the route") +
@@ -1424,9 +1563,13 @@
     );
   }
 
+  // Reads the row's OWN day, not the active one. Those are the same thing by the
+  // time a handler runs — every listener calls setActiveFromEl first — but
+  // relying on that ordering would make this quietly wrong the first time
+  // something read a row without having clicked it.
   function pointOf(row) {
     const i = Number(row.dataset.i);
-    const day = editRoute();
+    const day = state.days[Number(row.dataset.day)];
     if (!day) return null;
     return row.dataset.kind === "stop" ? day.stops[i] : day.pois[i];
   }
@@ -1464,29 +1607,47 @@
     return rows;
   }
 
-  function renderList() {
-    const list = $("stop-list");
-    const day = editRoute();
-    // Nothing to list on "All". renderDayEditing() has already hidden this, but
-    // leaving the last day's stops in the DOM behind it would make the next
-    // render flash the wrong day's rows.
-    if (!day) {
-      list.innerHTML = "";
-      return;
-    }
+  // One day's rows. Takes the day index rather than reading the active one,
+  // because every day's list is on screen and any of them can need redrawing.
+  function renderDayList(r) {
+    const list = document.querySelector('.point-list[data-day="' + r + '"]');
+    if (!list) return;
+    const day = state.days[r];
+    if (!day) return;
     if (day.stops.length === 0 && day.pois.length === 0) {
       list.innerHTML = '<li class="empty-hint">Click the map or search to add your first stop.</li>';
       return;
     }
     list.innerHTML = orderedRows(day)
-      .map((r) => pointRowHtml(r.kind, r.point, r.i))
+      .map((row) => pointRowHtml(row.kind, row.point, row.i, r))
       .join("");
     hydrateIcons(list);
   }
 
-  function focusRow(kind, i) {
-    const row = document.querySelector('.point-row[data-kind="' + kind + '"][data-i="' + i + '"]');
+  // Kept under its old name for the ~15 callers that mean "redraw what I just
+  // changed". They all edit the active day, which is the day they are called
+  // from — a row handler sets it before doing anything else.
+  function renderList() {
+    const r = activeIndex();
+    if (r != null) renderDayList(r);
+  }
+
+  // The day index is required now: every day's rows are on the page, so
+  // [data-kind][data-i] alone matches one row per day and would scroll to
+  // whichever came first.
+  function focusRow(kind, i, dayIndex) {
+    const r = dayIndex == null ? activeIndex() : dayIndex;
+    const row = document.querySelector(
+      '.point-row[data-day="' + r + '"][data-kind="' + kind + '"][data-i="' + i + '"]',
+    );
     if (!row) return;
+    // A row inside a shut day cannot be scrolled to, so open it first.
+    const sec = row.closest(".day-section");
+    if (sec && sec.classList.contains("is-shut")) {
+      sec.classList.remove("is-shut");
+      const twirl = sec.querySelector(".day-twirl");
+      if (twirl) twirl.setAttribute("aria-expanded", "true");
+    }
     row.scrollIntoView({ block: "nearest", behavior: "smooth" });
     row.classList.add("flash");
     setTimeout(() => row.classList.remove("flash"), 900);
@@ -1589,18 +1750,30 @@
             bestMiles: ride.twistBestMiles,
           }
         : null;
-    // The per-day line only exists when a day is selected. On "All" the ride
-    // figures stand alone, which is exactly what "All" means.
+    // The per-day figures only exist when a day is selected. On "All" the ride
+    // figures stand alone, which is exactly what "All" means — but the line that
+    // would hold them is still emitted, empty. See below.
     const r = editIndex();
     const dayT = r == null ? null : routeTotals(state.days[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
       '<span class="totals-ride" title="' + esc(twistTitle(ride)) + '">' +
       state.days.length + " days · " + line(ride, true) + "</span>" +
+      // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
+      // its own line, so the block is the same height whichever way the scrubber
+      // is set and the controls below it never move. Dropping the span when
+      // there is no day is what used to shift the panel on every scrub.
+      //
+      // Inside it, two spans rather than one string so the stylesheet can shrink
+      // the name and never the figures — see .totals-day in _builder.scss. A day
+      // title runs to 150 characters and an import hands over 31 by default,
+      // which would otherwise push the mileage off the line.
+      '<span class="totals-day"' + (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") + ">" +
       (dayT
-        ? '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
-          esc(dayLabel(r)) + ": " + line(dayT, false) + "</span>"
-        : "");
+        ? '<span class="totals-day-name">' + esc(dayLabel(r)) + ":</span>" +
+          '<span class="totals-day-figs">' + line(dayT, false) + "</span>"
+        : "") +
+      "</span>";
   }
 
   // Delegated events for both lists.
@@ -1792,11 +1965,19 @@
       console.warn("[builder] Sortable did not load—reorder by the row menu");
       return;
     }
-    window.Sortable.create(listEl, {
+    // Guard against double-binding: renderDays() rebuilds every list and calls
+    // this for each, and Sortable leaves its own instance on the element.
+    if (listEl._sortable) listEl._sortable.destroy();
+    listEl._sortable = window.Sortable.create(listEl, {
       draggable: ".point-row",
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
+      // ONE GROUP ACROSS EVERY DAY, so a stop can be dragged out of one day and
+      // into another. That is a new capability, not a side effect: before every
+      // day was on screen at once there was only ever one list, and moving a stop
+      // between days was impossible by any route.
+      group: "ride-points",
       // Sortable defaults to native HTML5 drag-and-drop on a desktop pointer and
       // to its own implementation on touch, which means two code paths, two sets
       // of quirks and a drag image the browser draws and we cannot style. The
@@ -1811,7 +1992,13 @@
       delay: 200,
       delayOnTouchOnly: true,
       onEnd: (evt) => {
-        const day = editRoute();
+        // CROSS-DAY FIRST, and it is a different operation rather than a special
+        // case of reordering: the point leaves one day's array and joins
+        // another's, and BOTH days' legs are wrong afterwards. A same-day drop
+        // falls through to the index arithmetic below.
+        if (evt.from !== evt.to) return movePointAcrossDays(evt);
+
+        const day = state.days[Number(evt.from.dataset.day)];
         if (!day) return;
         // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
         // onEnd for every drop, including one that changed nothing — picking a
@@ -1829,7 +2016,7 @@
           // DOM order of the stop rows and taking their data-i sidesteps the
           // interleaving with POIs entirely — Sortable's own indices count all
           // children and mean nothing here.
-          const order = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
+          const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
           const to = order.indexOf(i);
           if (to < 0 || to === i) return;
           return reorderStop(i, to);
@@ -1842,7 +2029,7 @@
         for (const row of orderedRows(day)) dists.set(row.kind + ":" + row.i, row.dist);
         const at = (el) => (el ? dists.get(el.dataset.kind + ":" + el.dataset.i) : undefined);
 
-        const rows = [...listEl.querySelectorAll(".point-row")];
+        const rows = [...evt.to.querySelectorAll(".point-row")];
         const pos = rows.indexOf(evt.item);
         const before = at(rows[pos - 1]);
         const after = at(rows[pos + 1]);
@@ -1855,6 +2042,123 @@
         movePoiToDistance(i, target);
       },
     });
+  }
+
+  // DRAG TO REORDER DAYS. The use case is a base camp: rent a house, ride a loop
+  // from it each day, and the days are interchangeable in a way a linear tour's
+  // are not — so the order is something a rider genuinely revises, not just an
+  // artefact of what they entered first.
+  //
+  // Cheaper than reordering stops, because a day owns its own legs: moving day 3
+  // above day 1 changes no leg's endpoints and needs no routing call. Only the
+  // position changes, plus the parallel legSeq array that tracks in-flight
+  // routing responses — leaving that behind would let a stale response land on
+  // whichever day took the old index.
+  //
+  // Rebound on every renderDays() because that replaces the sections; the
+  // instance is stashed on the element and destroyed first, same as the lists.
+  function initDayDrag(host) {
+    if (!window.Sortable) return;
+    if (host._sortable) host._sortable.destroy();
+    host._sortable = window.Sortable.create(host, {
+      draggable: ".day-section",
+      handle: ".day-drag",
+      animation: 150,
+      ghostClass: "is-dragging",
+      // Same reasoning as the stop list: one code path on desktop and touch, a
+      // drag mirror we can style, and the only path a synthetic event can drive.
+      forceFallback: true,
+      fallbackClass: "day-drag-ghost",
+      fallbackOnBody: true,
+      delay: 200,
+      delayOnTouchOnly: true,
+      onEnd: (evt) => {
+        const from = evt.oldIndex;
+        const to = evt.newIndex;
+        if (from === to || from == null || to == null) return;
+        beginEdit("reorder days");
+        const [day] = state.days.splice(from, 1);
+        state.days.splice(to, 0, day);
+        const [seq] = state.legSeq.splice(from, 1);
+        state.legSeq.splice(to, 0, seq || []);
+        // The day that moved is the one the rider is thinking about.
+        state.active = to;
+        renderDays();
+        // Layers are keyed by day index, so every one from the lower of the two
+        // positions onward is now drawing the wrong day. Rebuilding is the whole
+        // fix and costs no routing.
+        rebuildLayers();
+        renderMarkers();
+        refreshDerived();
+        markDirty();
+      },
+    });
+  }
+
+  // A POINT DRAGGED OUT OF ONE DAY AND INTO ANOTHER.
+  //
+  // New with the all-days panel: while only one day was ever on screen there was
+  // only one list, and this could not be expressed at all. It is a move between
+  // two arrays, not a reorder within one, and the consequence that matters is
+  // that BOTH days' legs are wrong afterwards — the source loses a stop and the
+  // destination gains one, so the invariant every day carries (N stops means
+  // exactly N-1 legs, enforced server-side in ride-graph.ts) breaks at both ends
+  // until they are rebuilt.
+  //
+  // Legs are dropped wholesale on both sides rather than patched. Patching means
+  // reasoning about which of the surviving legs still joins the same pair of
+  // stops, and the shaping points on any leg that touched the moved stop are
+  // meaningless regardless. computeLegsAround refills them from the router.
+  function movePointAcrossDays(evt) {
+    const fromDay = Number(evt.from.dataset.day);
+    const toDay = Number(evt.to.dataset.day);
+    const src = state.days[fromDay];
+    const dst = state.days[toDay];
+    if (!src || !dst || fromDay === toDay) return;
+
+    const kind = evt.item.dataset.kind;
+    const i = Number(evt.item.dataset.i);
+
+    beginEdit("move " + (kind === "stop" ? "stop" : "POI") + " between days");
+
+    if (kind === "poi") {
+      const [poi] = src.pois.splice(i, 1);
+      if (!poi) return;
+      // A POI's distance along the track belongs to the day it was measured on
+      // and means nothing on another one. Null is honest — "near this day's
+      // route, position not measured" — and is exactly what an import with no
+      // track stores. See the null-is-not-zero note in AGENTS.md.
+      poi.distFromStartMi = null;
+      dst.pois.push(poi);
+    } else {
+      const [stop] = src.stops.splice(i, 1);
+      if (!stop) return;
+      // Where it landed among the DESTINATION's stops, read from the DOM the
+      // same way the same-day branch does — the rows it sits between are the
+      // answer, whatever POIs are interleaved with them.
+      const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')];
+      const at = Math.max(0, Math.min(dst.stops.length, order.indexOf(evt.item)));
+      dst.stops.splice(at, 0, stop);
+      src.legs = [];
+      dst.legs = [];
+      state.legSeq[fromDay] = [];
+      state.legSeq[toDay] = [];
+    }
+
+    // Rebuilt rather than patched: both lists have shifted indices, and every
+    // row's data-i has to agree with the arrays again before any later handler
+    // reads one.
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    if (kind === "stop") {
+      computeLegsAround(fromDay, Array.from({ length: Math.max(0, src.stops.length - 1) }, (_, k) => k));
+      computeLegsAround(toDay, Array.from({ length: Math.max(0, dst.stops.length - 1) }, (_, k) => k));
+    }
+    setActive(toDay);
+    refreshDerived();
+    markDirty();
+    toast("Moved to " + dayLabel(toDay));
   }
 
   // --- Search (Google Places autocomplete) ----------------------------------
@@ -2098,52 +2402,125 @@
 
   // --- Init -----------------------------------------------------------------
 
+  // ALL DELEGATED ON #day-list, because there are N of every one of these now and
+  // renderDays() replaces the lot on any change to the set of days. A bound
+  // listener would go with the element it was bound to.
+  //
+  // Every handler starts by making the touched day active. That single line is
+  // what let the ~15 shared edit functions below keep reading editIndex() when
+  // the panel went from one visible day to all of them.
   function wireDays() {
-    $("day-slider").addEventListener("input", (e) => setFocus(Number(e.target.value)));
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
+    $("rail-days").addEventListener("click", (e) => {
+      const btn = e.target.closest(".rail-day");
+      if (!btn) return;
+      const r = Number(btn.dataset.day);
+      goToDay(r);
+      // The rail is a jump list, so it scrolls as well as selects. Harmless while
+      // the drawer is collapsed and the sections are not on screen — it is the
+      // reopened drawer that lands in the right place.
+      const sec = daySection(r);
+      if (sec) sec.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
     $("day-add").addEventListener("click", addDay);
-    $("day-del").addEventListener("click", deleteDay);
-    $("day-rev").addEventListener("click", reverseDay);
-    $("day-up").addEventListener("click", () => moveDay(-1));
-    $("day-down").addEventListener("click", () => moveDay(1));
-    $("day-color").addEventListener("input", (e) => {
-      const day = editRoute();
-      if (!day) return;
-      beginEdit("recolor day", "day-color");
-      day.color = e.target.value;
-      renderDayHead();
-      renderSlider();
-      rebuildLayers();
-      renderMarkers();
-      markDirty();
+
+    const host = $("day-list");
+
+    // Pointerdown rather than click: it fires before focus moves, so tabbing or
+    // clicking into a field has already set the right active day by the time any
+    // other handler runs.
+    host.addEventListener("pointerdown", (e) => setActiveFromEl(e.target));
+    host.addEventListener("focusin", (e) => setActiveFromEl(e.target));
+
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const sec = btn.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      if (btn.classList.contains("day-twirl")) {
+        const shut = sec.classList.toggle("is-shut");
+        btn.setAttribute("aria-expanded", String(!shut));
+        return;
+      }
+      if (btn.classList.contains("day-del")) return deleteDay();
+      if (btn.classList.contains("day-rev")) return reverseDay();
     });
-    $("day-title").addEventListener("input", (e) => {
-      const day = editRoute();
-      if (!day) return;
-      beginEdit("rename day", "day-title");
-      day.title = e.target.value;
-      $("day-label").textContent = dayLabel(editIndex());
-      refreshDerived();
-      markDirty();
+
+    // The keyboard half of the drag handle. Reordering was two buttons until
+    // 2026-08-16; the grip carries it now so the header keeps its width.
+    // preventDefault because the drawer scrolls, and an arrow key that both moves
+    // the day and scrolls the panel loses the day off the screen.
+    host.addEventListener("keydown", (e) => {
+      const grip = e.target.closest(".day-drag");
+      if (!grip) return;
+      const dir = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const sec = grip.closest(".day-section");
+      if (!sec) return;
+      setActive(Number(sec.dataset.day));
+      moveDay(dir);
+      // renderDays() has replaced the button that was focused, so focus has to be
+      // put back on the same day's grip at its NEW position or the next arrow key
+      // goes nowhere.
+      const moved = daySection(activeIndex());
+      const next = moved && moved.querySelector(".day-drag");
+      if (next) next.focus();
     });
-    $("day-start").addEventListener("change", (e) => {
-      const day = editRoute();
+
+    host.addEventListener("input", (e) => {
+      const sec = e.target.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      const day = state.days[r];
       if (!day) return;
-      beginEdit("change start time");
-      day.startAt = localInputToIso(e.target.value);
-      refreshDerived();
-      markDirty();
+      if (e.target.classList.contains("day-color")) {
+        beginEdit("recolor day", "day-color:" + r);
+        day.color = e.target.value;
+        sec.style.setProperty("--day-color", day.color);
+        renderRailDays();
+        rebuildLayers();
+        renderMarkers();
+        markDirty();
+        return;
+      }
+      if (e.target.classList.contains("day-title")) {
+        beginEdit("rename day", "day-title:" + r);
+        day.title = e.target.value;
+        // Deliberately NOT renderDays(): rebuilding the section would take the
+        // caret out of the field being typed in.
+        renderRailDays();
+        refreshDerived();
+        markDirty();
+      }
     });
-    // Typing an end overrides the derivation; clearing it hands control back,
-    // and refreshDerived() refills the field from the day on the way out.
-    $("day-end").addEventListener("change", (e) => {
-      const day = editRoute();
+
+    host.addEventListener("change", (e) => {
+      const sec = e.target.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      const day = state.days[r];
       if (!day) return;
-      beginEdit("change end time");
-      day.endAt = localInputToIso(e.target.value);
-      day.endManual = day.endAt !== null;
-      refreshDerived();
-      markDirty();
+      if (e.target.classList.contains("day-start")) {
+        beginEdit("change start time");
+        day.startAt = localInputToIso(e.target.value);
+        refreshDerived();
+        markDirty();
+        return;
+      }
+      // Typing an end overrides the derivation; clearing it hands control back,
+      // and refreshDerived() refills the field from the day on the way out.
+      if (e.target.classList.contains("day-end")) {
+        beginEdit("change end time");
+        day.endAt = localInputToIso(e.target.value);
+        day.endManual = day.endAt !== null;
+        refreshDerived();
+        markDirty();
+      }
     });
   }
 
@@ -2325,9 +2702,12 @@
     }
     wireMeta();
     wireDays();
-    wireList($("stop-list"));
+    // Delegated on the container rather than on each list, so the handlers
+    // survive renderDays() replacing every list. Sortable cannot work that way —
+    // it binds to the list element — so initDragToReorder is called per list from
+    // renderDays instead.
+    wireList($("day-list"));
     wireRowMenuDismiss();
-    initDragToReorder($("stop-list"));
     wireSearch();
     wireHistory();
     // Undo and redo are the only icons in static markup — every other one is in
@@ -2357,9 +2737,7 @@
 
     rebuildLayers();
     renderMarkers();
-    renderSlider();
-    renderDayHead();
-    renderList();
+    renderDays();
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
