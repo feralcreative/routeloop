@@ -55,7 +55,7 @@ Commit the migration together with the `schema.ts` change that produced it. `dri
 
 The failure this workflow exists to prevent needs nothing more than the everyday flow above—pull, then `npm run dev`. What migrations do **not** synchronize is data: rides and accounts stay per-machine. For that see [utils/seed-dev.sh](../utils/seed-dev.sh) to rebuild a local dataset, or `utils/deploy/deploy-utils.sh db-clone prod dev` to pull production down.
 
-Note that `src/db/seed.ts` reads `moto-storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a machine without that file the seed fails at that line; `utils/seed-dev.sh --rides-only` skips it and seeds generated native rides only.
+Note that `src/db/seed.ts` reads `storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a machine without that file the seed fails at that line; `utils/seed-dev.sh --rides-only` skips it and seeds generated native rides only.
 
 ## Baselining a database that predates drizzle/
 

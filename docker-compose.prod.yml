@@ -21,7 +21,7 @@ services:
     user: "${APP_UID}:${APP_GID}"
     environment:
       PORT: 6686
-      STORAGE_PATH: /app/moto-storage
+      STORAGE_PATH: /app/storage
       # Referrer-restricted, ships to the browser.
       GMAPS_KEY: ${GMAPS_KEY}
       # IP-restricted to this host's egress address; server-side calls only.
@@ -54,7 +54,7 @@ services:
       - "127.0.0.1:${HOST_PORT}:6686"
       - "127.0.0.1:${ALIAS_HOST_PORT}:6686"
     volumes:
-      - ./data/storage:/app/moto-storage
+      - ./data/storage:/app/storage
     depends_on:
       db:
         condition: service_healthy

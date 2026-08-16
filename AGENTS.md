@@ -63,7 +63,7 @@ Anything touching the map, the builder or an import needs a manual browser pass 
 - **Never hand-edit:** `public/style/main.min.css` (run `npm run sass`), `drizzle/*.sql` after it has been applied anywhere, `drizzle/meta/` (written by `db:generate`), `package-lock.json` (`npm install`).
 - **Never add new SQL to `utils/deploy/sql/`.** Those dated files are the `push`-era record of what ran against production and stay as history. New schema work goes through `npm run db:generate` into `drizzle/`.
 - **Never lint or compile SCSS through an IDE extension.** `npm run sass`, and fix lint findings in code rather than with a CLI autofixer.
-- **Never read `.env`, `moto-storage/`, `_PLANS/` or any `*.sql.gz` into a commit, a log or a chat response.** All are gitignored and hold credentials, rider files or database dumps.
+- **Never read `.env`, `storage/`, `_PLANS/` or any `*.sql.gz` into a commit, a log or a chat response.** All are gitignored and hold credentials, rider files or database dumps.
 - **Read the generated SQL before applying a migration**, and rewrite it when the differ guessed wrong. A rename comes out as a drop plus an add; a `NOT NULL` on a populated column needs a backfill ahead of it. Riders hold data that cannot be rebuilt from an upload.
 - **Human approval required** for: any schema change, any new dependency, anything touching prod or stage, and removing the `map-common.js` boundary.
 
@@ -153,7 +153,7 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
 - Branch as `type/kebab-subject`—`feat/trip-timeline-slider`, `fix/multi-track-import`.
 - Hand over a single chained one-liner (`git add -A && git commit -m "…"`) and let Ziad run it. Do not commit unasked.
 - Before opening a PR: `npm run typecheck`, `npm test`, and `npm run sass` if SCSS changed. Link the issue it closes. A fix for something the tests missed should come with the test that would have caught it.
-- Never commit: `.env`, compiled CSS, `moto-storage/`, `_PLANS/`, database dumps.
+- Never commit: `.env`, compiled CSS, `storage/`, `_PLANS/`, database dumps.
 
 ## Deep-dive index
 

@@ -922,7 +922,7 @@ npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
 npm run db:migrate            # generated migrations; npm run dev does this too
-npx tsx src/db/seed.ts        # demo user + sample ride (needs moto-storage/1/1.kml)
+npx tsx src/db/seed.ts        # demo user + sample ride (needs storage/1/1.kml)
 npm run dev                   # http://localhost:6686
 ```
 
