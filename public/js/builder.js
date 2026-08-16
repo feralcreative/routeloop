@@ -68,6 +68,16 @@
   // folder import server-side, so the palette cannot live only in here.
   const DAY_COLORS = window.TB.dayColors;
 
+  // How the stop dwell field reads, from the rider's profile — 'hours', 'hm' or
+  // 'minutes'. It is a DISPLAY choice and nothing below it stores anything
+  // differently: point.durationMin is integer minutes whatever this says, which
+  // is what keeps every export, the roadbook and the timeline out of it.
+  //
+  // Read once at load rather than per row. Changing it is a page load, because it
+  // is set on /settings and the builder is a different page.
+  const DUR = window.TBDuration;
+  const durFormat = DUR.toFormat(window.TB.durationFormat);
+
   const newDay = (color) => ({
     title: "",
     color: color || DAY_COLORS[0],
@@ -1354,12 +1364,20 @@
       '" aria-hidden="true"></span>' +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
-      // POIs get the same minutes field now. Blank means "rode past without
-      // stopping", which is the common case and why it stays a placeholder
-      // rather than a zero.
-      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="' +
-      (isStop ? "Stop duration (minutes)" : "How long you stop here, if you stop (minutes)") + '" value="' +
-      (point.durationMin ?? "") + '">' +
+      // POIs get the same dwell field. Blank means "rode past without stopping",
+      // which is the common case and why it stays a placeholder rather than a
+      // zero.
+      //
+      // TYPE="TEXT", not "number", and that is the price of the format being a
+      // preference. "1h 30m" is not a number, and switching the input's type per
+      // format would be three code paths through every read and write of this
+      // field. One text input with `inputmode` set from the format gets the
+      // phone keyboard right without any of that. The stored value is still an
+      // integer count of minutes — TBDuration is only how it is written down.
+      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="text" autocomplete="off" inputmode="' +
+      DUR.inputMode(durFormat) + '" placeholder="' + esc(DUR.placeholder(durFormat)) + '" title="' +
+      (isStop ? "Stop duration" : "How long you stop here, if you stop") + " (" + esc(DUR.unitName(durFormat)) +
+      ')" value="' + esc(DUR.format(point.durationMin, durFormat)) + '">' +
       '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
       (roleIconsHtml(point) || '<span class="role-add">+</span>') + "</button>" +
       '<span class="row-actions">' +
@@ -1568,10 +1586,35 @@
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       if (e.target.classList.contains("row-dur")) {
-        point.durationMin = e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value)));
+        // Parsed on every keystroke, reformatted on none of them. Rewriting the
+        // field as it is typed is hostile in every format and actively breaks
+        // two: "1." becomes "1.0" with the caret stranded, and "1h " becomes
+        // "1h 0m" before the rider has typed the minutes. Tidying is the blur
+        // handler's job — see wireList's focusout below.
+        //
+        // An unparseable value stores null rather than holding the last good
+        // number, so "abc" and an empty field mean the same thing, which is what
+        // they look like they mean.
+        point.durationMin = DUR.parse(e.target.value, durFormat);
         refreshDerived();
       }
       markDirty();
+    });
+
+    // Tidy the duration on the way out: whatever was typed is rewritten in the
+    // rider's format, so "90m" in hours mode settles to "1.5" and a typo settles
+    // to blank rather than sitting there looking stored.
+    //
+    // focusout, not blur, because blur does not bubble and this listener is
+    // delegated on the list. It writes the field only — the value was already
+    // parsed into state on input, so there is nothing to mark dirty here and
+    // nothing to save.
+    listEl.addEventListener("focusout", (e) => {
+      if (!e.target.classList || !e.target.classList.contains("row-dur")) return;
+      const row = e.target.closest(".point-row");
+      const point = row && pointOf(row);
+      if (!point) return;
+      e.target.value = DUR.format(point.durationMin, durFormat);
     });
     listEl.addEventListener("click", (e) => {
       const row = e.target.closest(".point-row");

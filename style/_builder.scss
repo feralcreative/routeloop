@@ -755,12 +755,27 @@
       flex: 1;
       min-width: 0;
     }
-    // Stays at 4em even though the padding around it came in. The placeholder is
-    // the word "min" and the field has a spinner: at 3.6em the "n" was clipped
-    // and it read "mir", which is the sort of thing that looks like a typo in the
-    // copy rather than a width bug.
+    // WIDTH BY FORMAT, and it has to be: the same 90 minutes is "1.5", "90" or
+    // "1h 30m" depending on a preference, and the last of those is nearly twice
+    // the characters of the first. One width for all three either clips the long
+    // format or spends the difference on a field the other two do not need —
+    // and that width comes straight out of the name field beside it.
+    //
+    // The attribute is written server-side onto #stop-list in builder.ts, from
+    // the same preference the rows are rendered with, so there is no flash of a
+    // wrongly-sized field before the JS runs.
+    //
+    // 4em is the floor and it is set by content, not by taste: "43200" is the
+    // largest value the schema allows and "min" is the placeholder. At 3.6em the
+    // placeholder clipped to "mir", which reads as a typo in the copy rather
+    // than as a width bug.
     .row-dur {
       width: 4em;
+    }
+    // `&` here is `.builder-panel .point-list`, so this is the attribute on the
+    // list itself rather than on an ancestor of it.
+    &[data-duration-format="hm"] .row-dur {
+      width: 5.6em;
     }
     // FIXED WIDTH, and this is the sharpest instance of the panel rule. The
     // button used to hold one 16px chip per role at `max-width: none`, so it ran

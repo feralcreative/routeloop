@@ -1,13 +1,15 @@
 # Status and handoff
 
 **Updated:** 2026-08-15
-**Branch:** `feat/builder-panel`, six commits ahead of `main`, none pushed—846 tests across 36 files
-**Closes, since the last update:** #39, #89, #90, #91, #92, #93, #94, #95, #97, #98 (nine of the eleven children of epic #88), plus #104's route rename
+**Branch:** `feat/builder-panel`, seven commits ahead of `main`, none pushed—869 tests across 37 files
+**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename
 **For:** the next agent, or the owner returning cold
+
+**One schema change is in this branch and it has been applied to the local dev database only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`. It is additive—a new enum type and one column with a default—so it needs no backfill and rewrites no table, but stage and production have not seen it and the deploy is the thing that applies it.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
 
-## The builder panel redesign—epic #88, four of five phases, 2026-08-15
+## The builder panel redesign—epic #88, all five phases, 2026-08-15
 
 Nothing in this section is deployed. It is all local on `feat/builder-panel`.
 
@@ -21,8 +23,9 @@ Phase by phase, and what to know about each:
 2. **The ride's name is the headline, and the panel has a way out** (#94, #91). The field **is** the heading rather than something a pencil reveals—a reveal would be a second mode and a layout jump. Half of #91 turned out to be wrong: the existing control was never an X, it is a minimize glyph, so collapse did not have to move. What was real was that there was **no exit at all** from a map page except the nav hamburger. There are two controls for two verbs now, on the viewer as well.
 3. **The row** (#98, #97, #92, #39). Six buttons became two, a drag tab and a `⋯`. Role icons hold one icon's footprint whatever the role count. **The index mapping was the whole job of drag-to-reorder**: `orderedRows()` interleaves stops and POIs by distance along the track while each row's `data-i` indexes its own array, so Sortable's `oldIndex`/`newIndex` mean nothing—reading the DOM order of the stop rows and taking their `data-i` sidesteps the interleaving. A POI drags too, and dragging one **moves its pin** rather than reordering it, because a POI's place is projected and not stored.
 4. **The timeline left the panel** (#93). It is a bar across the bottom edge of the map now, on both pages—see the next section.
+5. **Stop durations are a preference** (#96). The last one, the smallest, and the only one with a schema change—see the section below that.
 
-**Phase 5 is the only one left**: stop durations as decimal hours with the format as a Settings preference (#96). It is the smallest and the only one needing a schema change, so it needs Ziad's approval and a generated migration before it starts.
+The epic is closed. What it did not do, deliberately: the panel is still 380px wide, because the width was never the complaint.
 
 ### The ride timeline moved to the map's bottom edge
 
@@ -35,6 +38,24 @@ Phase by phase, and what to know about each:
 - **`--panel-inset`, `--panel-width` and the rest moved from `#info-panel` to `html.map-page`.** They had to: the bar is a sibling of the panel, and a custom property inherits down, not sideways.
 
 The heading came down 25% at the same time (2.1rem → 1.575rem, on both panels) and **`#ride-title` is a `<textarea>` now, not an `<input>`.** That is the only way a heading wraps—an `<input>` is single-line by definition and will only ever ellipsize. It costs three things, all handled in `builder.js`: Enter is swallowed, pasted newlines are flattened, and `fitTitle()` sets the height from `scrollHeight` on every edit because a textarea does not size itself. The two-line ceiling is a `max-height` in SCSS; collapsed, one line, faded out at the right edge because `text-overflow: ellipsis` does not apply to a textarea.
+
+### Stop durations are a preference, and Settings has its first real content
+
+`src/maps/duration.ts` owns the rule, `public/js/duration.js` mirrors it for the browser, and `test/duration.test.ts` runs both over the same fixtures. Same arrangement as `twist.ts`/`twist.js` and `filename.ts`/`filename.js`, and the same instruction if that test fails: bring the two back into line, never loosen the assertion.
+
+**There turned out to be a third copy nobody had counted.** `fmtDuration()` in `src/routes/roadbook.tsx` has printed `4h 20m` since the roadbook was built, and its own comment records the exact complaint issue #96 was filed about—"an overnight camp stop printed 658m before this, which nobody parses at a glance". The builder never got that fix, so the same stop read `658` in the panel and `10h 58m` on the printout. The `hm` format is defined as agreeing with the roadbook rather than the other way round, and the test walks every minute of a day to prove it.
+
+Three things to know before touching this:
+
+- **Storage did not change and must not.** `points.duration_min` is integer minutes. Verified by switching the preference three ways against the same ride and reading the same numbers back, and by checking the roadbook prints identically at every setting.
+- **The field is `type="text"`.** "1h 30m" is not a number, and switching the input's type per format would be three code paths through every read and write of that field; `inputmode` comes off the format instead and the phone keyboard is still right. That lost `max="43200"` from the markup, so the ceiling moved into the parser—where it **clamps rather than refuses**, because `800h` settling to `720h 0m` on blur says what happened, and letting it through 400s the ride's next autosave on a field nothing points at.
+- **Parse on every keystroke, reformat on none of them.** Rewriting the field as it is typed strands the caret and actively breaks two formats: `1.` becomes `1.0`, and `1h ` becomes `1h 0m` before the minutes are typed. Tidying is the `focusout` handler's job—`focusout` and not `blur`, because blur does not bubble and the listener is delegated on the list.
+
+A bare number is read in the format's own unit and an explicit unit always wins, so `90` is ninety minutes under `hm` and `minutes` and ninety **hours** under `hours`. That sounds alarming until you notice that under `hours` the field is showing `1.5`, so a rider typing there means hours—and anyone who means minutes can type `90m` in any format. An unparseable value stores null rather than holding the last good number, so a typo and an empty field mean the same thing, which is what they look like they mean.
+
+The preference is `user_profiles.duration_format`, a defaulted enum rather than a nullable column so there is no third state for every reader to interpret differently. **A rider may still have no profile row at all**, which is why `toDurationFormat()` exists and why `/settings/duration-format` upserts rather than updates. It is its own route and not part of the profile form's POST: that handler validates and rewrites the whole profile, so posting one preference through it would mean carrying every other field along and a missing one would blank an address.
+
+The granularity cost the roadmap flagged is real and visible the moment you look at a ride: an 11-minute stop reads `0.2` and a 23-minute one reads `0.4`. That is why the other two formats exist rather than being a fallback nobody picks.
 
 ## TL;DR
 

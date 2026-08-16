@@ -13,8 +13,9 @@ Read `schema.ts` for columns; this is what each one is *for* and the constraints
 - **`days`**—`ride_id`, `position`, `title`, `color` (feeds the legend), `start_at`/`end_at` (nullable), `distance_m`, `duration_s`. A position, not a calendar date: two days may share a date, and an undated ride still has days.
 - **`points`**—`day_id`, `kind` (stop | poi), `position` (stop order, null for POIs), `lat`/`lng`, `name`, `description`, `roles waypoint_role[]` (at most 4, checked by the database), `duration_min` (null means no duration), `dist_from_start_m` (server-computed).
 - **`route_legs`**—`day_id`, `position` (leg *i* joins stop *i* to *i+1*), `geometry jsonb` as `[lng,lat][]` at 6 decimals, `distance_m`, `duration_s`, `via_points jsonb` (the ephemeral shaping waypoints).
+- **`user_profiles`**—the FK to `users` *is* the PK, so there is one profile per rider and no surrogate id to keep in sync. Name, address and the geocoded home, the public start place, the sharing toggles and the payment handles. Also `duration_format`, which is a *display* preference and not a storage one: `points.duration_min` stays integer minutes whatever it says. **A rider may have no row here at all**, so every reader has to have an answer for that—see `toDurationFormat()` in `src/maps/duration.ts`, and note that the write path upserts rather than updates.
 
-Enums: `provider`, `visibility`, `ride_source`, `point_kind`, and `waypoint_role`—the 17 roles, which must stay in sync with `src/maps/roles.ts`.
+Enums: `provider`, `visibility`, `ride_source`, `point_kind`, `duration_format`, and `waypoint_role`—the 17 roles, which must stay in sync with `src/maps/roles.ts`. `duration_format` has the same requirement against `DURATION_FORMATS` in `src/maps/duration.ts`.
 
 **`rides.size_bytes` is generated as the sum of every byte column.** A column missing from that expression leaks quota on every delete, silently and permanently, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete.
 

@@ -19,6 +19,7 @@ import {
 } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
+import { toDurationFormat, type DurationFormat } from '../maps/duration'
 import { DAY_COLORS } from '../maps/palette'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
@@ -332,28 +333,47 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | 
   return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
 }
 
-// The public starting point, sent to every builder page rather than only the
-// new-ride one: an existing ride can be made public at any time, and that is
-// exactly when the swap is offered.
+// Everything the builder needs off the rider's profile that is NOT the home
+// seed, in one read. Two things travel together here because they come off the
+// same row and the alternative was two round trips on the app's busiest page;
+// they are otherwise unrelated and the comments below are per field.
 //
-// Unlike homeSeed this is not gated on a preference — it is not seeding
-// anything, only standing by in case a home-started ride is about to be shared.
+//   publicStart — the public starting point, sent to every builder page rather
+//   than only the new-ride one: an existing ride can be made public at any time,
+//   and that is exactly when the swap is offered. Unlike homeSeed it is not
+//   gated on a preference — it is not seeding anything, only standing by in case
+//   a home-started ride is about to be shared.
+//
+//   durationFormat — how the stop duration field reads. Defaulted through
+//   toDurationFormat rather than trusted, because a rider with no profile row at
+//   all gets undefined here and every reader has to agree on what that means.
 type PublicStart = { lat: number; lng: number; label: string }
+type BuilderPrefs = { publicStart: PublicStart | null; durationFormat: DurationFormat }
 
-async function publicStart(userId: number): Promise<PublicStart | null> {
+async function builderPrefs(userId: number): Promise<BuilderPrefs> {
   const [p] = await db
-    .select({ lat: userProfiles.startLat, lng: userProfiles.startLng, label: userProfiles.startLabel })
+    .select({
+      lat: userProfiles.startLat,
+      lng: userProfiles.startLng,
+      label: userProfiles.startLabel,
+      durationFormat: userProfiles.durationFormat,
+    })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
     .limit(1)
-  if (p?.lat == null || p?.lng == null) return null
-  return { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' }
+  return {
+    publicStart:
+      p?.lat == null || p?.lng == null
+        ? null
+        : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
+    durationFormat: toDurationFormat(p?.durationFormat),
+  }
 }
 
 builderRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
-  const [home, start] = await Promise.all([homeSeed(user.id), publicStart(user.id)])
-  return c.html(builderHtml(null, user, home, start))
+  const [home, prefs] = await Promise.all([homeSeed(user.id), builderPrefs(user.id)])
+  return c.html(builderHtml(null, user, home, prefs))
 })
 
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -363,14 +383,14 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // Same predicate the viewer's edit button reads, so the button and this gate
   // cannot drift into offering an action that is then refused.
   if (!canEditRide(ride, user)) return c.text('Imported rides are not editable yet', 409)
-  return c.html(builderHtml(ride.id, user, null, await publicStart(user.id)))
+  return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id)))
 })
 
 function builderHtml(
   rideId: number | null,
   user: UserRow,
   home: { lat: number; lng: number } | null,
-  publicStart: PublicStart | null,
+  prefs: BuilderPrefs,
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
@@ -467,7 +487,7 @@ function builderHtml(
             <ul id="search-results" hidden></ul>
           </div>
 
-          <ol class="point-list" id="stop-list"></ol>
+          <ol class="point-list" id="stop-list" data-duration-format="${prefs.durationFormat}"></ol>
         </div>
 
         <div class="builder-actions">
@@ -541,7 +561,8 @@ function builderHtml(
       dayColors: DAY_COLORS,
       rideId,
       home,
-      publicStart,
+      publicStart: prefs.publicStart,
+      durationFormat: prefs.durationFormat,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but
@@ -559,6 +580,7 @@ function builderHtml(
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
+  <script src="${asset('/js/duration.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/builder-history.js')}" defer></script>
   <script src="${asset('/js/route-shape.js')}" defer></script>

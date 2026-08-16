@@ -1,6 +1,81 @@
 @use "sass:color";
 @use "tokens" as *;
 
+// A settings section. Same shape as .gtfo below but without its border, because
+// GTFO is a boxed-off danger area and an ordinary preference is not — boxing
+// every section would make the page read as a run of warnings.
+.setting {
+  margin-top: 2.5rem;
+  max-width: 60ch;
+
+  h2 {
+    margin-bottom: 0.5rem;
+  }
+}
+
+// A radio group drawn as a stack of rows rather than as a form: each choice
+// carries its own worked example, because the labels alone ("Hours", "Minutes")
+// do not tell a rider what they are about to see in the field. The example is
+// the actual output of the formatter, not a string typed here, so it cannot go
+// stale — see DURATION_FORMAT_CHOICES in src/maps/duration.ts.
+.choice-set {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  cursor: pointer;
+
+  + .choice {
+    margin-top: 0.4rem;
+  }
+
+  &:hover {
+    border-color: $brand;
+  }
+
+  // The example sits under the label rather than beside it, in the second
+  // column, so the three labels stay in one vertical line and can be read as a
+  // list. Spanning it back under the radio would put it under the dot instead.
+  .choice-example {
+    grid-column: 2;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+
+  &:has(input:checked) {
+    border-color: $brand;
+    background: rgba($brand, 0.06);
+  }
+
+  // The label is the whole row, so the focus ring has to be too — the radio
+  // itself is a 13px dot in the corner of it and a ring around only that reads
+  // as nothing at all.
+  &:has(input:focus-visible) {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+}
+
+.setting-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.setting-note {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
 // GTFO — the account exits on /settings.
 //
 // One row per action: what it does on the left, the button on the right. The
