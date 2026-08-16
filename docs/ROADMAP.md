@@ -48,9 +48,35 @@ Three issues carry the old vocabulary in their **titles**, which is a separate e
 - **[#23](https://github.com/feralcreative/routeloop/issues/23) "Elevation and grade profile per route"**—should be "per day", matching the row above.
 - **[#70](https://github.com/feralcreative/routeloop/issues/70) "Never drop tracks on import; land them all as routes"**—closed, but the title is the clearest surviving statement of the old model.
 
+## The road to beta
+
+**Stated 2026-08-16, and it outranks the tiers below until the beta is running.** The P0–P3 labels say which _issue_ is next; this says which _phase_ the work is in. Where they disagree, this wins, and the disagreement is worth writing down rather than quietly resolving.
+
+The goal is an MVP a handful of friends can actually test. **The cohort is the constraint:** it runs from web developers through hobby coders to, in Ziad's words, "total luddites who just like to ride." That range is the reason for the order.
+
+1. **The builder panel and the mapping tools.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; what remains is the rest of P1—**including saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)), both confirmed in scope on 2026-08-16**. A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback.
+2. **Import, export and send-to-device.** A tester handed a blank canvas forms no useful opinion. Handed their own familiar routes, the beta becomes an exercise in _using_ the app rather than _learning_ it—which is the only way to find out whether the end-to-end experience actually works. Items 9, 21, 22 and 23, and note that **[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX flavors is literally the "send to device" half** and is the one unshipped piece of item 9. `docs/myrouteapp-formats.md` is the research behind it. **Noob Mode (item 25) rides along here**, decided 2026-08-16: the least technical end of the cohort is exactly who it is for, and first contact is when it pays off—shipping it afterwards means the riders who needed it most already formed their impression without it.
+3. **The feedback sprint, live before the first tester signs in.** Decided 2026-08-16, and the ordering is a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
+
+**Rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is _not_ a beta blocker. Reversed 2026-08-16, hours after being made one, because the argument for it was factually wrong.**
+
+The case was "every anonymous view of a shared ride is a billable Maps load, so unbounded spend is a beta failure that is hard to walk back." **Spend is not unbounded**: `maps-backend/billable_default` has been capped at **500 map loads a day** since 2026-08-02, verified as an override rather than a default. The failure mode is therefore a map that stops drawing, not a bill—an availability problem, recoverable in a day, and nothing like the risk described. At the stated beta scale—a few friends, dozens of shares, scores at the very most—500 a day is generous.
+
+**What the cap does surface is a real and different problem: it is now shared three ways.** The browser key gained `rollchart.app` in the 2026-08-16 referrer consolidation, dev traffic hits this same project by design (the caps were deliberately set above the free-tier break-even so a runaway does not also stop you working), and production shares the same 500. A busy day on rollchart plus a working day on localhost plus a handful of shared rides is a more plausible way to exhaust it than any number of beta testers—and during a beta, a dead map is worse than a small bill.
+
+So the work that matters here is **visibility, not throttling**. **Decided 2026-08-16: add a quota-usage alert at roughly 80% of the 500/day map-load cap, and leave the cap and the shared key as they are.** One console setting, no code, and it produces real numbers on what a beta actually consumes—which is the input needed to decide later whether to raise the cap or split rollchart onto its own key. Raising the ceiling or separating the keys now would both be guesses made before any usage data exists.
+
+#16 keeps its P1 label on its own long-standing argument for when sharing goes wide; it simply is not what stands between here and a few friends testing the app.
+
+**Two things follow from the scope as confirmed.**
+
+**Nothing was deferred past the beta, so this is a running order, not a filter.** Every phase above has to ship before testers arrive. Worth re-reading as the date approaches—if the beta needs to happen sooner than the list allows, something here moves, and it is better to choose which than to discover it.
+
+**Rich stop details drags a schema fix in with it, and that fix reaches beyond the builder.** Item 16's ID-churn note is the governing text: the `PUT` deletes and re-inserts every day and point, so identifiers change on every save, and that is safe today only because nothing references a point across one. **#15 is the first feature that would.** Fixing it means sending ids in the payload and diffing server-side, which rewrites `insertRideGraph`, `ridePayload` and `loadRidePayload`—and `insertRideGraph` is shared with the native JSON import path, so this lands on phase 2's territory as well. Read that note before starting #15, not after.
+
 ## Priorities
 
-Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. **Re-scoped 2026-08-15**—the tiers below mean something different than they did, so an issue's label is only as good as the last sweep. See "What changed, and why" underneath the table.
+Every open issue carries a **P0–P3** label. The labels are the authority on which issue to pick up within a phase; the item numbers below are stable identifiers, not an order. **Re-scoped 2026-08-15**—the tiers below mean something different than they did, so an issue's label is only as good as the last sweep. See "What changed, and why" underneath the table.
 
 <!-- col-widths: 12% 88% -->
 
@@ -762,6 +788,52 @@ Two ways out, and the second is probably right:
 **Touches.** `.env` and the deploy environment, `src/routes/builder.ts` (the gate), `public/js/builder.js` and `src/routes/builder.ts`'s page markup (only under option 1), `src/content/privacy.html`, `docs/api.md`.
 
 **Status.** planned—raised 2026-08-16, when the question "does Turnstile set a cookie" turned up a fully-built feature nobody had switched on. Blocked on nothing except the builder decision above.
+
+### 25. Noob Mode
+
+**Goal.** Replace the browser's native tooltips with larger, faster ones that actually explain the app. **On by default for everyone, off when the rider says so, and never off on its own.** The native tooltip's text becomes the tooltip's **headline**; under it goes a sentence or two saying what the thing is and why a rider would touch it. The effect should be a guided first pass through the app rather than a help page nobody opens.
+
+**The surface is 32 strings, and that is the good news.** Measured 2026-08-16: 19 `title` attributes in `public/js/` and 13 in `src/`. Fifteen of the nineteen are in `builder.js`, so the builder is very nearly the whole feature.
+
+**But `title` is doing two different jobs here, and only one of them is a tooltip.** Some are **labels for controls**—"Add a day", "Reverse this day—re-routes every leg", "Drag to reorder, or focus and use the arrow keys", "What a map click adds". Those are exactly what this feature is for. The rest are **overflow for dynamic content**—`title="${esc(t.note)}"` shows a stop's note, and the day-label, role and twistiness titles all show data. Those must be left alone: a rider hovering a truncated note wants the note, not a paragraph explaining what notes are. **Filter to the static, authored ones before counting the work**; the real corpus is closer to twenty.
+
+**Storage has a trap in it, even now that the rule is simply "on until switched off".** `user_profiles.duration_format` is the precedent for a single-column preference with its own POST, defaulted rather than nullable so no reader has to interpret a null. Copying that shape lands wrong in one specific way: **a rider may have no `user_profiles` row at all**—which is why `/settings/duration-format` upserts rather than updates—and a rider with no row is precisely the noob this feature exists for. A `.default(true)` cannot help someone who has no row to hold it. So the resolve is "explicit stored value if there is one, otherwise **on**", written as a helper the way `toDurationFormat()` is, rather than left to the column default and assumed.
+
+**Work.**
+
+- [ ] One source of truth for tooltip text. Move the authored strings into a module keyed by control, holding `{ headline, body }`, and have a single tooltip layer render either a native `title` (mode off) or the rich tooltip (mode on). **Do not leave `title` in the markup alongside a custom tooltip**—both will show, and the native one will show late and underneath.
+- [ ] The tooltip layer itself: `position: fixed` so it escapes the builder panel's scroll, the same reason `#search-results` is fixed. It is an overlay, so item 16's rule that nothing changes size as its value changes is satisfied by construction—but only if it never pushes layout.
+- [ ] Write the twenty explanations. This is the bulk of the work and it is a **copy** job, not an engineering one—`docs/ops/language-style-guide.md` governs, and holding them in one module rather than scattered through markup is what lets them be read and edited as a body of text.
+- [ ] The `/prefs` switch, and a resolve helper that answers **on** for a rider with no profile row rather than trusting the column default.
+- [ ] **Accessibility, which is where a custom tooltip usually goes wrong.** A native `title` is announced by assistive tech for free; a `<div>` is not. Wire `aria-describedby` from the control to the tooltip, and meet WCAG 1.4.13: dismissible with Escape, hoverable so a pointer can move into it without it vanishing, and persistent rather than on a timer.
+- [ ] **"Faster" needs to mean a shorter intent delay, not zero.** Native `title` waits about a second, which is genuinely too slow. Zero produces tooltips strobing across the screen as the pointer crosses a toolbar—and the builder's action row is a line of adjacent icon buttons, which is the worst case for it. Pick a delay, then reduce it while dragging the pointer along that row.
+
+**Decided 2026-08-16: nothing turns it off but the rider.** No expiry window, no ride count, no derived default from account age. The original shape was "on for a TBD time after signup", and dropping the timer removes the timestamp dependency, the resolve-time arithmetic, and the hand-off moment where a rider who had come to rely on the tooltips would find them gone. Time was a weak proxy anyway—a rider who plans one ride and returns three months later is still new on day 91—and rides-created, the better proxy, still needs a threshold nobody can defend. "On until you say otherwise" is both the simplest to build and the hardest to be wrong about. The consequence to keep in view: **experienced riders now meet this feature too**, so the switch has to be easy to find and the tooltips must not be irritating to anyone who has not yet found it. That raises the bar on the delay behavior below rather than lowering it.
+
+**Decided 2026-08-16: desktop first, phones explicitly deferred.** Native `title` never fires on touch, so there are no tooltips on a phone today and this would be net-new interaction design—long-press, or an info target on every labelled control—on the layout with the least room for one. It is a separate problem and it overlaps item 15's on-the-road interface. Deferred, not dropped: the copy module this builds is exactly what a phone treatment would consume later, so nothing here needs redoing.
+
+**Touches.** `src/db/schema.ts` and a migration, `src/routes/prefs.tsx`, a new tooltip-copy module plus a client tooltip layer in `public/js/`, `public/js/builder.js` and `public/js/viewer.js` (where 19 of the 32 titles live), `src/views/layout.tsx`, `style/`, `docs/ops/copy-inventory.md`.
+
+**Status.** planned—raised 2026-08-16, and placed in **phase 2 of the road to beta** the same day: it ships with import/export, before testers arrive, because the least technical end of the cohort is who it exists for. Note `/prefs` is accumulating: the duration format shipped, item 20 adds two radio groups, and this adds a switch. Item 22's width and grouping pass should be drawn against all four rather than against what is on the page today.
+
+### 26. Rider feedback: reports, ideas and the public board
+
+**Goal.** Give a beta tester somewhere to say "this broke just now" and "I wish it did this", and give the owner a queue to triage it. Phase 3 of the road to beta, and the thing that closes the loop from testers to a release candidate.
+
+**The detail already exists, and it is not in this repo.** A full 437-line design lives at `_PLANS/plan-260815-rider-feedback.md`, written 2026-08-15. **`_PLANS` is git-ignored** (`.gitignore:265`), so that file is on Ziad's machine and nowhere else—which is why this item exists at all. Without an entry here the work is invisible to the priority system and to anyone reading the repo.
+
+What that plan settles, in brief, so this entry stands alone if the file is ever lost:
+
+- **Build rather than buy.** Featurebase and Fider were evaluated and rejected—SSO priced at $59/seat/mo, single boards, site-wide moderation toggles, and a rider bounced to a subdomain that is not this app. The app already has Google auth, sessions, an owner email, a mailer, storage and an admin surface, so a signed-in rider submits in one tap with no second account. That is the argument.
+- **The audience shapes every screen.** Riders on phones, often outdoors, who do not know what a console is and will not write reproduction steps. The intake reads like a person asking what happened and infers the rest.
+- **Vocabulary, chosen to stay clear of `ride > day > leg > stop/POI`.** A **report** (`bug`, `idea` or `question`) has a moderation **state** and a rider-facing **status**; a **want** is a vote, and the button says "I want this". The **board** is public at `/board`, the **queue** is the owner's at `/admin/feedback`.
+- **It follows the house rule-from-query split**—`feedback/policy.ts` for pure logic that Vitest can drive with no Postgres, `feedback/service.ts` for anything touching the database—matching `invites/`, `survey/` and `stats/`.
+
+**Work.** Follow the plan file; it carries phased steps and marked decision gates. Do not restate them here—two copies of a 437-line spec will drift.
+
+**Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
+
+**Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
 
 ## Idea backlog (unscheduled)
 
