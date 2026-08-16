@@ -384,6 +384,11 @@ html.map-page:has(#info-panel.collapsed) {
   .panel-exit {
     font-size: 1.1rem;
     line-height: 1;
+    // Black rather than the $neutral-43 it shares with .collapse-toggle. The X
+    // is drawn by a mask painting currentColor, so this is what colors the
+    // glyph. Later in source than the shared rule at equal specificity, so it
+    // wins without !important, and the $kml hover below still overrides it.
+    color: $black;
 
     &:hover {
       background-color: rgba($kml, 0.12);
