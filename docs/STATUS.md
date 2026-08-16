@@ -160,7 +160,7 @@ Dropping either would have failed **silently**: the files still import, just str
 
 **Not done, and not scriptable from the repo:**
 
-1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones _before_ the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
+1. ~~**The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones _before_ the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine.~~ **Done—and superseded 2026-08-16**, when the list was consolidated to five wildcard patterns covering rollchart, routeloop and tankbag plus the two local origins. See "Console work completed 2026-07-27" below for the current command and for the apex-domain check that consolidation still needs. The OAuth redirect URIs are a separate list and are **not** covered by that change.
 2. **`CLOUDFLARE_ZONE_ID`** in `.env` still points at the tankbag.app zone. The purge failure is non-fatal, so a wrong zone means stale assets behind a green deploy.
 3. **The infrastructure rename needs a data migration.** `PROJECT_NAME`, the container/image/network names and the Postgres role and database all move to `routeloop`. The deploy directory follows `$DOMAIN` and carries the bind-mounted `data/storage` with it; the named volume follows `$PROJECT_NAME` and does not follow a `mv`. Back up first, bring the old stack down from the old directory by hand (the deploy's own `down` runs in the new one and cannot see it), and do not trust the deploy's verification—the origin curl is a warning only and the container check passes against an empty database.
 4. **GCP console object names are left alone**, following the precedent set at the last rename. The project cannot be renamed in place and the keys are identified by uid.
@@ -316,6 +316,75 @@ The project behind the Maps keys is **`routeloop-503503`** (display name `routel
     --allowed-referrers="https://tankbag.app/*,https://www.tankbag.app/*,https://stage.tankbag.app/*,https://routeloop.app/*,https://www.routeloop.app/*,https://stage.routeloop.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
   ```
 
+  **Consolidated 2026-08-16.** Ten explicit hosts became five patterns, with subdomain wildcards replacing the per-host entries:
+
+  ```bash
+  gcloud services api-keys update 53e9a638-bafb-4604-9346-282dd8c25d80 \
+    --project=tankbag \
+    --allowed-referrers="https://*.rollchart.app/*,https://*.routeloop.app/*,https://*.tankbag.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
+  ```
+
+  Two things this changed that are worth knowing before the next person reads the list.
+
+  **`rollchart.app` is on this key now.** It was not in any earlier version of the allow-list and is not mentioned anywhere else in this document. The browser key is therefore shared with a second app, so its quota, its billing and any future lockdown are no longer a routeloop-only concern.
+
+  **`https://*.domain/*` does NOT cover the bare apex, and this consolidation is an outage waiting to land.** Established 2026-08-16 after a first round of testing reached the opposite conclusion and was wrong.
+
+  **Google documents the answer plainly.** [Adding restrictions to API keys](https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys) says allowing a whole site takes **two** entries, not one: "URL for the domain, without a subdomain, and with a wildcard for the path. For example: `example.com/*`" **and** "A second URL that includes a wildcard for the subdomain and a wildcard for the path. For example: `*.example.com/*`". Note both examples are written **without a scheme**—which matters, because the console refuses `https://rollchart.app/*` as a duplicate of `https://*.rollchart.app/*` while the documented scheme-less pair is the configuration Google prescribes.
+
+  **How the first test round produced a false pass.** These four lines were read as proof the wildcard covered the apex:
+
+  ```text
+  https://evil.example.com/        BLOCKED
+  https://routeloop.app/           ALLOWED
+  https://www.routeloop.app/       ALLOWED
+  https://tankbag.app/             ALLOWED
+  http://localhost:6686/           ALLOWED
+  ```
+
+  Every one of those hosts was an explicit entry in the **pre-consolidation** list, so the run is equally consistent with the old rules still being served—and the discriminating run showed exactly that:
+
+  ```text
+  https://evil.example.com/          BLOCKED
+  https://anything.routeloop.app/    BLOCKED   <- must be ALLOWED under *.routeloop.app/*
+  https://www.rollchart.app/         BLOCKED   <- must be ALLOWED under *.rollchart.app/*
+  https://routeloop.app/             ALLOWED   <- only the OLD explicit entry grants this
+  ```
+
+  The wildcards are not being enforced yet. **When they are, the apex loses its explicit grant and goes dark**—`RefererNotAllowedMapError` on the primary domain, which this section already records happening twice.
+
+  **The lesson is about the control, not the wildcard.** `evil.example.com` proves *a* restriction is live; it can never prove *which* list is live, because it was absent from every version. Only a host the new rules allow and the old ones did not can do that—`https://anything.routeloop.app/`. A verification run that omits such a host cannot distinguish "the change worked" from "the change has not landed", and on 2026-08-16 that gap produced a confidently wrong all-clear.
+
+  **Fixed and verified 2026-08-16.** The list is now Google's two-entry recipe per domain, scheme-less, plus the two local origins:
+
+  ```bash
+  gcloud services api-keys update 53e9a638-bafb-4604-9346-282dd8c25d80 \
+    --project=tankbag \
+    --allowed-referrers="rollchart.app/*,*.rollchart.app/*,routeloop.app/*,*.routeloop.app/*,tankbag.app/*,*.tankbag.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
+  ```
+
+  ```text
+  https://evil.example.com/          BLOCKED
+  https://anything.routeloop.app/    ALLOWED   <- was BLOCKED minutes earlier; dates the list as current
+  https://www.rollchart.app/         ALLOWED
+  https://routeloop.app/             ALLOWED
+  https://www.routeloop.app/         ALLOWED
+  https://tankbag.app/               ALLOWED
+  https://stage.tankbag.app/         ALLOWED
+  http://localhost:6686/             ALLOWED
+  ```
+
+  The `anything.routeloop.app` line is what makes this run conclusive where the earlier one was not: it was BLOCKED under the old list and ALLOWED under this one, so it proves *which* configuration answered.
+
+  **The scheme-less form costs plaintext coverage, and here is the measured size of it:**
+
+  ```text
+  http://routeloop.app/              ALLOWED
+  http://www.tankbag.app/            ALLOWED
+  ```
+
+  Every production host now accepts an `http://` referrer. That is inherent to the documented recipe—the console will not accept a scheme-qualified apex beside a scheme-qualified wildcard, so there is no way to get apex coverage *and* keep the entries HTTPS-only. It is worth knowing rather than worth fixing: a `Referer` header is trivially forged outside a browser, so this restriction is a deterrent against casual key reuse rather than access control, and the app itself is HTTPS-only regardless. If it ever needs tightening, the lever is a scheme check somewhere real, not this list.
+
 **The NAS and the workstation share one egress IP, `69.209.26.137`.** They are on the same residential line. That is convenient now and is exactly the fragility to watch: an ISP lease change silently breaks server-side Routes and Geocoding while the browser key keeps working, so it presents as a routing bug rather than a credentials one.
 
 ### Re-verifying the keys
@@ -324,10 +393,16 @@ Run this when routing starts failing for no visible reason, or after any change 
 
 Both domains are listed on purpose and both must now report ALLOWED—confirmed 2026-07-29 after the allow-list was updated. `evil.example.com` must report BLOCKED in every case.
 
+**Every run needs a host that only the CURRENT list allows, or it cannot tell "verified" from "not yet propagated".** `evil.example.com` is a control for "is any restriction live", nothing more—it has been absent from every version of the list, so it reports BLOCKED whichever one is being served. On 2026-08-16 a run built only from long-standing hosts returned all-ALLOWED and was read as a clean bill of health for a change that had not taken effect at all. Add `https://anything.routeloop.app/`: it is BLOCKED under the old explicit list and ALLOWED only under the wildcards, so it dates the configuration being measured.
+
+**List each domain as apex and `www` both.** Google's documentation is explicit that `*.domain/*` does not cover the naked apex and that a whole site needs two entries, so `www.routeloop.app` ALLOWED beside `routeloop.app` BLOCKED is a live failure mode rather than a hypothetical—see the console-work section above.
+
+The path in the `cd` above was stale until 2026-08-16; it pointed at the pre-rename `tankbag` checkout, so anyone copy-pasting this block failed on line one.
+
 ```bash
-cd /Users/ziad/www/moto/tankbag
+cd /Users/ziad/www/moto/routeloop
 KEY=$(grep -E '^GMAPS_KEY=' .env | cut -d= -f2-)
-for ref in "https://evil.example.com/" "https://tankbag.app/" "https://routeloop.app/" "http://localhost:6686/"; do
+for ref in "https://evil.example.com/" "https://tankbag.app/" "https://www.tankbag.app/" "https://routeloop.app/" "https://www.routeloop.app/" "http://localhost:6686/"; do
   printf '%-30s ' "$ref"
   curl -s -X POST "https://places.googleapis.com/v1/places:autocomplete" \
     -H "Content-Type: application/json" -H "X-Goog-Api-Key: $KEY" -H "Referer: $ref" \
