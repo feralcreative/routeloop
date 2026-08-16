@@ -808,12 +808,17 @@
     if (!panel || !toggle) return;
     toggle.addEventListener("click", () => {
       panel.classList.toggle("collapsed");
-      const img = toggle.querySelector("img");
       const collapsed = panel.classList.contains("collapsed");
-      if (img) {
-        img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
-        img.alt = collapsed ? "Expand" : "Collapse";
-      }
+      // The button now carries aria-expanded, so it has to be kept true. The
+      // markup ships it as "true" and this is the only thing that flips it —
+      // a stale attribute is worse than none, because it states the opposite
+      // of what a screen reader user is looking at.
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
+      // The image is decorative — alt="" — because the button's own label says
+      // what it does. Naming it here too would announce the action twice.
+      const img = toggle.querySelector("img");
+      if (img) img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
     });
   }
 

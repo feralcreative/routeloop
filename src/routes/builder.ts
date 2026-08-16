@@ -404,7 +404,6 @@ function builderHtml(
   //   appeared would shove the status beside it, which is the exact jump this
   //   whole epic is about.
   const contents = `        <div class="panel-band panel-band--ride">
-          <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
             <select id="ride-visibility" name="visibility" title="Visibility">
@@ -435,8 +434,6 @@ function builderHtml(
                    aria-label="Move through the ride in time" title="Drag to move through the ride">
             <div class="time-readout" id="time-readout"></div>
           </div>
-
-          <div class="totals" id="totals"></div>
         </div>
 
         <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
@@ -475,8 +472,8 @@ function builderHtml(
         </div>
 
         <div class="builder-actions">
-          <button id="undo" class="btn-quiet" type="button" disabled title="Nothing to undo">Undo</button>
-          <button id="redo" class="btn-quiet" type="button" disabled title="Nothing to redo">Redo</button>
+          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo">↶</button>
+          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo">↷</button>
           <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
@@ -490,6 +487,28 @@ function builderHtml(
           <button id="recover-no" class="linkbtn" type="button">Discard</button>
         </div>`
 
+  // THE RIDE'S NAME IS THE HEADING. It used to say "Edit ride" on the most
+  // prominent line in the panel and put the actual name in an input below it,
+  // spending the largest type in the app on a label the rider already knew — and
+  // on a new ride there was no heading at all, so a collapsed panel showed
+  // nothing. The viewer has always titled itself with the ride's name; this is
+  // the builder catching up, with the difference that its copy is editable.
+  //
+  // The input IS the heading rather than something a pencil reveals. A reveal
+  // would be a second mode and a layout jump, which is the exact thing item 16
+  // exists to remove; instead the field is styled as the heading, carries no
+  // border until it is hovered or focused, and shows the pencil as an affordance.
+  // Nothing moves when it is edited.
+  //
+  // The summary line follows it, out of the band below both sliders where it
+  // used to sit. Both are outside .panel-contents-wrapper, so they stay put while
+  // the stop list scrolls — renderTotals() writes #totals by id and did not care
+  // that it moved.
+  const titleHtml = `<input id="ride-title" name="title" type="text" maxlength="150"
+             placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off"
+             aria-label="Ride name" title="Ride name—click to edit">
+          <div class="totals" id="totals"></div>`
+
   return page({
     title: rideId ? 'Edit ride' : 'Plan a ride',
     user,
@@ -498,7 +517,9 @@ function builderHtml(
     navKey: 'builder',
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
-      title: rideId ? 'Edit ride' : undefined,
+      titleHtml,
+      exitHref: '/rides',
+      exitLabel: 'Leave the builder and go to your rides',
       extraClass: 'builder-panel',
       contents,
     })}`,

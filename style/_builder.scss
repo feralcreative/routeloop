@@ -16,6 +16,72 @@
     box-sizing: border-box;
   }
 
+  // THE RIDE NAME IS THE HEADING, and this input is the heading rather than
+  // something a pencil swaps in. A reveal would be a second mode and a layout
+  // jump, which is the thing the panel redesign exists to remove; so the field
+  // is drawn as the heading and only picks up a border when it is hovered or
+  // focused. The pencil is a hint, not a button.
+  //
+  // The selector fights the generic input rule above, which gives every text
+  // input a box — hence naming the id.
+  .panel-title {
+    display: block;
+    margin: 0 2.6em 0 0;
+    font-size: 1.5rem;
+
+    #ride-title {
+      width: 100%;
+      padding: 0.05em 1.5em 0.05em 0.2em;
+      margin-left: -0.2em;
+      font: inherit;
+      font-weight: 500;
+      color: $text;
+      background: transparent no-repeat right 0.25em center / 0.75em;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      text-overflow: ellipsis;
+
+      &::placeholder {
+        color: $neutral-63;
+        font-weight: 300;
+      }
+
+      // A pencil, drawn rather than fetched: it is one glyph at one size in one
+      // place, and an <img> beside the field would have to be positioned over it
+      // anyway. currentColor is not available inside a data URI, so the stroke is
+      // the muted grey the hint is meant to be.
+      &:hover,
+      &:focus {
+        border-color: $grey;
+        background-color: $white;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+      }
+
+      &:focus {
+        outline: 2px solid $brand;
+        outline-offset: 1px;
+      }
+    }
+  }
+
+  // Collapsed, the heading is a label rather than a field. There is nothing
+  // around it to give an edit context, and clicking a strip that says what is
+  // behind it should expand the panel, not put a cursor in it — so the pencil,
+  // the hover border and the pointer all go.
+  //
+  // The width is deliberately left alone. It looks like it needs pinning and it
+  // does not: `#info-panel .panel-title` carries `transition: font-size 0.4s`,
+  // so anything measured in the same frame as the class change reads the
+  // pre-transition size and suggests a bug that is not there. Measured after it
+  // settles, the strip is 246px at every name length. **Wait out that transition
+  // before believing any measurement of the collapsed panel.**
+  &.collapsed .panel-title #ride-title {
+    padding-right: 0.2em;
+    background-image: none;
+    border-color: transparent;
+    pointer-events: none;
+  }
+
   // Three bands, one per scope: the ride, the trip across its days, and the one
   // day being edited. The panel used to be a flat run of divs where nothing said
   // whether a control changed one day or everything.
@@ -422,10 +488,18 @@
     }
   }
 
+  // Directly under the ride name now, outside .panel-contents-wrapper, so it
+  // stays put while the stop list scrolls. It used to sit in the band below both
+  // sliders, three controls away from the thing it summarizes.
+  //
+  // min-height reserves both lines whether or not the second one is there — the
+  // day line only appears on a multi-day ride, and letting it push the panel is
+  // the same variable-readout problem the save status had.
   .totals {
     font-weight: 600;
-    margin-bottom: 0.5em;
-    min-height: 1em;
+    margin: 0.15em 2.6em 0.6em 0;
+    min-height: 2.6em;
+    font-size: 0.85rem;
     // Two lines once there are several days: the trip total leads, because on a
     // multi-day ride that is the number being planned against, and the focused
     // day's own figures sit under it.
@@ -576,11 +650,62 @@
   // Save and Discard are gone — the builder autosaves — so what is left is
   // undo, redo and a readout. The `.btn` rule that used to live here went with
   // the Save button; it was scoped to this row and nothing else used it.
+  //
+  // STICKY, because this row used to fall off the bottom of the world. It was
+  // `position: static` at the end of a list that grows without limit, so on a
+  // seven-stop day Save sat 140px below the visible area and dropped further
+  // with every stop added — the controls a rider reaches for most were the ones
+  // furthest from reach. Sticking it to the bottom of the scroller costs the
+  // list nothing and means undo is always one click away.
+  //
+  // The background is opaque on purpose: content scrolls underneath it, and a
+  // translucent bar over moving text is unreadable.
   .builder-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
-    gap: 0.75em;
+    gap: 0.5em;
     margin-top: 0.9em;
+    padding: 0.5em 0;
+    background: $white;
+    border-top: 1px solid $grey;
+  }
+
+  // Undo and redo as glyphs. The pair was "Undo" and "Redo" beside "Save",
+  // "Discard changes" and a status line — 308px of controls in a 344px row,
+  // which wrapped to two lines at 47px tall. Losing two buttons to autosave and
+  // the words to icons brings the row back to one line with room to spare.
+  //
+  // The glyphs are U+21B6 and U+21B7, the standard undo/redo arrows, so no icon
+  // asset is involved. Each carries an aria-label, and the title attribute still
+  // names what will be undone — builder.js writes "Undo add stop" into it.
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1em;
+    height: 2.1em;
+    padding: 0;
+    font: inherit;
+    font-size: 1.05em;
+    line-height: 1;
+    color: $text;
+    background: none;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $brand;
+      color: $brand;
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
   }
 
   // FIXED FOOTPRINT, and that is the whole design. This readout was on the
