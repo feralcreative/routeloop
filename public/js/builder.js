@@ -755,12 +755,17 @@
 
   // --- Mutations ------------------------------------------------------------
 
-  function addStop(lng, lat, name) {
-    beginEdit("add stop");
-    const r = editIndex();
-    if (r == null) return noDayYet();
+  // `dayIndex` is optional and defaults to the active day, which is what a map
+  // click means — you clicked the map, not a day. The per-day search rows pass
+  // their own index explicitly: a row is unambiguous about which day it belongs
+  // to in a way the global search box never was, and that ambiguity is the
+  // reason the box is gone.
+  function addStop(lng, lat, name, dayIndex) {
+    const r = dayIndex == null ? editIndex() : dayIndex;
+    if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
+    beginEdit("add stop");
     day.stops.push({
       lat: +lat.toFixed(6),
       lng: +lng.toFixed(6),
@@ -772,17 +777,19 @@
     const n = day.stops.length;
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
-    renderList();
+    // renderDayList(r), not renderList(): renderList redraws the ACTIVE day, and
+    // a search row can add to a day that is not it.
+    renderDayList(r);
     refreshDerived();
     markDirty();
   }
 
-  function addPoi(lng, lat, name) {
-    beginEdit("add POI");
-    const r = editIndex();
-    if (r == null) return noDayYet();
+  function addPoi(lng, lat, name, dayIndex) {
+    const r = dayIndex == null ? editIndex() : dayIndex;
+    if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
+    beginEdit("add POI");
     // durationMin present from the start, matching a stop: blank means "rode
     // past", which is the common case, and the field has to exist for the row to
     // round-trip through save and reload.
@@ -795,7 +802,7 @@
       durationMin: null,
     });
     renderMarkers();
-    renderList();
+    renderDayList(r);
     markDirty();
   }
 
@@ -1687,14 +1694,48 @@
     if (!list) return;
     const day = state.days[r];
     if (!day) return;
-    if (day.stops.length === 0 && day.pois.length === 0) {
-      list.innerHTML = '<li class="empty-hint">Click the map or search to add your first stop.</li>';
-      return;
-    }
-    list.innerHTML = orderedRows(day)
-      .map((row) => pointRowHtml(row.kind, row.point, row.i, r))
-      .join("");
+    list.innerHTML =
+      orderedRows(day)
+        .map((row) => pointRowHtml(row.kind, row.point, row.i, r))
+        .join("") + addRowHtml(r, day);
     hydrateIcons(list);
+  }
+
+  // THE LAST ROW OF EVERY DAY IS A SEARCH FIELD, and it replaced a single
+  // "Search for a place…" box that sat above the whole day list.
+  //
+  // The box had to guess which day you meant, and it guessed the last one you
+  // touched. That is invisible until it is wrong: you scroll to day 4, type an
+  // address, and it lands on day 2 because day 2 held the last field you
+  // clicked in. Putting the field IN the day removes the guess — the row knows
+  // its own `data-day` and passes it to addStop/addPoi.
+  //
+  // Rendered on every day whether or not it has points, so it is also the empty
+  // state; the `.empty-hint` li it replaced said "click the map or search to
+  // add your first stop" while pointing at neither.
+  //
+  // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
+  // resolve a row to `state.days[day].stops[i]`. SortableJS is also told to
+  // leave it alone — see the filter option in initDragToReorder.
+  function addRowHtml(r, day) {
+    const full = day.stops.length >= MAX_STOPS;
+    return (
+      '<li class="add-row" data-day="' + r + '">' +
+      '<span class="add-row-mark" aria-hidden="true">+</span>' +
+      '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
+      ' placeholder="' + (full ? "Stop limit reached" : "Search, or click the map") + '"' +
+      (full ? " disabled" : "") +
+      ' aria-label="Add a place to ' + esc(dayLabel(r)) + '">' +
+      // The kind is chosen HERE rather than by the panel-wide + Stop / + POI
+      // pair, because that pair belongs to the map click and a searched address
+      // is a different gesture. Two radios rather than a select: there are two
+      // options and they are both one word.
+      '<span class="add-kind" role="group" aria-label="What to add">' +
+      '<label><input type="radio" name="add-kind-' + r + '" value="stop" checked><span>Stop</span></label>' +
+      '<label><input type="radio" name="add-kind-' + r + '" value="poi"><span>POI</span></label>' +
+      "</span>" +
+      "</li>"
+    );
   }
 
   // Kept under its old name for the ~15 callers that mean "redraw what I just
@@ -2027,7 +2068,12 @@
     // this for each, and Sortable leaves its own instance on the element.
     if (listEl._sortable) listEl._sortable.destroy();
     listEl._sortable = window.Sortable.create(listEl, {
+      // `draggable` already excludes the trailing .add-row — it is not a
+      // .point-row — but `filter` is what stops a drag STARTING on it, and
+      // without it a drop can be placed after it, putting a real row below the
+      // search field. The add row is always last.
       draggable: ".point-row",
+      filter: ".add-row",
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
@@ -2250,26 +2296,49 @@
     }
   }
 
+  // ONE DROPDOWN FOR EVERY ROW. There can be 31 search fields on screen and only
+  // one open list, so the results element is owned by the document and moved to
+  // whichever field is asking. A <ul> per row would put 31 empty dropdowns in
+  // the DOM for nothing — the same argument the row ⋮ menu makes for building
+  // on open. `results.dataset.day` remembers which day the open list is for, so
+  // a pick lands correctly even if the rows have been re-rendered since.
+  let resultsEl = null;
+  function searchResultsEl() {
+    if (resultsEl) return resultsEl;
+    resultsEl = document.createElement("ul");
+    resultsEl.id = "search-results";
+    resultsEl.hidden = true;
+    document.body.appendChild(resultsEl);
+    return resultsEl;
+  }
+
+  function hideSearchResults() {
+    if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
+  }
+
   function wireSearch() {
-    const input = $("search");
-    const results = $("search-results");
+    const host = $("day-list");
+    const results = searchResultsEl();
 
     // A fixed dropdown does not travel with the field, so anything that moves
-    // the field dismisses it rather than leaving it stranded. Scrolling the
-    // panel is the case that actually happens; the map page itself never
-    // scrolls, so a resize is the only other way the field moves.
+    // the field dismisses it rather than leaving it stranded. That matters more
+    // now than it did: the field is inside the panel's scroller rather than
+    // pinned above it.
     const wrapper = document.querySelector(".panel-contents-wrapper");
-    const dismiss = () => {
-      if (!results.hidden) results.hidden = true;
-    };
-    if (wrapper) wrapper.addEventListener("scroll", dismiss, { passive: true });
-    window.addEventListener("resize", dismiss);
+    if (wrapper) wrapper.addEventListener("scroll", hideSearchResults, { passive: true });
+    window.addEventListener("resize", hideSearchResults);
 
-    input.addEventListener("input", () => {
+    // Delegated on #day-list, because renderDays() replaces every one of these
+    // fields on any structural change. Binding per input would either be lost
+    // on the next render or leak a listener per render.
+    host.addEventListener("input", (e) => {
+      const input = e.target.closest(".add-search");
+      if (!input) return;
+      const day = Number(input.closest(".add-row").dataset.day);
       clearTimeout(searchTimer);
       const q = input.value.trim();
       if (q.length < 3) {
-        results.hidden = true;
+        hideSearchResults();
         return;
       }
       searchTimer = setTimeout(async () => {
@@ -2279,6 +2348,10 @@
         try {
           const hits = await searchPlaces(state.map, q);
           if (mine !== searchSeq) return;
+          // The rows may have been rebuilt out from under this response, in
+          // which case the field it was for no longer exists.
+          if (!input.isConnected) return;
+          results.dataset.day = String(day);
           results.innerHTML = hits
             .map(
               (h, i) =>
@@ -2295,11 +2368,29 @@
               const picked = await hits[Number(li.dataset.i)].resolve().catch(() => null);
               if (!picked) return toast("Could not locate that place", true);
               const [lng, lat] = picked.lngLat;
-              if (state.addMode === "poi") addPoi(lng, lat, picked.name);
-              else addStop(lng, lat, picked.name);
+              // Read the day off the open list rather than the closure: it is
+              // the same value, and taking it from one place means a stale
+              // closure can never put a stop on the wrong day.
+              const r = Number(results.dataset.day);
+              // The row's own radio, not the panel's + Stop / + POI pair. That
+              // pair belongs to the map click; a searched address is a separate
+              // gesture and deserves its own answer.
+              const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
+              const asPoi = kindEl && kindEl.value === "poi";
+              hideSearchResults();
+              // The day whose row was used becomes the active one, so a map
+              // click afterwards continues where the rider is working rather
+              // than wherever they last clicked.
+              setActive(r);
+              if (asPoi) addPoi(lng, lat, picked.name, r);
+              else addStop(lng, lat, picked.name, r);
               panTo(state.map, picked.lngLat, 11);
-              input.value = "";
-              results.hidden = true;
+              // The add above re-rendered the list, so this row is a new
+              // element. Put the cursor in its replacement: adding several
+              // stops in a row is the common case and should not need a click
+              // between each one.
+              const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
+              if (next) next.focus();
             });
           });
         } catch (e) {
@@ -2307,8 +2398,18 @@
         }
       }, 300);
     });
+
+    // Escape dismisses the suggestions without clearing the query — the rider
+    // may have meant to close the list, not to start over.
+    host.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && resultsEl && !resultsEl.hidden && e.target.closest(".add-search")) {
+        e.stopPropagation();
+        hideSearchResults();
+      }
+    });
+
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".search-wrap")) results.hidden = true;
+      if (!e.target.closest(".add-row") && !e.target.closest("#search-results")) hideSearchResults();
     });
   }
 

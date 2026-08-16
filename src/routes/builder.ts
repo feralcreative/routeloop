@@ -458,10 +458,16 @@ function builderHtml(
           </div>
         </div>
 
-        <div class="search-wrap">
-          <input id="search" name="search" type="text" placeholder="Search for a place…" autocomplete="off">
-          <ul id="search-results" hidden></ul>
-        </div>
+        <!-- THE SEARCH BOX THAT WAS HERE IS GONE, and its absence is the point.
+             One field above the day list had to guess which day a searched
+             address belonged to, and it guessed "whichever you touched last" —
+             invisible until it is wrong, which is the moment you scroll to day
+             4, type an address and watch it land on day 2.
+
+             Every day now ends in its own search row, built by addRowHtml() in
+             builder.js, which knows its day and says so. The results dropdown
+             is created once on demand and moved to whichever row is asking; it
+             is not in this markup because no row owns it. -->
 
         <!-- EVERY DAY, ALL THE TIME. This was one #day-band showing whichever day
              a slider at the bottom of the drawer had selected; the slider is gone

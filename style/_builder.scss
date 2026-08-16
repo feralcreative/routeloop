@@ -230,8 +230,7 @@
     textarea,
     .row-name,
     .day-time,
-    .day-times-note,
-    .empty-hint {
+    .day-times-note {
       color: $text;
     }
 
@@ -694,52 +693,84 @@
     }
   }
 
-  .search-wrap {
-    position: relative;
-    margin-bottom: 0.75em;
-    #search {
-      width: 100%;
-    }
-    // Fixed, not absolute, and positioned from JS — see placeResults() in
-    // builder.js. Absolute made this a descendant of the panel's scroll box, so
-    // the moment .panel-contents-wrapper gained overflow the dropdown was
-    // clipped at the panel's bottom edge: three visible rows out of eight, on
-    // the control used to add every stop. Fixed escapes the clip because nothing
-    // in the chain establishes a containing block for it.
-    //
-    // The cost is that JS owns left/top/width and has to keep them current,
-    // which is why the panel scrolling closes the dropdown rather than trying to
-    // track it.
-    #search-results {
-      position: fixed;
-      z-index: 20;
-      // JS sets width from the field's border box, so this has to measure the
-      // same way or the 1px border either side makes the list 2px wider.
-      box-sizing: border-box;
-      margin: 2px 0 0;
-      padding: 0;
-      list-style: none;
+  // THE LAST ROW OF EVERY DAY, where the single search box above the day list
+  // used to be. Built by addRowHtml() in builder.js; the box is gone because it
+  // had to guess which day a searched address belonged to.
+  //
+  // Shaped to line up with the .point-row above it rather than to stand out: it
+  // is the next row of the list, not a separate control. The dashed border is
+  // the only thing marking it as an empty slot.
+  .add-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.25em 0.3em;
+    border: 1px dashed color.adjust($grey, $lightness: -5%);
+    border-radius: 6px;
+    background: none;
+  }
+
+  // Sits where .row-drag does on a real row, so the fields below line up with
+  // the fields above rather than being shifted by the width of a grip.
+  .add-row-mark {
+    flex: 0 0 auto;
+    width: 14px;
+    text-align: center;
+    color: color.adjust($text, $lightness: 40%);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .add-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.9em;
+    padding: 0.3em 0.4em;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+
+    // No border until it is being used. A visible field per day would put 31
+    // boxes down the panel and make the list read as a form rather than as a
+    // route.
+    &:hover:not(:disabled),
+    &:focus {
+      border-color: $grey;
       background: $white;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px $panel-shadow;
-      max-height: 240px;
-      overflow-y: auto;
-      // Otherwise scrolling past the last result chains into the panel, and the
-      // panel scrolling is what closes this list.
-      overscroll-behavior: contain;
-      li {
-        padding: 0.45em 0.6em;
-        cursor: pointer;
-        &:hover {
-          background: rgba(0, 0, 0, 0.05);
-        }
-        .hit-ctx {
-          color: color.adjust($text, $lightness: 35%);
-          font-size: 0.85em;
-        }
-      }
     }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  // Stop or POI for THIS row, separate from the panel's + Stop / + POI pair,
+  // which decides what a map click adds. Hidden until the row is engaged: it is
+  // an answer to a question the rider has not asked until they start typing.
+  .add-kind {
+    display: none;
+    flex: 0 0 auto;
+    gap: 0.15em;
+    font-size: 0.7em;
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2em;
+      cursor: pointer;
+      color: color.adjust($text, $lightness: 20%);
+    }
+
+    input {
+      margin: 0;
+      accent-color: var(--day-color, $url);
+    }
+  }
+
+  .add-row:focus-within .add-kind {
+    display: inline-flex;
   }
 
   // Directly under the ride name now, outside .panel-contents-wrapper, so it
@@ -828,11 +859,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-
-    .empty-hint {
-      color: color.adjust($text, $lightness: 35%);
-      padding: 0.5em 0;
-    }
 
     .point-row {
       // The row menu is absolutely positioned against this, so opening it moves
@@ -1366,6 +1392,66 @@
 
     &.is-empty {
       visibility: hidden;
+    }
+  }
+}
+
+// The place-search dropdown. TOP LEVEL, NOT nested under .builder-panel, for
+// the same reason .day-drag-ghost below is not: builder.js appends this to
+// <body>, so a `.builder-panel #search-results` selector would never match it.
+// It moved out of the panel when the single search box became one row per day —
+// there are up to 31 fields and one list, owned by nobody in particular.
+//
+// Fixed, not absolute, and positioned from JS — see placeResults() in
+// builder.js. Absolute made it a descendant of the panel's scroll box, so the
+// moment .panel-contents-wrapper gained overflow the dropdown was clipped at the
+// panel's bottom edge: three visible rows out of eight, on the control used to
+// add every stop. Fixed escapes the clip because nothing in the chain
+// establishes a containing block for it.
+//
+// The cost is that JS owns left/top/width and has to keep them current, which is
+// why the panel scrolling closes the dropdown rather than trying to track it.
+#search-results {
+  position: fixed;
+  // ABOVE THE DRAWER, which is z-index 1000 (.floating-panel in _map.scss).
+  // This was 20 and correct while the list lived inside the panel — it only had
+  // to beat the panel's own children, and it shared the panel's stacking
+  // context. Appending it to <body> to serve 31 fields put it in competition
+  // with the panel itself, and 20 lost: the list was positioned, unhidden and
+  // painted underneath the drawer. Keep this above whatever .floating-panel is.
+  z-index: 1001;
+  // JS sets width from the field's border box, so this has to measure the same
+  // way or the 1px border either side makes the list 2px wider.
+  box-sizing: border-box;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px $panel-shadow;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 0.9em;
+  // Otherwise scrolling past the last result chains into the panel, and the
+  // panel scrolling is what closes this list.
+  overscroll-behavior: contain;
+
+  &[hidden] {
+    display: none;
+  }
+
+  li {
+    padding: 0.45em 0.6em;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .hit-ctx {
+      color: color.adjust($text, $lightness: 35%);
+      font-size: 0.85em;
     }
   }
 }
