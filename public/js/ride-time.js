@@ -46,6 +46,19 @@
 
   const dayStartS = (day) => (day.startAt ? Math.floor(new Date(day.startAt).getTime() / 1000) : null);
 
+  // A day that lost its alternate group. It is not on the schedule: two
+  // alternates for the same Thursday cover the same hours, and without this the
+  // timeline puts the rider on both at once and picks whichever comes first in
+  // the array.
+  //
+  // SKIPPED INSIDE THIS FILE, NEVER BY FILTERING THE ARRAY AT A CALL SITE, and
+  // the distinction is the whole reason it is here. `activeAtMoment` returns
+  // `dayIndex`, which both clients feed straight back into `state.days[i]`,
+  // `setLegHighlight(map, i, …)` and `setActive(i)` — those are indices into the
+  // FULL array. Hand it a filtered array and every index past the first ghost is
+  // off by one, silently, and the map highlights the wrong road.
+  const isLosingAlternate = (day) => day.altGroup != null && !day.altActive;
+
   // endAt is normally kept in step by the builder, but a day can carry a start
   // with no end (a stored row we deliberately do not overwrite), so the elapsed
   // figure is the fallback rather than treating the day as instantaneous.
@@ -63,6 +76,7 @@
     let from = null;
     let to = null;
     days.forEach((day) => {
+      if (isLosingAlternate(day)) return;
       const s = dayStartS(day);
       if (s == null) return;
       const e = dayEndS(day);
@@ -194,6 +208,8 @@
   function activeAtMoment(days, momentS, poiDistsM) {
     for (let d = 0; d < days.length; d++) {
       const day = days[d];
+      // `continue`, so `d` stays the index into the caller's own array.
+      if (isLosingAlternate(day)) continue;
       const start = dayStartS(day);
       if (start == null) continue;
       if (momentS < start || momentS > dayEndS(day)) continue;
@@ -222,6 +238,7 @@
     dayElapsedS,
     dayStartS,
     dayEndS,
+    isLosingAlternate,
     daySchedule,
     rideSpan,
     activeAt,

@@ -17,6 +17,7 @@
     removeRouteLayers,
     updateRouteTrack,
     setRouteDim,
+    setRouteGhost,
     setLegHighlight,
     clearLegHighlight,
     onRouteShapeDrag,
@@ -78,6 +79,13 @@
   const DUR = window.TBDuration;
   const durFormat = DUR.toFormat(window.TB.durationFormat);
 
+  // Alternates: the numbering, the active-day filter and the ride rollup. The
+  // builder is the only client that calls resolveAltGroups — it is the one
+  // editing days, and repairing locally is what keeps the panel, the map and
+  // the totals agreeing before the next save round trip. The server resolves
+  // again on save regardless, and its answer wins.
+  const ALT = window.TBAlt;
+
   const newDay = (color) => ({
     title: "",
     color: color || DAY_COLORS[0],
@@ -85,6 +93,12 @@
     endAt: null,
     // Session-only: see inferEndManual(). Never part of payload().
     endManual: false,
+    // Alternates. A new day is always a plain one — grouping is something a
+    // rider does to days that already exist. Both fields DO go in payload() and
+    // both come back in loadExisting(); see src/maps/alternates.ts for what
+    // they mean and why the group id is not stable across a save.
+    altGroup: null,
+    altActive: true,
     stops: [],
     pois: [],
     legs: [],
@@ -593,13 +607,21 @@
     if (!state.map) return;
     const a = activeNow();
     const lit = a ? a.dayIndex : focusedIndex();
-    state.days.forEach((_, r) => {
+    state.days.forEach((day, r) => {
       const dim = a ? r !== lit : lit !== null && r !== lit;
+      const ghost = day.altGroup != null && !day.altActive;
       setRouteDim(state.map, r, dim);
+      // Set every pass rather than once when a day is grouped: rebuildLayers()
+      // recreates the entry on every add, delete, reorder and recolour, and
+      // applyFocus is what runs after all of them.
+      setRouteGhost(state.map, r, ghost);
       const m = state.markers[r];
       if (!m) return;
       [...m.stops, ...m.pois].forEach(({ el }) => {
-        el.style.opacity = dim ? "0.35" : "";
+        // A ghost stays quiet even while it is the focused day — the rider
+        // clicked into it to edit it, which is precisely when they need to see
+        // it is the one that does not count.
+        el.style.opacity = ghost ? "0.25" : dim ? "0.35" : "";
       });
     });
 
@@ -962,9 +984,14 @@
   }
 
   function addDay() {
-    beginEdit("add day");
     if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
-    const prev = state.days[state.days.length - 1];
+    beginEdit("add day");
+    // THE LAST DAY THAT COUNTS, not the last section on screen. If the ride ends
+    // with a pair of alternates, the last row might be the one the rider decided
+    // against — seeding from it would start the new day at the wrong place and,
+    // via nextMorningAfter below, on the wrong evening.
+    const counted = ALT.activeDays(state.days);
+    const prev = counted[counted.length - 1];
     const day = newDay(DAY_COLORS[state.days.length % DAY_COLORS.length]);
 
     // A day begins where the last one ended. Without this every new day starts
@@ -999,12 +1026,20 @@
   }
 
   function deleteDay() {
-    beginEdit("delete day");
+    // GUARDS BEFORE beginEdit, not after. All four of these functions had it the
+    // other way round, so refusing to delete a ride's last day still pushed an
+    // undo step — the rider then pressed undo and nothing visible happened.
     if (state.days.length <= 1) return toast("A ride needs at least one day", true);
     const r = editIndex();
     if (r == null) return noDayYet();
+    beginEdit("delete day");
     state.days.splice(r, 1);
     state.legSeq.splice(r, 1);
+    // Deleting one of a pair leaves a group of one, which is not a group. The
+    // server would repair it on the next save anyway; doing it here means the
+    // panel and the map agree with the totals immediately rather than after a
+    // round trip.
+    ALT.resolveAltGroups(state.days);
     // Clamped, not preserved: deleting the last day would leave the active index
     // one past the end, and activeIndex() would quietly clamp it on every read
     // while the highlight sat on nothing.
@@ -1025,15 +1060,19 @@
   //
   // That costs one Routes call per leg, which is why a long day asks first.
   function reverseDay() {
-    beginEdit("reverse day");
     const r = editIndex();
     if (r == null) return noDayYet();
     const day = state.days[r];
     if (day.stops.length < 2) return toast("Nothing to reverse yet", true);
 
     const legCount = Math.max(0, day.stops.length - 1);
-    if (legCount > 12 && !window.confirm("Reversing re-days all " + legCount + " legs of this day. Continue?")) return;
+    // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
+    // routes→days rename caught this string, which a rider reads in a dialog.
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
 
+    // Every guard and the confirm are behind us, so this is the first point at
+    // which the day is certainly going to change.
+    beginEdit("reverse day");
     day.stops.reverse();
 
     // A stop tagged as the start is the finish now. Nothing else about a role
@@ -1058,11 +1097,13 @@
   }
 
   function moveDay(dir) {
-    beginEdit("move day");
     const r = editIndex();
     if (r == null) return noDayYet();
     const j = r + dir;
+    // At either end there is nothing to do, and pushing an undo step for it
+    // means the rider's next undo silently spends itself on a no-op.
     if (j < 0 || j >= state.days.length) return;
+    beginEdit("move day");
     const a = state.days;
     [a[r], a[j]] = [a[j], a[r]];
     const s = state.legSeq;
@@ -1083,7 +1124,16 @@
   //
   // Now the ordinal is derived from the index on every render and is not
   // editable, and the title is free text that may be empty.
-  const dayNumber = (r) => r + 1;
+  // NOT `r + 1`, which it was until alternates. A ride whose days 3 and 4 are
+  // two ways to do the same Thursday has four sections and is a three-day ride,
+  // so the index is no longer the ordinal: the active days number 1..N and a
+  // losing alternate takes its group's number with a letter — 3, 3b, 3c.
+  //
+  // Recomputed per call rather than cached on the day, because it depends on
+  // every other day: adding, deleting, reordering or promoting one renumbers
+  // its neighbours. TBAlt.dayOrdinals does the whole array in one pass and is
+  // what a render loop should use; this is the single lookup.
+  const dayNumber = (r) => ALT.dayOrdinal(state.days, r);
   const dayName = (r) => (state.days[r] && state.days[r].title) || "";
 
   // For prose — toasts, the timeline readout, the totals line. Both parts when
@@ -1135,8 +1185,25 @@
   function daySectionHtml(day, r, open) {
     const shut = open && !open.has(r);
     const single = state.days.length < 2;
+    // ALTERNATES. `is-alt` is a losing one and `is-alt-active` the member that
+    // counts; both carry `in-alt-group` so the stylesheet can bracket the pair
+    // without caring which is which. A day with no group gets none of them, so
+    // a ride without alternates renders exactly as it did before.
+    const grouped = day.altGroup != null;
+    const ghost = grouped && !day.altActive;
+    const altClass = !grouped ? "" : ghost ? " in-alt-group is-alt" : " in-alt-group is-alt-active";
+    // The badge says which of the two a section is, in the same words the
+    // viewer's legend uses. Same reasoning as there: badging only the loser
+    // leaves "an alternative to what?" unanswered.
+    const altBadge = !grouped
+      ? ""
+      : '<span class="day-alt' + (ghost ? "" : " is-on") + '" title="' +
+        (ghost
+          ? "Not counted in the ride total. Use the day menu to ride this one instead."
+          : "This is the route counted in the ride total.") +
+        '">' + (ghost ? "alternative" : "riding this") + "</span>";
     return (
-      '<section class="day-section' + (shut ? " is-shut" : "") + '" data-day="' + r + '"' +
+      '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
       ' style="--day-color:' + esc(day.color) + '">' +
       '<div class="day-head">' +
       // The day's own drag handle. A separate grip rather than dragging by the
@@ -1163,6 +1230,7 @@
       // were indistinguishable until you clicked in.
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
       ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
+      altBadge +
       '<span class="day-actions">' +
       // Empty for the same reason .day-del is: icon-reverse.svg comes in through
       // a CSS mask on ::before, so it takes the button's color and its disabled
@@ -1712,8 +1780,14 @@
       return s;
     };
 
-    if (state.days.length === 1) {
-      const t = routeTotals(state.days[0]);
+    // The days that COUNT, everywhere below. A ride carrying two ways to do
+    // Thursday is not twice as long, and this readout is the number a rider
+    // watches change while they edit — it has to agree with what the server
+    // stores on the next save, which is rideTotals() over the same filter.
+    const counted = ALT.activeDays(state.days);
+
+    if (counted.length === 1) {
+      const t = routeTotals(counted[0]);
       // innerHTML, not textContent: line() now carries the twistiness "?" link.
       // Nothing user-supplied reaches it — the mileage and the label are both
       // computed here — so there is no injection surface.
@@ -1725,36 +1799,12 @@
     // With several days the ride total is the number that matters; the focused
     // day's own figures sit under it.
     //
-    // Twistiness across days is a distance-weighted mean, not an average of the
-    // days' figures: it is degrees over miles, so the ride's value is the sum of
-    // the degrees over the sum of the miles. Averaging the per-day numbers would
-    // let a 30-mile breakfast ride count as much as a 300-mile transit day.
-    const ride = state.days.reduce(
-      (acc, r) => {
-        const t = routeTotals(r);
-        return {
-          meters: acc.meters + t.meters,
-          riding: acc.riding + t.riding,
-          stopped: acc.stopped + t.stopped,
-          estimated: acc.estimated || t.estimated,
-          twistDeg: acc.twistDeg + (t.twist ? (t.twist.dpm * t.meters) / MILE : 0),
-          twistMeters: acc.twistMeters + (t.twist ? t.meters : 0),
-          // The ride's best stretch is the best any single day has, not a sum:
-          // "somewhere in this ride there are twenty miles like that".
-          twistBest: Math.max(acc.twistBest, (t.twist && t.twist.bestDpm) || 0),
-          twistBestMiles: t.twist && t.twist.bestDpm > acc.twistBest ? t.twist.bestMiles : acc.twistBestMiles,
-        };
-      },
-      { meters: 0, riding: 0, stopped: 0, estimated: false, twistDeg: 0, twistMeters: 0, twistBest: 0, twistBestMiles: 0 },
-    );
-    ride.twist =
-      ride.twistMeters > 0
-        ? {
-            dpm: Math.round(ride.twistDeg / (ride.twistMeters / MILE)),
-            bestDpm: ride.twistBest,
-            bestMiles: ride.twistBestMiles,
-          }
-        : null;
+    // The fold moved to TBAlt.rideRollup, which is the same file the server's
+    // rule lives beside and, unlike an inline reduce, has tests — including the
+    // one that pins the distance-weighted twistiness mean. Read it there for
+    // why twistiness is weighted and why the best stretch is a max rather than
+    // a sum.
+    const ride = ALT.rideRollup(counted.map(routeTotals));
     // The per-day figures only exist when a day is selected. On "All" the ride
     // figures stand alone, which is exactly what "All" means — but the line that
     // would hold them is still emitted, empty. See below.
@@ -1763,7 +1813,10 @@
     totalsEl.title = "";
     totalsEl.innerHTML =
       '<span class="totals-ride" title="' + esc(twistTitle(ride)) + '">' +
-      state.days.length + " days · " + line(ride, true) + "</span>" +
+      // The count of days that COUNT, not of sections on screen. A ride with
+      // three days and two alternates is a three-day ride, and saying "5 days"
+      // beside a mileage that only covers three would make both look wrong.
+      counted.length + " days · " + line(ride, true) + "</span>" +
       // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
       // its own line, so the block is the same height whichever way the scrubber
       // is set and the controls below it never move. Dropping the span when
@@ -2277,6 +2330,13 @@
           color: r.color,
           startAt: r.startAt,
           endAt: r.endAt,
+          // The server re-resolves these on every save — dissolving a group of
+          // one, electing an active member, renumbering densely — so what comes
+          // back may not be what went out. That is the contract, not a bug: see
+          // resolveAltGroups. Note a day dropped by the filter above can leave a
+          // group with one member, which is exactly the case that dissolves.
+          altGroup: r.altGroup,
+          altActive: r.altActive,
           stops: r.stops,
           pois: r.pois,
           legs: r.legs,
@@ -2384,6 +2444,12 @@
       startAt: r.startAt || null,
       endAt: r.endAt || null,
       endManual: false,
+      // The other half of payload()'s round-trip. Omitting these is how a
+      // rider's alternate grouping works perfectly until they reload the page
+      // and then is silently gone, with the ride's mileage jumping to match —
+      // `?? null` rather than `|| null` because 0 is a real group id.
+      altGroup: r.altGroup ?? null,
+      altActive: r.altActive ?? true,
       stops: r.stops || [],
       pois: r.pois || [],
       legs: r.legs || [],

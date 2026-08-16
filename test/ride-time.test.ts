@@ -149,6 +149,53 @@ describe('trip span', () => {
   })
 })
 
+// Two alternates for the same day cover the same hours. Without the skip the
+// timeline puts the rider on both and returns whichever the array lists first.
+describe('a losing alternate is not on the schedule', () => {
+  const dated = (startIso: string, hours: number): any => ({
+    startAt: at(startIso),
+    endAt: at(new Date(new Date(startIso).getTime() + hours * 3600e3).toISOString()),
+    stops: [stop('A'), stop('B')],
+    pois: [],
+    legs: [leg(hours * 3600)],
+    altGroup: null,
+    altActive: true,
+  })
+  const secs = (iso: string) => Math.floor(new Date(iso).getTime() / 1000)
+
+  it('is left out of the ride span', () => {
+    const plain = dated('2026-08-01T09:00', 3)
+    const ghost = { ...dated('2026-08-01T09:00', 12), altGroup: 0, altActive: false }
+    const active = { ...dated('2026-08-01T09:00', 3), altGroup: 0, altActive: true }
+    // The 12-hour alternate must not stretch the timeline to midnight.
+    expect(T.rideSpan([plain, active, ghost])).toEqual(T.rideSpan([plain, active]))
+  })
+
+  it('never becomes the day at a moment', () => {
+    const ghost = { ...dated('2026-08-01T09:00', 6), altGroup: 0, altActive: false }
+    const active = { ...dated('2026-08-01T09:00', 6), altGroup: 0, altActive: true }
+    expect(T.activeAtMoment([ghost, active], secs('2026-08-01T10:00')).dayIndex).toBe(1)
+  })
+
+  // THE INDEX TRAP. Skipping inside the module keeps dayIndex an index into the
+  // caller's own array; filtering the array before calling would return 1 here
+  // and both clients would highlight the wrong day.
+  it('returns an index into the unfiltered array', () => {
+    const ghost = { ...dated('2026-08-01T09:00', 6), altGroup: 0, altActive: false }
+    const active = { ...dated('2026-08-01T09:00', 6), altGroup: 0, altActive: true }
+    const later = dated('2026-08-03T09:00', 3)
+    const days = [ghost, active, later]
+    expect(T.activeAtMoment(days, secs('2026-08-03T10:00')).dayIndex).toBe(2)
+    expect(days[T.activeAtMoment(days, secs('2026-08-03T10:00')).dayIndex]).toBe(later)
+  })
+
+  it('leaves an ungrouped day alone whatever altActive says', () => {
+    const stale = { ...dated('2026-08-01T09:00', 3), altGroup: null, altActive: false }
+    expect(T.rideSpan([stale])).not.toBeNull()
+    expect(T.isLosingAlternate(stale)).toBe(false)
+  })
+})
+
 describe('a POI you stop at', () => {
   // 40km of leg 0 then 20km of leg 1, so a POI at 20km sits halfway along the
   // first leg — 30 minutes into an hour of riding.
