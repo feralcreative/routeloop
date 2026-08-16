@@ -773,7 +773,7 @@ Raw coordinates render as "dropped pin". Named places need Google place IDs, whi
 
 Branch `chore/contributor-onboarding`, merged in #75. `CONTRIBUTING.md`, a PR template, rewritten issue templates, and **CI** at `.github/workflows/ci.yml`—typecheck plus tests on every pull request and on pushes to `main`.
 
-**The Node matrix is 20 and 22 on purpose:** development happens on 20 and the Dockerfile ships `node:22-alpine`, so running both is what catches the drift between them. There is no database service, because the suite is deliberately scoped to pure logic. If a test ever needs Postgres, adding a service container should be a decision taken on purpose rather than something already sitting there.
+**The Node matrix is the floor and the shipped version:** `package.json`'s `engines` floor is 22 and the Dockerfile ships `node:24-alpine`, so running both is what keeps the floor honest—a 24-only API would otherwise pass CI and break for anyone on 22. It was 20 and 22 until 2026-08-16; **Node 20 went end-of-life on 2026-04-30**, so every PR was being gated on an unsupported runtime. The three numbers move together. There is no database service, because the suite is deliberately scoped to pure logic. If a test ever needs Postgres, adding a service container should be a decision taken on purpose rather than something already sitting there.
 
 **`package-lock.json` is committed now** (`064b4c9`). It had been gitignored, which meant `npm ci` could not run in CI or in the Docker build at all.
 

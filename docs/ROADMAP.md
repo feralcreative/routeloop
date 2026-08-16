@@ -139,7 +139,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Autosave**—the builder has no Save button. A 3s idle debounce and a 20s ceiling, with the crash draft still underneath for the cases a server flush cannot cover.
 - **The builder panel, designed as one surface**—item 16 entire: the ride's name as the heading, an exit off the map, a drag handle and one menu per row, fixed footprints for everything that used to grow, the timeline moved out onto the map's bottom edge, and stop durations in whichever format the rider picks.
 - **Basemaps**—the map opens on Google's terrain layer, with roadmap, satellite and hybrid behind a switcher that remembers the choice per rider.
-- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 20 and 22. (869 tests across 37 files as of 2026-08-15; `npm test` is the authority, not this number.)
+- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (887 tests across 38 files as of 2026-08-16; `npm test` is the authority, not this number.)
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
@@ -353,7 +353,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 **Work.**
 
 - [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand, the Google Maps link builder, the drag-to-shape index math and the builder's undo/draft model are covered (777 tests across 34 files as of 2026-08-10). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
-- [x] CI on GitHub Actions: `npm run typecheck` and `npm test` on every pull request and on pushes to `main`, against Node 20 and 22 (`.github/workflows/ci.yml`). The SCSS build is deliberately not gated—formatting and style are qlty's job, and a failing build there would block a PR on something no reviewer reads.
+- [x] CI on GitHub Actions: `npm run typecheck` and `npm test` on every pull request and on pushes to `main`, against Node 22 and 24 (`.github/workflows/ci.yml`). The SCSS build is deliberately not gated—formatting and style are qlty's job, and a failing build there would block a PR on something no reviewer reads.
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.
 - [ ] An accessibility pass (keyboard, focus, contrast, ARIA) and groundwork for i18n.

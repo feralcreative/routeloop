@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 # routeloop — Node + Hono app image. Built on Apple Silicon for linux/amd64 (NAS).
-FROM node:22-alpine
+# Node 24, the active LTS. Bumped from 22 on 2026-08-16 alongside the CI
+# matrix and package.json's `engines` — the three move together, or the matrix
+# stops testing what actually ships. This takes effect on the next deploy.
+FROM node:24-alpine
 
 WORKDIR /app
 

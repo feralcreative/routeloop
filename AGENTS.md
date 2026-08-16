@@ -50,7 +50,7 @@ Run these, in order, and pass them before reporting work complete:
 3. `npm run sass`—only if you touched `style/`
 4. `npm run check:dashes`—only if you touched prose
 
-Not required, and do not attempt: there is no e2e suite, no browser suite and no database-backed suite. `vitest.config.ts` is deliberately scoped to pure logic under `test/`, which is why CI needs no Postgres service. CI runs typecheck and tests on Node 20 and 22 for every PR and every push to `main`.
+Not required, and do not attempt: there is no e2e suite, no browser suite and no database-backed suite. `vitest.config.ts` is deliberately scoped to pure logic under `test/`, which is why CI needs no Postgres service. CI runs typecheck and tests on Node 22 and 24 for every PR and every push to `main`—the `engines` floor and the version the Dockerfile ships.
 
 Anything touching the map, the builder or an import needs a manual browser pass as well—nothing automated covers those.
 

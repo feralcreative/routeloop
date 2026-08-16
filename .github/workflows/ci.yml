@@ -20,12 +20,21 @@ jobs:
 
     strategy:
       fail-fast: false
-      # The repo runs two Node versions in earnest: development happens on 20
-      # and the Dockerfile ships node:22-alpine. Testing both is what catches
-      # the drift between them, which is the whole reason to have a matrix at
-      # this size rather than picking one and hoping.
+      # THE FLOOR AND THE SHIPPED VERSION, in that order. 22 is the oldest Node
+      # package.json's `engines` claims to support; 24 is what the Dockerfile
+      # ships and what development happens on. Testing both is what keeps the
+      # claim honest — a 24-only API would otherwise pass here and break for
+      # anyone on the floor.
+      #
+      # That is the rule to apply when this moves again, rather than a pair of
+      # numbers to bump: match `engines` and the Dockerfile, and if they ever
+      # become the same version, say so and drop to one entry rather than
+      # leaving a second that tests nothing.
+      #
+      # It was 20 and 22 until 2026-08-16. Node 20 went end-of-life on
+      # 2026-04-30, so CI had been gating every PR on an unsupported runtime.
       matrix:
-        node: ['20', '22']
+        node: ['22', '24']
 
     name: node ${{ matrix.node }}
 
