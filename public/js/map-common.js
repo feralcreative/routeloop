@@ -206,6 +206,11 @@
 
   const TRACK_OPACITY = 0.8;
   const DIM_OPACITY = 0.25;
+  // A LOSING ALTERNATE. Between the other two on purpose: a ghost is quieter
+  // than the road you are riding and louder than a day you simply are not
+  // looking at right now, because it is still a real option rather than
+  // something out of focus.
+  const GHOST_OPACITY = 0.35;
 
   // Mapbox has no line symbol, so the engine this replaces drew a triangle to a
   // canvas and registered it as an image (ensureArrowImage). Polyline.icons does
@@ -228,6 +233,38 @@
     ];
   }
 
+  // A ghost gets dashes instead of arrows, and that is the substance of the
+  // treatment rather than decoration.
+  //
+  // Opacity alone cannot say "alternate". It already means "not focused" — see
+  // DIM_OPACITY and applyFocus()/paintFocus() — so a third opacity would be a
+  // third shade of the same statement, and a rider looking at a faded line has
+  // no way to tell "you are not hovering this" from "you decided against this".
+  // A dashed line is a different KIND of line, which is the difference being
+  // drawn. It is also the long-standing convention for a proposed or optional
+  // path on a map, so it needs no legend.
+  //
+  // Arrows are dropped with it. Direction only matters on a road you are going
+  // to ride, and at 120px they compete with the dashes for the same pixels.
+  //
+  // Polyline.icons with a dash symbol is how Google draws a dashed line: the
+  // stroke itself is set transparent by paint() and the dashes ARE the icons.
+  function dashIcons(color) {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: color,
+          strokeOpacity: GHOST_OPACITY,
+          strokeWeight: 4,
+          scale: 3,
+        },
+        offset: "0",
+        repeat: "16px",
+      },
+    ];
+  }
+
   // Mapbox addressed layers by string id against the style; a Polyline is a
   // plain object we have to hold onto ourselves. Keyed off the map so two maps
   // on one page could never collide.
@@ -239,12 +276,24 @@
     return m;
   }
 
+  // GHOST BEATS DIM, in all three properties. A losing alternate that happens
+  // to be the focused day is still a losing alternate — the rider clicked into
+  // it to edit it, which is exactly when they most need to see that it is the
+  // one that does not count. Reading `dim` first would un-ghost it on focus.
+  //
+  // The dashed stroke is drawn entirely by the icons, so the line's own stroke
+  // goes fully transparent: leaving it painted underneath produces a solid line
+  // with dashes on top of it, which reads as neither.
   function paint(entry) {
+    const ghost = Boolean(entry.ghost);
     entry.line.setOptions({
       strokeColor: entry.color,
-      strokeOpacity: entry.dim ? DIM_OPACITY : TRACK_OPACITY,
-      zIndex: entry.dim ? 1 : 2,
-      icons: entry.visible && entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
+      strokeOpacity: ghost ? 0 : entry.dim ? DIM_OPACITY : TRACK_OPACITY,
+      // Below both, so an alternate never draws over the road being ridden
+      // where the two share tarmac — which, being alternates, they usually do
+      // at both ends.
+      zIndex: ghost ? 0 : entry.dim ? 1 : 2,
+      icons: !entry.visible ? [] : ghost ? dashIcons(entry.color) : entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
     });
     entry.line.setVisible(entry.visible);
   }
@@ -277,6 +326,13 @@
       visible: true,
       arrowsOn: true,
       dim: false,
+      // On the entry rather than the Polyline for the same reason `shapeable`
+      // is, and it is worth restating because it has bitten before:
+      // rebuildLayers() destroys and recreates every line on every day add,
+      // delete, reorder and recolour, so a flag set on the Polyline alone would
+      // vanish the next time a rider touched anything. A ghost that silently
+      // becomes a solid line is a ride whose mileage and map disagree.
+      ghost: false,
       shapeable,
       id,
     };
@@ -323,6 +379,19 @@
     const entry = layersOf(map).get(id);
     if (!entry) return;
     entry.dim = dim;
+    paint(entry);
+  }
+
+  // Separate from setRouteDim rather than an argument to it, because the two
+  // answer different questions and are owned by different code. `dim` is
+  // transient — focus, legend hover, the timeline — and both clients rewrite it
+  // constantly. `ghost` is a fact about the ride: this day is an alternate that
+  // lost. Folding them into one flag means whichever ran last wins, and the
+  // symptom is an alternate that turns solid the moment you click it.
+  function setRouteGhost(map, id, ghost) {
+    const entry = layersOf(map).get(id);
+    if (!entry) return;
+    entry.ghost = ghost;
     paint(entry);
   }
 
@@ -873,6 +942,7 @@
     updateRouteTrack,
     setRouteVisible,
     setRouteDim,
+    setRouteGhost,
     setLegHighlight,
     clearLegHighlight,
     onRouteShapeDrag,
