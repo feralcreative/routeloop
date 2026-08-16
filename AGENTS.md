@@ -41,6 +41,8 @@ This section outranks everything else in this file and everything in the codebas
 
 `npm run dev` runs `db:migrate` first via `predev`. Port 6686 belongs to this project: if it is bound, kill what holds it and reuse the port—never start on another one.
 
+**Node 24**, pinned in `.node-version` so fnm and nvm switch to it on `cd`. It is the same major the Dockerfile ships and the upper half of the CI matrix; `engines` in `package.json` is a floor of 22 and only warns, so the pin is what actually gets you on the right runtime. There is no `.nvmrc`—both tools read `.node-version`, and a second file is a second thing to forget to bump.
+
 ## Definition of done
 
 Run these, in order, and pass them before reporting work complete:
