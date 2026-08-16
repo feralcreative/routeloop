@@ -532,7 +532,20 @@ function builderHtml(
       home,
       publicStart,
     },
+    // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
+    // version with an SRI hash and crossorigin, so jsdelivr serving anything but
+    // the 1.15.7 bytes gets refused rather than executed. MIT, 45KB, and the
+    // version is 2026-02-11 rather than the stale release it is often assumed to
+    // be. Approved as a dependency 2026-08-15.
+    //
+    // `defer` scripts run in document order, so this is loaded ahead of
+    // builder.js and window.Sortable exists by the time initDragToReorder()
+    // looks for it. **If the CDN fails, the builder still works** — that
+    // function checks for the global and returns quietly, and every row's menu
+    // carries Move up / Move down regardless. Those are also the keyboard path,
+    // because a drag handle is not one.
     scripts: `${googleMapsLoader(GMAPS_KEY)}
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>

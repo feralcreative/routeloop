@@ -21,7 +21,7 @@ This section outranks everything else in this file and everything in the codebas
 ## Commands
 
 | Task | Command |
-|---|---|
+| --- | --- |
 | Install | `npm install` |
 | Postgres (dev) | `docker compose up -d --wait db` |
 | Apply migrations | `npm run db:migrate` |
@@ -85,6 +85,7 @@ Boundaries that matter:
 - `src/maps/roles.ts` is the single source of truth for the 17 waypoint roles; the `waypoint_role` enum in `src/db/schema.ts` and the icons in `public/img/icons/` must stay in sync with it.
 - `src/maps/filename.ts` is the source of truth for the export filename convention; `public/js/filename.js` mirrors it and `test/filename-client.test.ts` holds the two together. Same arrangement for `twist.ts`/`twist.js`.
 - Anything server-side that must be tested with no database is split rule-from-query: `src/invites/policy.ts` vs `service.ts`, `src/survey/score.ts` vs `questions.ts`, `src/stats/shape.ts` vs `query.ts`.
+- **One third-party script loads from a CDN, on the builder only:** SortableJS 1.15.7 from jsdelivr, for drag-to-reorder, pinned with an SRI hash and `crossorigin`. Approved 2026-08-15. It is not a mistake and not leftover—but note the builder degrades rather than breaks if it fails to load, and every row menu carries Move up / Move down as both the fallback and the keyboard path. Keep both properties if you touch it. Self-hosting the webfonts was a decision about **fonts**, not a general ban on CDNs.
 
 Deeper: [docs/architecture.md](docs/architecture.md).
 
@@ -131,7 +132,7 @@ Things an agent gets wrong by default. This section is why the file exists.
 `.env.example` is the canonical, annotated list of every key. Copy it to `.env` and fill it in. Never write a secret value—in whole, in part, or masked—into this file, `docs/`, a log or a chat response.
 
 | Variable | Source | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `GMAPS_KEY` | `.env` | Browser key, referrer-restricted. Ships in page source by design |
 | `GMAPS_SERVER_KEY` | `.env` | Server key, IP-restricted. Routes + Geocoding. Must never reach a client |
 | `GMAPS_MAP_ID` | `.env` | Vector Map ID. Advanced Markers render nothing without it |

@@ -16,6 +16,40 @@
     box-sizing: border-box;
   }
 
+  // SQUARE, because `<input type="color">` renders wide by default and the extra
+  // width is dead space. #day-color was 50x27 in a 320px day head, beside a
+  // day-name field that only got 165px — 23px of nothing, right next to the
+  // control that needed it. Scoped to the input type rather than the id: it is
+  // true of any color input, and there will be more of them.
+  //
+  // The swatch has to be told to fill the box. Chrome and Safari draw the value
+  // inside a padded well, so a square input otherwise holds a small rectangle
+  // floating in the middle of it.
+  input[type="color"] {
+    flex: none;
+    width: 2em;
+    height: 2em;
+    padding: 0;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: $white;
+    cursor: pointer;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 2px;
+    }
+
+    &::-webkit-color-swatch {
+      border: 0;
+      border-radius: 3px;
+    }
+
+    &::-moz-color-swatch {
+      border: 0;
+      border-radius: 3px;
+    }
+  }
+
   // THE RIDE NAME IS THE HEADING, and this input is the heading rather than
   // something a pencil swaps in. A reveal would be a second mode and a layout
   // jump, which is the thing the panel redesign exists to remove; so the field
@@ -318,6 +352,8 @@
     gap: 0.4em;
     margin-bottom: 0.6em;
     #day-title {
+      // Named here rather than left to the generic rule so the width the color
+      // input gives back actually reaches this field.
       flex: 1 1 auto;
       min-width: 0;
       font: inherit;
@@ -525,10 +561,131 @@
     }
 
     .point-row {
-      border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+      // The row menu is absolutely positioned against this, so opening it moves
+      // nothing. An inline menu would push every row below it — the jump the
+      // panel redesign exists to remove.
+      position: relative;
       padding: 0.35em 0;
+      background: $white;
+      // A CARD PER ROW, separated, rather than a continuous run divided by
+      // hairlines. The separation is what makes the drag tab read: butted
+      // against each other, one tab's rounded bottom-left and the next one's
+      // rounded top-left leave a lens-shaped notch at every joint, and a column
+      // of those reads as arrowheads down the edge rather than as a grip. The
+      // gap also replaces the rule that used to divide the rows, so nothing was
+      // lost by dropping it.
+      border-radius: 8px;
+
+      + .point-row {
+        margin-top: 4px;
+      }
+
       &.flash {
         background: rgba($brand, 0.12);
+      }
+      // Sortable's ghost, the placeholder left where the row will land.
+      &.is-dragging {
+        opacity: 0.35;
+        background: rgba($brand, 0.1);
+      }
+    }
+
+
+    // The drag handle, replacing the per-row up/down arrow pair. Three ruled
+    // lines rather than an icon file: it is the conventional grip texture and it
+    // scales with the row's own type.
+    //
+    // A POI gets `.is-fixed`, which reserves the same width and draws nothing.
+    // Its place in this list is projected onto the track by dayPoiDistances
+    // rather than stored, so there is no order to drag — but if the column
+    // disappeared for POI rows, every field to the right of it would sit at a
+    // different x on alternating rows.
+    // A tab down the left edge of the row, rounded on the outer side and square
+    // where it meets the row, so the two read as one object with a grip on the
+    // end rather than as an icon that happens to sit first.
+    //
+    // The tint and the radius live on the element and the dots on ::before,
+    // rather than both on the element. It would otherwise take a two-value
+    // `background-clip` to paint the color across the whole tab while confining
+    // the dot pattern to the middle, and which layer that second value applies
+    // to is read differently by different engines. A pseudo-element has no such
+    // question.
+    .row-drag {
+      position: relative;
+      flex: none;
+      // THE ENTIRE LEFT SIDE OF THE ROW, edge to edge. `align-self: stretch`
+      // alone is not enough and that is the trap: it stretches to .row-main,
+      // while the 0.35em of vertical padding belongs to .point-row OUTSIDE it,
+      // so the tab stopped short at both ends and read as a floating stub rather
+      // than as part of the row. The negative margins cancel exactly that
+      // padding — keep the two numbers in step if either moves.
+      align-self: stretch;
+      margin: -0.35em 0;
+      // 16px against the dot grid's 8px, so 4px of air each side. It was 24px
+      // and the dots swam in the middle of it — the tab needs to be a grip, not
+      // a margin.
+      width: 16px;
+      background: $neutral-88;
+      border-radius: 8px 0 0 8px;
+      cursor: grab;
+      // NEUTRAL, deliberately, and this is the one thing in the row that does
+      // not take the day's color. Everything else here — the stop number, the
+      // POI dot, the role icons — inherits --day-color because those are
+      // markers and a marker should say which day it belongs to. A grip is
+      // furniture: it means "drag me", which is true of every row on every day.
+      //
+      // Two steps of the scale between the tab and its dots, and another two
+      // between the tab and the row behind it. At -94 on white the tab was
+      // barely there and the -70 dots inside it were softer still; the whole
+      // control read as a smudge rather than as something to grab.
+      color: $neutral-50;
+
+      // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
+      //
+      // **`background-position` MUST be `0 0` here, not `center`**, and this is
+      // not a nitpick — `center` aligns a TILE's centre with the box's centre,
+      // so on an 8px box the tiles land at -2, 2 and 6 and the dots at x = 0, 4
+      // and 8. That renders three columns with the outer two sliced in half, and
+      // five rows the same way vertically. `0 0` starts the grid at the corner,
+      // putting dots at 2 and 6 across and 2, 6, 10, 14 down: eight whole dots.
+      //
+      // The two radii in the gradient are the dot's edge and the point it
+      // reaches transparent — the gap between them is what antialiases it rather
+      // than leaving it crunchy.
+      &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 8px;
+        height: 16px;
+        background-image: radial-gradient(currentColor 1.1px, transparent 1.3px);
+        background-size: 4px 4px;
+        background-position: 0 0;
+      }
+
+      &:hover {
+        color: $neutral-29;
+        background: $neutral-76;
+      }
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      // A POI keeps the tab so the rail down the left edge stays unbroken and
+      // every field to its right lands at the same x on every row — but it draws
+      // no dots and offers no grab. Its place in this list is projected onto the
+      // track by dayPoiDistances rather than stored, so there is no order for it
+      // to be dragged into; moving a POI means moving its pin.
+      &.is-fixed {
+        cursor: default;
+        &::before {
+          content: none;
+        }
+        &:hover {
+          background: $neutral-88;
+        }
       }
     }
     .row-main {
@@ -554,7 +711,19 @@
     .row-dur {
       width: 4em;
     }
+    // FIXED WIDTH, and this is the sharpest instance of the panel rule. The
+    // button used to hold one 16px chip per role at `max-width: none`, so it ran
+    // roughly 18n + 10 wide — 28px at one role, about 316px of a 320px row at all
+    // seventeen, with the name field paying the difference. It now holds one icon
+    // and a count (see roleIconsHtml), so `width` is a constant and `flex: none`
+    // keeps flexbox from shrinking it when the name is long.
+    // SQUARE, because the icons are. They are drawn 1:1 and the box holding them
+    // was 3.1em x 2em to leave a second column for the count, which made every
+    // row carry a wide rectangle around a small square. The count is a corner
+    // badge now, so the button is 2em either way and the difference goes back to
+    // the name field.
     .row-roles-btn {
+      position: relative;
       font: inherit;
       // Without this the chips inside stay black: the UA sheet gives every
       // <button> `color: buttontext`, and no author rule was overriding it, so
@@ -562,10 +731,11 @@
       color: inherit;
       display: flex;
       align-items: center;
-      gap: 2px;
-      min-width: 2em;
+      justify-content: center;
+      flex: none;
+      width: 2em;
       height: 2em;
-      padding: 0.2em 0.35em;
+      padding: 0;
       border: 1px solid $grey;
       border-radius: 6px;
       background: $white;
@@ -573,25 +743,108 @@
       .role-chip {
         width: 16px;
         height: 16px;
+        flex: none;
         display: inline-block;
       }
+      // "+2" tucked into the bottom-right corner rather than sat beside the
+      // icon. Roles cap at 4, so it never exceeds "+3" and never needs more than
+      // two characters — which is what makes a corner badge viable at all. The
+      // white ground is what keeps it legible where it overlaps the glyph.
+      .role-more {
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        font-size: 0.62em;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0 1px;
+        border-radius: 3px;
+        background: $white;
+        color: $neutral-43;
+      }
+      // The empty state: no roles yet, so the button offers to add one.
+      .role-add {
+        color: $neutral-50;
+      }
     }
+
     .row-actions {
       display: flex;
+      flex: none;
       gap: 0.15em;
-      button {
-        font: inherit;
-        border: 0;
-        background: none;
-        cursor: pointer;
-        color: color.adjust($text, $lightness: 25%);
-        padding: 0.2em 0.3em;
-        &:hover {
-          color: $text;
-        }
+    }
+
+    // One control where there were four. With the drag handle taking over
+    // reordering, notes and delete had no reason to stay on the surface — and
+    // duplicate, which did not exist at all, had nowhere to go.
+    .row-menu-btn {
+      font: inherit;
+      font-size: 1.1em;
+      line-height: 1;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      color: $neutral-50;
+      // Narrow, because the glyph is vertical now. Bumped a step in size so the
+      // three dots stay as easy to hit as the wider horizontal set was.
+      padding: 0.25em 0.15em;
+      border-radius: 4px;
+      &:hover,
+      &[aria-expanded="true"] {
+        color: $text;
+        background: rgba(0, 0, 0, 0.06);
       }
-      .row-del:hover {
-        color: $kml;
+    }
+
+    // Absolutely positioned so opening it costs no layout. Right-aligned under
+    // the button it belongs to, and allowed to overflow the row — the panel
+    // scroller clips it, which is the same bound the role picker lives inside.
+    .row-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      min-width: 10em;
+      padding: 0.25em;
+      background: $white;
+      border: 1px solid $grey;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px $panel-shadow;
+
+      .row-menu-item {
+        font: inherit;
+        font-size: 0.9em;
+        text-align: left;
+        padding: 0.4em 0.6em;
+        border: 0;
+        border-radius: 4px;
+        background: none;
+        color: $text;
+        cursor: pointer;
+        white-space: nowrap;
+
+        &:hover:not(:disabled),
+        &:focus-visible {
+          background: rgba($brand, 0.1);
+        }
+
+        // Shown rather than dropped, so the first stop's menu is the same shape
+        // as every other stop's. A menu that changes length between rows is the
+        // same jump in miniature.
+        &:disabled {
+          opacity: 0.35;
+          cursor: default;
+        }
+
+        &.is-danger {
+          color: $kml;
+          &:hover:not(:disabled),
+          &:focus-visible {
+            background: rgba($kml, 0.1);
+          }
+        }
       }
     }
     .row-roles {
@@ -801,5 +1054,41 @@
 @keyframes save-pulse {
   50% {
     opacity: 0.25;
+  }
+}
+
+// The row that follows the pointer during a drag. Top level, NOT nested under
+// .builder-panel, because Sortable is configured with fallbackOnBody and appends
+// this to <body> — nested here it would simply never match. It only exists at
+// all because forceFallback is on; with native drag-and-drop the browser draws
+// the drag image and it cannot be styled.
+//
+// It inherits nothing from the panel, so the width, surface and type all have to
+// be stated. --panel-width is declared on #info-panel and is out of scope here,
+// hence the literal fallback.
+.row-drag-ghost {
+  list-style: none;
+  box-sizing: border-box;
+  width: 380px;
+  padding: 0.35em 0.75em;
+  background: $white;
+  border: 1px solid $brand;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px $panel-shadow;
+  opacity: 0.95;
+  cursor: grabbing;
+
+  .row-main {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  // The picker and the notes box belong to the row in the list, not to a
+  // thumbnail being dragged across the map.
+  .row-roles,
+  .row-desc,
+  .row-menu {
+    display: none;
   }
 }
