@@ -541,6 +541,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>
+  <script src="${asset('/js/alternates.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }

@@ -1010,6 +1010,50 @@ table.day-table {
     color: $text;
     white-space: nowrap;
   }
+
+  // ALTERNATES. The row is quieted rather than hidden — a rider wants to see
+  // the option they did not take, and the legend checkbox still works on it.
+  // Not opacity on the whole row: that would take the checkbox with it and make
+  // a working control look disabled.
+  .day-row.is-alt .day-name {
+    color: color.adjust($text, $lightness: 30%);
+  }
+
+  // Both members of a group get one of these, which is what makes them read as
+  // a pair. Same shape either way and only the colour differs, so the eye pairs
+  // them before it reads either word.
+  .day-alt {
+    display: inline-block;
+    margin-left: 0.5em;
+    padding: 0.05em 0.45em;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: color.adjust($text, $lightness: 20%);
+    font-size: 0.7em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: lowercase;
+    white-space: nowrap;
+    vertical-align: middle;
+    cursor: help;
+
+    // The one being ridden, tinted in the day's own colour so it agrees with
+    // its line on the map and its swatch everywhere else.
+    &.is-on {
+      background: color-mix(in srgb, var(--day-color, #{$url}) 16%, #{$white});
+      color: color-mix(in srgb, var(--day-color, #{$url}) 70%, #{$black});
+    }
+  }
+
+  // Only rendered on a ride that has alternates — see buildLegend(). It exists
+  // because the mileage column stops adding up the moment a ghost is in it.
+  .day-total td {
+    padding: 0.5em 0.25em 0.35em;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    color: color.adjust($text, $lightness: 15%);
+    font-size: 0.85em;
+    font-weight: 600;
+  }
   .day-downloads-row td {
     padding-top: 0.6em;
   }

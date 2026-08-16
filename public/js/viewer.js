@@ -10,6 +10,7 @@
     addRouteLayers,
     setRouteVisible,
     setRouteDim,
+    setRouteGhost,
     setLegHighlight,
     clearLegHighlight,
     addMarker,
@@ -27,6 +28,11 @@
   // Only the label lookup — the viewer reads stored figures rather than
   // computing them, so it never touches window.TBTwist.twistiness itself.
   const { twistLabel } = window.TBTwist;
+
+  // Numbering and the active-day filter. The server has already resolved the
+  // grouping before ride.json is written, so the viewer only ever reads — it
+  // never calls resolveAltGroups. See public/js/alternates.js.
+  const ALT = window.TBAlt;
 
   initPanelToggle(() => state.map);
 
@@ -97,11 +103,19 @@
     const lit = hovering ? state.hover : active && active.dayIndex;
     const dimming = hovering || active != null;
 
-    state.ride.days.forEach((_, j) => {
+    state.ride.days.forEach((r, j) => {
       const dim = dimming && j !== lit;
+      const ghost = r.altGroup != null && !r.altActive;
       setRouteDim(state.map, j, dim);
+      // Ghosting is a fact about the day, not about what is focused, so it is
+      // set here alongside dim rather than once at load: rebuildLayers-style
+      // churn aside, this is the one function that owns how a day looks.
+      setRouteGhost(state.map, j, ghost);
       state.days[j].markers.forEach(({ el }) => {
-        el.style.opacity = dim ? "0.3" : "";
+        // A ghost's pins go quieter than a dimmed day's and stay that way when
+        // it is the focused one — the line is dashed underneath them, and full
+        // -strength markers on a dashed line read as the route you are riding.
+        el.style.opacity = ghost ? "0.25" : dim ? "0.3" : "";
       });
     });
 
@@ -206,10 +220,32 @@
   function buildLegend() {
     const table = document.querySelector(".day-table");
     if (!table) return;
-    const multi = state.ride.days.length > 1;
-    table.innerHTML = state.ride.days
+    const days = state.ride.days;
+    const multi = days.length > 1;
+    // "Day 3" / "Day 3b" rather than the row index — a ride with two alternates
+    // for Thursday has more rows than it has days, and numbering by row would
+    // say it is longer than it is. See public/js/alternates.js.
+    const ordinals = ALT.dayOrdinals(days);
+    const anyAlt = days.some((r) => r.altGroup != null);
+    table.innerHTML = days
       .map((r, i) => {
-        const name = r.title || (multi ? "Day " + (i + 1) : state.ride.title);
+        const name = r.title || (multi ? "Day " + ordinals[i] : state.ride.title);
+        const ghost = r.altGroup != null && !r.altActive;
+        // BOTH MEMBERS ARE BADGED, not only the loser. A single "alternate" tag
+        // on one row leaves the reader wondering what it is an alternate TO;
+        // marking the pair is what makes them read as a pair.
+        const badge =
+          r.altGroup == null
+            ? ""
+            : '<span class="day-alt' +
+              (ghost ? "" : " is-on") +
+              '" title="' +
+              (ghost
+                ? "An alternative to day " + esc(ordinals[i].replace(/[a-z]+$/, "")) + ". Not counted in the ride total."
+                : "The route counted in the ride total. This day has alternatives.") +
+              '">' +
+              (ghost ? "alternative" : "riding this") +
+              "</span>";
         // Read from the ride rather than recomputed: a published ride is not
         // being edited, so the stored figure is current by definition. The
         // builder does the opposite, and twist.js says why.
@@ -225,7 +261,9 @@
             "</span>"
           : "";
         return (
-          '<tr class="day-row" data-i="' +
+          '<tr class="day-row' +
+          (ghost ? " is-alt" : "") +
+          '" data-i="' +
           i +
           '">' +
           '<td><label class="day-toggle" style="--day-color:' +
@@ -237,14 +275,39 @@
           '<span class="day-name">' +
           esc(name) +
           "</span></label>" +
+          badge +
           twist +
           "</td>" +
+          // The day's own mileage either way. A losing alternate really is that
+          // long — it is just not part of the ride, which is what the badge and
+          // the total below say.
           '<td class="day-miles">' +
           Number(r.distanceMi).toFixed(1) +
           " mi</td></tr>"
         );
       })
       .join("");
+
+    // A TOTAL ROW, but only once a ride has alternates in it. With ghosts in the
+    // table the mileage column no longer adds up to anything a reader can get
+    // to, and they will try — so the sum of the days that count is stated
+    // rather than left to be inferred from a column that does not agree with
+    // it. On a ride with no alternates the column does add up and the row would
+    // be noise, so it is not rendered.
+    if (anyAlt) {
+      const counted = ALT.activeDays(days).reduce((n, r) => n + Number(r.distanceMi), 0);
+      const n = ALT.activeDayCount(days);
+      table.insertAdjacentHTML(
+        "beforeend",
+        '<tr class="day-total"><td>' +
+          n +
+          (n === 1 ? " day" : " days") +
+          ", not counting alternatives</td>" +
+          '<td class="day-miles">' +
+          counted.toFixed(1) +
+          " mi</td></tr>",
+      );
+    }
 
     // Ride-level downloads. Every ride offers every format now: an imported
     // ride streams its stored original for the format it arrived in and the
@@ -325,6 +388,12 @@
       state.map = await initMap("map");
 
       ride.days.forEach((day, i) => renderDay(i, day));
+      // Paint once the layers exist. paintFocus() is "the one place emphasis is
+      // decided" and that has to include the state a ride LOADS in, not only
+      // what a hover or a scrub changes it to — a losing alternate is ghosted
+      // because of what it is, and nothing has to happen for that to be true.
+      // Without this the alternates drew solid until the first pointer move.
+      paintFocus();
       fitTo(state.map, allTrackPoints());
       buildLegend();
       renderTimeline();
