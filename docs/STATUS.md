@@ -198,7 +198,7 @@ Done in the repo: the canonical/legacy host map reversed, cookies (`tankbag_sess
 1. ~~**Browser Maps key referrers.**~~ **Done 2026-07-29**—the allow-list now carries the tankbag hosts alongside the routeloop ones, verified per origin. See "Console work" below.
 2. ~~**OAuth client.**~~ **Done 2026-07-30**—created on the tankbag GCP project with an External consent screen and the three tankbag redirect URIs. See "Google Cloud migrated to the tankbag project" below.
 3. ~~**Favicons.**~~ **Done 2026-07-31**—regenerated from the current mark and moved into `public/img/favicon/` in `22610b8`. This entry described them as stale, at paths that no longer existed, for longer than it was true; an issue got filed off it on 2026-08-01 for work already finished. If a checklist item here is about assets, look at the files before believing it.
-4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. The `cd` paths in this document were updated to match; older `_PLANS/` files and shell history still point at the old path.
+4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. **And renamed back since**—as of 2026-08-16 the checkout is `/Users/ziad/www/moto/routeloop` again, so this entry is history in both directions. Two `cd` paths in this document still said `tankbag` on that date and were corrected; older `_PLANS/` files and shell history were left alone.
 5. ~~**SonarCloud project key** in `.vscode/settings.json`.~~ **Moot as of 2026-08-03—SonarCloud is retired.** It was too noisy to be useful: 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs and vulnerabilities. Replaced by [Qlty](https://qlty.sh), run locally from the CLI, on the theory that a small tuned rule set that people read beats a large one they learn to ignore. The GitHub repo _was_ renamed on 2026-07-30—it is `feralcreative/tankbag` now, and the local remote was re-pointed at it the same day. The old `feralcreative/tankbag-app` URL still works only through GitHub's rename redirect, so anything still hardcoding it is living on borrowed time.
 6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the _previous_ rename; rewriting it would turn a record of what happened into fiction.
 
@@ -500,7 +500,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://github.com/feralcreative/tankbag/issues/7) (ROADMAP item 2) and [issue #19](https://github.com/feralcreative/tankbag/issues/19), which is folded in because it is the same widget. The full plan is in `_PLANS/issue-7-trip-timeline.md`—local only, since `_PLANS` is gitignored as of `7d0db74`.
 
-**Most of the time model was already built.** `routes.start_at` / `end_at` exist, [rides.ts](../src/routes/rides.ts) already validates, persists and returns them, and builder state already carried them through `newRoute()`, `payload()` and `loadExisting()`. Nothing wrote them. So the first commit's worth of work was UI on a finished pipe, not plumbing.
+**Most of the time model was already built.** `routes.start_at` / `end_at` exist, [builder.ts](../src/routes/builder.ts) already validates, persists and returns them (it was `rides.ts` when this was written; renamed in [#104](https://github.com/feralcreative/routeloop/pull/104)), and builder state already carried them through `newRoute()`, `payload()` and `loadExisting()`. Nothing wrote them. So the first commit's worth of work was UI on a finished pipe, not plumbing.
 
 **Four decisions, settled with the owner and worth not relitigating:**
 
@@ -992,7 +992,7 @@ Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and 
 ## Local development
 
 ```bash
-cd /Users/ziad/www/moto/tankbag
+cd /Users/ziad/www/moto/routeloop
 npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db

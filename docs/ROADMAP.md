@@ -334,7 +334,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 - [x] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 - [x] Round-trip fidelity tests per format (#35)—`test/fixtures/` holds one ride written five ways and `test/round-trip.test.ts` asserts the parsers agree. It caught a real disagreement on its first run: KML read a one-point line as a zero-length track while GeoJSON rejected the whole file.
 
-**Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
+**Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/builder.ts` (the payload shape—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)).
 
 **Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has.
 
@@ -368,7 +368,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] Builder UI to edit the details; viewer UI to show them in the stop's info window / panel.
 - [ ] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 
-**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/rides.ts` (payload + sanitize), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
+**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/builder.ts` (payload + sanitize—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
 
 **Status.** planned.
 
@@ -862,14 +862,14 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 
 **Data and formats.**
 
-- Round-trip fidelity tests per format, so import→export never silently loses a stop.
-- Bulk import of a folder of files into one ride.
+- ~~Round-trip fidelity tests per format, so import→export never silently loses a stop.~~ **Shipped** with item 9 ([#35](https://github.com/feralcreative/routeloop/issues/35))—`test/round-trip.test.ts` against one ride written five ways.
+- ~~Bulk import of a folder of files into one ride.~~ **Shipped 2026-08-03** with item 9; several files become several days of one ride.
 - PostGIS for spatial queries once discovery needs "rides near me."
 
 **Platform and quality.**
 
-- Autosave and undo in the builder. Undo shipped; autosave-to-server is item 16.
-- Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows. See item 16.
+- ~~Autosave and undo in the builder.~~ **Both shipped**—undo 2026-08-05, autosave-to-server 2026-08-15 with item 16, which also deleted the Save and Discard buttons.
+- ~~Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows.~~ **Shipped 2026-08-15** with item 16, on SortableJS with the textured handle as described.
 - Keyboard shortcuts for the builder.
 - Usage analytics that respect privacy (self-hosted, no third-party trackers).
 
@@ -893,7 +893,6 @@ One wording correction that falls out of this: the vision above says Routeloop i
 
 Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These carry the _good first issue_ label on GitHub.
 
-- **[#35](https://github.com/feralcreative/routeloop/issues/35) Round-trip fidelity tests per format.** Pure test work in `test/`, no app context needed—assert what each format can and cannot carry, so import → export never silently drops a stop.
 - **[#40](https://github.com/feralcreative/routeloop/issues/40) Keyboard shortcuts for the builder.** Contained to `public/js/builder.js` and its key handling.
 - **[#51](https://github.com/feralcreative/routeloop/issues/51) Layer stacking with per-layer opacity.** A self-contained map-engine feature with a clear reference implementation in Gaia GPS.
 

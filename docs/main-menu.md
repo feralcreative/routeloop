@@ -64,7 +64,7 @@ The label everywhere a rider reads it is **Preferences**. The URL is the short f
 
 **[decided 2026-08-15] "Your rides" moved from `/dashboard` to `/rides`.** The old URL described the page as a dashboard when the dashboard is `/`. See the header of `src/routes/rides.tsx`. `/dashboard` 301s to `/rides`.
 
-**[decided] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open.
+**[superseded] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open. **No longer true**—see the two entries below: the page gained its first real setting on 2026-08-15 and is being renamed on 2026-08-16. Kept because it records why the link existed before the page did.
 
 **[shipped 2026-08-15] Settings has its first real setting.** The stop-duration format—hours to one decimal by default, switchable to hours+minutes or plain minutes. It posts to `/settings/duration-format` and writes one column, `user_profiles.duration_format`, rather than going through the profile form's POST, which validates and rewrites the whole profile and would need every other field carried along. The page is no longer a stub, though it is still short.
 
