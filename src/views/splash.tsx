@@ -25,7 +25,7 @@ export function alphaSplash(): string {
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
-            RouteLoop is an early build of something I’m making. Expect rough edges, missing pieces, and the occasional
+            Routeloop is an early build of something I’m making. Expect rough edges, missing pieces, and the occasional
             data reset. Feedback is the whole point.
           </p>
           {links.length > 0 && (
@@ -78,11 +78,7 @@ function SplashMedia() {
   )
 }
 
-export function SplashPage({
-  eyebrow,
-  heading,
-  children,
-}: { eyebrow: string; heading: string; children?: unknown }) {
+export function SplashPage({ eyebrow, heading, children }: { eyebrow: string; heading: string; children?: unknown }) {
   return (
     <>
       <SplashMedia />
@@ -99,7 +95,7 @@ export function SplashPage({
           headline: at the 420px it used to occupy it renders 52px tall against
           the old 123px. The stacked mark gets there at 240px wide.
         */}
-        <img class="splash-logo" src="/img/logo-routeloop-dk.svg" alt="RouteLoop" width="920" height="518" />
+        <img class="splash-logo" src="/img/logo-routeloop-dk.svg" alt="Routeloop" width="920" height="518" />
         <p class="eyebrow">{eyebrow}</p>
         <h1>{heading}</h1>
         {children}

@@ -56,6 +56,62 @@
   // one stop would otherwise land at building zoom.
   const MAX_FIT_ZOOM = 14;
 
+  // --- Basemap --------------------------------------------------------------
+
+  // The four Google basemaps, as an allow-list. Written as strings rather than
+  // MapTypeId.* on purpose: the enum lives in the "maps" library and would have
+  // to be read off the handle after the await, while the literals are what the
+  // API documents and accepts either way.
+  //
+  // Order is the order they appear in the control, and it is deliberate: the two
+  // drawn maps first, then the two photographic ones.
+  const MAP_TYPES = ["terrain", "roadmap", "satellite", "hybrid"];
+
+  // Terrain, not roadmap, and this is the point of the whole block. A rider is
+  // choosing roads to ride, and relief is the single most useful thing a basemap
+  // can say about a road that a line on white cannot — a pass, a canyon, the
+  // reason a road bends. Roadmap is still one click away for anyone navigating
+  // by town rather than by terrain.
+  //
+  // Worth knowing before styling: terrain is raster imagery with vector data on
+  // top, so the cloud styling attached to GMAPS_MAP_ID applies only to the
+  // labels and roads drawn over it, not to the ground. Whatever is styled in the
+  // Map ID will look like it partly stopped working here. It did not.
+  const DEFAULT_MAP_TYPE = "terrain";
+
+  // Per rider, per browser. Not on the ride: the basemap is how one person likes
+  // to read a map, not a property of the route, and putting it on the record
+  // would mean a shared link overrides the reader's own preference.
+  const MAP_TYPE_KEY = "routeloop.mapType";
+
+  // Private-mode Safari throws on localStorage access. Same guard as site.js and
+  // builder-history.js — a failure has to degrade to "no preference" rather than
+  // taking the map down, which on these two pages is the whole page.
+  function storedMapType() {
+    let v = null;
+    try {
+      v = window.localStorage.getItem(MAP_TYPE_KEY);
+    } catch (e) {
+      return DEFAULT_MAP_TYPE;
+    }
+    // Validated against the allow-list rather than trusted. The value survives
+    // deploys, so a type we stop offering — or anything else that ends up under
+    // this key — has to fall back rather than reach Maps.Map as a bad option.
+    return MAP_TYPES.indexOf(v) === -1 ? DEFAULT_MAP_TYPE : v;
+  }
+
+  function rememberMapType(map) {
+    map.addListener("maptypeid_changed", () => {
+      const v = map.getMapTypeId();
+      if (MAP_TYPES.indexOf(v) === -1) return;
+      try {
+        window.localStorage.setItem(MAP_TYPE_KEY, v);
+      } catch (e) {
+        /* nothing to do — the choice simply lasts as long as the page does */
+      }
+    });
+  }
+
   async function initMap(container, opts) {
     const el = typeof container === "string" ? document.getElementById(container) : container;
     if (!el) throw new Error("TBMap: no map container");
@@ -66,7 +122,7 @@
       google.maps.importLibrary("marker"),
     ]);
 
-    return new Maps.Map(
+    const map = new Maps.Map(
       el,
       Object.assign(
         {
@@ -78,7 +134,23 @@
           // Google's own POI pins open their own info windows and would fight
           // the builder's click-to-add-a-stop.
           clickableIcons: false,
-          mapTypeControl: false,
+          mapTypeId: storedMapType(),
+          mapTypeControl: true,
+          mapTypeControlOptions: {
+            mapTypeIds: MAP_TYPES,
+            // TOP_CENTER, and every other edge is taken. The site header floats
+            // over the map rather than sitting above it, so TOP_LEFT is under
+            // the wordmark and TOP_RIGHT is under the nav hamburger — that
+            // second collision was real and visible, not theorised. The left
+            // edge below that is the builder's panel (fitTo pads 380px for it),
+            // RIGHT_BOTTOM is the zoom control, and the bottom edge carries
+            // Google's own logo and attribution, which may not be covered.
+            position: Core.ControlPosition.TOP_CENTER,
+          },
+          // mapTypeControlStyle is deliberately unset. The default adapts to the
+          // available width, collapsing to a dropdown on a narrow viewport,
+          // which is the behavior wanted on a phone and is not worth
+          // reimplementing by pinning a style and adding a breakpoint.
           streetViewControl: false,
           fullscreenControl: false,
           // The map is the page; scroll should zoom it without a modifier, which
@@ -90,6 +162,8 @@
         opts || {},
       ),
     );
+    rememberMapType(map);
+    return map;
   }
 
   function fitTo(map, lngLats, padding) {
@@ -734,12 +808,17 @@
     if (!panel || !toggle) return;
     toggle.addEventListener("click", () => {
       panel.classList.toggle("collapsed");
-      const img = toggle.querySelector("img");
       const collapsed = panel.classList.contains("collapsed");
-      if (img) {
-        img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
-        img.alt = collapsed ? "Expand" : "Collapse";
-      }
+      // The button now carries aria-expanded, so it has to be kept true. The
+      // markup ships it as "true" and this is the only thing that flips it —
+      // a stale attribute is worse than none, because it states the opposite
+      // of what a screen reader user is looking at.
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
+      // The image is decorative — alt="" — because the button's own label says
+      // what it does. Naming it here too would announce the action twice.
+      const img = toggle.querySelector("img");
+      if (img) img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
     });
   }
 

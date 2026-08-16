@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-08
 
-How RouteLoop sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
+How Routeloop sends mail, what it sends, and what to do when it stops working. Architecture is in [architecture.md](architecture.md); this covers the mail subsystem alone.
 
 ## The shape of it
 
@@ -12,21 +12,21 @@ How RouteLoop sends mail, what it sends, and what to do when it stops working. A
 
 **Cloudflare Email Sending was rejected** for the outbound half. It is still in beta, requires the Workers Paid plan, and is REST-only, so `mailer.ts` would have been rewritten around `fetch()` to get something SMTP already does. Worth revisiting once it is GA.
 
-| | Value |
-| --- | --- |
-| `SMTP_HOST` | `smtp.resend.com` |
+|             | Value                                                                      |
+| ----------- | -------------------------------------------------------------------------- |
+| `SMTP_HOST` | `smtp.resend.com`                                                          |
 | `SMTP_PORT` | `587` (STARTTLS; 465 would be implicit TLS and `mailer.ts` switches on it) |
-| `SMTP_USER` | the literal string `resend`—**not** an address |
-| `SMTP_PASS` | the Resend API key |
-| `MAIL_FROM` | a **bare** address, e.g. `hello@routeloop.app` |
+| `SMTP_USER` | the literal string `resend`—**not** an address                             |
+| `SMTP_PASS` | the Resend API key                                                         |
+| `MAIL_FROM` | a **bare** address, e.g. `hello@routeloop.app`                             |
 
 Free tier is 3,000 messages a month, which is far beyond what a hand-approved beta uses.
 
 ## Two traps that have real symptoms
 
-**`SMTP_USER` is `resend`, so `MAIL_FROM` must be set explicitly.** `MAIL_FROM` used to default to `SMTP_USER`, which was right under Gmail where the SMTP user *is* the address. Under Resend that default would make `MAIL_FROM` the string `resend`—truthy, so `MAIL_ENABLED` goes true, the sign-in form renders, and every send fails at the server with a 550 that nothing local would have caught. The default is now `''` (`src/config.ts`).
+**`SMTP_USER` is `resend`, so `MAIL_FROM` must be set explicitly.** `MAIL_FROM` used to default to `SMTP_USER`, which was right under Gmail where the SMTP user _is_ the address. Under Resend that default would make `MAIL_FROM` the string `resend`—truthy, so `MAIL_ENABLED` goes true, the sign-in form renders, and every send fails at the server with a 550 that nothing local would have caught. The default is now `''` (`src/config.ts`).
 
-**`MAIL_FROM` must be a bare address, never `RouteLoop <hello@routeloop.app>`.** The display name is composed in `mailer.ts`. The bracketed form has to survive `printf` into a compose `.env`, where quoting rules differ from a shell's and a `#` starts a comment. `deploy.sh` rejects it rather than shipping a malformed envelope that only shows up in a recipient's headers.
+**`MAIL_FROM` must be a bare address, never `Routeloop <hello@routeloop.app>`.** The display name is composed in `mailer.ts`. The bracketed form has to survive `printf` into a compose `.env`, where quoting rules differ from a shell's and a `#` starts a comment. `deploy.sh` rejects it rather than shipping a malformed envelope that only shows up in a recipient's headers.
 
 **Do not set `OWNER_EMAIL` to the same address as `MAIL_FROM`.** With Routing forwarding `@routeloop.app` back to Gmail, the owner alert would go Resend → Cloudflare → Gmail from and to the same domain, which reads as a loop to filters and lands in spam.
 
@@ -34,12 +34,12 @@ Free tier is 3,000 messages a month, which is far beyond what a hand-approved be
 
 Four templates, all in `src/emails/`. Every one produces a subject, a plain-text body and an HTML body from a single definition.
 
-| Template | Trigger | To | Sent again? |
-| --- | --- | --- | --- |
-| `magic-link` | the email form on `/login` | the requester | every request, rate-limited per address in `auth/magic.ts` |
-| `waitlist` | a sign-in that **creates** a non-active account | the new rider | never—`created` is true only for the row the INSERT produced |
-| `approved` | `/admin` moving an account into `active` | the rider | never, unless `approved_email_at` is cleared |
-| `owner-signup` | same trigger as `waitlist` | `OWNER_EMAIL` | never |
+| Template       | Trigger                                         | To            | Sent again?                                                  |
+| -------------- | ----------------------------------------------- | ------------- | ------------------------------------------------------------ |
+| `magic-link`   | the email form on `/login`                      | the requester | every request, rate-limited per address in `auth/magic.ts`   |
+| `waitlist`     | a sign-in that **creates** a non-active account | the new rider | never—`created` is true only for the row the INSERT produced |
+| `approved`     | `/admin` moving an account into `active`        | the rider     | never, unless `approved_email_at` is cleared                 |
+| `owner-signup` | same trigger as `waitlist`                      | `OWNER_EMAIL` | never                                                        |
 
 **The approval email is the one with real machinery behind it**, because `/admin` can toggle `active → blocked → active` freely and every one of those is a genuine status change. Two layers:
 
@@ -72,7 +72,7 @@ Notifications go through `sendTemplateDetached()`, which returns `void`, never t
 - `sendTemplateDetached` **short-circuits before rendering** and logs `info … not configured`. That is deliberately not an error: on a Google-only deployment it is expected forever and is not actionable, and an error-level line for it trains people to ignore the real ones.
 - The app runs normally on Google sign-in. Nobody is notified of anything.
 
-`MAGIC_LINK_ENABLED` is a separate name for the same expression on purpose. `MAIL_ENABLED` is a capability—can this deployment reach an inbox? `MAGIC_LINK_ENABLED` is a product decision—is emailed sign-in *offered*? A deployment that wants Google-only sign-in while still mailing approvals turns off the second, not the first.
+`MAGIC_LINK_ENABLED` is a separate name for the same expression on purpose. `MAIL_ENABLED` is a capability—can this deployment reach an inbox? `MAGIC_LINK_ENABLED` is a product decision—is emailed sign-in _offered_? A deployment that wants Google-only sign-in while still mailing approvals turns off the second, not the first.
 
 ## Writing a template
 
@@ -97,13 +97,13 @@ Not stylistic. Outlook on Windows renders with Word's engine, Gmail clips a long
 
 ### The logo, and why there are two of them
 
-The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="RouteLoop"` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
+The header wordmark is a PNG, one per color scheme, swapped by the dark-mode block described below. It used to be styled text, on the grounds that a remote image is blocked by default in a large share of clients and so is the one element guaranteed not to render on first open. That is still true, which is why both copies carry `alt="Routeloop"` and every style that governs **alt text**—font, size, weight, color—sits on the `<img>` rather than the cell. With images off a client draws the alt string using the image's own styles, so the header still reads. Nothing in the picture is absent from the alt.
 
-| | |
-| --- | --- |
-| Source | `_assets/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png` |
+|        |                                                                                                                      |
+| ------ | -------------------------------------------------------------------------------------------------------------------- |
+| Source | `_assets/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png`                                                         |
 | Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
-| Size | 800×100, ~10 KB each, displayed at 400×50 so the file named is the 2x asset |
+| Size   | 800×100, ~10 KB each, displayed at 400×50 so the file named is the 2x asset                                          |
 
 The mark is 8.15:1 since the 2026-08-11 rebrand, against 3.5:1 before it, which is why the display size went from 180×52 to 400×50—nearly the full 536px the cell has. Anything narrower renders a wordmark too short to read beside 16px body copy.
 

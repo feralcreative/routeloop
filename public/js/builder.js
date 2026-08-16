@@ -99,6 +99,9 @@
     markers: [],
     addMode: "stop",
     dirty: false,
+    // A flush is in flight. Declared rather than sprung into existence by the
+    // first assignment, because autosave now READS it before any save has run.
+    saving: false,
     layersReady: false,
     layerCount: 0, // how many day layers are currently on the map
     legSeq: [], // legSeq[r][i]—stale routing responses are dropped
@@ -219,29 +222,130 @@
 
   function markDirty() {
     state.dirty = true;
-    $("save-status").textContent = "unsaved changes";
-    $("discard").disabled = false;
+    editSeq++;
+    setSaveStatus("dirty");
     queueDraft();
+    queueAutosave();
   }
 
-  // Throws the working copy away and reloads the saved one. A reload rather than
-  // an in-place rebuild because that is the only version guaranteed to match
-  // what the server holds — reconstructing state by hand is how a "discard"
-  // quietly keeps something. For a ride that was never saved there is nothing to
-  // fetch, so the reload lands on an empty builder, which is the same answer.
+  // --- Autosave -------------------------------------------------------------
   //
-  // state.dirty is cleared first or beforeunload asks a second time, one line
-  // after the rider already confirmed.
-  function discardChanges() {
+  // There is no Save button. A flush is a plain PUT of the whole ride, and the
+  // reason that is affordable is that it makes NO billable Maps call — the money
+  // is in the routing request, which keeps its own debounce in computeLeg() and
+  // is deliberately not coupled to this.
+  //
+  // Two timers, not one, and the second is the one that matters. An idle
+  // debounce alone has no upper bound: dragging a stop around for four minutes
+  // never goes idle and never saves. The ceiling fires regardless of activity,
+  // measured from the first edit after a clean state, so the worst case is
+  // bounded by AUTOSAVE_MAX_MS rather than by how long someone can keep typing.
+  //
+  // Both are far under the five-minute acceptance bar on purpose: the bar is what
+  // must never be exceeded, not what to aim for.
+  const AUTOSAVE_IDLE_MS = 3000;
+  const AUTOSAVE_MAX_MS = 20000;
+  // After a failed flush. Long enough not to hammer a server that is down,
+  // short enough that a dropped wifi connection recovers on its own.
+  const AUTOSAVE_RETRY_MS = 15000;
+
+  let idleTimer = null;
+  let ceilingTimer = null;
+  let retryTimer = null;
+
+  // WHICH EDITS A COMPLETED SAVE ACTUALLY COVERS, and getting this wrong is
+  // silent data loss rather than a visible bug, so it is worth the counter.
+  //
+  // payload() serializes when the fetch STARTS. A keystroke during the round trip
+  // is therefore not in that request — but the response says "saved", and the
+  // obvious thing to do on success is clear state.dirty. That marks the keystroke
+  // as saved, and every later flush then returns early on `!state.dirty`, so it
+  // is never sent at all. The status reads "Saved" the whole time.
+  //
+  // The first version of this tracked a boolean set by flushNow() when it was
+  // called mid-flight, which is a different event: a flush attempt during the
+  // request, not an edit during it. Typing does not call flushNow(), so the
+  // common case sailed straight past it.
+  //
+  // markDirty() bumps editSeq. save() records it before the fetch and compares
+  // after: equal means the response covers everything, different means more
+  // arrived and the ride is still dirty.
+  let editSeq = 0;
+
+  // Why a flush cannot happen, in the rider's words, or null.
+  //
+  // These are the same two conditions save() used to enforce with a toast and a
+  // focus jump. Neither is right for autosave: a rider who has not typed a title
+  // yet is mid-task, not in error, and a toast every three seconds saying so
+  // would be the worst thing in the app. The status line states the condition
+  // and waits.
+  function saveBlockReason() {
+    if (!state.meta.title.trim()) return "Needs a title";
+    if (!state.days.some((r) => r.stops.length > 0)) return "Needs a stop";
+    return null;
+  }
+
+  function queueAutosave() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(flushNow, AUTOSAVE_IDLE_MS);
+    // Only armed once per dirty run — re-arming it on every keystroke would make
+    // it a second idle timer and give back the unbounded case it exists to close.
+    if (!ceilingTimer) ceilingTimer = setTimeout(flushNow, AUTOSAVE_MAX_MS);
+  }
+
+  async function flushNow() {
+    clearTimeout(idleTimer);
+    clearTimeout(ceilingTimer);
+    idleTimer = ceilingTimer = null;
     if (!state.dirty) return;
-    const saved = state.rideId ? "the last saved version" : "an empty ride";
-    if (!window.confirm("Discard every unsaved change and go back to " + saved + "?\n\nThis cannot be undone.")) return;
-    state.dirty = false;
-    // Drop the draft too, or the reload lands on a recovery prompt offering
-    // back the exact thing that was just discarded.
-    clearTimeout(draftTimer);
-    HIST.Draft.clear(state.rideId);
-    window.location.reload();
+    // Coalesce rather than queue: two overlapping PUTs of the same ride would
+    // only race to write the same thing. Nothing is recorded here — save()
+    // re-queues itself from the editSeq comparison if this flush's request
+    // turns out not to have covered everything.
+    if (state.saving) return;
+    const blocked = saveBlockReason();
+    if (blocked) {
+      setSaveStatus("blocked", blocked);
+      // No timer. The condition can only clear through an edit, and every edit
+      // calls markDirty() — so re-arming here would be a spin loop that changes
+      // nothing. This is the one path that deliberately stops trying.
+      return;
+    }
+    await save();
+  }
+
+  // --- Save status ----------------------------------------------------------
+
+  // One state name in, one fixed-footprint readout out. The width is reserved in
+  // CSS for the longest string here, because #save-status was on the epic's list
+  // of variable-length readouts that reflow whatever sits beside them.
+  const SAVE_TEXT = {
+    new: "Not saved yet",
+    dirty: "Unsaved changes",
+    saving: "Saving…",
+    saved: "Saved",
+    error: "Not saved",
+  };
+
+  function setSaveStatus(name, text) {
+    const el = $("save-status");
+    if (!el) return;
+    const msg = text || SAVE_TEXT[name] || "";
+    el.dataset.state = name;
+    el.querySelector(".save-text").textContent = msg;
+    // A server error message is arbitrary length and the readout is a fixed box,
+    // so the visible text ellipsizes and the whole thing lives here.
+    el.title = msg;
+    // Only the states a rider needs told about reach the live region. The
+    // routine dirty/saving/saved cycle runs several times a minute and
+    // announcing it would make the panel unusable with a screen reader on.
+    if (name === "error" || name === "blocked") {
+      $("save-announce").textContent = text || SAVE_TEXT[name] || "";
+    } else if (name === "saved") {
+      $("save-announce").textContent = "";
+    }
   }
 
   // --- Routing --------------------------------------------------------------
@@ -302,6 +406,14 @@
     day.legs[i] = straightLeg(a, b, vias);
     renderTrack(r);
     refreshDerived();
+
+    // Two stops in the same place have no route between them, and asking is both
+    // a billable Routes request and a guaranteed 422 — which surfaces as "no road
+    // route for that leg" in a toast, for a leg the rider never asked to route.
+    // The straight leg above is already the right answer: zero metres, zero
+    // seconds. This became reachable the moment duplicate-a-point shipped, which
+    // by design puts the copy exactly on top of its original.
+    if (!vias.length && a[0] === b[0] && a[1] === b[1]) return;
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
@@ -601,6 +713,82 @@
     state.days[r].pois.splice(i, 1);
     renderMarkers();
     renderList();
+    markDirty();
+  }
+
+  // Copy a point, placed straight after the one it came from. New in the row
+  // menu — this capability did not exist before, so the menu adds something
+  // rather than only rearranging what was there.
+  //
+  // The roles array is COPIED, not shared. Sharing it would make the two points
+  // one point wherever roles are concerned, and the same aliasing would reach
+  // back through the undo stack — see the header of builder-history.js, which
+  // records exactly which fields may be shared by reference and warns that the
+  // set changes whenever a feature like this one lands.
+  function duplicatePoint(kind, i) {
+    const r = editIndex();
+    if (r == null) return pickADayFirst();
+    const day = state.days[r];
+    const list = kind === "stop" ? day.stops : day.pois;
+    const src = list[i];
+    if (!src) return;
+    const cap = kind === "stop" ? MAX_STOPS : MAX_POIS;
+    if (list.length >= cap) return toast((kind === "stop" ? "Stop" : "POI") + " limit reached (" + cap + ")", true);
+
+    beginEdit("duplicate " + kind);
+    const copy = { ...src, roles: (src.roles || []).slice() };
+    list.splice(i + 1, 0, copy);
+
+    if (kind === "stop") {
+      // A stop inserted at i+1 sits on top of its original, so the leg into it
+      // is zero length and the one out of it is the original's old leg. Both
+      // ends get recomputed rather than guessed.
+      day.legs.splice(i, 0, straightLeg([src.lng, src.lat], [src.lng, src.lat]));
+      state.legSeq[r] = [];
+      computeLegsAround(r, [i - 1, i, i + 1]);
+      renderTrack(r);
+    }
+    renderMarkers();
+    renderList();
+    refreshDerived();
+    markDirty();
+  }
+
+  // MOVE a stop to an arbitrary index, which is what a drag produces. moveStop
+  // below SWAPS with a neighbour, which is the same thing only for a one-step
+  // move — dragging stop 2 to position 5 with a swap would put stop 5 at 2, and
+  // that is not what anybody dragging means.
+  //
+  // Which legs are wrong afterwards: a leg joins consecutive stops, so moving
+  // between `from` and `to` invalidates every leg from the one BEFORE the earlier
+  // position through the one AT the later position. Worked through on an 8-stop
+  // day, 2 -> 5 leaves L0 and L6 untouched and breaks L1..L5, which is exactly
+  // [min-1, max]. Recomputing the whole day instead would be correct and would
+  // also fire a routing request per leg, which is the half that costs money.
+  function reorderStop(from, to) {
+    if (from === to) return;
+    const r = editIndex();
+    if (r == null) return;
+    const day = state.days[r];
+    if (from < 0 || from >= day.stops.length || to < 0 || to >= day.stops.length) return;
+
+    beginEdit("move stop");
+    const [moved] = day.stops.splice(from, 1);
+    day.stops.splice(to, 0, moved);
+
+    const lo = Math.min(from, to) - 1;
+    const hi = Math.max(from, to);
+    const idx = [];
+    for (let k = lo; k <= hi; k++) {
+      // Shaping points belong to the pair of stops the leg used to join, so they
+      // are meaningless once either end changes. Same reasoning as moveStop.
+      if (day.legs[k]) day.legs[k].viaPoints = [];
+      idx.push(k);
+    }
+    computeLegsAround(r, idx);
+    renderMarkers();
+    renderList();
+    refreshDerived();
     markDirty();
   }
 
@@ -1005,13 +1193,37 @@
 
   // --- Panel: list + totals -------------------------------------------------
 
+  // ONE ICON'S FOOTPRINT, WHATEVER THE ROLE COUNT. This used to join one 16px
+  // chip per role, so the control was roughly 18n + 10 wide — 28px at one role
+  // and about 316px of a 320px row at all seventeen, with the name field paying
+  // for it. It is the sharpest case of the panel rule that nothing changes size
+  // as its value changes.
+  //
+  // The shape chosen (2026-08-15) is the first role's icon at full size plus a
+  // count. Roles are capped at 4 by wireList, so the badge never exceeds "+3",
+  // and the full set is one click away in the picker below — this control is an
+  // indicator, not the list. Stacking and a quarter-scale 2x2 grid were the other
+  // two candidates; both lose legibility at 16px, which is the size that matters.
+  //
+  // Every role's name still reaches the rider: they are joined into the button's
+  // title attribute by pointRowHtml, so nothing is hidden, only summarized.
   function roleIconsHtml(point) {
-    return (point.roles || [])
-      .map((r) => {
-        const meta = window.TB.roles[r];
-        return meta ? '<span class="role-chip tb-inline-icon" data-icon="' + esc(meta.icon) + '" title="' + esc(meta.title) + '"></span>' : "";
-      })
-      .join("");
+    const roles = (point.roles || []).filter((r) => window.TB.roles[r]);
+    if (!roles.length) return "";
+    const meta = window.TB.roles[roles[0]];
+    const extra = roles.length - 1;
+    return (
+      '<span class="role-chip tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span>' +
+      (extra > 0 ? '<span class="role-more">+' + extra + "</span>" : "")
+    );
+  }
+
+  // Every role a point carries, in words, for the icon button's tooltip. The
+  // button shows one icon and a count; this is where the rest of the answer
+  // lives without costing any width.
+  function roleTitle(point) {
+    const names = (point.roles || []).map((r) => window.TB.roles[r] && window.TB.roles[r].title).filter(Boolean);
+    return names.length ? names.join(", ") : "Categories";
   }
 
   // Mirrors faqLink() in src/views/layout.ts, for the panel markup this file
@@ -1048,11 +1260,24 @@
     });
   }
 
+  // SIX BUTTONS BECAME TWO. The row carried up, down, notes and delete beside the
+  // role button; it now carries a drag handle and one menu. `.row-actions` was
+  // 80px of a 320px row and most of that goes back to the name field, which was
+  // 113px on a stop against a POI's 152px — that 39px difference WAS the arrow
+  // pair, and it is gone.
+  //
+  // Only a stop gets a drag handle. A POI's place in this list is not stored: it
+  // is projected onto the day's track by dayPoiDistances, so dragging one would
+  // be asking the rider to set a value that is computed. Moving a POI means
+  // moving its pin.
   function pointRowHtml(kind, point, i) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
       '<div class="row-main">' +
+      (isStop
+        ? '<span class="row-drag" title="Drag to reorder" aria-hidden="true"></span>'
+        : '<span class="row-drag is-fixed" aria-hidden="true"></span>') +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       // POIs get the same minutes field now. Blank means "rode past without
@@ -1061,13 +1286,14 @@
       '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="' +
       (isStop ? "Stop duration (minutes)" : "How long you stop here, if you stop (minutes)") + '" value="' +
       (point.durationMin ?? "") + '">' +
-      '<button type="button" class="row-roles-btn" title="Categories">' + (roleIconsHtml(point) || "+") + "</button>" +
+      '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
+      (roleIconsHtml(point) || '<span class="role-add">+</span>') + "</button>" +
       '<span class="row-actions">' +
-      (isStop
-        ? '<button type="button" class="row-up" title="Move up">↑</button><button type="button" class="row-down" title="Move down">↓</button>'
-        : "") +
-      '<button type="button" class="row-notes" title="Notes">✎</button>' +
-      '<button type="button" class="row-del" title="Delete">✕</button>' +
+      // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
+      // roughly a third of the width, which on a 320px row is width the name
+      // field gets instead.
+      '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
+      (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
       '<div class="row-roles" hidden>' + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
@@ -1281,16 +1507,24 @@
       const point = pointOf(row);
       const btn = e.target.closest("button");
       if (!btn) return;
-      if (btn.classList.contains("row-del")) return isStop ? deleteStop(i) : deletePoi(i);
-      if (btn.classList.contains("row-up")) return moveStop(i, -1);
-      if (btn.classList.contains("row-down")) return moveStop(i, 1);
-      if (btn.classList.contains("row-notes")) {
-        const ta = row.querySelector(".row-desc");
-        ta.hidden = !ta.hidden;
-        if (!ta.hidden) ta.focus();
+      if (btn.classList.contains("row-menu-btn")) return toggleRowMenu(row, btn);
+      if (btn.classList.contains("row-menu-item")) {
+        const act = btn.dataset.act;
+        closeRowMenu();
+        if (act === "notes") {
+          const ta = row.querySelector(".row-desc");
+          ta.hidden = false;
+          ta.focus();
+          return;
+        }
+        if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
+        if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
+        if (act === "up") return moveStop(i, -1);
+        if (act === "down") return moveStop(i, 1);
         return;
       }
       if (btn.classList.contains("row-roles-btn")) {
+        closeRowMenu();
         row.querySelector(".row-roles").hidden = !row.querySelector(".row-roles").hidden;
         return;
       }
@@ -1304,11 +1538,141 @@
         btn.classList.toggle("on");
         btn.setAttribute("aria-pressed", String(point.roles.includes(role)));
         const rolesBtn = row.querySelector(".row-roles-btn");
-        rolesBtn.innerHTML = roleIconsHtml(point) || "+";
+        rolesBtn.innerHTML = roleIconsHtml(point) || '<span class="role-add">+</span>';
+        rolesBtn.title = roleTitle(point);
         hydrateIcons(rolesBtn);
         renderMarkers();
         markDirty();
       }
+    });
+  }
+
+  // --- The row menu ---------------------------------------------------------
+  //
+  // BUILT ON OPEN, NEVER PER ROW, and that is the constraint rather than a
+  // preference. The role picker already renders 17 buttons for every point —
+  // 119 nodes in the DOM at seven stops and 340 at twenty — and a second eager
+  // per-row menu would repeat that mistake exactly. One menu element exists at a
+  // time, for the row that asked for it.
+  //
+  // It is absolutely positioned inside the row, so opening it moves nothing: an
+  // inline menu would push every row below it, which is the jump this whole epic
+  // is about.
+  //
+  // Move up / Move down live here as well as on the drag handle. They are not
+  // redundant — a drag handle cannot be operated from a keyboard, and they are
+  // also what still works if the SortableJS CDN fails.
+  const MENU_ITEMS = [
+    { act: "notes", label: "Edit notes" },
+    { act: "duplicate", label: "Duplicate" },
+    { act: "up", label: "Move up", stopOnly: true },
+    { act: "down", label: "Move down", stopOnly: true },
+    { act: "delete", label: "Delete", danger: true },
+  ];
+
+  function closeRowMenu() {
+    const open = document.querySelector(".row-menu");
+    if (open) {
+      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+      open.remove();
+    }
+  }
+
+  function toggleRowMenu(row, btn) {
+    const wasOpen = !!row.querySelector(".row-menu");
+    closeRowMenu();
+    if (wasOpen) return;
+
+    const isStop = row.dataset.kind === "stop";
+    const i = Number(row.dataset.i);
+    const day = editRoute();
+    const last = isStop && day ? day.stops.length - 1 : 0;
+
+    const menu = document.createElement("div");
+    menu.className = "row-menu";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = MENU_ITEMS.filter((m) => !m.stopOnly || isStop)
+      .map((m) => {
+        // Disabled rather than absent, so the menu is the same shape every time
+        // and the first stop's menu does not read as a different menu.
+        const off = (m.act === "up" && i === 0) || (m.act === "down" && i === last);
+        return (
+          '<button type="button" role="menuitem" class="row-menu-item' + (m.danger ? " is-danger" : "") + '"' +
+          ' data-act="' + m.act + '"' + (off ? " disabled" : "") + ">" + esc(m.label) + "</button>"
+        );
+      })
+      .join("");
+    row.appendChild(menu);
+    btn.setAttribute("aria-expanded", "true");
+    const first = menu.querySelector(".row-menu-item:not([disabled])");
+    if (first) first.focus();
+  }
+
+  // Anywhere else, or Escape. Registered once rather than per menu, so an open
+  // menu never outlives the render that replaced its row.
+  function wireRowMenuDismiss() {
+    document.addEventListener("pointerdown", (e) => {
+      if (!e.target.closest(".row-menu") && !e.target.closest(".row-menu-btn")) closeRowMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const open = document.querySelector(".row-menu");
+      if (!open) return;
+      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
+      closeRowMenu();
+      if (btn) btn.focus();
+    });
+  }
+
+  // --- Drag to reorder ------------------------------------------------------
+  //
+  // THE INDEX MAPPING IS THE WHOLE JOB, and it is not what it looks like.
+  // orderedRows() interleaves stops and POIs sorted by distance along the track,
+  // while each row's data-i is its index within its OWN array — so Sortable's
+  // oldIndex/newIndex, which count all children, mean nothing here.
+  //
+  // Reading the resulting DOM order of the stop rows sidesteps the interleaving
+  // entirely: their data-i values in document order ARE the new ordering, however
+  // many POIs were sitting between them. Dropping a stop between two POIs lands
+  // it after however many stop rows precede it, which is the right answer without
+  // a special case.
+  //
+  // Degrades to nothing if the CDN did not deliver. Every row menu carries Move
+  // up and Move down, which is also the keyboard path.
+  function initDragToReorder(listEl) {
+    if (!window.Sortable) {
+      console.warn("[builder] Sortable did not load—reorder by the row menu");
+      return;
+    }
+    window.Sortable.create(listEl, {
+      // A POI has no stored position to change, so it is not draggable. It stays
+      // in the list and other rows move around it.
+      draggable: '.point-row[data-kind="stop"]',
+      handle: ".row-drag",
+      animation: 150,
+      ghostClass: "is-dragging",
+      // Sortable defaults to native HTML5 drag-and-drop on a desktop pointer and
+      // to its own implementation on touch, which means two code paths, two sets
+      // of quirks and a drag image the browser draws and we cannot style. The
+      // fallback path is used for both here so a drag behaves and looks the same
+      // on a phone and a laptop. It is also the only path a synthetic event can
+      // drive, which is what makes this testable at all.
+      forceFallback: true,
+      fallbackClass: "row-drag-ghost",
+      fallbackOnBody: true,
+      // Touch needs a moment of hold to tell a drag from a scroll; a mouse does
+      // not and 0 keeps it feeling immediate.
+      delay: 200,
+      delayOnTouchOnly: true,
+      onEnd: (evt) => {
+        const rows = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')];
+        const order = rows.map((el) => Number(el.dataset.i));
+        const from = Number(evt.item.dataset.i);
+        const to = order.indexOf(from);
+        if (to < 0 || to === from) return;
+        reorderStop(from, to);
+      },
     });
   }
 
@@ -1430,21 +1794,30 @@
     };
   }
 
+  // Warned once per episode rather than on every flush. Autosave calls save()
+  // several times a minute, and a rider who has added a day and not yet given it
+  // a stop would otherwise be told about it continuously for as long as it takes
+  // them to add one. Reset when nothing is being dropped, so the next episode
+  // warns again.
+  let warnedDropped = false;
+
   async function save() {
     if (state.saving) return;
-    state.meta.title = $("ride-title").value.trim();
-    if (!state.meta.title) {
-      $("ride-title").focus();
-      return toast("Give the ride a title first", true);
-    }
     const body = payload();
-    if (body.days.length === 0) return toast("Add at least one stop", true);
     const dropped = state.days.length - body.days.length;
-    if (dropped > 0) toast(dropped + " empty day" + (dropped > 1 ? "s" : "") + " skipped", true);
+    if (dropped > 0 && !warnedDropped) {
+      warnedDropped = true;
+      toast(dropped + " empty day" + (dropped > 1 ? "s" : "") + " not saved—add a stop to it");
+    } else if (dropped === 0) {
+      warnedDropped = false;
+    }
+
+    // Captured BEFORE the fetch, beside the payload it belongs to. See the
+    // editSeq comment above for why the two have to be read at the same instant.
+    const sentSeq = editSeq;
 
     state.saving = true;
-    $("save").disabled = true;
-    $("save-status").textContent = "saving…";
+    setSaveStatus("saving");
     try {
       const res = await fetch(state.rideId ? "/api/rides/" + state.rideId : "/api/rides", {
         method: state.rideId ? "PUT" : "POST",
@@ -1460,20 +1833,47 @@
         // that offers itself to the next new ride.
         HIST.Draft.adopt(state.rideId);
       }
+      if (data.slug) showViewLink(data.slug);
+
+      // Did this response cover everything, or did the rider keep working
+      // through it? Both branches are load-bearing.
+      if (editSeq !== sentSeq) {
+        // It did not. Stay dirty, keep the draft, and go round again — this is
+        // the re-queue that makes the mid-flight keystroke survive.
+        setSaveStatus("dirty");
+        queueAutosave();
+        return;
+      }
       state.dirty = false;
-      // Saved is the one moment the draft is provably redundant.
+      // Clean, and the one moment the draft is provably redundant. Note this
+      // sits AFTER the check above on purpose: clearing it on a partial save
+      // would throw away the crash copy of the very edits still outstanding.
       clearTimeout(draftTimer);
       HIST.Draft.clear(state.rideId);
       draftFailed = false;
-      $("discard").disabled = true;
-      $("save-status").innerHTML = 'saved ✓ · <a href="/m/' + esc(data.slug || "") + '">view</a>';
+      setSaveStatus("saved");
     } catch (e) {
-      toast(e.message, true);
-      $("save-status").textContent = "not saved";
+      // The message goes to the status line, not to a toast: an autosave that
+      // fails once tends to fail again, and one toast per attempt would bury the
+      // panel. The failure is also not fatal — the localStorage draft still has
+      // the work, and the retry below usually clears it without the rider ever
+      // needing to act.
+      setSaveStatus("error", e.message);
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(flushNow, AUTOSAVE_RETRY_MS);
     } finally {
       state.saving = false;
-      $("save").disabled = false;
     }
+  }
+
+  // The link to the public page, revealed once and never hidden again. It is
+  // rendered from the start and only made visible here — see the markup comment
+  // in src/routes/builder.ts for why it is `visibility` and not `hidden`.
+  function showViewLink(slug) {
+    const a = $("view-link");
+    if (!a) return;
+    a.href = "/m/" + encodeURIComponent(slug);
+    a.classList.remove("is-empty");
   }
 
   async function loadExisting() {
@@ -1507,6 +1907,10 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    // What was just loaded IS what the server holds, so the panel opens on
+    // "Saved" rather than on the "Not saved yet" a new ride starts at.
+    setSaveStatus("saved");
+    if (ride.slug) showViewLink(ride.slug);
   }
 
   // --- Init -----------------------------------------------------------------
@@ -1625,10 +2029,21 @@
         state.addMode = btn.dataset.mode;
       });
     });
-    $("save").addEventListener("click", save);
-    $("discard").addEventListener("click", discardChanges);
+    // Narrowed from "dirty" to "dirty and not yet flushed". With autosave most
+    // of a session is clean within three seconds of the last keystroke, so the
+    // old guard would have fired on almost every exit for work that was already
+    // on the server. What is left is the genuine window: an edit inside the
+    // debounce, a flush in flight, or a ride that cannot be saved at all.
     window.addEventListener("beforeunload", (e) => {
-      if (state.dirty) e.preventDefault();
+      if (state.dirty || state.saving) e.preventDefault();
+    });
+
+    // The reliable half of the pair. beforeunload is increasingly restricted and
+    // never fires at all when a phone backgrounds the tab and later kills it;
+    // visibilitychange does, and it is the documented place to persist. Flushing
+    // early here is free — a clean state returns immediately.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushNow();
     });
   }
 
@@ -1714,6 +2129,8 @@
     wireMeta();
     wireDays();
     wireList($("stop-list"));
+    wireRowMenuDismiss();
+    initDragToReorder($("stop-list"));
     wireSearch();
     wireHistory();
 

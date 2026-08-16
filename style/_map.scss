@@ -190,34 +190,65 @@
     margin: 0 0.5em 0 0;
   }
 
-  .collapse-toggle {
-    background-color: transparent;
-    display: inline-flex !important;
-    justify-content: center;
-    align-items: center;
+  // Collapse and exit, in that order, pinned to the corner a reader already
+  // looks in to dismiss something. They are two verbs and two controls: collapse
+  // keeps you on the map, exit leaves it. Before this only collapse existed and
+  // there was no way off a map page except the nav hamburger in the opposite
+  // corner — see the panelShell comment in src/views/layout.tsx.
+  .panel-controls {
     position: absolute;
     z-index: 100;
     top: 6px;
     right: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.1em;
+  }
+
+  .collapse-toggle,
+  .panel-exit {
+    background-color: transparent;
+    display: inline-flex !important;
+    justify-content: center;
+    align-items: center;
+    width: 30px !important;
     height: 30px;
     padding: 0;
     cursor: pointer;
     border: none;
     border-radius: 50%;
     margin: 0;
-    .collapse-icon {
-      pointer-events: none;
-      display: block;
-      width: 18px;
-      height: 18px;
-      margin: auto;
-      background: none;
-      border: none;
-    }
-    &:hover {
-    }
+    color: $neutral-43;
     flex: 0 0 auto !important;
-    width: auto !important;
+    text-decoration: none;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.07);
+      color: $text;
+    }
+  }
+
+  .collapse-toggle .collapse-icon {
+    pointer-events: none;
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: auto;
+    background: none;
+    border: none;
+  }
+
+  // Leaving is the more consequential of the two, so it gets the warmer hover.
+  // Not $kml outright — exiting is not destructive now that the builder
+  // autosaves, and painting it as danger would say otherwise.
+  .panel-exit {
+    font-size: 1.1rem;
+    line-height: 1;
+
+    &:hover {
+      background-color: rgba($kml, 0.12);
+      color: $kml;
+    }
   }
 
   // The scroller, rather than #info-panel itself: .collapse-toggle is absolutely
@@ -256,12 +287,13 @@
     min-width: 0 !important;
     max-width: none !important;
     min-height: 0 !important;
-    padding: 1em 3em 1em 1em !important;
+    // Room for two controls now, not one. Collapse gained an exit beside it, and
+    // at the old 3em the X sat on top of the title.
+    padding: 1em 4.6em 1em 1em !important;
     background: $panel-bg;
-    // border: 2px solid green;
 
     .panel-title,
-    .collapse-toggle {
+    .panel-controls {
       display: inline-flex !important;
       flex: 0 0 auto !important;
       min-width: 0 !important;
@@ -280,6 +312,13 @@
       z-index: 2;
       font-size: 1rem;
       font-weight: 700;
+    }
+
+    // The summary belongs to the expanded panel. Collapsed, the strip is a label
+    // saying what is behind it, and a second line of stats would make it a
+    // second panel.
+    .totals {
+      display: none;
     }
   }
 }

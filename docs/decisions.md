@@ -12,7 +12,7 @@ It cost one file rather than three because `public/js/map-common.js` already own
 
 ## Retiring the second viewer, 2026-08-01
 
-`public/js/main.js` was 1,135 lines of `google.maps` that predated everything else, served imported rides on their own shell, and read `window.MOTO` rather than `window.TB`. It survived the Mapbox era as the reference implementation for the port *back* to Google. Once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one day with one leg. Retiring it was flipping a conditional and deleting a file, not porting a renderer.
+`public/js/main.js` was 1,135 lines of `google.maps` that predated everything else, served imported rides on their own shell, and read `window.MOTO` rather than `window.TB`. It survived the Mapbox era as the reference implementation for the port _back_ to Google. Once that was done its remaining job turned out to be already handled: `ride.json` has served both sources identically since the timeline work added per-leg spans, so an imported ride is simply one day with one leg. Retiring it was flipping a conditional and deleting a file, not porting a renderer.
 
 ## `drizzle-kit push` to generated migrations, 2026-08-10
 
@@ -22,15 +22,15 @@ The dated files in `utils/deploy/sql/` are the `push`-era record of what ran aga
 
 ## `ride > day > leg > stop/POI`, settled 2026-08-09
 
-The `routes` table was renamed to `days` because every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field—while the code said "route", and "route" was simultaneously the import copy's word for a whole ride and the ~130 `app.route()` identifiers that mean HTTP handlers. "Route" now means only a path, or a route *file* from another app. `route_legs` keeps its name because the route there is the path a day traces.
+The `routes` table was renamed to `days` because every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field—while the code said "route", and "route" was simultaneously the import copy's word for a whole ride and the ~130 `app.route()` identifiers that mean HTTP handlers. "Route" now means only a path, or a route _file_ from another app. `route_legs` keeps its name because the route there is the path a day traces.
 
 ## The export filename carries four fields and no more
 
-The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with RouteLoop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
+The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
 
 ## Turnstile, and why it is off
 
-Cloudflare Turnstile guards uploads and saves but is feature-flagged off until keys are set, so an unconfigured environment is not silently unprotected-looking-protected. Cloudflare **Access** was removed from the codebase entirely on 2026-07-30—it is billed per seat and could not survive open signups. The Access *policy* still exists at the Cloudflare edge and is pure redundancy; the app has not read the header it injects since that date.
+Cloudflare Turnstile guards uploads and saves but is feature-flagged off until keys are set, so an unconfigured environment is not silently unprotected-looking-protected. Cloudflare **Access** was removed from the codebase entirely on 2026-07-30—it is billed per seat and could not survive open signups. The Access _policy_ still exists at the Cloudflare edge and is pure redundancy; the app has not read the header it injects since that date.
 
 ## Qlty over SonarCloud, 2026-08-03
 
@@ -47,7 +47,7 @@ Two questions, both of which turn out to have a single dominant factor rather th
 
 ### Summary
 
-**Auth.** Cloudflare Access cannot be the long-term answer at any price you would accept—it is billed per seat, at $7/user/month for *every* user once you pass 50. It is an employee-access product being used as a consumer identity system. Move authentication into the app now, keep `users.status` as the capacity lever, and delete the Access trust path in the same change.
+**Auth.** Cloudflare Access cannot be the long-term answer at any price you would accept—it is billed per seat, at $7/user/month for _every_ user once you pass 50. It is an employee-access product being used as a consumer identity system. Move authentication into the app now, keep `users.status` as the capacity lever, and delete the Access trust path in the same change.
 
 **Search.** Google Places is not a drop-in upgrade: Google's terms forbid displaying Places content on a non-Google map, so "keep Mapbox rendering, use Google search" is not an option. The realistic choices are switching the whole map engine to Google, or fixing the search quality inside Mapbox by moving from the Geocoding API to the Search Box API—which is the product actually designed for business and POI search, and is almost certainly the real cause of your dissatisfaction.
 
@@ -59,13 +59,13 @@ Two questions, both of which turn out to have a single dominant factor rather th
 
 Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go plan is **$7 per user per month applied to all users**—there is no partial billing, so user 51 moves the whole roster onto the paid rate.
 
-| Users | Cloudflare Access | App-level auth (Arctic + magic link) |
-| --- | --- | --- |
-| 50 | $0 | $0 |
-| 100 | $700 / mo | ~$0 |
-| 1,000 | $7,000 / mo | ~$0 |
-| 10,000 | $70,000 / mo | email only, roughly $1–10 / mo |
-| 100,000 | $700,000 / mo | email only, roughly $10–100 / mo |
+| Users   | Cloudflare Access | App-level auth (Arctic + magic link) |
+| ------- | ----------------- | ------------------------------------ |
+| 50      | $0                | $0                                   |
+| 100     | $700 / mo         | ~$0                                  |
+| 1,000   | $7,000 / mo       | ~$0                                  |
+| 10,000  | $70,000 / mo      | email only, roughly $1–10 / mo       |
+| 100,000 | $700,000 / mo     | email only, roughly $10–100 / mo     |
 
 App-level auth has no per-user licence cost. The only variable is transactional email for magic links, which is fractions of a cent per message.
 
@@ -75,7 +75,7 @@ More than it looks like. The pieces for this were built and then half removed:
 
 - `sessions`—server sessions keyed by the SHA-256 hash of the browser token. Provider-agnostic already; nothing about it assumes Cloudflare.
 - `user_identities`—a `(provider, provider_user_id)` unique index with a `provider` enum. This table exists specifically so one user can hold several login methods. It needs two new enum values, `apple` and `email`, and nothing else.
-- `users.status`—built this sprint. This is your audience-size control, and it is independent of *how* someone authenticates. Keep it regardless of what you choose here.
+- `users.status`—built this sprint. This is your audience-size control, and it is independent of _how_ someone authenticates. Keep it regardless of what you choose here.
 - `arctic`—the OAuth2 client library that was uninstalled when Access landed. It covers Google, Apple, GitHub, Microsoft and others behind one interface.
 
 So the work is: reinstate Arctic, add an Apple provider, add a magic-link table and two routes, and delete the Access bridge. The user model does not change.
@@ -113,7 +113,7 @@ Sign in with Apple is the fiddliest of the three, and worth knowing before you c
 
 This one is worth stating on its own because it is a full authentication bypass if missed.
 
-`accessEmail()` in `src/auth/access.ts` (deleted) trusts the inbound `Cf-Access-Authenticated-User-Email` header. That is safe *only* because Cloudflare Access sits in front of `/auth/cloudflare` and strips or sets it. The moment Access stops protecting that route, anyone who can reach the origin can mint a session for any address by setting a header.
+`accessEmail()` in `src/auth/access.ts` (deleted) trusts the inbound `Cf-Access-Authenticated-User-Email` header. That is safe _only_ because Cloudflare Access sits in front of `/auth/cloudflare` and strips or sets it. The moment Access stops protecting that route, anyone who can reach the origin can mint a session for any address by setting a header.
 
 **Delete the header trust in the same commit that removes the Access application.** Not before, not after. The same applies to the `DEV_AUTH_EMAIL` fallback, which is currently guarded only by `APP_ORIGIN` not being HTTPS.
 
@@ -154,37 +154,37 @@ Per active user per month:
 - **10 map loads**—builder plus viewer sessions
 - **40 Directions requests**—seven legs, re-routed as stops are edited
 
-| Users | Searches / mo | Map loads / mo | Directions / mo |
-| --- | --- | --- | --- |
-| 100 | 1,600 | 1,000 | 4,000 |
-| 1,000 | 16,000 | 10,000 | 40,000 |
-| 10,000 | 160,000 | 100,000 | 400,000 |
-| 100,000 | 1,600,000 | 1,000,000 | 4,000,000 |
+| Users   | Searches / mo | Map loads / mo | Directions / mo |
+| ------- | ------------- | -------------- | --------------- |
+| 100     | 1,600         | 1,000          | 4,000           |
+| 1,000   | 16,000        | 10,000         | 40,000          |
+| 10,000  | 160,000       | 100,000        | 400,000         |
+| 100,000 | 1,600,000     | 1,000,000      | 4,000,000       |
 
 #### The comparison
 
-| | Mapbox as built (Geocoding) | Mapbox + Search Box | Google (full switch) |
-| --- | --- | --- | --- |
-| **100 users** | **$0** | **$0** | **$0** |
-| **1,000 users** | **$0** | **~$155** | **~$180** |
-| **10,000 users** | **~$895** | **~$2,660** | **~$3,330** |
-| **100,000 users** | **~$9,400** | **~$21,000** | **~$25,000–35,000** |
-| Search quality for POIs | Weakest—address-oriented | Purpose-built for POI | Best available |
-| Free tier, search | 100k geocodes | 2,500 sessions | Autocomplete sessions free |
-| Free tier, map loads | 50,000 | 50,000 | 10,000 |
-| Free tier, directions | 100,000 | 100,000 | 10,000 |
-| Can keep current renderer | Yes | Yes | **No—full rewrite** |
-| Terms allow mixing | n/a | n/a | **No** |
-| Migration cost | None, it is live | One endpoint | Both viewers, builder, all client JS |
+|                           | Mapbox as built (Geocoding) | Mapbox + Search Box   | Google (full switch)                 |
+| ------------------------- | --------------------------- | --------------------- | ------------------------------------ |
+| **100 users**             | **$0**                      | **$0**                | **$0**                               |
+| **1,000 users**           | **$0**                      | **~$155**             | **~$180**                            |
+| **10,000 users**          | **~$895**                   | **~$2,660**           | **~$3,330**                          |
+| **100,000 users**         | **~$9,400**                 | **~$21,000**          | **~$25,000–35,000**                  |
+| Search quality for POIs   | Weakest—address-oriented    | Purpose-built for POI | Best available                       |
+| Free tier, search         | 100k geocodes               | 2,500 sessions        | Autocomplete sessions free           |
+| Free tier, map loads      | 50,000                      | 50,000                | 10,000                               |
+| Free tier, directions     | 100,000                     | 100,000               | 10,000                               |
+| Can keep current renderer | Yes                         | Yes                   | **No—full rewrite**                  |
+| Terms allow mixing        | n/a                         | n/a                   | **No**                               |
+| Migration cost            | None, it is live            | One endpoint          | Both viewers, builder, all client JS |
 
 Unit rates behind those figures:
 
-| Service | Mapbox | Google |
-| --- | --- | --- |
-| Interactive search | Geocoding $0.75/1k after 100k free · Search Box $11.50/1k after 2,500 free, to $6.60 at volume | Autocomplete session free when closed by a Place Details call |
-| Place detail | included | Place Details $5/1k (Essentials, 10k free) to $17/1k (Pro, 5k free) |
-| Map loads | $5/1k after 50k free, to $2.50 at volume | Dynamic Maps $7/1k after 10k free |
-| Directions | $2/1k after 100k free, to $1.20 at volume | $5/1k Essentials after 10k free · $10/1k Advanced |
+| Service            | Mapbox                                                                                         | Google                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Interactive search | Geocoding $0.75/1k after 100k free · Search Box $11.50/1k after 2,500 free, to $6.60 at volume | Autocomplete session free when closed by a Place Details call       |
+| Place detail       | included                                                                                       | Place Details $5/1k (Essentials, 10k free) to $17/1k (Pro, 5k free) |
+| Map loads          | $5/1k after 50k free, to $2.50 at volume                                                       | Dynamic Maps $7/1k after 10k free                                   |
+| Directions         | $2/1k after 100k free, to $1.20 at volume                                                      | $5/1k Essentials after 10k free · $10/1k Advanced                   |
 
 #### Reading the table
 

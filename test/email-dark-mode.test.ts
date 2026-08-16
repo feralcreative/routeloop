@@ -91,7 +91,7 @@ describe('the wordmark', () => {
   it('puts the wordmark in alt text on both copies', () => {
     const alts = [...html.matchAll(/<img[^>]*\balt="([^"]*)"/g)].map((m) => m[1])
     expect(alts).toHaveLength(2)
-    for (const alt of alts) expect(alt).toBe('RouteLoop')
+    for (const alt of alts) expect(alt).toBe('Routeloop')
   })
 
   // Hidden by default and revealed by the query, never the reverse: a client

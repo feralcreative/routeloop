@@ -49,9 +49,9 @@ export const inviteRoutes = new Hono<AuthEnv>()
 
 /** What the invite is for, in a sentence the recipient reads before signing in. */
 function grantsSentence(inv: { grantsBeta: boolean; grantsSurvey: boolean }): string {
-  if (inv.grantsBeta && inv.grantsSurvey) return 'the RouteLoop beta and the rider survey'
-  if (inv.grantsBeta) return 'the RouteLoop beta'
-  return 'the RouteLoop rider survey'
+  if (inv.grantsBeta && inv.grantsSurvey) return 'the Routeloop beta and the rider survey'
+  if (inv.grantsBeta) return 'the Routeloop beta'
+  return 'the Routeloop rider survey'
 }
 
 const REFUSALS: Record<string, string> = {
@@ -89,8 +89,7 @@ inviteRoutes.get('/i/:token', async (c) => {
         <>
           <div class="splash-gate">
             <p>
-              <strong>Hey:</strong> you’ve been invited to {what}. Sign in and it’s yours—there’s no password to
-              pick.
+              <strong>Hey:</strong> you’ve been invited to {what}. Sign in and it’s yours—there’s no password to pick.
             </p>
           </div>
           {user ? (
@@ -136,8 +135,8 @@ inviteRoutes.get('/i/:token', async (c) => {
               )}
               {GOOGLE_ENABLED && (
                 <p class="provider-alt">
-                  Reading this inside another app? <strong>Google sign-in only works in a real browser</strong>—use
-                  the email form, or open this page in Safari or Chrome.
+                  Reading this inside another app? <strong>Google sign-in only works in a real browser</strong>—use the
+                  email form, or open this page in Safari or Chrome.
                 </p>
               )}
             </div>

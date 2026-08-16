@@ -203,6 +203,24 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
+// THIS CHURNS EVERY POINT AND DAY ID, ON PURPOSE, AND THE BUILDER NOW CALLS IT
+// CONSTANTLY. Decided 2026-08-15 while planning autosave (#89): the full replace
+// below deletes the ride's days — cascading to points and legs — and re-inserts
+// them, so `points.id` and `days.id` are different rows after every save. The
+// builder used to save when a rider pressed a button, perhaps a dozen times in a
+// session; it now flushes on idle, which is two orders of magnitude more often.
+//
+// That is still safe TODAY for exactly one reason: nothing anywhere references a
+// point across a save. The client payload carries no ids, the exports rebuild
+// from the graph, and the roadbook reads it whole.
+//
+// It stops being safe the moment anything does — rich stop details (#15), a
+// comment on a stop, a photo attached to one. **Any feature that needs a point
+// to keep its identity has to fix this first**, and the fix is not small: send
+// ids in the payload, diff here, and update in place, which rewrites
+// insertRideGraph, ridePayload and loadRidePayload — the path the native JSON
+// import shares. Do not add the reference and hope; the failure is silent and
+// looks like data that wandered off.
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
@@ -365,8 +383,27 @@ function builderHtml(
   //
   // The order changed with the grouping: the timeline and the totals moved up
   // into the ride band, which is where they always belonged.
+  //
+  // THERE IS NO SAVE BUTTON, and no Discard either. The builder autosaves on
+  // idle — see the autosave block in public/js/builder.js for the timing and for
+  // the two conditions that hold a flush. What is left in .builder-actions is
+  // undo, redo, a status readout and the link to the public page.
+  //
+  // Two details in that row are load-bearing rather than cosmetic, both serving
+  // the rule that nothing in the panel changes size as its value changes:
+  //
+  //   #save-status is aria-hidden and #save-announce below it is the live
+  //   region. A polite region on the readout itself would say "Unsaved changes,
+  //   Saving, Saved" aloud on every edit burst — three announcements a minute
+  //   for something a sighted rider takes in peripherally. The live region
+  //   speaks only for an error or a blocked save, which are the states that
+  //   need acting on. Its width is fixed in _builder.scss for the same reason.
+  //
+  //   #view-link ships from first paint and is revealed by the first successful
+  //   save, using visibility rather than the hidden attribute. An element that
+  //   appeared would shove the status beside it, which is the exact jump this
+  //   whole epic is about.
   const contents = `        <div class="panel-band panel-band--ride">
-          <input id="ride-title" name="title" type="text" maxlength="150" placeholder="Plan a ride" autocomplete="off">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
             <select id="ride-visibility" name="visibility" title="Visibility">
@@ -397,8 +434,6 @@ function builderHtml(
                    aria-label="Move through the ride in time" title="Drag to move through the ride">
             <div class="time-readout" id="time-readout"></div>
           </div>
-
-          <div class="totals" id="totals"></div>
         </div>
 
         <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
@@ -437,17 +472,42 @@ function builderHtml(
         </div>
 
         <div class="builder-actions">
-          <button id="save" class="btn" type="button">Save ride</button>
-          <button id="undo" class="btn-quiet" type="button" disabled title="Nothing to undo">Undo</button>
-          <button id="redo" class="btn-quiet" type="button" disabled title="Nothing to redo">Redo</button>
-          <button id="discard" class="btn-quiet" type="button" disabled>Discard changes</button>
-          <span id="save-status" class="save-status"></span>
+          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo">↶</button>
+          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo">↷</button>
+          <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
+            <span class="save-dot"></span>
+            <span class="save-text">Not saved yet</span>
+          </span>
+          <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
         </div>
+        <span id="save-announce" class="visually-hidden" role="status" aria-live="polite"></span>
         <div id="recover-bar" class="tb-banner is-recover" hidden>
           <span id="recover-text"></span>
           <button id="recover-yes" class="linkbtn" type="button">Restore</button>
           <button id="recover-no" class="linkbtn" type="button">Discard</button>
         </div>`
+
+  // THE RIDE'S NAME IS THE HEADING. It used to say "Edit ride" on the most
+  // prominent line in the panel and put the actual name in an input below it,
+  // spending the largest type in the app on a label the rider already knew — and
+  // on a new ride there was no heading at all, so a collapsed panel showed
+  // nothing. The viewer has always titled itself with the ride's name; this is
+  // the builder catching up, with the difference that its copy is editable.
+  //
+  // The input IS the heading rather than something a pencil reveals. A reveal
+  // would be a second mode and a layout jump, which is the exact thing item 16
+  // exists to remove; instead the field is styled as the heading, carries no
+  // border until it is hovered or focused, and shows the pencil as an affordance.
+  // Nothing moves when it is edited.
+  //
+  // The summary line follows it, out of the band below both sliders where it
+  // used to sit. Both are outside .panel-contents-wrapper, so they stay put while
+  // the stop list scrolls — renderTotals() writes #totals by id and did not care
+  // that it moved.
+  const titleHtml = `<input id="ride-title" name="title" type="text" maxlength="150"
+             placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off"
+             aria-label="Ride name" title="Ride name—click to edit">
+          <div class="totals" id="totals"></div>`
 
   return page({
     title: rideId ? 'Edit ride' : 'Plan a ride',
@@ -457,7 +517,9 @@ function builderHtml(
     navKey: 'builder',
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
-      title: rideId ? 'Edit ride' : undefined,
+      titleHtml,
+      exitHref: '/rides',
+      exitLabel: 'Leave the builder and go to your rides',
       extraClass: 'builder-panel',
       contents,
     })}`,
@@ -470,7 +532,20 @@ function builderHtml(
       home,
       publicStart,
     },
+    // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
+    // version with an SRI hash and crossorigin, so jsdelivr serving anything but
+    // the 1.15.7 bytes gets refused rather than executed. MIT, 45KB, and the
+    // version is 2026-02-11 rather than the stale release it is often assumed to
+    // be. Approved as a dependency 2026-08-15.
+    //
+    // `defer` scripts run in document order, so this is loaded ahead of
+    // builder.js and window.Sortable exists by the time initDragToReorder()
+    // looks for it. **If the CDN fails, the builder still works** — that
+    // function checks for the global and returns quietly, and every row's menu
+    // carries Move up / Move down regardless. Those are also the keyboard path,
+    // because a drag handle is not one.
     scripts: `${googleMapsLoader(GMAPS_KEY)}
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>

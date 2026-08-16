@@ -36,7 +36,7 @@ const EXPORTS: { path: string; label: string; note?: string }[] = [
   { path: 'kml', label: 'KML' },
   { path: 'geojson', label: 'GeoJSON' },
   { path: 'csv', label: 'CSV' },
-  { path: 'routeloop.json', label: 'RouteLoop', note: 'Lossless — re-imports as the same ride' },
+  { path: 'routeloop.json', label: 'Routeloop', note: 'Lossless — re-imports as the same ride' },
 ]
 
 importRoutes.get('/import', requireActive, async (c) => {
@@ -59,9 +59,7 @@ importRoutes.get('/import', requireActive, async (c) => {
       body: (
         <>
           <h1>Import / Export</h1>
-          <p class="lede">
-            Bring a route in from another app, or take one of yours out. Both directions, one page.
-          </p>
+          <p class="lede">Bring a route in from another app, or take one of yours out. Both directions, one page.</p>
 
           <h2 class="transfer-head">Import</h2>
 
@@ -132,7 +130,7 @@ importRoutes.get('/import', requireActive, async (c) => {
               <summary>File names can carry metadata like the ride date (optional)</summary>
               <div class="naming-help-body">
                 <p>
-                  Anything you download from RouteLoop is already named this way, so a folder you exported here drops
+                  Anything you download from Routeloop is already named this way, so a folder you exported here drops
                   straight back in and comes out as the same ride.
                 </p>
 
@@ -153,8 +151,8 @@ importRoutes.get('/import', requireActive, async (c) => {
                 */}
                 <p class="naming-example">
                   <code>
-                    routeloop_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_<b class="f-date">2026-08-14</b>_
-                    <b class="f-label">lost-coast</b>.gpx
+                    routeloop_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_
+                    <b class="f-date">2026-08-14</b>_<b class="f-label">lost-coast</b>.gpx
                   </code>
                 </p>
 

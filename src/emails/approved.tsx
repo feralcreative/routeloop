@@ -24,7 +24,7 @@ const IMPORT_URL = `${APP_ORIGIN}/import`
 export const approvedEmail = defineEmail<Props>({
   key: 'approved',
 
-  subject: () => 'Your RouteLoop account is approved',
+  subject: () => 'Your Routeloop account is approved',
 
   preheader: () => 'You’re in. Sign in and start planning.',
 
@@ -32,7 +32,7 @@ export const approvedEmail = defineEmail<Props>({
     [
       `You’re in, ${displayName}.`,
       '',
-      'Your RouteLoop account is approved, so you can sign in and start planning.',
+      'Your Routeloop account is approved, so you can sign in and start planning.',
       '',
       `Sign in: ${LOGIN_URL}`,
       '',
@@ -45,7 +45,7 @@ export const approvedEmail = defineEmail<Props>({
     (
       <>
         <P>You’re in, {displayName}.</P>
-        <P>Your RouteLoop account is approved, so you can sign in and start planning.</P>
+        <P>Your Routeloop account is approved, so you can sign in and start planning.</P>
         <Button href={LOGIN_URL}>Sign in</Button>
         <Muted>
           Two ways to start: <A href={BUILDER_URL}>plan a ride from scratch</A>, or{' '}

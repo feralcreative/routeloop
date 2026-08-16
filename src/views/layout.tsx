@@ -70,7 +70,7 @@ export type NavKey =
   | 'survey-results'
 
 export type PageOpts = {
-  /** Without the " – RouteLoop" suffix; page() appends it. */
+  /** Without the " – Routeloop" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -163,7 +163,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
-        <img src={logo.src} alt="RouteLoop" width={logo.w} height={logo.h} />
+        <img src={logo.src} alt="Routeloop" width={logo.w} height={logo.h} />
       </a>
       {/*
         A <details>, not a button plus a script. The browser owns open/closed,
@@ -212,13 +212,49 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 
 // The floating map panel scaffold, previously copy-pasted into all three map
 // shells. map-common.js binds the collapse toggle by these class names.
-export function panelShell(o: { title?: string; extraClass?: string; contents: string }): string {
+//
+// `exitHref` is the way OUT of a map page, and it was added because there was
+// not one. A map page has no site footer and its header is the floating nav, so
+// the only way off the builder was the hamburger in the opposite corner, which
+// nobody finds — the builder read as a black hole. The control belongs next to
+// collapse rather than in the nav because that corner is where a reader already
+// looks to dismiss a panel.
+//
+// It is deliberately NOT the collapse button, and that distinction is the whole
+// point of the pair: collapse keeps you on the map, exit leaves it. They are
+// different verbs and now they are different controls. (Note for anyone reading
+// issue #91, which describes the existing control as an X: it never was one — it
+// renders icon-collapse.svg, a minimize glyph — so only the missing exit was
+// real, and the collapse affordance did not have to move.)
+//
+// `titleHtml` exists for the builder, whose heading is an editable input rather
+// than text. The viewer passes a plain `title` and is unchanged.
+export function panelShell(o: {
+  title?: string
+  titleHtml?: string
+  exitHref?: string
+  exitLabel?: string
+  extraClass?: string
+  contents: string
+}): string {
   return (
     <div id="info-panel" class={`floating-panel${o.extraClass ? ` ${o.extraClass}` : ''}`}>
-      <button type="button" class="collapse-toggle" aria-label="Collapse panel">
-        <img src="/img/icons/icon-collapse.svg" alt="Collapse" class="collapse-icon" />
-      </button>
-      {o.title && <h1 class="panel-title">{o.title}</h1>}
+      <div class="panel-controls">
+        <button type="button" class="collapse-toggle" aria-label="Collapse panel" aria-expanded="true">
+          <img src="/img/icons/icon-collapse.svg" alt="" class="collapse-icon" />
+        </button>
+        {o.exitHref && (
+          <a
+            class="panel-exit"
+            href={o.exitHref}
+            aria-label={o.exitLabel ?? 'Leave the map'}
+            title={o.exitLabel ?? 'Leave the map'}
+          >
+            ✕
+          </a>
+        )}
+      </div>
+      {(o.titleHtml || o.title) && <h1 class="panel-title">{o.titleHtml ? raw(o.titleHtml) : o.title}</h1>}
       <div class="panel-contents-wrapper">
         {/* Already-rendered markup from the caller, hence raw(). */}
         <div class="panel-content">{raw(o.contents)}</div>
@@ -356,7 +392,7 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">RouteLoop is in a closed alpha.</p>}
+      {!splash && <p class="site-footer-note">Routeloop is in a closed alpha.</p>}
     </footer>
   ).toString()
 }
@@ -369,9 +405,9 @@ export function page(opts: PageOpts): string {
     .filter(Boolean)
     .join(' ')
   // A spaced EN dash, not an em dash. Em dashes are tight everywhere in this
-  // product, and "Coast Run—RouteLoop" reads as one compound word rather than a
+  // product, and "Coast Run—Routeloop" reads as one compound word rather than a
   // page inside a site. A title separator is the case the en dash exists for.
-  const title = `${esc(opts.title)} – RouteLoop`
+  const title = `${esc(opts.title)} – Routeloop`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>

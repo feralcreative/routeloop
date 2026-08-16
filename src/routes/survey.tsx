@@ -122,9 +122,9 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
     <>
       <h1>The rider survey</h1>
       <p class="lede">
-        I am building RouteLoop on my own judgement about what a trip needs, and my judgement is one rider’s. This is
-        how I find out where it is wrong. Everything below is genuinely undecided—the parts I have already made my
-        mind up about are not on the list, because asking about those would waste the only 5 minutes you owe me.
+        I am building Routeloop on my own judgement about what a trip needs, and my judgement is one rider’s. This is
+        how I find out where it is wrong. Everything below is genuinely undecided—the parts I have already made my mind
+        up about are not on the list, because asking about those would waste the only 5 minutes you owe me.
       </p>
 
       {welcome && <p class="notice">You’re in. Thanks for doing this.</p>}
@@ -156,9 +156,8 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
         <fieldset class="survey-section">
           <legend>The five that matter most</legend>
           <p class={`field-hint section-blurb${e.top ? ' has-error' : ''}`}>
-            Out of everything above, the {TOP_PICKS} you would actually want, best first. This is the part that
-            decides what I build—a rating says everything is nice, {TOP_PICKS} picks say what you would trade the
-            rest for.
+            Out of everything above, the {TOP_PICKS} you would actually want, best first. This is the part that decides
+            what I build—a rating says everything is nice, {TOP_PICKS} picks say what you would trade the rest for.
           </p>
           {Array.from({ length: TOP_PICKS }, (_, i) => (
             <p class="field">
@@ -310,7 +309,7 @@ surveyRoutes.get('/survey/thanks', requireSurvey, (c) => {
           Change an answer
         </a>{' '}
         <a class="linkbtn" href="/">
-          Back to RouteLoop
+          Back to Routeloop
         </a>
       </p>
     </>

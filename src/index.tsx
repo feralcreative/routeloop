@@ -453,9 +453,15 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 // `timeline` is opt-in rather than default because the legacy shell's main.js
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
-function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false): string {
+function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false, signedIn = false): string {
   return panelShell({
     title: m.title,
+    // The viewer is the same black hole the builder was: no footer, a floating
+    // nav, and nothing that says "done looking". Where it goes depends on who is
+    // reading — a rider has their own list to go back to, and a visitor who
+    // followed a shared link has never seen the site and gets the front page.
+    exitHref: signedIn ? '/rides' : '/',
+    exitLabel: signedIn ? 'Leave the map and go to your rides' : 'Leave the map',
     contents: (
       <>
         <div class="details">
@@ -524,6 +530,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
       m,
       canEditRide(m, user) ? `/builder/${m.id}` : null,
       Boolean(user && user.status === 'active' && user.id !== m.ownerId && m.visibility === 'public'),
+      Boolean(user),
     )}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,

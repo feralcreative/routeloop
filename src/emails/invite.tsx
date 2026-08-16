@@ -33,7 +33,7 @@ export const inviteEmail = defineEmail<Props>({
 
   // Not "You're invited!" — no exclamation marks anywhere in this product, and
   // the useful half of a subject line is the noun, not the verb.
-  subject: () => 'Your invitation to RouteLoop',
+  subject: () => 'Your invitation to Routeloop',
 
   preheader: ({ expiry }) => `One link, good for ${expiry}.`,
 
@@ -67,7 +67,7 @@ export const inviteEmail = defineEmail<Props>({
   // absolute and a placeholder would pass that while hiding the actual shape.
   sample: {
     url: `${APP_ORIGIN}/i/0123456789abcdef0123456789abcdef0123456789abcdef`,
-    what: 'the RouteLoop beta and the rider survey',
+    what: 'the Routeloop beta and the rider survey',
     expiry: '7 days',
   },
 })

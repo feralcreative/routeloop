@@ -1,4 +1,4 @@
-// The native RouteLoop format: the one export that loses nothing.
+// The native Routeloop format: the one export that loses nothing.
 //
 // Every other format flattens something and the round-trip tests say so. This
 // one has to survive intact, and the way it does that is by being the builder's
@@ -77,7 +77,7 @@ const native: NativeRide = { routeloop: NATIVE_FORMAT_VERSION, exportedFrom: 'ro
 const legacyNative: NativeRide = { tankbag: 2, exportedFrom: 'tankbag.app', ride }
 
 describe('isNativeRide', () => {
-  it('recognises a RouteLoop export', () => {
+  it('recognises a Routeloop export', () => {
     expect(isNativeRide(JSON.parse(buildNativeJson(native)))).toBe(true)
   })
 

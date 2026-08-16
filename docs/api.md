@@ -6,32 +6,32 @@ A host middleware runs ahead of everything: requests for `tankbag.app`, `www.tan
 
 ## Gates
 
-| Gate | Effect |
-|---|---|
-| `withSession` | Resolves the session once per request; runs for everything after the static assets |
-| `requireAuth` / `requireAuthApi` | Signed in. The `Api` variant answers JSON instead of redirecting |
-| `requireActive` / `requireActiveApi` | `users.status = 'active'`. Pending riders land on `/welcome` |
-| `requireManageRiders` | Admin surfaces |
-| `requireSurvey` | The rider survey |
-| `requireSameOrigin` | CSRF. Checks `Origin` via `isAllowedOrigin` in `src/config.ts`—every write has it |
+| Gate                                 | Effect                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `withSession`                        | Resolves the session once per request; runs for everything after the static assets |
+| `requireAuth` / `requireAuthApi`     | Signed in. The `Api` variant answers JSON instead of redirecting                   |
+| `requireActive` / `requireActiveApi` | `users.status = 'active'`. Pending riders land on `/welcome`                       |
+| `requireManageRiders`                | Admin surfaces                                                                     |
+| `requireSurvey`                      | The rider survey                                                                   |
+| `requireSameOrigin`                  | CSRF. Checks `Origin` via `isAllowedOrigin` in `src/config.ts`—every write has it  |
 
 Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: public and unlisted for anyone, private for the owner only, otherwise 404. Unknown and forbidden slugs are indistinguishable on purpose.
 
 ## Public
 
-| Route | Notes |
-|---|---|
-| `GET /` | Public ride listing (`routes/home.tsx`) |
-| `GET /m/:slug` | Viewer page—one shell for both sources |
-| `GET /m/:slug/navigate` | The Google Maps hand-off: each day as ordered `/maps/dir/?api=1` links carrying 9 waypoints plus two ends, with an Expand density control (off / light / tight). `routes/handoff.tsx` |
-| `GET /m/:slug/roadbook` | Printable stop-by-stop sheet, server-rendered, no JavaScript. `routes/roadbook.tsx` |
-| `GET /api/public/rides/:slug/ride.json` | The normalized viewer contract for both sources: ride meta plus `days[]`, each with `track`, `stops[]`, `pois[]` and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track` |
-| `GET /api/public/maps/:slug/:format{kml\|gpx\|geojson\|csv}` | Gated download. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in; every other format is generated from the rows |
-| `GET /api/public/maps/:slug/routeloop.json` | Lossless native export |
-| `GET /api/public/maps/:slug/zip/:format{kml\|gpx\|geojson\|csv}` | One conforming file per day. **Registered ahead of the generic `:format` route on purpose**—after it, the generic route swallows `/zip/gpx` and answers with a plain GPX |
-| `GET /explore`, `/faq`, `/privacy`, `/terms` | `routes/pages.tsx` |
-| `GET /@username` | Public profile (`/:handle{@…}` in `routes/pages.tsx`) |
-| `GET /riders` | Signed-in only—an anonymous list of every account is a scraping target with no upside |
+| Route                                                            | Notes                                                                                                                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /`                                                          | Public ride listing (`routes/home.tsx`)                                                                                                                                                     |
+| `GET /m/:slug`                                                   | Viewer page—one shell for both sources                                                                                                                                                      |
+| `GET /m/:slug/navigate`                                          | The Google Maps hand-off: each day as ordered `/maps/dir/?api=1` links carrying 9 waypoints plus two ends, with an Expand density control (off / light / tight). `routes/handoff.tsx`       |
+| `GET /m/:slug/roadbook`                                          | Printable stop-by-stop sheet, server-rendered, no JavaScript. `routes/roadbook.tsx`                                                                                                         |
+| `GET /api/public/rides/:slug/ride.json`                          | The normalized viewer contract for both sources: ride meta plus `days[]`, each with `track`, `stops[]`, `pois[]` and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track` |
+| `GET /api/public/maps/:slug/:format{kml\|gpx\|geojson\|csv}`     | Gated download. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in; every other format is generated from the rows                    |
+| `GET /api/public/maps/:slug/routeloop.json`                      | Lossless native export                                                                                                                                                                      |
+| `GET /api/public/maps/:slug/zip/:format{kml\|gpx\|geojson\|csv}` | One conforming file per day. **Registered ahead of the generic `:format` route on purpose**—after it, the generic route swallows `/zip/gpx` and answers with a plain GPX                    |
+| `GET /explore`, `/faq`, `/privacy`, `/terms`                     | `routes/pages.tsx`                                                                                                                                                                          |
+| `GET /@username`                                                 | Public profile (`/:handle{@…}` in `routes/pages.tsx`)                                                                                                                                       |
+| `GET /riders`                                                    | Signed-in only—an anonymous list of every account is a scraping target with no upside                                                                                                       |
 
 ## Auth (`routes/auth.tsx`)
 
@@ -43,37 +43,37 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 
 All of these carry `requireAuthApi` (or `requireActiveApi`) plus `requireSameOrigin`.
 
-| Route | Notes |
-|---|---|
-| `POST /api/maps` | Import: KML, KMZ, GPX, GeoJSON, CSV, a `.zip` of any of those, or native RouteLoop JSON → structured rows. Full XXE-safe pipeline plus transactional quota. `routes/maps.ts` |
-| `PATCH /api/maps/:id`, `DELETE /api/maps/:id` | Edit and delete, owner-scoped, both sources |
-| `POST /api/rides`, `PUT /api/rides/:id`, `GET /api/rides/:id` | Builder create, full-replace save, owner load. `routes/rides.ts` |
-| `POST /api/rides/:id/clone` | Rebuilds a public native ride through the same `insertRideGraph`. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands private. Private and imported rides 404 rather than 403, so the endpoint confirms nothing |
-| `POST /api/route` | `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted; caches computed legs because editing re-requests the same pair constantly. `routes/routing.ts` |
-| `POST /api/geocode` | Beside it, for the same reason. **A miss is cached as well as a hit**—a half-typed address is resubmitted constantly and a failed lookup bills the same. Geocoding reports "found nothing" as HTTP 200 with `ZERO_RESULTS`, handled explicitly rather than falling through as success |
+| Route                                                         | Notes                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/maps`                                              | Import: KML, KMZ, GPX, GeoJSON, CSV, a `.zip` of any of those, or native Routeloop JSON → structured rows. Full XXE-safe pipeline plus transactional quota. `routes/maps.ts`                                                                                                          |
+| `PATCH /api/maps/:id`, `DELETE /api/maps/:id`                 | Edit and delete, owner-scoped, both sources                                                                                                                                                                                                                                           |
+| `POST /api/rides`, `PUT /api/rides/:id`, `GET /api/rides/:id` | Builder create, full-replace save, owner load. `routes/rides.ts`                                                                                                                                                                                                                      |
+| `POST /api/rides/:id/clone`                                   | Rebuilds a public native ride through the same `insertRideGraph`. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands private. Private and imported rides 404 rather than 403, so the endpoint confirms nothing                     |
+| `POST /api/route`                                             | `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted; caches computed legs because editing re-requests the same pair constantly. `routes/routing.ts`                               |
+| `POST /api/geocode`                                           | Beside it, for the same reason. **A miss is cached as well as a hit**—a half-typed address is resubmitted constantly and a failed lookup bills the same. Geocoding reports "found nothing" as HTTP 200 with `ZERO_RESULTS`, handled explicitly rather than falling through as success |
 
 Import specifics: several files posted at once become the days of one ride, and all are validated before any is parsed so a bad tenth file names itself rather than leaving nine days half-imported. A zip is expanded before anything asks what format a file is, so nothing downstream ever sees one. Day order comes from the `dNN` filename field when every file carries one, and from upload order otherwise—partial sets keep upload order, because interleaving numbered and unnumbered files needs a rule nobody asked for. The form is `routes/import.tsx`, enhanced by `public/js/import.js` into a drop box that fills it from the filenames.
 
 ## Pages
 
-| Route | Gate |
-|---|---|
+| Route                              | Gate                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ |
 | `GET /builder`, `GET /builder/:id` | `requireAuth`, owner-checked, native rides only. `routes/rides.ts` |
-| `GET /dashboard` | Owner ride list plus the aggregates from `src/stats/` |
-| `GET`/`POST /profile` | Profile form and username reservations |
-| `GET /import` | The multi-file upload form |
-| `GET /settings` | Signed-in stub—deliberately empty rather than fake |
-| `GET /brand` | Signed-in palette audit read live from the SCSS |
+| `GET /dashboard`                   | Owner ride list plus the aggregates from `src/stats/`              |
+| `GET`/`POST /profile`              | Profile form and username reservations                             |
+| `GET /import`                      | The multi-file upload form                                         |
+| `GET /settings`                    | Signed-in stub—deliberately empty rather than fake                 |
+| `GET /brand`                       | Signed-in palette audit read live from the SCSS                    |
 
 ## Invites and survey
 
-| Route | Gate |
-|---|---|
-| `GET /i/:token`, `POST /i/accept` | `requireAuth`, **not** `requireActive`—a pending rider is exactly who an invite is for |
-| `GET /admin/invites`, `POST /admin/invites`, `POST /admin/invites/:id/revoke`, `POST /admin/invites/:id/regenerate` | `requireManageRiders` |
-| `GET`/`POST /survey`, `GET /survey/thanks` | `requireSurvey` |
-| `GET /admin/survey`, `GET /admin/survey.csv` | `requireManageRiders` |
-| `GET /admin`, `GET /admin/approvals`, `POST /admin/riders/:id` | `requireManageRiders`—the reader of `users.status` |
+| Route                                                                                                               | Gate                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `GET /i/:token`, `POST /i/accept`                                                                                   | `requireAuth`, **not** `requireActive`—a pending rider is exactly who an invite is for |
+| `GET /admin/invites`, `POST /admin/invites`, `POST /admin/invites/:id/revoke`, `POST /admin/invites/:id/regenerate` | `requireManageRiders`                                                                  |
+| `GET`/`POST /survey`, `GET /survey/thanks`                                                                          | `requireSurvey`                                                                        |
+| `GET /admin/survey`, `GET /admin/survey.csv`                                                                        | `requireManageRiders`                                                                  |
+| `GET /admin`, `GET /admin/approvals`, `POST /admin/riders/:id`                                                      | `requireManageRiders`—the reader of `users.status`                                     |
 
 The rule and the claim are deliberately separate: `src/invites/policy.ts` holds what an invite may do as pure functions, and the conditional `UPDATE … RETURNING` in `service.ts` is the race guard, so two riders taking the last seat cannot both win.
 
@@ -82,13 +82,41 @@ The rule and the claim are deliberately separate: `src/invites/policy.ts` holds 
 Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
 
 ```json
-{ "title": "...", "description": "", "visibility": "private", "external_url": "",
-  "days": [ { "title": "", "color": "#0066cc", "startAt": null, "endAt": null,
-    "stops": [ { "lat": 0, "lng": 0, "name": "", "description": "",
-                 "roles": ["gas"], "durationMin": null } ],
-    "pois":  [ { "lat": 0, "lng": 0, "name": "", "description": "", "roles": [] } ],
-    "legs":  [ { "geometry": [[0, 0]], "distanceM": 0, "durationS": 0,
-                 "viaPoints": [] } ] } ] }
+{
+  "title": "...",
+  "description": "",
+  "visibility": "private",
+  "external_url": "",
+  "days": [
+    {
+      "title": "",
+      "color": "#0066cc",
+      "startAt": null,
+      "endAt": null,
+      "stops": [
+        {
+          "lat": 0,
+          "lng": 0,
+          "name": "",
+          "description": "",
+          "roles": ["gas"],
+          "durationMin": null
+        }
+      ],
+      "pois": [
+        { "lat": 0, "lng": 0, "name": "", "description": "", "roles": [] }
+      ],
+      "legs": [
+        {
+          "geometry": [[0, 0]],
+          "distanceM": 0,
+          "durationS": 0,
+          "viaPoints": []
+        }
+      ]
+    }
+  ]
+}
 ```
 
 Geometry pairs are `[lng, lat]`.

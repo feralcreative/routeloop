@@ -1,7 +1,7 @@
 // The ride graph: the shape the builder saves, the rules it must satisfy, and
 // the code that writes it to the database.
 //
-// Extracted from rides.ts so the importer can reuse it. A native RouteLoop JSON
+// Extracted from rides.ts so the importer can reuse it. A native Routeloop JSON
 // file is this payload exactly, so importing one is the same validation and the
 // same insert the builder's save runs — not a second path that agrees with it
 // today and drifts tomorrow. rides.ts already imports from routes/maps.ts, so
