@@ -616,12 +616,14 @@ _System_ then renders as no `data-scheme` attribute at all, and the `:not()` is 
 
 **Open questions.**
 
-- **The map is the hard one, and it is harder than "it has its own styling" suggested.** The basemap is Google with cloud styling attached to `GMAPS_MAP_ID`, and the default map type is `terrain`—which `map-common.js` already documents as raster imagery with vector data drawn over it, so cloud styling reaches only the labels and roads, not the ground. A dark basemap would need a second Map ID switched at runtime, and **terrain could not be dark at all**. The likely right answer is that the map does not invert: it is content, not chrome, the same way a photograph is not inverted in dark mode. Dark chrome around a light map is a normal and defensible outcome. Decide this explicitly before anyone starts on it.
+**Decided 2026-08-16: the map does not invert.** Dark chrome around an unchanged map, the same way a photograph is not inverted in dark mode—the map is content, not chrome. This costs nothing to build and is the only option that keeps `terrain`, which `map-common.js` argues at length is the point of the whole basemap block: relief is the single most useful thing a map can say about a road that a line on white cannot.
+
+The alternative was a second Map ID switched at runtime, and it fails on its own terms. Terrain is raster imagery with vector data drawn over it, so cloud styling reaches only the labels and roads and never the ground—meaning a dark scheme could not darken terrain at all, only replace it with a dark `roadmap`. That trades the default basemap, and the reason it is the default, for a darker rectangle. **So this item touches no map code**, which is also what removes `public/js/map-common.js` and a second Map ID from its Touches list.
 - **The splash page is the opposite of a problem.** It was listed as a reason to defer dark mode, but `_splash.scss` already opts out of the light chrome because the footage is dark. Splash is effectively dark-native; the odd case is what it means in _light_ mode, which is "unchanged". That objection can be retired.
 - **Does the theme axis interact with `prefers-contrast`?** The OS reports it. Whether `prefers-contrast: more` should auto-select the high-contrast theme, or whether theme stays a pure stored preference with no OS input, is undecided. Note this is now cleanly separable from the scheme question, which is one benefit of splitting the axes.
 - **The emails.** `src/emails/theme.ts` carries its own dark palette, pinned to `_tokens.scss` by `test/email-theme.test.ts`. Once the site has real dark tokens, either the emails adopt them or the split becomes deliberate and documented. The pinning test is the place that will notice first, and that is the test doing its job.
 
-**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. Possibly `public/js/map-common.js` and a second Map ID, depending on how the map question resolves. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
+**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. **Not** `public/js/map-common.js` and not a second Map ID—the map question resolved against touching either. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
 
 **Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
@@ -666,7 +668,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 **Open questions.**
 
 - **Does item 14's alternate object have to wait for item 14?** As written it does, and item 14 depends on riders (item 8), which would chain this item behind group collaboration for no good reason. Import needs only the **alternate**—two candidates, one active—and none of the voting, resolution or membership machinery around it. Splitting that object out of item 14 so it can land alone is probably the right move and would unblock this item entirely. Item 14's note now says the same from its side.
-- **What "exact" means.** A byte hash is trivial and misses the real case: the same ride exported twice by different tools is not byte-identical but is the same route. Hashing normalized parsed geometry catches it and costs a parse. Probably both, labelled differently—and see the three-threshold note above.
+**Decided 2026-08-16: both hashes, and two different prompts.** A byte hash answers "you dropped this same file twice"; a hash of normalized parsed geometry answers "this is the same route exported by a different tool". They are two different rider mistakes and deserve two different sentences—a single generic "duplicate found" makes the rider work out which one happened. The byte hash also earns its place as a cheap pre-filter, since it needs no parse and settles the common case before the expensive path runs. Note the geometry hash strictly subsumes the byte hash, so this is a messaging and performance decision rather than a coverage one, and the two must never both fire on the same pair.
 - **Where the ride-name field goes for a single-file import**, where there is no table to head.
 - **How the export half survives this. Answered 2026-08-16: it does not—it is being replaced too, as item 23.** `/import` already is Import / Export (`import.tsx` renders both under one `<h1>`, though `main-menu.md` carried it as a pending decision long after it shipped), and the export half is now getting its own redesign around search and a cart. So both halves of this page are being redrawn at once and **should be drawn together**, not in sequence. Item 23 also depends on this item's review table for the multi-ride zip to be safe to re-import—see the zip-contract note there. Item 22 widens the page they both sit in and comes first.
 
@@ -730,13 +732,36 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 
 **Open questions.**
 
-- **What format an imported ride exports in.** Item 3 established that an imported ride streams its **stored original byte-for-byte** while a native ride is generated. In a mixed cart, does asking for "GPX" on an imported ride give the original bytes or a regenerated file? The original is more faithful to what the rider brought in; the regenerated one is consistent with every other row and reflects edits made since. Both are defensible and they are different files.
-- **Whether the cart survives a reload.** Session storage, a server-side draft, or nothing. Nothing is the cheapest and is probably wrong for the case this exists to serve—a rider assembling a device load before a trip is interrupted constantly.
+**Decided 2026-08-16: the cart always regenerates, including for imported rides.** A cart row means "this ride as it stands now, in this format", and that has to be true of every row or the same button does two different things for reasons a rider cannot see. It is also the only answer that stays correct once a rider edits an imported ride, which they can. **This deliberately diverges from the ride page**, where item 3 established that an imported ride streams its stored original byte-for-byte—that behavior stays where it is and is not being removed, but it does not follow the ride into the cart. Worth a line of copy somewhere near the export button, because a rider who imported a file and exported it straight back will get bytes that differ from what they brought in.
+
+**Decided 2026-08-16: the cart lives in `sessionStorage`.** It survives a reload and a stray back-navigation, and clears when the tab closes. No schema, no cleanup job, no sync path. The job this serves—assembling a device load before a trip—gets interrupted constantly, so losing a ten-ride cart to a misclick is how a rider learns not to use the feature; but a cart that outlives the tab is a stale-state problem for a list that usually lives about ninety seconds. Note this is a **third** client-side storage key alongside the builder draft and the map type, all of which are covered by the strictly-necessary reasoning in `privacy.html`—if that ever stops being true, this is one of the things that made it untrue.
 - **Whether search should reach shared rides**, or only owned ones. The current query is owner-scoped and this item keeps that by default; anything wider is a new authorization surface and should be decided deliberately rather than fallen into.
 
 **Touches.** `src/routes/import.tsx` (the export half, replaced), a new search endpoint under `src/routes/`, `public/js/import.js`, `src/maps/zip.ts` (`buildZip` is already there), `src/maps/filename.ts` and `src/routes/maps.ts` (reading the ride field as a split point), `style/_forms.scss` (`.export-list` and `.export-row` go away), `docs/api.md`.
 
 **Status.** planned—raised 2026-08-16. **Shares a page with item 21 and should be drawn with it**, not after it: that page is one `<h1>` over two halves, and redesigning them separately is how they end up looking like two features that happen to share a URL. Item 22's width work is a prerequisite for both.
+
+### 24. Turn Turnstile on
+
+**Goal.** Activate the bot gate that is already written. `src/maps/turnstile.ts` implements siteverify and fails closed; `POST /api/maps` and `POST /api/rides` both call it; `/import` already renders the widget and loads the script. All of it is dark because `TURNSTILE_SECRET_KEY` is unset, which is the documented flag—"until the widget exists in the Cloudflare dash, dev and prod both run open."
+
+**Setting the two keys today would break "Plan a ride". Fix this first.** `builder.ts` gates `POST /api/rides` on an `X-Turnstile-Token` header, and **nothing sends it**: the builder's two `fetch` calls set `Content-Type` and nothing else, and `TURNSTILE_SITE_KEY` is referenced only in `import.tsx`, so the builder page has no widget and no way to obtain a token. The moment the secret is set, every new ride 403s with "bot check failed—reload and try again", which is a lie—reloading cannot help. The import half would work correctly; ride creation would be dead.
+
+Two ways out, and the second is probably right:
+
+1. **Render a widget on the builder and send the token on create.** Ride creation is a one-shot action, so a single token fits—no expiry or single-use churn, which is the trap if anyone later moves this gate onto the autosave `PUT`. Costs a visible widget on a page that currently has none.
+2. **Drop the gate from `POST /api/rides` and keep it on `POST /api/maps`.** Ride creation already sits behind `requireActiveApi` and `requireSameOrigin`, so it takes an approved account and a same-origin request—a bot that has both is not stopped by a checkbox. The import pipeline is the one worth defending: it parses untrusted files, writes storage against a quota, and is where cost actually lands.
+
+**Work.**
+
+- [ ] Create the widget in the Cloudflare dashboard and record its mode. Add `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` to `.env`, and to the deploy environment—both, or the flag is half-on.
+- [ ] Resolve the builder gate per the above **before** the secret is set anywhere real.
+- [ ] Verify the failure path deliberately: `verifyTurnstile` fails closed, so an unreachable Cloudflare rejects the upload rather than waving it through. Confirm that surfaces as a readable error rather than a silent failure.
+- [ ] **Re-check the privacy page.** `privacy.html` currently states "no third-party cookie" and lists the cookie set exhaustively. Turnstile loads `challenges.cloudflare.com/turnstile/v0/api.js`, and whether it stores anything on the visitor's device was untestable locally precisely because the flag is off. Measure it once the widget is live—the same devtools pass that found the page already undercounts its own cookies at three when there are four.
+
+**Touches.** `.env` and the deploy environment, `src/routes/builder.ts` (the gate), `public/js/builder.js` and `src/routes/builder.ts`'s page markup (only under option 1), `src/content/privacy.html`, `docs/api.md`.
+
+**Status.** planned—raised 2026-08-16, when the question "does Turnstile set a cookie" turned up a fully-built feature nobody had switched on. Blocked on nothing except the builder decision above.
 
 ## Idea backlog (unscheduled)
 
