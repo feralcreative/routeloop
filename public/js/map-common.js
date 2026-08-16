@@ -840,10 +840,10 @@
       // once it is not. The markup ships aria-hidden="true" to match the
       // expanded state it also ships in.
       if (rail) rail.setAttribute("aria-hidden", String(!collapsed));
-      // The image is decorative — alt="" — because the button's own label says
-      // what it does. Naming it here too would announce the action twice.
-      const img = toggle.querySelector("img");
-      if (img) img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
+      // No src to swap any more: .collapse-icon is a masked span and the mask
+      // is selected by the aria-expanded set two lines up. That attribute was
+      // always the real state — driving the artwork from it as well removes the
+      // second thing to keep in step, and there is nothing to do here.
 
       if (!center) return;
       // Re-centred on transitionend rather than immediately: the width animates

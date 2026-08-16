@@ -283,7 +283,15 @@ export function panelShell(o: {
             ships "true" because the drawer ships open.
           */}
           <button type="button" class="collapse-toggle" aria-label="Collapse panel" aria-expanded="true">
-            <img src="/img/icons/icon-collapse.svg" alt="" class="collapse-icon" />
+            {/*
+              Empty, like .panel-exit below: icon-collapse.svg and
+              icon-expand.svg are painted through a CSS mask keyed off the
+              button's own aria-expanded, so the pair takes the control's color
+              on hover. It was an <img> whose src initPanelToggle swapped, which
+              worked but could not inherit color — the button's :hover changed
+              everything except the glyph inside it.
+            */}
+            <span class="collapse-icon" aria-hidden="true"></span>
           </button>
           {/*
             The exit is deliberately EMPTY. Its glyph is icon-close.svg, painted

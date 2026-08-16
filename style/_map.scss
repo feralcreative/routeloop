@@ -368,14 +368,26 @@ html.map-page:has(#info-panel.collapsed) {
     }
   }
 
+  // Masked rather than an <img>, so it takes the button's hover color — see the
+  // comment on the markup in src/views/layout.tsx. Which of the two files it
+  // draws is keyed off aria-expanded, which initPanelToggle already flips and
+  // which a screen reader is already reading: one source of truth for the
+  // state, instead of an attribute and an image src that could disagree.
   .collapse-toggle .collapse-icon {
     pointer-events: none;
     display: block;
     width: 18px;
     height: 18px;
     margin: auto;
-    background: none;
+    background-color: currentColor;
     border: none;
+    -webkit-mask: url("/img/icons/icon-collapse.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-collapse.svg") center / contain no-repeat;
+  }
+
+  .collapse-toggle[aria-expanded="false"] .collapse-icon {
+    -webkit-mask-image: url("/img/icons/icon-expand.svg");
+    mask-image: url("/img/icons/icon-expand.svg");
   }
 
   // Leaving is the more consequential of the two, so it gets the warmer hover.
@@ -413,14 +425,27 @@ html.map-page:has(#info-panel.collapsed) {
   // Both properties: -webkit-mask is still required for Safari, which has not
   // unprefixed the shorthand.
   .panel-exit,
-  .day-del {
+  .day-del,
+  .day-rev {
     &::before {
       content: "";
       display: block;
       background-color: currentColor;
-      -webkit-mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
-      mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
     }
+  }
+
+  .panel-exit::before,
+  .day-del::before {
+    -webkit-mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
+  }
+
+  // Same mechanism, different artwork. It replaced a bare ⇄ character, which
+  // could not take the $url hover the other day actions get and rendered at
+  // whatever weight the font felt like.
+  .day-rev::before {
+    -webkit-mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
   }
 
   // 18px, the same as .collapse-icon above, because the two sit side by side in
@@ -431,9 +456,12 @@ html.map-page:has(#info-panel.collapsed) {
     height: 18px;
   }
 
-  // Smaller among the day actions, where it sits beside ⇄ ↑ ↓ — those are text
-  // glyphs at 0.85em, so this tracks their size rather than the header's.
-  .day-del::before {
+  // Smaller than the header's 18px: these two sit inside .day-actions buttons,
+  // which are 0.85em, so they track that rather than the header. Both the same
+  // size because they are now a pair of masked icons rather than one icon and
+  // one text glyph — which is what made them read at different weights before.
+  .day-del::before,
+  .day-rev::before {
     width: 0.85em;
     height: 0.85em;
   }

@@ -1164,7 +1164,12 @@
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
       ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
       '<span class="day-actions">' +
-      '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg">⇄</button>' +
+      // Empty for the same reason .day-del is: icon-reverse.svg comes in through
+      // a CSS mask on ::before, so it takes the button's color and its disabled
+      // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
+      // "rightwards arrow over leftwards arrow" — hence the aria-label.
+      '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg" aria-label="Reverse ' +
+      esc(dayLabel(r)) + '"></button>' +
       // Empty, like .panel-exit: icon-close.svg comes in through a CSS mask on
       // ::before so it inherits the button's color and its disabled opacity.
       // aria-label rather than the old bare ✕, which a screen reader announced as

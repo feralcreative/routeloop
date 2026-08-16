@@ -253,20 +253,36 @@
 
     // With the body gone, the head's 0.6em bottom margin is the gap to nothing:
     // it left the section taller than .day-drag, which stretches to the head and
-    // is pulled out to the padding edge by its negative margins. Dropping it here
-    // rather than at the source keeps the head/body gap on an open day — the
-    // margin is set by the SECOND .day-head block further down this file, a
-    // leftover from the day-slider era that still owns .day-actions and wins on
-    // source order.
+    // is pulled out to the padding edge by its negative margins. Zeroed here
+    // rather than at the source because an OPEN day still wants that margin as
+    // its head-to-body gap.
     &.is-shut .day-head {
       margin-bottom: 0;
     }
   }
 
+  // TEN PIXELS BETWEEN EVERY CONTROL, and the gap is only half of what makes
+  // that true. Each box below is sized to its own artwork, because a box wider
+  // than its glyph reads as gap: the caret was a 5px triangle in a 22px button,
+  // so the eye measured 8.5px of empty button plus the gap plus whatever slack
+  // the number box had. Tightening the boxes is what made 10px look like 10px.
+  //
+  // Deliberately px and not em. Every other length here is em so it tracks the
+  // drawer's 14px base, but this one is a visual rhythm rather than a typographic
+  // one — it should not change when a control's font-size does.
+  //
+  // [hidden] is explicit because the `display` below outranks the UA sheet's
+  // `[hidden] { display: none }`. Same trap as .row-roles.
   .day-head {
+    &[hidden] {
+      display: none;
+    }
+
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 0.3em;
+    gap: 10px;
+    margin-bottom: 0.6em;
   }
 
   // The day's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
@@ -295,7 +311,10 @@
       outline-offset: 1px;
     }
 
-    margin: -0.5em 0.15em -0.5em -0.6em;
+    // Right margin is 0 and must stay 0: .day-head's `gap: 10px` is what spaces
+    // this from the caret now. It was 0.15em, which simply added to the gap and
+    // made the first of the four spacings wider than the other three.
+    margin: -0.5em 0 -0.5em -0.6em;
     border-radius: 8px 0 0 8px;
     cursor: grab;
     background: color-mix(in srgb, var(--day-color, #{$neutral-88}) 16%, #{$white});
@@ -335,8 +354,23 @@
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 22px;
+    // 18x22 for the hit target, PULLED IN 5px EACH SIDE so it occupies only the
+    // 8px its mark actually paints.
+    //
+    // This is the fix for a header that measured wrong after the gaps were set
+    // to 10px. A button is a box, and the eye measures ink, not boxes: an 18px
+    // button around an 8px triangle contributes 5px of nothing to the space on
+    // either side of it, so a 10px gap rendered as 15px against the grip and
+    // 15.1px against the number, while the one gap with no button in it — number
+    // to swatch — came out at the 10.1px it was supposed to be. Measured in the
+    // browser, not reasoned about; reasoning about it is how it got set to 22px
+    // and then to 18px without either being right.
+    //
+    // Same trick and same reason as .day-drag's negative margins above. Keep the
+    // 5px in step with the width if either changes: it is (width − 8) / 2.
+    width: 18px;
     height: 22px;
+    margin: 0 -5px;
     padding: 0;
     border: none;
     border-radius: 4px;
@@ -370,15 +404,33 @@
   // It takes --day-color like everything else in the section, so at a glance the
   // number, the swatch, the grip and the routes on the map all agree.
   //
-  // Fixed width, so a ride crossing into double figures does not shift every
-  // name field beside it by a character.
+  // FIXED WIDTH, so a ride crossing into double figures does not shift every
+  // name field beside it by a character — and sized to TWO digits, which is the
+  // widest it can get at MAX_DAYS = 31. That is why a one-digit day looks like
+  // it has more air around it than a two-digit one: the box is the same and the
+  // ink is narrower. Correct, and the alternative is a row that jumps at day 10.
+  //
+  // 1.25em rather than the old 1.4em. tabular-nums at 0.95em/700 puts "31" at
+  // about 15px against this box's 17.5px, so there is still a pixel of slack
+  // each side. Widen if a wider face ever ships — flex-shrink is 0, so an
+  // overflow here collides with the swatch rather than reflowing.
   .day-num {
-    flex: 0 0 1.4em;
+    flex: 0 0 1.25em;
     text-align: center;
     font-size: 0.95em;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--day-color, #{$text});
+  }
+
+  // Narrower than the 2em the generic input[type="color"] rule gives it, and
+  // scoped to the header so the swatch on any other form keeps its size. The
+  // generic rule already pads the well down to 2px, so 1.6em still shows a
+  // 20px block of colour — enough to read as the day's colour at a glance,
+  // which is all it does here.
+  .day-head .day-color {
+    width: 1.6em;
+    height: 1.6em;
   }
 
   .day-title {
@@ -464,31 +516,17 @@
     }
   }
 
-  // Controls for the one day edits land on, which is the focused day, or the
-  // last day while the slider sits on "all".
+  // The day header's action buttons. This used to be a SECOND `.day-head` block,
+  // a leftover from the day-slider era, sitting at equal specificity to the real
+  // one further up and beating it on source order — so `gap` was silently 0.4em
+  // rather than the 0.3em the first block declares, and a `margin-bottom: 0.6em`
+  // nobody could find was padding the bottom of every collapsed day. Both blocks
+  // are now one, up at .day-head; only .day-actions is left here.
+  //
+  // The `#day-title` rule that lived here went with it — dead since the drawer
+  // rewrite, which renders `.day-title` per day. There is no element with that
+  // id on the page.
   .day-head {
-    // builder.js hides this for a single untitled day, but the `display` below
-    // outranks the UA sheet's `[hidden] { display: none }`, so without the
-    // explicit rule it never actually hid. Same trap as .row-roles.
-    &[hidden] {
-      display: none;
-    }
-
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
-    margin-bottom: 0.6em;
-    #day-title {
-      // Named here rather than left to the generic rule so the width the color
-      // input gives back actually reaches this field.
-      flex: 1 1 auto;
-      min-width: 0;
-      font: inherit;
-      font-size: 0.9em;
-      padding: 0.35em 0.5em;
-      border: 1px solid $grey;
-      border-radius: 6px;
-    }
     .day-actions {
       display: flex;
       gap: 0.15em;
@@ -1207,12 +1245,6 @@
       opacity: 0.35;
       cursor: default;
     }
-  }
-
-  // Redo is undo mirrored — see the markup comment in src/routes/builder.ts for
-  // why it is one file and not two.
-  .icon-flip {
-    transform: scaleX(-1);
   }
 
   // FIXED FOOTPRINT, and that is the whole design. This readout was on the
