@@ -133,6 +133,21 @@
     layersReady: false,
     layerCount: 0, // how many day layers are currently on the map
     legSeq: [], // legSeq[r][i]—stale routing responses are dropped
+    // SELECT MODE, or null when off:
+    //   { scope: "day" | "point", days: Set<int>, points: Set<"day:kind:i"> }
+    //
+    // ON state, DELIBERATELY NOT ON A DAY OR A POINT. snapshot() in
+    // builder-history.js reads only state.meta and state.days, so a sibling key
+    // here needs no entry in its copy list and can never ride into the undo
+    // stack. A `selected` flag on a day object would need one — and would then
+    // have to be stripped in payload() the way endManual is.
+    //
+    // Points are keyed "dayIndex:kind:i", never held as object references:
+    // HIST.restore builds fresh objects on undo, so a reference-based selection
+    // would go stale silently. Indices are safe because every bulk action, every
+    // undo and every structural render clears the selection — there is never a
+    // live selection across a mutation to reindex.
+    select: null,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -275,7 +290,13 @@
     const entry = dir === "redo" ? history_.redo(HIST.snapshot(state)) : history_.undo(HIST.snapshot(state));
     if (!entry) return;
     HIST.restore(state, entry.snap);
+    // The selection is keyed by index and the day and point arrays have just
+    // been replaced wholesale, so every key in it may now name something else.
+    // Dropped rather than remapped: there is no honest remapping of "the third
+    // stop of day 2" across an undo that removed day 1.
+    state.select = null;
     renderEverything();
+    renderSelectBar();
     renderHistoryButtons();
     markDirty();
     toast((dir === "redo" ? "Redid " : "Undid ") + entry.label);
@@ -1103,6 +1124,368 @@
     toast(dayLabel(r) + " reversed");
   }
 
+  // --- Select mode ----------------------------------------------------------
+  //
+  // Turn on from either ⋮ menu; checkboxes appear on every peer and a bar at the
+  // top of the list offers what can be done to the set. It exists because the
+  // alternative to "select four days and delete them" is doing it four times,
+  // and because grouping days as alternates is inherently a multi-day action
+  // with nowhere else to live.
+  //
+  // TWO SCOPES, NEVER BOTH. Days and points are different kinds of thing and
+  // "delete the selected" has to mean one of them. Opening one closes the other.
+  const pointKey = (r, kind, i) => r + ":" + kind + ":" + i;
+
+  function startSelect(scope) {
+    closeMenu();
+    state.select = { scope, days: new Set(), points: new Set() };
+    renderDays();
+    renderSelectBar();
+  }
+
+  function endSelect() {
+    if (!state.select) return;
+    state.select = null;
+    renderDays();
+    renderSelectBar();
+  }
+
+  const selectedDays = () => [...(state.select?.days ?? [])].sort((a, b) => a - b);
+
+  // Grouped by day and sorted DESCENDING within each, which is the order a
+  // caller must splice in — ascending is off by one more with every removal and
+  // the bug is silent.
+  function selectedPointsByDay() {
+    const byDay = new Map();
+    for (const key of state.select?.points ?? []) {
+      const [r, kind, i] = key.split(":");
+      const day = Number(r);
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push({ kind, i: Number(i) });
+    }
+    for (const list of byDay.values()) list.sort((a, b) => b.i - a.i);
+    return byDay;
+  }
+
+  const selectedPointCount = () => state.select?.points.size ?? 0;
+
+  function renderSelectBar() {
+    const bar = $("select-bar");
+    if (!bar) return;
+    const sel = state.select;
+    if (!sel) {
+      bar.hidden = true;
+      bar.innerHTML = "";
+      return;
+    }
+    const isDay = sel.scope === "day";
+    const n = isDay ? sel.days.size : sel.points.size;
+    const noun = isDay ? (n === 1 ? "day" : "days") : n === 1 ? "point" : "points";
+    // Buttons are disabled rather than hidden at n === 0, so the bar is the same
+    // shape the moment it opens as it is once something is ticked.
+    const off = n === 0 ? " disabled" : "";
+    const dayBtns =
+      '<button type="button" data-sel="group"' + (sel.days.size < 2 ? " disabled" : "") + ">Group as alternatives</button>" +
+      '<button type="button" data-sel="duplicate"' + off + ">Duplicate</button>";
+    const pointBtns =
+      '<label class="sel-move">Move to <select data-sel="move-to">' +
+      '<option value="">day…</option>' +
+      state.days.map((_, r) => '<option value="' + r + '">' + esc(dayNumber(r)) + "</option>").join("") +
+      "</select></label>";
+    bar.hidden = false;
+    bar.innerHTML =
+      '<span class="sel-count">' + n + " " + noun + " selected</span>" +
+      '<button type="button" data-sel="all">All</button>' +
+      '<button type="button" data-sel="none"' + off + ">None</button>" +
+      (isDay ? dayBtns : pointBtns) +
+      '<button type="button" class="is-danger" data-sel="delete"' + off + ">Delete</button>" +
+      '<button type="button" data-sel="done">Done</button>';
+  }
+
+  // Group the selected days as alternatives of one another. The entry point for
+  // the whole alternates feature — everything else about them (ghosting, the
+  // totals, the numbering) has been in place since they could only be created by
+  // hand-writing a payload.
+  function groupSelectedAsAlternates() {
+    const rows = selectedDays();
+    if (rows.length < 2) return toast("Pick at least two days", true);
+    if (rows.some((r) => state.days[r].altGroup != null)) {
+      return toast("One of those is already an alternative—ungroup it first", true);
+    }
+    // A WARNING, NOT A REFUSAL. docs/ROADMAP.md defines an alternate as two paths
+    // that share a start and an end, and day-level grouping cannot enforce that:
+    // if two alternates finish in different towns, the following day starts with
+    // a hole in the ride and nothing else in the app would mention it. The rider
+    // may well know what they mean, so this says so and continues.
+    const gap = endpointGap(rows);
+    beginEdit("group as alternatives");
+    const id = Math.max(-1, ...state.days.map((d) => (d.altGroup == null ? -1 : d.altGroup))) + 1;
+    rows.forEach((r, k) => {
+      state.days[r].altGroup = id;
+      state.days[r].altActive = k === 0;
+    });
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    if (gap) toast(gap, true);
+    else toast(rows.length + " days are now alternatives—only the first counts");
+  }
+
+  // The message for a group whose members do not start and end together, or null
+  // when they do. Compared against the first selected day, which is the one that
+  // becomes active.
+  function endpointGap(rows) {
+    const ends = rows.map((r) => {
+      const s = state.days[r].stops;
+      return s.length ? { first: s[0], last: s[s.length - 1] } : null;
+    });
+    const base = ends[0];
+    if (!base) return null;
+    const far = (a, b) => a && b && haversineMi(a, b) > 0.06; // ~100 m, as the importer uses
+    for (let k = 1; k < ends.length; k++) {
+      const e = ends[k];
+      if (!e) continue;
+      if (far(base.first, e.first) || far(base.last, e.last)) {
+        return "Those alternatives do not start and end in the same place—whichever you ride, the next day may not join up.";
+      }
+    }
+    return null;
+  }
+
+  function haversineMi(a, b) {
+    const R = 3958.7613;
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLng = (b.lng - a.lng) * rad;
+    const h =
+      Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  // ONE beginEdit FOR THE WHOLE BATCH, in every one of these. Looping over
+  // deleteDay() would push an undo step per day and leave the rider pressing
+  // undo four times to put back one action — which is why the single-item
+  // mutators had their guards moved ahead of their beginEdit in step 8 and why
+  // these do the splicing themselves rather than calling them.
+  function deleteSelectedDays() {
+    const rows = selectedDays();
+    if (!rows.length) return;
+    if (rows.length >= state.days.length) return toast("A ride needs at least one day", true);
+    beginEdit("delete days");
+    // Descending, so each splice cannot shift the index of one still to come.
+    [...rows].reverse().forEach((r) => {
+      state.days.splice(r, 1);
+      state.legSeq.splice(r, 1);
+    });
+    state.active = Math.min(state.active, state.days.length - 1);
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(rows.length + " days deleted");
+  }
+
+  function duplicateSelectedDays() {
+    const rows = selectedDays();
+    if (!rows.length) return;
+    if (state.days.length + rows.length > MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    beginEdit("duplicate days");
+    // Descending again: each insertion shifts everything after it, and going
+    // backwards means the indices still to come are untouched.
+    [...rows].reverse().forEach((r) => {
+      const src = state.days[r];
+      state.days.splice(r + 1, 0, {
+        ...src,
+        title: src.title ? src.title + " (copy)" : "",
+        altGroup: null,
+        altActive: true,
+        stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
+        pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+        legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
+      });
+      state.legSeq.splice(r + 1, 0, []);
+    });
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(rows.length + " days duplicated");
+  }
+
+  function deleteSelectedPoints() {
+    const byDay = selectedPointsByDay();
+    const n = selectedPointCount();
+    if (!n) return;
+    // Every stop removed drops the legs either side and re-requests one, so a
+    // big selection is real money and a visibly empty map while it runs. Same
+    // threshold and same reasoning as reverseDay's confirm.
+    const stops = [...byDay.values()].reduce((m, list) => m + list.filter((p) => p.kind === "stop").length, 0);
+    if (stops > 12 && !window.confirm("Deleting " + stops + " stops re-routes the legs around each. Continue?")) return;
+    beginEdit("delete points");
+    for (const [r, list] of byDay) {
+      const day = state.days[r];
+      if (!day) continue;
+      // Already sorted descending by selectedPointsByDay().
+      list.forEach((p) => {
+        if (p.kind === "stop") day.stops.splice(p.i, 1);
+        else day.pois.splice(p.i, 1);
+      });
+      // Legs are rebuilt wholesale for any day that lost a stop rather than
+      // repaired around each removal — with several gone at once there is no
+      // "the leg either side" to bridge.
+      if (list.some((p) => p.kind === "stop")) {
+        day.legs = [];
+        state.legSeq[r] = [];
+      }
+    }
+    const touched = [...byDay.keys()];
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    touched.forEach((r) => {
+      const day = state.days[r];
+      if (day && day.stops.length >= 2 && day.legs.length === 0) {
+        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      }
+    });
+    refreshDerived();
+    markDirty();
+    toast(n + " points deleted");
+  }
+
+  function moveSelectedPoints(toDay) {
+    const byDay = selectedPointsByDay();
+    const n = selectedPointCount();
+    const dst = state.days[toDay];
+    if (!n || !dst) return;
+    beginEdit("move points");
+    const moved = [];
+    for (const [r, list] of byDay) {
+      const day = state.days[r];
+      if (!day || r === toDay) continue;
+      list.forEach((p) => {
+        const arr = p.kind === "stop" ? day.stops : day.pois;
+        const [pt] = arr.splice(p.i, 1);
+        if (pt) moved.push({ kind: p.kind, pt });
+      });
+      day.legs = [];
+      state.legSeq[r] = [];
+    }
+    // Reversed, because each day's list was spliced descending and the points
+    // came off in the opposite order to the one they were in.
+    moved.reverse().forEach(({ kind, pt }) => {
+      if (kind === "stop") dst.stops.push(pt);
+      else dst.pois.push(pt);
+    });
+    dst.legs = [];
+    state.legSeq[toDay] = [];
+    const touched = new Set([...byDay.keys(), toDay]);
+    endSelect();
+    setActive(toDay);
+    rebuildLayers();
+    renderMarkers();
+    touched.forEach((r) => {
+      const day = state.days[r];
+      if (day && day.stops.length >= 2) {
+        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      }
+    });
+    refreshDerived();
+    markDirty();
+    toast(moved.length + " points moved to " + dayLabel(toDay));
+  }
+
+  // Copy a whole day, inserted straight after the original.
+  //
+  // The legs come across as they are rather than being re-requested: the copy
+  // has the same stops in the same order, so its geometry is the same road and
+  // asking the router again would cost one call per leg to be told so. Every
+  // array is copied rather than shared — the snapshot rule in builder-history.js
+  // applies to live state too, and a shared `roles` array would have a role
+  // added to the copy appearing on the original.
+  //
+  // This is what "make an alternate" is built on: duplicate the day, change the
+  // copy, then group the two. Grouping itself is a bulk action on a selection.
+  function duplicateDay(r) {
+    if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    const src = state.days[r];
+    if (!src) return;
+    beginEdit("duplicate day");
+    const copy = {
+      ...src,
+      title: src.title ? src.title + " (copy)" : "",
+      // The copy is NOT part of its original's group. A duplicate of one
+      // alternate would otherwise silently become a third member of a group the
+      // rider has not been asked about.
+      altGroup: null,
+      altActive: true,
+      stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
+      pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+      legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
+    };
+    state.days.splice(r + 1, 0, copy);
+    state.legSeq.splice(r + 1, 0, []);
+    ALT.resolveAltGroups(state.days);
+    setActive(r + 1);
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast("Duplicated to " + dayLabel(r + 1));
+  }
+
+  // Choose a different member of a group as the one being ridden. This is the
+  // resolution step — the point at which a rider stops weighing two roads and
+  // picks one — and it is why altActive exists as a flag rather than the group's
+  // first day simply winning: promoting must not reorder the ride and renumber
+  // every day after it.
+  function promoteAlternate(r) {
+    const day = state.days[r];
+    if (!day || day.altGroup == null || day.altActive) return;
+    beginEdit("choose alternative");
+    state.days.forEach((d) => {
+      if (d.altGroup === day.altGroup) d.altActive = false;
+    });
+    day.altActive = true;
+    ALT.resolveAltGroups(state.days);
+    renderDays();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast("Now riding " + dayLabel(r));
+  }
+
+  // Break a group apart: every member becomes an ordinary day again and all of
+  // them start counting toward the ride. The way out of a grouping, without
+  // which the feature is a trap.
+  function ungroupAlternates(r) {
+    const day = state.days[r];
+    if (!day || day.altGroup == null) return;
+    beginEdit("ungroup alternatives");
+    const group = day.altGroup;
+    let n = 0;
+    state.days.forEach((d) => {
+      if (d.altGroup !== group) return;
+      d.altGroup = null;
+      d.altActive = true;
+      n++;
+    });
+    ALT.resolveAltGroups(state.days);
+    renderDays();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(n + " days are separate days again");
+  }
+
   function moveDay(dir) {
     const r = editIndex();
     if (r == null) return noDayYet();
@@ -1213,6 +1596,14 @@
       '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
       ' style="--day-color:' + esc(day.color) + '">' +
       '<div class="day-head">' +
+      // AFTER the grip, never before it: .day-drag's negative margins depend on
+      // being the first thing in the header, and anything ahead of it breaks the
+      // tab that reaches the section's padding edge.
+      (state.select?.scope === "day"
+        ? '<input type="checkbox" class="day-pick" data-day="' + r + '"' +
+          (state.select.days.has(r) ? " checked" : "") +
+          ' aria-label="Select ' + esc(dayLabel(r)) + '">'
+        : "") +
       // The day's own drag handle. A separate grip rather than dragging by the
       // header itself: the header holds a colour input, a text field and buttons,
       // and making all of that a drag surface would mean every attempt to type in
@@ -1245,12 +1636,17 @@
       // "rightwards arrow over leftwards arrow" — hence the aria-label.
       '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg" aria-label="Reverse ' +
       esc(dayLabel(r)) + '"></button>' +
-      // Empty, like .panel-exit: icon-close.svg comes in through a CSS mask on
-      // ::before so it inherits the button's color and its disabled opacity.
-      // aria-label rather than the old bare ✕, which a screen reader announced as
-      // "multiplication sign".
-      '<button type="button" class="day-del" title="Delete this day" aria-label="Delete ' +
-      esc(dayLabel(r)) + '"' + (single ? " disabled" : "") + "></button>" +
+      // DELETE MOVED INTO THE MENU, and ⇄ did not. The two were side by side and
+      // one of them re-routes every leg while the other throws a day away — both
+      // one mis-click from the title field. Reverse is the one a rider reaches
+      // for mid-edit, so it stays a button; delete is not, so it went behind the
+      // ⋮ with the rest. Same move the point rows made when four buttons became
+      // one, and it gives the width back to .day-title.
+      //
+      // U+22EE, the same glyph the row menu uses, so the two read as the same
+      // control at two levels.
+      '<button type="button" class="day-menu-btn" title="More" aria-label="More actions for ' +
+      esc(dayLabel(r)) + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span>" +
       "</div>" +
       '<div class="day-body">' +
@@ -1611,7 +2007,18 @@
       '<span class="row-drag" title="' +
       (isStop ? "Drag to reorder" : "Drag to move it along the route") +
       '" aria-hidden="true"></span>' +
-      (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
+      // THE CHECKBOX REPLACES THE NUMBER rather than joining it. A 380px row has
+      // no spare width and .row-name is already the thing that shrinks; the stop
+      // number is the one element that is redundant while you are ticking boxes,
+      // because ticking is what you are doing rather than reading an order. It
+      // comes straight back when select mode ends.
+      (state.select?.scope === "point"
+        ? '<input type="checkbox" class="row-pick" data-day="' + dayIndex + '" data-kind="' + kind + '" data-i="' + i + '"' +
+          (state.select.points.has(pointKey(dayIndex, kind, i)) ? " checked" : "") +
+          ' aria-label="Select ' + (isStop ? "stop " + (i + 1) : "POI") + '">'
+        : isStop
+          ? '<span class="row-num">' + (i + 1) + "</span>"
+          : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       // POIs get the same dwell field. Blank means "rode past without stopping",
       // which is the common case and why it stays a placeholder rather than a
@@ -1940,6 +2347,7 @@
         if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
         if (act === "up") return moveStop(i, -1);
         if (act === "down") return moveStop(i, 1);
+        if (act === "select") return startSelect("point");
         return;
       }
       if (btn.classList.contains("row-roles-btn")) {
@@ -1966,81 +2374,142 @@
     });
   }
 
-  // --- The row menu ---------------------------------------------------------
+  // --- Overflow menus -------------------------------------------------------
   //
-  // BUILT ON OPEN, NEVER PER ROW, and that is the constraint rather than a
+  // ONE MENU, TWO OWNERS. Point rows have had a ⋮ since the day four buttons
+  // became one; day headers now have one too, and rather than a second
+  // implementation they share this. The differences between them are entirely
+  // in the item list and the dispatch, which is what the `items` argument and
+  // the per-host click handlers are for.
+  //
+  // BUILT ON OPEN, NEVER PER HOST, and that is a constraint rather than a
   // preference. The role picker already renders 17 buttons for every point —
-  // 119 nodes in the DOM at seven stops and 340 at twenty — and a second eager
-  // per-row menu would repeat that mistake exactly. One menu element exists at a
-  // time, for the row that asked for it.
+  // 119 nodes at seven stops and 340 at twenty — and an eager menu per row would
+  // repeat that mistake. One menu element exists at a time, for whichever host
+  // asked.
   //
-  // It is absolutely positioned inside the row, so opening it moves nothing: an
-  // inline menu would push every row below it, which is the jump this whole epic
-  // is about.
+  // It is absolutely positioned inside its host, so opening it moves nothing: an
+  // inline menu would push everything below it down, which is the jump the whole
+  // panel redesign exists to remove. Both hosts therefore need
+  // `position: relative` — .point-row and .day-head both have it.
   //
-  // Move up / Move down live here as well as on the drag handle. They are not
-  // redundant — a drag handle cannot be operated from a keyboard, and they are
-  // also what still works if the SortableJS CDN fails.
+  // Move up / Move down are on the POINT menu only. They are not redundant with
+  // the drag handle there, because .row-drag is aria-hidden and a drag handle
+  // cannot be operated from a keyboard — they are also what still works if the
+  // SortableJS CDN fails. A DAY's grip is a real <button> with arrow keys wired
+  // on #day-list, so the day menu needs no equivalent.
   const MENU_ITEMS = [
     { act: "notes", label: "Edit notes" },
     { act: "duplicate", label: "Duplicate" },
+    { act: "select", label: "Select points…" },
     { act: "up", label: "Move up", stopOnly: true },
     { act: "down", label: "Move down", stopOnly: true },
     { act: "delete", label: "Delete", danger: true },
   ];
 
-  function closeRowMenu() {
+  // The day menu. `when` decides whether an item appears at all — the two
+  // alternate actions are meaningless on a day that is not in a group, and a
+  // menu full of disabled items nobody can explain is worse than a short one.
+  //
+  // "Make this the active alternate" and "Ungroup alternates" are not optional
+  // extras: without them a rider can put days into a group and has no way back
+  // out, and no way to change their mind about which one they are riding.
+  const DAY_MENU_ITEMS = [
+    { act: "day-duplicate", label: "Duplicate day" },
+    { act: "day-select", label: "Select days…" },
+    { act: "day-promote", label: "Ride this one instead", when: (d) => d.altGroup != null && !d.altActive },
+    { act: "day-ungroup", label: "Ungroup alternatives", when: (d) => d.altGroup != null },
+    { act: "day-delete", label: "Delete day", danger: true },
+  ];
+
+  // Which button opened the menu that is currently up, so Escape can put focus
+  // back on it. It used to be found with `.closest('.point-row')`, which does
+  // not generalize to a second host.
+  let menuOpener = null;
+
+  function closeMenu() {
     const open = document.querySelector(".row-menu");
-    if (open) {
-      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
-      if (btn) btn.setAttribute("aria-expanded", "false");
-      open.remove();
-    }
+    if (!open) return;
+    if (menuOpener) menuOpener.setAttribute("aria-expanded", "false");
+    menuOpener = null;
+    open.remove();
   }
 
-  function toggleRowMenu(row, btn) {
-    const wasOpen = !!row.querySelector(".row-menu");
-    closeRowMenu();
-    if (wasOpen) return;
+  // Kept under the old name for the handful of callers that mean "the row menu";
+  // there is only one menu and closing it is closing it.
+  const closeRowMenu = closeMenu;
 
-    const isStop = row.dataset.kind === "stop";
-    const i = Number(row.dataset.i);
-    const day = editRoute();
-    const last = isStop && day ? day.stops.length - 1 : 0;
+  function openMenu(host, btn, items) {
+    const wasOpen = host.contains(document.querySelector(".row-menu"));
+    closeMenu();
+    if (wasOpen) return;
 
     const menu = document.createElement("div");
     menu.className = "row-menu";
     menu.setAttribute("role", "menu");
-    menu.innerHTML = MENU_ITEMS.filter((m) => !m.stopOnly || isStop)
-      .map((m) => {
-        // Disabled rather than absent, so the menu is the same shape every time
-        // and the first stop's menu does not read as a different menu.
-        const off = (m.act === "up" && i === 0) || (m.act === "down" && i === last);
-        return (
+    menu.innerHTML = items
+      .map(
+        (m) =>
           '<button type="button" role="menuitem" class="row-menu-item' + (m.danger ? " is-danger" : "") + '"' +
-          ' data-act="' + m.act + '"' + (off ? " disabled" : "") + ">" + esc(m.label) + "</button>"
-        );
-      })
+          ' data-act="' + m.act + '"' + (m.off ? " disabled" : "") + ">" + esc(m.label) + "</button>",
+      )
       .join("");
-    row.appendChild(menu);
+    host.appendChild(menu);
     btn.setAttribute("aria-expanded", "true");
+    menuOpener = btn;
     const first = menu.querySelector(".row-menu-item:not([disabled])");
     if (first) first.focus();
   }
 
+  function toggleRowMenu(row, btn) {
+    const isStop = row.dataset.kind === "stop";
+    const i = Number(row.dataset.i);
+    const day = editRoute();
+    const last = isStop && day ? day.stops.length - 1 : 0;
+    // Disabled rather than absent at the ends, so the first stop's menu is the
+    // same shape as every other one.
+    const items = MENU_ITEMS.filter((m) => !m.stopOnly || isStop).map((m) => ({
+      ...m,
+      off: (m.act === "up" && i === 0) || (m.act === "down" && i === last),
+    }));
+    openMenu(row, btn, items);
+  }
+
+  function toggleDayMenu(head, btn, r) {
+    const day = state.days[r];
+    if (!day) return;
+    const items = DAY_MENU_ITEMS.filter((m) => !m.when || m.when(day)).map((m) => ({
+      ...m,
+      // A ride needs at least one day, and the reason has to be visible before
+      // the click rather than as a toast after it.
+      off: m.act === "day-delete" && state.days.length <= 1,
+    }));
+    openMenu(head, btn, items);
+  }
+
   // Anywhere else, or Escape. Registered once rather than per menu, so an open
-  // menu never outlives the render that replaced its row.
-  function wireRowMenuDismiss() {
+  // menu never outlives the render that replaced its host.
+  function wireMenuDismiss() {
     document.addEventListener("pointerdown", (e) => {
-      if (!e.target.closest(".row-menu") && !e.target.closest(".row-menu-btn")) closeRowMenu();
+      if (!e.target.closest(".row-menu") && !e.target.closest(".row-menu-btn") && !e.target.closest(".day-menu-btn")) {
+        closeMenu();
+      }
     });
+    // Escape is CHAINED: a menu first, then select mode. Two things can be open
+    // at once and the rider means the innermost one — closing select mode while
+    // a menu is up would throw away a selection they had not finished with.
+    //
+    // Select mode is deliberately NOT dismissed by an outside click. A selection
+    // takes work to build and a stray click on the map must not discard it.
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      const open = document.querySelector(".row-menu");
-      if (!open) return;
-      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
-      closeRowMenu();
-      if (btn) btn.focus();
+      if (document.querySelector(".row-menu")) {
+        const btn = menuOpener;
+        closeMenu();
+        if (btn) btn.focus();
+        return;
+      }
+      if (state.select) endSelect();
     });
   }
 
@@ -2095,6 +2564,11 @@
       // not and 0 keeps it feeling immediate.
       delay: 200,
       delayOnTouchOnly: true,
+      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
+      // reads as "move all four" and does not do that, and there is no reading
+      // of it that is obviously right — so the gesture is taken away rather than
+      // given an ambiguous meaning.
+      disabled: !!state.select,
       onEnd: (evt) => {
         // CROSS-DAY FIRST, and it is a different operation rather than a special
         // case of reordering: the point leaves one day's array and joins
@@ -2176,6 +2650,11 @@
       fallbackOnBody: true,
       delay: 200,
       delayOnTouchOnly: true,
+      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
+      // reads as "move all four" and does not do that, and there is no reading
+      // of it that is obviously right — so the gesture is taken away rather than
+      // given an ambiguous meaning.
+      disabled: !!state.select,
       onEnd: (evt) => {
         const from = evt.oldIndex;
         const to = evt.newIndex;
@@ -2413,6 +2892,67 @@
     });
   }
 
+  // Ticking boxes and the bar's buttons. Delegated on the panel because
+  // renderDays() replaces every checkbox on every structural change.
+  function wireSelect() {
+    const panel = document.querySelector(".builder-panel");
+    if (!panel) return;
+
+    panel.addEventListener("change", (e) => {
+      const sel = state.select;
+      if (!sel) return;
+      const el = e.target;
+      if (el.classList.contains("day-pick")) {
+        const r = Number(el.dataset.day);
+        if (el.checked) sel.days.add(r);
+        else sel.days.delete(r);
+        return renderSelectBar();
+      }
+      if (el.classList.contains("row-pick")) {
+        const key = pointKey(Number(el.dataset.day), el.dataset.kind, Number(el.dataset.i));
+        if (el.checked) sel.points.add(key);
+        else sel.points.delete(key);
+        return renderSelectBar();
+      }
+      // The move-to picker fires `change` rather than `click`, so it is handled
+      // here rather than below with the buttons.
+      if (el.dataset.sel === "move-to" && el.value !== "") {
+        const to = Number(el.value);
+        el.value = "";
+        moveSelectedPoints(to);
+      }
+    });
+
+    panel.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sel]");
+      if (!btn || btn.tagName === "SELECT") return;
+      const sel = state.select;
+      if (!sel) return;
+      const act = btn.dataset.sel;
+      if (act === "done") return endSelect();
+      if (act === "none") {
+        sel.days.clear();
+        sel.points.clear();
+        renderDays();
+        return renderSelectBar();
+      }
+      if (act === "all") {
+        if (sel.scope === "day") state.days.forEach((_, r) => sel.days.add(r));
+        else {
+          state.days.forEach((day, r) => {
+            day.stops.forEach((_, i) => sel.points.add(pointKey(r, "stop", i)));
+            day.pois.forEach((_, i) => sel.points.add(pointKey(r, "poi", i)));
+          });
+        }
+        renderDays();
+        return renderSelectBar();
+      }
+      if (act === "delete") return sel.scope === "day" ? deleteSelectedDays() : deleteSelectedPoints();
+      if (act === "duplicate") return duplicateSelectedDays();
+      if (act === "group") return groupSelectedAsAlternates();
+    });
+  }
+
   // --- Save / load ----------------------------------------------------------
 
   function payload() {
@@ -2616,8 +3156,25 @@
         btn.setAttribute("aria-expanded", String(!shut));
         return;
       }
-      if (btn.classList.contains("day-del")) return deleteDay();
       if (btn.classList.contains("day-rev")) return reverseDay();
+      if (btn.classList.contains("day-menu-btn")) {
+        return toggleDayMenu(sec.querySelector(".day-head"), btn, r);
+      }
+      if (btn.classList.contains("row-menu-item") && btn.closest(".day-head")) {
+        // Close first: every one of these re-renders, and a menu still attached
+        // to a section that is about to be replaced would be orphaned mid-click.
+        const act = btn.dataset.act;
+        closeMenu();
+        if (act === "day-delete") return deleteDay();
+        if (act === "day-duplicate") return duplicateDay(r);
+        if (act === "day-promote") return promoteAlternate(r);
+        if (act === "day-ungroup") return ungroupAlternates(r);
+        if (act === "day-select") return startSelect("day");
+        return;
+      }
+      // Ticking a day. Not delegated through setActive above — a checkbox is
+      // about the set, not about where the next map click lands.
+      if (btn.classList.contains("day-pick")) return;
     });
 
     // The keyboard half of the drag handle. Reordering was two buttons until
@@ -2879,8 +3436,9 @@
     // it binds to the list element — so initDragToReorder is called per list from
     // renderDays instead.
     wireList($("day-list"));
-    wireRowMenuDismiss();
+    wireMenuDismiss();
     wireSearch();
+    wireSelect();
     wireHistory();
     // Undo and redo are the only icons in static markup — every other one is in
     // a row this file renders, and renderList() hydrates those as it goes. These
@@ -2919,6 +3477,12 @@
       // A drop at the end of a shape drag also produces a click. Without this
       // the rider bends the line and gets a stop they never asked for.
       if (consumeShapeClick(state.map)) return;
+      // ADDING IS SUPPRESSED WHILE POINTS ARE SELECTED, and this is a
+      // correctness guard rather than a nicety: the selection keys points by
+      // index, and splicing a new stop into a day renumbers every point after
+      // it. The rider would then delete a different set from the one they
+      // ticked, silently. Saying so beats acting on the stale keys.
+      if (state.select?.scope === "point") return toast("Finish selecting first", true);
       if (state.addMode === "poi") addPoi(lng, lat, "");
       else addStop(lng, lat, "");
     });

@@ -442,6 +442,151 @@
     color: var(--day-color, #{$text});
   }
 
+  // The day header's ⋮. A text glyph rather than a masked icon, matching
+  // .row-menu-btn exactly — the two are the same control at two levels and a
+  // rider should not have to notice they are drawn differently.
+  .day-menu-btn {
+    font-size: 1.1em;
+    line-height: 1;
+    letter-spacing: 0.05em;
+  }
+
+  // SELECT MODE'S ACTION BAR. Above the day list and outside the scroller, so it
+  // covers none of the rows being ticked and stays put while the rider scrolls
+  // to reach day 9. Tinted rather than bordered: it is a mode the panel is in,
+  // not another control in it.
+  .select-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3em;
+    margin: 0.4em 0;
+    padding: 0.4em 0.5em;
+    border-radius: 6px;
+    background: color-mix(in srgb, #{$brand} 10%, #{$white});
+    font-size: 0.85em;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .sel-count {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: 700;
+      color: $text;
+    }
+
+    button,
+    select {
+      font: inherit;
+      padding: 0.25em 0.5em;
+      border: 1px solid $grey;
+      border-radius: 5px;
+      background: $white;
+      color: $text;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        border-color: $brand;
+        color: $brand;
+      }
+
+      // Disabled rather than hidden at zero selected, so the bar does not change
+      // shape the moment the first box is ticked.
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+    }
+
+    .is-danger:hover:not(:disabled) {
+      border-color: $kml;
+      color: $kml;
+    }
+
+    .sel-move {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25em;
+      color: $text;
+    }
+  }
+
+  // Both checkboxes take the day's colour, so a ticked row still says which day
+  // it belongs to at a glance.
+  .day-pick,
+  .row-pick {
+    flex: none;
+    margin: 0;
+    accent-color: var(--day-color, $url);
+  }
+
+  // Sized and placed where .row-num sat, which it replaces — so the fields to
+  // its right do not shift when select mode opens.
+  .row-pick {
+    width: 1.4em;
+  }
+
+  // THE OVERFLOW MENU, FOR BOTH ITS HOSTS. This lived inside .point-row until
+  // day headers grew a ⋮ of their own on 2026-08-16, at which point the day's
+  // menu inherited none of it and rendered as an 84px box with "Ungroup
+  // alternatives" wrapped over three lines. It is one component with two
+  // parents, so it is scoped to the panel and not to either of them.
+  //
+  // Absolutely positioned so opening it costs no layout, right-aligned under the
+  // button it belongs to, and allowed to overflow its host — the panel scroller
+  // clips it, which is the same bound the role picker lives inside. Both hosts
+  // must therefore be `position: relative`; .point-row and .day-head both are.
+  .row-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    min-width: 10em;
+    padding: 0.25em;
+    background: $white;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px $panel-shadow;
+  }
+
+  .row-menu-item {
+    font: inherit;
+    font-size: 0.9em;
+    text-align: left;
+    padding: 0.4em 0.6em;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: $text;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: rgba($brand, 0.1);
+    }
+
+    // Shown rather than dropped, so the first stop's menu is the same shape as
+    // every other stop's. A menu that changes length between rows is the same
+    // jump in miniature.
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    &.is-danger {
+      color: $kml;
+      &:hover:not(:disabled),
+      &:focus-visible {
+        background: rgba($kml, 0.1);
+      }
+    }
+  }
+
   // The badge in a day header. Same two words and same shape as the viewer's
   // legend badge in _map.scss — a rider who has seen one should not have to
   // learn the other. `flex: none` because it sits in the header's flex row and
@@ -1125,57 +1270,6 @@
       }
     }
 
-    // Absolutely positioned so opening it costs no layout. Right-aligned under
-    // the button it belongs to, and allowed to overflow the row — the panel
-    // scroller clips it, which is the same bound the role picker lives inside.
-    .row-menu {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      z-index: 5;
-      display: flex;
-      flex-direction: column;
-      min-width: 10em;
-      padding: 0.25em;
-      background: $white;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px $panel-shadow;
-
-      .row-menu-item {
-        font: inherit;
-        font-size: 0.9em;
-        text-align: left;
-        padding: 0.4em 0.6em;
-        border: 0;
-        border-radius: 4px;
-        background: none;
-        color: $text;
-        cursor: pointer;
-        white-space: nowrap;
-
-        &:hover:not(:disabled),
-        &:focus-visible {
-          background: rgba($brand, 0.1);
-        }
-
-        // Shown rather than dropped, so the first stop's menu is the same shape
-        // as every other stop's. A menu that changes length between rows is the
-        // same jump in miniature.
-        &:disabled {
-          opacity: 0.35;
-          cursor: default;
-        }
-
-        &.is-danger {
-          color: $kml;
-          &:hover:not(:disabled),
-          &:focus-visible {
-            background: rgba($kml, 0.1);
-          }
-        }
-      }
-    }
     .row-roles {
       display: grid;
       // A class selector outranks the UA's `[hidden] { display: none }`, so the

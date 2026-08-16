@@ -456,10 +456,12 @@ html.map-page:has(#info-panel.collapsed) {
     height: 18px;
   }
 
-  // Smaller than the header's 18px: these two sit inside .day-actions buttons,
-  // which are 0.85em, so they track that rather than the header. Both the same
-  // size because they are now a pair of masked icons rather than one icon and
-  // one text glyph — which is what made them read at different weights before.
+  // Smaller than the header's 18px: this sits inside a .day-actions button,
+  // which is 0.85em, so it tracks that rather than the header.
+  //
+  // .day-del is still listed in the mask rules above because the class survives
+  // in the DAY MENU's delete item styling path and in the point rows; the day
+  // header's delete button itself moved into the ⋮ menu on 2026-08-16.
   .day-del::before,
   .day-rev::before {
     width: 0.85em;

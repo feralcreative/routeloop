@@ -458,6 +458,13 @@ function builderHtml(
           </div>
         </div>
 
+        <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
+             and hidden whenever state.select is null. It sits above the day list
+             rather than floating over it so it cannot cover the very rows being
+             ticked, and it is outside the scroller so it stays put while the
+             rider scrolls down to reach day 9. -->
+        <div class="select-bar" id="select-bar" hidden></div>
+
         <!-- THE SEARCH BOX THAT WAS HERE IS GONE, and its absence is the point.
              One field above the day list had to guess which day a searched
              address belonged to, and it guessed "whichever you touched last" —
