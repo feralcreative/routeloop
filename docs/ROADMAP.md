@@ -31,7 +31,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 2. The ride timeline             | "a route's duration" → "a day's duration"                                               | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
 | 5. One-tap Google Maps links     | batching described per route → **per day**, in three places                             | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)                                     |
 | 9. Import and export breadth     | "colours" → "colors"                                                                    | [#13](https://github.com/feralcreative/routeloop/issues/13)                                              |
-| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)              | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
+| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)             | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
 | 13. Rider Subgroups              | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**    | [#67](https://github.com/feralcreative/routeloop/issues/67)                                              |
 | 14. Alternate routes and voting  | "day/route-level" → **day-level**                                                       | [#68](https://github.com/feralcreative/routeloop/issues/68)                                              |
 | 15. On-the-road mobile interface | "a route's Google Maps legs" → "a day's"                                                | [#69](https://github.com/feralcreative/routeloop/issues/69)                                              |
@@ -314,7 +314,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 The single-file gap closed 2026-08-04 (#70): every track in a file now lands as its own day, in document order, carrying the file's own name for it—GPX `<trk><name>`, KML Placemark names, GeoJSON feature names. All three parsers previously kept only their longest line and discarded the rest, which meant the app could not read back its own multi-day export. Waypoints are assigned to the day they physically sit on, since GPX ties them to nothing. More than 31 days is refused rather than truncated.
 
-Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk>` and no device picker, and a Garmin wants `<rte>` shaping points.
+Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk>` and no device picker, and a Garmin wants `<rte>` shaping points. Note that a picker is interface, and this item has never held any: **the `/import` page itself is now item 21**, and #13's control should be drawn as part of that page rather than bolted onto it afterwards. See also `docs/myrouteapp-formats.md`, which works out what a MyRoute-app file can and cannot carry in either direction.
 
 ### 10. Discovery and public profiles
 
@@ -400,7 +400,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Open questions to settle when building.**
 
-- **Granularity.** Segment-level (a fork between two stops), day-level (a whole alternate day), or both? Segment-level matches the "this way or that" pitch; day-level is simpler and reuses the rides-hold-many-days model. It changes the schema.
+- **Granularity. Answered 2026-08-16: day-level, and it was decided by import rather than here.** Item 21 lets a rider link two similar imported files as alternates for the same day, which is a whole alternate day and nothing else—so day-level is what the schema must carry first, and it reuses the rides-hold-many-days model as this entry hoped. Segment-level is not ruled out and still matches the "this way or that" pitch better; it is simply not what ships first. Worth noting the definitions did not have to bend: two candidates for one day share the day's overnight anchors and diverge in the middle, which is exactly the shape this item already describes.
 - **Who proposes.** Only the ride leader, or any member? Any-member turns this into lightweight collaborative editing (backlog) and needs guardrails.
 - **Resolution rules.** Simple majority, quorum, deadline, tie-breaking, and whether the leader can override the vote. Settle the governance before building the buttons.
 - **Anonymous vs. named votes.** Named votes create social pressure; anonymous is cleaner but hides who wants what.
@@ -408,6 +408,8 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 **Touches.** `src/db/schema.ts` (alternates + votes), new routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js` (ghosted alternates), the timeline and roadbook (active path only).
 
 **Status.** planned—a group-collaboration feature; depends on riders (item 8) and overlaps the collaborative-editing backlog item.
+
+**This item should be split, and item 21 is why.** It currently bundles three things: the **alternate object** (two or more candidates for a stretch, exactly one active), the **voting**, and the **resolution**. Only the first is group collaboration; the other two are. Item 21 needs the object and none of the machinery—a rider importing two files for day 2 is not holding a vote—so as written, linking alternates at import time would sit behind riders (item 8) for no reason at all. Land the alternate object on its own, with the builder able to create and switch alternates for a single planner, and let voting build on top of it when riders exist. That also means the schema question above gets settled by a much smaller piece of work than this whole item.
 
 ### 15. On-the-road mobile interface
 
@@ -540,45 +542,137 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 
 **Status.** planned—raised 2026-08-15. Related to item 6 (saved places), which will want the same picker when a rider adds a place.
 
-### 20. Theme selection: default, high contrast, colorblind
+### 20. Theme selection: three themes, each in light and dark
 
-**Goal.** A section on the settings page letting a rider choose the site's colors—**default**, **high contrast**, or **colorblind**—as three radio options. This is the first real content `/settings` gets; it currently says "Not much to set yet."
+**Goal.** Two independent controls on the settings page. **Theme**—default, high contrast, colorblind—chooses the palette. **Appearance**—system, light, dark—chooses the scheme. They do not constrain each other: every theme exists in both schemes, six palettes in total. This is the first real content `/settings` gets; it currently says "Not much to set yet."
+
+Two axes rather than six radio buttons, decided 2026-08-16. The two questions are genuinely unrelated—theme is about which signals a rider can distinguish, scheme is about ambient light—and collapsing them into one list would ask a rider to find "colorblind dark" in a flat six. It also makes _system_ expressible, which a single list cannot do: "follow the OS" is a statement about the scheme axis only, and there is no OS signal for colorblindness.
 
 **Work.**
 
-- [ ] Three named themes behind a rider preference, persisted to the account and applied server-side on render so there is no flash of the wrong theme.
+- [ ] Two preferences, persisted to the account and applied server-side on render so there is no flash of the wrong theme. Note the asymmetry before building it: theme and an _explicit_ light or dark can both be rendered from the stored value, but **system cannot**—the server does not know the OS setting. See the emission shape below; it is solvable without JS, but not by rendering an attribute.
 - [ ] **Default** is the road-sign palette as it stands, including the ink pairing—which field takes the white legend and which takes the black—recorded in `style/_tokens.scss`.
 - [ ] **High contrast** raises every foreground/background pair well past 4.5:1, including the pairs that only just clear it today and the ones that deliberately do not because they are decoration rather than text.
 - [ ] **Colorblind** addresses the collisions the palette has by construction. `$stop` and `$go` are a red/green pair and converge under deuteranopia and protanopia; `$yield` and `$construction` are adjacent ambers. The existing note under the `/import` filename fields—that color is never the only cue—becomes a rule the whole app has to hold to, not a line in one comment.
 - [ ] Audit where color is currently the _only_ signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
+- [ ] **Dark** for each of the three. Scope this off the finding below—it is a neutral-scale and surface job, not a repaint of the road-sign palette.
 
-**Mechanism—decided 2026-08-15: Sass generates, custom properties carry, `data-theme` switches.**
+**What dark mode actually touches—surveyed 2026-08-16.**
+
+The road-sign palette does not move. The ink-pairing table in `_tokens.scss` is copied off real signs rather than derived from contrast math, and a sign's colors do not change at night: `$stop` is the same red on an unlit road, still carrying a white legend. So `$interstate` through `$tarmac`, and which ink each field takes, are **scheme-invariant**. What inverts is the page around them—body text, surfaces, borders, panel fills. That is a much smaller surface than "six palettes" suggests, and it is the finding that makes this worth doing now rather than later.
+
+Three things already in the repo help more than expected:
+
+- **The neutral scale is numbered by CIE L\***, so the dark ramp is expressible rather than hand-picked: roughly `$neutral-N` → `$neutral-(100-N)`. Only roughly—a dark UI wants less contrast than a naive flip gives, because light text on dark blooms—but a scale whose numbers mean something can be mapped and checked, which a 50–900 ordinal could not.
+- **`$splash-ink` (#0a0e11) is already the app's dark surface**, and `src/emails/theme.ts` already mirrors it as `DARK.cardBg`. The dark scheme should start there rather than inventing a second near-black, and doing so quietly narrows the email/site split noted below.
+- **The logo lockups already ship `-dk` reversed variants** (`layout.tsx`, two places). Dark mode needs to drive that switch globally instead of per-page—a work item, but not new artwork.
+
+And two things cost more than expected:
+
+- **The derivation direction inverts, which breaks the mechanism as decided.** The 2026-08-15 decision was that the formula is written once and applied per theme. That holds across the three _light_ themes because every legibility derivation darkens—`$pending` is `-20%`, `$label` is `-22%`, both making a yellow survive as text on white. On a dark ground the same tokens have to _lighten_. The fix is to carry a direction with the scheme and write the expressions signed, so `-20%` becomes `-20% * $dir`; the formula stays written once. **The trap is assuming that makes the contrast symmetric.** It does not: +20% on a dark ground and -20% on a light one land on different ratios, so all six palettes need their figures measured, not inferred from the light ones. Budget for six contrast audits, not one plus five reflections.
+- **The hover-direction rule inverts too.** `_tokens.scss` documents at length that a black-legend field must get _lighter_ on hover, not darker, or `$go` falls from 6.1:1 to 4.3:1. Under a dark scheme that reasoning has to be re-derived per field. This lands squarely on the 46 inline derivations below, and it means the migration cannot treat them as a flat list—each has to be classified as **legibility-derived** (direction flips with scheme) or **decorative** (may not). That classification is the real work and it should happen during the promotion step, when each one is being touched anyway.
+
+**Mechanism—decided 2026-08-15, extended for the scheme axis 2026-08-16: Sass generates, custom properties carry, `data-theme` and `data-scheme` switch.**
 
 The obstacle is that several tokens are _derived_ rather than authored—`$pending` is `color.adjust($yield, -20%)`, `$label` is `-22%`—and Sass runs at build time, so it cannot recompute them when a custom property changes at runtime. Three ways out, and the third is the one to take:
 
 1. **Author every derived value per theme.** Three themes times every derived token, maintained by hand. It throws away the property the palette was just given—one source per hue—and guarantees drift the first time a base color moves.
 2. **Move the derivations to `color-mix()` in CSS.** Genuinely runtime-derivable and well enough supported. But it relocates color arithmetic out of the one file that documents it, and the contrast figures the palette is built on stop being checkable in the place the values live.
-3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the _authored_ palette per theme; an `@each` emits one `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied three times. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
+3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the _authored_ palette per theme; an `@each` emits a `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied once per palette—six times, with the scheme axis. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
 
 **The real migration cost is not the tokens, it is the 46 inline derivations.** `color.adjust($gpx, -8%)` and friends appear 46 times across the partials, in rules rather than in `_tokens.scss`—hover states, borders, tints. Every one of them reads a Sass variable that will no longer hold the live value once a theme can change it, and `color.adjust()` cannot operate on a `var()`. Each has to become a token emitted per theme. That is the bulk of the work and it should be sized before anything is drawn.
 
+The `$themes` map is therefore nested—keyed by theme, each entry holding a `light` and a `dark` authored palette—and the `@each` runs twice per theme.
+
+**The emission shape, and why _system_ forces it.** A stored preference can be rendered into an attribute; the OS setting cannot. Emitting three blocks per theme solves it with no JavaScript and no flash, because the media query is the fallback and the attribute is the override:
+
+```scss
+:root[data-theme='#{$name}'] {
+  /* light tokens—the default when no scheme is asked for */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='#{$name}']:not([data-scheme='light']) {
+    /* dark tokens—system, unless light is pinned */
+  }
+}
+
+:root[data-theme='#{$name}'][data-scheme='dark'] {
+  /* dark tokens again—pinned dark wins in both directions */
+}
+```
+
+_System_ then renders as no `data-scheme` attribute at all, and the `:not()` is what lets a rider pin light while their OS is dark. Three themes times three blocks is nine copies of the full token set in the stylesheet—worth measuring the compiled size once the first theme lands, though custom-property declarations compress well and this is unlikely to be the thing that matters.
+
 **Work, in order.**
 
-- [ ] Promote all 46 inline derivations to named tokens. No behavior change, and it can land on its own well before any theme exists—which is the point of doing it first.
-- [ ] Restructure `_tokens.scss` around a `$themes` map with one entry, `default`, emitting today's values as custom properties. Still no behavior change; the compiled output should be equivalent.
-- [ ] Add `high-contrast` and `colorblind` as further map entries.
-- [ ] Wire the preference and the `data-theme` attribute.
+- [ ] Promote all 46 inline derivations to named tokens, **classifying each as legibility-derived or decorative as it is promoted**. No behavior change, and it can land on its own well before any theme exists—which is the point of doing it first. The classification is what the scheme axis later depends on, and it is nearly free while each one is already open.
+- [ ] Restructure `_tokens.scss` around a nested `$themes` map with one entry, `default`, holding only a `light` palette and emitting today's values as custom properties. Still no behavior change; the compiled output should be equivalent.
+- [ ] Add `dark` to `default` and sign the derivation expressions. This is the step that proves the mechanism, and it should be first because it is the one that can fail—if signed derivations do not hold their contrast figures, better to learn it against one palette than three.
+- [ ] Measure all contrast pairs for `default` dark. Do not carry the light figures across.
+- [ ] Add `high-contrast` and `colorblind`, each with both schemes, measuring each.
+- [ ] Wire both preferences, the `data-theme` and `data-scheme` attributes, and the `-dk` logo swap.
+- [ ] Delete the comment at `style/_dashboard.scss:24`, which states the app has no dark mode and that only the emails do. It becomes false the moment this lands, and it is exactly the kind of comment that outlives its truth.
 
 **Open questions.**
 
-- **Does it interact with `prefers-contrast` / `prefers-color-scheme`?** The OS already reports both. Whether the setting overrides the OS, defers to it, or offers "system" as a fourth option is undecided—and note the emails have their own dark palette already, in `src/emails/theme.ts`, which no site-level setting can reach.
-- **Dark mode is not on this list, and someone will ask.** These three are about legibility, not preference. Whether a dark theme joins them is a separate question with a much larger surface—the splash page is photo-backed and the map has its own styling.
+- **The map is the hard one, and it is harder than "it has its own styling" suggested.** The basemap is Google with cloud styling attached to `GMAPS_MAP_ID`, and the default map type is `terrain`—which `map-common.js` already documents as raster imagery with vector data drawn over it, so cloud styling reaches only the labels and roads, not the ground. A dark basemap would need a second Map ID switched at runtime, and **terrain could not be dark at all**. The likely right answer is that the map does not invert: it is content, not chrome, the same way a photograph is not inverted in dark mode. Dark chrome around a light map is a normal and defensible outcome. Decide this explicitly before anyone starts on it.
+- **The splash page is the opposite of a problem.** It was listed as a reason to defer dark mode, but `_splash.scss` already opts out of the light chrome because the footage is dark. Splash is effectively dark-native; the odd case is what it means in _light_ mode, which is "unchanged". That objection can be retired.
+- **Does the theme axis interact with `prefers-contrast`?** The OS reports it. Whether `prefers-contrast: more` should auto-select the high-contrast theme, or whether theme stays a pure stored preference with no OS input, is undecided. Note this is now cleanly separable from the scheme question, which is one benefit of splitting the axes.
+- **The emails.** `src/emails/theme.ts` carries its own dark palette, pinned to `_tokens.scss` by `test/email-theme.test.ts`. Once the site has real dark tokens, either the emails adopt them or the split becomes deliberate and documented. The pinning test is the place that will notice first, and that is the test doing its job.
 
-**Touches.** `src/routes/settings.tsx`, `src/db/schema.ts` (the preference), `src/views/layout.tsx` (applying it at render), `style/_tokens.scss` and every partial that reads a token, `docs/main-menu.md`.
+**Touches.** `src/routes/settings.tsx`, `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. Possibly `public/js/map-common.js` and a second Map ID, depending on how the map question resolves.
 
-**Status.** planned—raised 2026-08-15. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
+**Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
 <!--| PAGE-BREAK -->
+
+### 21. The import review table
+
+**Goal.** Today the drop box reads what it can off the filenames and _shows_ it. A rider who sees a wrong date, a missing ride name or the wrong day order has no way to fix it except renaming files on disk and dropping them again. Make the preview an editable manifest: ride name, per-route name and per-route date all editable in place, day order draggable, any row droppable, and duplicates surfaced and resolved—all before a single row is written.
+
+The pitch in one line: **guess harder, then let the rider correct the guess.** Those two halves depend on each other, and neither is worth much alone.
+
+**What already exists and must not be rebuilt.**
+
+- **`planImport()` in `src/maps/filename.ts` already returns the manifest.** It hands back `ride`, a `files[]` of `{ fileName, index, day, date, hasTime, title, ext, conforming }`, and the three flags `allConforming`, `reordered` and `rideConflict`. This item is that structure made editable and posted back—not a new parse.
+- **Row drag is already solved.** SortableJS 1.15.7 is a pinned dependency with an SRI hash, in use for stop reorder since item 16. Use the same library and the same textured handle rather than inventing a second drag pattern on a second page. Item 16's hard-won lesson comes with it: **a drag handle cannot be operated from a keyboard**, so move-up and move-down must also exist as real controls, and they are what still works when the CDN fails.
+- **`titleFromSlug` already recovers a display title** from a slug field, and its comment already records that a file's own internal name is preferred over anything recovered from a filename. Staging makes that internal name available before the table renders, which is the first time that preference can actually be honored in the preview.
+
+**Three consequences that _are_ the item. The table is the easy half.**
+
+1. **Import becomes two-phase: stage, review, commit.** `POST /api/maps` currently validates every file and inserts in one call, and `filename.ts` states the invariant plainly—the drop box previews `planImport()` and the endpoint acts on it, "so the two cannot disagree about what a folder means." **An editable manifest breaks that by design.** Once a rider can retype a date, the server cannot re-derive the truth from filenames; the edits _are_ the truth. The endpoint has to accept a posted manifest and validate it, and the invariant weakens from "both compute the same answer" to "the server validates what the client sends"—which is a real loss of safety and has to be replaced with explicit validation rather than quietly dropped. **The comment in `filename.ts` must be rewritten when this lands**; it will otherwise sit there reading as still-true.
+2. **Duplicate and similarity detection need the bytes, not the names.** An exact duplicate is a content question and a similar route is a geometry question, and neither can be answered from a filename. So the files must be uploaded and parsed _before_ the rider sees the table—the review step cannot be client-side-only, which is what the current drop box is. That is the staging half, and it drags its own tail: staged bytes count against quota, so they need a TTL and a sweep, and the "all files are validated before any is parsed, so a bad tenth file names itself" guarantee documented in `docs/api.md` moves to the stage call rather than disappearing.
+3. **Aggressive gleaning becomes safe, and today it is not.** `filename.ts` deliberately refuses to guess: without the marker, `parseExportName` returns null and a rider's own `day-2.gpx` is never silently reinterpreted. That rule is correct _because the guess would be invisible_. A review table removes its reason for existing—a guess the rider sees and can overwrite before commit is not a silent reinterpretation. So the strict convention stays **exactly** as it is for conforming names, and a **separate best-effort layer** reads the rest: dates in other spellings, `day 2` / `Day-2` / a trailing number, a title from whatever is left over. Keep the two layers apart and show per cell which one filled it, so the strict parser's guarantees are not diluted by the guesser's. A cell the app is unsure of should look unsure.
+
+**Work.**
+
+- [ ] Split the import into stage → review → commit, with the manifest posted back rather than re-derived. Replace the lost invariant with explicit server-side validation of the posted manifest.
+- [ ] TTL and sweep for staged uploads, and decide how staged bytes hit the storage quota.
+- [ ] The manifest table: ride name, per-row route name, per-row date, all editable in place; drag to reorder days, with keyboard-reachable equivalents; a per-row drop control that excludes a file from the import without re-dropping the folder.
+- [ ] The best-effort gleaner, as its own module beside `filename.ts` rather than inside it, with per-cell provenance surfaced in the table.
+- [ ] Prefer the file's internal track name over the filename-derived title now that staging makes it available.
+- [ ] **Exact duplicates**—called out, with a one-click drop of the copy.
+- [ ] **Similar routes**—called out as **candidate alternates for the same day**, linkable right there in the table rather than by opening the builder afterwards. Decided 2026-08-16, and it is the point of the feature: a rider who drops two files for day 2 is telling you they have two ways to ride day 2.
+- [ ] Pick which linked candidate is **active**. Item 14 requires exactly one at a time; on import the sane default is the first in day order, with the table able to change it before commit.
+- [ ] Rewrite the "the two cannot disagree" comment in `src/maps/filename.ts`.
+- [ ] Extend `test/round-trip.test.ts`'s sibling coverage to the manifest: an edited manifest must produce exactly the ride it describes, which is the only assertion that catches an edit being silently ignored.
+
+**Decided 2026-08-16: an import-time alt _is_ item 14's alternate, at day level.** Two similar files are two candidate days, and the definitions line up cleanly once the unit is a day—alternates for the same day share their start and end because they share the day's overnight anchors, and diverge in the middle, which is exactly item 14's shape. This settles item 14's open granularity question in favor of day-level; segment-level is not ruled out forever, but day-level is what the schema has to carry first. Two things follow, and the second one is worth more than it looks:
+
+- **The similarity metric is not "are these the same route".** It is "are these two ways of riding the same day", and those want opposite answers in the middle. Real alternates **diverge substantially between their anchors**—that is what makes them alternates—so a whole-path measure like Fréchet or Hausdorff distance would score a genuine over-the-pass / valley-road pair as _dissimilar_ and miss precisely the case this feature exists for. Weight the endpoints: same-ish start, same-ish end, comparable length, divergent middle. Whole-path similarity is the wrong instrument here and would fail quietly.
+- **This puts a spectrum where the item first assumed two buckets.** Byte-identical is a mistake to drop; near-identical with different geometry is the same ride exported by two tools, also a drop; same anchors with a divergent middle is an alternate to link; different anchors is two different days. That is three thresholds, not one, and each wants its own prompt and its own default. Getting the middle two the wrong way round is the failure mode—offering to _delete_ someone's alternate route is much worse than offering to link two duplicates.
+
+**Open questions.**
+
+- **Does item 14's alternate object have to wait for item 14?** As written it does, and item 14 depends on riders (item 8), which would chain this item behind group collaboration for no good reason. Import needs only the **alternate**—two candidates, one active—and none of the voting, resolution or membership machinery around it. Splitting that object out of item 14 so it can land alone is probably the right move and would unblock this item entirely. Item 14's note now says the same from its side.
+- **What "exact" means.** A byte hash is trivial and misses the real case: the same ride exported twice by different tools is not byte-identical but is the same route. Hashing normalized parsed geometry catches it and costs a parse. Probably both, labelled differently—and see the three-threshold note above.
+- **Where the ride-name field goes for a single-file import**, where there is no table to head.
+- **Whether the export half shares this page.** `docs/main-menu.md` already decides that `/import` grows an export half rather than a second page appearing. This item redesigns the import half substantially; the two should be drawn once, together, rather than the export half being fitted around a finished table.
+
+**Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging, and the link relation once it is named), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
+
+**Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts.
 
 ## Idea backlog (unscheduled)
 
