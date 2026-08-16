@@ -16,6 +16,7 @@ import { db } from '../db/index'
 import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
+import { activeDays } from './alternates'
 
 export type ExportPoint = {
   lat: number
@@ -48,6 +49,11 @@ export type ExportRide = {
   title: string
   description: string | null
   days: ExportDay[]
+  /**
+   * How many losing alternates loadRideForExport left out, so a caller can say
+   * so rather than letting a rider count the days and find one missing.
+   */
+  hiddenAlternates: number
 }
 
 // Legs are stored per routed segment and share their joints, so consecutive
@@ -64,15 +70,36 @@ function concatLegs(legs: Array<{ geometry: Track }>): Track {
   return track
 }
 
+/**
+ * The ride as something to consume: GPX, KML, the roadbook, the hand-off page,
+ * the zip.
+ *
+ * ACTIVE DAYS ONLY, UNCONDITIONALLY, and that is the point of doing it here.
+ * Every caller — the four serializers, the roadbook, the hand-off page, the zip
+ * and the account export — wants the ride a rider is going to ride, not the
+ * options they weighed. Filtering in the loader rather than in each of them
+ * means the next caller cannot forget, which is the failure this codebase has
+ * had before with byte columns and with the day cap.
+ *
+ * A GPX/KML/CSV/GeoJSON round trip therefore DROPS the alternates, deliberately.
+ * None of those formats can express "this is an option", so a re-import would
+ * silently promote every losing alternate to a real day and hand the rider a
+ * ride with twice the mileage. Losing them is the smaller lie. The lossless path
+ * is the native JSON, which goes through loadNativeRide below and keeps
+ * everything.
+ */
 export async function loadRideForExport(
   rideId: number,
   meta: { title: string; description: string | null },
 ): Promise<ExportRide> {
-  const dayRows = await db
+  const allDays = await db
     .select()
     .from(daysTable)
     .where(eq(daysTable.rideId, rideId))
     .orderBy(daysTable.position)
+
+  const dayRows = activeDays(allDays)
+  const hiddenAlternates = allDays.length - dayRows.length
 
   const out: ExportDay[] = []
   for (const r of dayRows) {
@@ -108,7 +135,7 @@ export async function loadRideForExport(
     })
   }
 
-  return { title: meta.title, description: meta.description, days: out }
+  return { title: meta.title, description: meta.description, days: out, hiddenAlternates }
 }
 
 /**
@@ -461,6 +488,13 @@ export function upgradeNativeRide(file: NativeRide): object {
 // Straight from the rows, in the shape ridePayload validates. Note this reads
 // legs rather than the concatenated track: the leg boundaries are where the
 // stops are, and losing them is what makes every other format lossy.
+//
+// EVERY DAY, INCLUDING THE LOSING ALTERNATES — the opposite of
+// loadRideForExport above, and the reason the two are separate functions rather
+// than one with a flag. This is the lossless format: it is what a rider gets
+// back if they re-import, and what the account archive ships. Dropping an
+// alternate here would make the "you can always get your data out" promise
+// false in exactly the case where the rider did the most work.
 export async function loadNativeRide(
   rideId: number,
   meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
@@ -490,6 +524,8 @@ export async function loadNativeRide(
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
       endAt: r.endAt?.toISOString() ?? null,
+      altGroup: r.altGroup,
+      altActive: r.altActive,
       stops: pts.filter((p) => p.kind === 'stop').map(point),
       pois: pts.filter((p) => p.kind === 'poi').map(point),
       legs: legs.map((l) => ({

@@ -26,6 +26,8 @@ import {
   resolveAltGroups,
   type AltDay,
 } from '../src/maps/alternates'
+import { normalize, rideTotals, ridePayload } from '../src/maps/ride-graph'
+import { METERS_PER_MILE, trackMeters } from '../src/maps/kml'
 
 let C: any
 
@@ -274,5 +276,92 @@ describe('rideRollup', () => {
     ]
     const r = C.rideRollup(C.activeDays(days).map((x: any) => x.t))
     expect(r.meters).toBe(3000)
+  })
+})
+
+// --- rideTotals, the server's copy ------------------------------------------
+
+// This function writes rides.total_miles, rides.total_duration_s and
+// rides.stop_count on every save, every clone and every native import, and it
+// had no test of its own until alternates gave it a decision to make. The
+// numbers below are the stored caches the ride cards, the ride list and the
+// account archive all read back without recomputing.
+describe('rideTotals', () => {
+  // A leg's claimed distance has to match its geometry or normalize() replaces
+  // it — the anti-spoofing clamp fires at 15% deviation. So the fixture derives
+  // the claim from the geometry rather than asserting round numbers against a
+  // made-up line, and the expectations are computed the same way.
+  const GEOM: Array<[number, number]> = [
+    [-122, 37],
+    [-122, 37.01],
+  ]
+  const LEG_M = Math.round(trackMeters(GEOM))
+  const LEG_S = 600
+  const miles = (m: number) => (m / METERS_PER_MILE).toFixed(1)
+
+  const day = (legs: number, opts: Partial<{ altGroup: number; altActive: boolean; dwellMin: number }> = {}) => ({
+    title: '',
+    color: '#0000cc',
+    startAt: null,
+    endAt: null,
+    altGroup: opts.altGroup ?? null,
+    altActive: opts.altActive ?? true,
+    stops: Array.from({ length: legs + 1 }, (_, i) => ({
+      lat: 37 + i / 100,
+      lng: -122,
+      name: `Stop ${i}`,
+      description: '',
+      roles: [] as never[],
+      durationMin: i === 0 ? (opts.dwellMin ?? null) : null,
+    })),
+    legs: Array.from({ length: legs }, () => ({
+      geometry: GEOM,
+      distanceM: LEG_M,
+      durationS: LEG_S,
+      viaPoints: [] as never[],
+    })),
+  })
+
+  const parse = (days: unknown[]) => {
+    const p = ridePayload.parse({ title: 'x', days })
+    normalize(p)
+    return p
+  }
+
+  it('sums a plain ride', () => {
+    const p = parse([day(1), day(1)])
+    expect(rideTotals(p).totalMiles).toBe(miles(2 * LEG_M))
+    expect(rideTotals(p).stopCount).toBe(4)
+  })
+
+  it('counts only the active member of a group', () => {
+    // The whole point of the feature: a rider weighing two ways to do day 2
+    // should see the ride's mileage for one of them, not for both.
+    const p = parse([day(1), day(1, { altGroup: 0, altActive: true }), day(10, { altGroup: 0, altActive: false })])
+    expect(rideTotals(p).totalMiles).toBe(miles(2 * LEG_M))
+  })
+
+  it('leaves stop_count out of the alternate too', () => {
+    // Easy to miss, and it feeds the ride cards and the ride list — a count
+    // nobody would think to question.
+    const p = parse([day(1), day(8, { altGroup: 0, altActive: false }), day(1, { altGroup: 0, altActive: true })])
+    expect(rideTotals(p).stopCount).toBe(4)
+  })
+
+  it('counts a dissolved group, because normalize made it a plain day again', () => {
+    // A lone flagged day is not an alternate. If rideTotals read the flag
+    // without normalize having run, this ride would report zero miles.
+    const p = parse([day(1, { altGroup: 0, altActive: false })])
+    expect(rideTotals(p).totalMiles).toBe(miles(LEG_M))
+  })
+
+  it('counts dwell time from active days only', () => {
+    const p = parse([
+      day(1, { dwellMin: 30 }),
+      day(1, { altGroup: 0, altActive: true }),
+      day(1, { altGroup: 0, altActive: false, dwellMin: 600 }),
+    ])
+    // Two active days of riding, and only the 30 minutes stopped on day 1.
+    expect(rideTotals(p).totalDurationS).toBe(2 * LEG_S + 30 * 60)
   })
 })

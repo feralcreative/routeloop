@@ -164,6 +164,13 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // rides it. The timeline re-derives from legs and stops either way.
       startAt: null,
       endAt: null,
+      // Kept, unlike the times and the via-points above. An alternate is part of
+      // what the author planned — "here are two ways to do Thursday" is the
+      // thing being cloned, not incidental state — and dropping it would both
+      // lose that and hand the clone a bigger mileage than the original, because
+      // the losing alternates would become ordinary days.
+      altGroup: r.altGroup,
+      altActive: r.altActive,
       // Both kinds carry a duration, so a clone keeps the POI dwell too —
       // dropping it would quietly shorten every cloned day.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
@@ -285,6 +292,12 @@ export async function loadRidePayload(ride: RideRow) {
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
       endAt: r.endAt?.toISOString() ?? null,
+      // Omitting these is how a saved alternate grouping silently disappears on
+      // the next page load — the same trap the durationMin comment below names,
+      // and worse here because the ride's mileage would jump at the same time.
+      // This function names every field it carries; nothing is spread.
+      altGroup: r.altGroup,
+      altActive: r.altActive,
       stops: pts
         .filter((p) => p.kind === 'stop')
         .map((p) => ({

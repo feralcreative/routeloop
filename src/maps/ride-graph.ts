@@ -15,6 +15,7 @@ import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, ro
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
+import { activeDays, resolveAltGroups } from './alternates'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
@@ -59,6 +60,20 @@ const daySchema = z
     stops: z.array(stopSchema).min(1).max(MAX_STOPS),
     pois: z.array(poiSchema).max(MAX_POIS).default([]),
     legs: z.array(legSchema),
+    // ALTERNATES. Both default, which is what keeps every native JSON file a
+    // rider already downloaded — and every in-flight save from a tab opened
+    // before this shipped — valid without a format-version bump.
+    //
+    // Bounded to the day cap because the value is a partition key the server
+    // renumbers densely anyway (see resolveAltGroups); the bound is only here so
+    // a hostile payload cannot write an arbitrary smallint into the column.
+    //
+    // No .refine() for group validity, deliberately. A refine can only reject,
+    // and the shapes it would reject — a group of one, two members briefly
+    // claiming active — are exactly what a rider passes through mid-edit while
+    // the autosave fires. normalize() repairs them instead.
+    altGroup: z.number().int().min(0).max(MAX_DAYS - 1).nullable().default(null),
+    altActive: z.boolean().default(true),
   })
   .refine((r) => r.legs.length === Math.max(0, r.stops.length - 1), {
     message: 'legs must connect consecutive stops (stops - 1 legs)',
@@ -102,14 +117,29 @@ export function normalize(p: RidePayload): void {
       if (actual > 0 && Math.abs(l.distanceM - actual) > actual * 0.15) l.distanceM = actual
     }
   }
+  // Last, and before rideTotals runs: a group of one is dissolved, exactly one
+  // member of each surviving group is active, and the ids come out dense. The
+  // totals below count active days only, so the election has to have happened
+  // by the time they are computed. See src/maps/alternates.ts.
+  resolveAltGroups(p.days)
 }
 
 // Ride-level caches derived from the normalized payload.
+//
+// ACTIVE DAYS ONLY. A ride carrying two alternates for the same stretch would
+// otherwise report both — the total is what a rider is going to ride, not the
+// sum of everything they considered. Run normalize() first: this trusts that
+// exactly one member of each group is flagged active, which is resolveAltGroups'
+// job and not this function's.
+//
+// `stops` is filtered for the same reason and it is easy to miss: rides.stop_count
+// feeds the ride cards and the ride list, so a losing alternate's stops would
+// inflate a count nobody would think to question.
 export function rideTotals(p: RidePayload) {
   let meters = 0
   let seconds = 0
   let stops = 0
-  for (const r of p.days) {
+  for (const r of activeDays(p.days)) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
     seconds += r.stops.reduce((n, s) => n + (s.durationMin ?? 0) * 60, 0)
@@ -144,6 +174,13 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
         // null rather than 0 for a day with nothing to measure — see schema.ts.
         twistinessDpm: twist?.dpm ?? null,
         twistinessBestDpm: twist?.bestDpm ?? null,
+        // Written as normalize() left them. Note distance_m and duration_s above
+        // are NOT zeroed for a losing alternate: they describe that day's own
+        // legs, which is a true thing about it and what the viewer legend and
+        // the roadbook want when they choose to show it. Only the RIDE-level
+        // totals exclude it.
+        altGroup: r.altGroup,
+        altActive: r.altActive,
       })
       .returning()
 

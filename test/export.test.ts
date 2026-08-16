@@ -11,6 +11,9 @@ import { processGpx, processKml } from '../src/maps/kml'
 const ride: ExportRide = {
   title: 'Coast & Ridge <run>',
   description: 'An "interesting" one.',
+  // loadRideForExport has already dropped any losing alternates by the time a
+  // serializer sees the ride, so a fixture for one always has none hidden.
+  hiddenAlternates: 0,
   days: [
     {
       title: 'Day 1',
