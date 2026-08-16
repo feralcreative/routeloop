@@ -55,7 +55,9 @@ Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta
 
 **[decided] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open.
 
+**[shipped 2026-08-15] Settings has its first real setting.** The stop-duration format—hours to one decimal by default, switchable to hours+minutes or plain minutes. It posts to `/settings/duration-format` and writes one column, `user_profiles.duration_format`, rather than going through the profile form's POST, which validates and rewrites the whole profile and would need every other field carried along. The page is no longer a stub, though it is still short.
+
 ## Open
 
-- **What Settings holds.** Two entries are now decided, both from the 2026-08-10 builder click-through and both tracked under roadmap item 16: **the stop-duration format** (hours to one decimal by default, switchable to hours+minutes or plain minutes), and **un-dismissing the exit confirmation**, if that confirmation survives the autosave work at all. Units (miles/km), default ride visibility and email preferences remain the obvious untaken candidates.
+- **What Settings holds.** Both entries from the 2026-08-10 builder click-through are now closed rather than open. **The stop-duration format shipped 2026-08-15** and is on the page. **Un-dismissing the exit confirmation is moot**: autosave removed the confirmation, so there is nothing to un-dismiss—nothing is unsaved by the time a rider leaves. Units (miles/km), default ride visibility and email preferences remain the obvious untaken candidates and are the whole of what is still open here.
 - **The avatar.** `users.avatar_url` exists and is populated from Google sign-in. Riders who used a magic link have none, so the account trigger needs a fallback—initials on a tinted disc is the cheapest, but it is not decided.

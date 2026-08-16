@@ -147,3 +147,71 @@ describe('viaInsertIndex', () => {
     expect(order).toEqual([1, 5, 12, 20, 28])
   })
 })
+
+// Turning "between those two rows" back into a coordinate, which is what a
+// dragged POI needs. A POI has no stored order — ride-graph.ts writes
+// `position: null` for every one — so a drag moves its pin rather than
+// reordering anything, and this is the arithmetic that decides where to.
+describe('pointAtDistance', () => {
+  // A due-east run along the equator, where a degree of longitude is a constant
+  // ~111.3km, so the expected distances are checkable by hand.
+  const EAST: [number, number][] = [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+  ]
+  const DEG_M = 6371008.8 * (Math.PI / 180)
+
+  it('returns the first vertex for zero, negative and nonsense distances', () => {
+    expect(S.pointAtDistance(EAST, 0)).toEqual([0, 0])
+    expect(S.pointAtDistance(EAST, -5)).toEqual([0, 0])
+    expect(S.pointAtDistance(EAST, NaN)).toEqual([0, 0])
+  })
+
+  it('lands on a vertex when the distance is exactly one', () => {
+    const p = S.pointAtDistance(EAST, DEG_M)
+    expect(p[0]).toBeCloseTo(1, 6)
+    expect(p[1]).toBeCloseTo(0, 6)
+  })
+
+  // The point of the function: a distance that falls between two vertices has
+  // to interpolate rather than snap to the nearer one.
+  it('interpolates within a segment', () => {
+    const p = S.pointAtDistance(EAST, DEG_M * 1.5)
+    expect(p[0]).toBeCloseTo(1.5, 4)
+  })
+
+  // Dropping a POI below every other row asks for the end of the day, and
+  // builder.js passes Infinity to say so.
+  it('clamps past the end rather than running off it', () => {
+    expect(S.pointAtDistance(EAST, DEG_M * 99)).toEqual([3, 0])
+    expect(S.pointAtDistance(EAST, Infinity)).toEqual([3, 0])
+  })
+
+  it('handles a track too short to have a length', () => {
+    expect(S.pointAtDistance([], 10)).toBe(null)
+    expect(S.pointAtDistance(null, 10)).toBe(null)
+    expect(S.pointAtDistance([[5, 5]], 10)).toEqual([5, 5])
+  })
+
+  // A duplicated vertex is a zero-length segment. Interpolating into one is a
+  // divide by zero, and the track concatenation can produce them.
+  it('survives a zero-length segment', () => {
+    const dup: [number, number][] = [
+      [0, 0],
+      [0, 0],
+      [1, 0],
+    ]
+    const p = S.pointAtDistance(dup, DEG_M * 0.5)
+    expect(p[0]).toBeCloseTo(0.5, 4)
+    expect(Number.isFinite(p[0])).toBe(true)
+  })
+
+  // It must not hand back a reference into the caller's track — builder.js
+  // writes the result straight onto a POI's lat/lng.
+  it('never returns the track array itself', () => {
+    const p = S.pointAtDistance(EAST, 0)
+    expect(p).not.toBe(EAST[0])
+  })
+})

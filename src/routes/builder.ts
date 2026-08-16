@@ -19,10 +19,11 @@ import {
 } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
+import { toDurationFormat, type DurationFormat } from '../maps/duration'
 import { DAY_COLORS } from '../maps/palette'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
-import { faqLink, googleMapsLoader, page, panelShell } from '../views/layout'
+import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -332,28 +333,47 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | 
   return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
 }
 
-// The public starting point, sent to every builder page rather than only the
-// new-ride one: an existing ride can be made public at any time, and that is
-// exactly when the swap is offered.
+// Everything the builder needs off the rider's profile that is NOT the home
+// seed, in one read. Two things travel together here because they come off the
+// same row and the alternative was two round trips on the app's busiest page;
+// they are otherwise unrelated and the comments below are per field.
 //
-// Unlike homeSeed this is not gated on a preference — it is not seeding
-// anything, only standing by in case a home-started ride is about to be shared.
+//   publicStart — the public starting point, sent to every builder page rather
+//   than only the new-ride one: an existing ride can be made public at any time,
+//   and that is exactly when the swap is offered. Unlike homeSeed it is not
+//   gated on a preference — it is not seeding anything, only standing by in case
+//   a home-started ride is about to be shared.
+//
+//   durationFormat — how the stop duration field reads. Defaulted through
+//   toDurationFormat rather than trusted, because a rider with no profile row at
+//   all gets undefined here and every reader has to agree on what that means.
 type PublicStart = { lat: number; lng: number; label: string }
+type BuilderPrefs = { publicStart: PublicStart | null; durationFormat: DurationFormat }
 
-async function publicStart(userId: number): Promise<PublicStart | null> {
+async function builderPrefs(userId: number): Promise<BuilderPrefs> {
   const [p] = await db
-    .select({ lat: userProfiles.startLat, lng: userProfiles.startLng, label: userProfiles.startLabel })
+    .select({
+      lat: userProfiles.startLat,
+      lng: userProfiles.startLng,
+      label: userProfiles.startLabel,
+      durationFormat: userProfiles.durationFormat,
+    })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
     .limit(1)
-  if (p?.lat == null || p?.lng == null) return null
-  return { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' }
+  return {
+    publicStart:
+      p?.lat == null || p?.lng == null
+        ? null
+        : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
+    durationFormat: toDurationFormat(p?.durationFormat),
+  }
 }
 
 builderRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
-  const [home, start] = await Promise.all([homeSeed(user.id), publicStart(user.id)])
-  return c.html(builderHtml(null, user, home, start))
+  const [home, prefs] = await Promise.all([homeSeed(user.id), builderPrefs(user.id)])
+  return c.html(builderHtml(null, user, home, prefs))
 })
 
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -364,14 +384,14 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // cannot drift into offering an action that is then refused. It no longer
   // refuses an imported ride — see canEditRide in ./maps.
   if (!canEditRide(ride, user)) return c.text('Not found', 404)
-  return c.html(builderHtml(ride.id, user, null, await publicStart(user.id)))
+  return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id)))
 })
 
 function builderHtml(
   rideId: number | null,
   user: UserRow,
   home: { lat: number; lng: number } | null,
-  publicStart: PublicStart | null,
+  prefs: BuilderPrefs,
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
@@ -382,8 +402,13 @@ function builderHtml(
   // or the whole ride — the day scrubber sat next to the day's own colour
   // picker, and the ride timeline sat between two day-level blocks.
   //
-  // The order changed with the grouping: the timeline and the totals moved up
-  // into the ride band, which is where they always belonged.
+  // THE RIDE TIMELINE IS NO LONGER IN HERE. It moved to a bar across the bottom
+  // edge of the map on 2026-08-15 — see rideTimeline() in src/views/layout.tsx
+  // and .map-timeline in style/_map.scss. What is left in the second ride band is
+  // the day scrubber alone, and the two are not the same control: the scrubber
+  // picks which day you are EDITING and belongs beside the edit controls, the
+  // timeline moves through what you are LOOKING AT and belongs over the map.
+  // That split is what issue #93 asked for.
   //
   // THERE IS NO SAVE BUTTON, and no Discard either. The builder autosaves on
   // idle — see the autosave block in public/js/builder.js for the timing and for
@@ -429,12 +454,6 @@ function builderHtml(
                    aria-label="Focus a day, or all days" title="Drag to focus one day">
             <div class="day-ticks" id="day-ticks" aria-hidden="true"></div>
           </div>
-
-          <div class="ride-timeline" id="ride-timeline">
-            <input id="time-slider" class="time-slider" type="range" min="0" max="0" step="60" value="0"
-                   aria-label="Move through the ride in time" title="Drag to move through the ride">
-            <div class="time-readout" id="time-readout"></div>
-          </div>
         </div>
 
         <p class="day-pick-hint" id="day-pick-hint" hidden>Pick a day on the slider to edit it.</p>
@@ -469,12 +488,24 @@ function builderHtml(
             <ul id="search-results" hidden></ul>
           </div>
 
-          <ol class="point-list" id="stop-list"></ol>
+          <ol class="point-list" id="stop-list" data-duration-format="${prefs.durationFormat}"></ol>
         </div>
 
         <div class="builder-actions">
-          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo">↶</button>
-          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo">↷</button>
+          <!-- ONE ICON FILE, MIRRORED, for a pair that has to read as a pair.
+               Redo is icon-undo.svg under .icon-flip, which is scaleX(-1). Two
+               separately drawn files would be two chances for the arrowheads to
+               land at different angles or the strokes to differ by a hair, and
+               the whole point of undo/redo is that they are the same gesture in
+               opposite directions.
+
+               They are .tb-inline-icon rather than <img>, so hydrateIcons() in
+               builder.js inlines the SVG and its fill="currentColor" can take
+               the button's color—including the 0.35 opacity of the disabled
+               state. An <img> cannot inherit color and would stay black while
+               the button greyed out around it. -->
+          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
+          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon icon-flip" data-icon="icon-undo.svg"></span></button>
           <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
@@ -505,9 +536,21 @@ function builderHtml(
   // used to sit. Both are outside .panel-contents-wrapper, so they stay put while
   // the stop list scrolls — renderTotals() writes #totals by id and did not care
   // that it moved.
-  const titleHtml = `<input id="ride-title" name="title" type="text" maxlength="150"
-             placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off"
-             aria-label="Ride name" title="Ride name—click to edit">
+  //
+  // IT IS A TEXTAREA, NOT A TEXT INPUT, and that is the only way to have it wrap.
+  // An <input> is a single-line replaced element by definition: it will ellipsize
+  // a long name but it will never break one onto a second line, so a rider naming
+  // a ride "Big Sur and back the inland way" saw about half of it. The heading
+  // came down 25% at the same time and now runs to two lines before it truncates.
+  //
+  // Being a textarea costs three things, all handled in builder.js: Enter has to
+  // be swallowed or it puts a newline in a ride's name, pasted newlines have to be
+  // flattened, and the height has to be set from scrollHeight on every edit since
+  // a textarea does not size itself. `rows="1"` is the floor that fitTitle()
+  // grows from; the two-line ceiling is a max-height in _builder.scss.
+  const titleHtml = `<textarea id="ride-title" name="title" maxlength="150" rows="1" wrap="soft"
+             placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off" spellcheck="false"
+             aria-label="Ride name" title="Ride name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
   return page({
@@ -523,7 +566,7 @@ function builderHtml(
       exitLabel: 'Leave the builder and go to your rides',
       extraClass: 'builder-panel',
       contents,
-    })}`,
+    })}\n\n  ${rideTimeline()}`,
     tb: {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,
@@ -531,7 +574,8 @@ function builderHtml(
       dayColors: DAY_COLORS,
       rideId,
       home,
-      publicStart,
+      publicStart: prefs.publicStart,
+      durationFormat: prefs.durationFormat,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but
@@ -549,6 +593,7 @@ function builderHtml(
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
+  <script src="${asset('/js/duration.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/builder-history.js')}" defer></script>
   <script src="${asset('/js/route-shape.js')}" defer></script>

@@ -81,9 +81,9 @@ Request path:
 Boundaries that matter:
 
 - `public/js/map-common.js` (`window.TBMap`) is the only file that calls `google.maps`. `viewer.js` and `builder.js` go through the handles it returns and name no vendor API.
-- Four pure client helpers own arithmetic rather than DOM and are `eval`'d by their own tests: `ride-time.js`, `twist.js`, `route-shape.js`, `builder-history.js`.
+- Five pure client helpers own arithmetic rather than DOM and are `eval`'d by their own tests: `ride-time.js`, `twist.js`, `route-shape.js`, `builder-history.js`, `duration.js`.
 - `src/maps/roles.ts` is the single source of truth for the 17 waypoint roles; the `waypoint_role` enum in `src/db/schema.ts` and the icons in `public/img/icons/` must stay in sync with it.
-- `src/maps/filename.ts` is the source of truth for the export filename convention; `public/js/filename.js` mirrors it and `test/filename-client.test.ts` holds the two together. Same arrangement for `twist.ts`/`twist.js`.
+- `src/maps/filename.ts` is the source of truth for the export filename convention; `public/js/filename.js` mirrors it and `test/filename-client.test.ts` holds the two together. Same arrangement for `twist.ts`/`twist.js` and for `duration.ts`/`duration.js`—the last of those has a third copy to keep in step, `fmtDuration()` in `src/routes/roadbook.tsx`, which `test/duration.test.ts` also pins.
 - Anything server-side that must be tested with no database is split rule-from-query: `src/invites/policy.ts` vs `service.ts`, `src/survey/score.ts` vs `questions.ts`, `src/stats/shape.ts` vs `query.ts`.
 - **One third-party script loads from a CDN, on the builder only:** SortableJS 1.15.7 from jsdelivr, for drag-to-reorder, pinned with an SRI hash and `crossorigin`. Approved 2026-08-15. It is not a mistake and not leftover—but note the builder degrades rather than breaks if it fails to load, and every row menu carries Move up / Move down as both the fallback and the keyboard path. Keep both properties if you touch it. Self-hosting the webfonts was a decision about **fonts**, not a general ban on CDNs.
 

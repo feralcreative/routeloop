@@ -1,11 +1,61 @@
 # Status and handoff
 
-**Updated:** 2026-08-13
-**Branch:** `main`, 2 commits ahead of `origin/main` at the time of writing—792 tests across 34 files
-**Closes, since the last update:** #8, #38, #65, #66, #70, plus the contributor scaffolding
+**Updated:** 2026-08-15
+**Branch:** `feat/builder-panel`, seven commits ahead of `main`, none pushed—869 tests across 37 files
+**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename
 **For:** the next agent, or the owner returning cold
 
+**One schema change is in this branch and it has been applied to the local dev database only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`. It is additive—a new enum type and one column with a default—so it needs no backfill and rewrites no table, but stage and production have not seen it and the deploy is the thing that applies it.
+
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## The builder panel redesign—epic #88, all five phases, 2026-08-15
+
+Nothing in this section is deployed. It is all local on `feat/builder-panel`.
+
+The panel is the app's primary work surface and had never been designed as one—it grew a control at a time. A measured pass on 2026-08-10 against `/builder/9` found **380px wide holding 198 interactive elements, with 807px of content in a 620px window** on a 3-day ride with 7 stops on the focused day. That measurement became [ROADMAP](ROADMAP.md) item 16 and then epic [#88](https://github.com/feralcreative/routeloop/issues/88). Re-measured on the same ride, the same day and the same viewport after four phases: **380px, 180 elements, 618px of content in a 617px window**—the seven-stop day fits without scrolling, where it used to overflow by 187px. The width is unchanged on purpose; it was never the complaint.
+
+**The governing rule the whole epic runs on: nothing in the panel changes size as its value changes.** Reserve the space, fix the footprint, let the content fit the box. Every fixed width and `min-height` that looks arbitrary in `_builder.scss` is that rule—`.save-status` at 15ch, `.row-roles-btn` square, `.day-times-note` reserving a line it is often not using. Do not "clean up" one of them without knowing which readout it is holding still.
+
+Phase by phase, and what to know about each:
+
+1. **Autosave, and the Save button is gone** (#89, #90). Two timers, not one: a 3s idle debounce and a **20s ceiling** armed on the first edit of a dirty run. The ceiling is the one that matters—an idle debounce alone has no upper bound, so dragging a stop around for four minutes never goes idle and never saves. The route request keeps its own separate debounce in `computeLeg()`; that is the half that costs money and it is deliberately not coupled to this. Discard went with Save; undo/redo replaces it.
+2. **The ride's name is the headline, and the panel has a way out** (#94, #91). The field **is** the heading rather than something a pencil reveals—a reveal would be a second mode and a layout jump. Half of #91 turned out to be wrong: the existing control was never an X, it is a minimize glyph, so collapse did not have to move. What was real was that there was **no exit at all** from a map page except the nav hamburger. There are two controls for two verbs now, on the viewer as well.
+3. **The row** (#98, #97, #92, #39). Six buttons became two, a drag tab and a `⋯`. Role icons hold one icon's footprint whatever the role count. **The index mapping was the whole job of drag-to-reorder**: `orderedRows()` interleaves stops and POIs by distance along the track while each row's `data-i` indexes its own array, so Sortable's `oldIndex`/`newIndex` mean nothing—reading the DOM order of the stop rows and taking their `data-i` sidesteps the interleaving. A POI drags too, and dragging one **moves its pin** rather than reordering it, because a POI's place is projected and not stored.
+4. **The timeline left the panel** (#93). It is a bar across the bottom edge of the map now, on both pages—see the next section.
+5. **Stop durations are a preference** (#96). The last one, the smallest, and the only one with a schema change—see the section below that.
+
+The epic is closed. What it did not do, deliberately: the panel is still 380px wide, because the width was never the complaint.
+
+### The ride timeline moved to the map's bottom edge
+
+`rideTimeline()` in [layout.tsx](../src/views/layout.tsx) renders it once and both map shells drop it into the page body **beside** `#info-panel` rather than inside it. Five things worth knowing before touching it:
+
+- **It is not a mode split.** The open question on the roadmap assumed the two sliders had to become a view mode and an edit mode, which would have put the timeline out of reach while planning—a change to a stated headline feature. Wrong axis: the day scrubber picks what you are **editing** and the timeline moves through what you are **looking at**, so they separated by place. The scrubber stayed in the panel.
+- **The move cost almost no JS** because both clients reach `#time-slider` and `#time-readout` by `getElementById` and neither walks up from them. Keep it that way.
+- **It hides now rather than going inert.** In the panel it stayed put and went disabled, because vanishing would have reflowed every control under it. Over the map there is nothing under it, so a dead slider lying across someone's route is the worse of the two. The hint it used to carry moved to `#day-times-note`, beside the Starts field that fixes it.
+- **The bottom edge is not empty.** Google's wordmark and the attribution row are a **licence condition** and may not be covered; the zoom and recenter buttons own a gutter at RIGHT_BOTTOM. Both are declared as custom properties on `html.map-page` (`--map-credit-height`, `--map-control-gutter`) and the bar's offsets are calculated from them. This was caught by measuring on a phone, where the first version covered all three.
+- **`--panel-inset`, `--panel-width` and the rest moved from `#info-panel` to `html.map-page`.** They had to: the bar is a sibling of the panel, and a custom property inherits down, not sideways.
+
+The heading came down 25% at the same time (2.1rem → 1.575rem, on both panels) and **`#ride-title` is a `<textarea>` now, not an `<input>`.** That is the only way a heading wraps—an `<input>` is single-line by definition and will only ever ellipsize. It costs three things, all handled in `builder.js`: Enter is swallowed, pasted newlines are flattened, and `fitTitle()` sets the height from `scrollHeight` on every edit because a textarea does not size itself. The two-line ceiling is a `max-height` in SCSS; collapsed, one line, faded out at the right edge because `text-overflow: ellipsis` does not apply to a textarea.
+
+### Stop durations are a preference, and Settings has its first real content
+
+`src/maps/duration.ts` owns the rule, `public/js/duration.js` mirrors it for the browser, and `test/duration.test.ts` runs both over the same fixtures. Same arrangement as `twist.ts`/`twist.js` and `filename.ts`/`filename.js`, and the same instruction if that test fails: bring the two back into line, never loosen the assertion.
+
+**There turned out to be a third copy nobody had counted.** `fmtDuration()` in `src/routes/roadbook.tsx` has printed `4h 20m` since the roadbook was built, and its own comment records the exact complaint issue #96 was filed about—"an overnight camp stop printed 658m before this, which nobody parses at a glance". The builder never got that fix, so the same stop read `658` in the panel and `10h 58m` on the printout. The `hm` format is defined as agreeing with the roadbook rather than the other way round, and the test walks every minute of a day to prove it.
+
+Three things to know before touching this:
+
+- **Storage did not change and must not.** `points.duration_min` is integer minutes. Verified by switching the preference three ways against the same ride and reading the same numbers back, and by checking the roadbook prints identically at every setting.
+- **The field is `type="text"`.** "1h 30m" is not a number, and switching the input's type per format would be three code paths through every read and write of that field; `inputmode` comes off the format instead and the phone keyboard is still right. That lost `max="43200"` from the markup, so the ceiling moved into the parser—where it **clamps rather than refuses**, because `800h` settling to `720h 0m` on blur says what happened, and letting it through 400s the ride's next autosave on a field nothing points at.
+- **Parse on every keystroke, reformat on none of them.** Rewriting the field as it is typed strands the caret and actively breaks two formats: `1.` becomes `1.0`, and `1h` followed by a space becomes `1h 0m` before the minutes are typed. Tidying is the `focusout` handler's job—`focusout` and not `blur`, because blur does not bubble and the listener is delegated on the list.
+
+A bare number is read in the format's own unit and an explicit unit always wins, so `90` is ninety minutes under `hm` and `minutes` and ninety **hours** under `hours`. That sounds alarming until you notice that under `hours` the field is showing `1.5`, so a rider typing there means hours—and anyone who means minutes can type `90m` in any format. An unparseable value stores null rather than holding the last good number, so a typo and an empty field mean the same thing, which is what they look like they mean.
+
+The preference is `user_profiles.duration_format`, a defaulted enum rather than a nullable column so there is no third state for every reader to interpret differently. **A rider may still have no profile row at all**, which is why `toDurationFormat()` exists and why `/settings/duration-format` upserts rather than updates. It is its own route and not part of the profile form's POST: that handler validates and rewrites the whole profile, so posting one preference through it would mean carrying every other field along and a missing one would blank an address.
+
+The granularity cost the roadmap flagged is real and visible the moment you look at a ride: an 11-minute stop reads `0.2` and a 23-minute one reads `0.4`. That is why the other two formats exist rather than being a fallback nobody picks.
 
 ## TL;DR
 
@@ -66,11 +116,11 @@ What that forced, and what to look at first if any of it reads wrong:
 - **The email wordmark displays at 400×50**, up from 180×52, which is nearly the full 536px the cell has.
 - **`-dk` is the delivered spelling** of the reversed variant on the site's four SVGs. The suffix still names the _ground_, not the ink. The two email PNGs keep `-dark`, also as delivered—`src/emails/shell.tsx` and `docs/email.md` both say so.
 - **The stacked mark carries no axis suffix**: it is `logo-routeloop.svg`, not `-vt`. `_assets/logo-routeloop-vt.png` is byte-identical to `logo-routeloop-dk@2x.png` and is a mislabeled duplicate; nothing ships from it.
-- **The favicon set is generated, not hand-cut.** `node utils/build-favicons.mjs` renders all eight files in `public/img/favicon/` from `_assets/favicon.svg` through `rsvg-convert`. The `.ico` is assembled in that script from PNG payloads, so the repo needs no icon encoder for it.
+- **The favicon set is generated, not hand-cut.** `node utils/build-favicons.mjs` renders all eight files in `public/img/favicon/` from `source-light.svg` and `source-dark.svg` in that same folder, through `rsvg-convert`. The `.ico` is assembled in that script from PNG payloads, so the repo needs no icon encoder for it.
 - **The mark inside the 1000×1000 favicon canvas is only 1000×502**, with transparent bands top and bottom. So the manifest's own icons are `purpose: "any"`, and a separate opaque `maskable-*` pair on `#ffdd00` carries the 80% safe zone Android wants. Declaring the transparent, letterboxed icon `any maskable`—which it did—crops a launcher straight into the loop.
 - **`public/site.webmanifest` and the repo-root `site.webmanifest` are gone.** Neither was linked from anywhere, they disagreed with each other on name and theme color, and the root one pointed at paths that do not exist. `public/img/site.webmanifest` is the one `siteIconLinks()` serves.
 
-Two things to know before redrawing any of it. The email PNGs are **opaque by design**—both are currently 800×100 with zero non-opaque pixels, and `test/email-dark-mode.test.ts` reads their corner pixels to keep it that way. And `_assets/` is the source of record—the same test asserts the served copy in `public/img/` is byte-identical, so updating one without the other ships nothing.
+Two things to know before redrawing any of it. The email PNGs are **opaque by design**—both are currently 800×100 with zero non-opaque pixels, and `test/email-dark-mode.test.ts` reads their corner pixels to keep it that way. And **`public/img/` is now the only copy the repo has**: `_assets/` was removed on 2026-08-15 as uncommitted personal artwork, so export straight into `public/img/`. A master updated only in `_assets/` ships nothing and no test will notice—the drift check that used to catch exactly that had nothing left to compare against and was deleted with it.
 
 Still open: `_assets/github/tankbag-github-share.png` is the GitHub repo social image, uploaded through GitHub's settings UI rather than served from here, and no replacement was drawn.
 

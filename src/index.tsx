@@ -41,7 +41,7 @@ import { settingsRoutes } from './routes/settings'
 import { accountRoutes } from './routes/account'
 import { canEditRide } from './routes/maps'
 import { routingRoutes } from './routes/routing'
-import { googleMapsLoader, page, panelShell } from './views/layout'
+import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
@@ -487,24 +487,12 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
           )}
         </div>
         {/*
-          Every ride gets the timeline now. It hides itself when a ride carries
-          no dates, which is the same answer the opt-in used to give imported
-          rides.
+          The timeline used to sit here, between the details and the day table.
+          It is now a bar across the bottom edge of the map — rideTimeline() in
+          src/views/layout.tsx, rendered beside the panel rather than inside it.
+          Every ride still gets it, and it still hides itself when a ride carries
+          no dates, which is the same answer the opt-in used to give imports.
         */}
-        <div class="ride-timeline" id="ride-timeline" hidden>
-          <input
-            id="time-slider"
-            class="time-slider"
-            type="range"
-            min="0"
-            max="0"
-            step="60"
-            value="0"
-            aria-label="Move through the ride in time"
-            title="Drag to move through the ride"
-          />
-          <div class="time-readout" id="time-readout"></div>
-        </div>
         <div class="days">
           <table class="day-table"></table>
           <label class="toggle-checkbox">
@@ -531,7 +519,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
       canEditRide(m, user) ? `/builder/${m.id}` : null,
       Boolean(user && user.status === 'active' && user.id !== m.ownerId && m.visibility === 'public'),
       Boolean(user),
-    )}`,
+    )}\n\n  ${rideTimeline()}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
       gmapsKey: GMAPS_KEY,

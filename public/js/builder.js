@@ -68,6 +68,16 @@
   // folder import server-side, so the palette cannot live only in here.
   const DAY_COLORS = window.TB.dayColors;
 
+  // How the stop dwell field reads, from the rider's profile — 'hours', 'hm' or
+  // 'minutes'. It is a DISPLAY choice and nothing below it stores anything
+  // differently: point.durationMin is integer minutes whatever this says, which
+  // is what keeps every export, the roadbook and the timeline out of it.
+  //
+  // Read once at load rather than per row. Changing it is a page load, because it
+  // is set on /settings and the builder is a different page.
+  const DUR = window.TBDuration;
+  const durFormat = DUR.toFormat(window.TB.durationFormat);
+
   const newDay = (color) => ({
     title: "",
     color: color || DAY_COLORS[0],
@@ -179,6 +189,26 @@
     r.title = history_.canRedo() ? "Redo " + history_.redoLabel() : "Nothing to redo";
   }
 
+  // The ride name is a TEXTAREA, so its height is ours to set — that is the price
+  // of a heading that wraps. An <input> is single-line by definition and would
+  // only ever ellipsize; a textarea holds whatever `rows` says and scrolls the
+  // rest, so nothing sizes it to its content unless this does.
+  //
+  // Resetting to "auto" first is load-bearing rather than tidy: scrollHeight
+  // reports the larger of the content and the current box, so measuring without
+  // the reset lets the field grow and never shrink back. A name trimmed from two
+  // lines to one would keep the second line's worth of white space forever.
+  //
+  // The two-line ceiling is a max-height in _builder.scss, not a number here, so
+  // the type size and the clamp cannot drift apart. Anything taller than that is
+  // clamped by CSS and clipped, which is the truncation the heading promises.
+  function fitTitle() {
+    const el = $("ride-title");
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
   // There is no single render() in this file — this is the sequence init() runs,
   // plus the three inputs that no render function touches (they are written
   // only by loadExisting), which would otherwise keep showing pre-undo text.
@@ -192,6 +222,9 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    // Undo can shorten the name as easily as lengthen it, and the field will not
+    // notice either on its own.
+    fitTitle();
   }
 
   function applyUndo(dir) {
@@ -795,6 +828,39 @@
   // day, 2 -> 5 leaves L0 and L6 untouched and breaks L1..L5, which is exactly
   // [min-1, max]. Recomputing the whole day instead would be correct and would
   // also fire a routing request per leg, which is the half that costs money.
+  // Dragging a POI MOVES ITS PIN, and that is the whole difference between the
+  // two kinds. A stop carries `position` and its order is stored, so dragging it
+  // rewrites that order. A POI does not — ride-graph.ts writes `position: null`
+  // for every one and its place in the list is its projected distance along the
+  // day's track — so there is nothing for a drag to reorder. Dropping it between
+  // two rows therefore relocates it to the road between them, and the projection
+  // then puts it exactly where it was dropped.
+  //
+  // This MOVES A PLACE THE RIDER CHOSE, which is the thing to be careful about:
+  // a POI is usually a specific spot, and its coordinates feed the roadbook and
+  // every export. It is one undo step, deliberately, so taking it back is one
+  // action rather than a hunt for the original position.
+  function movePoiToDistance(i, targetM) {
+    const r = editIndex();
+    if (r == null) return;
+    const day = state.days[r];
+    if (!day.pois[i]) return;
+    const { track } = trackAndSpans(r);
+    // No routed geometry means no road to move onto — a day with a single stop,
+    // or one whose legs have not come back from the router yet.
+    if (track.length < 2) return toast("No route to place it along yet", true);
+    const p = window.TBShape.pointAtDistance(track, targetM);
+    if (!p) return;
+
+    beginEdit("move POI");
+    day.pois[i].lng = +p[0].toFixed(6);
+    day.pois[i].lat = +p[1].toFixed(6);
+    renderMarkers();
+    renderList();
+    refreshDerived();
+    markDirty();
+  }
+
   function reorderStop(from, to) {
     if (from === to) return;
     const r = editIndex();
@@ -1132,6 +1198,7 @@
     state.moment == null ? null : activeAtMoment(state.days, state.moment, allPoiDists());
 
   function renderTimeline() {
+    const wrap = $("ride-timeline");
     const slider = $("time-slider");
     const readout = $("time-readout");
     const span = rideSpan(state.days);
@@ -1144,15 +1211,25 @@
       slider.setAttribute("aria-valuetext", text);
     };
 
-    // Same treatment the day slider gets below two days: it stays put and goes
-    // inert rather than vanishing and reflowing the panel the moment a date is
-    // typed.
+    // IT HIDES NOW RATHER THAN GOING INERT, which is the opposite of what it did
+    // in the panel and is right for the same reason it was wrong there. Inside the
+    // panel, vanishing would have reflowed every control under it the moment a
+    // date was typed — the jump this whole redesign exists to remove. Out on the
+    // map's bottom edge there is nothing under it to reflow, and a dead slider
+    // lying across someone's route is worse than no slider.
+    //
+    // What is lost is the hint the disabled state carried. It is not gone, it
+    // moved: renderTimes() puts it on #day-times-note, directly beneath the Starts
+    // field that fixes it, which is where it should have been all along. This is
+    // the only branch that can leave the bar hidden, so the two have to stay in
+    // step.
+    wrap.hidden = !span;
     slider.disabled = !span;
     if (!span) {
       slider.min = "0";
       slider.max = "0";
       slider.value = "0";
-      say(state.days.some((r) => r.startAt) ? "" : "Give a day a start time to scrub the ride");
+      say("");
       return;
     }
 
@@ -1211,7 +1288,12 @@
     end.disabled = !day.startAt;
 
     if (!day.startAt) {
-      note.textContent = day.endAt ? "add a start time to work the end out" : "";
+      // The second half of this used to live in the timeline's readout, back when
+      // the timeline sat in the panel and stayed visible-but-disabled without
+      // dates. The bar hides itself now, so the hint has to be somewhere a rider
+      // will see it — and beside the field that fixes it is a better place than
+      // under a slider that has gone grey.
+      note.textContent = day.endAt ? "add a start time to work the end out" : "add a start time to scrub the ride";
       return;
     }
     if (day.endManual) {
@@ -1296,26 +1378,36 @@
   // 113px on a stop against a POI's 152px — that 39px difference WAS the arrow
   // pair, and it is gone.
   //
-  // Only a stop gets a drag handle. A POI's place in this list is not stored: it
-  // is projected onto the day's track by dayPoiDistances, so dragging one would
-  // be asking the rider to set a value that is computed. Moving a POI means
-  // moving its pin.
+  // BOTH KINDS DRAG, and they mean different things by it. A stop carries a
+  // stored order, so dragging it reorders the day. A POI does not — its place in
+  // this list is its projected distance along the track — so dragging it moves
+  // its pin onto the road between the rows it was dropped between. Same
+  // affordance, because from the rider's side it is the same intent: put this
+  // one there. See the onEnd handler in initDragToReorder for the split.
   function pointRowHtml(kind, point, i) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
       '<div class="row-main">' +
-      (isStop
-        ? '<span class="row-drag" title="Drag to reorder" aria-hidden="true"></span>'
-        : '<span class="row-drag is-fixed" aria-hidden="true"></span>') +
+      '<span class="row-drag" title="' +
+      (isStop ? "Drag to reorder" : "Drag to move it along the route") +
+      '" aria-hidden="true"></span>' +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
-      // POIs get the same minutes field now. Blank means "rode past without
-      // stopping", which is the common case and why it stays a placeholder
-      // rather than a zero.
-      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="number" min="0" max="43200" placeholder="min" title="' +
-      (isStop ? "Stop duration (minutes)" : "How long you stop here, if you stop (minutes)") + '" value="' +
-      (point.durationMin ?? "") + '">' +
+      // POIs get the same dwell field. Blank means "rode past without stopping",
+      // which is the common case and why it stays a placeholder rather than a
+      // zero.
+      //
+      // TYPE="TEXT", not "number", and that is the price of the format being a
+      // preference. "1h 30m" is not a number, and switching the input's type per
+      // format would be three code paths through every read and write of this
+      // field. One text input with `inputmode` set from the format gets the
+      // phone keyboard right without any of that. The stored value is still an
+      // integer count of minutes — TBDuration is only how it is written down.
+      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="text" autocomplete="off" inputmode="' +
+      DUR.inputMode(durFormat) + '" placeholder="' + esc(DUR.placeholder(durFormat)) + '" title="' +
+      (isStop ? "Stop duration" : "How long you stop here, if you stop") + " (" + esc(DUR.unitName(durFormat)) +
+      ')" value="' + esc(DUR.format(point.durationMin, durFormat)) + '">' +
       '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
       (roleIconsHtml(point) || '<span class="role-add">+</span>') + "</button>" +
       '<span class="row-actions">' +
@@ -1524,10 +1616,35 @@
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       if (e.target.classList.contains("row-dur")) {
-        point.durationMin = e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value)));
+        // Parsed on every keystroke, reformatted on none of them. Rewriting the
+        // field as it is typed is hostile in every format and actively breaks
+        // two: "1." becomes "1.0" with the caret stranded, and "1h " becomes
+        // "1h 0m" before the rider has typed the minutes. Tidying is the blur
+        // handler's job — see wireList's focusout below.
+        //
+        // An unparseable value stores null rather than holding the last good
+        // number, so "abc" and an empty field mean the same thing, which is what
+        // they look like they mean.
+        point.durationMin = DUR.parse(e.target.value, durFormat);
         refreshDerived();
       }
       markDirty();
+    });
+
+    // Tidy the duration on the way out: whatever was typed is rewritten in the
+    // rider's format, so "90m" in hours mode settles to "1.5" and a typo settles
+    // to blank rather than sitting there looking stored.
+    //
+    // focusout, not blur, because blur does not bubble and this listener is
+    // delegated on the list. It writes the field only — the value was already
+    // parsed into state on input, so there is nothing to mark dirty here and
+    // nothing to save.
+    listEl.addEventListener("focusout", (e) => {
+      if (!e.target.classList || !e.target.classList.contains("row-dur")) return;
+      const row = e.target.closest(".point-row");
+      const point = row && pointOf(row);
+      if (!point) return;
+      e.target.value = DUR.format(point.durationMin, durFormat);
     });
     listEl.addEventListener("click", (e) => {
       const row = e.target.closest(".point-row");
@@ -1676,9 +1793,7 @@
       return;
     }
     window.Sortable.create(listEl, {
-      // A POI has no stored position to change, so it is not draggable. It stays
-      // in the list and other rows move around it.
-      draggable: '.point-row[data-kind="stop"]',
+      draggable: ".point-row",
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
@@ -1696,12 +1811,48 @@
       delay: 200,
       delayOnTouchOnly: true,
       onEnd: (evt) => {
-        const rows = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')];
-        const order = rows.map((el) => Number(el.dataset.i));
-        const from = Number(evt.item.dataset.i);
-        const to = order.indexOf(from);
-        if (to < 0 || to === from) return;
-        reorderStop(from, to);
+        const day = editRoute();
+        if (!day) return;
+        // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
+        // onEnd for every drop, including one that changed nothing — picking a
+        // row up and putting it back. For a stop that was harmless, since
+        // reorderStop no-ops on from === to. For a POI it was not: the handler
+        // below reads the rows it landed BETWEEN and moves the pin to the middle
+        // of them, so lifting a POI and dropping it in place relocated it to the
+        // midpoint of its neighbours. Observed, not theorised.
+        if (evt.oldIndex === evt.newIndex) return;
+
+        const i = Number(evt.item.dataset.i);
+
+        if (evt.item.dataset.kind === "stop") {
+          // Stops carry a stored order, so the drop is a reorder. Reading the
+          // DOM order of the stop rows and taking their data-i sidesteps the
+          // interleaving with POIs entirely — Sortable's own indices count all
+          // children and mean nothing here.
+          const order = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
+          const to = order.indexOf(i);
+          if (to < 0 || to === i) return;
+          return reorderStop(i, to);
+        }
+
+        // A POI has no order to change, so the drop is a position. Its target
+        // distance is read from the rows it landed BETWEEN, using the distances
+        // orderedRows() already computed for this render.
+        const dists = new Map();
+        for (const row of orderedRows(day)) dists.set(row.kind + ":" + row.i, row.dist);
+        const at = (el) => (el ? dists.get(el.dataset.kind + ":" + el.dataset.i) : undefined);
+
+        const rows = [...listEl.querySelectorAll(".point-row")];
+        const pos = rows.indexOf(evt.item);
+        const before = at(rows[pos - 1]);
+        const after = at(rows[pos + 1]);
+
+        let target;
+        if (before == null && after == null) return; // dropped alone; nothing to sit between
+        else if (before == null) target = after / 2; // above every other row
+        else if (after == null) target = Infinity; // below every other row—clamped to the end
+        else target = (before + after) / 2;
+        movePoiToDistance(i, target);
       },
     });
   }
@@ -1938,6 +2089,7 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     $("ride-visibility").value = state.meta.visibility;
+    fitTitle();
     // What was just loaded IS what the server holds, so the panel opens on
     // "Saved" rather than on the "Not saved yet" a new ride starts at.
     setSaveStatus("saved");
@@ -2037,9 +2189,23 @@
 
   function wireMeta() {
     $("ride-title").addEventListener("input", (e) => {
+      // A ride name is one line of text even though the control holding it is a
+      // textarea, so newlines are flattened rather than stored. They arrive by
+      // paste — a name copied out of a document brings its line break with it —
+      // and the Enter key is headed off separately below.
+      const flat = e.target.value.replace(/\s*[\r\n]+\s*/g, " ");
+      if (flat !== e.target.value) e.target.value = flat;
       beginEdit("rename ride", "ride-title");
       state.meta.title = e.target.value;
+      fitTitle();
       markDirty();
+    });
+    $("ride-title").addEventListener("keydown", (e) => {
+      // Enter in a heading means "done", not "new line".
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.target.blur();
+      }
     });
     $("ride-description").addEventListener("input", (e) => {
       beginEdit("edit description", "ride-description");
@@ -2164,6 +2330,10 @@
     initDragToReorder($("stop-list"));
     wireSearch();
     wireHistory();
+    // Undo and redo are the only icons in static markup — every other one is in
+    // a row this file renders, and renderList() hydrates those as it goes. These
+    // two are in the shell, so nothing would ever come along and fill them.
+    hydrateIcons($("undo").parentElement);
 
     if (state.rideId) {
       try {

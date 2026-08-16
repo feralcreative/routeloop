@@ -33,6 +33,12 @@ export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'priva
 export const inviteKindEnum = pgEnum('invite_kind', ['email', 'link', 'group'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
+// How a stop's dwell time is WRITTEN, not how it is stored — points.duration_min
+// stays integer minutes whatever this says. Canonical metadata, the formatter and
+// the parser all live in src/maps/duration.ts, mirrored for the browser in
+// public/js/duration.js; keep the three members here in step with the array
+// there, which test/duration.test.ts also pins.
+export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -219,6 +225,15 @@ export const userProfiles = pgTable('user_profiles', {
   venmo: varchar('venmo', { length: 120 }),
   paypal: varchar('paypal', { length: 120 }),
   zelle: varchar('zelle', { length: 120 }),
+  // The first genuine preference on the profile, and the first real content on
+  // /settings. It changes how the builder's duration field reads and nothing
+  // else: the stored unit is minutes and every export, the roadbook and the
+  // timeline are untouched by it.
+  //
+  // Defaulted rather than nullable so there is no third state to handle. Every
+  // reader would otherwise have to answer "null means what?" and they would not
+  // all answer the same way.
+  durationFormat: durationFormatEnum('duration_format').notNull().default('hours'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

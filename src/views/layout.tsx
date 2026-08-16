@@ -263,6 +263,43 @@ export function panelShell(o: {
   ).toString()
 }
 
+// The ride timeline, which is a bar across the bottom edge of the map rather
+// than a control in the panel.
+//
+// It is a SIBLING of #map and #info-panel — not a child of either — so callers
+// drop it straight into the page body beside them. Both map pages render it, and
+// it is one function rather than two copies because the previous arrangement was
+// two copies and they had already drifted: the viewer's carried `hidden` and the
+// builder's did not.
+//
+// It ships `hidden`. Both pages' JS unhides it once it knows the ride has a time
+// span to scrub — renderTimeline() in builder.js and in viewer.js — so a ride
+// with no dates never flashes a dead slider across the map on first paint.
+//
+// The ids are the contract. builder.js and viewer.js both reach #time-slider and
+// #time-readout by getElementById and neither walks up from them, which is the
+// entire reason this move cost almost no JS.
+export function rideTimeline(): string {
+  return (
+    <div class="map-timeline" id="ride-timeline" hidden>
+      {/* Readout above the slider: the bar is wide and short, so the label reads
+          as a caption for the track rather than as a stray line of map text. */}
+      <div class="time-readout" id="time-readout"></div>
+      <input
+        id="time-slider"
+        class="time-slider"
+        type="range"
+        min="0"
+        max="0"
+        step="60"
+        value="0"
+        aria-label="Move through the ride in time"
+        title="Drag to move through the ride"
+      />
+    </div>
+  ).toString()
+}
+
 // Legal and help links. Rendered on chrome pages as a footer and on the splash
 // as a single quiet row — a map page has no room and gets them from the nav
 // menu instead. /privacy in particular has to be reachable without signing in:
