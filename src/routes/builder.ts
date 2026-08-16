@@ -121,9 +121,12 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
 
   const [src] = await db.select().from(rides).where(eq(rides.id, id)).limit(1)
-  // Only public rides are clonable, and only native ones can be rebuilt: an
-  // imported ride's graph exists, but the builder cannot open the result.
-  if (!src || src.visibility !== 'public' || src.source !== 'native') {
+  // Public only. The `source !== 'native'` half of this test is gone: it was
+  // there because an imported ride's graph could not be rebuilt into something
+  // the builder would open, which stopped being true when the import started
+  // splitting its track into real legs. An imported public ride clones like any
+  // other now.
+  if (!src || src.visibility !== 'public') {
     return c.json({ error: 'not found' }, 404)
   }
 
@@ -226,9 +229,6 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
-  if (ride.source !== 'native') {
-    return c.json({ error: 'imported rides are not editable yet—re-import or plan a new ride' }, 409)
-  }
 
   const body = await parseRideBody(c)
   if (!body.data) return c.json({ error: body.error }, 400)
@@ -381,8 +381,9 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.text('Not found', 404)
   // Same predicate the viewer's edit button reads, so the button and this gate
-  // cannot drift into offering an action that is then refused.
-  if (!canEditRide(ride, user)) return c.text('Imported rides are not editable yet', 409)
+  // cannot drift into offering an action that is then refused. It no longer
+  // refuses an imported ride — see canEditRide in ./maps.
+  if (!canEditRide(ride, user)) return c.text('Not found', 404)
   return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id)))
 })
 

@@ -19,7 +19,7 @@ Enums: `provider`, `visibility`, `ride_source`, `point_kind`, `duration_format`,
 
 **`rides.size_bytes` is generated as the sum of every byte column.** A column missing from that expression leaks quota on every delete, silently and permanently, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete.
 
-**One rendering path for both sources.** An imported ride is stored as one day with a single leg at position 0 holding the whole track; a native ride has one leg per pair of stops. Viewers always render `concat(legs)` per day.
+**One rendering path, and now one shape.** Every ride—imported or native—stores one leg per pair of consecutive stops. An import used to hold its whole track in a single leg at position 0; it is split at the stops on the way in now (`src/maps/track-split.ts`), and `utils/split-imported-legs.ts` brought the existing rows across. Viewers still render `concat(legs)` per day.
 
 ## Migrations
 

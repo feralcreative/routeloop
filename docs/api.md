@@ -125,4 +125,4 @@ Server-side integrity on save: all text is sanitized, coordinates are rounded to
 
 Caps, exported from `ride-graph.ts` rather than repeated in callers: `MAX_DAYS` 31, `MAX_STOPS` 200 and `MAX_POIS` 200 per day, `MAX_VIAS_PER_LEG` 20, `MAX_PTS_PER_LEG` 25,000, `MAX_PTS_PER_RIDE` 200,000, and at most 4 roles per point (also checked by the database).
 
-**One rendering path for both sources.** An imported ride is stored as one day with a single leg at position 0 holding the whole track; a native ride has one leg per pair of stops. Viewers always render `concat(legs)` per day, so imported and native rides render identically.
+**One rendering path, and now one shape.** Every ride—imported or native—stores one leg per pair of consecutive stops. An import used to be the exception, holding its whole track in a single leg at position 0, which is what made it impossible to open in the builder; the import splits the track at its stops now (`src/maps/track-split.ts`). Viewers still render `concat(legs)` per day and cannot tell the two apart, which is what made the change invisible to every reader.

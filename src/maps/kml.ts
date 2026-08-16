@@ -189,6 +189,39 @@ export function nearestTrackIndex(tracks: ExtractedTrack[], p: { lat: number; ln
   return best
 }
 
+// Which vertex of a track is nearest this point?
+//
+// Lifted out of distFromStartAlongTrack below, which computed exactly this and
+// threw the index away — track-split.ts needs the index rather than the
+// distance, and two copies of a nearest-vertex search would be two chances to
+// disagree about which vertex a stop sits on.
+//
+// SQUARED DEGREES, WITH NO COSINE CORRECTION ON LONGITUDE, and that is not an
+// oversight to fix. It only ever ranks candidates on one track against each
+// other, so the constant factor cancels — but the ranking it produces is baked
+// into every `points.dist_from_start_m` ever written, and public/js/twist.js
+// carries a port that test/twist-client.test.ts pins to this exact arithmetic.
+// "Correcting" it would silently move stored mileages on every existing ride
+// and break that test. If it ever does need to change, it changes in three
+// places at once and with a backfill.
+//
+// Note the client's own nearestVertexIndex in public/js/route-shape.js DOES
+// apply the correction. That one ranks a drag against a few miles of road and
+// never writes anything, so the two are allowed to differ; they answer
+// different questions.
+export function nearestVertexIndex(track: Track, p: { lat: number; lng: number }): number {
+  let best = 0
+  let bestD = Number.POSITIVE_INFINITY
+  for (let i = 0; i < track.length; i++) {
+    const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  return best
+}
+
 // Cumulative meters from the track start to the vertex nearest each point —
 // the server-side port of the legacy viewer's from-start mileage (main.js
 // nearest-vertex + path-sum, done once at import instead of per page view).
@@ -200,18 +233,7 @@ export function distFromStartAlongTrack(track: Track, pts: Array<{ lat: number; 
   for (let i = 1; i < track.length; i++) {
     prefix[i] = prefix[i - 1] + haversineM(track[i - 1][1], track[i - 1][0], track[i][1], track[i][0])
   }
-  return pts.map((p) => {
-    let best = 0
-    let bestD = Number.POSITIVE_INFINITY
-    for (let i = 0; i < track.length; i++) {
-      const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2
-      if (d < bestD) {
-        bestD = d
-        best = i
-      }
-    }
-    return Math.round(prefix[best])
-  })
+  return pts.map((p) => Math.round(prefix[nearestVertexIndex(track, p)]))
 }
 
 // KML coordinates: whitespace-separated "lon,lat[,alt]" tuples.

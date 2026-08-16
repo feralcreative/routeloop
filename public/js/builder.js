@@ -393,6 +393,36 @@
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
 
+  // Every day arrives with exactly stops−1 legs, whatever it was stored as.
+  //
+  // A CSV import is a list of stops with NO geometry at all — csv.ts refuses to
+  // join them with straight lines, because a distance no motorcycle can ride is
+  // worse than no distance. So it lands with N stops and zero legs, which the
+  // ride payload rejects on the way back out: `legs must connect consecutive
+  // stops`. That never mattered while imported rides could not be opened; the
+  // moment the builder started accepting them, a rider could open a CSV import
+  // and watch every autosave fail.
+  //
+  // The gap is filled with straight legs — the same placeholder the builder
+  // already draws between two stops while the router is still answering, and
+  // the same one it keeps when the router refuses. Free and synchronous: NO
+  // routing request is made here. Routing every leg of an imported ride the
+  // instant it was opened would be a page load that silently spends money.
+  // Touching a stop routes its legs, which is the rider asking.
+  function fillMissingLegs(day) {
+    const want = Math.max(0, day.stops.length - 1);
+    if (day.legs.length === want) return;
+    // Trim first: more legs than pairs cannot be saved either, and a leg with
+    // no pair of stops to connect has nothing to be about.
+    day.legs.length = Math.min(day.legs.length, want);
+    for (let i = 0; i < want; i++) {
+      if (day.legs[i]) continue;
+      const a = day.stops[i];
+      const b = day.stops[i + 1];
+      day.legs[i] = straightLeg([a.lng, a.lat], [b.lng, b.lat], []);
+    }
+  }
+
   function haversineTrack(coords) {
     let m = 0;
     for (let i = 1; i < coords.length; i++) {
@@ -2049,6 +2079,7 @@
       pois: r.pois || [],
       legs: r.legs || [],
     }));
+    state.days.forEach(fillMissingLegs);
     // Nothing has changed the day yet, so a stored end that matches what the
     // day derives is one we wrote — anything else the rider chose themselves.
     state.days.forEach((r) => {

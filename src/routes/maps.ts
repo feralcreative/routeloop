@@ -33,6 +33,7 @@ import {
   type ExtractedPoint,
   type Track,
 } from '../maps/kml'
+import { splitDayTrack } from '../maps/track-split'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
 import { isNativeRide, nativeVersion, NATIVE_FORMAT_VERSION, upgradeNativeRide } from '../maps/export'
@@ -535,21 +536,50 @@ mapsRoutes.post(
             })
             .returning()
 
+          // ONE LEG PER PAIR OF STOPS, cut from the imported track.
+          //
+          // This used to write a single leg holding the whole track, which is
+          // what made an imported ride impossible to open in the builder: the
+          // builder's model — and `daySchema` in ride-graph.ts — is N stops and
+          // exactly N−1 legs. An imported ride could not satisfy that, so
+          // /builder/:id answered 409 and the FAQ's promise of "an editable
+          // ride, not a picture of one" was false.
+          //
+          // Nothing is re-routed and no coordinate is invented: the legs are
+          // slices of the geometry that arrived, sharing their joint vertices,
+          // so concatenating them gives the original track back exactly. Every
+          // reader concatenates, which is why the map line, all four
+          // track-based export formats and twistiness are unaffected. See
+          // src/maps/track-split.ts for the rules, including what happens at
+          // the ends and to a file with no waypoints at all.
+          const split = splitDayTrack(day.track, day.points)
+          const ordered = [...split.stops, ...split.pois]
+
+          // Deliberately still measured against the whole track rather than
+          // summed from the legs. `days.distance_m` and `rides.total_miles`
+          // have always been the haversine of the imported line and there is no
+          // reason for a change in how it is sliced to move a stored mileage.
+          //
           // With no track to project onto, distFromStartAlongTrack answers 0
           // for every point. That is a claim — "this stop is at the start" —
           // and it is false for all but the first. A trackless import stores
           // null instead, the same null-is-not-zero distinction twistiness
           // makes: null means nothing measured it, 0 means it measured zero.
           const stopDists: Array<number | null> =
-            day.track.length > 0 ? distFromStartAlongTrack(day.track, day.points) : day.points.map(() => null)
+            day.track.length > 0 ? distFromStartAlongTrack(day.track, ordered) : ordered.map(() => null)
 
-          if (day.points.length > 0) {
+          if (ordered.length > 0) {
             // Stops carry a position and POIs carry null, matching what the
             // builder writes — a POI is not a routing anchor and has no place
             // in the stop order. So the counter advances only for stops.
+            //
+            // `ordered` puts the stops first and in ALONG-TRACK order, which is
+            // the order their legs connect them in. It is not necessarily the
+            // order they appeared in the file: GPX writes <wpt> elements at
+            // document level with nothing tying them to a track.
             let stopPos = 0
             await tx.insert(points).values(
-              day.points.map((p, n) => {
+              ordered.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
                   dayId: dayRow.id,
@@ -566,8 +596,15 @@ mapsRoutes.post(
               }),
             )
           }
-          if (day.track.length > 0) {
-            await tx.insert(routeLegs).values({ dayId: dayRow.id, position: 0, geometry: day.track, distanceM: distM })
+          if (split.legs.length > 0) {
+            await tx.insert(routeLegs).values(
+              split.legs.map((leg, n) => ({
+                dayId: dayRow.id,
+                position: n,
+                geometry: leg.geometry,
+                distanceM: leg.distanceM,
+              })),
+            )
           }
 
           fileRideId = ride.id
@@ -611,15 +648,23 @@ mapsRoutes.post(
 // and the builder's gate must never disagree about the answer, or the app
 // offers an action it then refuses.
 //
-// Imported rides are excluded because the builder genuinely cannot open one yet:
-// the /builder/:id route answers 409 for them. Offering the button there would
-// be a link straight to an error page.
+// IMPORTED RIDES ARE NOT EXCLUDED ANY MORE. They were, and the reason was
+// mechanical rather than principled: an imported day was stored as one leg
+// holding the whole track, which the builder's N stops / N−1 legs model cannot
+// represent, so /builder/:id answered 409. The import splits the track into real
+// legs now (src/maps/track-split.ts), so there is nothing left to refuse — and
+// the FAQ had been promising "an editable ride, not a picture of one" the whole
+// time this returned false.
+//
+// `source` stays on the ride as provenance and is deliberately NOT consulted
+// here: it records where the ride came from, which `source_format`, the byte
+// columns and the GTFO archive all depend on. It was never a statement about
+// what may be done with the ride.
 export function canEditRide(
-  ride: { ownerId: number; source: string },
+  ride: { ownerId: number },
   viewer: { id: number; status: string } | null,
 ): boolean {
   if (!viewer || viewer.status !== 'active') return false
-  if (ride.source !== 'native') return false
   return ride.ownerId === viewer.id
 }
 
