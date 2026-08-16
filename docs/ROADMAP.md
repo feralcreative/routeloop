@@ -544,7 +544,7 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 
 ### 20. Theme selection: three themes, each in light and dark
 
-**Goal.** Two independent controls on the settings page. **Theme**—default, high contrast, colorblind—chooses the palette. **Appearance**—system, light, dark—chooses the scheme. They do not constrain each other: every theme exists in both schemes, six palettes in total. This is the first real content `/settings` gets; it currently says "Not much to set yet."
+**Goal.** Two independent controls on the preferences page. **Theme**—default, high contrast, colorblind—chooses the palette. **Appearance**—system, light, dark—chooses the scheme. They do not constrain each other: every theme exists in both schemes, six palettes in total. This lands on `/prefs`, beside the stop-duration format that shipped 2026-08-15—so it is the page's second and third settings rather than its first, and the first time it holds enough to need a layout at all. See item 22.
 
 Two axes rather than six radio buttons, decided 2026-08-16. The two questions are genuinely unrelated—theme is about which signals a rider can distinguish, scheme is about ambient light—and collapsing them into one list would ask a rider to find "colorblind dark" in a flat six. It also makes _system_ expressible, which a single list cannot do: "follow the OS" is a statement about the scheme axis only, and there is no OS signal for colorblindness.
 
@@ -621,7 +621,7 @@ _System_ then renders as no `data-scheme` attribute at all, and the `:not()` is 
 - **Does the theme axis interact with `prefers-contrast`?** The OS reports it. Whether `prefers-contrast: more` should auto-select the high-contrast theme, or whether theme stays a pure stored preference with no OS input, is undecided. Note this is now cleanly separable from the scheme question, which is one benefit of splitting the axes.
 - **The emails.** `src/emails/theme.ts` carries its own dark palette, pinned to `_tokens.scss` by `test/email-theme.test.ts`. Once the site has real dark tokens, either the emails adopt them or the split becomes deliberate and documented. The pinning test is the place that will notice first, and that is the test doing its job.
 
-**Touches.** `src/routes/settings.tsx`, `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. Possibly `public/js/map-common.js` and a second Map ID, depending on how the map question resolves.
+**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. Possibly `public/js/map-common.js` and a second Map ID, depending on how the map question resolves. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
 
 **Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
@@ -668,11 +668,44 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 - **Does item 14's alternate object have to wait for item 14?** As written it does, and item 14 depends on riders (item 8), which would chain this item behind group collaboration for no good reason. Import needs only the **alternate**—two candidates, one active—and none of the voting, resolution or membership machinery around it. Splitting that object out of item 14 so it can land alone is probably the right move and would unblock this item entirely. Item 14's note now says the same from its side.
 - **What "exact" means.** A byte hash is trivial and misses the real case: the same ride exported twice by different tools is not byte-identical but is the same route. Hashing normalized parsed geometry catches it and costs a parse. Probably both, labelled differently—and see the three-threshold note above.
 - **Where the ride-name field goes for a single-file import**, where there is no table to head.
-- **Whether the export half shares this page.** `docs/main-menu.md` already decides that `/import` grows an export half rather than a second page appearing. This item redesigns the import half substantially; the two should be drawn once, together, rather than the export half being fitted around a finished table.
+- **How the shipped export half survives this.** `/import` **already is** Import / Export—`import.tsx` renders both under one `<h1>`, and `main-menu.md` carried that as a pending decision long after it was built. So this item is not adding a second half to the page; it is substantially redrawing one of two halves that already exist side by side, and the export half's per-format download rows have to still read as a sibling of a much heavier import half afterwards. Draw both, once. See also item 22, which widens the page they both sit in.
 
 **Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging, and the link relation once it is named), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
 
 **Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts.
+
+### 22. Content width on `/prefs` and `/import`
+
+**Goal.** Both pages run in a single narrow column on a desktop viewport that has room for two. Widen the content and let fields sit side by side where they belong, rather than stacking everything vertically down a 560px strip.
+
+**Measured 2026-08-16.** The page allows far more than these pages take:
+
+- `.page-wrap` caps at **960px** with `2rem` padding, so **896px** of content is available (`style/_chrome.scss:14`).
+- `.setting` caps at **60ch** (`_account.scss:9`), and `.profile-form`, `.import-form` and `.export-list` all cap at **560px** (`_forms.scss:9`, `:39`, `:440`).
+- So the effective width on both pages is about **560px**, and the 960px the container offers is never reached. Roughly 340px of usable desktop width goes unused on every visit.
+
+**The distinction that governs the fix, and the way to get this wrong.** The `60ch` and the `44rem` at `_chrome.scss:362` are **measure** caps—they exist so a line of prose does not run to 120 characters, and they are correct. The `560px` on a form is a **layout** cap, and it is the one that is wrong. The tempting fix is to raise 60ch to 90ch and call it done; that widens the prose too and makes the page harder to read while making it look wider. **Separate the two constraints instead:** prose keeps a measure of roughly 60–75ch wherever it appears, and the field grid gets its own, wider track that is free to go two-up. A section can hold both—a paragraph at measure above a two-column grid at full width—and that is the shape to aim for.
+
+**Item 16's governing rule applies here too:** nothing changes size as its value changes. Two columns that collapse at a breakpoint are fine. Columns that appear or vanish depending on how long the content is are the jumping-layout failure item 16 spent a day removing from the builder panel, and it should not be reintroduced on a settings page.
+
+**Work.**
+
+- [ ] Split measure from layout width in `_account.scss` and `_forms.scss`, so a cap on prose stops capping the controls under it.
+- [ ] A two-up field grid for `/prefs`, collapsing to one column at the existing `575px` breakpoint (`_account.scss:174`).
+- [ ] Decide per group whether it pairs. **Item 20's two new radio groups—Theme and Appearance—are the obvious pair** and are the reason this is worth doing now. The duration format is the counter-example: each of its rows carries a worked example that _is_ the content, so it probably wants the full width rather than half of it.
+- [ ] Widen `/import`'s two halves. The export list is a row of per-format buttons that already wraps at 560px.
+- [ ] Re-measure afterwards. Item 16 is the precedent: a number is the only thing that can say whether a layout pass did anything.
+
+**This is a prerequisite for item 21, not a parallel nicety.** The import review table—ride name, per-row title, per-row date, a drag handle, a drop control and a duplicate flag—**cannot exist inside a 560px form**. Either this lands first or item 21 does it as its opening move; what must not happen is item 21 drawing a table to fit a width that was already known to be wrong.
+
+**Open questions.**
+
+- **Does `.page-wrap`'s 960px itself have to rise, and if so, everywhere or per page?** 896px of content may still be tight for the manifest table once it has six columns and a drag handle. Raising the global cap changes every chrome page including the prose ones, which is a bigger and less obviously good change than widening two pages; a per-page opt-out is narrower but is the kind of exception that multiplies. Decide it against the drawn table, not in advance.
+- **Which groups actually pair.** The list above is a starting guess from reading the markup, not a design. It wants one drawn pass over both pages before any of it is built.
+
+**Touches.** `style/_account.scss`, `style/_forms.scss`, `style/_chrome.scss` (only if the global cap moves), `src/routes/prefs.tsx` and `src/routes/import.tsx` (markup regrouped into a grid).
+
+**Status.** planned—raised 2026-08-16, alongside the Settings → Preferences rename recorded in `docs/main-menu.md`. Small on its own, and worth doing before items 20 and 21 rather than after.
 
 ## Idea backlog (unscheduled)
 
