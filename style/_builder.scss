@@ -999,9 +999,16 @@
   // which wrapped to two lines at 47px tall. Losing two buttons to autosave and
   // the words to icons brings the row back to one line with room to spare.
   //
-  // The glyphs are U+21B6 and U+21B7, the standard undo/redo arrows, so no icon
-  // asset is involved. Each carries an aria-label, and the title attribute still
-  // names what will be undone — builder.js writes "Undo add stop" into it.
+  // THEY WERE TEXT GLYPHS AND ARE NOW A DRAWN ICON. U+21B6 and U+21B7 shipped
+  // with the icon row on 2026-08-15 on the reasoning that a standard character
+  // beats an asset, and in the panel that turned out to be wrong: Overpass draws
+  // both as hairline strokes, so at 15px they read as faint tick marks rather
+  // than as arrows, and at the 0.35 opacity of the disabled state — which is
+  // what a rider sees most of the time, since undo starts with nothing to undo —
+  // they very nearly vanish. The asset is one path with a real weight to it.
+  //
+  // Each still carries an aria-label, and the title attribute still names what
+  // will be undone — builder.js writes "Undo add stop" into it.
   .btn-icon {
     display: inline-flex;
     align-items: center;
@@ -1018,6 +1025,17 @@
     border-radius: 6px;
     cursor: pointer;
 
+    // Sized here rather than on .tb-inline-icon, which is shared with the role
+    // chips and the map tooltips and has no business knowing about this button.
+    // The icon's own artwork is a full-bleed 1200 square with no padding built
+    // in, so it needs to sit well inside the 2.1em box or it reads as a glyph
+    // jammed against the border.
+    .tb-inline-icon {
+      display: block;
+      width: 1.05em;
+      height: 1.05em;
+    }
+
     &:hover:not(:disabled) {
       border-color: $brand;
       color: $brand;
@@ -1027,6 +1045,12 @@
       opacity: 0.35;
       cursor: default;
     }
+  }
+
+  // Redo is undo mirrored — see the markup comment in src/routes/builder.ts for
+  // why it is one file and not two.
+  .icon-flip {
+    transform: scaleX(-1);
   }
 
   // FIXED FOOTPRINT, and that is the whole design. This readout was on the

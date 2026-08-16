@@ -2299,6 +2299,10 @@
     initDragToReorder($("stop-list"));
     wireSearch();
     wireHistory();
+    // Undo and redo are the only icons in static markup — every other one is in
+    // a row this file renders, and renderList() hydrates those as it goes. These
+    // two are in the shell, so nothing would ever come along and fill them.
+    hydrateIcons($("undo").parentElement);
 
     if (state.rideId) {
       try {

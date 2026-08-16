@@ -491,8 +491,20 @@ function builderHtml(
         </div>
 
         <div class="builder-actions">
-          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo">↶</button>
-          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo">↷</button>
+          <!-- ONE ICON FILE, MIRRORED, for a pair that has to read as a pair.
+               Redo is icon-undo.svg under .icon-flip, which is scaleX(-1). Two
+               separately drawn files would be two chances for the arrowheads to
+               land at different angles or the strokes to differ by a hair, and
+               the whole point of undo/redo is that they are the same gesture in
+               opposite directions.
+
+               They are .tb-inline-icon rather than <img>, so hydrateIcons() in
+               builder.js inlines the SVG and its fill="currentColor" can take
+               the button's color—including the 0.35 opacity of the disabled
+               state. An <img> cannot inherit color and would stay black while
+               the button greyed out around it. -->
+          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
+          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon icon-flip" data-icon="icon-undo.svg"></span></button>
           <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
