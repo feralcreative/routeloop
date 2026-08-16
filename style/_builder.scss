@@ -250,6 +250,17 @@
     &.is-shut .day-body {
       display: none;
     }
+
+    // With the body gone, the head's 0.6em bottom margin is the gap to nothing:
+    // it left the section taller than .day-drag, which stretches to the head and
+    // is pulled out to the padding edge by its negative margins. Dropping it here
+    // rather than at the source keeps the head/body gap on an open day — the
+    // margin is set by the SECOND .day-head block further down this file, a
+    // leftover from the day-slider era that still owns .day-actions and wins on
+    // source order.
+    &.is-shut .day-head {
+      margin-bottom: 0;
+    }
   }
 
   .day-head {
