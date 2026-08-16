@@ -274,6 +274,16 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // one with no geometry at all — a client must not render null as 0.
       twistinessDpm: r.twistinessDpm,
       twistinessBestDpm: r.twistinessBestDpm,
+      // ALTERNATES. Every day is sent, losing ones included — ride.json is what
+      // the viewer draws from, and it has to draw the alternates in order to
+      // ghost them. This is the opposite choice from the lossy exports, which
+      // never see a losing alternate at all; the difference is that a viewer can
+      // show "this is an option" and a GPX file cannot.
+      //
+      // altGroup is a within-this-ride partition key and nothing more. A client
+      // may compare two days' values and must not store one.
+      altGroup: r.altGroup,
+      altActive: r.altActive,
       track,
       // Each entry spans [startIndex, endIndex] of `track`. Note durationS is
       // 0 for a leg the router never answered for, the same as it is in the

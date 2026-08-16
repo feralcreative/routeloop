@@ -27,6 +27,23 @@ const big = (frag: ReturnType<typeof sql>) => sql<number>`coalesce(${frag}, 0)::
 export async function loadStats(userId: number): Promise<RawStats> {
   const owned = eq(rides.ownerId, userId)
 
+  // ALTERNATES. A day that lost is a road the rider decided against, so it must
+  // not add to a distance, a duration or a record — this dashboard is a claim
+  // about what they have planned to ride, and it is the broadest-scoped consumer
+  // in the app: every ride they own, all the way back.
+  //
+  // A predicate on the days join rather than a column or a new query, because
+  // every aggregate below already joins through days to reach rides.owner_id.
+  // Cheap, and it cannot be forgotten in a query that does not join days —
+  // there are none that also count distance.
+  //
+  // NOT applied to the point and role counts further down, and that asymmetry is
+  // deliberate rather than an oversight: the rider really did plan those stops
+  // and pick those roles. A stop count is a record of the work; a mileage is a
+  // claim about a road. Only the second one becomes a lie when the day is not
+  // ridden.
+  const counts = and(owned, eq(days.altActive, true))
+
   const [rideRow] = await db
     .select({
       rides: int(sql`count(*)`),
@@ -54,7 +71,10 @@ export async function loadStats(userId: number): Promise<RawStats> {
     })
     .from(days)
     .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(owned)
+    // Both figures: a ride of three days plus two alternates is a three-day
+    // ride, and a losing alternate that happens to be the longest would claim
+    // the record for a road nobody rides.
+    .where(counts)
 
   const [legRow] = await db
     .select({
@@ -69,7 +89,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .from(routeLegs)
     .innerJoin(days, eq(days.id, routeLegs.dayId))
     .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(owned)
+    // The hero mileage figure. This is the one that would be visibly wrong.
+    .where(counts)
 
   const [pointRow] = await db
     .select({
@@ -99,7 +120,9 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .select({ dpm: sql<number>`${days.twistinessDpm}::int`, distanceM: sql<number>`${days.distanceM}::int` })
     .from(days)
     .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(and(owned, sql`${days.twistinessDpm} is not null`, sql`${days.distanceM} > 0`))
+    // Distance-weighted in shape.ts, so a losing alternate would not merely be
+    // counted — it would drag the mean toward whatever its own roads were like.
+    .where(and(counts, sql`${days.twistinessDpm} is not null`, sql`${days.distanceM} > 0`))
 
   const monthRows = await db
     .select({
@@ -121,7 +144,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .from(rides)
     .innerJoin(days, eq(days.rideId, rides.id))
     .innerJoin(routeLegs, eq(routeLegs.dayId, days.id))
-    .where(owned)
+    .where(counts)
     .groupBy(rides.id, rides.title, rides.slug)
     .orderBy(sql`1 desc`)
     .limit(1)
@@ -133,11 +156,13 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .orderBy(sql`${rides.viewCount} desc`)
     .limit(1)
 
+  // "The best twenty miles you have planned" should not be a road the rider
+  // looked at and rejected.
   const [bestTwist] = await db
     .select({ dpm: sql<number>`max(${days.twistinessBestDpm})::int` })
     .from(days)
     .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(owned)
+    .where(counts)
 
   const [me] = await db
     .select({ quotaBytes: users.quotaBytes, usedBytes: users.usedBytes })
