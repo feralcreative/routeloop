@@ -66,7 +66,7 @@ if (!ASSET_ORIGIN && !APP_ORIGIN.startsWith('https://')) {
 for (const tpl of ALL_EMAILS) {
   const out = renderEmail(tpl, tpl.sample)
   await transport.sendMail({
-    from: `RouteLoop <${from}>`,
+    from: `Routeloop <${from}>`,
     to: TO,
     subject: out.subject,
     text: out.text,

@@ -1,6 +1,6 @@
-# RouteLoop roadmap
+# Routeloop roadmap
 
-The durable plan for where RouteLoop is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
+The durable plan for where Routeloop is going. It pairs with two other docs and with GitHub Issues; none of them duplicates the others:
 
 - **The code**—the actual source of truth, above everything on this list. This file is a thinking surface, not a spec or a commitment: ideas get tried, abandoned and replaced without it being edited first. Where it conflicts with what shipped, or uses a name the code no longer uses, **the code is right and this file is out of date**. Nothing here should ever be cited as evidence that something is planned, required, or already decided.
 - **This file**—the narrative: the vision, the phases, and why each matters. It changes slowly.
@@ -25,20 +25,20 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 <!-- col-widths: 22% 44% 34% -->
 
-| Entry                             | What changed on 2026-08-10                                                             | Issue to match                                                        |
-| --------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Vision → the model                | `Route` as level 2 became **Day**; **Leg** added as its own bullet                     | none—not tracked as an issue                                          |
-| 2. The ride timeline              | "a route's duration" → "a day's duration"                                              | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
-| 5. One-tap Google Maps links      | batching described per route → **per day**, in three places                            | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)     |
-| 9. Import and export breadth      | "colours" → "colors"                                                                   | [#13](https://github.com/feralcreative/routeloop/issues/13)             |
-| 12. Quality and platform          | test count 424/20 files → **777/34**                                                   | [#16](https://github.com/feralcreative/routeloop/issues/16)             |
-| 13. Rider Subgroups               | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**   | [#67](https://github.com/feralcreative/routeloop/issues/67)             |
-| 14. Alternate routes and voting   | "day/route-level" → **day-level**                                                      | [#68](https://github.com/feralcreative/routeloop/issues/68)             |
-| 15. On-the-road mobile interface  | "a route's Google Maps legs" → "a day's"                                               | [#69](https://github.com/feralcreative/routeloop/issues/69)             |
-| Backlog → elevation profile       | "per route" → **per day**                                                              | [#23](https://github.com/feralcreative/routeloop/issues/23)             |
-| Backlog → reverse and duplicate   | marked **shipped**; it was still listed as unbuilt                                     | [#26](https://github.com/feralcreative/routeloop/issues/26) already closed—no action |
-| 7. Bikes and range planning       | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)             |
-| Backlog → drag-to-reorder         | affordance decided: a textured drag bar, not arrows                                    | [#39](https://github.com/feralcreative/routeloop/issues/39)             |
+| Entry                            | What changed on 2026-08-10                                                              | Issue to match                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Vision → the model               | `Route` as level 2 became **Day**; **Leg** added as its own bullet                      | none—not tracked as an issue                                                                             |
+| 2. The ride timeline             | "a route's duration" → "a day's duration"                                               | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
+| 5. One-tap Google Maps links     | batching described per route → **per day**, in three places                             | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)                                     |
+| 9. Import and export breadth     | "colours" → "colors"                                                                    | [#13](https://github.com/feralcreative/routeloop/issues/13)                                              |
+| 12. Quality and platform         | test count 424/20 files → **777/34**                                                    | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
+| 13. Rider Subgroups              | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**    | [#67](https://github.com/feralcreative/routeloop/issues/67)                                              |
+| 14. Alternate routes and voting  | "day/route-level" → **day-level**                                                       | [#68](https://github.com/feralcreative/routeloop/issues/68)                                              |
+| 15. On-the-road mobile interface | "a route's Google Maps legs" → "a day's"                                                | [#69](https://github.com/feralcreative/routeloop/issues/69)                                              |
+| Backlog → elevation profile      | "per route" → **per day**                                                               | [#23](https://github.com/feralcreative/routeloop/issues/23)                                              |
+| Backlog → reverse and duplicate  | marked **shipped**; it was still listed as unbuilt                                      | [#26](https://github.com/feralcreative/routeloop/issues/26) already closed—no action                     |
+| 7. Bikes and range planning      | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)                                              |
+| Backlog → drag-to-reorder        | affordance decided: a textured drag bar, not arrows                                     | [#39](https://github.com/feralcreative/routeloop/issues/39)                                              |
 
 Cleared on 2026-08-15: every entry that read "needs a new issue" now has one. Items 16, 17, 18, 19 and 20 became [#88](https://github.com/feralcreative/routeloop/issues/88) (an epic with eleven children, one of which is the pre-existing [#39](https://github.com/feralcreative/routeloop/issues/39)), [#99](https://github.com/feralcreative/routeloop/issues/99), [#100](https://github.com/feralcreative/routeloop/issues/100), [#101](https://github.com/feralcreative/routeloop/issues/101) and [#102](https://github.com/feralcreative/routeloop/issues/102). The dashboard got its first issue ever, [#103](https://github.com/feralcreative/routeloop/issues/103), and its own `area:dashboard` label.
 
@@ -54,16 +54,16 @@ Every open issue carries a **P0–P3** label. The labels are the authority on wh
 
 <!-- col-widths: 12% 88% -->
 
-| Tier   | What it means                                                                         |
-| ------ | -------------------------------------------------------------------------------------- |
-| **P0** | Blocks real use of something that already ships. Do these next                        |
-| **P1** | The builder page, its tool panel, and the map engine                                  |
-| **P2** | The dashboard at `/`, plus real gaps riders will hit                                  |
-| **P3** | Everything else, including the group layer and the whole idea backlog                 |
+| Tier   | What it means                                                         |
+| ------ | --------------------------------------------------------------------- |
+| **P0** | Blocks real use of something that already ships. Do these next        |
+| **P1** | The builder page, its tool panel, and the map engine                  |
+| **P2** | The dashboard at `/`, plus real gaps riders will hit                  |
+| **P3** | Everything else, including the group layer and the whole idea backlog |
 
 ### What changed, and why
 
-P1 used to be *the group layer*. It is now *the builder*. The reasoning, recorded because a tier that changes meaning silently is worse than no tier at all:
+P1 used to be _the group layer_. It is now _the builder_. The reasoning, recorded because a tier that changes meaning silently is worse than no tier at all:
 
 **Planning a ride fluidly and intuitively is what this app is for.** Everything else in the product—sharing, hand-off, the group layer, the roadbook—is downstream of a plan that was pleasant to make. The map and the builder's tool panel are where that happens, and the panel has never been designed as one surface; it grew a control at a time. Item 16 measures the damage: 198 interactive elements in a 380px column, 807px of content in a 620px window, and a layout that jumps on nearly every edit.
 
@@ -93,12 +93,12 @@ The rest of P1 is the issues that touch `public/js/builder.js` and the map engin
 
 MyRouteApp, but far better: entire-ride focused, with a slicker UI and smoother UX.
 
-RouteLoop is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** ride: every leg, every day, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole ride at once. RouteLoop has no such limits.
+Routeloop is a tool to **plan, organize, and share** motorcycle rides and car road trips—not real-time navigation, and never will be. The point is to give riders a holistic view of an **entire** ride: every leg, every day, every stop, every hotel and gas station, across an unlimited number of days and miles. Existing tools cap out (Google My Maps allows ~10 waypoints and one route per layer; Apple Maps behaves differently on every device) and none of them shows the whole ride at once. Routeloop has no such limits.
 
 The model that everything else follows:
 
 - A **Ride** is the shareable package—many days, with a start and an end that bound the whole ride.
-- A **Day** is one session inside a ride: an ordered list of stops joined by road-snapped legs, with its own color, title and start/end date-time. A day is a *position* in a ride, not a calendar date—two days can share a date, and a ride with no dates at all still has days.
+- A **Day** is one session inside a ride: an ordered list of stops joined by road-snapped legs, with its own color, title and start/end date-time. A day is a _position_ in a ride, not a calendar date—two days can share a date, and a ride with no dates at all still has days.
 - A **Leg** is the road-snapped geometry from one stop to the next. It is never user-visible; the table is `route_legs`, which keeps that name on purpose because a leg really is a routed segment.
 - Three kinds of dots:
   - **Waypoint**—an ephemeral shaping point that only keeps the route on course. Nothing remarkable about the spot; we do not stop there.
@@ -128,7 +128,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Expand**—a hand-off-time transform that weaves shaping points along the planned geometry, so whatever you navigate with has too little room to pick its own roads.
 - **The navigate page**—`/m/:slug/navigate` turns a ride into an ordered series of Google Maps links, one leg at a time, with a density control and an honest statement of the longest stretch Maps still chooses for itself.
 - **Lossless import**—a file holding several tracks lands as several days, names and all, rather than as its longest track.
-- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native RouteLoop JSON), five out, several files at once becoming the days of one ride, and every original kept so nothing an upload contained is destroyed.
+- **Import and export**—six formats in (KML, KMZ, GPX, GeoJSON, CSV, native Routeloop JSON), five out, several files at once becoming the days of one ride, and every original kept so nothing an upload contained is destroyed.
 - **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
 - **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
 - **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
@@ -148,7 +148,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Move `profile.js` home-address geocoding to a server proxy alongside `POST /api/route`—the last Mapbox call and the only reason `MAPBOX_TOKEN` still has to be set.
 - [x] Teach the current engine to draw an imported ride's single-leg track, then collapse the two viewer shells into one and delete `public/js/main.js`. (The engine already handled it; the work was deleting the legacy shell.)
 - [x] Drop `MAPBOX_TOKEN`, `MAPBOX_GL_VERSION` and `MAPBOX_CSS_LINK`, plus their `.env.example`, compose and deploy-guard references.
-- [x] Regenerate the favicons and social image from the current RouteLoop mark. Done 2026-07-31; the files live in `public/img/favicon/`.
+- [x] Regenerate the favicons and social image from the current Routeloop mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
 - [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
@@ -198,7 +198,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 
 - [ ] Densify a route by sampling extra shaping waypoints along the stored leg geometry (`route_legs.geometry` already holds the full, 6-decimal, road-snapped polyline), so a hand-off follows the planned roads instead of the nav app's own guess between distant stops.
 - [ ] Rider-controllable density—a target point count or spacing. The owner's habit: expand a 10–20-point route to at least 30.
-- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—RouteLoop's own viewer renders the exact path already, so Expand matters only when leaving the app.
+- [ ] Expansion is a hand-off-time transform over geometry that already exists, not new stored route state—Routeloop's own viewer renders the exact path already, so Expand matters only when leaving the app.
 - [ ] Refinement: bias added points toward junctions and decision points, where a nav app is most likely to diverge, rather than purely even spacing.
 - [ ] Expand-added points are shaping points, not stops: written as Garmin/TomTom _shaping_ points in the file exports (item 3) and counted as plain waypoints in the Google Maps links (item 5).
 
@@ -263,7 +263,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Open questions.**
 
-- **Stored or derived.** `mpg × tank size` already implies a range, so *range to light* and *range to empty* are arithmetic on paper. They are not in practice: riders know their real numbers and those numbers beat the spec sheet. Recommendation is to store all three as entered and never overwrite a rider's figure with a computed one—but whether the fields seed themselves from the math on first entry is undecided.
+- **Stored or derived.** `mpg × tank size` already implies a range, so _range to light_ and _range to empty_ are arithmetic on paper. They are not in practice: riders know their real numbers and those numbers beat the spec sheet. Recommendation is to store all three as entered and never overwrite a rider's figure with a computed one—but whether the fields seed themselves from the math on first entry is undecided.
 - **Units.** mpg assumes US units. Ties to the miles/km preference still open in `docs/main-menu.md`, and the stored unit should be settled before the column exists rather than after.
 
 **Touches.** `src/db/schema.ts`, new routes, `src/routes/profile.ts`, `public/js/builder.js`.
@@ -291,7 +291,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [x] **Native RouteLoop JSON export/import**—`/routeloop.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colors, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `routeloop` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
+- [x] **Native Routeloop JSON export/import**—`/routeloop.json` writes the builder's own save payload and the importer feeds it back through the same schema and the same insert. Verified lossless on a real 3-day ride: days, colors, start/end times, legs, via points, stops, POIs, dwell and roles all identical. The `routeloop` version field is what tells it apart from a GeoJSON, since both arrive as `.json`.
 - [x] Import KMZ (zipped KML)—the archive is read by `src/maps/kmz.ts` and its KML handed to the existing pipeline, so the cap is on the _decompressed_ size.
 - [x] Import/export CSV—a stop list, not a route. `src/maps/csv.ts` parses RFC 4180 (a quoted comma in "Chevron, Petaluma" is not an edge case), sniffs the delimiter, and reads a decimal comma. No geometry, so no mileage and a **null** twistiness rather than a zero.
 - [x] Import/export GeoJSON—`src/maps/geojson.ts` in, `src/maps/export.ts` out. The only format that keeps roles, the stop/POI distinction and dwell time across a round trip, because it is the only one whose properties this app controls.
@@ -439,9 +439,9 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [x] **Autosave to the server; retire the Save button.** Shipped 2026-08-15. Two timers rather than one: a 3s idle debounce, and a 20s ceiling armed on the first edit of a dirty run and not re-armed by later ones. The ceiling is the one that matters—an idle debounce alone has no upper bound, so dragging a stop around for four minutes never goes idle and never saves. Both sit far under the five-minute acceptance bar deliberately, because the bar is what must never be exceeded rather than what to aim for. The route request keeps its own debounce in `computeLeg()` and is not coupled to this; that is the half that costs money. Save and Discard are both gone.
 - [x] **Say that autosave is happening.** Shipped 2026-08-15. A dot and a word in the action row, in a **fixed-width box**—it was on the governing rule's list of variable-length readouts, and it cycles three states several times a minute right beside the link to the public page. A server error ellipsizes rather than being allowed to set the width. The readout is `aria-hidden` and a separate live region speaks only for an error or a blocked save; a polite region on the readout itself would announce the routine cycle aloud several times a minute.
 - [x] **An X in the panel's top corner that exits the map.** Shipped 2026-08-15, and **half of this entry turned out to be wrong**. The existing control was never an X—`panelShell` renders `icon-collapse.svg`, a minimize glyph—so there was no wrong verb to fix and collapse did not have to move anywhere. What was real was the other half: there was **no exit at all**. A map page has no footer and its header is the floating nav, so the only way off was the hamburger in the opposite corner. An exit now sits beside collapse in `.panel-controls`, two controls for two verbs: collapse keeps you on the map, exit leaves it. It lands on the **viewer** as well, which was the same black hole, and goes to `/rides` for a signed-in rider or `/` for a visitor who followed a shared link and has never seen the site.
-- [ ] **Drag to reorder, not arrows.** A textured drag bar replaces the per-row `↑`/`↓` pair. See [#39](https://github.com/feralcreative/routeloop/issues/39), which this decides the affordance for. It also reclaims real width: a stop row's name field is 113px against a POI row's 152px, and that 39px difference *is* the arrow pair.
+- [ ] **Drag to reorder, not arrows.** A textured drag bar replaces the per-row `↑`/`↓` pair. See [#39](https://github.com/feralcreative/routeloop/issues/39), which this decides the affordance for. It also reclaims real width: a stop row's name field is 113px against a POI row's 152px, and that 39px difference _is_ the arrow pair.
 - [ ] **One menu per row, not a row of buttons.** `✎` (notes) and `✕` (delete) collapse into a single control holding edit, delete, **duplicate** and whatever else a point grows. With the drag bar above, a row goes from six buttons to two, and `.row-actions`—80px of a 320px row—mostly returns to the name field. Note that duplicate-a-point does not exist today, so this adds a capability rather than only rearranging one. **Build the menu on open, never per row:** the role picker already renders 17 buttons for every point (119 in the DOM at 7 stops, 340 at 20), and a second eager per-row menu would repeat that exactly.
-- [ ] **The two sliders are eating the panel.** The day scrubber, the ride timeline and the totals line come to 185px—**30% of the 620px visible panel**—and `#time-slider` is `disabled` on any ride without a day start time, so most of that is spent on a control doing nothing, under a note explaining why. Ziad's direction: one is a *view* slider and one is an *edit* slider, so possibly one edit mode and one view mode with a single slider each. Merge or tighten; the current stack is not defensible.
+- [ ] **The two sliders are eating the panel.** The day scrubber, the ride timeline and the totals line come to 185px—**30% of the 620px visible panel**—and `#time-slider` is `disabled` on any ride without a day start time, so most of that is spent on a control doing nothing, under a note explaining why. Ziad's direction: one is a _view_ slider and one is an _edit_ slider, so possibly one edit mode and one view mode with a single slider each. Merge or tighten; the current stack is not defensible.
 - [x] **The ride's name is the headline.** Shipped 2026-08-15. The input **is** the heading rather than something a pencil swaps in—a reveal would be a second mode and a layout jump, which is the thing the governing rule exists to remove. The field is drawn as the heading, carries no border until hovered or focused, and shows the pencil then as an affordance. The summary moved directly under it and both now sit outside `.panel-contents-wrapper`, so they stay put while the stop list scrolls; `renderTotals()` writes `#totals` by id and did not notice. Note this also fixed something unrelated that nobody had filed: on a **new** ride the panel had no `<h1>` at all, so a collapsed panel showed an empty strip.
 - [x] **The action row is icons, not labels.** Shipped 2026-08-15, and the sequencing paid off exactly as predicted: autosave had already deleted Save and Discard, so what got drawn was undo, redo, a status readout and the link to the public page—the row that survives rather than the one that existed. The glyphs are U+21B6 and U+21B7 with `aria-label`s, so no icon asset is involved. **The fold is fixed too:** `.builder-actions` was `position: static` at the end of a list that grows without limit, so the controls a rider reaches for most were the ones furthest out of reach—140px below the visible area on a seven-stop day. It is `position: sticky; bottom: 0` now, with an opaque background because content scrolls under it.
 - [ ] **Stop durations show as hours with one decimal, and the format is a preference.** The row's duration field is `type="number"` in raw minutes today. Default becomes hours to one decimal, with hours+minutes, plain minutes and whatever else offered in Settings. **Storage does not change**—`durationMin` stays the stored unit, so the roadbook, the timeline and every export are untouched and this is a formatter plus a setting. Note the granularity: one decimal hour is six minutes, so a 20-minute gas stop reads `0.3`.
@@ -469,7 +469,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] **Raster only. No SVG, ever.** Decided 2026-08-10—an SVG avatar is stored XSS, and `src/views/layout.tsx` renders the avatar in the nav on every page of the app. This is a security boundary, not a format preference.
 - [ ] **PNG or JPEG only, 1 MB maximum.** Added 2026-08-15. The two format names are the concrete expression of the raster-only rule above—accept exactly these and reject everything else by sniffing the bytes, not by trusting the extension or the `Content-Type`. The 1 MB bound is a cheap first gate that rejects most of what a phone camera produces before any decode happens, which matters because decoding is where a malicious image does its damage.
 - [ ] **Square, 500×500 maximum.** Decided 2026-08-10 and reaffirmed 2026-08-15 against a 1000 proposal. Stored square; **circular is a display treatment only**—`.nav-avatar` already carries `border-radius: 50%`, so nothing round is ever written to disk.
-- [ ] **A circular crop box the rider sizes and positions**, working on any aspect ratio—decided 2026-08-10, in place of a server-side center-crop, which beheads anyone who uploads a landscape photo. The circle is the *guide*; what gets written is the square that bounds it, so the corners are still stored and a square display keeps working if we ever want one. **Outside the circle is shaded**, not hidden, so the rider can see what they are cutting off while they position it.
+- [ ] **A circular crop box the rider sizes and positions**, working on any aspect ratio—decided 2026-08-10, in place of a server-side center-crop, which beheads anyone who uploads a landscape photo. The circle is the _guide_; what gets written is the square that bounds it, so the corners are still stored and a square display keeps working if we ever want one. **Outside the circle is shaded**, not hidden, so the rider can see what they are cutting off while they position it.
 - [ ] **Re-encode every upload server-side** to a known raster format at or under that bound. Never store or serve the bytes as received. **The client-side crop is convenience, not enforcement**—the browser's output is attacker-controlled, so the server re-validates dimensions and re-encodes regardless of what arrived.
 - [ ] Strip EXIF—phone photos carry GPS, and a rider's avatar should not publish where they took it.
 - [ ] Serve through a route, not a static path: `src/maps/storage.ts` deliberately writes outside the web root, and avatars follow the same rule.
@@ -479,7 +479,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Touches.** `src/routes/profile.ts`, `src/maps/storage.ts` (or a sibling that follows its containment pattern), `src/db/schema.ts` if the source of an avatar needs distinguishing from Google's, `src/views/layout.tsx`.
 
-**Status.** planned—raised 2026-08-10. This is the first user-uploaded binary the app serves *publicly*; the stored map originals are downloads behind auth, which is a materially different risk profile. The initials-on-a-tinted-disc fallback stays for riders who upload nothing—see `docs/main-menu.md`.
+**Status.** planned—raised 2026-08-10. This is the first user-uploaded binary the app serves _publicly_; the stored map originals are downloads behind auth, which is a materially different risk profile. The initials-on-a-tinted-disc fallback stays for riders who upload nothing—see `docs/main-menu.md`.
 
 ### 18. Profile autosave
 
@@ -497,7 +497,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 Autosave and address autocomplete both watch the same fields and both act on a pause in typing, so shipped naively they fight: a rider types four characters of a street name, stops to read the suggestion list, and the idle timer fires and saves the fragment. The stored address is now `123 Ma`, the geocode against it is wrong or null, and if the save re-renders the field from the server the dropdown closes underneath them mid-choice.
 
 - [ ] Build autosave with the address block **excluded**, saving every other field on idle. The address fields keep their explicit save until item 19 lands. This is a real state to ship in, not a stepping stone—the rest of the profile is the part with no save affordance problem.
-- [ ] When item 19 lands, the address block joins autosave on a **different trigger**: it flushes when a suggestion is *selected*, or when the field is left with the dropdown closed. Never on an idle timer, because idle is exactly the state a rider is in while reading suggestions.
+- [ ] When item 19 lands, the address block joins autosave on a **different trigger**: it flushes when a suggestion is _selected_, or when the field is left with the dropdown closed. Never on an idle timer, because idle is exactly the state a rider is in while reading suggestions.
 - [ ] Whichever ships second owns the integration test: type into an address field, pause longer than the idle delay with the dropdown open, and assert nothing was saved and the dropdown is still there.
 
 **Open question.** **Whether it shares a mechanism with item 16.** The builder's autosave has the same shape—idle debounce, flush, status indicator—but a different failure model: the builder's `PUT` replaces the whole ride in one transaction, while a profile is a set of independent fields. Worth one helper if the debounce and the indicator are genuinely the same; not worth forcing if the persistence halves differ. Look at both before writing either.
@@ -508,7 +508,7 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 
 ### 19. Address autocomplete that fills the form
 
-**Goal.** Typing an address should offer matches in a dropdown attached to the field, and picking one should fill address, city, state and postal code in a single action. Today the rider types every field by hand and a status line appears *below* the input reporting what the geocoder made of it, which is feedback after the fact rather than help during.
+**Goal.** Typing an address should offer matches in a dropdown attached to the field, and picking one should fill address, city, state and postal code in a single action. Today the rider types every field by hand and a status line appears _below_ the input reporting what the geocoder made of it, which is feedback after the fact rather than help during.
 
 **Work.**
 
@@ -522,7 +522,7 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 **Open questions.**
 
 - **Which API, and what it costs.** Places Autocomplete (New) is already enabled for the builder's search box, but it is billed per session and per request, and this puts it behind every keystroke on the profile. Session tokens are the mechanism that keeps that from being priced per character—use them, and confirm the SKU before it ships. The daily quota caps from item 1 apply.
-- **Server proxy or browser call.** The builder calls Places from the client with the referrer-restricted browser key; the profile's geocoding was deliberately moved *server-side* in item 1 so `GMAPS_SERVER_KEY` never reaches a client. Decide which side this sits on rather than inheriting whichever is nearer to hand.
+- **Server proxy or browser call.** The builder calls Places from the client with the referrer-restricted browser key; the profile's geocoding was deliberately moved _server-side_ in item 1 so `GMAPS_SERVER_KEY` never reaches a client. Decide which side this sits on rather than inheriting whichever is nearer to hand.
 - **Coverage outside the US.** The four field names are US-shaped. A provider returning a structured result for an address that does not decompose that way should degrade to filling the line and leaving the rest, not to filling them wrongly.
 
 **Touches.** `src/routes/profile.tsx`, `public/js/profile.js`, `src/routes/routing.ts` (the existing geocode proxy), `style/_forms.scss`.
@@ -539,15 +539,15 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 - [ ] **Default** is the road-sign palette as it stands, including the ink pairing—which field takes the white legend and which takes the black—recorded in `style/_tokens.scss`.
 - [ ] **High contrast** raises every foreground/background pair well past 4.5:1, including the pairs that only just clear it today and the ones that deliberately do not because they are decoration rather than text.
 - [ ] **Colorblind** addresses the collisions the palette has by construction. `$stop` and `$go` are a red/green pair and converge under deuteranopia and protanopia; `$yield` and `$construction` are adjacent ambers. The existing note under the `/import` filename fields—that color is never the only cue—becomes a rule the whole app has to hold to, not a line in one comment.
-- [ ] Audit where color is currently the *only* signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
+- [ ] Audit where color is currently the _only_ signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
 
 **Mechanism—decided 2026-08-15: Sass generates, custom properties carry, `data-theme` switches.**
 
-The obstacle is that several tokens are *derived* rather than authored—`$pending` is `color.adjust($yield, -20%)`, `$label` is `-22%`—and Sass runs at build time, so it cannot recompute them when a custom property changes at runtime. Three ways out, and the third is the one to take:
+The obstacle is that several tokens are _derived_ rather than authored—`$pending` is `color.adjust($yield, -20%)`, `$label` is `-22%`—and Sass runs at build time, so it cannot recompute them when a custom property changes at runtime. Three ways out, and the third is the one to take:
 
 1. **Author every derived value per theme.** Three themes times every derived token, maintained by hand. It throws away the property the palette was just given—one source per hue—and guarantees drift the first time a base color moves.
 2. **Move the derivations to `color-mix()` in CSS.** Genuinely runtime-derivable and well enough supported. But it relocates color arithmetic out of the one file that documents it, and the contrast figures the palette is built on stop being checkable in the place the values live.
-3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the *authored* palette per theme; an `@each` emits one `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied three times. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
+3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the _authored_ palette per theme; an `@each` emits one `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied three times. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
 
 **The real migration cost is not the tokens, it is the 46 inline derivations.** `color.adjust($gpx, -8%)` and friends appear 46 times across the partials, in rules rather than in `_tokens.scss`—hover states, borders, tints. Every one of them reads a Sass variable that will no longer hold the live value once a theme can change it, and `color.adjust()` cannot operate on a `var()`. Each has to become a token emitted per theme. That is the bulk of the work and it should be sized before anything is drawn.
 
@@ -621,7 +621,7 @@ Things deliberately not built, recorded so they do not get proposed twice. These
 | **Inventing new vocabulary**          | Shaping, via, waypoint and stop already mean something different in every tool, and getting it wrong silently ruins a route. Name things the way _devices_ name them, not the way the app thinks about them.                                                                                                                                                           |
 | **Paywalling export or sharing**      | A tool that cannot hand a GPX to a friend on another app is useless for group riding. Accountless view links and unrestricted export stay free regardless of what else ever does not.                                                                                                                                                                                  |
 
-One wording correction that falls out of this: the vision above says RouteLoop is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
+One wording correction that falls out of this: the vision above says Routeloop is "not real-time navigation, and never will be." **Never** overstates it. The accurate claim is that it does not navigate today, and that making the app you already use follow your plan is the better problem to solve first.
 
 ## Good first contributions
 

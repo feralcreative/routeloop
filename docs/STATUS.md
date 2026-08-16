@@ -50,13 +50,13 @@ Production, as of a read-only `db-backup` on 2026-08-13: five accounts. Three ar
 
 ## The new brand assets are wired up, 2026-08-12
 
-New artwork was drawn rather than recovered from `e8d5873^`, and it is **not** the old RouteLoop set. Two aspect ratios moved far enough that no width or height anywhere is a nudge of the previous one—every number was re-derived from a target height:
+New artwork was drawn rather than recovered from `e8d5873^`, and it is **not** the old Routeloop set. Two aspect ratios moved far enough that no width or height anywhere is a nudge of the previous one—every number was re-derived from a target height:
 
-| Lockup | Was | Is |
-| --- | --- | --- |
-| Horizontal | 1595×456 (3.50:1) | 1500×184 (**8.15:1**) |
-| Stacked | 920×648 (1.42:1) | 920×518 (**1.78:1**) |
-| Email | 360×103 (3.50:1) | 800×100 @2x (**8.15:1**) |
+| Lockup     | Was               | Is                       |
+| ---------- | ----------------- | ------------------------ |
+| Horizontal | 1595×456 (3.50:1) | 1500×184 (**8.15:1**)    |
+| Stacked    | 920×648 (1.42:1)  | 920×518 (**1.78:1**)     |
+| Email      | 360×103 (3.50:1)  | 800×100 @2x (**8.15:1**) |
 
 What that forced, and what to look at first if any of it reads wrong:
 
@@ -64,7 +64,7 @@ What that forced, and what to look at first if any of it reads wrong:
 - **The nav lockup is 28px tall**, down from 48px. Every pixel of that height is letterform now, where most of it used to be the bag icon; 48px would draw a 391px banner across the header.
 - **The map badge is 64px**, down from 92px, for the same reason on two lines instead of one.
 - **The email wordmark displays at 400×50**, up from 180×52, which is nearly the full 536px the cell has.
-- **`-dk` is the delivered spelling** of the reversed variant on the site's four SVGs. The suffix still names the *ground*, not the ink. The two email PNGs keep `-dark`, also as delivered—`src/emails/shell.tsx` and `docs/email.md` both say so.
+- **`-dk` is the delivered spelling** of the reversed variant on the site's four SVGs. The suffix still names the _ground_, not the ink. The two email PNGs keep `-dark`, also as delivered—`src/emails/shell.tsx` and `docs/email.md` both say so.
 - **The stacked mark carries no axis suffix**: it is `logo-routeloop.svg`, not `-vt`. `_assets/logo-routeloop-vt.png` is byte-identical to `logo-routeloop-dk@2x.png` and is a mislabeled duplicate; nothing ships from it.
 - **The favicon set is generated, not hand-cut.** `node utils/build-favicons.mjs` renders all eight files in `public/img/favicon/` from `_assets/favicon.svg` through `rsvg-convert`. The `.ico` is assembled in that script from PNG payloads, so the repo needs no icon encoder for it.
 - **The mark inside the 1000×1000 favicon canvas is only 1000×502**, with transparent bands top and bottom. So the manifest's own icons are `purpose: "any"`, and a separate opaque `maskable-*` pair on `#ffdd00` carries the 80% safe zone Android wants. Declaring the transparent, letterboxed icon `any maskable`—which it did—crops a launcher straight into the loop.
@@ -76,16 +76,16 @@ Still open: `_assets/github/tankbag-github-share.png` is the GitHub repo social 
 
 ### The sign-in page fits its fold again
 
-`/login` scrolled, and the logo was not why. **`.splash` held `min-height: 100svh` while the footer sat after it inside `.page-wrap`**, so the document was one viewport *plus* the footer—it scrolled by exactly 52px at every viewport height, and no amount of shrinking the copy could have fixed it, because a `min-height` that large just pads the slack back in. The viewport height moved up to `.page-wrap`, which is now the flex column, and `.splash` takes what the footer leaves via `flex: 1; min-height: 0`.
+`/login` scrolled, and the logo was not why. **`.splash` held `min-height: 100svh` while the footer sat after it inside `.page-wrap`**, so the document was one viewport _plus_ the footer—it scrolled by exactly 52px at every viewport height, and no amount of shrinking the copy could have fixed it, because a `min-height` that large just pads the slack back in. The viewport height moved up to `.page-wrap`, which is now the flex column, and `.splash` takes what the footer leaves via `flex: 1; min-height: 0`.
 
 With that corrected the content still overran the two short tiers, so both were re-cut and a third added. `.splash` is a **flex container, so none of its children's margins collapse**—every margin in that stack is spent in full, which is why the trims are spread across padding, the eyebrow's gaps, the headline and the mark rather than taken out of the logo alone:
 
-| Viewport height | Logo | Headline (max) |
-| --- | --- | --- |
-| Base | 200×113 | 4.5rem |
-| ≤760px | 128×72 | 3rem |
-| ≤700px | 112×63 | 2.5rem |
-| ≤600px | 88×50 | 2.5rem |
+| Viewport height | Logo    | Headline (max) |
+| --------------- | ------- | -------------- |
+| Base            | 200×113 | 4.5rem         |
+| ≤760px          | 128×72  | 3rem           |
+| ≤700px          | 112×63  | 2.5rem         |
+| ≤600px          | 88×50   | 2.5rem         |
 
 The `≤700px` tier was keyed on `620px` before this: the tier above it ran out of budget around 700, so anything between 621 and 700 scrolled with neither tier trimming it. **537px is the measured floor**—below that the page scrolls, and it should. `.providers` is 152px of email field, Google button and note and `.splash-gate` another 94px, and trimming either further means taking away something a visitor came to use.
 
@@ -93,7 +93,7 @@ The `≤700px` tier was keyed on `620px` before this: the tier above it ran out 
 
 The third flip. `routeloop.app` is canonical, `tankbag.app` 301s to it. Entries below this line that say "tankbag" are history and are left as written.
 
-**What made this one cheap:** none of the routeloop infrastructure was ever torn down. Both hostname pairs still have live tunnel routes, the container has been publishing both host ports the whole time, and the Cloudflare Access applications were still named "RouteLoop Login". Each hostname reaches the same port it always has—`routeloop.app` on `:16703`, `tankbag.app` on `:6686`—so `deploy.config` swaps which one is canonical and nothing at Cloudflare moves. **`src/db/schema.ts` contains no brand string at all, so there is no migration and no backfill.**
+**What made this one cheap:** none of the routeloop infrastructure was ever torn down. Both hostname pairs still have live tunnel routes, the container has been publishing both host ports the whole time, and the Cloudflare Access applications were still named "Routeloop Login". Each hostname reaches the same port it always has—`routeloop.app` on `:16703`, `tankbag.app` on `:6686`—so `deploy.config` swaps which one is canonical and nothing at Cloudflare moves. **`src/db/schema.ts` contains no brand string at all, so there is no migration and no backfill.**
 
 **The two file-format contracts are write-new, read-both, permanently:**
 
@@ -106,11 +106,11 @@ Dropping either would have failed **silently**: the files still import, just str
 
 **Cookies were renamed with no legacy read**, deliberately: they are host-scoped with no `domain` attribute, so moving the canonical host invalidates them regardless. Everyone signs in once and the alpha splash reappears once. `routeloop_session`, `routeloop_oauth_state`, `routeloop_oauth_verifier`, `routeloop_invite`, and the two `routeloop.*` localStorage keys.
 
-**Corrected while passing through:** `deploy.config` claimed Compose derives its project name from the deploy directory. That stopped being true when `deploy.sh` started pinning `COMPOSE_PROJECT_NAME`—the volume follows `$PROJECT_NAME`, so anyone following the old comment would migrate the wrong thing. The `$accent` comment in `_tokens.scss` was also inverted: the yellow *was* lifted from the RouteLoop wordmark's dashed center line, and now matches the mark again.
+**Corrected while passing through:** `deploy.config` claimed Compose derives its project name from the deploy directory. That stopped being true when `deploy.sh` started pinning `COMPOSE_PROJECT_NAME`—the volume follows `$PROJECT_NAME`, so anyone following the old comment would migrate the wrong thing. The `$accent` comment in `_tokens.scss` was also inverted: the yellow _was_ lifted from the Routeloop wordmark's dashed center line, and now matches the mark again.
 
 **Not done, and not scriptable from the repo:**
 
-1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones *before* the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
+1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones _before_ the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
 2. **`CLOUDFLARE_ZONE_ID`** in `.env` still points at the tankbag.app zone. The purge failure is non-fatal, so a wrong zone means stale assets behind a green deploy.
 3. **The infrastructure rename needs a data migration.** `PROJECT_NAME`, the container/image/network names and the Postgres role and database all move to `routeloop`. The deploy directory follows `$DOMAIN` and carries the bind-mounted `data/storage` with it; the named volume follows `$PROJECT_NAME` and does not follow a `mv`. Back up first, bring the old stack down from the old directory by hand (the deploy's own `down` runs in the new one and cannot see it), and do not trust the deploy's verification—the origin curl is a warning only and the container check passes against an empty database.
 4. **GCP console object names are left alone**, following the precedent set at the last rename. The project cannot be renamed in place and the keys are identified by uid.
@@ -576,16 +576,16 @@ Branch `fix/editor-interface-sizing`. All eleven items from `_PLANS/sprint-07-26
 
 ### What went in
 
-| Item   | Result                                                                  |
-| ------ | ----------------------------------------------------------------------- |
-| 1      | The day slider picks the working day; "All" is a view                   |
-| 2      | POIs interleaved by distance, and they carry a duration                 |
+| Item   | Result                                                                 |
+| ------ | ---------------------------------------------------------------------- |
+| 1      | The day slider picks the working day; "All" is a view                  |
+| 2      | POIs interleaved by distance, and they carry a duration                |
 | 3, 7   | Panel grouped into ride / trip / day bands, day icons tinted its color |
-| 4, 5   | Time stopped replaced by **twistiness**, with an FAQ entry              |
-| 6      | Panel terms link to their FAQ answers                                   |
-| 8      | Nav's last four items folded into an About submenu                      |
-| 9      | FAQ is an accordion with stable anchors                                 |
-| 10, 11 | Bio years computed at render; tagline removed                           |
+| 4, 5   | Time stopped replaced by **twistiness**, with an FAQ entry             |
+| 6      | Panel terms link to their FAQ answers                                  |
+| 8      | Nav's last four items folded into an About submenu                     |
+| 9      | FAQ is an accordion with stable anchors                                |
+| 10, 11 | Bio years computed at render; tagline removed                          |
 
 Plus one unplanned commit: the 24 `darken()`/`lighten()` calls became `color.adjust()`, so the SCSS build is silent rather than emitting 38 deprecation warnings that had been getting waved through.
 
@@ -819,7 +819,7 @@ Two things the writer needed that the reader never did:
 
 ### The route-ordering trap, which actually fired
 
-`GET /api/public/maps/:slug/zip/:format` was registered *after* the generic `:format` download route and was silently shadowed by it—`/zip/gpx` answered 200 with a plain GPX body and no attachment header. `/api/public/maps/:slug/nonsense/gpx` did the same, so the generic route is matching two-segment paths. Registering the zip route first fixes it. **Found by requesting it, not by reading the code**, which is the only way it was going to be found.
+`GET /api/public/maps/:slug/zip/:format` was registered _after_ the generic `:format` download route and was silently shadowed by it—`/zip/gpx` answered 200 with a plain GPX body and no attachment header. `/api/public/maps/:slug/nonsense/gpx` did the same, so the generic route is matching two-segment paths. Registering the zip route first fixes it. **Found by requesting it, not by reading the code**, which is the only way it was going to be found.
 
 ### Where a rider is told about it
 

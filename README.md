@@ -1,16 +1,16 @@
 <!-- markdownlint-disable-next-line MD041 -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="public/img/logo-routeloop-dk.svg">
-  <img src="public/img/logo-routeloop.svg" alt="RouteLoop" width="196">
+  <img src="public/img/logo-routeloop.svg" alt="Routeloop" width="196">
 </picture>
 
 <br><br>
 
-# RouteLoop
+# Routeloop
 
 A web app for **planning, organizing, and sharing** motorcycle rides and car road trips. Riders build a route on an interactive map—dropping stops, classifying them (gas, food, camp, lodging, scenic…), with the road route snapped between them—then manage it, share it by link, and export it. Existing route files (KML, GPX) can be imported to migrate in.
 
-It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—RouteLoop has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [AGENTS.md](AGENTS.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
+It is deliberately a **planning and sharing tool, not a turn-by-turn navigation app**. The problem it solves: Google My Maps caps at ~10 waypoints and one route per layer and can't be used to navigate—Routeloop has no such limits and gives a holistic view of an entire multi-day ride. For deep technical onboarding see [AGENTS.md](AGENTS.md); the vision is in [docs/ideas.md](docs/ideas.md); the dev roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md); current state and next steps are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Status
 
@@ -55,7 +55,7 @@ Delivered in phases:
 - **Organize**—a ride packages one or more days, all drawn on **one map at the same time** so you see the whole ride; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
 - **Share**—public, unlisted, or private visibility, shareable by link.
 - **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one ride, and files following the naming convention below arrive already named, ordered and dated.
-- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as RouteLoop JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
+- **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Routeloop JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
@@ -238,7 +238,7 @@ Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns
 
 Every stop and POI carries one or more of 17 roles, defined canonically in `src/maps/roles.ts`. **In the builder you set them by clicking role icons**—roles are first-class enum values in the database, never encoded in a name.
 
-The `ROLE - Name` name-prefix convention is **only an import and export detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—RouteLoop parses the prefix into roles on import, and writes it back out on export so files reopen correctly in Google Earth and elsewhere.
+The `ROLE - Name` name-prefix convention is **only an import and export detail, not how you classify in the app**. When an imported KML/GPX file already labels its placemarks that way—the convention the old file-upload workflow and Google Earth use—Routeloop parses the prefix into roles on import, and writes it back out on export so files reopen correctly in Google Earth and elsewhere.
 
 So an _imported_ name may carry a prefix, combining up to four roles with `/`:
 
@@ -273,7 +273,7 @@ Icons live in `public/img/icons/`, designed in [this Figma document](https://www
 
 ## The file naming convention
 
-Every file RouteLoop exports names itself so that dropping a folder of them back in reconstructs the ride. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
+Every file Routeloop exports names itself so that dropping a folder of them back in reconstructs the ride. Defined canonically in `src/maps/filename.ts`, mirrored for the browser in `public/js/filename.js`, and the two are held together by `test/filename-client.test.ts`.
 
 ```text
 routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
@@ -346,4 +346,4 @@ DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
 
 ## Provenance
 
-RouteLoop reuses the client-side map engine from the original [Moto-Rooter](https://github.com/feralcreative/moto-rooter) static viewer. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.
+Routeloop reuses the client-side map engine from the original [Moto-Rooter](https://github.com/feralcreative/moto-rooter) static viewer. The backend was rebuilt PHP/MySQL → TypeScript + Hono + PostgreSQL, then the product pivoted from file upload to the in-app ride builder. The rendering behavior, mileage math, and waypoint taxonomy were ported forward; the upload path survives as import.

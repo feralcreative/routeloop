@@ -55,7 +55,7 @@ export async function sendMail(o: SendOpts): Promise<void> {
       // problem — deploy.sh writes the value into a compose .env through printf,
       // where quoting rules differ from a shell's and a stray character would
       // reach the SMTP envelope.
-      from: `RouteLoop <${MAIL_FROM}>`,
+      from: `Routeloop <${MAIL_FROM}>`,
       to: o.to,
       subject: o.subject,
       text: o.text,

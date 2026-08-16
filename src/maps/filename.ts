@@ -2,7 +2,7 @@
 //
 // Two lossy edges meet in a filename. GPX and KML carry no dates at all, so a
 // ride exported as the format every GPS actually reads loses its schedule —
-// `days.start_at` survives a round trip through RouteLoop JSON and nowhere else. And
+// `days.start_at` survives a round trip through Routeloop JSON and nowhere else. And
 // importing a folder is data entry the files already describe: day order comes
 // from whatever order the browser lists them in, and the ride name is typed by
 // hand every time.
@@ -13,7 +13,7 @@
 //
 // **A filename cannot hold the ride and is not trying to.** Roles, dwell, via
 // points, per-day colors and the stop/POI distinction do not fit in one and are
-// not going in one — RouteLoop JSON stays the lossless format (see export.ts).
+// not going in one — Routeloop JSON stays the lossless format (see export.ts).
 // This carries the four fields the lossy formats drop, and nothing else.
 //
 // Three rules the whole design rests on:

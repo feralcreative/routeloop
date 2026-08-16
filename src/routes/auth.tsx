@@ -101,14 +101,12 @@ authRoutes.get('/login', (c) => {
           <div class="splash-gate">
             <p>
               <span class="splash-gate-lede">Hey: </span>
-              RouteLoop is in active development. <strong>Beta testing is next</strong> and it’s invite-only, approved by
-              hand a few riders at a time. Getting on the list is what you can do today.{' '}
+              Routeloop is in active development. <strong>Beta testing is next</strong> and it’s invite-only, approved
+              by hand a few riders at a time. Getting on the list is what you can do today.{' '}
               <a href="/faq#invites">Why it works this way</a>.
             </p>
           </div>
-          {notice && (
-            <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>
-          )}
+          {notice && <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>}
           {failed && (
             <p class="notice is-error">
               {failed === 'link'
@@ -407,7 +405,7 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       body: (
         <SplashPage eyebrow="You’re on the list" heading="Hang tight.">
           <p class="splash-copy">
-            You’re in the queue for <strong>beta testing</strong>. RouteLoop is in closed alpha right now—developers
+            You’re in the queue for <strong>beta testing</strong>. Routeloop is in closed alpha right now—developers
             only—and riders are waved in by hand, a few at a time. You’ll be able to sign in and start planning once
             yours comes up.
           </p>

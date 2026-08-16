@@ -29,16 +29,16 @@ const EXPIRY = 'This link works once and expires in 15 minutes. If you didn’t 
 export const magicLinkEmail = defineEmail<Props>({
   key: 'magic-link',
 
-  subject: () => 'Your RouteLoop sign-in link',
+  subject: () => 'Your Routeloop sign-in link',
 
   preheader: () => 'Works once, expires in 15 minutes.',
 
-  text: ({ url }) => ['Sign in to RouteLoop:', '', url, '', EXPIRY].join('\n'),
+  text: ({ url }) => ['Sign in to Routeloop:', '', url, '', EXPIRY].join('\n'),
 
   html: ({ url }) =>
     (
       <>
-        <P>Sign in to RouteLoop:</P>
+        <P>Sign in to Routeloop:</P>
         <Button href={url}>Sign in</Button>
         <Muted>
           Or paste this into your browser: <A href={url}>{url}</A>

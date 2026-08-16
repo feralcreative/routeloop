@@ -265,7 +265,9 @@
     // another app" but "give me this ride on paper".
     if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false));
     if (state.ride.nativeUrl) {
-      dls.push(dlButton(state.ride.nativeUrl + "?dl", "RouteLoop", true, "Lossless \u2014 re-imports as the same ride"));
+      dls.push(
+        dlButton(state.ride.nativeUrl + "?dl", "Routeloop", true, "Lossless \u2014 re-imports as the same ride"),
+      );
     }
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
       dls.push(dlButton(state.ride.externalUrl, "URL", false));

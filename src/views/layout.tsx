@@ -70,7 +70,7 @@ export type NavKey =
   | 'survey-results'
 
 export type PageOpts = {
-  /** Without the " – RouteLoop" suffix; page() appends it. */
+  /** Without the " – Routeloop" suffix; page() appends it. */
   title: string
   user: UserRow | null
   body: string
@@ -163,7 +163,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
   return (
     <header class="site-header" id="site-header">
       <a class="site-logo" href="/">
-        <img src={logo.src} alt="RouteLoop" width={logo.w} height={logo.h} />
+        <img src={logo.src} alt="Routeloop" width={logo.w} height={logo.h} />
       </a>
       {/*
         A <details>, not a button plus a script. The browser owns open/closed,
@@ -244,14 +244,17 @@ export function panelShell(o: {
           <img src="/img/icons/icon-collapse.svg" alt="" class="collapse-icon" />
         </button>
         {o.exitHref && (
-          <a class="panel-exit" href={o.exitHref} aria-label={o.exitLabel ?? 'Leave the map'} title={o.exitLabel ?? 'Leave the map'}>
+          <a
+            class="panel-exit"
+            href={o.exitHref}
+            aria-label={o.exitLabel ?? 'Leave the map'}
+            title={o.exitLabel ?? 'Leave the map'}
+          >
             ✕
           </a>
         )}
       </div>
-      {(o.titleHtml || o.title) && (
-        <h1 class="panel-title">{o.titleHtml ? raw(o.titleHtml) : o.title}</h1>
-      )}
+      {(o.titleHtml || o.title) && <h1 class="panel-title">{o.titleHtml ? raw(o.titleHtml) : o.title}</h1>}
       <div class="panel-contents-wrapper">
         {/* Already-rendered markup from the caller, hence raw(). */}
         <div class="panel-content">{raw(o.contents)}</div>
@@ -389,7 +392,7 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">RouteLoop is in a closed alpha.</p>}
+      {!splash && <p class="site-footer-note">Routeloop is in a closed alpha.</p>}
     </footer>
   ).toString()
 }
@@ -402,9 +405,9 @@ export function page(opts: PageOpts): string {
     .filter(Boolean)
     .join(' ')
   // A spaced EN dash, not an em dash. Em dashes are tight everywhere in this
-  // product, and "Coast Run—RouteLoop" reads as one compound word rather than a
+  // product, and "Coast Run—Routeloop" reads as one compound word rather than a
   // page inside a site. A title separator is the case the en dash exists for.
-  const title = `${esc(opts.title)} – RouteLoop`
+  const title = `${esc(opts.title)} – Routeloop`
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>

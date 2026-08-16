@@ -14,33 +14,33 @@ How the app is put together, and which boundaries are load-bearing. Operating in
 
 `src/` is organized by subject, not by layer.
 
-| Path | What it owns |
-|---|---|
-| `index.tsx` | Hono app, host canonicalization, static assets, viewer, `ride.json`, gated download streams |
-| `config.ts` | Env-derived constants, allowed origins, feature flags, `IS_DEV` |
-| `db/schema.ts` | Drizzle schema—source of truth |
-| `db/seed.ts` | Dev seed: user #1 plus a sample ride |
-| `auth/` | `session.ts`, `middleware.ts` (the gates), `identity.ts`, `google.ts`, `magic.ts`, `mailer.ts`, `username.ts`, `ratelimit.ts` |
-| `maps/roles.ts` | The canonical 17-role taxonomy—parse and format |
-| `maps/kml.ts` | XXE-safe parse, extraction, sanitize, KML and GPX |
-| `maps/kmz.ts` | KMZ policy: one entry, the first `.kml`. Zip mechanics live in `zip.ts` |
-| `maps/zip.ts` | Zip read and write; caps the decompressed size during inflate |
-| `maps/geojson.ts` | GeoJSON in—the only interchange format that keeps roles, stop/POI and dwell |
-| `maps/csv.ts` | RFC 4180 stop lists—no geometry, and none invented |
-| `maps/export.ts` | Generates KML, GPX, GeoJSON, CSV and lossless RouteLoop JSON |
-| `maps/ride-graph.ts` | The ride payload schema, `normalize`, `insertRideGraph`, and the caps |
-| `maps/filename.ts` | The export filename convention—parse, build, plan |
-| `maps/storage.ts` | Integer-id file paths, containment-checked writes |
-| `maps/expand.ts` | Shaping points that bound the longest unpinned stretch |
-| `maps/gmaps-links.ts` | A day as batched Google Maps directions URLs |
-| `maps/twist.ts` | Twistiness: degrees of heading change per mile |
-| `maps/slug.ts`, `palette.ts`, `fields.ts`, `turnstile.ts` | Share ids, day colors, shared scalar field rules, siteverify |
-| `routes/` | One module per surface; see [api.md](api.md) |
-| `invites/`, `survey/`, `stats/` | Rule split from query—`policy.ts`/`score.ts`/`shape.ts` are pure and tested, `service.ts`/`questions.ts`/`query.ts` touch the database |
-| `emails/` | JSX email templates plus `rules.ts` (what may be sent) and `theme.ts` |
-| `views/` | `layout.tsx` shell, `splash.tsx`, `cards.tsx`, `esc.ts`, `assets.ts` cache-busting |
-| `content/` | Static prose as HTML—faq, privacy, terms |
-| `dev/livereload.ts` | SSE reload endpoint, gated on `IS_DEV` |
+| Path                                                      | What it owns                                                                                                                           |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.tsx`                                               | Hono app, host canonicalization, static assets, viewer, `ride.json`, gated download streams                                            |
+| `config.ts`                                               | Env-derived constants, allowed origins, feature flags, `IS_DEV`                                                                        |
+| `db/schema.ts`                                            | Drizzle schema—source of truth                                                                                                         |
+| `db/seed.ts`                                              | Dev seed: user #1 plus a sample ride                                                                                                   |
+| `auth/`                                                   | `session.ts`, `middleware.ts` (the gates), `identity.ts`, `google.ts`, `magic.ts`, `mailer.ts`, `username.ts`, `ratelimit.ts`          |
+| `maps/roles.ts`                                           | The canonical 17-role taxonomy—parse and format                                                                                        |
+| `maps/kml.ts`                                             | XXE-safe parse, extraction, sanitize, KML and GPX                                                                                      |
+| `maps/kmz.ts`                                             | KMZ policy: one entry, the first `.kml`. Zip mechanics live in `zip.ts`                                                                |
+| `maps/zip.ts`                                             | Zip read and write; caps the decompressed size during inflate                                                                          |
+| `maps/geojson.ts`                                         | GeoJSON in—the only interchange format that keeps roles, stop/POI and dwell                                                            |
+| `maps/csv.ts`                                             | RFC 4180 stop lists—no geometry, and none invented                                                                                     |
+| `maps/export.ts`                                          | Generates KML, GPX, GeoJSON, CSV and lossless Routeloop JSON                                                                           |
+| `maps/ride-graph.ts`                                      | The ride payload schema, `normalize`, `insertRideGraph`, and the caps                                                                  |
+| `maps/filename.ts`                                        | The export filename convention—parse, build, plan                                                                                      |
+| `maps/storage.ts`                                         | Integer-id file paths, containment-checked writes                                                                                      |
+| `maps/expand.ts`                                          | Shaping points that bound the longest unpinned stretch                                                                                 |
+| `maps/gmaps-links.ts`                                     | A day as batched Google Maps directions URLs                                                                                           |
+| `maps/twist.ts`                                           | Twistiness: degrees of heading change per mile                                                                                         |
+| `maps/slug.ts`, `palette.ts`, `fields.ts`, `turnstile.ts` | Share ids, day colors, shared scalar field rules, siteverify                                                                           |
+| `routes/`                                                 | One module per surface; see [api.md](api.md)                                                                                           |
+| `invites/`, `survey/`, `stats/`                           | Rule split from query—`policy.ts`/`score.ts`/`shape.ts` are pure and tested, `service.ts`/`questions.ts`/`query.ts` touch the database |
+| `emails/`                                                 | JSX email templates plus `rules.ts` (what may be sent) and `theme.ts`                                                                  |
+| `views/`                                                  | `layout.tsx` shell, `splash.tsx`, `cards.tsx`, `esc.ts`, `assets.ts` cache-busting                                                     |
+| `content/`                                                | Static prose as HTML—faq, privacy, terms                                                                                               |
+| `dev/livereload.ts`                                       | SSE reload endpoint, gated on `IS_DEV`                                                                                                 |
 
 ## One map engine
 
@@ -65,11 +65,11 @@ The marker, tooltip and mileage behavior in `map-common.js` was ported from the 
 
 ## The builder is multi-day, on one map
 
-**Every day is drawn at once, always.** Seeing the whole ride on a single map is the point of the app, so the day slider is a *focus* control and never a navigation one: sliding to a day dims the others via `setRouteDim` (the same call the viewer's legend hover uses) and hides nothing. Position 0 is "all days" and dims nothing.
+**Every day is drawn at once, always.** Seeing the whole ride on a single map is the point of the app, so the day slider is a _focus_ control and never a navigation one: sliding to a day dims the others via `setRouteDim` (the same call the viewer's legend hover uses) and hides nothing. Position 0 is "all days" and dims nothing.
 
 Consequences before editing `public/js/builder.js`:
 
-- **Edits always target exactly one day.** `editIndex()` is the focused day, or the *last* day when the slider sits on "all"—that being the day you are extending. The label says which (`All days · editing Day 3`) so the color swatch is never ambiguous.
+- **Edits always target exactly one day.** `editIndex()` is the focused day, or the _last_ day when the slider sits on "all"—that being the day you are extending. The label says which (`All days · editing Day 3`) so the color swatch is never ambiguous.
 - **Clicking a marker on a dimmed day focuses that day first**, otherwise the row it scrolls to would not be in the rendered list.
 - **A new day is seeded with the previous day's last stop**, because a day begins where the last one ended.
 - **Layers are keyed by day index**, so a delete or reorder invalidates every key at or after it. `rebuildLayers()` tears down and re-adds all of them rather than patching—O(days) on a list capped at 31, and it removes a whole class of stale-layer bug.
@@ -99,14 +99,14 @@ routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
 - **A title read off a filename is a guess**—`avenue-of-giants` comes back "Avenue Of Giants"—so the importer prefers a file's own internal name. **The date has no such competition and is authoritative**, and for GPX and KML it is the only place a schedule can survive at all.
 - **Visibility and timezone are deliberately not fields.** A file named `public` that publishes a ride on import is a footgun; a filename claiming a zone would invent one.
 
-`src/maps/zip.ts` owns both zip directions. The reader was `kmz.ts`'s internals and moved when a second caller appeared; `kmz.ts` kept the *policy* and its own error wording. `test/helpers/zip.ts` is a **different** writer that stays: it builds deliberately malformed archives for the reader's tests, writes no CRC, and would produce a file macOS refuses.
+`src/maps/zip.ts` owns both zip directions. The reader was `kmz.ts`'s internals and moved when a second caller appeared; `kmz.ts` kept the _policy_ and its own error wording. `test/helpers/zip.ts` is a **different** writer that stays: it builds deliberately malformed archives for the reader's tests, writes no CRC, and would produce a file macOS refuses.
 
 ## The security pipeline (imports)
 
 Ported from the PHP era and preserved. Re-derive these, never drop them.
 
 - **XXE-safe XML parse** (`src/maps/kml.ts`)—reject any `<!DOCTYPE>` before parsing; `@xmldom/xmldom` does no network or entity resolution. A KMZ is unzipped and then handed to `processKml`, so it converges on this defense rather than routing around it.
-- **Decompression cap** (`src/maps/zip.ts`)—enforced *during* inflate via `maxOutputLength`, not read from the archive header. A zip bomb is small on the wire and its declared size is whatever the author typed.
+- **Decompression cap** (`src/maps/zip.ts`)—enforced _during_ inflate via `maxOutputLength`, not read from the archive header. A zip bomb is small on the wire and its declared size is whatever the author typed.
 - **Structural depth check** (`src/maps/geojson.ts`)—JSON has no entities, so deep nesting is the remaining structural attack; it is rejected before `JSON.parse` runs.
 - **Server-side extraction**—waypoint roles parsed from name prefixes; the route track is the longest coordinate line; mileage is authoritative.
 - **Sanitization**—`sanitizeText` strips tags and defuses `javascript:` and `data:` schemes in every name and description, at rest; the viewer's `esc()` is the second layer.

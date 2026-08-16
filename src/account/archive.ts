@@ -239,7 +239,7 @@ function archiveRide({ ride, startDate, originals }: ArchiveRideInput): ArchiveR
 export function readmeText(archive: AccountArchive): string {
   const rides = archive.rides.length
   return [
-    'Your RouteLoop account',
+    'Your Routeloop account',
     '======================',
     '',
     `Exported ${archive.exportedAt} from ${archive.exportedFrom}.`,

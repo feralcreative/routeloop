@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something RouteLoop should do and does not
+about: Something Routeloop should do and does not
 title: ''
 labels: enhancement
 assignees: ''
