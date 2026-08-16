@@ -31,14 +31,14 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 2. The ride timeline             | "a route's duration" → "a day's duration"                                               | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
 | 5. One-tap Google Maps links     | batching described per route → **per day**, in three places                             | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)                                     |
 | 9. Import and export breadth     | "colours" → "colors"                                                                    | [#13](https://github.com/feralcreative/routeloop/issues/13)                                              |
-| 12. Quality and platform         | test count 424/20 files → **777/34**                                                    | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
+| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)              | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
 | 13. Rider Subgroups              | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**    | [#67](https://github.com/feralcreative/routeloop/issues/67)                                              |
 | 14. Alternate routes and voting  | "day/route-level" → **day-level**                                                       | [#68](https://github.com/feralcreative/routeloop/issues/68)                                              |
 | 15. On-the-road mobile interface | "a route's Google Maps legs" → "a day's"                                                | [#69](https://github.com/feralcreative/routeloop/issues/69)                                              |
 | Backlog → elevation profile      | "per route" → **per day**                                                               | [#23](https://github.com/feralcreative/routeloop/issues/23)                                              |
 | Backlog → reverse and duplicate  | marked **shipped**; it was still listed as unbuilt                                      | [#26](https://github.com/feralcreative/routeloop/issues/26) already closed—no action                     |
 | 7. Bikes and range planning      | one-line stub replaced with a decided schema: bikes one-to-many off users, seven fields | [#11](https://github.com/feralcreative/routeloop/issues/11)                                              |
-| Backlog → drag-to-reorder        | affordance decided: a textured drag bar, not arrows                                     | [#39](https://github.com/feralcreative/routeloop/issues/39)                                              |
+| Backlog → drag-to-reorder        | affordance decided: a textured drag bar, not arrows                                     | [#39](https://github.com/feralcreative/routeloop/issues/39)—**shipped 2026-08-15**, no action            |
 
 Cleared on 2026-08-15: every entry that read "needs a new issue" now has one. Items 16, 17, 18, 19 and 20 became [#88](https://github.com/feralcreative/routeloop/issues/88) (an epic with eleven children, one of which is the pre-existing [#39](https://github.com/feralcreative/routeloop/issues/39)), [#99](https://github.com/feralcreative/routeloop/issues/99), [#100](https://github.com/feralcreative/routeloop/issues/100), [#101](https://github.com/feralcreative/routeloop/issues/101) and [#102](https://github.com/feralcreative/routeloop/issues/102). The dashboard got its first issue ever, [#103](https://github.com/feralcreative/routeloop/issues/103), and its own `area:dashboard` label.
 
@@ -81,9 +81,13 @@ P1 used to be _the group layer_. It is now _the builder_. The reasoning, recorde
 
 **With P0 clear, P1 is the work.**
 
-**P1—the builder, and item 16 first within it.** The panel is the app's primary work surface and the one that has never been designed as one. Item 16 is where its twelve decided changes live, and it sequences itself: **autosave lands before the action row** (which deletes the Save button and probably Discard with it, so the row that survives is not the row that exists today) and **before the exit-guard question** (autosave may remove the reason for a confirm dialog entirely). Everything else on the list is independent of that pair.
+**P1—the builder. Item 16 was first within it and is now done**, shipped 2026-08-15 on `feat/builder-panel` and awaiting review; the panel's eleven decided changes all landed in one day, in five phases. Re-measured on the ride the numbers above came from, its content is **618px in a 617px window** where it was 807 in 620, and the seven-stop day no longer scrolls. Nothing about the tier changed—the reasoning that moved P1 here still holds, and the rest of the list below is what it now means.
 
-The rest of P1 is the issues that touch `public/js/builder.js` and the map engine—drag-to-reorder ([#39](https://github.com/feralcreative/routeloop/issues/39)), keyboard shortcuts ([#40](https://github.com/feralcreative/routeloop/issues/40)), splitting a long day ([#49](https://github.com/feralcreative/routeloop/issues/49)), lodging as a day boundary ([#54](https://github.com/feralcreative/routeloop/issues/54)), detour-radius discovery ([#50](https://github.com/feralcreative/routeloop/issues/50)), layer stacking ([#51](https://github.com/feralcreative/routeloop/issues/51)), saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)).
+The rest of P1 is the issues that touch `public/js/builder.js` and the map engine. Drag-to-reorder ([#39](https://github.com/feralcreative/routeloop/issues/39)) came off this list with item 16, which adopted it. What is left: keyboard shortcuts ([#40](https://github.com/feralcreative/routeloop/issues/40)), splitting a long day ([#49](https://github.com/feralcreative/routeloop/issues/49)), lodging as a day boundary ([#54](https://github.com/feralcreative/routeloop/issues/54)), detour-radius discovery ([#50](https://github.com/feralcreative/routeloop/issues/50)), layer stacking ([#51](https://github.com/feralcreative/routeloop/issues/51)), saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)).
+
+**Read #15 before starting it, and read item 16's ID-churn note first.** Autosave made `PUT /api/rides/:id` run constantly, and it deletes and re-inserts every day and point, so identifiers change on every save. That is safe today only because nothing references a point across one. Rich stop details is the first thing on this list that would.
+
+**They are no longer blocked on the panel being worth adding to**, which was the argument for doing item 16 ahead of all seven.
 
 **[#16](https://github.com/feralcreative/routeloop/issues/16) stays P1 on its own argument**—rate limiting, per the note above. It is the one P1 that is not builder work.
 
@@ -132,7 +136,10 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Roadbook**—a printable stop-by-stop sheet: leg and cumulative miles, miles since fuel, planned dwell, and an estimated clock.
 - **Route shaping**—drag the route line onto the road you meant; the dropped point becomes an ephemeral via-point on the right leg and only that leg re-routes.
 - **Undo and drafts**—undo/redo in the builder, plus a draft that survives a crash, a closed tab or a dead phone, including for a ride that has never been saved.
-- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 20 and 22. (777 tests across 34 files as of 2026-08-10; `npm test` is the authority, not this number.)
+- **Autosave**—the builder has no Save button. A 3s idle debounce and a 20s ceiling, with the crash draft still underneath for the cases a server flush cannot cover.
+- **The builder panel, designed as one surface**—item 16 entire: the ride's name as the heading, an exit off the map, a drag handle and one menu per row, fixed footprints for everything that used to grow, the timeline moved out onto the map's bottom edge, and stop durations in whichever format the rider picks.
+- **Basemaps**—the map opens on Google's terrain layer, with roadmap, satellite and hybrid behind a switcher that remembers the choice per rider.
+- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 20 and 22. (869 tests across 37 files as of 2026-08-15; `npm test` is the authority, not this number.)
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
@@ -167,9 +174,11 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] A timeline slider across the viewer and builder that maps a moment to the leg/section active then, dimming the rest without hiding anything.
 - [x] Sensible defaults: derive a day's duration from its legs, and seed each day's start from the previous day's end.
 
-**Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/rides.ts`, `src/index.tsx` (the `ride.json` contract has to start carrying per-leg data—it currently flattens every leg into one track).
+**Touches.** `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js`, `src/db/schema.ts` (already has the fields), `src/routes/builder.ts` (renamed from `rides.ts`), `src/views/layout.tsx` (`rideTimeline()`, which both map shells render), `src/index.tsx`.
 
 **Status.** done on `feat/trip-timeline-slider`, closing #7 and #19. Duration is derived as legs **plus** stop dwell, and deliberately kept separate from `days.duration_s`, which caches riding time only. `ride.json` now carries per-leg spans—the viewer could not map a moment to a leg without them. The time model is shared by both clients in `public/js/ride-time.js` so they cannot disagree. See docs/STATUS.md for the rest, including the two properties of leg spans that real data will break a naive assumption about.
+
+**Moved 2026-08-15, under item 16.** The slider was inside the builder's tool panel and the viewer's; it is now a bar across the bottom edge of the map on both, which is where this section's own Vision line has always put it—"a slider across the bottom of every ride and day". Only its home changed: the time model, the ids and both clients' handling are the same. It also **hides rather than going inert** on a ride with no dates now, which is the opposite of what it did in the panel and right for the opposite reason—there is nothing underneath it on the map for a disappearing control to reflow.
 
 ### 3. Route shaping and server-side export
 
