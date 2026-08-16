@@ -154,25 +154,33 @@ describe('the logo assets', () => {
   const expand = (hex: string) =>
     hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join('')}`.toLowerCase() : hex.toLowerCase()
 
+  // READ FROM public/img, WHICH IS THE ONLY COPY THE REPO HAS.
+  //
+  // These used to read `_assets/`, and a pair of companion cases compared the
+  // two directories to catch "you updated the source and shipped nothing".
+  // `_assets/` is Ziad's raw creative folder — 4.3 GB of masters, most of it
+  // never destined for the site — and it was taken out of the repo on
+  // 2026-08-15, which broke all four of these on every machine but his.
+  //
+  // The drift comparison went with it rather than being repointed, because with
+  // one copy in the repo there is nothing to compare it to; a test asserting a
+  // file equals itself is worse than no test. What survives is the assertion
+  // that still means something: the served artwork's own ground has to match the
+  // card color the email draws it on, or the logo sits on a visible rectangle of
+  // the wrong shade in an inbox.
+  //
+  // The rule this leaves behind, for whoever redraws the mark: export straight
+  // into public/img/. Nothing reads from `_assets/` any more, so a master
+  // updated there and nowhere else ships nothing and no test will say so.
   it('the dark logo is drawn on the dark card color', () => {
-    expect(groundOf('_assets/logo-routeloop-email-hz-dark@2x.png')).toBe('#000000')
+    expect(groundOf('public/img/logo-routeloop-email-hz-dark@2x.png')).toBe('#000000')
     expect(expand(DARK.cardBg)).toBe('#000000')
   })
 
   it('the light logo is drawn on the light card color', () => {
-    expect(groundOf('_assets/logo-routeloop-email-hz@2x.png')).toBe('#ffffff')
+    expect(groundOf('public/img/logo-routeloop-email-hz@2x.png')).toBe('#ffffff')
     expect(expand(COLORS.white)).toBe('#ffffff')
   })
-
-  // _assets holds the artwork; public/img is what /img/* actually serves. The
-  // email points at the served copy, so updating only the source ships nothing.
-  for (const name of ['logo-routeloop-email-hz@2x.png', 'logo-routeloop-email-hz-dark@2x.png']) {
-    it(`${name} is identical in _assets and public/img`, () => {
-      const src = readFileSync(`_assets/${name}`)
-      const served = readFileSync(`public/img/${name}`)
-      expect(served.equals(src), `public/img/${name} has drifted from _assets/${name}`).toBe(true)
-    })
-  }
 })
 
 // Encodes the reasoning in theme.ts as arithmetic, so a grey cannot be nudged

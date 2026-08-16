@@ -101,7 +101,7 @@ The header wordmark is a PNG, one per color scheme, swapped by the dark-mode blo
 
 |        |                                                                                                                      |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Source | `_assets/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png`                                                         |
+| Source | `public/img/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png`—export straight here, nothing reads `_assets/` |
 | Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
 | Size   | 800×100, ~10 KB each, displayed at 400×50 so the file named is the 2x asset                                          |
 

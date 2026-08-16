@@ -1,5 +1,5 @@
 // Regenerates every derived icon in public/img/favicon/ from the two source
-// SVGs in _assets/. Run it after redrawing the mark:
+// SVGs beside them. Run it after redrawing the mark:
 //
 //   node utils/build-favicons.mjs
 //
@@ -15,8 +15,18 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const SRC_LIGHT = '_assets/favicon.svg'
-const SRC_DARK = '_assets/favicon-dk.svg'
+// The sources live in the repo, next to what they generate. They used to sit in
+// `_assets/`, which is Ziad's raw creative folder and is deliberately NOT
+// committed — so this script broke the moment anyone else cloned, and so did the
+// test that compared the served logos against it. Anything the build or the
+// suite needs belongs under public/; `_assets/` is where work happens, not where
+// the repo reads from.
+//
+// `source-` names them apart from the eight derived files in the same folder.
+// The script only ever writes those eight, so the sources sitting beside them
+// are safe from it.
+const SRC_LIGHT = 'public/img/favicon/source-light.svg'
+const SRC_DARK = 'public/img/favicon/source-dark.svg'
 const OUT = 'public/img/favicon'
 
 // The road color in each source. The two SVGs are otherwise identical, which is
