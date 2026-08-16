@@ -541,8 +541,43 @@ export const days = pgTable(
     // the number that actually tells a rider whether to go — a day average
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
+    // ALTERNATES: two or more candidate routings for the same stretch, of which
+    // exactly one counts toward the ride's mileage. See src/maps/alternates.ts,
+    // which owns every rule about these two columns.
+    //
+    // A WITHIN-PAYLOAD PARTITION KEY, NOT A STABLE ID. `alt_group` is rewritten
+    // densely from 0 on every save and means only "these days are siblings".
+    // Nothing may store it, join to it from another table, or expect the value
+    // a rider saw yesterday. That is forced rather than chosen: the autosave in
+    // src/routes/builder.ts deletes every day of a ride and reinserts it, so no
+    // `days.id` survives a save and a real foreign key has nothing to point at.
+    //
+    // Null means a plain day. A group always has at least two members — one is
+    // dissolved back to null — so a non-null value here is never alone.
+    altGroup: smallint('alt_group'),
+    // Which member of the group counts. Meaningless while alt_group is null,
+    // and forced true there so a stale false cannot hide a plain day from every
+    // mileage total in the app.
+    //
+    // NOT NULL DEFAULT true is what makes this migration need no backfill:
+    // `alt_group IS NULL, alt_active = TRUE` is already a true description of
+    // every row that existed before it, so every stored rides.total_miles and
+    // every dashboard figure stays correct on the day it lands. Contrast
+    // twistiness_dpm above, which needed utils/backfill-twistiness.ts.
+    altActive: boolean('alt_active').notNull().default(true),
   },
-  (t) => [uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position)],
+  (t) => [
+    uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position),
+    // A TRIPWIRE, NOT A GATE. resolveAltGroups() is total and always elects
+    // exactly one active member, so this should be unreachable — it is here to
+    // turn a hole in that function into a loud failure rather than a quietly
+    // stored ride whose mileage is wrong. Partial, because the pair is only
+    // meaningful for grouped days: without the WHERE, every plain day in a ride
+    // would collide on (ride_id, NULL).
+    uniqueIndex('uq_day_alt_active')
+      .on(t.rideId, t.altGroup)
+      .where(sql`${t.altActive} and ${t.altGroup} is not null`),
+  ],
 )
 
 // The dots (docs/ideas.md). Stops are the ordered routing anchors — not riding
