@@ -591,15 +591,14 @@
     }
 
 
-    // The drag handle, replacing the per-row up/down arrow pair. Three ruled
-    // lines rather than an icon file: it is the conventional grip texture and it
-    // scales with the row's own type.
+    // The drag handle, replacing the per-row up/down arrow pair. Dotted rather
+    // than an icon file: it is the conventional grip texture, it costs no asset,
+    // and it stays crisp at any size because it is a gradient.
     //
-    // A POI gets `.is-fixed`, which reserves the same width and draws nothing.
-    // Its place in this list is projected onto the track by dayPoiDistances
-    // rather than stored, so there is no order to drag — but if the column
-    // disappeared for POI rows, every field to the right of it would sit at a
-    // different x on alternating rows.
+    // Both kinds of row get one. A stop drags to reorder; a POI drags to move
+    // its pin along the route, because a POI has no stored order to change. Same
+    // control either way — see pointRowHtml in builder.js.
+    //
     // A tab down the left edge of the row, rounded on the outer side and square
     // where it meets the row, so the two read as one object with a grip on the
     // end rather than as an icon that happens to sit first.
@@ -673,20 +672,6 @@
         cursor: grabbing;
       }
 
-      // A POI keeps the tab so the rail down the left edge stays unbroken and
-      // every field to its right lands at the same x on every row — but it draws
-      // no dots and offers no grab. Its place in this list is projected onto the
-      // track by dayPoiDistances rather than stored, so there is no order for it
-      // to be dragged into; moving a POI means moving its pin.
-      &.is-fixed {
-        cursor: default;
-        &::before {
-          content: none;
-        }
-        &:hover {
-          background: $neutral-88;
-        }
-      }
     }
     .row-main {
       display: flex;

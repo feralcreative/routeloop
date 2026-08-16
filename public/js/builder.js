@@ -765,6 +765,39 @@
   // day, 2 -> 5 leaves L0 and L6 untouched and breaks L1..L5, which is exactly
   // [min-1, max]. Recomputing the whole day instead would be correct and would
   // also fire a routing request per leg, which is the half that costs money.
+  // Dragging a POI MOVES ITS PIN, and that is the whole difference between the
+  // two kinds. A stop carries `position` and its order is stored, so dragging it
+  // rewrites that order. A POI does not — ride-graph.ts writes `position: null`
+  // for every one and its place in the list is its projected distance along the
+  // day's track — so there is nothing for a drag to reorder. Dropping it between
+  // two rows therefore relocates it to the road between them, and the projection
+  // then puts it exactly where it was dropped.
+  //
+  // This MOVES A PLACE THE RIDER CHOSE, which is the thing to be careful about:
+  // a POI is usually a specific spot, and its coordinates feed the roadbook and
+  // every export. It is one undo step, deliberately, so taking it back is one
+  // action rather than a hunt for the original position.
+  function movePoiToDistance(i, targetM) {
+    const r = editIndex();
+    if (r == null) return;
+    const day = state.days[r];
+    if (!day.pois[i]) return;
+    const { track } = trackAndSpans(r);
+    // No routed geometry means no road to move onto — a day with a single stop,
+    // or one whose legs have not come back from the router yet.
+    if (track.length < 2) return toast("No route to place it along yet", true);
+    const p = window.TBShape.pointAtDistance(track, targetM);
+    if (!p) return;
+
+    beginEdit("move POI");
+    day.pois[i].lng = +p[0].toFixed(6);
+    day.pois[i].lat = +p[1].toFixed(6);
+    renderMarkers();
+    renderList();
+    refreshDerived();
+    markDirty();
+  }
+
   function reorderStop(from, to) {
     if (from === to) return;
     const r = editIndex();
@@ -1266,18 +1299,20 @@
   // 113px on a stop against a POI's 152px — that 39px difference WAS the arrow
   // pair, and it is gone.
   //
-  // Only a stop gets a drag handle. A POI's place in this list is not stored: it
-  // is projected onto the day's track by dayPoiDistances, so dragging one would
-  // be asking the rider to set a value that is computed. Moving a POI means
-  // moving its pin.
+  // BOTH KINDS DRAG, and they mean different things by it. A stop carries a
+  // stored order, so dragging it reorders the day. A POI does not — its place in
+  // this list is its projected distance along the track — so dragging it moves
+  // its pin onto the road between the rows it was dropped between. Same
+  // affordance, because from the rider's side it is the same intent: put this
+  // one there. See the onEnd handler in initDragToReorder for the split.
   function pointRowHtml(kind, point, i) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
       '<div class="row-main">' +
-      (isStop
-        ? '<span class="row-drag" title="Drag to reorder" aria-hidden="true"></span>'
-        : '<span class="row-drag is-fixed" aria-hidden="true"></span>') +
+      '<span class="row-drag" title="' +
+      (isStop ? "Drag to reorder" : "Drag to move it along the route") +
+      '" aria-hidden="true"></span>' +
       (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       // POIs get the same minutes field now. Blank means "rode past without
@@ -1646,9 +1681,7 @@
       return;
     }
     window.Sortable.create(listEl, {
-      // A POI has no stored position to change, so it is not draggable. It stays
-      // in the list and other rows move around it.
-      draggable: '.point-row[data-kind="stop"]',
+      draggable: ".point-row",
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
@@ -1666,12 +1699,48 @@
       delay: 200,
       delayOnTouchOnly: true,
       onEnd: (evt) => {
-        const rows = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')];
-        const order = rows.map((el) => Number(el.dataset.i));
-        const from = Number(evt.item.dataset.i);
-        const to = order.indexOf(from);
-        if (to < 0 || to === from) return;
-        reorderStop(from, to);
+        const day = editRoute();
+        if (!day) return;
+        // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
+        // onEnd for every drop, including one that changed nothing — picking a
+        // row up and putting it back. For a stop that was harmless, since
+        // reorderStop no-ops on from === to. For a POI it was not: the handler
+        // below reads the rows it landed BETWEEN and moves the pin to the middle
+        // of them, so lifting a POI and dropping it in place relocated it to the
+        // midpoint of its neighbours. Observed, not theorised.
+        if (evt.oldIndex === evt.newIndex) return;
+
+        const i = Number(evt.item.dataset.i);
+
+        if (evt.item.dataset.kind === "stop") {
+          // Stops carry a stored order, so the drop is a reorder. Reading the
+          // DOM order of the stop rows and taking their data-i sidesteps the
+          // interleaving with POIs entirely — Sortable's own indices count all
+          // children and mean nothing here.
+          const order = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
+          const to = order.indexOf(i);
+          if (to < 0 || to === i) return;
+          return reorderStop(i, to);
+        }
+
+        // A POI has no order to change, so the drop is a position. Its target
+        // distance is read from the rows it landed BETWEEN, using the distances
+        // orderedRows() already computed for this render.
+        const dists = new Map();
+        for (const row of orderedRows(day)) dists.set(row.kind + ":" + row.i, row.dist);
+        const at = (el) => (el ? dists.get(el.dataset.kind + ":" + el.dataset.i) : undefined);
+
+        const rows = [...listEl.querySelectorAll(".point-row")];
+        const pos = rows.indexOf(evt.item);
+        const before = at(rows[pos - 1]);
+        const after = at(rows[pos + 1]);
+
+        let target;
+        if (before == null && after == null) return; // dropped alone; nothing to sit between
+        else if (before == null) target = after / 2; // above every other row
+        else if (after == null) target = Infinity; // below every other row—clamped to the end
+        else target = (before + after) / 2;
+        movePoiToDistance(i, target);
       },
     });
   }
