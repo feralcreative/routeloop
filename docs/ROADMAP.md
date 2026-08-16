@@ -23,6 +23,33 @@ If you are a new contributor, jump to [Working in this repo](#working-in-this-re
 
 When an entry here is edited, the GitHub issue it maps to usually says the same stale thing—the issue was written from the entry. This table is the running list of edits whose matching issue has **not** been made yet. Delete a row once the issue is updated.
 
+### 2026-08-16: a planning day, and none of it has issues yet
+
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 26 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+
+**The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
+
+| What changed | Where |
+| --- | --- |
+| **New**: the road to beta—three phases, cohort rationale, and the note that nothing was deferred past the beta | "The road to beta", above Priorities |
+| **Reversed**: rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is **not** a beta blocker; map loads are already capped at 500/day | same section |
+| **Widened**: item 20 is now three themes × light/dark on two independent axes, and the map deliberately does not invert | item 20 |
+| **New**: the import review table—editable manifest, dedupe, alternates at import | item 21 |
+| **New**: content width on `/prefs` and `/import`; a prerequisite for 21 and 23 | item 22 |
+| **New**: export by search, cart and one zip, replacing the every-ride list | item 23 |
+| **New**: turning Turnstile on, and the gate that would break ride creation | item 24 |
+| **New**: Noob Mode | item 25 |
+| **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
+| **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
+
+**Decisions that landed outside this file**, and will not be found by reading it alone:
+
+- **`docs/main-menu.md`**—Settings is renamed **Preferences** at `/prefs`, with `/settings` and `/preferences` redirecting. Note the POST endpoint needs a 308 or an alias, not a 301.
+- **`docs/api.md`**—four stale route rows corrected, including `routes/rides.ts` → `routes/builder.ts` in several places.
+- **`docs/STATUS.md`**—the Maps key referrer list is now Google's two-entry recipe per domain, verified at runtime; a first round of testing produced a confident false pass and the reasoning is recorded so it is not repeated.
+- **`_PLANS/turnstile-activation-260816T2144Z.md`**—the executable plan for item 24. **`_PLANS` is git-ignored**, so this exists on Ziad's machine only.
+- **`docs/myrouteapp-formats.md`**—new, and the research behind [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
+
 <!-- col-widths: 22% 44% 34% -->
 
 | Entry                            | What changed on 2026-08-10                                                              | Issue to match                                                                                           |
