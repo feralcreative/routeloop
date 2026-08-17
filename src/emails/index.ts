@@ -12,6 +12,7 @@
 import { approvedEmail } from './approved'
 import { inviteEmail } from './invite'
 import { magicLinkEmail } from './magic-link'
+import { ownerFeedbackEmail } from './owner-feedback'
 import { ownerSignupEmail } from './owner-signup'
 import { waitlistEmail } from './waitlist'
 import type { AnyEmailTemplate } from './types'
@@ -21,9 +22,10 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   waitlistEmail,
   approvedEmail,
   ownerSignupEmail,
+  ownerFeedbackEmail,
   inviteEmail,
 ]
 
-export { approvedEmail, inviteEmail, magicLinkEmail, ownerSignupEmail, waitlistEmail }
+export { approvedEmail, inviteEmail, magicLinkEmail, ownerFeedbackEmail, ownerSignupEmail, waitlistEmail }
 export { renderEmail } from './shell'
 export type { EmailTemplate, Rendered } from './types'

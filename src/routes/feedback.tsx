@@ -25,7 +25,8 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { readFile } from 'node:fs/promises'
-import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, requireManageRiders, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { APP_ORIGIN } from '../config'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
 import { content } from '../views/content'
@@ -40,17 +41,43 @@ import {
   SUBMIT_LIMIT,
   STATUS_META,
   areaLabel,
+  frequencyLabel,
+  impactLabel,
   isAreaId,
   isFrequencyId,
   isImpactId,
+  parseDiagnostics,
   statusLabel,
 } from '../feedback/policy'
 import { parseFaq } from '../feedback/faq'
-import { getByPublicId, isOverSubmitLimit, listMine, submitReport } from '../feedback/service'
-import type { IncomingAttachment } from '../feedback/service'
+import {
+  getById,
+  getByPublicId,
+  getDiagnostics,
+  isOverSubmitLimit,
+  listMine,
+  listQueue,
+  moderate,
+  queueCounts,
+  submitReport,
+} from '../feedback/service'
+import type { IncomingAttachment, Moderation } from '../feedback/service'
+import { notifyNewReport } from '../feedback/notify'
 import { ATTACHMENT_MAX_BYTES, MIME_EXT, pathForKey } from '../feedback/storage'
 import { visibleTo } from '../feedback/policy'
-import type { FeedbackKind } from '../db/schema'
+import { feedbackStateEnum, feedbackStatusEnum } from '../db/schema'
+import type { FeedbackKind, FeedbackState, FeedbackStatus } from '../db/schema'
+
+/** The enum members, in schema order, for the queue's status picker. */
+const feedbackStatusValues = feedbackStatusEnum.enumValues
+
+function isState(v: string): v is FeedbackState {
+  return (feedbackStateEnum.enumValues as readonly string[]).includes(v)
+}
+
+function isStatus(v: string): v is FeedbackStatus {
+  return (feedbackStatusValues as readonly string[]).includes(v)
+}
 
 export const feedbackRoutes = new Hono<AuthEnv>()
 
@@ -521,6 +548,12 @@ feedbackRoutes.post('/feedback', requireActive, requireSameOrigin, async (c) => 
     attachments,
   })
 
+  // After the transaction has committed, and fire-and-forget. A mail failure
+  // must not turn a filed report into an error page — the entire design of this
+  // intake is that nothing a rider sends can be lost to something going wrong
+  // after they hit send.
+  notifyNewReport(report, me.displayName)
+
   // Redirect rather than re-render, so a refresh cannot file it twice.
   return c.redirect(`/feedback/thanks?r=${report.publicId}`, 302)
 })
@@ -670,4 +703,254 @@ feedbackRoutes.get('/feedback/:publicId', requireActive, async (c) => {
     </>
   ).toString()
   return c.html(page({ title: r.title ?? 'Your report', user: me, navKey: 'feedback', body }))
+})
+
+// --- The owner's queue -------------------------------------------------------
+
+// A worklist, not a report. It answers one question — what needs a decision —
+// and every control on it is a form that POSTs to the handler below, because a
+// moderation surface that needs JavaScript is a moderation surface that stops
+// working the day something else on the page throws.
+//
+// **Nothing here is rider-facing, so this is the one place `priority` is
+// rendered.** A rider seeing "your bug is P3" is a support incident; see the
+// column comment in schema.ts.
+
+const STATE_FILTERS: (FeedbackState | 'all')[] = ['pending', 'published', 'declined', 'duplicate', 'spam', 'all']
+
+const Field = ({ label, name, value, rows }: { label: string; name: string; value: string | null; rows?: number }) => (
+  <label class="q-field">
+    <span>{label}</span>
+    <textarea name={name} rows={rows ?? 2}>
+      {value ?? ''}
+    </textarea>
+  </label>
+)
+
+feedbackRoutes.get('/admin/feedback', requireManageRiders, async (c) => {
+  const me = currentUser(c)
+  const stateRaw = c.req.query('state') ?? 'pending'
+  const kindRaw = c.req.query('kind') ?? ''
+  const state =
+    (STATE_FILTERS as string[]).includes(stateRaw) && stateRaw !== 'all' ? (stateRaw as FeedbackState) : undefined
+  const kind = isKind(kindRaw) ? kindRaw : undefined
+
+  const [rows, counts] = await Promise.all([listQueue({ state, kind }), queueCounts()])
+
+  const body = (
+    <>
+      <h1>Feedback</h1>
+      <nav class="q-filters">
+        {STATE_FILTERS.map((s) => (
+          <a
+            class={`q-filter${(s === 'all' ? undefined : s) === state ? ' is-on' : ''}`}
+            href={`/admin/feedback?state=${s}`}
+          >
+            {s === 'all' ? 'Everything' : s}
+            {s !== 'all' && counts[s] ? <span class="q-count">{counts[s]}</span> : ''}
+          </a>
+        ))}
+      </nav>
+
+      {rows.length === 0 ? (
+        <p class="empty">Nothing here.</p>
+      ) : (
+        <ul class="q-list">
+          {rows.map((r) => (
+            <li class={`q-item is-${r.state}`}>
+              <div class="q-head">
+                <span class={`fb-kind is-${r.kind}`}>{r.kind}</span>
+                <span class="q-id">#{r.id}</span>
+                <span class="q-state">{r.state}</span>
+                <span class="q-when">{r.createdAt.toISOString().slice(0, 16).replace('T', ' ')}</span>
+              </div>
+
+              <div class="q-title">{r.title ?? '(no title)'}</div>
+              <p class="fb-said">{r.body}</p>
+              {r.context && (
+                <p class="fb-said q-context">
+                  <strong>When they last wanted it:</strong> {r.context}
+                </p>
+              )}
+
+              <p class="q-facts">
+                <strong>{r.authorName}</strong>
+                {r.authorEmail ? ` · ${r.authorEmail}` : ''}
+                {r.replyOk ? '' : ' · asked not to be contacted'}
+                {r.area ? ` · ${areaLabel(r.area) ?? r.area}` : ''}
+                {r.frequency ? ` · ${frequencyLabel(r.frequency) ?? r.frequency}` : ''}
+                {r.impact ? ` · ${impactLabel(r.impact) ?? r.impact}` : ''}
+                {r.shots ? ` · ${r.shots} photo${r.shots === 1 ? '' : 's'}` : ''}
+                {r.duplicateOf ? ` · duplicate of #${r.duplicateOf}` : ''}
+              </p>
+
+              {r.shots > 0 && (
+                <div class="fb-shots">
+                  {Array.from({ length: r.shots }, (_, i) => (
+                    <img src={`/feedback/${r.publicId}/photo/${i}`} alt="" loading="lazy" width="180" />
+                  ))}
+                </div>
+              )}
+
+              <details class="q-diag">
+                <summary>What the browser was doing</summary>
+                <p>
+                  <a href={`/admin/feedback/${r.id}/diagnostics`}>Open the diagnostics</a>
+                </p>
+              </details>
+
+              {/* Several small forms rather than one wide one, matching
+                  `moderate()`, which writes only the fields it is given. One
+                  form carrying every field would blank whatever the owner had
+                  not retyped. */}
+              <form class="q-actions" method="post" action={`/admin/feedback/${r.id}`}>
+                <button type="submit" name="state" value="published">
+                  Publish
+                </button>
+                <button type="submit" name="state" value="declined">
+                  Decline
+                </button>
+                <button type="submit" name="state" value="spam">
+                  Spam
+                </button>
+                <button type="submit" name="state" value="pending">
+                  Back to pending
+                </button>
+              </form>
+
+              <form class="q-set" method="post" action={`/admin/feedback/${r.id}`}>
+                <label>
+                  Status
+                  <select name="status">
+                    {feedbackStatusValues.map((s) => (
+                      <option value={s} selected={s === r.status}>
+                        {statusLabel(s, r.kind)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Kind
+                  <select name="kind">
+                    {KIND_ORDER.map((k) => (
+                      <option value={k} selected={k === r.kind}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {/* Owner-only. Never rendered on a rider-facing surface. */}
+                <label>
+                  Priority
+                  <input type="number" name="priority" min="0" max="9" value={r.priority ?? ''} />
+                </label>
+                <label>
+                  Duplicate of
+                  <input type="number" name="duplicateOf" min="1" value={r.duplicateOf ?? ''} />
+                </label>
+                <button type="submit">Save</button>
+              </form>
+
+              <form class="q-text" method="post" action={`/admin/feedback/${r.id}`}>
+                <label class="q-field">
+                  <span>Title</span>
+                  <input type="text" name="title" value={r.title ?? ''} maxlength={150} />
+                </label>
+                <Field label="Private note" name="ownerNote" value={r.ownerNote} />
+                <Field
+                  label="Public response — shown to the rider, and on the board once published"
+                  name="publicResponse"
+                  value={r.publicResponse}
+                  rows={3}
+                />
+                <button type="submit">Save</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  ).toString()
+
+  return c.html(page({ title: 'Feedback', user: me, navKey: 'admin', bodyClass: 'queue-page', body }))
+})
+
+/**
+ * The stored diagnostics for one report.
+ *
+ * Its own page rather than inline in the queue: the blob is 5–50 KB and
+ * rendering forty of them would make the worklist unusable, which is the same
+ * reason it is a separate table. Read through parseDiagnostics, never a cast —
+ * the column is jsonb and Postgres has validated nothing about its shape.
+ */
+feedbackRoutes.get('/admin/feedback/:id/diagnostics', requireManageRiders, async (c) => {
+  const me = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.notFound()
+  const report = await getById(id)
+  if (!report) return c.notFound()
+
+  const diag = parseDiagnostics(await getDiagnostics(id))
+  const body = (
+    <>
+      <h1>Report #{id}</h1>
+      <p>
+        <a href="/admin/feedback">Back to the queue</a>
+      </p>
+      <pre class="q-json">{JSON.stringify(diag, null, 2)}</pre>
+    </>
+  ).toString()
+  return c.html(page({ title: `Diagnostics #${id}`, user: me, navKey: 'admin', bodyClass: 'queue-page', body }))
+})
+
+feedbackRoutes.post('/admin/feedback/:id', requireManageRiders, requireSameOrigin, async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.notFound()
+
+  const raw = (await c.req.parseBody({ all: true })) as Body
+  const back = c.req.header('Referer')?.startsWith(APP_ORIGIN) ? c.req.header('Referer')! : '/admin/feedback'
+
+  const m: Moderation = {}
+
+  const state = one(raw.state)
+  if (isState(state)) m.state = state
+
+  const status = one(raw.status)
+  if (isStatus(status)) m.status = status
+
+  const kind = one(raw.kind)
+  if (isKind(kind)) m.kind = kind
+
+  // Present-but-empty clears the value; absent leaves it alone. That distinction
+  // is why these read the raw key rather than the coerced string — `''` and
+  // undefined mean different things here and collapsing them would make a
+  // priority impossible to unset.
+  if ('priority' in raw) {
+    const n = Number(one(raw.priority))
+    m.priority = one(raw.priority) === '' ? null : Number.isInteger(n) && n >= 0 && n <= 9 ? n : null
+  }
+  if ('duplicateOf' in raw) {
+    const n = Number(one(raw.duplicateOf))
+    // A report cannot be a duplicate of itself. The self-referencing foreign key
+    // would happily accept it and every reader would then have a cycle.
+    m.duplicateOf = one(raw.duplicateOf) === '' || !Number.isInteger(n) || n <= 0 || n === id ? null : n
+  }
+  if ('title' in raw) m.title = one(raw.title)
+  if ('ownerNote' in raw) m.ownerNote = one(raw.ownerNote)
+  if ('publicResponse' in raw) m.publicResponse = one(raw.publicResponse)
+
+  // 'not_doing' without a reason is worse than no answer at all — it is the one
+  // status whose whole content is the explanation. STATUS_META says so in its
+  // sub-line; this is what makes the copy true.
+  if (m.status === 'not_doing') {
+    const existing = await getById(id)
+    const reason = m.publicResponse ?? existing?.publicResponse ?? ''
+    if (!reason.trim()) {
+      return c.redirect(`${back}${back.includes('?') ? '&' : '?'}err=reason`, 302)
+    }
+  }
+
+  const updated = await moderate(id, m)
+  if (!updated) return c.notFound()
+  return c.redirect(back, 302)
 })

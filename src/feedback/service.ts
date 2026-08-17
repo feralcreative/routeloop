@@ -166,6 +166,136 @@ export async function listMine(authorId: number, limit = 100): Promise<MineRow[]
     .limit(limit)
 }
 
+export type QueueRow = MineRow & {
+  id: number
+  area: string | null
+  frequency: string | null
+  impact: string | null
+  context: string | null
+  priority: number | null
+  ownerNote: string | null
+  duplicateOf: number | null
+  authorName: string
+  authorEmail: string | null
+  replyOk: boolean
+  shots: number
+}
+
+export type QueueFilter = { state?: FeedbackState; kind?: FeedbackKind }
+
+/**
+ * The owner's list.
+ *
+ * Ordered pending-first and then newest, rather than by `createdAt` alone. The
+ * queue is a worklist, and a worklist that buries the four things needing a
+ * decision under forty that have already had one is a worklist nobody opens
+ * twice.
+ *
+ * The attachment count comes from a correlated subquery rather than a join,
+ * because a join would multiply the rows and the count would have to be undone
+ * with a GROUP BY over every selected column.
+ */
+export async function listQueue(filter: QueueFilter = {}, limit = 200): Promise<QueueRow[]> {
+  const where = [
+    ...(filter.state ? [eq(feedback.state, filter.state)] : []),
+    ...(filter.kind ? [eq(feedback.kind, filter.kind)] : []),
+  ]
+
+  return db
+    .select({
+      id: feedback.id,
+      publicId: feedback.publicId,
+      kind: feedback.kind,
+      state: feedback.state,
+      status: feedback.status,
+      title: feedback.title,
+      body: feedback.body,
+      context: feedback.context,
+      area: feedback.area,
+      frequency: feedback.frequency,
+      impact: feedback.impact,
+      priority: feedback.priority,
+      ownerNote: feedback.ownerNote,
+      publicResponse: feedback.publicResponse,
+      duplicateOf: feedback.duplicateOf,
+      wantCount: feedback.wantCount,
+      replyOk: feedback.replyOk,
+      createdAt: feedback.createdAt,
+      authorName: users.displayName,
+      authorEmail: users.email,
+      shots: sql<number>`(select count(*)::int from ${feedbackAttachments} where ${feedbackAttachments.feedbackId} = ${feedback.id})`,
+    })
+    .from(feedback)
+    .innerJoin(users, eq(users.id, feedback.authorId))
+    .where(where.length ? and(...where) : undefined)
+    .orderBy(sql`case when ${feedback.state} = 'pending' then 0 else 1 end`, desc(feedback.createdAt))
+    .limit(limit)
+}
+
+/** How many reports are sitting at each state, for the queue's filter chips and
+ *  the count in the owner's email. One grouped query rather than five. */
+export async function queueCounts(): Promise<Record<string, number>> {
+  const rows = await db.select({ state: feedback.state, n: count() }).from(feedback).groupBy(feedback.state)
+  return Object.fromEntries(rows.map((r) => [r.state, r.n]))
+}
+
+export type Moderation = {
+  state?: FeedbackState
+  status?: FeedbackStatus
+  kind?: FeedbackKind
+  priority?: number | null
+  title?: string
+  ownerNote?: string
+  publicResponse?: string
+  duplicateOf?: number | null
+}
+
+/**
+ * Apply one moderation decision.
+ *
+ * Every field is optional and only what is present is written, so the queue's
+ * several small forms can all POST here without a field one form does not render
+ * blanking a value another form set. That is the specific bug a single wide
+ * UPDATE with a full row would cause.
+ *
+ * `publishedAt` is stamped by this function rather than by the caller, and only
+ * on the first publish — re-publishing something already public must not move
+ * the date the board sorts and labels by.
+ */
+export async function moderate(id: number, m: Moderation): Promise<FeedbackRow | null> {
+  const [current] = await db.select().from(feedback).where(eq(feedback.id, id)).limit(1)
+  if (!current) return null
+
+  const publishing = m.state === 'published' && current.publishedAt === null
+
+  const [row] = await db
+    .update(feedback)
+    .set({
+      ...(m.state !== undefined && { state: m.state }),
+      ...(m.status !== undefined && { status: m.status }),
+      ...(m.kind !== undefined && { kind: m.kind }),
+      ...(m.priority !== undefined && { priority: m.priority }),
+      ...(m.title !== undefined && { title: m.title.trim() || null }),
+      ...(m.ownerNote !== undefined && { ownerNote: m.ownerNote.trim() || null }),
+      ...(m.publicResponse !== undefined && { publicResponse: m.publicResponse.trim() || null }),
+      ...(m.duplicateOf !== undefined && { duplicateOf: m.duplicateOf }),
+      ...(publishing && { publishedAt: new Date() }),
+      updatedAt: new Date(),
+    })
+    .where(eq(feedback.id, id))
+    .returning()
+
+  return row ?? null
+}
+
+/** One report by its id, for the moderation handler. The queue addresses rows by
+ *  id rather than publicId — it is the owner's surface and the id is what the
+ *  duplicate-of field refers to. */
+export async function getById(id: number): Promise<FeedbackRow | null> {
+  const [row] = await db.select().from(feedback).where(eq(feedback.id, id)).limit(1)
+  return row ?? null
+}
+
 export type ReportDetail = {
   report: FeedbackRow
   author: { displayName: string; email: string | null }
