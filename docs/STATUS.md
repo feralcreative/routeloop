@@ -5,7 +5,7 @@
 **Closes, since the last update:** two branches merged—`feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
 **For:** the next agent, or the owner returning cold
 
-**One known defect is on `main` and unfixed—see "The alternates walkthrough" below.** The alternates UI says "alternative" where `AGENTS.md` fixes the noun as **alternate**: nine rider-facing strings across `public/js/builder.js` and `public/js/viewer.js`, plus three undo-step labels. Mechanical to fix and deliberately left rather than folded into an unrelated branch.
+**One naming cleanup is outstanding on `main`—see "The alternates walkthrough" below.** Ziad settled the vocabulary on 2026-08-16: **in code it is `alt` and `alts`**, and what a rider-facing surface calls it is deliberately unconstrained. The data model already complies; five function names and three filenames do not.
 
 **Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
@@ -24,7 +24,22 @@ The day-level alternates shipped on 2026-08-16 without the manual pass its own p
 
 **A note on how to run that export check, because the obvious way is wrong.** A first pass grepped each export for the ghost day's stop names and reported leaks in all five lossy formats. Every one was a substring false positive—"Healdsburg" also occurs inside "The dispersed spot, Healdsburg" on an *active* day, and "Bodega Bay" is part of the ride title. Only names that appear on the ghost and **nowhere else in the document** prove anything. Same trap as the banned-word matching in `test/feedback-status-labels.test.ts`.
 
-**The one defect found: the UI says "alternative", not "alternate".** `AGENTS.md` fixes the vocabulary and calls it settled—"Not 'variant', not 'option'"—and "alternatives" is a third wrong word that slipped through because it reads almost right. Nine rider-facing strings: the "Group as alternatives" bulk-action button, "Ungroup alternatives" in the day menu, the `alternative` badge on a ghost day, three toasts, the endpoint-mismatch warning, and four strings in the viewer legend. Plus three `beginEdit()` undo-step labels. It is a find-and-replace in `public/js/builder.js` and `public/js/viewer.js`, leaving the ordinary-English uses in comments alone—`builder.js:1131`, `src/emails/theme.ts`, `src/survey/csv.ts` and `src/views/layout.tsx` all use the word correctly and must not be swept up.
+**The walkthrough raised a naming question, and Ziad settled it: in code it is `alt` and `alts`; front-end copy is his to write and is not constrained.** The walkthrough had flagged the UI saying "alternative" as a defect. **It is not one**—do not file it, and do not rewrite copy to match identifiers.
+
+What that leaves is a mechanical rename, and it is genuinely small because the data model already complies: `altGroup` (113 uses), `altActive` (88), `ALT` (17), `alt_group`, `alt_active`, `altClass`, `altBadge`. Only these deviate:
+
+| Now | Should be |
+| --- | --- |
+| `src/maps/alternates.ts` | `src/maps/alts.ts` |
+| `public/js/alternates.js` | `public/js/alts.js` |
+| `test/alternates.test.ts` | `test/alts.test.ts` |
+| `hiddenAlternates` | `hiddenAlts` |
+| `isLosingAlternate` | `isLosingAlt` |
+| `promoteAlternate` | `promoteAlt` |
+| `ungroupAlternates` | `ungroupAlts` |
+| `groupSelectedAsAlternates` | `groupSelectedAsAlts` |
+
+Two traps in doing it. **`hiddenAlternates` is a field on the `ExportRide` type**, so it is a contract and not just a local name. And **the three files are a mirrored pair plus the test that pins them**—`public/js/alternates.js` is loaded by path from `src/index.tsx` and `src/routes/builder.ts`, so renaming the file without those two script lists is a viewer and builder that throw on load, which `npm run typecheck` cannot see because `public/js/**` is not typechecked.
 
 **Still not done, and it needs hardware:** the feedback flow has only been driven in a desktop browser. `docs/rider-feedback.md` asks for a real phone—iOS Safari and Android Chrome, in-browser and installed as a PWA—because mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on a device.
 
@@ -51,7 +66,7 @@ The day-level alternates shipped on 2026-08-16 without the manual pass its own p
 - A `kind` picker was added to the queue, because the "Just start typing" escape hatch stores `bug` and reclassifying has to be possible somewhere.
 - The plan's 90-day diagnostics retention is **not implemented**, and the privacy page says so rather than naming a window nothing enforces. Diagnostics are deleted with the account by cascade.
 
-**Three bugs found by running it, none visible to `tsc`:** `wantedBy` crashed every board render because a JS array interpolated into a `sql``` template expands to a tuple (`inArray` is the fix); a double-tap on a want 500'd on the primary key (`onConflictDoNothing` plus reading what was inserted); and the floating button sat on Google's zoom controls, which occupy the entire right edge of the map from y≈823 down to the attribution strip.
+**Three bugs found by running it, none visible to `tsc`:** `wantedBy` crashed every board render because a JS array interpolated into a tagged `sql` template expands to a tuple (`inArray` is the fix); a double-tap on a want 500'd on the primary key (`onConflictDoNothing` plus reading what was inserted); and the floating button sat on Google's zoom controls, which occupy the entire right edge of the map from y≈823 down to the attribution strip.
 
 **Not verified: no email has actually been delivered.** SMTP is unconfigured locally, so every send logs "skipped: mail is not configured" and returns. The call paths are wired and do not break the flows they hang off, but the sends themselves are untested until they run somewhere with `SMTP_*` set.
 
