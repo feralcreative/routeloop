@@ -46,7 +46,18 @@ Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NUL
 
 **The branch carried more than the alternates.** Fourteen feature and style commits in all, and the ones outside the alternates work were not in the hand-off summary: the floating panel became **a left drawer showing every day** (`eda5b7c`), every day gained **its own search row** and the global search box went (`ec89103`), a **day menu and select mode** with bulk day and point actions landed (`6f97a66`), the AI-generated icons were **replaced with human-drawn ones** and the day header tightened to a measured 10px (`8e5a6e8`, `efa16a7`), and `moto-storage` was renamed **`storage`** (`545fa81`). Those are recorded here from their commit messages rather than from a read of the diffs—the alternates detail above came from the implementing agent's own hand-off and was verified against the schema, the files and the suite.
 
-**Suite: 929 passing across 39 files**, 2 skipped, 931 total—verified 2026-08-16, up from 869 across 37.
+**Suite: 929 passing across 39 files**, 2 skipped, 931 total—verified 2026-08-16, up from 869 across 37. That figure is the count as this branch merged; the suite is at **1,076 across 44** on `feat/rider-feedback`.
+
+**The browser walkthrough never happened, and this is already on `main`.** Six checks nothing automated reaches, because every one of them crosses the client, the save round-trip and the render together:
+
+1. Group two days and confirm the ride total **drops**.
+2. Reload and confirm the group **survives** the save.
+3. Delete the active member of a pair and confirm the group **dissolves** rather than leaving an orphan.
+4. Promote an alternate and confirm the total **moves** to match.
+5. Export GPX and confirm the alternate is **absent**.
+6. Export native JSON and confirm it is **present**.
+
+`test/alternates.test.ts` pins `resolveAltGroups()` and `loadRideForExport()` filters unconditionally, so the units are covered—what is not covered is that the builder sends what those functions expect and that the totals a rider actually sees agree with them. Item 14's shipped half is the thing this verifies; treat it as outstanding work on merged code, not as a nice-to-have.
 
 ## The builder panel redesign—epic #88, all five phases, 2026-08-15
 
