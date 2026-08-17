@@ -46,4 +46,4 @@ A database built under the old `drizzle-kit push` workflow needs a one-time base
 
 ## Storage and data
 
-Imported originals live under the environment's `data/storage` on the NAS, and in `moto-storage/` locally. They are not in git and are not rebuildable from anything else. `db-clone` moves both the database and storage together for that reason.
+Imported originals live under the environment's `data/storage` on the NAS, and in `storage/` locally. They are not in git and are not rebuildable from anything else. `db-clone` moves both the database and storage together for that reason.

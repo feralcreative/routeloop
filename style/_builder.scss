@@ -167,9 +167,7 @@
     padding: 0.7em 0.75em;
     border-radius: 8px;
 
-    + .panel-band,
-    + .day-pick-hint,
-    .day-pick-hint + & {
+    + .panel-band {
       margin-top: 0.6em;
     }
 
@@ -198,17 +196,32 @@
     }
   }
 
+  // ONE SECTION PER DAY, ALL ON SCREEN AT ONCE. This was .panel-band--day, a
+  // single block showing whichever day a slider at the bottom of the drawer had
+  // selected, plus .day-scrub, .day-slider and .day-ticks for the slider itself.
+  // All of that is gone: a fixed-height drawer has room for the whole ride, so
+  // showing one day at a time was a constraint of the old floating panel rather
+  // than a decision. renderDays() in builder.js fills #day-list with these.
+  //
   // Accented in the day's own colour, which is also what every role icon inside
-  // it inherits. --day-color is set from renderDayHead(); the fallback covers
-  // the first paint before any day is selected.
-  .panel-band--day {
+  // it inherits. --day-color is set per section by renderDays().
+  .day-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin-top: 0.6em;
+  }
+
+  .day-section {
+    padding: 0.5em 0.6em;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.035);
     border-left: 3px solid var(--day-color, #{$grey});
 
     // The icons are SVGs drawn with fill="currentColor", so one `color` here
     // tints every one of them — role chips, the picker, the stop numbers and
-    // the POI dots. Scoped to this band on purpose: the collapse toggle and any
-    // other panel chrome must stay as they are.
+    // the POI dots. Scoped to the section on purpose: the collapse toggle and
+    // any other drawer chrome must stay as they are.
     color: var(--day-color, #{$text});
 
     // Text is not tinted — a whole panel of coloured prose is unreadable, and
@@ -217,91 +230,403 @@
     textarea,
     .row-name,
     .day-time,
-    .day-times-note,
-    .empty-hint {
+    .day-times-note {
+      color: $text;
+    }
+
+    // THE ACTIVE DAY, which is where a map click puts its stop. It needs to be
+    // obvious without being loud: every day is on screen, so this is the only
+    // thing saying which one is about to receive an edit. A ring in the day's own
+    // colour rather than a fill, because a fill would fight the row backgrounds.
+    &.is-active {
+      background: rgba(0, 0, 0, 0.06);
+      box-shadow: inset 0 0 0 1px var(--day-color, #{$url});
+    }
+
+    // ALTERNATES. The pair is bracketed by a shared left edge and the loser is
+    // quieted — not hidden and not disabled, because it is a real day the rider
+    // can still edit, name, reorder and promote.
+    //
+    // Deliberately NOT `opacity` on the section: that would take the colour
+    // swatch, the twirl and every control with it, and a working control that
+    // looks disabled is worse than one that looks ordinary.
+    &.in-alt-group {
+      border-left-style: dashed;
+    }
+
+    &.is-alt {
+      background: rgba(0, 0, 0, 0.02);
+
+      .day-num,
+      .day-title {
+        opacity: 0.65;
+      }
+    }
+
+    // Shut: the head stays, the body goes. `display: none` rather than a height
+    // animation — animating to auto needs a measured height, and a wrong one
+    // clips the last row of a long day.
+    &.is-shut .day-body {
+      display: none;
+    }
+
+    // With the body gone, the head's 0.6em bottom margin is the gap to nothing:
+    // it left the section taller than .day-drag, which stretches to the head and
+    // is pulled out to the padding edge by its negative margins. Zeroed here
+    // rather than at the source because an OPEN day still wants that margin as
+    // its head-to-body gap.
+    &.is-shut .day-head {
+      margin-bottom: 0;
+    }
+  }
+
+  // TEN PIXELS BETWEEN EVERY CONTROL, and the gap is only half of what makes
+  // that true. Each box below is sized to its own artwork, because a box wider
+  // than its glyph reads as gap: the caret was a 5px triangle in a 22px button,
+  // so the eye measured 8.5px of empty button plus the gap plus whatever slack
+  // the number box had. Tightening the boxes is what made 10px look like 10px.
+  //
+  // Deliberately px and not em. Every other length here is em so it tracks the
+  // drawer's 14px base, but this one is a visual rhythm rather than a typographic
+  // one — it should not change when a control's font-size does.
+  //
+  // [hidden] is explicit because the `display` below outranks the UA sheet's
+  // `[hidden] { display: none }`. Same trap as .row-roles.
+  .day-head {
+    &[hidden] {
+      display: none;
+    }
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.6em;
+  }
+
+  // The day's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
+  // box centred inside it by a ::before — and not, as it was first written, a
+  // repeating background-image on the element itself. That tiled dots edge to
+  // edge across the whole tab at whatever height the header happened to be, so
+  // it rendered as a speckled block rather than as a grip.
+  //
+  // The negative margins pull it out to the section's own padding edge so the
+  // tab reaches top and bottom of the header instead of floating in it. They
+  // are .day-section's padding: 0.5em vertical, 0.6em left. Keep them in step.
+  .day-drag {
+    position: relative;
+    flex: none;
+    align-self: stretch;
+    width: 14px;
+    // It is a <button> now — it carries the arrow-key reordering that the ↑ ↓
+    // pair used to — so the UA's button chrome has to come off.
+    padding: 0;
+    border: none;
+    appearance: none;
+    font: inherit;
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+
+    // Right margin is 0 and must stay 0: .day-head's `gap: 10px` is what spaces
+    // this from the caret now. It was 0.15em, which simply added to the gap and
+    // made the first of the four spacings wider than the other three.
+    margin: -0.5em 0 -0.5em -0.6em;
+    border-radius: 8px 0 0 8px;
+    cursor: grab;
+    background: color-mix(in srgb, var(--day-color, #{$neutral-88}) 16%, #{$white});
+    color: color-mix(in srgb, var(--day-color, #{$neutral-50}) 55%, #{$white});
+
+    // Two columns by three rows: an 8x12 box on the same 4px tile the row grips
+    // use, so the two read as one gesture at two scales. `0 0` rather than
+    // `center` for the same reason as .row-drag — centring aligns a TILE's
+    // centre, which slices the outer dots in half.
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 8px;
+      height: 12px;
+      background-image: radial-gradient(currentColor 1.1px, transparent 1.3px);
+      background-size: 4px 4px;
+      background-position: 0 0;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--day-color, #{$neutral-76}) 32%, #{$white});
+      color: color-mix(in srgb, var(--day-color, #{$neutral-29}) 80%, #{$white});
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  // The twirl. A CSS triangle rather than a glyph so it cannot pick up a font's
+  // idea of what a triangle is, and so the rotation is a transform rather than
+  // swapping one character for another.
+  .day-twirl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    // 18x22 for the hit target, PULLED IN 5px EACH SIDE so it occupies only the
+    // 8px its mark actually paints.
+    //
+    // This is the fix for a header that measured wrong after the gaps were set
+    // to 10px. A button is a box, and the eye measures ink, not boxes: an 18px
+    // button around an 8px triangle contributes 5px of nothing to the space on
+    // either side of it, so a 10px gap rendered as 15px against the grip and
+    // 15.1px against the number, while the one gap with no button in it — number
+    // to swatch — came out at the 10.1px it was supposed to be. Measured in the
+    // browser, not reasoned about; reasoning about it is how it got set to 22px
+    // and then to 18px without either being right.
+    //
+    // Same trick and same reason as .day-drag's negative margins above. Keep the
+    // 5px in step with the width if either changes: it is (width − 8) / 2.
+    width: 18px;
+    height: 22px;
+    margin: 0 -5px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    color: inherit;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.07);
+    }
+  }
+
+  .day-twirl-mark {
+    width: 0;
+    height: 0;
+    border-left: 5px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform 0.15s ease;
+    transform: rotate(90deg);
+  }
+
+  .day-twirl[aria-expanded="false"] .day-twirl-mark {
+    transform: rotate(0deg);
+  }
+
+  // The day's ordinal. Bolder and larger than .row-num, which is the stop number
+  // inside a day — the two are the same idea at two levels, and the day's has to
+  // win where they sit in one column.
+  //
+  // It takes --day-color like everything else in the section, so at a glance the
+  // number, the swatch, the grip and the routes on the map all agree.
+  //
+  // FIXED WIDTH, so a ride crossing into double figures does not shift every
+  // name field beside it by a character — and sized to TWO digits, which is the
+  // widest it can get at MAX_DAYS = 31. That is why a one-digit day looks like
+  // it has more air around it than a two-digit one: the box is the same and the
+  // ink is narrower. Correct, and the alternative is a row that jumps at day 10.
+  //
+  // 1.25em rather than the old 1.4em. tabular-nums at 0.95em/700 puts "31" at
+  // about 15px against this box's 17.5px, so there is still a pixel of slack
+  // each side. Widen if a wider face ever ships — flex-shrink is 0, so an
+  // overflow here collides with the swatch rather than reflowing.
+  .day-num {
+    flex: 0 0 1.25em;
+    text-align: center;
+    font-size: 0.95em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--day-color, #{$text});
+  }
+
+  // The day header's ⋮. A text glyph rather than a masked icon, matching
+  // .row-menu-btn exactly — the two are the same control at two levels and a
+  // rider should not have to notice they are drawn differently.
+  .day-menu-btn {
+    font-size: 1.1em;
+    line-height: 1;
+    letter-spacing: 0.05em;
+  }
+
+  // SELECT MODE'S ACTION BAR. Above the day list and outside the scroller, so it
+  // covers none of the rows being ticked and stays put while the rider scrolls
+  // to reach day 9. Tinted rather than bordered: it is a mode the panel is in,
+  // not another control in it.
+  .select-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3em;
+    margin: 0.4em 0;
+    padding: 0.4em 0.5em;
+    border-radius: 6px;
+    background: color-mix(in srgb, #{$brand} 10%, #{$white});
+    font-size: 0.85em;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .sel-count {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: 700;
+      color: $text;
+    }
+
+    button,
+    select {
+      font: inherit;
+      padding: 0.25em 0.5em;
+      border: 1px solid $grey;
+      border-radius: 5px;
+      background: $white;
+      color: $text;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        border-color: $brand;
+        color: $brand;
+      }
+
+      // Disabled rather than hidden at zero selected, so the bar does not change
+      // shape the moment the first box is ticked.
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+    }
+
+    .is-danger:hover:not(:disabled) {
+      border-color: $kml;
+      color: $kml;
+    }
+
+    .sel-move {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25em;
       color: $text;
     }
   }
 
-  // The day scrubber. It focuses a day rather than switching to one — every
-  // route stays drawn on the map and only the emphasis moves, so this is a
-  // slider and not a tab strip.
-  .day-scrub {
-    margin: 0.5em 0 0.6em;
+  // Both checkboxes take the day's colour, so a ticked row still says which day
+  // it belongs to at a glance.
+  .day-pick,
+  .row-pick {
+    flex: none;
+    margin: 0;
+    accent-color: var(--day-color, $url);
   }
-  .day-scrub-head {
+
+  // Sized and placed where .row-num sat, which it replaces — so the fields to
+  // its right do not shift when select mode opens.
+  .row-pick {
+    width: 1.4em;
+  }
+
+  // THE OVERFLOW MENU, FOR BOTH ITS HOSTS. This lived inside .point-row until
+  // day headers grew a ⋮ of their own on 2026-08-16, at which point the day's
+  // menu inherited none of it and rendered as an 84px box with "Ungroup
+  // alternatives" wrapped over three lines. It is one component with two
+  // parents, so it is scoped to the panel and not to either of them.
+  //
+  // Absolutely positioned so opening it costs no layout, right-aligned under the
+  // button it belongs to, and allowed to overflow its host — the panel scroller
+  // clips it, which is the same bound the role picker lives inside. Both hosts
+  // must therefore be `position: relative`; .point-row and .day-head both are.
+  .row-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 5;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5em;
-    margin-bottom: 0.2em;
-  }
-  .day-scrub-label {
-    font-size: 0.85em;
-    font-weight: 600;
-    color: $text;
-  }
-  .day-add {
-    font: inherit;
-    font-size: 0.8em;
-    padding: 0.25em 0.6em;
+    flex-direction: column;
+    min-width: 10em;
+    padding: 0.25em;
+    background: $white;
     border: 1px solid $grey;
     border-radius: 6px;
-    background: $white;
+    box-shadow: 0 4px 12px $panel-shadow;
+  }
+
+  .row-menu-item {
+    font: inherit;
+    font-size: 0.9em;
+    text-align: left;
+    padding: 0.4em 0.6em;
+    border: 0;
+    border-radius: 4px;
+    background: none;
     color: $text;
     cursor: pointer;
-    &:hover {
-      border-color: $url;
-      color: $url;
-    }
-  }
-  .day-slider {
-    width: 100%;
-    margin: 0;
-    accent-color: $url;
-    cursor: pointer;
-    &:disabled {
-      cursor: default;
-      opacity: 0.45;
-    }
-  }
-  // Labels sit under the track: "All" at the left, then one per day, each
-  // centred on the position its own value puts the thumb at.
-  //
-  // This used to be a `space-between` row, on the reasoning that the thumb's
-  // inset made exact alignment impossible anyway. Two things were wrong with
-  // that. The inset is knowable — a thumb centre never reaches either end, it
-  // travels between half a thumb from each, so the usable track is `100% -
-  // thumb` and every value sits at a computable point along it. And spreading
-  // aligned the labels' *edges*, not their centres, which drifted further off
-  // than the inset ever did. --thumb is the one approximation left: the UA
-  // picks the real width, and pinning it would mean restyling the control.
-  .day-ticks {
-    --thumb: 16px;
-    position: relative;
-    height: 1.35em;
-    font-size: 0.7em;
-    color: $text;
-    opacity: 0.75;
-  }
-  .day-tick {
-    position: absolute;
-    top: 0;
-    left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--pos, 0));
-    transform: translateX(-50%);
-    padding-top: 0.35em;
     white-space: nowrap;
-    &[style*="--tick-color"]::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 6px;
-      height: 3px;
-      border-radius: 2px;
-      background: var(--tick-color);
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: rgba($brand, 0.1);
     }
+
+    // Shown rather than dropped, so the first stop's menu is the same shape as
+    // every other stop's. A menu that changes length between rows is the same
+    // jump in miniature.
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    &.is-danger {
+      color: $kml;
+      &:hover:not(:disabled),
+      &:focus-visible {
+        background: rgba($kml, 0.1);
+      }
+    }
+  }
+
+  // The badge in a day header. Same two words and same shape as the viewer's
+  // legend badge in _map.scss — a rider who has seen one should not have to
+  // learn the other. `flex: none` because it sits in the header's flex row and
+  // must not be squeezed by a long day name.
+  .day-head .day-alt {
+    flex: none;
+    padding: 0.05em 0.45em;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.07);
+    color: color.adjust($text, $lightness: 20%);
+    font-size: 0.7em;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: help;
+
+    &.is-on {
+      background: color-mix(in srgb, var(--day-color, #{$url}) 16%, #{$white});
+      color: color-mix(in srgb, var(--day-color, #{$url}) 70%, #{$black});
+    }
+  }
+
+  // Narrower than the 2em the generic input[type="color"] rule gives it, and
+  // scoped to the header so the swatch on any other form keeps its size. The
+  // generic rule already pads the well down to 2px, so 1.6em still shows a
+  // 20px block of colour — enough to read as the day's colour at a glance,
+  // which is all it does here.
+  .day-head .day-color {
+    width: 1.6em;
+    height: 1.6em;
+  }
+
+  .day-title {
+    flex: 1 1 auto;
+    // Without this a flex item refuses to shrink below its own content, and a
+    // long day name pushes the four action buttons off the end of the row.
+    min-width: 0;
+  }
+
+  .day-body {
+    margin-top: 0.4em;
   }
 
   // Start and end for the day edits land on. Hidden along with the rest of the
@@ -376,31 +701,17 @@
     }
   }
 
-  // Controls for the one day edits land on, which is the focused day, or the
-  // last day while the slider sits on "all".
+  // The day header's action buttons. This used to be a SECOND `.day-head` block,
+  // a leftover from the day-slider era, sitting at equal specificity to the real
+  // one further up and beating it on source order — so `gap` was silently 0.4em
+  // rather than the 0.3em the first block declares, and a `margin-bottom: 0.6em`
+  // nobody could find was padding the bottom of every collapsed day. Both blocks
+  // are now one, up at .day-head; only .day-actions is left here.
+  //
+  // The `#day-title` rule that lived here went with it — dead since the drawer
+  // rewrite, which renders `.day-title` per day. There is no element with that
+  // id on the page.
   .day-head {
-    // builder.js hides this for a single untitled day, but the `display` below
-    // outranks the UA sheet's `[hidden] { display: none }`, so without the
-    // explicit rule it never actually hid. Same trap as .row-roles.
-    &[hidden] {
-      display: none;
-    }
-
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
-    margin-bottom: 0.6em;
-    #day-title {
-      // Named here rather than left to the generic rule so the width the color
-      // input gives back actually reaches this field.
-      flex: 1 1 auto;
-      min-width: 0;
-      font: inherit;
-      font-size: 0.9em;
-      padding: 0.35em 0.5em;
-      border: 1px solid $grey;
-      border-radius: 6px;
-    }
     .day-actions {
       display: flex;
       gap: 0.15em;
@@ -409,6 +720,11 @@
         font-size: 0.85em;
         line-height: 1;
         padding: 0.35em 0.45em;
+        // Centres .day-del's masked glyph. Its three neighbours are still text
+        // characters and are unaffected by it.
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border: 1px solid $grey;
         border-radius: 6px;
         background: $white;
@@ -426,10 +742,12 @@
     }
   }
 
-  // Stands in for the whole day-editing section while the slider is on "All".
-  // Deliberately a plain sentence rather than a disabled-looking block: nothing
-  // is broken, the rider is just looking at the trip instead of a day.
-  .day-pick-hint {
+  // Shown only when a ride somehow has no days at all, which nothing in the app
+  // can currently produce — the builder starts with one and deleteDay refuses to
+  // remove the last. It replaced .day-pick-hint, which stood in for the whole
+  // day-editing section while the slider sat on "All"; there is no "All" any
+  // more, because every day is on screen.
+  .day-empty-hint {
     margin: 0.75em 0;
     padding: 0.9em 0.75em;
     border: 1px dashed $grey;
@@ -520,61 +838,111 @@
     }
   }
 
-  .search-wrap {
-    position: relative;
-    margin-bottom: 0.75em;
-    #search {
-      width: 100%;
-    }
-    // Fixed, not absolute, and positioned from JS — see placeResults() in
-    // builder.js. Absolute made this a descendant of the panel's scroll box, so
-    // the moment .panel-contents-wrapper gained overflow the dropdown was
-    // clipped at the panel's bottom edge: three visible rows out of eight, on
-    // the control used to add every stop. Fixed escapes the clip because nothing
-    // in the chain establishes a containing block for it.
-    //
-    // The cost is that JS owns left/top/width and has to keep them current,
-    // which is why the panel scrolling closes the dropdown rather than trying to
-    // track it.
-    #search-results {
-      position: fixed;
-      z-index: 20;
-      // JS sets width from the field's border box, so this has to measure the
-      // same way or the 1px border either side makes the list 2px wider.
-      box-sizing: border-box;
-      margin: 2px 0 0;
-      padding: 0;
-      list-style: none;
+  // THE LAST ROW OF EVERY DAY, where the single search box above the day list
+  // used to be. Built by addRowHtml() in builder.js; the box is gone because it
+  // had to guess which day a searched address belonged to.
+  //
+  // Shaped to line up with the .point-row above it rather than to stand out: it
+  // is the next row of the list, not a separate control. The dashed border is
+  // the only thing marking it as an empty slot.
+  .add-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.25em 0.3em;
+    border: 1px dashed color.adjust($grey, $lightness: -5%);
+    border-radius: 6px;
+    background: none;
+  }
+
+  // Sits where .row-drag does on a real row, so the fields below line up with
+  // the fields above rather than being shifted by the width of a grip.
+  .add-row-mark {
+    flex: 0 0 auto;
+    width: 14px;
+    text-align: center;
+    color: color.adjust($text, $lightness: 40%);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .add-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.9em;
+    padding: 0.3em 0.4em;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+
+    // No border until it is being used. A visible field per day would put 31
+    // boxes down the panel and make the list read as a form rather than as a
+    // route.
+    &:hover:not(:disabled),
+    &:focus {
+      border-color: $grey;
       background: $white;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px $panel-shadow;
-      max-height: 240px;
-      overflow-y: auto;
-      // Otherwise scrolling past the last result chains into the panel, and the
-      // panel scrolling is what closes this list.
-      overscroll-behavior: contain;
-      li {
-        padding: 0.45em 0.6em;
-        cursor: pointer;
-        &:hover {
-          background: rgba(0, 0, 0, 0.05);
-        }
-        .hit-ctx {
-          color: color.adjust($text, $lightness: 35%);
-          font-size: 0.85em;
-        }
-      }
     }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  // Stop or POI for THIS row, separate from the panel's + Stop / + POI pair,
+  // which decides what a map click adds. Hidden until the row is engaged: it is
+  // an answer to a question the rider has not asked until they start typing.
+  .add-kind {
+    display: none;
+    flex: 0 0 auto;
+    gap: 0.15em;
+    font-size: 0.7em;
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2em;
+      cursor: pointer;
+      color: color.adjust($text, $lightness: 20%);
+    }
+
+    input {
+      margin: 0;
+      accent-color: var(--day-color, $url);
+    }
+  }
+
+  .add-row:focus-within .add-kind {
+    display: inline-flex;
   }
 
   // Directly under the ride name now, outside .panel-contents-wrapper, so it
   // stays put while the stop list scrolls. It used to sit in the band below both
   // sliders, three controls away from the thing it summarizes.
   //
-  // min-height reserves both lines whether or not the second one is there — the
-  // day line only appears on a multi-day ride, and letting it push the panel is
-  // the same variable-readout problem the save status had.
+  // THE DAY LINE IS ALWAYS IN THE MARKUP, empty when no day is focused, and
+  // that — not a height in em — is what stops this block resizing.
+  //
+  // `min-height: 2.6em` was here first with the right intention and the wrong
+  // arithmetic: it reserved two lines and the real content runs to three. The
+  // ride line wraps to two on its own once the mileage is long enough ("3 days ·
+  // 702.8 mi · ~14h 36m riding · Mostly straight" does at 380px) and the day line
+  // lands under it, so the block measured 30.9px on "All days" against 40.5 to
+  // 42.6px on a focused day. The panel moved by the difference every time the
+  // scrubber changed — 11.6px with short day names, 23.3px with an imported
+  // "Track-2018 Crater Lake: Day 03b".
+  //
+  // Reserving it structurally beats reserving it numerically here. A fixed
+  // height has to be re-derived from the root font size, the 0.85rem step and
+  // two different line-heights, and getting it wrong by 2.5px — which the first
+  // attempt did — either clips the day line or leaves a gap. An always-present
+  // span is exactly one line by construction, in whatever font it ends up in.
+  //
+  // What is left varying is the ride line's own wrap count, and it cannot change
+  // while scrubbing: it is the whole-ride total, identical for every day. It
+  // moves only when the day count does, which is a deliberate press of + Day.
   .totals {
     font-weight: 600;
     margin: 0.15em 2.6em 0.6em 0;
@@ -586,11 +954,49 @@
     .totals-ride,
     .totals-day {
       display: block;
+      line-height: 1.3;
     }
+    // Capped at the two lines reserved above. The content is bounded — a day
+    // count, a mileage, a duration and one of a handful of twistiness words —
+    // so two is genuinely enough, and the clamp is the guarantee rather than
+    // the expectation.
+    .totals-ride {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+    // One line, always, and split so the numbers survive the truncation. The
+    // day's name is the only unbounded thing on it — a title runs to 150
+    // characters and an import supplies 31 of them by default — so the name
+    // shrinks and ellipsizes while the figures hold their width. Truncating the
+    // other way round would hide the mileage behind a filename.
+    //
+    // Nothing is lost: the full name is already spelled out on #day-label
+    // directly above the slider.
+    // min-height is what makes the empty copy hold its line on "All days".
+    // 1.3em of its own font size is exactly the one line the rule above sets,
+    // so the block is the same height whether or not a day is focused.
     .totals-day {
+      display: flex;
+      gap: 0.35em;
+      min-height: 1.3em;
       font-weight: 300;
       font-size: 0.85em;
       opacity: 0.8;
+    }
+    .totals-day-name {
+      flex: 0 1 auto;
+      // Without this a flex item refuses to shrink below its own content and
+      // the ellipsis never fires.
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .totals-day-figs {
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
   }
 
@@ -598,11 +1004,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-
-    .empty-hint {
-      color: color.adjust($text, $lightness: 35%);
-      padding: 0.5em 0;
-    }
 
     .point-row {
       // The row menu is absolutely positioned against this, so opening it moves
@@ -676,20 +1077,23 @@
       // and the dots swam in the middle of it — the tab needs to be a grip, not
       // a margin.
       width: 16px;
-      background: $neutral-88;
       border-radius: 8px 0 0 8px;
       cursor: grab;
-      // NEUTRAL, deliberately, and this is the one thing in the row that does
-      // not take the day's color. Everything else here — the stop number, the
-      // POI dot, the role icons — inherits --day-color because those are
-      // markers and a marker should say which day it belongs to. A grip is
-      // furniture: it means "drag me", which is true of every row on every day.
+      // THE DAY'S OWN COLOUR, faded back. This was deliberately neutral on the
+      // reasoning that a grip is furniture — "drag me" is true of every row on
+      // every day — and that held while only one day was ever on screen. With
+      // every day listed at once the left edge of each row is the fastest way to
+      // see where one day stops and the next starts, so the grips are now the
+      // day's colour and read as a continuous rail down its rows.
       //
-      // Two steps of the scale between the tab and its dots, and another two
-      // between the tab and the row behind it. At -94 on white the tab was
-      // barely there and the -70 dots inside it were softer still; the whole
-      // control read as a smudge rather than as something to grab.
-      color: $neutral-50;
+      // Two mixes, not one: the tab is faint enough to sit under the row's own
+      // white, and the dots inside it are strong enough to still read as a grip
+      // rather than as a smudge. Keep roughly this ratio if either moves.
+      //
+      // --day-color is inherited from .day-section. The fallbacks are the greys
+      // it used to be, so a row rendered outside a day section still looks right.
+      background: color-mix(in srgb, var(--day-color, #{$neutral-88}) 20%, #{$white});
+      color: color-mix(in srgb, var(--day-color, #{$neutral-50}) 60%, #{$white});
 
       // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
       //
@@ -716,8 +1120,8 @@
       }
 
       &:hover {
-        color: $neutral-29;
-        background: $neutral-76;
+        background: color-mix(in srgb, var(--day-color, #{$neutral-76}) 38%, #{$white});
+        color: color-mix(in srgb, var(--day-color, #{$neutral-29}) 85%, #{$white});
       }
 
       &:active {
@@ -761,9 +1165,11 @@
     // format or spends the difference on a field the other two do not need —
     // and that width comes straight out of the name field beside it.
     //
-    // The attribute is written server-side onto #stop-list in builder.ts, from
+    // The attribute is written server-side onto #day-list in builder.ts, from
     // the same preference the rows are rendered with, so there is no flash of a
-    // wrongly-sized field before the JS runs.
+    // wrongly-sized field before the JS runs. It moved from #stop-list when the
+    // single list became one per day; it is read by inheritance, so the ancestor
+    // is what matters and not which element carries it.
     //
     // 4em is the floor and it is set by content, not by taste: "43200" is the
     // largest value the schema allows and "min" is the placeholder. At 3.6em the
@@ -864,57 +1270,6 @@
       }
     }
 
-    // Absolutely positioned so opening it costs no layout. Right-aligned under
-    // the button it belongs to, and allowed to overflow the row — the panel
-    // scroller clips it, which is the same bound the role picker lives inside.
-    .row-menu {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      z-index: 5;
-      display: flex;
-      flex-direction: column;
-      min-width: 10em;
-      padding: 0.25em;
-      background: $white;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px $panel-shadow;
-
-      .row-menu-item {
-        font: inherit;
-        font-size: 0.9em;
-        text-align: left;
-        padding: 0.4em 0.6em;
-        border: 0;
-        border-radius: 4px;
-        background: none;
-        color: $text;
-        cursor: pointer;
-        white-space: nowrap;
-
-        &:hover:not(:disabled),
-        &:focus-visible {
-          background: rgba($brand, 0.1);
-        }
-
-        // Shown rather than dropped, so the first stop's menu is the same shape
-        // as every other stop's. A menu that changes length between rows is the
-        // same jump in miniature.
-        &:disabled {
-          opacity: 0.35;
-          cursor: default;
-        }
-
-        &.is-danger {
-          color: $kml;
-          &:hover:not(:disabled),
-          &:focus-visible {
-            background: rgba($kml, 0.1);
-          }
-        }
-      }
-    }
     .row-roles {
       display: grid;
       // A class selector outranks the UA's `[hidden] { display: none }`, so the
@@ -981,17 +1336,23 @@
   //
   // The background is opaque on purpose: content scrolls underneath it, and a
   // translucent bar over moving text is unreadable.
+  // IN THE DRAWER'S FOOTER, outside the scroller entirely — see panelShell in
+  // src/views/layout.tsx for the band order. It was `position: sticky; bottom: 0`
+  // inside .panel-contents-wrapper, which looks the same until you scroll: a
+  // sticky element still belongs to its scroller, so it rode above the scrollbar
+  // and moved with the list's own padding. As a sibling of the scroller it cannot
+  // move at all.
+  //
+  // The border and the background went with the stickiness. .drawer-foot draws
+  // both now, because it is the thing with an edge against the list.
   .builder-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
     display: flex;
     align-items: center;
     gap: 0.5em;
-    margin-top: 0.9em;
-    padding: 0.5em 0;
-    background: $white;
-    border-top: 1px solid $grey;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border-top: none;
   }
 
   // Undo and redo as glyphs. The pair was "Undo" and "Redo" beside "Save",
@@ -1045,12 +1406,6 @@
       opacity: 0.35;
       cursor: default;
     }
-  }
-
-  // Redo is undo mirrored — see the markup comment in src/routes/builder.ts for
-  // why it is one file and not two.
-  .icon-flip {
-    transform: scaleX(-1);
   }
 
   // FIXED FOOTPRINT, and that is the whole design. This readout was on the
@@ -1135,6 +1490,66 @@
   }
 }
 
+// The place-search dropdown. TOP LEVEL, NOT nested under .builder-panel, for
+// the same reason .day-drag-ghost below is not: builder.js appends this to
+// <body>, so a `.builder-panel #search-results` selector would never match it.
+// It moved out of the panel when the single search box became one row per day —
+// there are up to 31 fields and one list, owned by nobody in particular.
+//
+// Fixed, not absolute, and positioned from JS — see placeResults() in
+// builder.js. Absolute made it a descendant of the panel's scroll box, so the
+// moment .panel-contents-wrapper gained overflow the dropdown was clipped at the
+// panel's bottom edge: three visible rows out of eight, on the control used to
+// add every stop. Fixed escapes the clip because nothing in the chain
+// establishes a containing block for it.
+//
+// The cost is that JS owns left/top/width and has to keep them current, which is
+// why the panel scrolling closes the dropdown rather than trying to track it.
+#search-results {
+  position: fixed;
+  // ABOVE THE DRAWER, which is z-index 1000 (.floating-panel in _map.scss).
+  // This was 20 and correct while the list lived inside the panel — it only had
+  // to beat the panel's own children, and it shared the panel's stacking
+  // context. Appending it to <body> to serve 31 fields put it in competition
+  // with the panel itself, and 20 lost: the list was positioned, unhidden and
+  // painted underneath the drawer. Keep this above whatever .floating-panel is.
+  z-index: 1001;
+  // JS sets width from the field's border box, so this has to measure the same
+  // way or the 1px border either side makes the list 2px wider.
+  box-sizing: border-box;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px $panel-shadow;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 0.9em;
+  // Otherwise scrolling past the last result chains into the panel, and the
+  // panel scrolling is what closes this list.
+  overscroll-behavior: contain;
+
+  &[hidden] {
+    display: none;
+  }
+
+  li {
+    padding: 0.45em 0.6em;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .hit-ctx {
+      color: color.adjust($text, $lightness: 35%);
+      font-size: 0.85em;
+    }
+  }
+}
+
 //@ Reduced motion — the pulse is decoration; the color and the text both
 // already say "saving", so removing it costs nothing.
 @media (prefers-reduced-motion: reduce) {
@@ -1161,6 +1576,25 @@
 // moment it is picked up. --panel-width moved from #info-panel to html.map-page
 // when the timeline became a sibling of the panel, so it is in scope here now;
 // the literal stays as the fallback for a ghost appended before the page class.
+// The day's drag mirror, appended to <body> for the same reason .row-drag-ghost
+// is — fallbackOnBody puts it outside the panel, where it inherits nothing. A
+// whole day can be tall, so this one is capped and clipped rather than dragged
+// full height across the map.
+.day-drag-ghost {
+  box-sizing: border-box;
+  width: var(--panel-width, 380px);
+  max-height: 40vh;
+  overflow: hidden;
+  padding: 0.5em 0.6em;
+  background: $white;
+  border: 1px solid $brand;
+  border-left: 3px solid var(--day-color, #{$brand});
+  border-radius: 8px;
+  box-shadow: 0 6px 18px $panel-shadow;
+  opacity: 0.95;
+  cursor: grabbing;
+}
+
 .row-drag-ghost {
   list-style: none;
   box-sizing: border-box;

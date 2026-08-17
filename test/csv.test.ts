@@ -147,6 +147,7 @@ describe('buildCsv → processCsv round-trip', () => {
   const ride: ExportRide = {
     title: 'Bodega weekend',
     description: null,
+    hiddenAlternates: 0,
     days: [
       {
         title: 'Day 1',

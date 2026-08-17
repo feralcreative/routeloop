@@ -50,7 +50,7 @@ The database predates `drizzle/` and was built by `push`, so it already has ever
 
 ## The seed fails partway through
 
-`src/db/seed.ts` reads `moto-storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a machine without that file the seed dies at that line. `utils/seed-dev.sh --rides-only` skips it and seeds generated native rides only.
+`src/db/seed.ts` reads `storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a machine without that file the seed dies at that line. `utils/seed-dev.sh --rides-only` skips it and seeds generated native rides only.
 
 ## A test compares a string to itself and passes
 

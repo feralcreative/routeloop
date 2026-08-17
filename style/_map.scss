@@ -85,11 +85,32 @@
   }
 }
 
+// SIZED TO THE SPACE BESIDE THE DRAWER, not to the viewport. It was
+// `width: 100vw` while the panel floated on top of it, which is why fitTo() in
+// map-common.js carried 380px of left padding — the map was full width and the
+// left 380 of it was under the panel. Now the drawer takes its own column and
+// the map gets the rest, so that padding is gone and a fitted route is centred
+// in the space a rider can actually see.
+//
+// The transition matches the drawer's so the two move together; without it the
+// map snaps to its new width while the drawer is still sliding.
 #map {
   display: block;
   position: fixed;
-  width: 100vw;
+  top: 0;
+  left: var(--drawer-current);
+  width: calc(100vw - var(--drawer-current));
   height: 100vh;
+  transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+// Nobody should watch the furniture animate if they have asked not to. The
+// drawer still opens and closes, it just arrives immediately.
+@media (prefers-reduced-motion: reduce) {
+  #map,
+  #info-panel {
+    transition: none !important;
+  }
 }
 
 // The numbers the map page's furniture is built from, stated once.
@@ -99,21 +120,32 @@
 // the panel, so a custom property declared on the panel is invisible to it —
 // custom properties inherit down, not sideways. They belong on the page.
 //
-// --panel-width is the fix for the panel resizing on every edit. It used to be
-// `width: auto !important`, which is shrink-to-fit over max-content, so a long
-// stop name or the multi-day totals line growing to two moved the right edge
-// while the rider typed. (Day ticks look like they would too, but they are
-// absolutely positioned and so contribute nothing to intrinsic width.)
+// --panel-width is the drawer's open width, and it is the fix for the panel
+// resizing on every edit. It used to be `width: auto !important`, which is
+// shrink-to-fit over max-content, so a long stop name or the multi-day totals
+// line growing to two moved the right edge while the rider typed. (Day ticks
+// look like they would too, but they are absolutely positioned and so
+// contribute nothing to intrinsic width.)
 //
 // 380px was checked in the browser rather than derived: it is the narrowest
 // round number at which .day-times still lays its two datetime fields on one
 // row, and it leaves most of the map visible. Below roughly 390 they wrap,
 // which is stable but taller.
 //
-// --panel-top-clearance reserves room for the floating header. Measured at
-// 1440x900 the header's bottom edge sits at 109px — a 92px logo between two
-// 0.6rem pads, on a map page where the root font is 14px — so 120px clears it
-// with 11px to spare.
+// --drawer-rail is the collapsed width. 56px takes a 24px icon with 16px either
+// side, which is the smallest that still clears the 44px minimum tap target the
+// day dots inside it need.
+//
+// --drawer-current is the one the layout actually reads, and the ONLY thing that
+// changes when the drawer opens or closes. #map, .map-timeline and the drawer
+// itself all size off it, so one declaration below moves all three and they
+// cannot fall out of step. It is redeclared on html rather than on the drawer
+// because #map is a sibling — custom properties inherit down, not sideways.
+//
+// --panel-top-clearance no longer reserves room for a floating logo, because
+// there is not one any more: the mark moved into the drawer's own header on
+// 2026-08-16. It survives because the phone bottom-sheet rule still uses it as
+// the sheet's minimum distance from the top of the screen.
 //
 // --timeline-height is the timeline bar's whole footprint, declared rather than
 // measured because the phone layout stacks the panel on top of the bar and has
@@ -131,34 +163,69 @@
 html.map-page {
   --panel-inset: 2vw;
   --panel-width: 380px;
+  --drawer-rail: 56px;
+  --drawer-current: var(--panel-width);
+  // The drawer's own horizontal padding. On the element itself it would be
+  // inherited by the rail too, where it is exactly wrong — 16px either side of a
+  // 56px rail leaves 24px — so each band applies it and the rail declines.
+  --drawer-pad: 16px;
   --panel-top-clearance: 120px;
   --timeline-height: 3.4em;
   --map-control-gutter: 3.4em;
   --map-credit-height: 2em;
 }
 
+// The whole open/closed switch, in one declaration. :has() rather than a class
+// on <html> so the CSS needs no JavaScript to be correct — initPanelToggle only
+// toggles .collapsed on the drawer, exactly as it always did, and re-centres the
+// map afterwards because that part genuinely cannot be done in CSS.
+//
+// If :has() ever fails the drawer collapses and the map keeps its open-width
+// column, which is ugly rather than broken — the right way round for a check
+// that might not run.
+html.map-page:has(#info-panel.collapsed) {
+  --drawer-current: var(--drawer-rail);
+}
+
+// THE DRAWER. Every edge is pinned, so its height is the viewport's and nothing
+// it contains can change its size — which is the whole point. A floating card
+// grew and shrank with its own contents, and because it was anchored at one
+// corner, everything inside it moved whenever anything inside it changed. Every
+// control in here is now either in a fixed band or in the one scroller.
+//
+// The four bands, in order, and only the third of them scrolls:
+//   .drawer-head            logo + collapse + exit. Fixed.
+//   .panel-title            ride name, and #totals under it. Fixed.
+//   .panel-contents-wrapper flex: 1, min-height: 0, overflow-y: auto.
+//   .drawer-foot            the builder's day scrubber. Fixed, pinned bottom.
 #info-panel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
   position: fixed;
   z-index: 1000;
-  bottom: var(--panel-inset);
-  left: var(--panel-inset);
-  box-shadow: 0 2px 12px $panel-shadow;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  box-shadow: 2px 0 14px $panel-shadow;
   box-sizing: border-box;
-  width: var(--panel-width);
-  max-width: calc(100vw - var(--panel-inset) * 2);
-  min-height: 42px;
-  // Anchored bottom-left and growing upward, so the top edge sits at
-  // 100vh - inset - height. The inset therefore has to come out of the budget
-  // alongside the clearance, or the top lands under the logo by exactly that
-  // much — 2vw is ~29px at a 1440px viewport, which is most of the margin.
-  max-height: calc(100vh - var(--panel-top-clearance) - var(--panel-inset));
-  padding: 18px 18px 14px 18px;
-  background: $panel-bg;
-  border-radius: 12px;
+  width: var(--drawer-current);
+  // No max-width and no max-height any more. Both existed to stop a shrink-to-fit
+  // card running away; a drawer that is pinned on all four edges cannot.
+  padding: 0;
+  // OPAQUE, where the floating card was $panel-bg — rgba(255,255,255,0.9).
+  // Ten percent of the map bleeding through a 200px card reads as frosted glass;
+  // through a full-height drawer, or the bottom sheet the phone layout turns
+  // this into, it reads as a rendering fault. The sheet is the case that forced
+  // it: it lies directly over the map, so Interstate shields and place names
+  // came through the ride title and the stop list.
+  background: $white;
+  border-radius: 0;
+  // Width alone. Animating the padding or the contents would reflow the whole
+  // stop list on every frame of the transition.
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  // Nothing may spill into the map while the drawer is narrowing to the rail.
+  overflow: hidden;
 
   .toggle-checkbox {
     justify-content: flex-end;
@@ -206,12 +273,12 @@ html.map-page {
   // of the size cut on the builder, not just the saving: a name that used to run
   // off the end of one line now fits two (see #ride-title in _builder.scss).
   //
-  // The right margin clears .panel-controls, which is absolutely positioned in
-  // that corner and so contributes nothing the heading could flow around. It was
-  // 0.5em here and 2.6em on the builder, which meant the VIEWER'S heading ran
-  // under the collapse and exit buttons the moment a ride name reached two lines
-  // — the builder had already found this and fixed only itself. One number, both
-  // panels; .builder-panel restates it and can go on doing so harmlessly.
+  // The right margin that used to clear .panel-controls is gone: the controls
+  // moved into .drawer-head above and no longer overlap anything. It was 0.5em
+  // here and 2.6em on the builder, which meant the VIEWER'S heading ran under
+  // the collapse and exit buttons the moment a ride name reached two lines.
+  // Nothing overlaps now, so neither number is needed — but .builder-panel still
+  // restates its own and can go on doing so harmlessly.
   .panel-title {
     transition: font-size 0.4s cubic-bezier(0.77, 0, 0.175, 1);
     font-size: 1.575rem;
@@ -220,30 +287,68 @@ html.map-page {
     line-height: 1.15;
     font-weight: 400;
     color: $text;
-    max-width: 500px !important;
-    display: inline-block;
-    margin: 0 2.6em 0 0;
+    display: block;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 0.7em var(--drawer-pad) 0;
+    margin: 0;
   }
 
-  // Collapse and exit, in that order, pinned to the corner a reader already
-  // looks in to dismiss something. They are two verbs and two controls: collapse
-  // keeps you on the map, exit leaves it. Before this only collapse existed and
-  // there was no way off a map page except the nav hamburger in the opposite
-  // corner — see the panelShell comment in src/views/layout.tsx.
-  .panel-controls {
-    position: absolute;
-    z-index: 100;
-    top: 6px;
-    right: 6px;
+  // The drawer's top band: the wordmark, then collapse and exit. Fixed height,
+  // and it is the one thing that stays put in the rail — the collapse button has
+  // to remain reachable to get the drawer back.
+  .drawer-head {
     display: flex;
     align-items: center;
+    gap: 0.5em;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 0.75em var(--drawer-pad);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  }
+
+  // The mark, which used to float over the map at top-left and now heads the
+  // drawer. The horizontal lockup rather than the stacked one: this header is
+  // wide and short, which is the shape the 8.15:1 artwork is for.
+  .drawer-logo {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 0;
+
+    img {
+      width: auto;
+      height: 26px;
+      max-width: 100%;
+    }
+  }
+
+  // Collapse and exit, in that order. They are two verbs and two controls:
+  // collapse keeps you on the map, exit leaves it. Before this only collapse
+  // existed and there was no way off a map page except the nav hamburger in the
+  // opposite corner — see the panelShell comment in src/views/layout.tsx.
+  //
+  // No longer absolutely positioned. It sat in the panel's corner while the
+  // panel was a card, which is why .panel-title carried a right margin to flow
+  // around it; in a flex header it takes its own column and needs neither.
+  .panel-controls {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
     gap: 0.1em;
   }
 
   .collapse-toggle,
   .panel-exit {
     background-color: transparent;
-    display: inline-flex !important;
+    // NO !important on display. It carried one to out-shout the old collapsed
+    // pill, which restated `display: inline-flex !important` on .panel-controls
+    // and everything in it. That rule is gone — collapsing narrows the drawer to
+    // a rail now — and the leftover !important actively broke the rail: it beat
+    // the `display: none` that hides the exit button there, so .panel-controls
+    // stayed 61.4px wide inside a 56px column and centring pushed the collapse
+    // button to x = -2.7, half of it off the screen.
+    display: inline-flex;
     justify-content: center;
     align-items: center;
     width: 30px !important;
@@ -263,14 +368,26 @@ html.map-page {
     }
   }
 
+  // Masked rather than an <img>, so it takes the button's hover color — see the
+  // comment on the markup in src/views/layout.tsx. Which of the two files it
+  // draws is keyed off aria-expanded, which initPanelToggle already flips and
+  // which a screen reader is already reading: one source of truth for the
+  // state, instead of an attribute and an image src that could disagree.
   .collapse-toggle .collapse-icon {
     pointer-events: none;
     display: block;
     width: 18px;
     height: 18px;
     margin: auto;
-    background: none;
+    background-color: currentColor;
     border: none;
+    -webkit-mask: url("/img/icons/icon-collapse.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-collapse.svg") center / contain no-repeat;
+  }
+
+  .collapse-toggle[aria-expanded="false"] .collapse-icon {
+    -webkit-mask-image: url("/img/icons/icon-expand.svg");
+    mask-image: url("/img/icons/icon-expand.svg");
   }
 
   // Leaving is the more consequential of the two, so it gets the warmer hover.
@@ -279,6 +396,11 @@ html.map-page {
   .panel-exit {
     font-size: 1.1rem;
     line-height: 1;
+    // Black rather than the $neutral-43 it shares with .collapse-toggle. The X
+    // is drawn by a mask painting currentColor, so this is what colors the
+    // glyph. Later in source than the shared rule at equal specificity, so it
+    // wins without !important, and the $kml hover below still overrides it.
+    color: $black;
 
     &:hover {
       background-color: rgba($kml, 0.12);
@@ -286,74 +408,170 @@ html.map-page {
     }
   }
 
-  // The scroller, rather than #info-panel itself: .collapse-toggle is absolutely
-  // positioned against the panel, so if the panel scrolled the close button
-  // would slide away with the content. Scrolling here keeps the title and the
-  // toggle put.
+  // BOTH X CONTROLS DRAW icon-close.svg, as a MASK rather than as an <img> or an
+  // inlined SVG, and the choice is not cosmetic.
+  //
+  // The artwork is `fill="black"`, not `fill="currentColor"`. An <img> cannot
+  // take a color from CSS at all, and inlining the file through hydrateIcons
+  // would faithfully reproduce that hardcoded black — so .panel-exit would stay
+  // black through its $kml hover, and a disabled .day-del would stay black while
+  // the button greyed out around it. Masking ignores the fill entirely: it reads
+  // the alpha channel, paints `currentColor` through it, and therefore inherits
+  // hover, disabled opacity and the day tint for free.
+  //
+  // It also keeps one copy of the artwork. The mask points at the file, so a
+  // redraw ships by replacing the file and nothing here changes.
+  //
+  // Both properties: -webkit-mask is still required for Safari, which has not
+  // unprefixed the shorthand.
+  .panel-exit,
+  .day-del,
+  .day-rev {
+    &::before {
+      content: "";
+      display: block;
+      background-color: currentColor;
+    }
+  }
+
+  .panel-exit::before,
+  .day-del::before {
+    -webkit-mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
+  }
+
+  // Same mechanism, different artwork. It replaced a bare ⇄ character, which
+  // could not take the $url hover the other day actions get and rendered at
+  // whatever weight the font felt like.
+  .day-rev::before {
+    -webkit-mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
+    mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
+  }
+
+  // 18px, the same as .collapse-icon above, because the two sit side by side in
+  // the drawer header and have to read as a pair. Sizing this in em got it 11px
+  // against the collapse button's 18 and it looked like a different control.
+  .panel-exit::before {
+    width: 18px;
+    height: 18px;
+  }
+
+  // Smaller than the header's 18px: this sits inside a .day-actions button,
+  // which is 0.85em, so it tracks that rather than the header.
+  //
+  // .day-del is still listed in the mask rules above because the class survives
+  // in the DAY MENU's delete item styling path and in the point rows; the day
+  // header's delete button itself moved into the ⋮ menu on 2026-08-16.
+  .day-del::before,
+  .day-rev::before {
+    width: 0.85em;
+    height: 0.85em;
+  }
+
+  // THE ONLY THING IN THE DRAWER THAT SCROLLS, and it takes whatever height the
+  // fixed bands leave. That is what "the route height is fixed" means in
+  // practice: a day with three stops and a day with thirty give this box the
+  // same size, and the difference shows up as scrollbar rather than as the
+  // drawer resizing and dragging every control with it.
   .panel-contents-wrapper {
     pointer-events: auto;
-    visibility: visible;
-    opacity: 1;
     // Load-bearing, and the reason a bare `overflow-y: auto` here does nothing:
     // a flex item will not shrink below its content without it, so the wrapper
-    // would stay full height and the panel's max-height would clip instead of
-    // scroll.
+    // would stay at its content's height and push the footer off the bottom.
+    flex: 1 1 auto;
     min-height: 0;
+    box-sizing: border-box;
+    padding: 0 var(--drawer-pad);
     overflow-y: auto;
     // Without this, scrolling past the end of the list chains to the map behind
     // and zooms it.
     overscroll-behavior: contain;
-    transition:
-      opacity 0.4s cubic-bezier(0.77, 0, 0.175, 1),
-      visibility 0.4s cubic-bezier(0.77, 0, 0.175, 1);
   }
 
-  &.collapsed {
-    display: inline-flex !important;
-    flex-direction: row;
-    justify-content: flex-start;
-    align-items: center;
-    flex: 0 0 auto !important;
-    align-self: flex-start !important;
-
-    overflow: visible !important;
+  // Pinned to the bottom edge, outside the scroller. The builder's day scrubber
+  // lives here; the viewer passes no footer and the element is never rendered.
+  .drawer-foot {
+    flex: 0 0 auto;
     box-sizing: border-box;
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    min-height: 0 !important;
-    // Room for two controls now, not one. Collapse gained an exit beside it, and
-    // at the old 3em the X sat on top of the title.
-    padding: 1em 4.6em 1em 1em !important;
+    padding: 0.6em var(--drawer-pad) 0.75em;
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
     background: $panel-bg;
+  }
 
+  // Hidden until the drawer is a rail. Rendered always so there is no first-
+  // collapse flash while the markup is created.
+  .drawer-rail {
+    display: none;
+  }
+
+  // One dot per day plus All, stacked, so a collapsed drawer can still change
+  // which day is focused. 44px is the minimum tap target, which is what set the
+  // rail's 56px width rather than the icon size.
+  .rail-days {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15em;
+  }
+
+  .rail-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    font: inherit;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: $neutral-43;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.07);
+      color: $text;
+    }
+
+    // The focused day. Its own colour rather than one accent, so the rail agrees
+    // with the routes on the map and the ticks under the slider.
+    &[aria-current="true"] {
+      color: $white;
+      background: var(--rail-color, #{$url});
+    }
+  }
+
+  // THE RAIL. Collapsing narrows the drawer rather than shrinking it toward a
+  // corner, so the head stays exactly where it was and the collapse button does
+  // not move under the cursor that just pressed it — the same rule the rest of
+  // this redesign is built on.
+  //
+  // Everything with a width requirement is dropped rather than squeezed: a
+  // 380px-wide stop list at 56px is not a smaller stop list, it is a column of
+  // broken rows. What survives is the collapse button and the day dots.
+  &.collapsed {
+    .drawer-logo,
     .panel-title,
-    .panel-controls {
-      display: inline-flex !important;
-      flex: 0 0 auto !important;
-      min-width: 0 !important;
-      max-width: none !important;
-      padding: 0 !important;
-      background: none !important;
-    }
-    .panel-contents-wrapper {
-      display: none !important;
-      pointer-events: none;
-      visibility: hidden;
-      opacity: 0;
-    }
-    .panel-title {
-      position: relative;
-      z-index: 2;
-      font-size: 1rem;
-      font-weight: 700;
+    .panel-contents-wrapper,
+    .drawer-foot,
+    .panel-exit {
+      display: none;
     }
 
-    // The summary belongs to the expanded panel. Collapsed, the strip is a label
-    // saying what is behind it, and a second line of stats would make it a
-    // second panel.
-    .totals {
-      display: none;
+    .drawer-head {
+      justify-content: center;
+      padding: 0.75em 0;
+    }
+
+    .drawer-rail {
+      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 0.6em 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
   }
 }
@@ -531,13 +749,15 @@ table.day-table {
   position: fixed;
   z-index: 1000;
   bottom: var(--panel-inset);
-  // Clears the panel on the left. The panel is bottom-left at --panel-inset and
-  // --panel-width wide, so one more inset past its right edge is the first
-  // column the bar can have.
-  left: calc(var(--panel-inset) * 2 + var(--panel-width));
+  // Sits inside the map's own column. --drawer-current is the drawer's width
+  // whichever state it is in, so the bar follows it out to the rail and back
+  // without a second rule — and it animates in step because the transition below
+  // matches #map's.
+  left: calc(var(--drawer-current) + var(--panel-inset));
   // Clears Google's zoom and recenter buttons on the right. Crossing them would
   // put a slider thumb under a map control, and they are not ours to move.
   right: calc(var(--panel-inset) + var(--map-control-gutter));
+  transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
   padding: 0.45em 0.9em 0.5em;
   background: $panel-bg;
@@ -585,36 +805,86 @@ table.day-table {
   text-overflow: ellipsis;
 }
 
-//@ Phone — the bar spans the width and the panel stacks on top of it
+//@ Phone — the drawer stops being a drawer and becomes a bottom sheet
 //
-// At this width the panel is already the full viewport minus its insets, so
-// there is no column to the right of it for the bar to sit in. The bar takes the
-// bottom of the map and the panel is lifted clear of it.
+// A left drawer does not survive this width. 380px of a 390px viewport leaves
+// ten pixels of map, and narrowing the drawer instead would mean a stop list in
+// a column too narrow to read. So below 768 it is a sheet: full width, anchored
+// to the bottom, occupying the lower part of the screen with the map above it,
+// and collapsing to its own header rather than to a rail.
 //
-// Both offsets are the desktop rule's problem in a smaller space rather than a
-// new one. Measured at 390x844 with the bar spanning edge to edge at the plain
-// inset, it covered Google's wordmark at the bottom-left, the attribution row
-// along the bottom, AND the bottom 30px of the zoom control — the logo and the
-// attribution are a licence condition, not a preference. So the bar sits a
-// credit-strip up from the bottom and stops short of the control gutter, exactly
-// as it does on a wide screen; it is only the panel that has to move.
+// Everything that made it a drawer is undone explicitly rather than left to
+// cascade. --drawer-current is forced back to zero so #map and .map-timeline —
+// both of which size off it — go full width again; the sheet is over the map at
+// this size, not beside it.
 //
-// :has() rather than a body class because the reservation must only apply when
-// the bar is actually showing — a dateless ride would otherwise leave an empty
-// strip of map under the panel. If :has() ever fails the panel overlaps the bar
-// rather than breaking, which is the right way round for a progressive check.
+// The sheet still cannot resize itself, which is the property the whole redesign
+// exists for. Its height is a fixed fraction of the viewport, not its content's
+// height, so the day scrubber pinned at its bottom edge stays put exactly as it
+// does on a wide screen.
 @media (max-width: 767px) {
+  html.map-page,
+  html.map-page:has(#info-panel.collapsed) {
+    --drawer-current: 0px;
+  }
+
+  #info-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    // 62% of the screen, floored so a short viewport still shows a usable list
+    // and capped so the map never disappears entirely. A fixed fraction rather
+    // than the content's height is the point.
+    height: clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance)));
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -2px 14px $panel-shadow;
+    transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  // Collapsed is the sheet pulled down to its own header — the wordmark and the
+  // two controls — which doubles as the grab handle to bring it back.
+  #info-panel.collapsed {
+    height: auto;
+    width: auto;
+
+    .drawer-head {
+      justify-content: space-between;
+      padding: 0.75em var(--drawer-pad);
+    }
+
+    .drawer-logo,
+    .panel-exit {
+      display: block;
+    }
+
+    // The rail is a vertical strip and has no meaning lying on its side. On a
+    // phone the collapsed sheet is a header bar, and the day dots come back with
+    // the sheet itself.
+    .drawer-rail {
+      display: none;
+    }
+  }
+
+  // The bar sits a credit-strip up from the bottom and stops short of the
+  // control gutter. Measured at 390x844: spanning edge to edge at the plain
+  // inset it covered Google's wordmark bottom-left, the attribution row along
+  // the bottom, AND the bottom 30px of the zoom control. The logo and the
+  // attribution are a licence condition, not a preference.
+  //
+  // It also has to clear the sheet, which now owns the bottom of the screen —
+  // hence the extra term. :has() rather than a body class because the bar is only
+  // there on a ride with dates; if :has() ever fails the bar sits under the sheet
+  // rather than breaking, which is the right way round for a progressive check.
   .map-timeline {
     left: var(--panel-inset);
     right: calc(var(--panel-inset) + var(--map-control-gutter));
     bottom: calc(var(--panel-inset) + var(--map-credit-height));
   }
 
-  html.map-page:has(.map-timeline:not([hidden])) #info-panel {
-    bottom: calc(var(--panel-inset) + var(--map-credit-height) + var(--timeline-height));
-    max-height: calc(
-      100vh - var(--panel-top-clearance) - var(--panel-inset) - var(--map-credit-height) - var(--timeline-height)
-    );
+  html.map-page:has(#info-panel:not(.collapsed)) .map-timeline {
+    bottom: calc(var(--panel-inset) + clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance))));
   }
 }
 
@@ -741,6 +1011,50 @@ table.day-table {
     text-align: right;
     color: $text;
     white-space: nowrap;
+  }
+
+  // ALTERNATES. The row is quieted rather than hidden — a rider wants to see
+  // the option they did not take, and the legend checkbox still works on it.
+  // Not opacity on the whole row: that would take the checkbox with it and make
+  // a working control look disabled.
+  .day-row.is-alt .day-name {
+    color: color.adjust($text, $lightness: 30%);
+  }
+
+  // Both members of a group get one of these, which is what makes them read as
+  // a pair. Same shape either way and only the colour differs, so the eye pairs
+  // them before it reads either word.
+  .day-alt {
+    display: inline-block;
+    margin-left: 0.5em;
+    padding: 0.05em 0.45em;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: color.adjust($text, $lightness: 20%);
+    font-size: 0.7em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: lowercase;
+    white-space: nowrap;
+    vertical-align: middle;
+    cursor: help;
+
+    // The one being ridden, tinted in the day's own colour so it agrees with
+    // its line on the map and its swatch everywhere else.
+    &.is-on {
+      background: color-mix(in srgb, var(--day-color, #{$url}) 16%, #{$white});
+      color: color-mix(in srgb, var(--day-color, #{$url}) 70%, #{$black});
+    }
+  }
+
+  // Only rendered on a ride that has alternates — see buildLegend(). It exists
+  // because the mileage column stops adding up the moment a ghost is in it.
+  .day-total td {
+    padding: 0.5em 0.25em 0.35em;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    color: color.adjust($text, $lightness: 15%);
+    font-size: 0.85em;
+    font-weight: 600;
   }
   .day-downloads-row td {
     padding-top: 0.6em;

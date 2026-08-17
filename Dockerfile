@@ -32,12 +32,12 @@ COPY style ./style
 RUN npm run sass
 
 # User KML/GPX files live on a mounted volume, never baked into the image.
-RUN mkdir -p /app/moto-storage && chown -R node:node /app
+RUN mkdir -p /app/storage && chown -R node:node /app
 USER node
 
 ENV NODE_ENV=production \
     PORT=6686 \
-    STORAGE_PATH=/app/moto-storage
+    STORAGE_PATH=/app/storage
 
 EXPOSE 6686
 

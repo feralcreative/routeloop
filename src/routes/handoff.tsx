@@ -55,6 +55,11 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
   const viewable = m && (m.visibility === 'public' || m.visibility === 'unlisted' || (user && user.id === m.ownerId))
   if (!m || !viewable) return c.text('Not found', 404)
 
+  // ACTIVE DAYS ONLY, via loadRideForExport. Nothing below needs to know about
+  // alternates as a result: the link count, the worst-gap figure, the "across N
+  // days" summary and the per-day headings are all over the ride as it will be
+  // ridden. Handing a rider a Google Maps link for a day they chose not to do is
+  // the one outcome this page must not produce.
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
   if (ride.days.length === 0) return c.text('Not found', 404)
 

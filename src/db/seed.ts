@@ -6,7 +6,7 @@ import { users, rides, days, points, routeLegs } from './schema'
 import { distFromStartAlongTrack, METERS_PER_MILE, processKml } from '../maps/kml'
 
 // Dev seed: one user + the sample ride, structured rows extracted from the KML
-// already on disk at moto-storage/1/1.kml (owner id 1, ride id 1 after
+// already on disk at storage/1/1.kml (owner id 1, ride id 1 after
 // RESTART IDENTITY) — so dev exercises the same rows the import pipeline and
 // the builder produce.
 async function main() {
@@ -19,7 +19,7 @@ async function main() {
     .values({ displayName: 'Demo Rider', email: 'demo@routeloop.app', canManageRiders: true })
     .returning()
 
-  const kml = processKml(await readFile('moto-storage/1/1.kml', 'utf8'))
+  const kml = processKml(await readFile('storage/1/1.kml', 'utf8'))
   const distM = Math.round(kml.trackMeters)
 
   const [ride] = await db

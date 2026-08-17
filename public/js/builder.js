@@ -17,6 +17,7 @@
     removeRouteLayers,
     updateRouteTrack,
     setRouteDim,
+    setRouteGhost,
     setLegHighlight,
     clearLegHighlight,
     onRouteShapeDrag,
@@ -29,7 +30,7 @@
     initPanelToggle,
   } = window.TBMap;
 
-  initPanelToggle();
+  initPanelToggle(() => state.map);
 
   // The ride's time model is shared with the viewer so the two can never
   // disagree about what is happening at a given moment. See ride-time.js.
@@ -78,6 +79,13 @@
   const DUR = window.TBDuration;
   const durFormat = DUR.toFormat(window.TB.durationFormat);
 
+  // Alternates: the numbering, the active-day filter and the ride rollup. The
+  // builder is the only client that calls resolveAltGroups — it is the one
+  // editing days, and repairing locally is what keeps the panel, the map and
+  // the totals agreeing before the next save round trip. The server resolves
+  // again on save regardless, and its answer wins.
+  const ALT = window.TBAlt;
+
   const newDay = (color) => ({
     title: "",
     color: color || DAY_COLORS[0],
@@ -85,6 +93,12 @@
     endAt: null,
     // Session-only: see inferEndManual(). Never part of payload().
     endManual: false,
+    // Alternates. A new day is always a plain one — grouping is something a
+    // rider does to days that already exist. Both fields DO go in payload() and
+    // both come back in loadExisting(); see src/maps/alternates.ts for what
+    // they mean and why the group id is not stable across a save.
+    altGroup: null,
+    altActive: true,
     stops: [],
     pois: [],
     legs: [],
@@ -95,9 +109,13 @@
     rideId: window.TB.rideId || null,
     meta: { title: "", description: "", visibility: "private", external_url: "" },
     days: [newDay()],
-    // Slider position: 0 means "all days", 1..N focuses that day. It is the
-    // slider's value directly, so the two can never disagree.
-    focus: 0,
+    // The active day, as a plain index into state.days. It is where a map click
+    // puts a stop and which day the map emphasises; it is NOT a filter, because
+    // every day is on screen at once.
+    //
+    // It was `focus`, a 0..N slider value with 0 meaning "all days". Both the
+    // off-by-one and the null-means-all case went with the slider.
+    active: 0,
     // The timeline's position, in epoch seconds, or null for "no moment
     // chosen". When it is set it is the single source of what is emphasised:
     // the day containing it, and the leg being ridden at it. The day slider
@@ -115,28 +133,70 @@
     layersReady: false,
     layerCount: 0, // how many day layers are currently on the map
     legSeq: [], // legSeq[r][i]—stale routing responses are dropped
+    // SELECT MODE, or null when off:
+    //   { scope: "day" | "point", days: Set<int>, points: Set<"day:kind:i"> }
+    //
+    // ON state, DELIBERATELY NOT ON A DAY OR A POINT. snapshot() in
+    // builder-history.js reads only state.meta and state.days, so a sibling key
+    // here needs no entry in its copy list and can never ride into the undo
+    // stack. A `selected` flag on a day object would need one — and would then
+    // have to be stripped in payload() the way endManual is.
+    //
+    // Points are keyed "dayIndex:kind:i", never held as object references:
+    // HIST.restore builds fresh objects on undo, so a reference-based selection
+    // would go stale silently. Indices are safe because every bulk action, every
+    // undo and every structural render clears the selection — there is never a
+    // live selection across a mutation to reindex.
+    select: null,
   };
 
   const $ = (id) => document.getElementById(id);
 
-  // Which day edits land on, or null for "none — the rider is looking at the
-  // whole ride".
+  // WHICH DAY EDITS LAND ON. Every day is on screen at once now, so this is no
+  // longer "the one day being shown" — it is the last day the rider touched, and
+  // the only thing it decides is where a map click puts a new stop.
   //
-  // This used to return `state.days.length - 1` on "All", so edits silently
-  // landed on the LAST day for no stated reason and with no control that
-  // changed it. The panel announced "All days · editing Day 4" as though that
-  // had been asked for. The slider is the only control here, so it decides one
-  // thing: which day you are working on. "All" is a view.
+  // It was `state.focus`, a 0..N slider value where 0 meant "All days" and every
+  // day but one was hidden. Two things went with the slider: the null case, which
+  // meant edits had nowhere to land and half the panel had to hide itself, and
+  // the off-by-one, which is why this pair of helpers existed at all.
   //
-  // The single-day case is the exception and not a special case: with one day,
-  // "All" and "Day 1" are the same view of the same thing, and renderSlider
-  // already disables the slider below two days.
-  const editIndex = () => (state.focus === 0 ? (state.days.length > 1 ? null : 0) : state.focus - 1);
-  const focusedIndex = () => (state.focus === 0 ? null : state.focus - 1);
+  // It is clamped rather than allowed to go stale: deleting day 3 of 3 has to
+  // leave the active index pointing at a day that still exists, and every caller
+  // here assumes state.days[activeIndex()] is real whenever there is a day.
+  const activeIndex = () => {
+    if (!state.days.length) return null;
+    return Math.max(0, Math.min(state.days.length - 1, state.active | 0));
+  };
+  // Kept under their old names because eighteen call sites read them and none of
+  // them cared which day it was, only that it was the one being edited.
+  const editIndex = activeIndex;
+  const focusedIndex = activeIndex;
   const editRoute = () => {
-    const r = editIndex();
+    const r = activeIndex();
     return r == null ? null : state.days[r];
   };
+
+  // Makes a day the active one. Cheap and idempotent, because every row and
+  // section handler calls it before doing anything else — that is what lets the
+  // edit handlers go on reading editIndex() without each of them being rewritten
+  // to take a day.
+  function setActive(r) {
+    const next = Math.max(0, Math.min(state.days.length - 1, r | 0));
+    if (state.active === next) return;
+    state.active = next;
+    markActiveSection();
+    applyFocus();
+    renderRailDays();
+    renderTotals();
+  }
+
+  // Reads the day off whatever was clicked. Every .day-section and every
+  // .point-row carries data-day, so one lookup covers both.
+  function setActiveFromEl(el) {
+    const host = el && el.closest("[data-day]");
+    if (host) setActive(Number(host.dataset.day));
+  }
 
   // --- Toast + status -------------------------------------------------------
 
@@ -156,11 +216,12 @@
   }
 
   // Reached only when something slipped past the disabled controls — a stale
-  // keyboard shortcut, a double-click landing after the slider moved. The real
-  // defence is that these controls are inert on "All"; this is the backstop that
-  // says why rather than doing nothing.
-  function pickADayFirst() {
-    toast("Pick a day on the slider first", true);
+  // Kept as the backstop for "there is no day at all", which is now the only way
+  // editIndex() returns null — a ride always has at least one day, so in practice
+  // this fires for nothing. It used to cover the slider's "All days" position,
+  // where every day-level control was live but had nowhere to act.
+  function noDayYet() {
+    toast("Add a day first", true);
   }
 
   // Undo/redo and the crash draft. The logic lives in builder-history.js so it
@@ -215,9 +276,7 @@
   function renderEverything() {
     rebuildLayers();
     renderMarkers();
-    renderSlider();
-    renderDayHead();
-    renderList();
+    renderDays();
     refreshDerived();
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
@@ -231,7 +290,13 @@
     const entry = dir === "redo" ? history_.redo(HIST.snapshot(state)) : history_.undo(HIST.snapshot(state));
     if (!entry) return;
     HIST.restore(state, entry.snap);
+    // The selection is keyed by index and the day and point arrays have just
+    // been replaced wholesale, so every key in it may now name something else.
+    // Dropped rather than remapped: there is no honest remapping of "the third
+    // stop of day 2" across an undo that removed day 1.
+    state.select = null;
     renderEverything();
+    renderSelectBar();
     renderHistoryButtons();
     markDirty();
     toast((dir === "redo" ? "Redid " : "Undid ") + entry.label);
@@ -548,25 +613,36 @@
     applyFocus();
   }
 
-  // The only thing focus does. Every day stays on the map; the unfocused ones
-  // are dimmed, and "all days" (focus 0) dims nothing.
+  // The only thing the active day does to the map. Every day stays drawn; the
+  // others are dimmed so the one being edited reads clearly against them.
   //
-  // With a moment chosen the timeline decides instead of the day slider: the
-  // day containing it stays lit and the leg being ridden at it is drawn over
-  // the top. A moment in the overnight gap belongs to no day, so everything
-  // dims and no leg is drawn — which is what "nobody is riding right now"
-  // honestly looks like.
+  // There is no longer an "all days, dim nothing" state — that was the slider's
+  // 0 position, and the slider is gone. Something is always active, because a map
+  // click always has to land somewhere.
+  //
+  // With a moment chosen the timeline decides instead: the day containing it
+  // stays lit and the leg being ridden at it is drawn over the top. A moment in
+  // the overnight gap belongs to no day, so everything dims and no leg is drawn —
+  // which is what "nobody is riding right now" honestly looks like.
   function applyFocus() {
     if (!state.map) return;
     const a = activeNow();
     const lit = a ? a.dayIndex : focusedIndex();
-    state.days.forEach((_, r) => {
+    state.days.forEach((day, r) => {
       const dim = a ? r !== lit : lit !== null && r !== lit;
+      const ghost = day.altGroup != null && !day.altActive;
       setRouteDim(state.map, r, dim);
+      // Set every pass rather than once when a day is grouped: rebuildLayers()
+      // recreates the entry on every add, delete, reorder and recolour, and
+      // applyFocus is what runs after all of them.
+      setRouteGhost(state.map, r, ghost);
       const m = state.markers[r];
       if (!m) return;
       [...m.stops, ...m.pois].forEach(({ el }) => {
-        el.style.opacity = dim ? "0.35" : "";
+        // A ghost stays quiet even while it is the focused day — the rider
+        // clicked into it to edit it, which is precisely when they need to see
+        // it is the one that does not count.
+        el.style.opacity = ghost ? "0.25" : dim ? "0.35" : "";
       });
     });
 
@@ -598,10 +674,12 @@
     const el = markerElement(stop, state.days[r].color, "stop");
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Clicking a marker on a dimmed day focuses that day — otherwise the row
-      // it scrolls to would not be in the visible list.
-      if (editIndex() !== r) setFocus(r + 1);
-      focusRow("stop", i);
+      // Clicking a marker on a dimmed day makes that day active, so the map's
+      // emphasis follows what was just clicked. Every day's rows are on screen
+      // now, so this is no longer what makes the row reachable — focusRow scrolls
+      // to it either way.
+      if (editIndex() !== r) goToDay(r);
+      focusRow("stop", i, r);
     });
     const marker = addMarker(state.map, [stop.lng, stop.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
@@ -621,8 +699,8 @@
     const el = markerElement(poi, state.days[r].color, "poi");
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (editIndex() !== r) setFocus(r + 1);
-      focusRow("poi", i);
+      if (editIndex() !== r) goToDay(r);
+      focusRow("poi", i, r);
     });
     const marker = addMarker(state.map, [poi.lng, poi.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
@@ -698,12 +776,17 @@
 
   // --- Mutations ------------------------------------------------------------
 
-  function addStop(lng, lat, name) {
-    beginEdit("add stop");
-    const r = editIndex();
-    if (r == null) return pickADayFirst();
+  // `dayIndex` is optional and defaults to the active day, which is what a map
+  // click means — you clicked the map, not a day. The per-day search rows pass
+  // their own index explicitly: a row is unambiguous about which day it belongs
+  // to in a way the global search box never was, and that ambiguity is the
+  // reason the box is gone.
+  function addStop(lng, lat, name, dayIndex) {
+    const r = dayIndex == null ? editIndex() : dayIndex;
+    if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
+    beginEdit("add stop");
     day.stops.push({
       lat: +lat.toFixed(6),
       lng: +lng.toFixed(6),
@@ -715,17 +798,19 @@
     const n = day.stops.length;
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
-    renderList();
+    // renderDayList(r), not renderList(): renderList redraws the ACTIVE day, and
+    // a search row can add to a day that is not it.
+    renderDayList(r);
     refreshDerived();
     markDirty();
   }
 
-  function addPoi(lng, lat, name) {
-    beginEdit("add POI");
-    const r = editIndex();
-    if (r == null) return pickADayFirst();
+  function addPoi(lng, lat, name, dayIndex) {
+    const r = dayIndex == null ? editIndex() : dayIndex;
+    if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
+    beginEdit("add POI");
     // durationMin present from the start, matching a stop: blank means "rode
     // past", which is the common case, and the field has to exist for the row to
     // round-trip through save and reload.
@@ -738,7 +823,7 @@
       durationMin: null,
     });
     renderMarkers();
-    renderList();
+    renderDayList(r);
     markDirty();
   }
 
@@ -790,7 +875,7 @@
   // set changes whenever a feature like this one lands.
   function duplicatePoint(kind, i) {
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     const list = kind === "stop" ? day.stops : day.pois;
     const src = list[i];
@@ -910,24 +995,31 @@
 
   // --- Days -----------------------------------------------------------------
 
-  function setFocus(v) {
-    state.focus = Math.max(0, Math.min(state.days.length, v));
-    $("day-slider").value = String(state.focus);
-    // Picking a day picks that day's opening moment, so the timeline follows
-    // rather than competing. "All days" and any undated day mean no moment at
-    // all, which is what an undated ride uses throughout.
-    const day = state.focus === 0 ? null : state.days[state.focus - 1];
+  // Makes a day active AND puts the timeline on its opening moment. setActive()
+  // above is the cheap version that every row handler calls; this is the one for
+  // a deliberate "work on this day now" — the rail's dots, a marker click, a
+  // freshly added day.
+  //
+  // The split matters: moving the timeline is a visible jump on the map, and
+  // doing it every time a rider clicked into a stop's name field would yank the
+  // view out from under them.
+  function goToDay(r) {
+    setActive(r);
+    const day = state.days[activeIndex()];
     state.moment = day ? dayStartS(day) : null;
     applyFocus();
-    renderDayHead();
-    renderList();
     refreshDerived();
   }
 
   function addDay() {
-    beginEdit("add day");
     if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
-    const prev = state.days[state.days.length - 1];
+    beginEdit("add day");
+    // THE LAST DAY THAT COUNTS, not the last section on screen. If the ride ends
+    // with a pair of alternates, the last row might be the one the rider decided
+    // against — seeding from it would start the new day at the wrong place and,
+    // via nextMorningAfter below, on the wrong evening.
+    const counted = ALT.activeDays(state.days);
+    const prev = counted[counted.length - 1];
     const day = newDay(DAY_COLORS[state.days.length % DAY_COLORS.length]);
 
     // A day begins where the last one ended. Without this every new day starts
@@ -954,25 +1046,35 @@
     }
 
     state.days.push(day);
-    renderSlider();
-    setFocus(state.days.length); // focus the new day
+    renderDays();
+    goToDay(state.days.length - 1); // work on the new day
     rebuildLayers();
     renderMarkers();
     markDirty();
   }
 
   function deleteDay() {
-    beginEdit("delete day");
+    // GUARDS BEFORE beginEdit, not after. All four of these functions had it the
+    // other way round, so refusing to delete a ride's last day still pushed an
+    // undo step — the rider then pressed undo and nothing visible happened.
     if (state.days.length <= 1) return toast("A ride needs at least one day", true);
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
+    beginEdit("delete day");
     state.days.splice(r, 1);
     state.legSeq.splice(r, 1);
-    renderSlider();
-    setFocus(Math.min(state.focus, state.days.length));
+    // Deleting one of a pair leaves a group of one, which is not a group. The
+    // server would repair it on the next save anyway; doing it here means the
+    // panel and the map agree with the totals immediately rather than after a
+    // round trip.
+    ALT.resolveAltGroups(state.days);
+    // Clamped, not preserved: deleting the last day would leave the active index
+    // one past the end, and activeIndex() would quietly clamp it on every read
+    // while the highlight sat on nothing.
+    state.active = Math.min(r, state.days.length - 1);
+    renderDays();
     rebuildLayers();
     renderMarkers();
-    renderList();
     refreshDerived();
     markDirty();
   }
@@ -986,15 +1088,19 @@
   //
   // That costs one Routes call per leg, which is why a long day asks first.
   function reverseDay() {
-    beginEdit("reverse day");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const day = state.days[r];
     if (day.stops.length < 2) return toast("Nothing to reverse yet", true);
 
     const legCount = Math.max(0, day.stops.length - 1);
-    if (legCount > 12 && !window.confirm("Reversing re-days all " + legCount + " legs of this day. Continue?")) return;
+    // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
+    // routes→days rename caught this string, which a rider reads in a dialog.
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
 
+    // Every guard and the confirm are behind us, so this is the first point at
+    // which the day is certainly going to change.
+    beginEdit("reverse day");
     day.stops.reverse();
 
     // A stop tagged as the start is the finish now. Nothing else about a role
@@ -1018,84 +1124,583 @@
     toast(dayLabel(r) + " reversed");
   }
 
+  // --- Select mode ----------------------------------------------------------
+  //
+  // Turn on from either ⋮ menu; checkboxes appear on every peer and a bar at the
+  // top of the list offers what can be done to the set. It exists because the
+  // alternative to "select four days and delete them" is doing it four times,
+  // and because grouping days as alternates is inherently a multi-day action
+  // with nowhere else to live.
+  //
+  // TWO SCOPES, NEVER BOTH. Days and points are different kinds of thing and
+  // "delete the selected" has to mean one of them. Opening one closes the other.
+  const pointKey = (r, kind, i) => r + ":" + kind + ":" + i;
+
+  function startSelect(scope) {
+    closeMenu();
+    state.select = { scope, days: new Set(), points: new Set() };
+    renderDays();
+    renderSelectBar();
+  }
+
+  function endSelect() {
+    if (!state.select) return;
+    state.select = null;
+    renderDays();
+    renderSelectBar();
+  }
+
+  const selectedDays = () => [...(state.select?.days ?? [])].sort((a, b) => a - b);
+
+  // Grouped by day and sorted DESCENDING within each, which is the order a
+  // caller must splice in — ascending is off by one more with every removal and
+  // the bug is silent.
+  function selectedPointsByDay() {
+    const byDay = new Map();
+    for (const key of state.select?.points ?? []) {
+      const [r, kind, i] = key.split(":");
+      const day = Number(r);
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push({ kind, i: Number(i) });
+    }
+    for (const list of byDay.values()) list.sort((a, b) => b.i - a.i);
+    return byDay;
+  }
+
+  const selectedPointCount = () => state.select?.points.size ?? 0;
+
+  function renderSelectBar() {
+    const bar = $("select-bar");
+    if (!bar) return;
+    const sel = state.select;
+    if (!sel) {
+      bar.hidden = true;
+      bar.innerHTML = "";
+      return;
+    }
+    const isDay = sel.scope === "day";
+    const n = isDay ? sel.days.size : sel.points.size;
+    const noun = isDay ? (n === 1 ? "day" : "days") : n === 1 ? "point" : "points";
+    // Buttons are disabled rather than hidden at n === 0, so the bar is the same
+    // shape the moment it opens as it is once something is ticked.
+    const off = n === 0 ? " disabled" : "";
+    const dayBtns =
+      '<button type="button" data-sel="group"' + (sel.days.size < 2 ? " disabled" : "") + ">Group as alternatives</button>" +
+      '<button type="button" data-sel="duplicate"' + off + ">Duplicate</button>";
+    const pointBtns =
+      '<label class="sel-move">Move to <select data-sel="move-to">' +
+      '<option value="">day…</option>' +
+      state.days.map((_, r) => '<option value="' + r + '">' + esc(dayNumber(r)) + "</option>").join("") +
+      "</select></label>";
+    bar.hidden = false;
+    bar.innerHTML =
+      '<span class="sel-count">' + n + " " + noun + " selected</span>" +
+      '<button type="button" data-sel="all">All</button>' +
+      '<button type="button" data-sel="none"' + off + ">None</button>" +
+      (isDay ? dayBtns : pointBtns) +
+      '<button type="button" class="is-danger" data-sel="delete"' + off + ">Delete</button>" +
+      '<button type="button" data-sel="done">Done</button>';
+  }
+
+  // Group the selected days as alternatives of one another. The entry point for
+  // the whole alternates feature — everything else about them (ghosting, the
+  // totals, the numbering) has been in place since they could only be created by
+  // hand-writing a payload.
+  function groupSelectedAsAlternates() {
+    const rows = selectedDays();
+    if (rows.length < 2) return toast("Pick at least two days", true);
+    if (rows.some((r) => state.days[r].altGroup != null)) {
+      return toast("One of those is already an alternative—ungroup it first", true);
+    }
+    // A WARNING, NOT A REFUSAL. docs/ROADMAP.md defines an alternate as two paths
+    // that share a start and an end, and day-level grouping cannot enforce that:
+    // if two alternates finish in different towns, the following day starts with
+    // a hole in the ride and nothing else in the app would mention it. The rider
+    // may well know what they mean, so this says so and continues.
+    const gap = endpointGap(rows);
+    beginEdit("group as alternatives");
+    const id = Math.max(-1, ...state.days.map((d) => (d.altGroup == null ? -1 : d.altGroup))) + 1;
+    rows.forEach((r, k) => {
+      state.days[r].altGroup = id;
+      state.days[r].altActive = k === 0;
+    });
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    if (gap) toast(gap, true);
+    else toast(rows.length + " days are now alternatives—only the first counts");
+  }
+
+  // The message for a group whose members do not start and end together, or null
+  // when they do. Compared against the first selected day, which is the one that
+  // becomes active.
+  function endpointGap(rows) {
+    const ends = rows.map((r) => {
+      const s = state.days[r].stops;
+      return s.length ? { first: s[0], last: s[s.length - 1] } : null;
+    });
+    const base = ends[0];
+    if (!base) return null;
+    const far = (a, b) => a && b && haversineMi(a, b) > 0.06; // ~100 m, as the importer uses
+    for (let k = 1; k < ends.length; k++) {
+      const e = ends[k];
+      if (!e) continue;
+      if (far(base.first, e.first) || far(base.last, e.last)) {
+        return "Those alternatives do not start and end in the same place—whichever you ride, the next day may not join up.";
+      }
+    }
+    return null;
+  }
+
+  function haversineMi(a, b) {
+    const R = 3958.7613;
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLng = (b.lng - a.lng) * rad;
+    const h =
+      Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  // ONE beginEdit FOR THE WHOLE BATCH, in every one of these. Looping over
+  // deleteDay() would push an undo step per day and leave the rider pressing
+  // undo four times to put back one action — which is why the single-item
+  // mutators had their guards moved ahead of their beginEdit in step 8 and why
+  // these do the splicing themselves rather than calling them.
+  function deleteSelectedDays() {
+    const rows = selectedDays();
+    if (!rows.length) return;
+    if (rows.length >= state.days.length) return toast("A ride needs at least one day", true);
+    beginEdit("delete days");
+    // Descending, so each splice cannot shift the index of one still to come.
+    [...rows].reverse().forEach((r) => {
+      state.days.splice(r, 1);
+      state.legSeq.splice(r, 1);
+    });
+    state.active = Math.min(state.active, state.days.length - 1);
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(rows.length + " days deleted");
+  }
+
+  function duplicateSelectedDays() {
+    const rows = selectedDays();
+    if (!rows.length) return;
+    if (state.days.length + rows.length > MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    beginEdit("duplicate days");
+    // Descending again: each insertion shifts everything after it, and going
+    // backwards means the indices still to come are untouched.
+    [...rows].reverse().forEach((r) => {
+      const src = state.days[r];
+      state.days.splice(r + 1, 0, {
+        ...src,
+        title: src.title ? src.title + " (copy)" : "",
+        altGroup: null,
+        altActive: true,
+        stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
+        pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+        legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
+      });
+      state.legSeq.splice(r + 1, 0, []);
+    });
+    ALT.resolveAltGroups(state.days);
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(rows.length + " days duplicated");
+  }
+
+  function deleteSelectedPoints() {
+    const byDay = selectedPointsByDay();
+    const n = selectedPointCount();
+    if (!n) return;
+    // Every stop removed drops the legs either side and re-requests one, so a
+    // big selection is real money and a visibly empty map while it runs. Same
+    // threshold and same reasoning as reverseDay's confirm.
+    const stops = [...byDay.values()].reduce((m, list) => m + list.filter((p) => p.kind === "stop").length, 0);
+    if (stops > 12 && !window.confirm("Deleting " + stops + " stops re-routes the legs around each. Continue?")) return;
+    beginEdit("delete points");
+    for (const [r, list] of byDay) {
+      const day = state.days[r];
+      if (!day) continue;
+      // Already sorted descending by selectedPointsByDay().
+      list.forEach((p) => {
+        if (p.kind === "stop") day.stops.splice(p.i, 1);
+        else day.pois.splice(p.i, 1);
+      });
+      // Legs are rebuilt wholesale for any day that lost a stop rather than
+      // repaired around each removal — with several gone at once there is no
+      // "the leg either side" to bridge.
+      if (list.some((p) => p.kind === "stop")) {
+        day.legs = [];
+        state.legSeq[r] = [];
+      }
+    }
+    const touched = [...byDay.keys()];
+    endSelect();
+    rebuildLayers();
+    renderMarkers();
+    touched.forEach((r) => {
+      const day = state.days[r];
+      if (day && day.stops.length >= 2 && day.legs.length === 0) {
+        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      }
+    });
+    refreshDerived();
+    markDirty();
+    toast(n + " points deleted");
+  }
+
+  function moveSelectedPoints(toDay) {
+    const byDay = selectedPointsByDay();
+    const n = selectedPointCount();
+    const dst = state.days[toDay];
+    if (!n || !dst) return;
+    beginEdit("move points");
+    const moved = [];
+    for (const [r, list] of byDay) {
+      const day = state.days[r];
+      if (!day || r === toDay) continue;
+      list.forEach((p) => {
+        const arr = p.kind === "stop" ? day.stops : day.pois;
+        const [pt] = arr.splice(p.i, 1);
+        if (pt) moved.push({ kind: p.kind, pt });
+      });
+      day.legs = [];
+      state.legSeq[r] = [];
+    }
+    // Reversed, because each day's list was spliced descending and the points
+    // came off in the opposite order to the one they were in.
+    moved.reverse().forEach(({ kind, pt }) => {
+      if (kind === "stop") dst.stops.push(pt);
+      else dst.pois.push(pt);
+    });
+    dst.legs = [];
+    state.legSeq[toDay] = [];
+    const touched = new Set([...byDay.keys(), toDay]);
+    endSelect();
+    setActive(toDay);
+    rebuildLayers();
+    renderMarkers();
+    touched.forEach((r) => {
+      const day = state.days[r];
+      if (day && day.stops.length >= 2) {
+        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      }
+    });
+    refreshDerived();
+    markDirty();
+    toast(moved.length + " points moved to " + dayLabel(toDay));
+  }
+
+  // Copy a whole day, inserted straight after the original.
+  //
+  // The legs come across as they are rather than being re-requested: the copy
+  // has the same stops in the same order, so its geometry is the same road and
+  // asking the router again would cost one call per leg to be told so. Every
+  // array is copied rather than shared — the snapshot rule in builder-history.js
+  // applies to live state too, and a shared `roles` array would have a role
+  // added to the copy appearing on the original.
+  //
+  // This is what "make an alternate" is built on: duplicate the day, change the
+  // copy, then group the two. Grouping itself is a bulk action on a selection.
+  function duplicateDay(r) {
+    if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    const src = state.days[r];
+    if (!src) return;
+    beginEdit("duplicate day");
+    const copy = {
+      ...src,
+      title: src.title ? src.title + " (copy)" : "",
+      // The copy is NOT part of its original's group. A duplicate of one
+      // alternate would otherwise silently become a third member of a group the
+      // rider has not been asked about.
+      altGroup: null,
+      altActive: true,
+      stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
+      pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+      legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
+    };
+    state.days.splice(r + 1, 0, copy);
+    state.legSeq.splice(r + 1, 0, []);
+    ALT.resolveAltGroups(state.days);
+    setActive(r + 1);
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast("Duplicated to " + dayLabel(r + 1));
+  }
+
+  // Choose a different member of a group as the one being ridden. This is the
+  // resolution step — the point at which a rider stops weighing two roads and
+  // picks one — and it is why altActive exists as a flag rather than the group's
+  // first day simply winning: promoting must not reorder the ride and renumber
+  // every day after it.
+  function promoteAlternate(r) {
+    const day = state.days[r];
+    if (!day || day.altGroup == null || day.altActive) return;
+    beginEdit("choose alternative");
+    state.days.forEach((d) => {
+      if (d.altGroup === day.altGroup) d.altActive = false;
+    });
+    day.altActive = true;
+    ALT.resolveAltGroups(state.days);
+    renderDays();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast("Now riding " + dayLabel(r));
+  }
+
+  // Break a group apart: every member becomes an ordinary day again and all of
+  // them start counting toward the ride. The way out of a grouping, without
+  // which the feature is a trap.
+  function ungroupAlternates(r) {
+    const day = state.days[r];
+    if (!day || day.altGroup == null) return;
+    beginEdit("ungroup alternatives");
+    const group = day.altGroup;
+    let n = 0;
+    state.days.forEach((d) => {
+      if (d.altGroup !== group) return;
+      d.altGroup = null;
+      d.altActive = true;
+      n++;
+    });
+    ALT.resolveAltGroups(state.days);
+    renderDays();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    toast(n + " days are separate days again");
+  }
+
   function moveDay(dir) {
-    beginEdit("move day");
     const r = editIndex();
-    if (r == null) return pickADayFirst();
+    if (r == null) return noDayYet();
     const j = r + dir;
+    // At either end there is nothing to do, and pushing an undo step for it
+    // means the rider's next undo silently spends itself on a no-op.
     if (j < 0 || j >= state.days.length) return;
+    beginEdit("move day");
     const a = state.days;
     [a[r], a[j]] = [a[j], a[r]];
     const s = state.legSeq;
     [s[r], s[j]] = [s[j] || [], s[r] || []];
-    setFocus(j + 1);
+    state.active = j;
+    renderDays();
     rebuildLayers();
     renderMarkers();
-    renderList();
     markDirty();
   }
 
-  function dayLabel(r) {
-    const day = state.days[r];
-    return day.title || "Day " + (r + 1);
-  }
-
-  function renderSlider() {
-    const slider = $("day-slider");
-    slider.max = String(state.days.length);
-    if (Number(slider.value) > state.days.length) slider.value = String(state.days.length);
-    // A single day has nothing to scrub between; the slider stays but goes
-    // inert rather than disappearing and reflowing the panel on the second day.
-    slider.disabled = state.days.length < 2;
-    // --pos is the tick's fraction of the slider's range, which the stylesheet
-    // turns into the point the thumb reaches at that value. Sent from here
-    // because only this side knows the day count.
-    const span = state.days.length; // slider runs 0..span
-    const tick = (label, pos, color) =>
-      '<span class="day-tick" style="--pos:' + pos + (color ? ";--tick-color:" + esc(color) : "") + '">' + label + "</span>";
-    $("day-ticks").innerHTML =
-      tick("All", 0) + state.days.map((day, r) => tick(String(r + 1), (r + 1) / span, day.color)).join("");
-  }
-
-  // Shows or hides everything that belongs to one day, in one place, so the
-  // panel cannot end up half in each state.
+  // THE NUMBER IS THE POSITION AND THE NAME IS THE NAME. They used to be one
+  // field: dayLabel returned `title || "Day N"`, so naming a day REPLACED its
+  // number and an unnamed day borrowed the ordinal as a name. That reads fine
+  // until days can be reordered — "Big Sur run" tells you nothing about where it
+  // sits, and a day called "Day 2" that has been dragged into third place is
+  // actively wrong and cannot be corrected, because the text is the title.
   //
-  // On "All" with several days there is no day to edit, so the day controls, the
-  // times, the search box and the point list all go and a single line takes
-  // their place. Nothing is disabled-but-visible here: unlike the sliders, these
-  // are not controls whose absence would reflow anything the rider is aiming at.
-  function renderDayEditing() {
-    const editing = editIndex() != null;
-    $("day-band").hidden = !editing;
-    $("day-pick-hint").hidden = editing;
-    // Adding by map click needs a day to add to, so the mode buttons say so
-    // rather than accepting a click that would have to be refused.
-    document.querySelectorAll(".mode-btn").forEach((b) => {
-      b.disabled = !editing;
+  // Now the ordinal is derived from the index on every render and is not
+  // editable, and the title is free text that may be empty.
+  // NOT `r + 1`, which it was until alternates. A ride whose days 3 and 4 are
+  // two ways to do the same Thursday has four sections and is a three-day ride,
+  // so the index is no longer the ordinal: the active days number 1..N and a
+  // losing alternate takes its group's number with a letter — 3, 3b, 3c.
+  //
+  // Recomputed per call rather than cached on the day, because it depends on
+  // every other day: adding, deleting, reordering or promoting one renumbers
+  // its neighbours. TBAlt.dayOrdinals does the whole array in one pass and is
+  // what a render loop should use; this is the single lookup.
+  const dayNumber = (r) => ALT.dayOrdinal(state.days, r);
+  const dayName = (r) => (state.days[r] && state.days[r].title) || "";
+
+  // For prose — toasts, the timeline readout, the totals line. Both parts when
+  // there is a name, the number alone when there is not.
+  function dayLabel(r) {
+    const name = dayName(r);
+    return name ? "Day " + dayNumber(r) + " · " + name : "Day " + dayNumber(r);
+  }
+
+  // EVERY DAY, RENDERED AT ONCE. This replaces renderSlider + renderDayEditing +
+  // renderDayHead, which between them showed exactly one day and hid the rest
+  // behind a slider at the bottom of the drawer.
+  //
+  // Structure is rebuilt here; VALUES are not written back on every keystroke.
+  // That split is why typing in a day title does not lose the caret: the input
+  // handler updates state and the derived figures, and never calls this.
+  //
+  // Which means this is called only when the SET of days changes — add, delete,
+  // reorder, or first load.
+  function renderDays() {
+    const host = $("day-list");
+    if (!host) return;
+    const open = openSections();
+    host.innerHTML = state.days.map((day, r) => daySectionHtml(day, r, open)).join("");
+    state.days.forEach((_, r) => renderDayList(r));
+    markActiveSection();
+    renderRailDays();
+    $("day-empty-hint").hidden = state.days.length > 0;
+    // One Sortable per day list, all in the same group, so a stop can be dragged
+    // from one day into another. See initDragToReorder.
+    host.querySelectorAll(".point-list").forEach((el) => initDragToReorder(el));
+    initDayDrag(host);
+  }
+
+  // Which sections are currently open, so a rebuild does not spring every twirl
+  // back to its default. Keyed by day index, which is the best available: a day
+  // has no id until it is saved, and a reorder is meant to carry the open state
+  // with the position rather than with the day.
+  function openSections() {
+    const open = new Set();
+    document.querySelectorAll(".day-section").forEach((el) => {
+      if (!el.classList.contains("is-shut")) open.add(Number(el.dataset.day));
+    });
+    // First render: nothing is on the page yet and every day starts open.
+    if (!document.querySelector(".day-section")) return null;
+    return open;
+  }
+
+  function daySectionHtml(day, r, open) {
+    const shut = open && !open.has(r);
+    const single = state.days.length < 2;
+    // ALTERNATES. `is-alt` is a losing one and `is-alt-active` the member that
+    // counts; both carry `in-alt-group` so the stylesheet can bracket the pair
+    // without caring which is which. A day with no group gets none of them, so
+    // a ride without alternates renders exactly as it did before.
+    const grouped = day.altGroup != null;
+    const ghost = grouped && !day.altActive;
+    const altClass = !grouped ? "" : ghost ? " in-alt-group is-alt" : " in-alt-group is-alt-active";
+    // The badge says which of the two a section is, in the same words the
+    // viewer's legend uses. Same reasoning as there: badging only the loser
+    // leaves "an alternative to what?" unanswered.
+    const altBadge = !grouped
+      ? ""
+      : '<span class="day-alt' + (ghost ? "" : " is-on") + '" title="' +
+        (ghost
+          ? "Not counted in the ride total. Use the day menu to ride this one instead."
+          : "This is the route counted in the ride total.") +
+        '">' + (ghost ? "alternative" : "riding this") + "</span>";
+    return (
+      '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
+      ' style="--day-color:' + esc(day.color) + '">' +
+      '<div class="day-head">' +
+      // AFTER the grip, never before it: .day-drag's negative margins depend on
+      // being the first thing in the header, and anything ahead of it breaks the
+      // tab that reaches the section's padding edge.
+      (state.select?.scope === "day"
+        ? '<input type="checkbox" class="day-pick" data-day="' + r + '"' +
+          (state.select.days.has(r) ? " checked" : "") +
+          ' aria-label="Select ' + esc(dayLabel(r)) + '">'
+        : "") +
+      // The day's own drag handle. A separate grip rather than dragging by the
+      // header itself: the header holds a colour input, a text field and buttons,
+      // and making all of that a drag surface would mean every attempt to type in
+      // the name started a drag.
+      //
+      // A BUTTON, not a span, and that is what replaced the ↑ ↓ pair that used to
+      // sit in .day-actions. A drag handle cannot be operated from a keyboard and
+      // does not exist at all if the SortableJS CDN fails — the same two reasons
+      // AGENTS.md gives for keeping Move up / Move down on the stop rows. Making
+      // the grip focusable and giving it arrow keys covers both without spending
+      // two more buttons of a 380px header.
+      '<button type="button" class="day-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+      ' aria-label="Reorder day ' + dayNumber(r) + ', use the up and down arrow keys"></button>' +
+      '<button type="button" class="day-twirl" aria-expanded="' + (shut ? "false" : "true") +
+      '" title="Show or hide this day\'s stops"><span class="day-twirl-mark" aria-hidden="true"></span></button>' +
+      // The ordinal, rendered rather than stored. Reordering re-renders, so it is
+      // always the day's real position and there is nothing to keep in sync.
+      '<span class="day-num" aria-hidden="true">' + dayNumber(r) + "</span>" +
+      '<input class="day-color" type="color" value="' + esc(day.color) + '" title="Day color" aria-label="Color for ' + esc(dayLabel(r)) + '">' +
+      // The placeholder no longer says "Day N". It used to, which made an empty
+      // field look like it already held the name — so the number and the name
+      // were indistinguishable until you clicked in.
+      '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
+      ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
+      altBadge +
+      '<span class="day-actions">' +
+      // Empty for the same reason .day-del is: icon-reverse.svg comes in through
+      // a CSS mask on ::before, so it takes the button's color and its disabled
+      // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
+      // "rightwards arrow over leftwards arrow" — hence the aria-label.
+      '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg" aria-label="Reverse ' +
+      esc(dayLabel(r)) + '"></button>' +
+      // DELETE MOVED INTO THE MENU, and ⇄ did not. The two were side by side and
+      // one of them re-routes every leg while the other throws a day away — both
+      // one mis-click from the title field. Reverse is the one a rider reaches
+      // for mid-edit, so it stays a button; delete is not, so it went behind the
+      // ⋮ with the rest. Same move the point rows made when four buttons became
+      // one, and it gives the width back to .day-title.
+      //
+      // U+22EE, the same glyph the row menu uses, so the two read as the same
+      // control at two levels.
+      '<button type="button" class="day-menu-btn" title="More" aria-label="More actions for ' +
+      esc(dayLabel(r)) + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
+      "</span>" +
+      "</div>" +
+      '<div class="day-body">' +
+      '<div class="day-times">' +
+      '<label class="day-time"><span>Starts</span>' +
+      '<input class="day-start" type="datetime-local"></label>' +
+      '<label class="day-time"><span>Ends</span>' +
+      '<input class="day-end" type="datetime-local"' +
+      ' title="Worked out from the start time and the day\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
+      '<span class="day-times-note"></span>' +
+      "</div>" +
+      // data-duration-format rides on each list, not only on #day-list: the rule
+      // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
+      // the list itself, so putting it only on the ancestor silently stopped it
+      // matching and clipped the field.
+      '<ol class="point-list" data-day="' + r + '" data-duration-format="' + esc(durFormat) + '"></ol>' +
+      "</div>" +
+      "</section>"
+    );
+  }
+
+  const daySection = (r) => document.querySelector('.day-section[data-day="' + r + '"]');
+
+  // The active day's own section carries the class; nothing else does. Separate
+  // from renderDays() because it runs on every click into a row and must not
+  // rebuild anything.
+  function markActiveSection() {
+    const a = activeIndex();
+    document.querySelectorAll(".day-section").forEach((el) => {
+      el.classList.toggle("is-active", Number(el.dataset.day) === a);
     });
   }
 
-  function renderDayHead() {
-    const r = editIndex();
-    $("day-label").textContent = r == null ? "All days" : dayLabel(r);
-    renderDayEditing();
-    if (r == null) return;
-
-    const day = state.days[r];
-    // The band's accent and every role icon inside it read this. The icons are
-    // SVGs whose disc is fill="currentColor", so tinting them is a matter of
-    // setting `color` on an ancestor — no per-icon work, and it follows the
-    // colour picker live because this runs on its input event.
-    $("day-band").style.setProperty("--day-color", day.color);
-    const head = $("day-head");
-    // Still hidden for a lone untitled day: there is nothing to reorder, delete
-    // or distinguish, so the controls would be four disabled buttons.
-    head.hidden = state.days.length < 2 && !day.title;
-    $("day-color").value = day.color;
-    $("day-title").value = day.title;
-    $("day-up").disabled = r === 0;
-    $("day-down").disabled = r === state.days.length - 1;
-    $("day-del").disabled = state.days.length <= 1;
+  // The rail's jump list: one dot per day, no "All" — there is no all-days view
+  // to return to now that every day is on screen. Clicking one scrolls that
+  // day's section into view and makes it active.
+  //
+  // Buttons rather than a slider. A 44px-wide slider is not a usable slider, and
+  // these are also what a screen reader gets once the rail is the only thing on
+  // screen — initPanelToggle flips the container's aria-hidden so the rail and
+  // the sections are never both announced.
+  function renderRailDays() {
+    const wrap = $("rail-days");
+    if (!wrap) return;
+    const a = activeIndex();
+    wrap.innerHTML = state.days
+      .map(
+        (day, r) =>
+          '<button type="button" class="rail-day" data-day="' + r + '"' +
+          (r === a ? ' aria-current="true"' : "") +
+          ' style="--rail-color:' + esc(day.color) + '"' +
+          ' title="' + esc(dayLabel(r)) + '">' + String(r + 1) + "</button>",
+      )
+      .join("");
   }
 
   // --- Times ----------------------------------------------------------------
@@ -1262,24 +1867,31 @@
   function setMoment(momentS) {
     state.moment = momentS;
     const a = activeAtMoment(state.days, momentS, allPoiDists());
-    // A moment between days leaves the day slider where it was — there is no
-    // day to move it to, and snapping it somewhere arbitrary would be a lie.
-    if (a.dayIndex != null) {
-      state.focus = a.dayIndex + 1;
-      $("day-slider").value = String(state.focus);
-    }
+    // A moment between days leaves the active day where it was — there is no day
+    // to move it to, and snapping it somewhere arbitrary would be a lie.
+    if (a.dayIndex != null) setActive(a.dayIndex);
     applyFocus();
-    renderDayHead();
-    renderList();
     refreshDerived();
   }
 
+  // Every day's times, because every day's fields are on screen. It was one set
+  // of ids reading whichever day the slider had selected.
   function renderTimes() {
-    const day = editRoute();
-    if (!day) return; // the times block is hidden on "All"
-    const start = $("day-start");
-    const end = $("day-end");
-    const note = $("day-times-note");
+    state.days.forEach((_, r) => renderDayTimes(r));
+  }
+
+  function renderDayTimes(r) {
+    const day = state.days[r];
+    const sec = daySection(r);
+    if (!day || !sec) return;
+    const start = sec.querySelector(".day-start");
+    const end = sec.querySelector(".day-end");
+    const note = sec.querySelector(".day-times-note");
+    if (!start || !end || !note) return;
+    // Never fight the rider for a field they are in. refreshDerived() runs on
+    // every keystroke elsewhere in the panel, and rewriting a datetime input
+    // mid-edit resets the caret to the month segment.
+    if (document.activeElement === start || document.activeElement === end) return;
 
     start.value = isoToLocalInput(day.startAt);
     end.value = isoToLocalInput(day.endAt);
@@ -1384,15 +1996,29 @@
   // its pin onto the road between the rows it was dropped between. Same
   // affordance, because from the rider's side it is the same intent: put this
   // one there. See the onEnd handler in initDragToReorder for the split.
-  function pointRowHtml(kind, point, i) {
+  // data-day is what makes every handler below day-agnostic: pointOf() reads the
+  // point out of that day, and any interaction with the row makes that day active
+  // so the shared edit functions land in the right place.
+  function pointRowHtml(kind, point, i, dayIndex) {
     const isStop = kind === "stop";
     return (
-      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '">' +
+      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
       '<div class="row-main">' +
       '<span class="row-drag" title="' +
       (isStop ? "Drag to reorder" : "Drag to move it along the route") +
       '" aria-hidden="true"></span>' +
-      (isStop ? '<span class="row-num">' + (i + 1) + "</span>" : '<span class="row-num poi-dot"></span>') +
+      // THE CHECKBOX REPLACES THE NUMBER rather than joining it. A 380px row has
+      // no spare width and .row-name is already the thing that shrinks; the stop
+      // number is the one element that is redundant while you are ticking boxes,
+      // because ticking is what you are doing rather than reading an order. It
+      // comes straight back when select mode ends.
+      (state.select?.scope === "point"
+        ? '<input type="checkbox" class="row-pick" data-day="' + dayIndex + '" data-kind="' + kind + '" data-i="' + i + '"' +
+          (state.select.points.has(pointKey(dayIndex, kind, i)) ? " checked" : "") +
+          ' aria-label="Select ' + (isStop ? "stop " + (i + 1) : "POI") + '">'
+        : isStop
+          ? '<span class="row-num">' + (i + 1) + "</span>"
+          : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       // POIs get the same dwell field. Blank means "rode past without stopping",
       // which is the common case and why it stays a placeholder rather than a
@@ -1424,9 +2050,13 @@
     );
   }
 
+  // Reads the row's OWN day, not the active one. Those are the same thing by the
+  // time a handler runs — every listener calls setActiveFromEl first — but
+  // relying on that ordering would make this quietly wrong the first time
+  // something read a row without having clicked it.
   function pointOf(row) {
     const i = Number(row.dataset.i);
-    const day = editRoute();
+    const day = state.days[Number(row.dataset.day)];
     if (!day) return null;
     return row.dataset.kind === "stop" ? day.stops[i] : day.pois[i];
   }
@@ -1464,29 +2094,81 @@
     return rows;
   }
 
-  function renderList() {
-    const list = $("stop-list");
-    const day = editRoute();
-    // Nothing to list on "All". renderDayEditing() has already hidden this, but
-    // leaving the last day's stops in the DOM behind it would make the next
-    // render flash the wrong day's rows.
-    if (!day) {
-      list.innerHTML = "";
-      return;
-    }
-    if (day.stops.length === 0 && day.pois.length === 0) {
-      list.innerHTML = '<li class="empty-hint">Click the map or search to add your first stop.</li>';
-      return;
-    }
-    list.innerHTML = orderedRows(day)
-      .map((r) => pointRowHtml(r.kind, r.point, r.i))
-      .join("");
+  // One day's rows. Takes the day index rather than reading the active one,
+  // because every day's list is on screen and any of them can need redrawing.
+  function renderDayList(r) {
+    const list = document.querySelector('.point-list[data-day="' + r + '"]');
+    if (!list) return;
+    const day = state.days[r];
+    if (!day) return;
+    list.innerHTML =
+      orderedRows(day)
+        .map((row) => pointRowHtml(row.kind, row.point, row.i, r))
+        .join("") + addRowHtml(r, day);
     hydrateIcons(list);
   }
 
-  function focusRow(kind, i) {
-    const row = document.querySelector('.point-row[data-kind="' + kind + '"][data-i="' + i + '"]');
+  // THE LAST ROW OF EVERY DAY IS A SEARCH FIELD, and it replaced a single
+  // "Search for a place…" box that sat above the whole day list.
+  //
+  // The box had to guess which day you meant, and it guessed the last one you
+  // touched. That is invisible until it is wrong: you scroll to day 4, type an
+  // address, and it lands on day 2 because day 2 held the last field you
+  // clicked in. Putting the field IN the day removes the guess — the row knows
+  // its own `data-day` and passes it to addStop/addPoi.
+  //
+  // Rendered on every day whether or not it has points, so it is also the empty
+  // state; the `.empty-hint` li it replaced said "click the map or search to
+  // add your first stop" while pointing at neither.
+  //
+  // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
+  // resolve a row to `state.days[day].stops[i]`. SortableJS is also told to
+  // leave it alone — see the filter option in initDragToReorder.
+  function addRowHtml(r, day) {
+    const full = day.stops.length >= MAX_STOPS;
+    return (
+      '<li class="add-row" data-day="' + r + '">' +
+      '<span class="add-row-mark" aria-hidden="true">+</span>' +
+      '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
+      ' placeholder="' + (full ? "Stop limit reached" : "Search, or click the map") + '"' +
+      (full ? " disabled" : "") +
+      ' aria-label="Add a place to ' + esc(dayLabel(r)) + '">' +
+      // The kind is chosen HERE rather than by the panel-wide + Stop / + POI
+      // pair, because that pair belongs to the map click and a searched address
+      // is a different gesture. Two radios rather than a select: there are two
+      // options and they are both one word.
+      '<span class="add-kind" role="group" aria-label="What to add">' +
+      '<label><input type="radio" name="add-kind-' + r + '" value="stop" checked><span>Stop</span></label>' +
+      '<label><input type="radio" name="add-kind-' + r + '" value="poi"><span>POI</span></label>' +
+      "</span>" +
+      "</li>"
+    );
+  }
+
+  // Kept under its old name for the ~15 callers that mean "redraw what I just
+  // changed". They all edit the active day, which is the day they are called
+  // from — a row handler sets it before doing anything else.
+  function renderList() {
+    const r = activeIndex();
+    if (r != null) renderDayList(r);
+  }
+
+  // The day index is required now: every day's rows are on the page, so
+  // [data-kind][data-i] alone matches one row per day and would scroll to
+  // whichever came first.
+  function focusRow(kind, i, dayIndex) {
+    const r = dayIndex == null ? activeIndex() : dayIndex;
+    const row = document.querySelector(
+      '.point-row[data-day="' + r + '"][data-kind="' + kind + '"][data-i="' + i + '"]',
+    );
     if (!row) return;
+    // A row inside a shut day cannot be scrolled to, so open it first.
+    const sec = row.closest(".day-section");
+    if (sec && sec.classList.contains("is-shut")) {
+      sec.classList.remove("is-shut");
+      const twirl = sec.querySelector(".day-twirl");
+      if (twirl) twirl.setAttribute("aria-expanded", "true");
+    }
     row.scrollIntoView({ block: "nearest", behavior: "smooth" });
     row.classList.add("flash");
     setTimeout(() => row.classList.remove("flash"), 900);
@@ -1546,8 +2228,14 @@
       return s;
     };
 
-    if (state.days.length === 1) {
-      const t = routeTotals(state.days[0]);
+    // The days that COUNT, everywhere below. A ride carrying two ways to do
+    // Thursday is not twice as long, and this readout is the number a rider
+    // watches change while they edit — it has to agree with what the server
+    // stores on the next save, which is rideTotals() over the same filter.
+    const counted = ALT.activeDays(state.days);
+
+    if (counted.length === 1) {
+      const t = routeTotals(counted[0]);
       // innerHTML, not textContent: line() now carries the twistiness "?" link.
       // Nothing user-supplied reaches it — the mileage and the label are both
       // computed here — so there is no injection surface.
@@ -1559,48 +2247,39 @@
     // With several days the ride total is the number that matters; the focused
     // day's own figures sit under it.
     //
-    // Twistiness across days is a distance-weighted mean, not an average of the
-    // days' figures: it is degrees over miles, so the ride's value is the sum of
-    // the degrees over the sum of the miles. Averaging the per-day numbers would
-    // let a 30-mile breakfast ride count as much as a 300-mile transit day.
-    const ride = state.days.reduce(
-      (acc, r) => {
-        const t = routeTotals(r);
-        return {
-          meters: acc.meters + t.meters,
-          riding: acc.riding + t.riding,
-          stopped: acc.stopped + t.stopped,
-          estimated: acc.estimated || t.estimated,
-          twistDeg: acc.twistDeg + (t.twist ? (t.twist.dpm * t.meters) / MILE : 0),
-          twistMeters: acc.twistMeters + (t.twist ? t.meters : 0),
-          // The ride's best stretch is the best any single day has, not a sum:
-          // "somewhere in this ride there are twenty miles like that".
-          twistBest: Math.max(acc.twistBest, (t.twist && t.twist.bestDpm) || 0),
-          twistBestMiles: t.twist && t.twist.bestDpm > acc.twistBest ? t.twist.bestMiles : acc.twistBestMiles,
-        };
-      },
-      { meters: 0, riding: 0, stopped: 0, estimated: false, twistDeg: 0, twistMeters: 0, twistBest: 0, twistBestMiles: 0 },
-    );
-    ride.twist =
-      ride.twistMeters > 0
-        ? {
-            dpm: Math.round(ride.twistDeg / (ride.twistMeters / MILE)),
-            bestDpm: ride.twistBest,
-            bestMiles: ride.twistBestMiles,
-          }
-        : null;
-    // The per-day line only exists when a day is selected. On "All" the ride
-    // figures stand alone, which is exactly what "All" means.
+    // The fold moved to TBAlt.rideRollup, which is the same file the server's
+    // rule lives beside and, unlike an inline reduce, has tests — including the
+    // one that pins the distance-weighted twistiness mean. Read it there for
+    // why twistiness is weighted and why the best stretch is a max rather than
+    // a sum.
+    const ride = ALT.rideRollup(counted.map(routeTotals));
+    // The per-day figures only exist when a day is selected. On "All" the ride
+    // figures stand alone, which is exactly what "All" means — but the line that
+    // would hold them is still emitted, empty. See below.
     const r = editIndex();
     const dayT = r == null ? null : routeTotals(state.days[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
       '<span class="totals-ride" title="' + esc(twistTitle(ride)) + '">' +
-      state.days.length + " days · " + line(ride, true) + "</span>" +
+      // The count of days that COUNT, not of sections on screen. A ride with
+      // three days and two alternates is a three-day ride, and saying "5 days"
+      // beside a mileage that only covers three would make both look wrong.
+      counted.length + " days · " + line(ride, true) + "</span>" +
+      // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
+      // its own line, so the block is the same height whichever way the scrubber
+      // is set and the controls below it never move. Dropping the span when
+      // there is no day is what used to shift the panel on every scrub.
+      //
+      // Inside it, two spans rather than one string so the stylesheet can shrink
+      // the name and never the figures — see .totals-day in _builder.scss. A day
+      // title runs to 150 characters and an import hands over 31 by default,
+      // which would otherwise push the mileage off the line.
+      '<span class="totals-day"' + (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") + ">" +
       (dayT
-        ? '<span class="totals-day" title="' + esc(twistTitle(dayT)) + '">' +
-          esc(dayLabel(r)) + ": " + line(dayT, false) + "</span>"
-        : "");
+        ? '<span class="totals-day-name">' + esc(dayLabel(r)) + ":</span>" +
+          '<span class="totals-day-figs">' + line(dayT, false) + "</span>"
+        : "") +
+      "</span>";
   }
 
   // Delegated events for both lists.
@@ -1668,6 +2347,7 @@
         if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
         if (act === "up") return moveStop(i, -1);
         if (act === "down") return moveStop(i, 1);
+        if (act === "select") return startSelect("point");
         return;
       }
       if (btn.classList.contains("row-roles-btn")) {
@@ -1694,81 +2374,142 @@
     });
   }
 
-  // --- The row menu ---------------------------------------------------------
+  // --- Overflow menus -------------------------------------------------------
   //
-  // BUILT ON OPEN, NEVER PER ROW, and that is the constraint rather than a
+  // ONE MENU, TWO OWNERS. Point rows have had a ⋮ since the day four buttons
+  // became one; day headers now have one too, and rather than a second
+  // implementation they share this. The differences between them are entirely
+  // in the item list and the dispatch, which is what the `items` argument and
+  // the per-host click handlers are for.
+  //
+  // BUILT ON OPEN, NEVER PER HOST, and that is a constraint rather than a
   // preference. The role picker already renders 17 buttons for every point —
-  // 119 nodes in the DOM at seven stops and 340 at twenty — and a second eager
-  // per-row menu would repeat that mistake exactly. One menu element exists at a
-  // time, for the row that asked for it.
+  // 119 nodes at seven stops and 340 at twenty — and an eager menu per row would
+  // repeat that mistake. One menu element exists at a time, for whichever host
+  // asked.
   //
-  // It is absolutely positioned inside the row, so opening it moves nothing: an
-  // inline menu would push every row below it, which is the jump this whole epic
-  // is about.
+  // It is absolutely positioned inside its host, so opening it moves nothing: an
+  // inline menu would push everything below it down, which is the jump the whole
+  // panel redesign exists to remove. Both hosts therefore need
+  // `position: relative` — .point-row and .day-head both have it.
   //
-  // Move up / Move down live here as well as on the drag handle. They are not
-  // redundant — a drag handle cannot be operated from a keyboard, and they are
-  // also what still works if the SortableJS CDN fails.
+  // Move up / Move down are on the POINT menu only. They are not redundant with
+  // the drag handle there, because .row-drag is aria-hidden and a drag handle
+  // cannot be operated from a keyboard — they are also what still works if the
+  // SortableJS CDN fails. A DAY's grip is a real <button> with arrow keys wired
+  // on #day-list, so the day menu needs no equivalent.
   const MENU_ITEMS = [
     { act: "notes", label: "Edit notes" },
     { act: "duplicate", label: "Duplicate" },
+    { act: "select", label: "Select points…" },
     { act: "up", label: "Move up", stopOnly: true },
     { act: "down", label: "Move down", stopOnly: true },
     { act: "delete", label: "Delete", danger: true },
   ];
 
-  function closeRowMenu() {
+  // The day menu. `when` decides whether an item appears at all — the two
+  // alternate actions are meaningless on a day that is not in a group, and a
+  // menu full of disabled items nobody can explain is worse than a short one.
+  //
+  // "Make this the active alternate" and "Ungroup alternates" are not optional
+  // extras: without them a rider can put days into a group and has no way back
+  // out, and no way to change their mind about which one they are riding.
+  const DAY_MENU_ITEMS = [
+    { act: "day-duplicate", label: "Duplicate day" },
+    { act: "day-select", label: "Select days…" },
+    { act: "day-promote", label: "Ride this one instead", when: (d) => d.altGroup != null && !d.altActive },
+    { act: "day-ungroup", label: "Ungroup alternatives", when: (d) => d.altGroup != null },
+    { act: "day-delete", label: "Delete day", danger: true },
+  ];
+
+  // Which button opened the menu that is currently up, so Escape can put focus
+  // back on it. It used to be found with `.closest('.point-row')`, which does
+  // not generalize to a second host.
+  let menuOpener = null;
+
+  function closeMenu() {
     const open = document.querySelector(".row-menu");
-    if (open) {
-      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
-      if (btn) btn.setAttribute("aria-expanded", "false");
-      open.remove();
-    }
+    if (!open) return;
+    if (menuOpener) menuOpener.setAttribute("aria-expanded", "false");
+    menuOpener = null;
+    open.remove();
   }
 
-  function toggleRowMenu(row, btn) {
-    const wasOpen = !!row.querySelector(".row-menu");
-    closeRowMenu();
-    if (wasOpen) return;
+  // Kept under the old name for the handful of callers that mean "the row menu";
+  // there is only one menu and closing it is closing it.
+  const closeRowMenu = closeMenu;
 
-    const isStop = row.dataset.kind === "stop";
-    const i = Number(row.dataset.i);
-    const day = editRoute();
-    const last = isStop && day ? day.stops.length - 1 : 0;
+  function openMenu(host, btn, items) {
+    const wasOpen = host.contains(document.querySelector(".row-menu"));
+    closeMenu();
+    if (wasOpen) return;
 
     const menu = document.createElement("div");
     menu.className = "row-menu";
     menu.setAttribute("role", "menu");
-    menu.innerHTML = MENU_ITEMS.filter((m) => !m.stopOnly || isStop)
-      .map((m) => {
-        // Disabled rather than absent, so the menu is the same shape every time
-        // and the first stop's menu does not read as a different menu.
-        const off = (m.act === "up" && i === 0) || (m.act === "down" && i === last);
-        return (
+    menu.innerHTML = items
+      .map(
+        (m) =>
           '<button type="button" role="menuitem" class="row-menu-item' + (m.danger ? " is-danger" : "") + '"' +
-          ' data-act="' + m.act + '"' + (off ? " disabled" : "") + ">" + esc(m.label) + "</button>"
-        );
-      })
+          ' data-act="' + m.act + '"' + (m.off ? " disabled" : "") + ">" + esc(m.label) + "</button>",
+      )
       .join("");
-    row.appendChild(menu);
+    host.appendChild(menu);
     btn.setAttribute("aria-expanded", "true");
+    menuOpener = btn;
     const first = menu.querySelector(".row-menu-item:not([disabled])");
     if (first) first.focus();
   }
 
+  function toggleRowMenu(row, btn) {
+    const isStop = row.dataset.kind === "stop";
+    const i = Number(row.dataset.i);
+    const day = editRoute();
+    const last = isStop && day ? day.stops.length - 1 : 0;
+    // Disabled rather than absent at the ends, so the first stop's menu is the
+    // same shape as every other one.
+    const items = MENU_ITEMS.filter((m) => !m.stopOnly || isStop).map((m) => ({
+      ...m,
+      off: (m.act === "up" && i === 0) || (m.act === "down" && i === last),
+    }));
+    openMenu(row, btn, items);
+  }
+
+  function toggleDayMenu(head, btn, r) {
+    const day = state.days[r];
+    if (!day) return;
+    const items = DAY_MENU_ITEMS.filter((m) => !m.when || m.when(day)).map((m) => ({
+      ...m,
+      // A ride needs at least one day, and the reason has to be visible before
+      // the click rather than as a toast after it.
+      off: m.act === "day-delete" && state.days.length <= 1,
+    }));
+    openMenu(head, btn, items);
+  }
+
   // Anywhere else, or Escape. Registered once rather than per menu, so an open
-  // menu never outlives the render that replaced its row.
-  function wireRowMenuDismiss() {
+  // menu never outlives the render that replaced its host.
+  function wireMenuDismiss() {
     document.addEventListener("pointerdown", (e) => {
-      if (!e.target.closest(".row-menu") && !e.target.closest(".row-menu-btn")) closeRowMenu();
+      if (!e.target.closest(".row-menu") && !e.target.closest(".row-menu-btn") && !e.target.closest(".day-menu-btn")) {
+        closeMenu();
+      }
     });
+    // Escape is CHAINED: a menu first, then select mode. Two things can be open
+    // at once and the rider means the innermost one — closing select mode while
+    // a menu is up would throw away a selection they had not finished with.
+    //
+    // Select mode is deliberately NOT dismissed by an outside click. A selection
+    // takes work to build and a stray click on the map must not discard it.
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      const open = document.querySelector(".row-menu");
-      if (!open) return;
-      const btn = open.closest(".point-row")?.querySelector(".row-menu-btn");
-      closeRowMenu();
-      if (btn) btn.focus();
+      if (document.querySelector(".row-menu")) {
+        const btn = menuOpener;
+        closeMenu();
+        if (btn) btn.focus();
+        return;
+      }
+      if (state.select) endSelect();
     });
   }
 
@@ -1792,11 +2533,24 @@
       console.warn("[builder] Sortable did not load—reorder by the row menu");
       return;
     }
-    window.Sortable.create(listEl, {
+    // Guard against double-binding: renderDays() rebuilds every list and calls
+    // this for each, and Sortable leaves its own instance on the element.
+    if (listEl._sortable) listEl._sortable.destroy();
+    listEl._sortable = window.Sortable.create(listEl, {
+      // `draggable` already excludes the trailing .add-row — it is not a
+      // .point-row — but `filter` is what stops a drag STARTING on it, and
+      // without it a drop can be placed after it, putting a real row below the
+      // search field. The add row is always last.
       draggable: ".point-row",
+      filter: ".add-row",
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
+      // ONE GROUP ACROSS EVERY DAY, so a stop can be dragged out of one day and
+      // into another. That is a new capability, not a side effect: before every
+      // day was on screen at once there was only ever one list, and moving a stop
+      // between days was impossible by any route.
+      group: "ride-points",
       // Sortable defaults to native HTML5 drag-and-drop on a desktop pointer and
       // to its own implementation on touch, which means two code paths, two sets
       // of quirks and a drag image the browser draws and we cannot style. The
@@ -1810,8 +2564,19 @@
       // not and 0 keeps it feeling immediate.
       delay: 200,
       delayOnTouchOnly: true,
+      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
+      // reads as "move all four" and does not do that, and there is no reading
+      // of it that is obviously right — so the gesture is taken away rather than
+      // given an ambiguous meaning.
+      disabled: !!state.select,
       onEnd: (evt) => {
-        const day = editRoute();
+        // CROSS-DAY FIRST, and it is a different operation rather than a special
+        // case of reordering: the point leaves one day's array and joins
+        // another's, and BOTH days' legs are wrong afterwards. A same-day drop
+        // falls through to the index arithmetic below.
+        if (evt.from !== evt.to) return movePointAcrossDays(evt);
+
+        const day = state.days[Number(evt.from.dataset.day)];
         if (!day) return;
         // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
         // onEnd for every drop, including one that changed nothing — picking a
@@ -1829,7 +2594,7 @@
           // DOM order of the stop rows and taking their data-i sidesteps the
           // interleaving with POIs entirely — Sortable's own indices count all
           // children and mean nothing here.
-          const order = [...listEl.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
+          const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
           const to = order.indexOf(i);
           if (to < 0 || to === i) return;
           return reorderStop(i, to);
@@ -1842,7 +2607,7 @@
         for (const row of orderedRows(day)) dists.set(row.kind + ":" + row.i, row.dist);
         const at = (el) => (el ? dists.get(el.dataset.kind + ":" + el.dataset.i) : undefined);
 
-        const rows = [...listEl.querySelectorAll(".point-row")];
+        const rows = [...evt.to.querySelectorAll(".point-row")];
         const pos = rows.indexOf(evt.item);
         const before = at(rows[pos - 1]);
         const after = at(rows[pos + 1]);
@@ -1855,6 +2620,128 @@
         movePoiToDistance(i, target);
       },
     });
+  }
+
+  // DRAG TO REORDER DAYS. The use case is a base camp: rent a house, ride a loop
+  // from it each day, and the days are interchangeable in a way a linear tour's
+  // are not — so the order is something a rider genuinely revises, not just an
+  // artefact of what they entered first.
+  //
+  // Cheaper than reordering stops, because a day owns its own legs: moving day 3
+  // above day 1 changes no leg's endpoints and needs no routing call. Only the
+  // position changes, plus the parallel legSeq array that tracks in-flight
+  // routing responses — leaving that behind would let a stale response land on
+  // whichever day took the old index.
+  //
+  // Rebound on every renderDays() because that replaces the sections; the
+  // instance is stashed on the element and destroyed first, same as the lists.
+  function initDayDrag(host) {
+    if (!window.Sortable) return;
+    if (host._sortable) host._sortable.destroy();
+    host._sortable = window.Sortable.create(host, {
+      draggable: ".day-section",
+      handle: ".day-drag",
+      animation: 150,
+      ghostClass: "is-dragging",
+      // Same reasoning as the stop list: one code path on desktop and touch, a
+      // drag mirror we can style, and the only path a synthetic event can drive.
+      forceFallback: true,
+      fallbackClass: "day-drag-ghost",
+      fallbackOnBody: true,
+      delay: 200,
+      delayOnTouchOnly: true,
+      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
+      // reads as "move all four" and does not do that, and there is no reading
+      // of it that is obviously right — so the gesture is taken away rather than
+      // given an ambiguous meaning.
+      disabled: !!state.select,
+      onEnd: (evt) => {
+        const from = evt.oldIndex;
+        const to = evt.newIndex;
+        if (from === to || from == null || to == null) return;
+        beginEdit("reorder days");
+        const [day] = state.days.splice(from, 1);
+        state.days.splice(to, 0, day);
+        const [seq] = state.legSeq.splice(from, 1);
+        state.legSeq.splice(to, 0, seq || []);
+        // The day that moved is the one the rider is thinking about.
+        state.active = to;
+        renderDays();
+        // Layers are keyed by day index, so every one from the lower of the two
+        // positions onward is now drawing the wrong day. Rebuilding is the whole
+        // fix and costs no routing.
+        rebuildLayers();
+        renderMarkers();
+        refreshDerived();
+        markDirty();
+      },
+    });
+  }
+
+  // A POINT DRAGGED OUT OF ONE DAY AND INTO ANOTHER.
+  //
+  // New with the all-days panel: while only one day was ever on screen there was
+  // only one list, and this could not be expressed at all. It is a move between
+  // two arrays, not a reorder within one, and the consequence that matters is
+  // that BOTH days' legs are wrong afterwards — the source loses a stop and the
+  // destination gains one, so the invariant every day carries (N stops means
+  // exactly N-1 legs, enforced server-side in ride-graph.ts) breaks at both ends
+  // until they are rebuilt.
+  //
+  // Legs are dropped wholesale on both sides rather than patched. Patching means
+  // reasoning about which of the surviving legs still joins the same pair of
+  // stops, and the shaping points on any leg that touched the moved stop are
+  // meaningless regardless. computeLegsAround refills them from the router.
+  function movePointAcrossDays(evt) {
+    const fromDay = Number(evt.from.dataset.day);
+    const toDay = Number(evt.to.dataset.day);
+    const src = state.days[fromDay];
+    const dst = state.days[toDay];
+    if (!src || !dst || fromDay === toDay) return;
+
+    const kind = evt.item.dataset.kind;
+    const i = Number(evt.item.dataset.i);
+
+    beginEdit("move " + (kind === "stop" ? "stop" : "POI") + " between days");
+
+    if (kind === "poi") {
+      const [poi] = src.pois.splice(i, 1);
+      if (!poi) return;
+      // A POI's distance along the track belongs to the day it was measured on
+      // and means nothing on another one. Null is honest — "near this day's
+      // route, position not measured" — and is exactly what an import with no
+      // track stores. See the null-is-not-zero note in AGENTS.md.
+      poi.distFromStartMi = null;
+      dst.pois.push(poi);
+    } else {
+      const [stop] = src.stops.splice(i, 1);
+      if (!stop) return;
+      // Where it landed among the DESTINATION's stops, read from the DOM the
+      // same way the same-day branch does — the rows it sits between are the
+      // answer, whatever POIs are interleaved with them.
+      const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')];
+      const at = Math.max(0, Math.min(dst.stops.length, order.indexOf(evt.item)));
+      dst.stops.splice(at, 0, stop);
+      src.legs = [];
+      dst.legs = [];
+      state.legSeq[fromDay] = [];
+      state.legSeq[toDay] = [];
+    }
+
+    // Rebuilt rather than patched: both lists have shifted indices, and every
+    // row's data-i has to agree with the arrays again before any later handler
+    // reads one.
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    if (kind === "stop") {
+      computeLegsAround(fromDay, Array.from({ length: Math.max(0, src.stops.length - 1) }, (_, k) => k));
+      computeLegsAround(toDay, Array.from({ length: Math.max(0, dst.stops.length - 1) }, (_, k) => k));
+    }
+    setActive(toDay);
+    refreshDerived();
+    markDirty();
+    toast("Moved to " + dayLabel(toDay));
   }
 
   // --- Search (Google Places autocomplete) ----------------------------------
@@ -1888,26 +2775,49 @@
     }
   }
 
+  // ONE DROPDOWN FOR EVERY ROW. There can be 31 search fields on screen and only
+  // one open list, so the results element is owned by the document and moved to
+  // whichever field is asking. A <ul> per row would put 31 empty dropdowns in
+  // the DOM for nothing — the same argument the row ⋮ menu makes for building
+  // on open. `results.dataset.day` remembers which day the open list is for, so
+  // a pick lands correctly even if the rows have been re-rendered since.
+  let resultsEl = null;
+  function searchResultsEl() {
+    if (resultsEl) return resultsEl;
+    resultsEl = document.createElement("ul");
+    resultsEl.id = "search-results";
+    resultsEl.hidden = true;
+    document.body.appendChild(resultsEl);
+    return resultsEl;
+  }
+
+  function hideSearchResults() {
+    if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
+  }
+
   function wireSearch() {
-    const input = $("search");
-    const results = $("search-results");
+    const host = $("day-list");
+    const results = searchResultsEl();
 
     // A fixed dropdown does not travel with the field, so anything that moves
-    // the field dismisses it rather than leaving it stranded. Scrolling the
-    // panel is the case that actually happens; the map page itself never
-    // scrolls, so a resize is the only other way the field moves.
+    // the field dismisses it rather than leaving it stranded. That matters more
+    // now than it did: the field is inside the panel's scroller rather than
+    // pinned above it.
     const wrapper = document.querySelector(".panel-contents-wrapper");
-    const dismiss = () => {
-      if (!results.hidden) results.hidden = true;
-    };
-    if (wrapper) wrapper.addEventListener("scroll", dismiss, { passive: true });
-    window.addEventListener("resize", dismiss);
+    if (wrapper) wrapper.addEventListener("scroll", hideSearchResults, { passive: true });
+    window.addEventListener("resize", hideSearchResults);
 
-    input.addEventListener("input", () => {
+    // Delegated on #day-list, because renderDays() replaces every one of these
+    // fields on any structural change. Binding per input would either be lost
+    // on the next render or leak a listener per render.
+    host.addEventListener("input", (e) => {
+      const input = e.target.closest(".add-search");
+      if (!input) return;
+      const day = Number(input.closest(".add-row").dataset.day);
       clearTimeout(searchTimer);
       const q = input.value.trim();
       if (q.length < 3) {
-        results.hidden = true;
+        hideSearchResults();
         return;
       }
       searchTimer = setTimeout(async () => {
@@ -1917,6 +2827,10 @@
         try {
           const hits = await searchPlaces(state.map, q);
           if (mine !== searchSeq) return;
+          // The rows may have been rebuilt out from under this response, in
+          // which case the field it was for no longer exists.
+          if (!input.isConnected) return;
+          results.dataset.day = String(day);
           results.innerHTML = hits
             .map(
               (h, i) =>
@@ -1933,11 +2847,29 @@
               const picked = await hits[Number(li.dataset.i)].resolve().catch(() => null);
               if (!picked) return toast("Could not locate that place", true);
               const [lng, lat] = picked.lngLat;
-              if (state.addMode === "poi") addPoi(lng, lat, picked.name);
-              else addStop(lng, lat, picked.name);
+              // Read the day off the open list rather than the closure: it is
+              // the same value, and taking it from one place means a stale
+              // closure can never put a stop on the wrong day.
+              const r = Number(results.dataset.day);
+              // The row's own radio, not the panel's + Stop / + POI pair. That
+              // pair belongs to the map click; a searched address is a separate
+              // gesture and deserves its own answer.
+              const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
+              const asPoi = kindEl && kindEl.value === "poi";
+              hideSearchResults();
+              // The day whose row was used becomes the active one, so a map
+              // click afterwards continues where the rider is working rather
+              // than wherever they last clicked.
+              setActive(r);
+              if (asPoi) addPoi(lng, lat, picked.name, r);
+              else addStop(lng, lat, picked.name, r);
               panTo(state.map, picked.lngLat, 11);
-              input.value = "";
-              results.hidden = true;
+              // The add above re-rendered the list, so this row is a new
+              // element. Put the cursor in its replacement: adding several
+              // stops in a row is the common case and should not need a click
+              // between each one.
+              const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
+              if (next) next.focus();
             });
           });
         } catch (e) {
@@ -1945,8 +2877,79 @@
         }
       }, 300);
     });
+
+    // Escape dismisses the suggestions without clearing the query — the rider
+    // may have meant to close the list, not to start over.
+    host.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && resultsEl && !resultsEl.hidden && e.target.closest(".add-search")) {
+        e.stopPropagation();
+        hideSearchResults();
+      }
+    });
+
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".search-wrap")) results.hidden = true;
+      if (!e.target.closest(".add-row") && !e.target.closest("#search-results")) hideSearchResults();
+    });
+  }
+
+  // Ticking boxes and the bar's buttons. Delegated on the panel because
+  // renderDays() replaces every checkbox on every structural change.
+  function wireSelect() {
+    const panel = document.querySelector(".builder-panel");
+    if (!panel) return;
+
+    panel.addEventListener("change", (e) => {
+      const sel = state.select;
+      if (!sel) return;
+      const el = e.target;
+      if (el.classList.contains("day-pick")) {
+        const r = Number(el.dataset.day);
+        if (el.checked) sel.days.add(r);
+        else sel.days.delete(r);
+        return renderSelectBar();
+      }
+      if (el.classList.contains("row-pick")) {
+        const key = pointKey(Number(el.dataset.day), el.dataset.kind, Number(el.dataset.i));
+        if (el.checked) sel.points.add(key);
+        else sel.points.delete(key);
+        return renderSelectBar();
+      }
+      // The move-to picker fires `change` rather than `click`, so it is handled
+      // here rather than below with the buttons.
+      if (el.dataset.sel === "move-to" && el.value !== "") {
+        const to = Number(el.value);
+        el.value = "";
+        moveSelectedPoints(to);
+      }
+    });
+
+    panel.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sel]");
+      if (!btn || btn.tagName === "SELECT") return;
+      const sel = state.select;
+      if (!sel) return;
+      const act = btn.dataset.sel;
+      if (act === "done") return endSelect();
+      if (act === "none") {
+        sel.days.clear();
+        sel.points.clear();
+        renderDays();
+        return renderSelectBar();
+      }
+      if (act === "all") {
+        if (sel.scope === "day") state.days.forEach((_, r) => sel.days.add(r));
+        else {
+          state.days.forEach((day, r) => {
+            day.stops.forEach((_, i) => sel.points.add(pointKey(r, "stop", i)));
+            day.pois.forEach((_, i) => sel.points.add(pointKey(r, "poi", i)));
+          });
+        }
+        renderDays();
+        return renderSelectBar();
+      }
+      if (act === "delete") return sel.scope === "day" ? deleteSelectedDays() : deleteSelectedPoints();
+      if (act === "duplicate") return duplicateSelectedDays();
+      if (act === "group") return groupSelectedAsAlternates();
     });
   }
 
@@ -1968,6 +2971,13 @@
           color: r.color,
           startAt: r.startAt,
           endAt: r.endAt,
+          // The server re-resolves these on every save — dissolving a group of
+          // one, electing an active member, renumbering densely — so what comes
+          // back may not be what went out. That is the contract, not a bug: see
+          // resolveAltGroups. Note a day dropped by the filter above can leave a
+          // group with one member, which is exactly the case that dissolves.
+          altGroup: r.altGroup,
+          altActive: r.altActive,
           stops: r.stops,
           pois: r.pois,
           legs: r.legs,
@@ -2075,6 +3085,12 @@
       startAt: r.startAt || null,
       endAt: r.endAt || null,
       endManual: false,
+      // The other half of payload()'s round-trip. Omitting these is how a
+      // rider's alternate grouping works perfectly until they reload the page
+      // and then is silently gone, with the ride's mileage jumping to match —
+      // `?? null` rather than `|| null` because 0 is a real group id.
+      altGroup: r.altGroup ?? null,
+      altActive: r.altActive ?? true,
       stops: r.stops || [],
       pois: r.pois || [],
       legs: r.legs || [],
@@ -2098,52 +3114,142 @@
 
   // --- Init -----------------------------------------------------------------
 
+  // ALL DELEGATED ON #day-list, because there are N of every one of these now and
+  // renderDays() replaces the lot on any change to the set of days. A bound
+  // listener would go with the element it was bound to.
+  //
+  // Every handler starts by making the touched day active. That single line is
+  // what let the ~15 shared edit functions below keep reading editIndex() when
+  // the panel went from one visible day to all of them.
   function wireDays() {
-    $("day-slider").addEventListener("input", (e) => setFocus(Number(e.target.value)));
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
+    $("rail-days").addEventListener("click", (e) => {
+      const btn = e.target.closest(".rail-day");
+      if (!btn) return;
+      const r = Number(btn.dataset.day);
+      goToDay(r);
+      // The rail is a jump list, so it scrolls as well as selects. Harmless while
+      // the drawer is collapsed and the sections are not on screen — it is the
+      // reopened drawer that lands in the right place.
+      const sec = daySection(r);
+      if (sec) sec.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
     $("day-add").addEventListener("click", addDay);
-    $("day-del").addEventListener("click", deleteDay);
-    $("day-rev").addEventListener("click", reverseDay);
-    $("day-up").addEventListener("click", () => moveDay(-1));
-    $("day-down").addEventListener("click", () => moveDay(1));
-    $("day-color").addEventListener("input", (e) => {
-      const day = editRoute();
-      if (!day) return;
-      beginEdit("recolor day", "day-color");
-      day.color = e.target.value;
-      renderDayHead();
-      renderSlider();
-      rebuildLayers();
-      renderMarkers();
-      markDirty();
+
+    const host = $("day-list");
+
+    // Pointerdown rather than click: it fires before focus moves, so tabbing or
+    // clicking into a field has already set the right active day by the time any
+    // other handler runs.
+    host.addEventListener("pointerdown", (e) => setActiveFromEl(e.target));
+    host.addEventListener("focusin", (e) => setActiveFromEl(e.target));
+
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const sec = btn.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      if (btn.classList.contains("day-twirl")) {
+        const shut = sec.classList.toggle("is-shut");
+        btn.setAttribute("aria-expanded", String(!shut));
+        return;
+      }
+      if (btn.classList.contains("day-rev")) return reverseDay();
+      if (btn.classList.contains("day-menu-btn")) {
+        return toggleDayMenu(sec.querySelector(".day-head"), btn, r);
+      }
+      if (btn.classList.contains("row-menu-item") && btn.closest(".day-head")) {
+        // Close first: every one of these re-renders, and a menu still attached
+        // to a section that is about to be replaced would be orphaned mid-click.
+        const act = btn.dataset.act;
+        closeMenu();
+        if (act === "day-delete") return deleteDay();
+        if (act === "day-duplicate") return duplicateDay(r);
+        if (act === "day-promote") return promoteAlternate(r);
+        if (act === "day-ungroup") return ungroupAlternates(r);
+        if (act === "day-select") return startSelect("day");
+        return;
+      }
+      // Ticking a day. Not delegated through setActive above — a checkbox is
+      // about the set, not about where the next map click lands.
+      if (btn.classList.contains("day-pick")) return;
     });
-    $("day-title").addEventListener("input", (e) => {
-      const day = editRoute();
-      if (!day) return;
-      beginEdit("rename day", "day-title");
-      day.title = e.target.value;
-      $("day-label").textContent = dayLabel(editIndex());
-      refreshDerived();
-      markDirty();
+
+    // The keyboard half of the drag handle. Reordering was two buttons until
+    // 2026-08-16; the grip carries it now so the header keeps its width.
+    // preventDefault because the drawer scrolls, and an arrow key that both moves
+    // the day and scrolls the panel loses the day off the screen.
+    host.addEventListener("keydown", (e) => {
+      const grip = e.target.closest(".day-drag");
+      if (!grip) return;
+      const dir = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const sec = grip.closest(".day-section");
+      if (!sec) return;
+      setActive(Number(sec.dataset.day));
+      moveDay(dir);
+      // renderDays() has replaced the button that was focused, so focus has to be
+      // put back on the same day's grip at its NEW position or the next arrow key
+      // goes nowhere.
+      const moved = daySection(activeIndex());
+      const next = moved && moved.querySelector(".day-drag");
+      if (next) next.focus();
     });
-    $("day-start").addEventListener("change", (e) => {
-      const day = editRoute();
+
+    host.addEventListener("input", (e) => {
+      const sec = e.target.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      const day = state.days[r];
       if (!day) return;
-      beginEdit("change start time");
-      day.startAt = localInputToIso(e.target.value);
-      refreshDerived();
-      markDirty();
+      if (e.target.classList.contains("day-color")) {
+        beginEdit("recolor day", "day-color:" + r);
+        day.color = e.target.value;
+        sec.style.setProperty("--day-color", day.color);
+        renderRailDays();
+        rebuildLayers();
+        renderMarkers();
+        markDirty();
+        return;
+      }
+      if (e.target.classList.contains("day-title")) {
+        beginEdit("rename day", "day-title:" + r);
+        day.title = e.target.value;
+        // Deliberately NOT renderDays(): rebuilding the section would take the
+        // caret out of the field being typed in.
+        renderRailDays();
+        refreshDerived();
+        markDirty();
+      }
     });
-    // Typing an end overrides the derivation; clearing it hands control back,
-    // and refreshDerived() refills the field from the day on the way out.
-    $("day-end").addEventListener("change", (e) => {
-      const day = editRoute();
+
+    host.addEventListener("change", (e) => {
+      const sec = e.target.closest(".day-section");
+      if (!sec) return;
+      const r = Number(sec.dataset.day);
+      setActive(r);
+      const day = state.days[r];
       if (!day) return;
-      beginEdit("change end time");
-      day.endAt = localInputToIso(e.target.value);
-      day.endManual = day.endAt !== null;
-      refreshDerived();
-      markDirty();
+      if (e.target.classList.contains("day-start")) {
+        beginEdit("change start time");
+        day.startAt = localInputToIso(e.target.value);
+        refreshDerived();
+        markDirty();
+        return;
+      }
+      // Typing an end overrides the derivation; clearing it hands control back,
+      // and refreshDerived() refills the field from the day on the way out.
+      if (e.target.classList.contains("day-end")) {
+        beginEdit("change end time");
+        day.endAt = localInputToIso(e.target.value);
+        day.endManual = day.endAt !== null;
+        refreshDerived();
+        markDirty();
+      }
     });
   }
 
@@ -2325,10 +3431,14 @@
     }
     wireMeta();
     wireDays();
-    wireList($("stop-list"));
-    wireRowMenuDismiss();
-    initDragToReorder($("stop-list"));
+    // Delegated on the container rather than on each list, so the handlers
+    // survive renderDays() replacing every list. Sortable cannot work that way —
+    // it binds to the list element — so initDragToReorder is called per list from
+    // renderDays instead.
+    wireList($("day-list"));
+    wireMenuDismiss();
     wireSearch();
+    wireSelect();
     wireHistory();
     // Undo and redo are the only icons in static markup — every other one is in
     // a row this file renders, and renderList() hydrates those as it goes. These
@@ -2357,9 +3467,7 @@
 
     rebuildLayers();
     renderMarkers();
-    renderSlider();
-    renderDayHead();
-    renderList();
+    renderDays();
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
@@ -2369,6 +3477,12 @@
       // A drop at the end of a shape drag also produces a click. Without this
       // the rider bends the line and gets a stop they never asked for.
       if (consumeShapeClick(state.map)) return;
+      // ADDING IS SUPPRESSED WHILE POINTS ARE SELECTED, and this is a
+      // correctness guard rather than a nicety: the selection keys points by
+      // index, and splicing a new stop into a day renumbers every point after
+      // it. The rider would then delete a different set from the one they
+      // ticked, silently. Saying so beats acting on the stale keys.
+      if (state.select?.scope === "point") return toast("Finish selecting first", true);
       if (state.addMode === "poi") addPoi(lng, lat, "");
       else addStop(lng, lat, "");
     });

@@ -6,7 +6,7 @@ npm-debug.log
 # Secrets and user data never enter the build context.
 .env
 .env.*
-moto-storage
+storage
 
 # Build artifact — regenerated inside the image by `npm run sass`.
 public/style/*.css

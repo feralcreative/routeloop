@@ -171,7 +171,12 @@
     if (!lngLats.length) return;
     const bounds = new Core.LatLngBounds();
     lngLats.forEach((p) => bounds.extend(toLatLng(p)));
-    map.fitBounds(bounds, padding ?? { top: 60, bottom: 60, left: 380, right: 60 });
+    // Even padding. It was `left: 380` while #map spanned the whole viewport and
+    // the panel floated over its left 380px — the fit had to push the route clear
+    // of a panel drawn on top of it. The drawer takes its own column now and the
+    // map is sized to what is left, so every edge of the map is visible and an
+    // asymmetric pad would just shove the route to the right.
+    map.fitBounds(bounds, padding ?? { top: 60, bottom: 60, left: 60, right: 60 });
     Core.event.addListenerOnce(map, "idle", () => {
       if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM);
     });
@@ -201,6 +206,11 @@
 
   const TRACK_OPACITY = 0.8;
   const DIM_OPACITY = 0.25;
+  // A LOSING ALTERNATE. Between the other two on purpose: a ghost is quieter
+  // than the road you are riding and louder than a day you simply are not
+  // looking at right now, because it is still a real option rather than
+  // something out of focus.
+  const GHOST_OPACITY = 0.35;
 
   // Mapbox has no line symbol, so the engine this replaces drew a triangle to a
   // canvas and registered it as an image (ensureArrowImage). Polyline.icons does
@@ -223,6 +233,38 @@
     ];
   }
 
+  // A ghost gets dashes instead of arrows, and that is the substance of the
+  // treatment rather than decoration.
+  //
+  // Opacity alone cannot say "alternate". It already means "not focused" — see
+  // DIM_OPACITY and applyFocus()/paintFocus() — so a third opacity would be a
+  // third shade of the same statement, and a rider looking at a faded line has
+  // no way to tell "you are not hovering this" from "you decided against this".
+  // A dashed line is a different KIND of line, which is the difference being
+  // drawn. It is also the long-standing convention for a proposed or optional
+  // path on a map, so it needs no legend.
+  //
+  // Arrows are dropped with it. Direction only matters on a road you are going
+  // to ride, and at 120px they compete with the dashes for the same pixels.
+  //
+  // Polyline.icons with a dash symbol is how Google draws a dashed line: the
+  // stroke itself is set transparent by paint() and the dashes ARE the icons.
+  function dashIcons(color) {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: color,
+          strokeOpacity: GHOST_OPACITY,
+          strokeWeight: 4,
+          scale: 3,
+        },
+        offset: "0",
+        repeat: "16px",
+      },
+    ];
+  }
+
   // Mapbox addressed layers by string id against the style; a Polyline is a
   // plain object we have to hold onto ourselves. Keyed off the map so two maps
   // on one page could never collide.
@@ -234,12 +276,24 @@
     return m;
   }
 
+  // GHOST BEATS DIM, in all three properties. A losing alternate that happens
+  // to be the focused day is still a losing alternate — the rider clicked into
+  // it to edit it, which is exactly when they most need to see that it is the
+  // one that does not count. Reading `dim` first would un-ghost it on focus.
+  //
+  // The dashed stroke is drawn entirely by the icons, so the line's own stroke
+  // goes fully transparent: leaving it painted underneath produces a solid line
+  // with dashes on top of it, which reads as neither.
   function paint(entry) {
+    const ghost = Boolean(entry.ghost);
     entry.line.setOptions({
       strokeColor: entry.color,
-      strokeOpacity: entry.dim ? DIM_OPACITY : TRACK_OPACITY,
-      zIndex: entry.dim ? 1 : 2,
-      icons: entry.visible && entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
+      strokeOpacity: ghost ? 0 : entry.dim ? DIM_OPACITY : TRACK_OPACITY,
+      // Below both, so an alternate never draws over the road being ridden
+      // where the two share tarmac — which, being alternates, they usually do
+      // at both ends.
+      zIndex: ghost ? 0 : entry.dim ? 1 : 2,
+      icons: !entry.visible ? [] : ghost ? dashIcons(entry.color) : entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
     });
     entry.line.setVisible(entry.visible);
   }
@@ -272,6 +326,13 @@
       visible: true,
       arrowsOn: true,
       dim: false,
+      // On the entry rather than the Polyline for the same reason `shapeable`
+      // is, and it is worth restating because it has bitten before:
+      // rebuildLayers() destroys and recreates every line on every day add,
+      // delete, reorder and recolour, so a flag set on the Polyline alone would
+      // vanish the next time a rider touched anything. A ghost that silently
+      // becomes a solid line is a ride whose mileage and map disagree.
+      ghost: false,
       shapeable,
       id,
     };
@@ -318,6 +379,19 @@
     const entry = layersOf(map).get(id);
     if (!entry) return;
     entry.dim = dim;
+    paint(entry);
+  }
+
+  // Separate from setRouteDim rather than an argument to it, because the two
+  // answer different questions and are owned by different code. `dim` is
+  // transient — focus, legend hover, the timeline — and both clients rewrite it
+  // constantly. `ghost` is a fact about the ride: this day is an alternate that
+  // lost. Folding them into one flag means whichever ran last wins, and the
+  // symptom is an alternate that turns solid the moment you click it.
+  function setRouteGhost(map, id, ghost) {
+    const entry = layersOf(map).get(id);
+    if (!entry) return;
+    entry.ghost = ghost;
     paint(entry);
   }
 
@@ -802,23 +876,58 @@
 
   // --- Panel collapse (ported from the legacy DOMContentLoaded block) -------
 
-  function initPanelToggle() {
+  // `getMap` is an optional accessor, not a map, and it is a function on
+  // purpose: both pages bind this toggle at load and create their map inside an
+  // await several hundred milliseconds later. Taking the map itself here would
+  // capture null forever. A caller that passes nothing still gets a working
+  // toggle, just without the re-centre.
+  function initPanelToggle(getMap) {
     const panel = document.getElementById("info-panel");
     const toggle = panel && panel.querySelector(".collapse-toggle");
     if (!panel || !toggle) return;
+    const rail = panel.querySelector(".drawer-rail");
     toggle.addEventListener("click", () => {
+      const map = typeof getMap === "function" ? getMap() : null;
+      // THE CENTRE IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the
+      // space beside the drawer now rather than to the whole viewport, so
+      // collapsing hands it 324 more pixels — and Google keeps the map's
+      // top-left fixed through a resize, which slides the route sideways by
+      // half that. Reinstating the centre afterwards keeps whatever the rider
+      // was looking at in the middle of what they can see.
+      const center = map && map.getCenter && map.getCenter();
+
       panel.classList.toggle("collapsed");
       const collapsed = panel.classList.contains("collapsed");
-      // The button now carries aria-expanded, so it has to be kept true. The
-      // markup ships it as "true" and this is the only thing that flips it —
-      // a stale attribute is worse than none, because it states the opposite
-      // of what a screen reader user is looking at.
+      // The button carries aria-expanded, so it has to be kept true. The markup
+      // ships it as "true" and this is the only thing that flips it — a stale
+      // attribute is worse than none, because it states the opposite of what a
+      // screen reader user is looking at.
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
-      // The image is decorative — alt="" — because the button's own label says
-      // what it does. Naming it here too would announce the action twice.
-      const img = toggle.querySelector("img");
-      if (img) img.src = collapsed ? "/img/icons/icon-expand.svg" : "/img/icons/icon-collapse.svg";
+      // The rail's controls duplicate the day scrubber, so they are hidden from
+      // assistive tech while the scrubber itself is on screen and exposed only
+      // once it is not. The markup ships aria-hidden="true" to match the
+      // expanded state it also ships in.
+      if (rail) rail.setAttribute("aria-hidden", String(!collapsed));
+      // No src to swap any more: .collapse-icon is a masked span and the mask
+      // is selected by the aria-expanded set two lines up. That attribute was
+      // always the real state — driving the artwork from it as well removes the
+      // second thing to keep in step, and there is nothing to do here.
+
+      if (!center) return;
+      // Re-centred on transitionend rather than immediately: the width animates
+      // over 0.28s and a setCenter against the old width is undone by the very
+      // next frame. The timeout is the fallback for a browser that never fires
+      // the event — prefers-reduced-motion kills the transition entirely, and
+      // transitionend does not fire for a transition that did not run.
+      let done = false;
+      const settle = () => {
+        if (done) return;
+        done = true;
+        map.setCenter(center);
+      };
+      panel.addEventListener("transitionend", settle, { once: true });
+      setTimeout(settle, 350);
     });
   }
 
@@ -833,6 +942,7 @@
     updateRouteTrack,
     setRouteVisible,
     setRouteDim,
+    setRouteGhost,
     setLegHighlight,
     clearLegHighlight,
     onRouteShapeDrag,

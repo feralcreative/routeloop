@@ -95,7 +95,7 @@ Delivered in phases:
    GMAPS_KEY=<Google browser key, referrer-restricted>
    GMAPS_SERVER_KEY=<Google server key, IP-restricted — Routes + Geocoding>
    GMAPS_MAP_ID=<vector Map ID — without it, Advanced Markers render nothing>
-   STORAGE_PATH=./moto-storage
+   STORAGE_PATH=./storage
    DATABASE_URL=postgresql://routeloop:routeloop_dev_pw@127.0.0.1:5432/routeloop
    APP_ORIGIN=http://127.0.0.1:6686
    ```
@@ -111,7 +111,7 @@ Delivered in phases:
 
    `npm run dev` applies pending migrations too, via `predev`, so switching between machines needs no separate step. Schema changes are generated files under `drizzle/`—see [docs/database.md](docs/database.md), which also covers the one-time baseline an older database needs.
 
-   The seed reads `moto-storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a fresh checkout that file is absent and the seed stops there; `utils/seed-dev.sh --rides-only` seeds generated native rides instead.
+   The seed reads `storage/1/1.kml` for its imported sample ride. Storage is gitignored, so on a fresh checkout that file is absent and the seed stops there; `utils/seed-dev.sh --rides-only` seeds generated native rides instead.
 
 4. Compile styles if you changed the SCSS:
 

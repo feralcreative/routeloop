@@ -47,7 +47,7 @@ All of these carry `requireAuthApi` (or `requireActiveApi`) plus `requireSameOri
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /api/maps`                                              | Import: KML, KMZ, GPX, GeoJSON, CSV, a `.zip` of any of those, or native Routeloop JSON → structured rows. Full XXE-safe pipeline plus transactional quota. `routes/maps.ts`                                                                                                          |
 | `PATCH /api/maps/:id`, `DELETE /api/maps/:id`                 | Edit and delete, owner-scoped, both sources                                                                                                                                                                                                                                           |
-| `POST /api/rides`, `PUT /api/rides/:id`, `GET /api/rides/:id` | Builder create, full-replace save, owner load. `routes/rides.ts`                                                                                                                                                                                                                      |
+| `POST /api/rides`, `PUT /api/rides/:id`, `GET /api/rides/:id` | Builder create, full-replace save, owner load. `routes/builder.ts`—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104); `routes/rides.tsx` is the ride-list page and a different file                                                              |
 | `POST /api/rides/:id/clone`                                   | Rebuilds a public native ride through the same `insertRideGraph`. **Drops** descriptions (stop notes are where "gate code 4417" lives), times and via points, and lands private. Private and imported rides 404 rather than 403, so the endpoint confirms nothing                     |
 | `POST /api/route`                                             | `{origin, destination, vias?}` as `[lng,lat]` in, `{geometry, distanceM, durationS}` out. Proxies Google Routes because the server key is IP-restricted; caches computed legs because editing re-requests the same pair constantly. `routes/routing.ts`                               |
 | `POST /api/geocode`                                           | Beside it, for the same reason. **A miss is cached as well as a hit**—a half-typed address is resubmitted constantly and a failed lookup bills the same. Geocoding reports "found nothing" as HTTP 200 with `ZERO_RESULTS`, handled explicitly rather than falling through as success |
@@ -58,11 +58,13 @@ Import specifics: several files posted at once become the days of one ride, and 
 
 | Route                              | Gate                                                               |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `GET /builder`, `GET /builder/:id` | `requireAuth`, owner-checked, native rides only. `routes/rides.ts` |
-| `GET /dashboard`                   | Owner ride list plus the aggregates from `src/stats/`              |
+| `GET /builder`, `GET /builder/:id` | `requireAuth`, owner-checked, native rides only. `routes/builder.ts` |
+| `GET /`                            | The dashboard—hero miles, tiles, storage meter, twelve-month chart, from `src/stats/`. `routes/home.tsx` |
+| `GET /rides`                       | Owner ride list. `routes/rides.tsx`                                |
+| `GET /dashboard`                   | **301 to `/rides`** since 2026-08-15. The name described the page as a dashboard when the dashboard is `/` |
 | `GET`/`POST /profile`              | Profile form and username reservations                             |
-| `GET /import`                      | The multi-file upload form                                         |
-| `GET /settings`                    | Signed-in stub—deliberately empty rather than fake                 |
+| `GET /import`                      | Import **and** export, one page under one `<h1>`: the multi-file upload form, and a per-format download row per owned ride |
+| `GET /settings`                    | The rider's preferences. Currently one setting, the stop-duration format, shipped 2026-08-15; **planned to move to `/prefs`**, see `docs/main-menu.md` |
 | `GET /brand`                       | Signed-in palette audit read live from the SCSS                    |
 
 ## Invites and survey
@@ -79,7 +81,7 @@ The rule and the claim are deliberately separate: `src/invites/policy.ts` holds 
 
 ## The ride payload (save = load shape)
 
-Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
+Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
 
 ```json
 {
@@ -93,6 +95,8 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSO
       "color": "#0066cc",
       "startAt": null,
       "endAt": null,
+      "altGroup": null,
+      "altActive": true,
       "stops": [
         {
           "lat": 0,
@@ -120,6 +124,8 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/rides.ts`, so the native JSO
 ```
 
 Geometry pairs are `[lng, lat]`.
+
+`altGroup` and `altActive` mark alternate days—two or more candidates for the same stretch, of which exactly one counts. Both default, so a file written before they existed still validates and `NATIVE_FORMAT_VERSION` did not move. The server re-resolves them on every write: a group of one is dissolved, exactly one member is elected active, and group ids are renumbered densely from 0—so what comes back is not always what was sent, and that is the contract rather than a bug. `ride.json` sends every day including the losing alternates, because the viewer has to receive one in order to ghost it; the four lossy export formats send only the active days, because none of them can express "this is an option" and a re-import would silently promote every loser to a real day.
 
 Server-side integrity on save: all text is sanitized, coordinates are rounded to 6 decimals, and each leg's claimed `distanceM` is clamped to the haversine length of its geometry if it deviates by more than 15 %—Directions stays authoritative in the honest case, and spoofing is bounded.
 

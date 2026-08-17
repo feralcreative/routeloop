@@ -237,7 +237,7 @@ junit.xml
 
 # Docker
 # .dockerignore is build config, not local cruft — it must be committed or a
-# clean clone builds with the full context (node_modules, moto-storage, .env).
+# clean clone builds with the full context (node_modules, storage, .env).
 !.dockerignore
 Dockerfile.dev
 docker-compose.override.yml
@@ -288,6 +288,10 @@ _assets
 /vendor/
 config.local.php
 moto-config/
+# The rider-file store — see src/maps/storage.ts. Was moto-storage/ until the
+# name was corrected; the old one stays listed so a leftover directory on any
+# machine still cannot be committed.
+storage/
 moto-storage/
 /public/style/*.css.map
 

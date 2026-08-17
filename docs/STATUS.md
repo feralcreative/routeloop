@@ -1,17 +1,29 @@
 # Status and handoff
 
-**Updated:** 2026-08-15
-**Branch:** `feat/builder-panel`, seven commits ahead of `main`, none pushed—869 tests across 37 files
-**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename
+**Updated:** 2026-08-16
+**Branch:** `feat/fixed-day-slider`, 25 commits ahead of `main`—14 feature and style, 11 docs—and pushed, in sync with `origin/feat/fixed-day-slider`. **929 tests across 39 files** (2 skipped, 931 total)
+**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename. The alternate object from roadmap item 14 shipped on this branch; [#68](https://github.com/feralcreative/routeloop/issues/68) still describes the whole bundle including voting and needs rewriting or a child issue.
 **For:** the next agent, or the owner returning cold
 
-**One schema change is in this branch and it has been applied to the local dev database only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`. It is additive—a new enum type and one column with a default—so it needs no backfill and rewrites no table, but stage and production have not seen it and the deploy is the thing that applies it.
+**Two schema changes are in play and both are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`. Both are additive with defaults, so neither needs a backfill or rewrites a table—but stage and production have seen neither, and **the deploy is the thing that applies them**. Once the alternates code is deployed without 0003, every save 500s: `insertRideGraph` writes two columns that would not exist.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
 
+## Alternate days, and the drawer—`feat/fixed-day-slider`, 2026-08-16
+
+**The alternate object from roadmap item 14 shipped, at day level, for a single planner.** Two or more days can be grouped as alternatives of one another; exactly one is active; only the active one counts toward any mileage, duration or stop count anywhere in the app. Losing alternates are kept, drawn dashed on the map, badged in the viewer legend and the builder, and excluded from the roadbook, the hand-off page and all four lossy export formats. The native JSON keeps everything. **Voting, resolution and vote scoping are not built**—that is the half of item 14 that still depends on riders (item 8).
+
+Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NULL DEFAULT true`, plus the partial unique index `uq_day_alt_active`, in `drizzle/0003_sticky_firebird.sql`. No backfill was needed—the defaults describe every pre-existing row correctly. The rule lives in `src/maps/alternates.ts`, mirrored by `public/js/alternates.js` and pinned by `test/alternates.test.ts`.
+
+**`setRouteDim` could not be reused for ghosting, and this is the design note worth keeping.** `entry.dim` is already owned by day focus in the builder and by hover and the timeline in the viewer, so ghosting through it un-ghosts an alternate the instant it is focused. `map-common.js` gained a third state, `entry.ghost`, drawn dashed with no direction arrows—a different *kind* of line, because opacity already means "not focused".
+
+**The branch carried more than the alternates.** Fourteen feature and style commits in all, and the ones outside the alternates work were not in the hand-off summary: the floating panel became **a left drawer showing every day** (`eda5b7c`), every day gained **its own search row** and the global search box went (`ec89103`), a **day menu and select mode** with bulk day and point actions landed (`6f97a66`), the AI-generated icons were **replaced with human-drawn ones** and the day header tightened to a measured 10px (`8e5a6e8`, `efa16a7`), and `moto-storage` was renamed **`storage`** (`545fa81`). Those are recorded here from their commit messages rather than from a read of the diffs—the alternates detail above came from the implementing agent's own hand-off and was verified against the schema, the files and the suite.
+
+**Suite: 929 passing across 39 files**, 2 skipped, 931 total—verified 2026-08-16, up from 869 across 37.
+
 ## The builder panel redesign—epic #88, all five phases, 2026-08-15
 
-Nothing in this section is deployed. It is all local on `feat/builder-panel`.
+Nothing in this section is deployed, but it is no longer local: `feat/builder-panel` merged to `main` via [#106](https://github.com/feralcreative/routeloop/pull/106) on 2026-08-15. Read it as history rather than as the current shape of the panel—`feat/fixed-day-slider` has since replaced the floating panel with a left drawer showing every day, and the day slider this section describes is gone.
 
 The panel is the app's primary work surface and had never been designed as one—it grew a control at a time. A measured pass on 2026-08-10 against `/builder/9` found **380px wide holding 198 interactive elements, with 807px of content in a 620px window** on a 3-day ride with 7 stops on the focused day. That measurement became [ROADMAP](ROADMAP.md) item 16 and then epic [#88](https://github.com/feralcreative/routeloop/issues/88). Re-measured on the same ride, the same day and the same viewport after four phases: **380px, 180 elements, 618px of content in a 617px window**—the seven-stop day fits without scrolling, where it used to overflow by 187px. The width is unchanged on purpose; it was never the complaint.
 
@@ -160,7 +172,7 @@ Dropping either would have failed **silently**: the files still import, just str
 
 **Not done, and not scriptable from the repo:**
 
-1. **The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones _before_ the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine. Same for the OAuth redirect URIs.
+1. ~~**The Maps browser key referrer list** still carries only the tankbag hosts. It must gain the routeloop ones _before_ the flip or the key is blocked on its own site—`RefererNotAllowedMapError`, a map that never draws while the rest of the page looks fine.~~ **Done—and superseded 2026-08-16**, when the list was consolidated to five wildcard patterns covering rollchart, routeloop and tankbag plus the two local origins. See "Console work completed 2026-07-27" below for the current command and for the apex-domain check that consolidation still needs. The OAuth redirect URIs are a separate list and are **not** covered by that change.
 2. **`CLOUDFLARE_ZONE_ID`** in `.env` still points at the tankbag.app zone. The purge failure is non-fatal, so a wrong zone means stale assets behind a green deploy.
 3. **The infrastructure rename needs a data migration.** `PROJECT_NAME`, the container/image/network names and the Postgres role and database all move to `routeloop`. The deploy directory follows `$DOMAIN` and carries the bind-mounted `data/storage` with it; the named volume follows `$PROJECT_NAME` and does not follow a `mv`. Back up first, bring the old stack down from the old directory by hand (the deploy's own `down` runs in the new one and cannot see it), and do not trust the deploy's verification—the origin curl is a warning only and the container check passes against an empty database.
 4. **GCP console object names are left alone**, following the precedent set at the last rename. The project cannot be renamed in place and the keys are identified by uid.
@@ -198,7 +210,7 @@ Done in the repo: the canonical/legacy host map reversed, cookies (`tankbag_sess
 1. ~~**Browser Maps key referrers.**~~ **Done 2026-07-29**—the allow-list now carries the tankbag hosts alongside the routeloop ones, verified per origin. See "Console work" below.
 2. ~~**OAuth client.**~~ **Done 2026-07-30**—created on the tankbag GCP project with an External consent screen and the three tankbag redirect URIs. See "Google Cloud migrated to the tankbag project" below.
 3. ~~**Favicons.**~~ **Done 2026-07-31**—regenerated from the current mark and moved into `public/img/favicon/` in `22610b8`. This entry described them as stale, at paths that no longer existed, for longer than it was true; an issue got filed off it on 2026-08-01 for work already finished. If a checklist item here is about assets, look at the files before believing it.
-4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. The `cd` paths in this document were updated to match; older `_PLANS/` files and shell history still point at the old path.
+4. ~~**The repo directory** is still `/Users/ziad/www/moto/routeloop`.~~ **Renamed 2026-07-30** to `/Users/ziad/www/moto/tankbag`. **And renamed back since**—as of 2026-08-16 the checkout is `/Users/ziad/www/moto/routeloop` again, so this entry is history in both directions. Two `cd` paths in this document still said `tankbag` on that date and were corrected; older `_PLANS/` files and shell history were left alone.
 5. ~~**SonarCloud project key** in `.vscode/settings.json`.~~ **Moot as of 2026-08-03—SonarCloud is retired.** It was too noisy to be useful: 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs and vulnerabilities. Replaced by [Qlty](https://qlty.sh), run locally from the CLI, on the theory that a small tuned rule set that people read beats a large one they learn to ignore. The GitHub repo _was_ renamed on 2026-07-30—it is `feralcreative/tankbag` now, and the local remote was re-pointed at it the same day. The old `feralcreative/tankbag-app` URL still works only through GitHub's rename redirect, so anything still hardcoding it is living on borrowed time.
 6. **`_PLANS/` history was left untouched.** `chat-with-sol.md` in particular is a transcript of the _previous_ rename; rewriting it would turn a record of what happened into fiction.
 
@@ -316,6 +328,75 @@ The project behind the Maps keys is **`routeloop-503503`** (display name `routel
     --allowed-referrers="https://tankbag.app/*,https://www.tankbag.app/*,https://stage.tankbag.app/*,https://routeloop.app/*,https://www.routeloop.app/*,https://stage.routeloop.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
   ```
 
+  **Consolidated 2026-08-16.** Ten explicit hosts became five patterns, with subdomain wildcards replacing the per-host entries:
+
+  ```bash
+  gcloud services api-keys update 53e9a638-bafb-4604-9346-282dd8c25d80 \
+    --project=tankbag \
+    --allowed-referrers="https://*.rollchart.app/*,https://*.routeloop.app/*,https://*.tankbag.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
+  ```
+
+  Two things this changed that are worth knowing before the next person reads the list.
+
+  **`rollchart.app` is on this key now.** It was not in any earlier version of the allow-list and is not mentioned anywhere else in this document. The browser key is therefore shared with a second app, so its quota, its billing and any future lockdown are no longer a routeloop-only concern.
+
+  **`https://*.domain/*` does NOT cover the bare apex, and this consolidation is an outage waiting to land.** Established 2026-08-16 after a first round of testing reached the opposite conclusion and was wrong.
+
+  **Google documents the answer plainly.** [Adding restrictions to API keys](https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys) says allowing a whole site takes **two** entries, not one: "URL for the domain, without a subdomain, and with a wildcard for the path. For example: `example.com/*`" **and** "A second URL that includes a wildcard for the subdomain and a wildcard for the path. For example: `*.example.com/*`". Note both examples are written **without a scheme**—which matters, because the console refuses `https://rollchart.app/*` as a duplicate of `https://*.rollchart.app/*` while the documented scheme-less pair is the configuration Google prescribes.
+
+  **How the first test round produced a false pass.** These four lines were read as proof the wildcard covered the apex:
+
+  ```text
+  https://evil.example.com/        BLOCKED
+  https://routeloop.app/           ALLOWED
+  https://www.routeloop.app/       ALLOWED
+  https://tankbag.app/             ALLOWED
+  http://localhost:6686/           ALLOWED
+  ```
+
+  Every one of those hosts was an explicit entry in the **pre-consolidation** list, so the run is equally consistent with the old rules still being served—and the discriminating run showed exactly that:
+
+  ```text
+  https://evil.example.com/          BLOCKED
+  https://anything.routeloop.app/    BLOCKED   <- must be ALLOWED under *.routeloop.app/*
+  https://www.rollchart.app/         BLOCKED   <- must be ALLOWED under *.rollchart.app/*
+  https://routeloop.app/             ALLOWED   <- only the OLD explicit entry grants this
+  ```
+
+  The wildcards are not being enforced yet. **When they are, the apex loses its explicit grant and goes dark**—`RefererNotAllowedMapError` on the primary domain, which this section already records happening twice.
+
+  **The lesson is about the control, not the wildcard.** `evil.example.com` proves *a* restriction is live; it can never prove *which* list is live, because it was absent from every version. Only a host the new rules allow and the old ones did not can do that—`https://anything.routeloop.app/`. A verification run that omits such a host cannot distinguish "the change worked" from "the change has not landed", and on 2026-08-16 that gap produced a confidently wrong all-clear.
+
+  **Fixed and verified 2026-08-16.** The list is now Google's two-entry recipe per domain, scheme-less, plus the two local origins:
+
+  ```bash
+  gcloud services api-keys update 53e9a638-bafb-4604-9346-282dd8c25d80 \
+    --project=tankbag \
+    --allowed-referrers="rollchart.app/*,*.rollchart.app/*,routeloop.app/*,*.routeloop.app/*,tankbag.app/*,*.tankbag.app/*,http://127.0.0.1:6686/*,http://localhost:6686/*"
+  ```
+
+  ```text
+  https://evil.example.com/          BLOCKED
+  https://anything.routeloop.app/    ALLOWED   <- was BLOCKED minutes earlier; dates the list as current
+  https://www.rollchart.app/         ALLOWED
+  https://routeloop.app/             ALLOWED
+  https://www.routeloop.app/         ALLOWED
+  https://tankbag.app/               ALLOWED
+  https://stage.tankbag.app/         ALLOWED
+  http://localhost:6686/             ALLOWED
+  ```
+
+  The `anything.routeloop.app` line is what makes this run conclusive where the earlier one was not: it was BLOCKED under the old list and ALLOWED under this one, so it proves *which* configuration answered.
+
+  **The scheme-less form costs plaintext coverage, and here is the measured size of it:**
+
+  ```text
+  http://routeloop.app/              ALLOWED
+  http://www.tankbag.app/            ALLOWED
+  ```
+
+  Every production host now accepts an `http://` referrer. That is inherent to the documented recipe—the console will not accept a scheme-qualified apex beside a scheme-qualified wildcard, so there is no way to get apex coverage *and* keep the entries HTTPS-only. It is worth knowing rather than worth fixing: a `Referer` header is trivially forged outside a browser, so this restriction is a deterrent against casual key reuse rather than access control, and the app itself is HTTPS-only regardless. If it ever needs tightening, the lever is a scheme check somewhere real, not this list.
+
 **The NAS and the workstation share one egress IP, `69.209.26.137`.** They are on the same residential line. That is convenient now and is exactly the fragility to watch: an ISP lease change silently breaks server-side Routes and Geocoding while the browser key keeps working, so it presents as a routing bug rather than a credentials one.
 
 ### Re-verifying the keys
@@ -324,10 +405,16 @@ Run this when routing starts failing for no visible reason, or after any change 
 
 Both domains are listed on purpose and both must now report ALLOWED—confirmed 2026-07-29 after the allow-list was updated. `evil.example.com` must report BLOCKED in every case.
 
+**Every run needs a host that only the CURRENT list allows, or it cannot tell "verified" from "not yet propagated".** `evil.example.com` is a control for "is any restriction live", nothing more—it has been absent from every version of the list, so it reports BLOCKED whichever one is being served. On 2026-08-16 a run built only from long-standing hosts returned all-ALLOWED and was read as a clean bill of health for a change that had not taken effect at all. Add `https://anything.routeloop.app/`: it is BLOCKED under the old explicit list and ALLOWED only under the wildcards, so it dates the configuration being measured.
+
+**List each domain as apex and `www` both.** Google's documentation is explicit that `*.domain/*` does not cover the naked apex and that a whole site needs two entries, so `www.routeloop.app` ALLOWED beside `routeloop.app` BLOCKED is a live failure mode rather than a hypothetical—see the console-work section above.
+
+The path in the `cd` above was stale until 2026-08-16; it pointed at the pre-rename `tankbag` checkout, so anyone copy-pasting this block failed on line one.
+
 ```bash
-cd /Users/ziad/www/moto/tankbag
+cd /Users/ziad/www/moto/routeloop
 KEY=$(grep -E '^GMAPS_KEY=' .env | cut -d= -f2-)
-for ref in "https://evil.example.com/" "https://tankbag.app/" "https://routeloop.app/" "http://localhost:6686/"; do
+for ref in "https://evil.example.com/" "https://tankbag.app/" "https://www.tankbag.app/" "https://routeloop.app/" "https://www.routeloop.app/" "http://localhost:6686/"; do
   printf '%-30s ' "$ref"
   curl -s -X POST "https://places.googleapis.com/v1/places:autocomplete" \
     -H "Content-Type: application/json" -H "X-Goog-Api-Key: $KEY" -H "Referer: $ref" \
@@ -425,7 +512,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 Branch `feat/trip-timeline-slider`, ten commits, covering [issue #7](https://github.com/feralcreative/tankbag/issues/7) (ROADMAP item 2) and [issue #19](https://github.com/feralcreative/tankbag/issues/19), which is folded in because it is the same widget. The full plan is in `_PLANS/issue-7-trip-timeline.md`—local only, since `_PLANS` is gitignored as of `7d0db74`.
 
-**Most of the time model was already built.** `routes.start_at` / `end_at` exist, [rides.ts](../src/routes/rides.ts) already validates, persists and returns them, and builder state already carried them through `newRoute()`, `payload()` and `loadExisting()`. Nothing wrote them. So the first commit's worth of work was UI on a finished pipe, not plumbing.
+**Most of the time model was already built.** `routes.start_at` / `end_at` exist, [builder.ts](../src/routes/builder.ts) already validates, persists and returns them (it was `rides.ts` when this was written; renamed in [#104](https://github.com/feralcreative/routeloop/pull/104)), and builder state already carried them through `newRoute()`, `payload()` and `loadExisting()`. Nothing wrote them. So the first commit's worth of work was UI on a finished pipe, not plumbing.
 
 **Four decisions, settled with the owner and worth not relitigating:**
 
@@ -917,12 +1004,12 @@ Sprint 08 (HTML out of the TypeScript) and the GCP quota caps are both done and 
 ## Local development
 
 ```bash
-cd /Users/ziad/www/moto/tankbag
+cd /Users/ziad/www/moto/routeloop
 npm install
 cp .env.example .env          # see the file for what each value is for
 docker compose up -d --wait db
 npm run db:migrate            # generated migrations; npm run dev does this too
-npx tsx src/db/seed.ts        # demo user + sample ride (needs moto-storage/1/1.kml)
+npx tsx src/db/seed.ts        # demo user + sample ride (needs storage/1/1.kml)
 npm run dev                   # http://localhost:6686
 ```
 

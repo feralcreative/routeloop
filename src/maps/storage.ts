@@ -5,7 +5,7 @@
 import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 
-export const STORAGE = resolve(process.env.STORAGE_PATH ?? './moto-storage')
+export const STORAGE = resolve(process.env.STORAGE_PATH ?? './storage')
 
 // The extensions a stored original can have. Deliberately a closed list rather
 // than `string`: the extension is the only part of the path not derived from an

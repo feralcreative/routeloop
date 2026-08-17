@@ -35,7 +35,7 @@ Admin ▾                                (only if canManageRiders)
 
 {displayName} {avatar} ▾
   Your profile        /profile
-  Settings            /settings
+  Preferences         /prefs
   Sign out            POST /logout
 ```
 
@@ -43,7 +43,18 @@ Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta
 
 ## Decisions
 
-**[decided] Import / Export is one page.** `/import` grows an export half rather than a second page being created beside it—the URL already exists, the FAQ links to it, and import is the primary action. The label in the menu is "Import / Export".
+**[shipped] Import / Export is one page.** `/import` grew an export half rather than a second page being created beside it—the URL already exists, the FAQ links to it, and import is the primary action. The label in the menu is "Import / Export". **This is built**, not pending: `src/routes/import.tsx` renders `<h1>Import / Export</h1>` over two `.transfer-head` sections, and the export half lists the rider's own rides with a per-format download row. It read as an open decision here until 2026-08-16 and misled a planning pass; the URL keeps the singular name it shipped under.
+
+**[decided 2026-08-16] Settings is renamed Preferences, and the canonical URL is `/prefs`.**
+
+The label everywhere a rider reads it is **Preferences**. The URL is the short form on purpose—it is typed and shared more than it is read, and `/preferences` earns nothing for its extra six characters.
+
+- `/prefs` is canonical and the only URL the app links to or renders.
+- `/settings` and `/preferences` both **301** to it, matching the `/dashboard` → `/rides` precedent at `src/index.tsx:154`.
+- **The POST endpoint is the trap.** `/settings/duration-format` is a form action, and a 301 does not preserve the method—a browser turns the redirected POST into a GET and the save silently does nothing. The form action moves to `/prefs/duration-format`, and the old path either stays mounted as a real alias or redirects **308**, never 301. A rider sitting on a page rendered before the deploy is the case this protects.
+- `settings.tsx` and `settingsRoutes` rename with it, and `NavKey`'s `'settings'` becomes `'prefs'`. `account.tsx` sets that key on three pages and links "Back to settings" twice—that copy becomes "Back to preferences".
+- **Reserve the new names as usernames.** `RESERVED_USERNAMES` in `src/auth/username.ts` holds `dashboard`, `profile`, `builder` and the rest, but **not `settings`**—a live route that was simply missed. Add `prefs`, `preferences` and `settings` while the list is open. Nothing is broken today because no root-level `/:username` route exists yet, which is exactly the window that list says it exists to protect.
+- Also update: `docs/api.md`'s route table, `src/db/schema.ts`'s comment on `duration_format`, `public/js/builder.js:77`'s comment, and `test/duration.test.ts`, whose case name says "the settings page".
 
 **[decided] "About this app" stays in the menu.** It is the only trigger for the alpha modal. Privacy and Terms are deliberately *not* in the menu; the footer carries them on every chrome page, and the splash carries them signed out.
 
@@ -53,7 +64,7 @@ Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta
 
 **[decided 2026-08-15] "Your rides" moved from `/dashboard` to `/rides`.** The old URL described the page as a dashboard when the dashboard is `/`. See the header of `src/routes/rides.tsx`. `/dashboard` 301s to `/rides`.
 
-**[decided] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open.
+**[superseded] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open. **No longer true**—see the two entries below: the page gained its first real setting on 2026-08-15 and is being renamed on 2026-08-16. Kept because it records why the link existed before the page did.
 
 **[shipped 2026-08-15] Settings has its first real setting.** The stop-duration format—hours to one decimal by default, switchable to hours+minutes or plain minutes. It posts to `/settings/duration-format` and writes one column, `user_profiles.duration_format`, rather than going through the profile form's POST, which validates and rewrites the whole profile and would need every other field carried along. The page is no longer a stub, though it is still short.
 

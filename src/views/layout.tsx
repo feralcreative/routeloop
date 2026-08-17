@@ -156,15 +156,25 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
   //
   // `-hz` is the one-line lockup; the stacked one carries no axis suffix at all.
   // Both names are the artwork's own, as delivered.
-  const logo = isMap
-    ? { src: '/img/logo-routeloop.svg', w: 920, h: 518 }
-    : { src: '/img/logo-routeloop-hz.svg', w: 1500, h: 184 }
-
+  // NO LOGO ON A MAP PAGE. It moved into the drawer on 2026-08-16 — see
+  // panelShell — because the drawer now runs the full height of the left edge
+  // and the floating badge sat exactly on top of its header. What is left of the
+  // header on a map page is the hamburger alone, in the opposite corner.
+  //
+  // The stacked artwork is therefore unused here; the drawer takes the
+  // horizontal lockup, which suits a wide, short header far better. Both are the
+  // unsuffixed artwork: the suffix names the *background*, not the ink, so no
+  // suffix is the dark lockup for a light ground and `-dk` is the reversed white
+  // one for a dark ground. It reads backwards at a glance, which is why it is
+  // written down — but it is the convention src/emails/shell.tsx was already
+  // using, so the alternative was two conventions instead of one.
   return (
-    <header class="site-header" id="site-header">
-      <a class="site-logo" href="/">
-        <img src={logo.src} alt="Routeloop" width={logo.w} height={logo.h} />
-      </a>
+    <header class={`site-header${isMap ? ' site-header--map' : ''}`} id="site-header">
+      {!isMap && (
+        <a class="site-logo" href="/">
+          <img src="/img/logo-routeloop-hz.svg" alt="Routeloop" width={1500} height={184} />
+        </a>
+      )}
       {/*
         A <details>, not a button plus a script. The browser owns open/closed,
         which means the menu works with no JavaScript at all — the whole nav used
@@ -229,6 +239,26 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 //
 // `titleHtml` exists for the builder, whose heading is an editable input rather
 // than text. The viewer passes a plain `title` and is unchanged.
+// IT IS A DRAWER, not a floating card, as of 2026-08-16. It runs the full height
+// of the viewport flush against the left edge, the map is sized to the space
+// beside it rather than sitting underneath it, and collapsing narrows it to a
+// rail instead of shrinking it toward a corner. The `floating-panel` class is
+// kept because a handful of unrelated rules still key on it; the shape now comes
+// from `.map-drawer`.
+//
+// The order of the children IS the layout, and three of the four are pinned:
+//
+//   .drawer-head     the logo and the two controls. Fixed height.
+//   .panel-title     the ride name, and #totals under it on the builder.
+//   .panel-contents  the ONLY part that scrolls, and it takes whatever height is
+//                    left. This is what stops the drawer growing and shrinking
+//                    with its own content.
+//   .drawer-foot     pinned to the bottom edge. The builder puts the day
+//                    scrubber here; the viewer passes nothing and it collapses.
+//
+// THE LOGO LIVES HERE NOW rather than floating over the map. SiteHeader drops it
+// on a map page — see the `isMap` branch there — because a full-height drawer
+// occupies exactly the corner the floating badge used to.
 export function panelShell(o: {
   title?: string
   titleHtml?: string
@@ -236,28 +266,63 @@ export function panelShell(o: {
   exitLabel?: string
   extraClass?: string
   contents: string
+  /** Pinned to the drawer's bottom edge. The builder's day scrubber. */
+  footer?: string
+  /** Shown only while collapsed, in the rail. The builder's day dots. */
+  rail?: string
 }): string {
   return (
-    <div id="info-panel" class={`floating-panel${o.extraClass ? ` ${o.extraClass}` : ''}`}>
-      <div class="panel-controls">
-        <button type="button" class="collapse-toggle" aria-label="Collapse panel" aria-expanded="true">
-          <img src="/img/icons/icon-collapse.svg" alt="" class="collapse-icon" />
-        </button>
-        {o.exitHref && (
-          <a
-            class="panel-exit"
-            href={o.exitHref}
-            aria-label={o.exitLabel ?? 'Leave the map'}
-            title={o.exitLabel ?? 'Leave the map'}
-          >
-            ✕
-          </a>
-        )}
+    <div id="info-panel" class={`floating-panel map-drawer${o.extraClass ? ` ${o.extraClass}` : ''}`}>
+      <div class="drawer-head">
+        <a class="drawer-logo" href="/" aria-label="Routeloop home">
+          <img src="/img/logo-routeloop-hz.svg" alt="Routeloop" width={1500} height={184} />
+        </a>
+        <div class="panel-controls">
+          {/*
+            aria-expanded is on the button and only initPanelToggle flips it. It
+            ships "true" because the drawer ships open.
+          */}
+          <button type="button" class="collapse-toggle" aria-label="Collapse panel" aria-expanded="true">
+            {/*
+              Empty, like .panel-exit below: icon-collapse.svg and
+              icon-expand.svg are painted through a CSS mask keyed off the
+              button's own aria-expanded, so the pair takes the control's color
+              on hover. It was an <img> whose src initPanelToggle swapped, which
+              worked but could not inherit color — the button's :hover changed
+              everything except the glyph inside it.
+            */}
+            <span class="collapse-icon" aria-hidden="true"></span>
+          </button>
+          {/*
+            The exit is deliberately EMPTY. Its glyph is icon-close.svg, painted
+            through a CSS mask on ::before so it can take the control's own color
+            — see .panel-exit in _map.scss. aria-label is what names it, which it
+            already did while the ✕ character was here: a bare ✕ is announced as
+            "multiplication sign".
+          */}
+          {o.exitHref && (
+            <a
+              class="panel-exit"
+              href={o.exitHref}
+              aria-label={o.exitLabel ?? 'Leave the map'}
+              title={o.exitLabel ?? 'Leave the map'}
+            ></a>
+          )}
+        </div>
       </div>
       {(o.titleHtml || o.title) && <h1 class="panel-title">{o.titleHtml ? raw(o.titleHtml) : o.title}</h1>}
       <div class="panel-contents-wrapper">
         {/* Already-rendered markup from the caller, hence raw(). */}
         <div class="panel-content">{raw(o.contents)}</div>
+      </div>
+      {o.footer && <div class="drawer-foot">{raw(o.footer)}</div>}
+      {/*
+        The rail's own contents, hidden until .collapsed. Rendered even when
+        empty so the collapsed drawer has something to be, and aria-hidden while
+        expanded so its duplicate day controls are not announced twice.
+      */}
+      <div class="drawer-rail" aria-hidden="true">
+        {o.rail ? raw(o.rail) : ''}
       </div>
     </div>
   ).toString()

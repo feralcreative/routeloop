@@ -23,6 +23,34 @@ If you are a new contributor, jump to [Working in this repo](#working-in-this-re
 
 When an entry here is edited, the GitHub issue it maps to usually says the same stale thing—the issue was written from the entry. This table is the running list of edits whose matching issue has **not** been made yet. Delete a row once the issue is updated.
 
+### 2026-08-16: a planning day, and none of it has issues yet
+
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 26 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+
+**The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
+
+| What changed | Where |
+| --- | --- |
+| **New**: the road to beta—three phases, cohort rationale, and the note that nothing was deferred past the beta | "The road to beta", above Priorities |
+| **Reversed**: rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is **not** a beta blocker; map loads are already capped at 500/day | same section |
+| **Widened**: item 20 is now three themes × light/dark on two independent axes, and the map deliberately does not invert | item 20 |
+| **New**: the import review table—editable manifest, dedupe, alternates at import | item 21 |
+| **New**: content width on `/prefs` and `/import`; a prerequisite for 21 and 23 | item 22 |
+| **New**: export by search, cart and one zip, replacing the every-ride list | item 23 |
+| **New**: turning Turnstile on, and the gate that would break ride creation | item 24 |
+| **New**: Noob Mode | item 25 |
+| **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
+| **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
+| **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
+
+**Decisions that landed outside this file**, and will not be found by reading it alone:
+
+- **`docs/main-menu.md`**—Settings is renamed **Preferences** at `/prefs`, with `/settings` and `/preferences` redirecting. Note the POST endpoint needs a 308 or an alias, not a 301.
+- **`docs/api.md`**—four stale route rows corrected, including `routes/rides.ts` → `routes/builder.ts` in several places.
+- **`docs/STATUS.md`**—the Maps key referrer list is now Google's two-entry recipe per domain, verified at runtime; a first round of testing produced a confident false pass and the reasoning is recorded so it is not repeated.
+- **`_PLANS/turnstile-activation-260816T2144Z.md`**—the executable plan for item 24. **`_PLANS` is git-ignored**, so this exists on Ziad's machine only. The rider-feedback plan was promoted out of that directory to `docs/rider-feedback.md` the same day for exactly that reason; this one stays put as a single-sprint instruction rather than a specification.
+- **`docs/myrouteapp-formats.md`**—new, and the research behind [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
+
 <!-- col-widths: 22% 44% 34% -->
 
 | Entry                            | What changed on 2026-08-10                                                              | Issue to match                                                                                           |
@@ -31,7 +59,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 2. The ride timeline             | "a route's duration" → "a day's duration"                                               | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
 | 5. One-tap Google Maps links     | batching described per route → **per day**, in three places                             | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)                                     |
 | 9. Import and export breadth     | "colours" → "colors"                                                                    | [#13](https://github.com/feralcreative/routeloop/issues/13)                                              |
-| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)              | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
+| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)             | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
 | 13. Rider Subgroups              | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**    | [#67](https://github.com/feralcreative/routeloop/issues/67)                                              |
 | 14. Alternate routes and voting  | "day/route-level" → **day-level**                                                       | [#68](https://github.com/feralcreative/routeloop/issues/68)                                              |
 | 15. On-the-road mobile interface | "a route's Google Maps legs" → "a day's"                                                | [#69](https://github.com/feralcreative/routeloop/issues/69)                                              |
@@ -48,9 +76,35 @@ Three issues carry the old vocabulary in their **titles**, which is a separate e
 - **[#23](https://github.com/feralcreative/routeloop/issues/23) "Elevation and grade profile per route"**—should be "per day", matching the row above.
 - **[#70](https://github.com/feralcreative/routeloop/issues/70) "Never drop tracks on import; land them all as routes"**—closed, but the title is the clearest surviving statement of the old model.
 
+## The road to beta
+
+**Stated 2026-08-16, and it outranks the tiers below until the beta is running.** The P0–P3 labels say which _issue_ is next; this says which _phase_ the work is in. Where they disagree, this wins, and the disagreement is worth writing down rather than quietly resolving.
+
+The goal is an MVP a handful of friends can actually test. **The cohort is the constraint:** it runs from web developers through hobby coders to, in Ziad's words, "total luddites who just like to ride." That range is the reason for the order.
+
+1. **The builder panel and the mapping tools.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; what remains is the rest of P1—**including saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)), both confirmed in scope on 2026-08-16**. A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback.
+2. **Import, export and send-to-device.** A tester handed a blank canvas forms no useful opinion. Handed their own familiar routes, the beta becomes an exercise in _using_ the app rather than _learning_ it—which is the only way to find out whether the end-to-end experience actually works. Items 9, 21, 22 and 23, and note that **[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX flavors is literally the "send to device" half** and is the one unshipped piece of item 9. `docs/myrouteapp-formats.md` is the research behind it. **Noob Mode (item 25) rides along here**, decided 2026-08-16: the least technical end of the cohort is exactly who it is for, and first contact is when it pays off—shipping it afterwards means the riders who needed it most already formed their impression without it.
+3. **The feedback sprint, live before the first tester signs in.** Decided 2026-08-16, and the ordering is a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
+
+**Rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is _not_ a beta blocker. Reversed 2026-08-16, hours after being made one, because the argument for it was factually wrong.**
+
+The case was "every anonymous view of a shared ride is a billable Maps load, so unbounded spend is a beta failure that is hard to walk back." **Spend is not unbounded**: `maps-backend/billable_default` has been capped at **500 map loads a day** since 2026-08-02, verified as an override rather than a default. The failure mode is therefore a map that stops drawing, not a bill—an availability problem, recoverable in a day, and nothing like the risk described. At the stated beta scale—a few friends, dozens of shares, scores at the very most—500 a day is generous.
+
+**What the cap does surface is a real and different problem: it is now shared three ways.** The browser key gained `rollchart.app` in the 2026-08-16 referrer consolidation, dev traffic hits this same project by design (the caps were deliberately set above the free-tier break-even so a runaway does not also stop you working), and production shares the same 500. A busy day on rollchart plus a working day on localhost plus a handful of shared rides is a more plausible way to exhaust it than any number of beta testers—and during a beta, a dead map is worse than a small bill.
+
+So the work that matters here is **visibility, not throttling**. **Decided 2026-08-16: add a quota-usage alert at roughly 80% of the 500/day map-load cap, and leave the cap and the shared key as they are.** One console setting, no code, and it produces real numbers on what a beta actually consumes—which is the input needed to decide later whether to raise the cap or split rollchart onto its own key. Raising the ceiling or separating the keys now would both be guesses made before any usage data exists.
+
+#16 keeps its P1 label on its own long-standing argument for when sharing goes wide; it simply is not what stands between here and a few friends testing the app.
+
+**Two things follow from the scope as confirmed.**
+
+**Nothing was deferred past the beta, so this is a running order, not a filter.** Every phase above has to ship before testers arrive. Worth re-reading as the date approaches—if the beta needs to happen sooner than the list allows, something here moves, and it is better to choose which than to discover it.
+
+**Rich stop details drags a schema fix in with it, and that fix reaches beyond the builder.** Item 16's ID-churn note is the governing text: the `PUT` deletes and re-inserts every day and point, so identifiers change on every save, and that is safe today only because nothing references a point across one. **#15 is the first feature that would.** Fixing it means sending ids in the payload and diffing server-side, which rewrites `insertRideGraph`, `ridePayload` and `loadRidePayload`—and `insertRideGraph` is shared with the native JSON import path, so this lands on phase 2's territory as well. Read that note before starting #15, not after.
+
 ## Priorities
 
-Every open issue carries a **P0–P3** label. The labels are the authority on what to do next; the item numbers below are stable identifiers, not an order. **Re-scoped 2026-08-15**—the tiers below mean something different than they did, so an issue's label is only as good as the last sweep. See "What changed, and why" underneath the table.
+Every open issue carries a **P0–P3** label. The labels are the authority on which issue to pick up within a phase; the item numbers below are stable identifiers, not an order. **Re-scoped 2026-08-15**—the tiers below mean something different than they did, so an issue's label is only as good as the last sweep. See "What changed, and why" underneath the table.
 
 <!-- col-widths: 12% 88% -->
 
@@ -308,13 +362,13 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 - [x] Keep every added format inside the existing XXE-safe, quota-enforced import pipeline.
 - [x] Round-trip fidelity tests per format (#35)—`test/fixtures/` holds one ride written five ways and `test/round-trip.test.ts` asserts the parsers agree. It caught a real disagreement on its first run: KML read a one-point line as a zero-length track while GeoJSON rejected the whole file.
 
-**Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/rides.ts` (the payload shape).
+**Touches.** `src/maps/kml.ts`, `src/maps/export.ts`, `src/routes/maps.ts`, `src/routes/builder.ts` (the payload shape—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)).
 
 **Status.** in progress—KMZ, GeoJSON, CSV and multi-file import landed 2026-08-03. Several files become several days of one ride, which is what a rider with a folder of per-day GPX files actually has.
 
 The single-file gap closed 2026-08-04 (#70): every track in a file now lands as its own day, in document order, carrying the file's own name for it—GPX `<trk><name>`, KML Placemark names, GeoJSON feature names. All three parsers previously kept only their longest line and discarded the rest, which meant the app could not read back its own multi-day export. Waypoints are assigned to the day they physically sit on, since GPX ties them to nothing. More than 31 days is refused rather than truncated.
 
-Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk>` and no device picker, and a Garmin wants `<rte>` shaping points.
+Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk>` and no device picker, and a Garmin wants `<rte>` shaping points. Note that a picker is interface, and this item has never held any: **the `/import` page itself is now item 21**, and #13's control should be drawn as part of that page rather than bolted onto it afterwards. See also `docs/myrouteapp-formats.md`, which works out what a MyRoute-app file can and cannot carry in either direction.
 
 ### 10. Discovery and public profiles
 
@@ -342,7 +396,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] Builder UI to edit the details; viewer UI to show them in the stop's info window / panel.
 - [ ] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 
-**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/rides.ts` (payload + sanitize), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
+**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/builder.ts` (payload + sanitize—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
 
 **Status.** planned.
 
@@ -391,23 +445,27 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] An **alternate** is a first-class thing: two or more candidate paths that share a start and end anchor and diverge between them. Exactly one is the **active** path at a time; the others ride along as recorded options rather than being thrown away.
+- [x] An **alternate** is a first-class thing: two or more candidate paths that share a start and end anchor and diverge between them. Exactly one is the **active** path at a time; the others ride along as recorded options rather than being thrown away. **Shipped 2026-08-16 at day level**, for a single planner—`days.alt_group` / `days.alt_active`, `src/maps/alternates.ts`, and Group as alternatives / Ride this one instead / Ungroup in the builder.
 - [ ] Up/down voting on each alternate—one vote per ride member, changeable until the decision closes—with a live tally.
-- [ ] A resolution step: the ride leader promotes the winning alternate to the active path, or opts into auto-resolve by tally at a deadline. A losing alternate is kept, so a reversed decision doesn't lose the work.
+- [ ] A resolution step: the ride leader promotes the winning alternate to the active path, or opts into auto-resolve by tally at a deadline. A losing alternate is kept, so a reversed decision doesn't lose the work. **Half of this shipped 2026-08-16**: promotion exists as a builder action and losing alternates are kept. Auto-resolve by tally needs the votes.
 - [ ] Voting is scoped to invited ride members, never the public share link, and writes on a member's behalf so it needs the same abuse guardrails as any write.
-- [ ] Draw alternates distinctly—active path solid, alternates ghosted—and let a voter see each option on the map before voting. Reuse the route-dim / hover machinery.
-- [ ] Timeline and roadbook show the **active** path only; alternates never clutter the hand-off.
+- [x] Draw alternates distinctly—active path solid, alternates ghosted—and let a voter see each option on the map before voting. ~~Reuse the route-dim / hover machinery.~~ **Shipped 2026-08-16, with one correction: `setRouteDim` could _not_ be reused.** `entry.dim` is already owned by day focus in the builder and by hover and the timeline in the viewer, so ghosting through it un-ghosts an alternate the moment it is focused. `map-common.js` gained a third state, `entry.ghost`, drawn dashed with no direction arrows—a different _kind_ of line, because opacity already means "not focused".
+- [x] Timeline and roadbook show the **active** path only; alternates never clutter the hand-off. **Shipped 2026-08-16**—`loadRideForExport()` filters unconditionally, so the roadbook, the hand-off page, the zip and all four lossy formats get it without each remembering to.
 
 **Open questions to settle when building.**
 
-- **Granularity.** Segment-level (a fork between two stops), day-level (a whole alternate day), or both? Segment-level matches the "this way or that" pitch; day-level is simpler and reuses the rides-hold-many-days model. It changes the schema.
+- **Granularity. Answered 2026-08-16: day-level, and it was decided by import rather than here.** Item 21 lets a rider link two similar imported files as alternates for the same day, which is a whole alternate day and nothing else—so day-level is what the schema must carry first, and it reuses the rides-hold-many-days model as this entry hoped. Segment-level is not ruled out and still matches the "this way or that" pitch better; it is simply not what ships first. Worth noting the definitions did not have to bend: two candidates for one day share the day's overnight anchors and diverge in the middle, which is exactly the shape this item already describes.
 - **Who proposes.** Only the ride leader, or any member? Any-member turns this into lightweight collaborative editing (backlog) and needs guardrails.
 - **Resolution rules.** Simple majority, quorum, deadline, tie-breaking, and whether the leader can override the vote. Settle the governance before building the buttons.
 - **Anonymous vs. named votes.** Named votes create social pressure; anonymous is cleaner but hides who wants what.
 
 **Touches.** `src/db/schema.ts` (alternates + votes), new routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js` (ghosted alternates), the timeline and roadbook (active path only).
 
-**Status.** planned—a group-collaboration feature; depends on riders (item 8) and overlaps the collaborative-editing backlog item.
+**Status.** in progress—**the alternate object shipped 2026-08-16** on `feat/fixed-day-slider`, at day level and for a single planner, which is the split the note below recommended. What remains is the group-collaboration half: voting, vote scoping and auto-resolve, all of which still depend on riders (item 8).
+
+**This item was split, and item 21 is why.** It bundled three things: the **alternate object** (two or more candidates for a stretch, exactly one active), the **voting**, and the **resolution**. Only the last two are group collaboration. The object landed on its own on 2026-08-16 with the builder able to create, switch and ungroup alternates for a single planner—so item 21 no longer sits behind riders (item 8), and the schema question was settled by a much smaller piece of work than this whole item, exactly as this note predicted.
+
+**Two limits the shipped object carries, both accepted 2026-08-16.** A group member is exactly one day, so a **multi-day alternate**—"day 3 direct, or days 3b and 3c the long way with an overnight"—has no representation; that was chosen knowingly for the simpler shape, and adding it later means a third `alt_branch` column and a branch filter rather than a toggle. And **`MAX_DAYS = 31` now counts alternates**, so a 31-day ride cannot carry one. The cap's meaning changed quietly when the columns landed; **left as it is, deliberately**—31 days is already an extreme ride and the overlap with wanting alternates is negligible. It is documented here and in `docs/database.md` so the next person meets a stated limit rather than a mystery.
 
 ### 15. On-the-road mobile interface
 
@@ -468,7 +526,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Touches.** `src/routes/builder.ts` (the panel markup and `PUT /api/rides/:id`—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)), `src/views/layout.tsx` (`panelShell` and `rideTimeline()`, both shared with the viewer—so the collapse/close change and the timeline move land on both), `src/index.tsx` (the viewer shell), `public/js/builder.js`, `public/js/viewer.js`, `public/js/builder-history.js`, `public/js/duration.js` + `src/maps/duration.ts` + `test/duration.test.ts`, `style/_builder.scss`, `style/_map.scss` (the panel frame, the timeline bar and the page's custom properties), `style/_account.scss` (the settings sections), `src/routes/settings.tsx`, `src/db/schema.ts` + `drizzle/0002_keen_sasquatch.sql`, `docs/ops/faq.md`.
 
-**Status.** done, 2026-08-15, on `feat/builder-panel` and not yet deployed—opened 2026-08-10 from a click-through, shipped in five phases over one day. Nothing here existed on the roadmap before; the builder panel had never been an item. All eleven boxes are ticked and every open question is answered. **Two things before this closes on GitHub:** the branch is unpushed and unreviewed, and the one schema change in it (`user_profiles.duration_format`) has been applied to the local dev database only—stage and production have not seen it.
+**Status.** done, 2026-08-15, merged to `main` via [#106](https://github.com/feralcreative/routeloop/pull/106) and **not yet deployed**—opened 2026-08-10 from a click-through, shipped in five phases over one day. Nothing here existed on the roadmap before; the builder panel had never been an item. All eleven boxes are ticked and every open question is answered. **One thing still outstanding:** the schema change in it (`user_profiles.duration_format`, `drizzle/0002_keen_sasquatch.sql`) has been applied to the local dev database only—stage and production have not seen it, and the deploy is what applies it. Note the panel has moved on since: `feat/fixed-day-slider` replaced the floating panel with a left drawer showing every day.
 
 ### 17. Avatar upload
 
@@ -540,45 +598,272 @@ Autosave and address autocomplete both watch the same fields and both act on a p
 
 **Status.** planned—raised 2026-08-15. Related to item 6 (saved places), which will want the same picker when a rider adds a place.
 
-### 20. Theme selection: default, high contrast, colorblind
+### 20. Theme selection: three themes, each in light and dark
 
-**Goal.** A section on the settings page letting a rider choose the site's colors—**default**, **high contrast**, or **colorblind**—as three radio options. This is the first real content `/settings` gets; it currently says "Not much to set yet."
+**Goal.** Two independent controls on the preferences page. **Theme**—default, high contrast, colorblind—chooses the palette. **Appearance**—system, light, dark—chooses the scheme. They do not constrain each other: every theme exists in both schemes, six palettes in total. This lands on `/prefs`, beside the stop-duration format that shipped 2026-08-15—so it is the page's second and third settings rather than its first, and the first time it holds enough to need a layout at all. See item 22.
+
+Two axes rather than six radio buttons, decided 2026-08-16. The two questions are genuinely unrelated—theme is about which signals a rider can distinguish, scheme is about ambient light—and collapsing them into one list would ask a rider to find "colorblind dark" in a flat six. It also makes _system_ expressible, which a single list cannot do: "follow the OS" is a statement about the scheme axis only, and there is no OS signal for colorblindness.
 
 **Work.**
 
-- [ ] Three named themes behind a rider preference, persisted to the account and applied server-side on render so there is no flash of the wrong theme.
+- [ ] Two preferences, persisted to the account and applied server-side on render so there is no flash of the wrong theme. Note the asymmetry before building it: theme and an _explicit_ light or dark can both be rendered from the stored value, but **system cannot**—the server does not know the OS setting. See the emission shape below; it is solvable without JS, but not by rendering an attribute.
 - [ ] **Default** is the road-sign palette as it stands, including the ink pairing—which field takes the white legend and which takes the black—recorded in `style/_tokens.scss`.
 - [ ] **High contrast** raises every foreground/background pair well past 4.5:1, including the pairs that only just clear it today and the ones that deliberately do not because they are decoration rather than text.
 - [ ] **Colorblind** addresses the collisions the palette has by construction. `$stop` and `$go` are a red/green pair and converge under deuteranopia and protanopia; `$yield` and `$construction` are adjacent ambers. The existing note under the `/import` filename fields—that color is never the only cue—becomes a rule the whole app has to hold to, not a line in one comment.
 - [ ] Audit where color is currently the _only_ signal and give each a second cue (shape, icon, label, weight) before the colorblind theme claims to work. A theme that only shifts hues does not fix a signal that was carrying meaning alone.
+- [ ] **Dark** for each of the three. Scope this off the finding below—it is a neutral-scale and surface job, not a repaint of the road-sign palette.
 
-**Mechanism—decided 2026-08-15: Sass generates, custom properties carry, `data-theme` switches.**
+**What dark mode actually touches—surveyed 2026-08-16.**
+
+The road-sign palette does not move. The ink-pairing table in `_tokens.scss` is copied off real signs rather than derived from contrast math, and a sign's colors do not change at night: `$stop` is the same red on an unlit road, still carrying a white legend. So `$interstate` through `$tarmac`, and which ink each field takes, are **scheme-invariant**. What inverts is the page around them—body text, surfaces, borders, panel fills. That is a much smaller surface than "six palettes" suggests, and it is the finding that makes this worth doing now rather than later.
+
+Three things already in the repo help more than expected:
+
+- **The neutral scale is numbered by CIE L\***, so the dark ramp is expressible rather than hand-picked: roughly `$neutral-N` → `$neutral-(100-N)`. Only roughly—a dark UI wants less contrast than a naive flip gives, because light text on dark blooms—but a scale whose numbers mean something can be mapped and checked, which a 50–900 ordinal could not.
+- **`$splash-ink` (#0a0e11) is already the app's dark surface**, and `src/emails/theme.ts` already mirrors it as `DARK.cardBg`. The dark scheme should start there rather than inventing a second near-black, and doing so quietly narrows the email/site split noted below.
+- **The logo lockups already ship `-dk` reversed variants** (`layout.tsx`, two places). Dark mode needs to drive that switch globally instead of per-page—a work item, but not new artwork.
+
+And two things cost more than expected:
+
+- **The derivation direction inverts, which breaks the mechanism as decided.** The 2026-08-15 decision was that the formula is written once and applied per theme. That holds across the three _light_ themes because every legibility derivation darkens—`$pending` is `-20%`, `$label` is `-22%`, both making a yellow survive as text on white. On a dark ground the same tokens have to _lighten_. The fix is to carry a direction with the scheme and write the expressions signed, so `-20%` becomes `-20% * $dir`; the formula stays written once. **The trap is assuming that makes the contrast symmetric.** It does not: +20% on a dark ground and -20% on a light one land on different ratios, so all six palettes need their figures measured, not inferred from the light ones. Budget for six contrast audits, not one plus five reflections.
+- **The hover-direction rule inverts too.** `_tokens.scss` documents at length that a black-legend field must get _lighter_ on hover, not darker, or `$go` falls from 6.1:1 to 4.3:1. Under a dark scheme that reasoning has to be re-derived per field. This lands squarely on the 46 inline derivations below, and it means the migration cannot treat them as a flat list—each has to be classified as **legibility-derived** (direction flips with scheme) or **decorative** (may not). That classification is the real work and it should happen during the promotion step, when each one is being touched anyway.
+
+**Mechanism—decided 2026-08-15, extended for the scheme axis 2026-08-16: Sass generates, custom properties carry, `data-theme` and `data-scheme` switch.**
 
 The obstacle is that several tokens are _derived_ rather than authored—`$pending` is `color.adjust($yield, -20%)`, `$label` is `-22%`—and Sass runs at build time, so it cannot recompute them when a custom property changes at runtime. Three ways out, and the third is the one to take:
 
 1. **Author every derived value per theme.** Three themes times every derived token, maintained by hand. It throws away the property the palette was just given—one source per hue—and guarantees drift the first time a base color moves.
 2. **Move the derivations to `color-mix()` in CSS.** Genuinely runtime-derivable and well enough supported. But it relocates color arithmetic out of the one file that documents it, and the contrast figures the palette is built on stop being checkable in the place the values live.
-3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the _authored_ palette per theme; an `@each` emits one `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied three times. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
+3. **Keep the derivations in Sass and loop over a theme map.** A `$themes` map holds only the _authored_ palette per theme; an `@each` emits a `:root[data-theme="…"]` block per entry, running the same `color.adjust` expressions against that theme's own base colors. The formula is written once and applied once per palette—six times, with the scheme axis. Adding a fourth theme is a map entry, not an edit in N places. No runtime color math, no browser-support question, and the derived relationships stay honest per theme—high contrast's amber darkens by its own amount from its own base.
 
 **The real migration cost is not the tokens, it is the 46 inline derivations.** `color.adjust($gpx, -8%)` and friends appear 46 times across the partials, in rules rather than in `_tokens.scss`—hover states, borders, tints. Every one of them reads a Sass variable that will no longer hold the live value once a theme can change it, and `color.adjust()` cannot operate on a `var()`. Each has to become a token emitted per theme. That is the bulk of the work and it should be sized before anything is drawn.
 
+The `$themes` map is therefore nested—keyed by theme, each entry holding a `light` and a `dark` authored palette—and the `@each` runs twice per theme.
+
+**The emission shape, and why _system_ forces it.** A stored preference can be rendered into an attribute; the OS setting cannot. Emitting three blocks per theme solves it with no JavaScript and no flash, because the media query is the fallback and the attribute is the override:
+
+```scss
+:root[data-theme='#{$name}'] {
+  /* light tokens—the default when no scheme is asked for */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='#{$name}']:not([data-scheme='light']) {
+    /* dark tokens—system, unless light is pinned */
+  }
+}
+
+:root[data-theme='#{$name}'][data-scheme='dark'] {
+  /* dark tokens again—pinned dark wins in both directions */
+}
+```
+
+_System_ then renders as no `data-scheme` attribute at all, and the `:not()` is what lets a rider pin light while their OS is dark. Three themes times three blocks is nine copies of the full token set in the stylesheet—worth measuring the compiled size once the first theme lands, though custom-property declarations compress well and this is unlikely to be the thing that matters.
+
 **Work, in order.**
 
-- [ ] Promote all 46 inline derivations to named tokens. No behavior change, and it can land on its own well before any theme exists—which is the point of doing it first.
-- [ ] Restructure `_tokens.scss` around a `$themes` map with one entry, `default`, emitting today's values as custom properties. Still no behavior change; the compiled output should be equivalent.
-- [ ] Add `high-contrast` and `colorblind` as further map entries.
-- [ ] Wire the preference and the `data-theme` attribute.
+- [ ] Promote all 46 inline derivations to named tokens, **classifying each as legibility-derived or decorative as it is promoted**. No behavior change, and it can land on its own well before any theme exists—which is the point of doing it first. The classification is what the scheme axis later depends on, and it is nearly free while each one is already open.
+- [ ] Restructure `_tokens.scss` around a nested `$themes` map with one entry, `default`, holding only a `light` palette and emitting today's values as custom properties. Still no behavior change; the compiled output should be equivalent.
+- [ ] Add `dark` to `default` and sign the derivation expressions. This is the step that proves the mechanism, and it should be first because it is the one that can fail—if signed derivations do not hold their contrast figures, better to learn it against one palette than three.
+- [ ] Measure all contrast pairs for `default` dark. Do not carry the light figures across.
+- [ ] Add `high-contrast` and `colorblind`, each with both schemes, measuring each.
+- [ ] Wire both preferences, the `data-theme` and `data-scheme` attributes, and the `-dk` logo swap.
+- [ ] Delete the comment at `style/_dashboard.scss:24`, which states the app has no dark mode and that only the emails do. It becomes false the moment this lands, and it is exactly the kind of comment that outlives its truth.
 
 **Open questions.**
 
-- **Does it interact with `prefers-contrast` / `prefers-color-scheme`?** The OS already reports both. Whether the setting overrides the OS, defers to it, or offers "system" as a fourth option is undecided—and note the emails have their own dark palette already, in `src/emails/theme.ts`, which no site-level setting can reach.
-- **Dark mode is not on this list, and someone will ask.** These three are about legibility, not preference. Whether a dark theme joins them is a separate question with a much larger surface—the splash page is photo-backed and the map has its own styling.
+**Decided 2026-08-16: the map does not invert.** Dark chrome around an unchanged map, the same way a photograph is not inverted in dark mode—the map is content, not chrome. This costs nothing to build and is the only option that keeps `terrain`, which `map-common.js` argues at length is the point of the whole basemap block: relief is the single most useful thing a map can say about a road that a line on white cannot.
 
-**Touches.** `src/routes/settings.tsx`, `src/db/schema.ts` (the preference), `src/views/layout.tsx` (applying it at render), `style/_tokens.scss` and every partial that reads a token, `docs/main-menu.md`.
+The alternative was a second Map ID switched at runtime, and it fails on its own terms. Terrain is raster imagery with vector data drawn over it, so cloud styling reaches only the labels and roads and never the ground—meaning a dark scheme could not darken terrain at all, only replace it with a dark `roadmap`. That trades the default basemap, and the reason it is the default, for a darker rectangle. **So this item touches no map code**, which is also what removes `public/js/map-common.js` and a second Map ID from its Touches list.
+- **The splash page is the opposite of a problem.** It was listed as a reason to defer dark mode, but `_splash.scss` already opts out of the light chrome because the footage is dark. Splash is effectively dark-native; the odd case is what it means in _light_ mode, which is "unchanged". That objection can be retired.
+- **Does the theme axis interact with `prefers-contrast`?** The OS reports it. Whether `prefers-contrast: more` should auto-select the high-contrast theme, or whether theme stays a pure stored preference with no OS input, is undecided. Note this is now cleanly separable from the scheme question, which is one benefit of splitting the axes.
+- **The emails.** `src/emails/theme.ts` carries its own dark palette, pinned to `_tokens.scss` by `test/email-theme.test.ts`. Once the site has real dark tokens, either the emails adopt them or the split becomes deliberate and documented. The pinning test is the place that will notice first, and that is the test doing its job.
 
-**Status.** planned—raised 2026-08-15. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
+**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. **Not** `public/js/map-common.js` and not a second Map ID—the map question resolved against touching either. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
+
+**Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
 <!--| PAGE-BREAK -->
+
+### 21. The import review table
+
+**Goal.** Today the drop box reads what it can off the filenames and _shows_ it. A rider who sees a wrong date, a missing ride name or the wrong day order has no way to fix it except renaming files on disk and dropping them again. Make the preview an editable manifest: ride name, per-route name and per-route date all editable in place, day order draggable, any row droppable, and duplicates surfaced and resolved—all before a single row is written.
+
+The pitch in one line: **guess harder, then let the rider correct the guess.** Those two halves depend on each other, and neither is worth much alone.
+
+**What already exists and must not be rebuilt.**
+
+- **`planImport()` in `src/maps/filename.ts` already returns the manifest.** It hands back `ride`, a `files[]` of `{ fileName, index, day, date, hasTime, title, ext, conforming }`, and the three flags `allConforming`, `reordered` and `rideConflict`. This item is that structure made editable and posted back—not a new parse.
+- **Row drag is already solved.** SortableJS 1.15.7 is a pinned dependency with an SRI hash, in use for stop reorder since item 16. Use the same library and the same textured handle rather than inventing a second drag pattern on a second page. Item 16's hard-won lesson comes with it: **a drag handle cannot be operated from a keyboard**, so move-up and move-down must also exist as real controls, and they are what still works when the CDN fails.
+- **`titleFromSlug` already recovers a display title** from a slug field, and its comment already records that a file's own internal name is preferred over anything recovered from a filename. Staging makes that internal name available before the table renders, which is the first time that preference can actually be honored in the preview.
+
+**Three consequences that _are_ the item. The table is the easy half.**
+
+1. **Import becomes two-phase: stage, review, commit.** `POST /api/maps` currently validates every file and inserts in one call, and `filename.ts` states the invariant plainly—the drop box previews `planImport()` and the endpoint acts on it, "so the two cannot disagree about what a folder means." **An editable manifest breaks that by design.** Once a rider can retype a date, the server cannot re-derive the truth from filenames; the edits _are_ the truth. The endpoint has to accept a posted manifest and validate it, and the invariant weakens from "both compute the same answer" to "the server validates what the client sends"—which is a real loss of safety and has to be replaced with explicit validation rather than quietly dropped. **The comment in `filename.ts` must be rewritten when this lands**; it will otherwise sit there reading as still-true.
+2. **Duplicate and similarity detection need the bytes, not the names.** An exact duplicate is a content question and a similar route is a geometry question, and neither can be answered from a filename. So the files must be uploaded and parsed _before_ the rider sees the table—the review step cannot be client-side-only, which is what the current drop box is. That is the staging half, and it drags its own tail: staged bytes count against quota, so they need a TTL and a sweep, and the "all files are validated before any is parsed, so a bad tenth file names itself" guarantee documented in `docs/api.md` moves to the stage call rather than disappearing.
+3. **Aggressive gleaning becomes safe, and today it is not.** `filename.ts` deliberately refuses to guess: without the marker, `parseExportName` returns null and a rider's own `day-2.gpx` is never silently reinterpreted. That rule is correct _because the guess would be invisible_. A review table removes its reason for existing—a guess the rider sees and can overwrite before commit is not a silent reinterpretation. So the strict convention stays **exactly** as it is for conforming names, and a **separate best-effort layer** reads the rest: dates in other spellings, `day 2` / `Day-2` / a trailing number, a title from whatever is left over. Keep the two layers apart and show per cell which one filled it, so the strict parser's guarantees are not diluted by the guesser's. A cell the app is unsure of should look unsure.
+
+**Work.**
+
+- [ ] Split the import into stage → review → commit, with the manifest posted back rather than re-derived. Replace the lost invariant with explicit server-side validation of the posted manifest.
+- [ ] TTL and sweep for staged uploads, and decide how staged bytes hit the storage quota.
+- [ ] The manifest table: ride name, per-row route name, per-row date, all editable in place; drag to reorder days, with keyboard-reachable equivalents; a per-row drop control that excludes a file from the import without re-dropping the folder.
+- [ ] The best-effort gleaner, as its own module beside `filename.ts` rather than inside it, with per-cell provenance surfaced in the table.
+- [ ] Prefer the file's internal track name over the filename-derived title now that staging makes it available.
+- [ ] **Exact duplicates**—called out, with a one-click drop of the copy.
+- [ ] **Similar routes**—called out as **candidate alternates for the same day**, linkable right there in the table rather than by opening the builder afterwards. Decided 2026-08-16, and it is the point of the feature: a rider who drops two files for day 2 is telling you they have two ways to ride day 2.
+- [ ] Pick which linked candidate is **active**. Item 14 requires exactly one at a time; on import the sane default is the first in day order, with the table able to change it before commit. **The mechanism exists as of 2026-08-16**: set `altActive` on one member of an `altGroup` and the server elects it. If the manifest names none, `resolveAltGroups()` elects the lowest-indexed member, which is already "first in day order".
+- [ ] Rewrite the "the two cannot disagree" comment in `src/maps/filename.ts`.
+- [ ] Extend `test/round-trip.test.ts`'s sibling coverage to the manifest: an edited manifest must produce exactly the ride it describes, which is the only assertion that catches an edit being silently ignored.
+
+**Decided 2026-08-16: an import-time alt _is_ item 14's alternate, at day level.** Two similar files are two candidate days, and the definitions line up cleanly once the unit is a day—alternates for the same day share their start and end because they share the day's overnight anchors, and diverge in the middle, which is exactly item 14's shape. This settles item 14's open granularity question in favor of day-level; segment-level is not ruled out forever, but day-level is what the schema has to carry first. Two things follow, and the second one is worth more than it looks:
+
+- **The similarity metric is not "are these the same route".** It is "are these two ways of riding the same day", and those want opposite answers in the middle. Real alternates **diverge substantially between their anchors**—that is what makes them alternates—so a whole-path measure like Fréchet or Hausdorff distance would score a genuine over-the-pass / valley-road pair as _dissimilar_ and miss precisely the case this feature exists for. Weight the endpoints: same-ish start, same-ish end, comparable length, divergent middle. Whole-path similarity is the wrong instrument here and would fail quietly.
+- **This puts a spectrum where the item first assumed two buckets.** Byte-identical is a mistake to drop; near-identical with different geometry is the same ride exported by two tools, also a drop; same anchors with a divergent middle is an alternate to link; different anchors is two different days. That is three thresholds, not one, and each wants its own prompt and its own default. Getting the middle two the wrong way round is the failure mode—offering to _delete_ someone's alternate route is much worse than offering to link two duplicates.
+
+**Open questions.**
+
+- **Does item 14's alternate object have to wait for item 14? Answered 2026-08-16: no—it shipped without it.** The object landed on its own: `days.alt_group` / `days.alt_active`, one active per group, enforced by `src/maps/alternates.ts`. This item is unblocked and needs no new schema for the link relation. Two things it can rely on: grouping is a payload-carried key re-resolved on every save, so the importer sets it the same way the builder does and stores no id of its own; and a group of one is dissolved rather than rejected, so a manifest that links two files and then drops one is a legal payload rather than a validation error.
+**Decided 2026-08-16: both hashes, and two different prompts.** A byte hash answers "you dropped this same file twice"; a hash of normalized parsed geometry answers "this is the same route exported by a different tool". They are two different rider mistakes and deserve two different sentences—a single generic "duplicate found" makes the rider work out which one happened. The byte hash also earns its place as a cheap pre-filter, since it needs no parse and settles the common case before the expensive path runs. Note the geometry hash strictly subsumes the byte hash, so this is a messaging and performance decision rather than a coverage one, and the two must never both fire on the same pair.
+- **Where the ride-name field goes for a single-file import**, where there is no table to head.
+- **How the export half survives this. Answered 2026-08-16: it does not—it is being replaced too, as item 23.** `/import` already is Import / Export (`import.tsx` renders both under one `<h1>`, though `main-menu.md` carried it as a pending decision long after it shipped), and the export half is now getting its own redesign around search and a cart. So both halves of this page are being redrawn at once and **should be drawn together**, not in sequence. Item 23 also depends on this item's review table for the multi-ride zip to be safe to re-import—see the zip-contract note there. Item 22 widens the page they both sit in and comes first.
+
+**Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging only—the alternates link relation already exists as of 2026-08-16), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
+
+**Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts.
+
+### 22. Content width on `/prefs` and `/import`
+
+**Goal.** Both pages run in a single narrow column on a desktop viewport that has room for two. Widen the content and let fields sit side by side where they belong, rather than stacking everything vertically down a 560px strip.
+
+**Measured 2026-08-16.** The page allows far more than these pages take:
+
+- `.page-wrap` caps at **960px** with `2rem` padding, so **896px** of content is available (`style/_chrome.scss:14`).
+- `.setting` caps at **60ch** (`_account.scss:9`), and `.profile-form`, `.import-form` and `.export-list` all cap at **560px** (`_forms.scss:9`, `:39`, `:440`).
+- So the effective width on both pages is about **560px**, and the 960px the container offers is never reached. Roughly 340px of usable desktop width goes unused on every visit.
+
+**The distinction that governs the fix, and the way to get this wrong.** The `60ch` and the `44rem` at `_chrome.scss:362` are **measure** caps—they exist so a line of prose does not run to 120 characters, and they are correct. The `560px` on a form is a **layout** cap, and it is the one that is wrong. The tempting fix is to raise 60ch to 90ch and call it done; that widens the prose too and makes the page harder to read while making it look wider. **Separate the two constraints instead:** prose keeps a measure of roughly 60–75ch wherever it appears, and the field grid gets its own, wider track that is free to go two-up. A section can hold both—a paragraph at measure above a two-column grid at full width—and that is the shape to aim for.
+
+**Item 16's governing rule applies here too:** nothing changes size as its value changes. Two columns that collapse at a breakpoint are fine. Columns that appear or vanish depending on how long the content is are the jumping-layout failure item 16 spent a day removing from the builder panel, and it should not be reintroduced on a settings page.
+
+**Work.**
+
+- [ ] Split measure from layout width in `_account.scss` and `_forms.scss`, so a cap on prose stops capping the controls under it.
+- [ ] A two-up field grid for `/prefs`, collapsing to one column at the existing `575px` breakpoint (`_account.scss:174`).
+- [ ] Decide per group whether it pairs. **Item 20's two new radio groups—Theme and Appearance—are the obvious pair** and are the reason this is worth doing now. The duration format is the counter-example: each of its rows carries a worked example that _is_ the content, so it probably wants the full width rather than half of it.
+- [ ] Widen `/import`'s two halves. Note both are being redrawn—the import half as item 21, the export half as item 23—so this is width for a search box, a cart and a manifest table, not for the controls standing there today.
+- [ ] Re-measure afterwards. Item 16 is the precedent: a number is the only thing that can say whether a layout pass did anything.
+
+**This is a prerequisite for item 21, not a parallel nicety.** The import review table—ride name, per-row title, per-row date, a drag handle, a drop control and a duplicate flag—**cannot exist inside a 560px form**. Either this lands first or item 21 does it as its opening move; what must not happen is item 21 drawing a table to fit a width that was already known to be wrong.
+
+**Open questions.**
+
+- **Does `.page-wrap`'s 960px itself have to rise, and if so, everywhere or per page?** 896px of content may still be tight for the manifest table once it has six columns and a drag handle. Raising the global cap changes every chrome page including the prose ones, which is a bigger and less obviously good change than widening two pages; a per-page opt-out is narrower but is the kind of exception that multiplies. Decide it against the drawn table, not in advance.
+- **Which groups actually pair.** The list above is a starting guess from reading the markup, not a design. It wants one drawn pass over both pages before any of it is built.
+
+**Touches.** `style/_account.scss`, `style/_forms.scss`, `style/_chrome.scss` (only if the global cap moves), `src/routes/prefs.tsx` and `src/routes/import.tsx` (markup regrouped into a grid).
+
+**Status.** planned—raised 2026-08-16, alongside the Settings → Preferences rename recorded in `docs/main-menu.md`. Small on its own, and worth doing before items 20 and 21 rather than after.
+
+### 23. Export by search and cart, not by list
+
+**Goal.** Replace the export half of `/import` with a search box, a cart, and one zip. A rider searches their rides by name or date, adds the ones they want, picks a format per ride—mixing freely—and hits one button to get a zip of the lot.
+
+**What is there now, and why it stops working.** `import.tsx` selects **every ride the owner has**, unpaginated and unbounded, and renders one row per ride carrying a button per format. The DOM is rides × formats. At a dozen rides it is a wall; at a hundred it is a page nobody can use and a query nobody should run. There is also no way to take two rides at once—each button is a separate download—which is the actual job a rider has when they are loading a device before a trip.
+
+**The interaction to copy is the builder's, not Google's.** "Realtime like the addresses on the map" means the **shape** of `#search-results` in `public/js/builder.js`—debounced input, a list under the field, keyboard-navigable, no submit—**not** its data source, which is Google Places and has nothing to do with rides. Two of that control's hard-won details carry over: it is `position: fixed` so it can escape a scrolling container, and item 16 lists it among the variable-length readouts that reflow whatever sits below them. A results list that pushes the cart down the page as a rider types is the jumping layout item 16 spent a day removing.
+
+**Work.**
+
+- [ ] An owner-scoped ride search endpoint. Name and date, debounced, returning a short capped list. **"By date" means the days' dates, not `rides.createdAt`**—a rider searching "August" means when they rode, not when they made the record.
+- [ ] The results list, on the builder's pattern, with the space it occupies reserved rather than pushed.
+- [ ] A cart: add, remove, and a per-row format picker. A ride can appear more than once in different formats; the naming convention keeps those files distinct by extension so nothing collides inside the zip.
+- [ ] One export button producing one zip, named for the export rather than for any ride in it.
+- [ ] **Caps on the way out, mirroring the ones on the way in.** `maps.ts` already refuses a zip with too many files, an oversize member, or too large an unpacked total. `buildZip` returns a `Buffer`, so N rides × M formats is assembled in memory—the cart needs a ceiling, and it should be the same numbers the importer enforces rather than a second set invented here.
+- [ ] Retire the every-ride query and the per-ride button row.
+
+**The zip contract is the thing that will break, and it is not obvious.** A zip today means **one ride, one file per day**. `src/routes/maps.ts:180` says so directly—the per-day zip download and the zip import are two halves of one feature—and a dropped zip is expanded before anything asks what format its members are, then handed to `planImport`, which makes those files **the days of a single ride**. So a multi-ride export zip, re-imported, silently becomes one ride with every ride's days glued together in a row. That is a data-loss bug that looks like a successful import.
+
+**The fix is already sitting in the naming convention.** Every file this app writes carries the ride in its name, and `planImport` **already** computes `rideConflict` when conforming files disagree about which ride they belong to—it just currently treats that disagreement as a problem rather than as a boundary. Teach it to read the ride field as a **split point** and a multi-ride zip becomes several rides, correctly, with no manifest file and no directory convention to invent. **Item 21's review table is where a rider would confirm that split**, which makes these two items considerably more valuable together than apart: 21 gives the rider a place to see "this zip holds 3 rides, 9 days" before anything is written, and 23 is what produces such a zip in the first place.
+
+**Open questions.**
+
+**Decided 2026-08-16: the cart always regenerates, including for imported rides.** A cart row means "this ride as it stands now, in this format", and that has to be true of every row or the same button does two different things for reasons a rider cannot see. It is also the only answer that stays correct once a rider edits an imported ride, which they can. **This deliberately diverges from the ride page**, where item 3 established that an imported ride streams its stored original byte-for-byte—that behavior stays where it is and is not being removed, but it does not follow the ride into the cart. Worth a line of copy somewhere near the export button, because a rider who imported a file and exported it straight back will get bytes that differ from what they brought in.
+
+**Decided 2026-08-16: the cart lives in `sessionStorage`.** It survives a reload and a stray back-navigation, and clears when the tab closes. No schema, no cleanup job, no sync path. The job this serves—assembling a device load before a trip—gets interrupted constantly, so losing a ten-ride cart to a misclick is how a rider learns not to use the feature; but a cart that outlives the tab is a stale-state problem for a list that usually lives about ninety seconds. Note this is a **third** client-side storage key alongside the builder draft and the map type, all of which are covered by the strictly-necessary reasoning in `privacy.html`—if that ever stops being true, this is one of the things that made it untrue.
+- **Whether search should reach shared rides**, or only owned ones. The current query is owner-scoped and this item keeps that by default; anything wider is a new authorization surface and should be decided deliberately rather than fallen into.
+
+**Touches.** `src/routes/import.tsx` (the export half, replaced), a new search endpoint under `src/routes/`, `public/js/import.js`, `src/maps/zip.ts` (`buildZip` is already there), `src/maps/filename.ts` and `src/routes/maps.ts` (reading the ride field as a split point), `style/_forms.scss` (`.export-list` and `.export-row` go away), `docs/api.md`.
+
+**Status.** planned—raised 2026-08-16. **Shares a page with item 21 and should be drawn with it**, not after it: that page is one `<h1>` over two halves, and redesigning them separately is how they end up looking like two features that happen to share a URL. Item 22's width work is a prerequisite for both.
+
+### 24. Turn Turnstile on
+
+**Goal.** Activate the bot gate that is already written. `src/maps/turnstile.ts` implements siteverify and fails closed; `POST /api/maps` and `POST /api/rides` both call it; `/import` already renders the widget and loads the script. All of it is dark because `TURNSTILE_SECRET_KEY` is unset, which is the documented flag—"until the widget exists in the Cloudflare dash, dev and prod both run open."
+
+**Setting the two keys today would break "Plan a ride". Fix this first.** `builder.ts` gates `POST /api/rides` on an `X-Turnstile-Token` header, and **nothing sends it**: the builder's two `fetch` calls set `Content-Type` and nothing else, and `TURNSTILE_SITE_KEY` is referenced only in `import.tsx`, so the builder page has no widget and no way to obtain a token. The moment the secret is set, every new ride 403s with "bot check failed—reload and try again", which is a lie—reloading cannot help. The import half would work correctly; ride creation would be dead.
+
+Two ways out, and the second is probably right:
+
+1. **Render a widget on the builder and send the token on create.** Ride creation is a one-shot action, so a single token fits—no expiry or single-use churn, which is the trap if anyone later moves this gate onto the autosave `PUT`. Costs a visible widget on a page that currently has none.
+2. **Drop the gate from `POST /api/rides` and keep it on `POST /api/maps`.** Ride creation already sits behind `requireActiveApi` and `requireSameOrigin`, so it takes an approved account and a same-origin request—a bot that has both is not stopped by a checkbox. The import pipeline is the one worth defending: it parses untrusted files, writes storage against a quota, and is where cost actually lands.
+
+**Work.**
+
+- [ ] Create the widget in the Cloudflare dashboard and record its mode. Add `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` to `.env`, and to the deploy environment—both, or the flag is half-on.
+- [ ] Resolve the builder gate per the above **before** the secret is set anywhere real.
+- [ ] Verify the failure path deliberately: `verifyTurnstile` fails closed, so an unreachable Cloudflare rejects the upload rather than waving it through. Confirm that surfaces as a readable error rather than a silent failure.
+- [ ] **Re-check the privacy page.** `privacy.html` currently states "no third-party cookie" and lists the cookie set exhaustively. Turnstile loads `challenges.cloudflare.com/turnstile/v0/api.js`, and whether it stores anything on the visitor's device was untestable locally precisely because the flag is off. Measure it once the widget is live—the same devtools pass that found the page already undercounts its own cookies at three when there are four.
+
+**Touches.** `.env` and the deploy environment, `src/routes/builder.ts` (the gate), `public/js/builder.js` and `src/routes/builder.ts`'s page markup (only under option 1), `src/content/privacy.html`, `docs/api.md`.
+
+**Status.** planned—raised 2026-08-16, when the question "does Turnstile set a cookie" turned up a fully-built feature nobody had switched on. Blocked on nothing except the builder decision above.
+
+### 25. Noob Mode
+
+**Goal.** Replace the browser's native tooltips with larger, faster ones that actually explain the app. **On by default for everyone, off when the rider says so, and never off on its own.** The native tooltip's text becomes the tooltip's **headline**; under it goes a sentence or two saying what the thing is and why a rider would touch it. The effect should be a guided first pass through the app rather than a help page nobody opens.
+
+**The surface is 32 strings, and that is the good news.** Measured 2026-08-16: 19 `title` attributes in `public/js/` and 13 in `src/`. Fifteen of the nineteen are in `builder.js`, so the builder is very nearly the whole feature.
+
+**But `title` is doing two different jobs here, and only one of them is a tooltip.** Some are **labels for controls**—"Add a day", "Reverse this day—re-routes every leg", "Drag to reorder, or focus and use the arrow keys", "What a map click adds". Those are exactly what this feature is for. The rest are **overflow for dynamic content**—`title="${esc(t.note)}"` shows a stop's note, and the day-label, role and twistiness titles all show data. Those must be left alone: a rider hovering a truncated note wants the note, not a paragraph explaining what notes are. **Filter to the static, authored ones before counting the work**; the real corpus is closer to twenty.
+
+**Storage has a trap in it, even now that the rule is simply "on until switched off".** `user_profiles.duration_format` is the precedent for a single-column preference with its own POST, defaulted rather than nullable so no reader has to interpret a null. Copying that shape lands wrong in one specific way: **a rider may have no `user_profiles` row at all**—which is why `/settings/duration-format` upserts rather than updates—and a rider with no row is precisely the noob this feature exists for. A `.default(true)` cannot help someone who has no row to hold it. So the resolve is "explicit stored value if there is one, otherwise **on**", written as a helper the way `toDurationFormat()` is, rather than left to the column default and assumed.
+
+**Work.**
+
+- [ ] One source of truth for tooltip text. Move the authored strings into a module keyed by control, holding `{ headline, body }`, and have a single tooltip layer render either a native `title` (mode off) or the rich tooltip (mode on). **Do not leave `title` in the markup alongside a custom tooltip**—both will show, and the native one will show late and underneath.
+- [ ] The tooltip layer itself: `position: fixed` so it escapes the builder panel's scroll, the same reason `#search-results` is fixed. It is an overlay, so item 16's rule that nothing changes size as its value changes is satisfied by construction—but only if it never pushes layout.
+- [ ] Write the twenty explanations. This is the bulk of the work and it is a **copy** job, not an engineering one—`docs/ops/language-style-guide.md` governs, and holding them in one module rather than scattered through markup is what lets them be read and edited as a body of text.
+- [ ] The `/prefs` switch, and a resolve helper that answers **on** for a rider with no profile row rather than trusting the column default.
+- [ ] **Accessibility, which is where a custom tooltip usually goes wrong.** A native `title` is announced by assistive tech for free; a `<div>` is not. Wire `aria-describedby` from the control to the tooltip, and meet WCAG 1.4.13: dismissible with Escape, hoverable so a pointer can move into it without it vanishing, and persistent rather than on a timer.
+- [ ] **"Faster" needs to mean a shorter intent delay, not zero.** Native `title` waits about a second, which is genuinely too slow. Zero produces tooltips strobing across the screen as the pointer crosses a toolbar—and the builder's action row is a line of adjacent icon buttons, which is the worst case for it. Pick a delay, then reduce it while dragging the pointer along that row.
+
+**Decided 2026-08-16: nothing turns it off but the rider.** No expiry window, no ride count, no derived default from account age. The original shape was "on for a TBD time after signup", and dropping the timer removes the timestamp dependency, the resolve-time arithmetic, and the hand-off moment where a rider who had come to rely on the tooltips would find them gone. Time was a weak proxy anyway—a rider who plans one ride and returns three months later is still new on day 91—and rides-created, the better proxy, still needs a threshold nobody can defend. "On until you say otherwise" is both the simplest to build and the hardest to be wrong about. The consequence to keep in view: **experienced riders now meet this feature too**, so the switch has to be easy to find and the tooltips must not be irritating to anyone who has not yet found it. That raises the bar on the delay behavior below rather than lowering it.
+
+**Decided 2026-08-16: desktop first, phones explicitly deferred.** Native `title` never fires on touch, so there are no tooltips on a phone today and this would be net-new interaction design—long-press, or an info target on every labelled control—on the layout with the least room for one. It is a separate problem and it overlaps item 15's on-the-road interface. Deferred, not dropped: the copy module this builds is exactly what a phone treatment would consume later, so nothing here needs redoing.
+
+**Touches.** `src/db/schema.ts` and a migration, `src/routes/prefs.tsx`, a new tooltip-copy module plus a client tooltip layer in `public/js/`, `public/js/builder.js` and `public/js/viewer.js` (where 19 of the 32 titles live), `src/views/layout.tsx`, `style/`, `docs/ops/copy-inventory.md`.
+
+**Status.** planned—raised 2026-08-16, and placed in **phase 2 of the road to beta** the same day: it ships with import/export, before testers arrive, because the least technical end of the cohort is who it exists for. Note `/prefs` is accumulating: the duration format shipped, item 20 adds two radio groups, and this adds a switch. Item 22's width and grouping pass should be drawn against all four rather than against what is on the page today.
+
+### 26. Rider feedback: reports, ideas and the public board
+
+**Goal.** Give a beta tester somewhere to say "this broke just now" and "I wish it did this", and give the owner a queue to triage it. Phase 3 of the road to beta, and the thing that closes the loop from testers to a release candidate.
+
+**The detail lives in [`docs/rider-feedback.md`](rider-feedback.md)**, a 437-line design written 2026-08-15. It sat in git-ignored `_PLANS/` until 2026-08-16 and was promoted into `docs/` that day—it is a specification rather than working scratch, and one copy on one machine was the wrong home for it. It carries phased commits, marked decision gates and four open calls of its own.
+
+What that plan settles, in brief, so this entry stands alone if the file is ever lost:
+
+- **Build rather than buy.** Featurebase and Fider were evaluated and rejected—SSO priced at $59/seat/mo, single boards, site-wide moderation toggles, and a rider bounced to a subdomain that is not this app. The app already has Google auth, sessions, an owner email, a mailer, storage and an admin surface, so a signed-in rider submits in one tap with no second account. That is the argument.
+- **The audience shapes every screen.** Riders on phones, often outdoors, who do not know what a console is and will not write reproduction steps. The intake reads like a person asking what happened and infers the rest.
+- **Vocabulary, chosen to stay clear of `ride > day > leg > stop/POI`.** A **report** (`bug`, `idea` or `question`) has a moderation **state** and a rider-facing **status**; a **want** is a vote, and the button says "I want this". The **board** is public at `/board`, the **queue** is the owner's at `/admin/feedback`.
+- **It follows the house rule-from-query split**—`feedback/policy.ts` for pure logic that Vitest can drive with no Postgres, `feedback/service.ts` for anything touching the database—matching `invites/`, `survey/` and `stats/`.
+
+**Work.** Follow [`docs/rider-feedback.md`](rider-feedback.md); it carries phased steps and marked decision gates. Do not restate them here—two copies of a 437-line spec will drift. **Four open calls sit at the end of that document and are explicitly not for an implementing agent to decide:** where the entry point goes, how to read map state without touching the `map-common.js` boundary, bright-sun handling, and whether the public board ships now or waits until a request has arrived five or more times.
+
+**Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
+
+**Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
 
 ## Idea backlog (unscheduled)
 
@@ -607,14 +892,14 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 
 **Data and formats.**
 
-- Round-trip fidelity tests per format, so import→export never silently loses a stop.
-- Bulk import of a folder of files into one ride.
+- ~~Round-trip fidelity tests per format, so import→export never silently loses a stop.~~ **Shipped** with item 9 ([#35](https://github.com/feralcreative/routeloop/issues/35))—`test/round-trip.test.ts` against one ride written five ways.
+- ~~Bulk import of a folder of files into one ride.~~ **Shipped 2026-08-03** with item 9; several files become several days of one ride.
 - PostGIS for spatial queries once discovery needs "rides near me."
 
 **Platform and quality.**
 
-- Autosave and undo in the builder. Undo shipped; autosave-to-server is item 16.
-- Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows. See item 16.
+- ~~Autosave and undo in the builder.~~ **Both shipped**—undo 2026-08-05, autosave-to-server 2026-08-15 with item 16, which also deleted the Save and Discard buttons.
+- ~~Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows.~~ **Shipped 2026-08-15** with item 16, on SortableJS with the textured handle as described.
 - Keyboard shortcuts for the builder.
 - Usage analytics that respect privacy (self-hosted, no third-party trackers).
 
@@ -638,7 +923,6 @@ One wording correction that falls out of this: the vision above says Routeloop i
 
 Well-scoped, low-context tasks a new contributor can land without holding the whole app in their head. These carry the _good first issue_ label on GitHub.
 
-- **[#35](https://github.com/feralcreative/routeloop/issues/35) Round-trip fidelity tests per format.** Pure test work in `test/`, no app context needed—assert what each format can and cannot carry, so import → export never silently drops a stop.
 - **[#40](https://github.com/feralcreative/routeloop/issues/40) Keyboard shortcuts for the builder.** Contained to `public/js/builder.js` and its key handling.
 - **[#51](https://github.com/feralcreative/routeloop/issues/51) Layer stacking with per-layer opacity.** A self-contained map-engine feature with a clear reference implementation in Gaia GPS.
 

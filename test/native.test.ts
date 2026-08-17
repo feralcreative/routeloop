@@ -163,6 +163,51 @@ describe('the exported shape is what the importer accepts', () => {
   })
 })
 
+// The lossless format has to stay lossless as fields are added to it, and an
+// alternate grouping is the field most expensive to lose: a rider who reimports
+// their own backup would get their alternates back as ordinary days, silently,
+// with the ride's mileage doubling to match.
+describe('alternates survive the native format', () => {
+  const grouped = {
+    ...ride,
+    days: [
+      { ...ride.days[0], altGroup: 0, altActive: true },
+      { ...ride.days[0], altGroup: 0, altActive: false },
+    ],
+  }
+
+  it('carries both fields through parse and normalize', () => {
+    const out = ridePayload.parse(grouped)
+    normalize(out)
+    expect(out.days.map((r) => [r.altGroup, r.altActive])).toEqual([
+      [0, true],
+      [0, false],
+    ])
+  })
+
+  it('defaults a file written before the feature to a plain, active day', () => {
+    // Every native JSON a rider already holds omits these keys. It must import
+    // as an ordinary ride rather than failing validation — which is the whole
+    // reason both fields are .default()ed and NATIVE_FORMAT_VERSION did not move.
+    const out = ridePayload.parse(ride)
+    normalize(out)
+    expect(out.days.every((r) => r.altGroup === null && r.altActive)).toBe(true)
+    expect(nativeVersion(native)).toBe(NATIVE_FORMAT_VERSION)
+  })
+
+  it('repairs a group of one instead of refusing it', () => {
+    // The shape an autosave sees the instant a rider deletes one of a pair.
+    const out = ridePayload.parse({ ...ride, days: [{ ...ride.days[0], altGroup: 0, altActive: false }] })
+    normalize(out)
+    expect(out.days[0]).toMatchObject({ altGroup: null, altActive: true })
+  })
+
+  it('refuses a group id outside the day cap', () => {
+    const bad = { ...ride, days: [{ ...ride.days[0], altGroup: 9999 }] }
+    expect(ridePayload.safeParse(bad).success).toBe(false)
+  })
+})
+
 describe('what the importer refuses', () => {
   it('refuses a payload whose legs do not connect its stops', () => {
     const broken = { ...ride, days: [{ ...ride.days[0], legs: [] }] }

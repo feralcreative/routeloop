@@ -152,7 +152,7 @@ env_storage_path() {
   case "$1" in
     prod)  echo "${NAS_DEPLOY_BASE}/${PROD_DOMAIN}/data/storage" ;;
     stage) echo "${NAS_DEPLOY_BASE}/${STAGE_DOMAIN}/data/storage" ;;
-    dev)   echo "${PROJECT_ROOT}/moto-storage" ;;
+    dev)   echo "${PROJECT_ROOT}/storage" ;;
   esac
 }
 
