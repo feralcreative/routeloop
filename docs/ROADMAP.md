@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 32 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -49,6 +49,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **Decided**: item 26's four open calls, plus a fifth on automatic screenshots—`getDisplayMedia()` is unsupported on every mobile browser | item 26, and `docs/rider-feedback.md` |
 | **Corrected**: `/board` is behind `requireActive`. "Public board" meant "visible to every rider" and the word was wrong; confirmed as intended 2026-08-16 | item 26, `docs/rider-feedback.md` |
 | **New dependency**: `style/_feedback.scss` is pinned to light and must be skipped by the scheme axis. It did not exist this morning | item 20, and [#102](https://github.com/feralcreative/routeloop/issues/102) |
+| **New**: role icons and fixed per-role color on the dashboard's "What you stop for"; the icon field is already being computed and thrown away | item 32, unscheduled |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -1075,6 +1076,36 @@ Three of the four move together because they are one component. That is a reason
 **Touches.** `src/stats/query.ts`, `src/stats/shape.ts`, `src/routes/home.tsx`, `style/_dashboard.scss`. No schema change.
 
 **Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page.
+
+### 32. Icons and per-role color on "What you stop for"
+
+**Goal.** The role chart on the dashboard is seventeen identical bars in one hue, distinguished only by their text labels. Give each role its icon and its own color so the block can be read at a glance instead of word by word.
+
+**Most of this is already built.** `src/stats/shape.ts:168` already puts `icon` on every `RoleBar`, taken from `ROLE_META` in `src/maps/roles.ts`, and all seventeen SVGs are on disk at `public/img/icons/`. `RoleChart` in `src/routes/home.tsx:68` simply does not render the field it is handed. This is a view change—no query, no shape change, no new assets.
+
+**The icons are already colorable, by construction.** Each is a disc filled `currentColor` with a white glyph over it, so setting CSS `color` produces a colored badge with a white symbol and nothing needs editing. Verified across the set 2026-08-16.
+
+**But `<img src>` will not work, and this is the trap.** `currentColor` inside an externally-referenced SVG resolves against that document's own context, not the host page's, so an `<img>` renders black regardless of the CSS around it. The icons have to be **inlined into the HTML**. `public/js/map-common.js:664` already solves the same problem client-side by fetching and caching them; the server needs the equivalent—read once, cache at module level, embed. Seventeen file reads per dashboard render is the failure mode to avoid.
+
+**Colors are fixed per role, not random per render.** Decided 2026-08-16. Stable assignment means the eye learns the chart—gas is the same color every visit—and it lets the palette be tuned once for contrast instead of gambling on each roll. "Random" here means unordered, which these categories genuinely are; it does not mean reshuffled.
+
+**A new palette, not `DAY_COLORS`.** `src/maps/palette.ts` holds twelve colors and this needs seventeen, so five roles would wrap onto a duplicate—but the real objection is semantic: the same color would mean "day 3" in a ride legend and "coffee" here, in an app where colored lines already carry meaning. Roles get their own table, beside the day palette and following its conventions: defined server-side, shipped to the client through the page shell the way `ROLE_META` and `DAY_COLORS` already are, so no second copy can drift.
+
+**Rewrite the comment in `RoleChart`, do not just overrule it.** It currently argues that "a ramp across seventeen rows would imply an ordering the categories do not have," and **that reasoning is correct**—it just does not apply here. A sequential ramp implies rank; a categorical palette implies category, which is exactly what a role is. The replacement comment should say why categorical color is right and why a ramp would still be wrong, or the next reader will assume the original point was missed.
+
+**Build the palette for contrast across both schemes.** Seventeen hues at fixed lightness and chroma, evenly spaced, rather than seventeen hand-picked values—the constraint is that each stays legible as a bar fill and as a badge on white today and on a dark surface once item 20 lands. Getting it right once here is cheaper than retuning seventeen literals later.
+
+**Work.**
+
+- [ ] `src/maps/role-colors.ts`—seventeen colors keyed by `Role`, exported like `DAY_COLORS` and injected through the page shell.
+- [ ] Server-side inline-SVG helper with a module-level cache, so the icons are read from disk once per process rather than once per render.
+- [ ] `src/routes/home.tsx`—`RoleChart` renders the badge and applies the role color to it and to `.role-fill`; the comment gets rewritten as above.
+- [ ] `style/_dashboard.scss`—badge sizing in the `.role-bar` grid, which currently has no icon column.
+- [ ] A test pinning `ROLES`, `ROLE_META` and the color table to the same seventeen keys. The taxonomy already has to stay in sync with `waypointRoleEnum` and `src/maps/roles.ts`; this adds a fourth list, and the existing sync requirements are documented precisely because they have drifted before.
+
+**Touches.** `src/routes/home.tsx`, `style/_dashboard.scss`, new `src/maps/role-colors.ts`, a small inline-SVG helper in `src/views/`. No schema, no queries, no new assets.
+
+**Status.** planned—small and self-contained. Related to item 30, which is the other "make the dashboard less flat" item; the two touch the same file and are worth doing in one pass.
 
 ## Idea backlog (unscheduled)
 
