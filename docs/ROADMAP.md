@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 27 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 28 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -41,6 +41,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: Noob Mode | item 25 |
 | **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
 | **New**: gzip stored originals at rest, 7.2x measured; quota stays uncompressed and the default rises to 100 MB | item 27, folded into phase 2 |
+| **New**: route thumbnails from Static Maps, built by a five-minute sweep that skips rides still being edited, gated by a URL hash | item 28, folded into phase 2 |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -896,6 +897,50 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 **Touches.** `src/maps/storage.ts`, `src/index.tsx`, `src/account/export.ts`, `src/db/schema.ts` and a migration, a new `utils/` script. Not `src/maps/downloads.ts`—that table describes formats, not encodings.
 
 **Status.** planned—**folded into phase 2, the Import/Export sprint**, decided 2026-08-16. It opens the same three files that sprint opens anyway, and retrofitting it later means re-opening them plus migrating a larger `storage/` than the 5.8 MB it is now. Not urgent on its own: nobody has come near the quota.
+
+### 28. Route thumbnails: a preview image per ride
+
+**Goal.** Give every ride a small picture of itself, fitted as tightly to the route as it can be while still showing all of it. It replaces the color swatch in `src/views/cards.tsx:17`, and it is what makes a list of rides scannable rather than a list of titles.
+
+**A Google Static Maps image, not a drawn shape.** Both were considered on 2026-08-16 and a shape-only SVG rendered from `route_legs.geometry` was prototyped against the dev corpus first—it works, costs nothing and themes for free (Bodega Bay: 8,473 points simplified to 329, 3.9 KB). **It was rejected on the design call that a bare squiggle falls flat**, and the pricing below is why that call is affordable. The prototype numbers are kept here because they are the fallback if the cost picture ever changes, and because the simplification they demonstrate is needed either way—see the URL limit below.
+
+**There is no save event and no close event, and this is the fact the whole design turns on.** `public/js/builder.js:331`: "There is no Save button." The builder autosaves on a 3s idle timer with a 20s ceiling, so "regenerate on save" means up to three billable calls a minute for as long as someone is dragging a stop around. "On close" is not an event that exists—`pagehide` is unreliable and misses the ordinary case of navigating away.
+
+**A daily pass over recently-edited rides, gated by a hash of the Static Maps URL.** Two mechanisms, and they do different jobs:
+
+- **The sweep decides when**, and it runs often—every five minutes, over the rides edited since their thumbnail was built **and quiet for at least five minutes**. That second condition is what makes a frequent sweep affordable: an actively-edited ride keeps pushing its own `updated_at` forward and is therefore never selected, so a three-hour editing session produces exactly one call, at the end of it, the same as a thirty-second one. Running out of process also keeps the Google fetch off the render path, which is the reason to prefer this over regenerating lazily when a card is drawn: a fetch inside a page render puts network latency in a ride list and gives a popular stale ride a thundering herd.
+- **The hash decides whether it is worth doing at all.** Everything that changes the picture—the encoded polyline, the extent, the day colors, the style—is already in the Static Maps URL, so an identical URL cannot produce a different image. Hash it, store it, and the daily pass skips every ride whose edit did not move the route. Retitling, changing a stop's dwell, flipping visibility and recoloring the legend are all common edits that leave the picture alone.
+
+A day-count trigger was considered and dropped: dragging a route from the coast to the Sierras leaves the day count untouched while changing the picture completely, and the hash catches that case for free.
+
+**The interval is nearly free to shorten, which is why it is five minutes and not a day.** A 24-hour cadence was the first proposal and was dropped on 2026-08-16 once the arithmetic was done: cost tracks the number of *shape changes*, not the number of checks, because a check is a query and a hash while only a changed hash costs a call. Going from 24 hours to 5 minutes therefore does not multiply spend by 288—with the quiet-period condition above it does not multiply it at all, since either way an editing session yields one call. What it buys is a thumbnail that is correct within about five minutes of a rider stopping, rather than the next day.
+
+**The estimate.** 25 riders × 10 editing sessions a month × one call each ≈ **250 calls, or 2.5% of the 10,000 free monthly allowance**. Even an order of magnitude more activity stays inside it. The quiet period, not the sweep interval, is the number to revisit if that ever stops being true.
+
+One consequence worth knowing: restyling the map is a one-parameter change that changes every hash, so the next pass regenerates every thumbnail by itself, with no migration and no backfill script.
+
+**Cost, checked against Google's own pricing page 2026-08-16.** Maps Static (SKU `3C2D-B525-2E5F`) is an **Essentials** tier SKU with **10,000 free calls per month**, then $2.00/1000 up to 100k. At beta scale the policy above stays inside the free tier by a wide margin. Note this is a *different* SKU from the `maps-backend` dynamic map loads that carry the 500/day cap, so thumbnails do not eat into the ceiling discussed in "The road to beta"—but they are on the same billing account and want their own alert alongside the one decided there.
+
+**Two traps.**
+
+- **Static Maps is GET-only with an 8192-character URL limit.** Simplify to a fixed **point budget**, not a distance tolerance—a tolerance that suits a day ride will silently blow the limit on a dense 8-day import, and the failure is a 4xx at render time rather than anything visible in testing. ~330 points encodes to roughly 2 KB, which is the measured figure from the prototype and leaves ample headroom.
+- **These bytes stay out of `rides.size_bytes` and `users.used_bytes`.** They are derived data, not the rider's file, and charging quota for them would contradict item 27, which raises the quota on the argument that stored bytes mean the rider's own GPX. Follow the precedent in `src/db/schema.ts:786`, where feedback attachments are counted in their own column for exactly this reason.
+
+**Styling: one desaturated map style, not one per theme.** Item 20 brings three themes across light and dark; rendering a variant per combination multiplies calls by six for terrain that is the same terrain. A single neutral style that reads under both schemes is the usual answer, and because a style change costs one URL parameter it is cheap to revisit once the themes exist and it can be judged by eye rather than argued about here.
+
+**Work.**
+
+- [ ] `src/maps/thumbnail.ts`—pure: geometry and day colors in, simplified encoded polyline and a Static Maps URL out. No Postgres, testable in Vitest, sitting beside `twist.ts`, which is the same shape of module.
+- [ ] Simplification to a point budget, with the URL length asserted in a test against the densest ride in the dev corpus.
+- [ ] Schema: the URL hash and a built-at per ride, plus wherever the image lands on disk. Its own column, not folded into the byte columns. `rides.updated_at` is what the pass selects on, so confirm the autosave `PUT` actually bumps it.
+- [ ] The sweep: select rides where `updated_at > built_at` and `updated_at < now() - 5 minutes`, recompute the URL, skip on an unchanged hash, fetch and store otherwise. It needs somewhere to run—there is no scheduler in this app yet, so decide between a container cron and an interval in-process, and note that an in-process one runs once per replica, which at a five-minute cadence is worth getting right rather than tolerating.
+- [ ] Both intervals in one place and named, since the quiet period is the one that bounds cost and the sweep interval is the one that bounds staleness, and confusing them later is easy.
+- [ ] `src/views/cards.tsx`—the thumbnail takes the `.swatch` slot; the color swatch becomes the placeholder for a ride that has never been rendered.
+- [ ] Only `alt_active` days are drawn. Losing alternates are excluded everywhere else and a thumbnail is not the place to make an exception.
+
+**Touches.** New `src/maps/thumbnail.ts`, `src/views/cards.tsx`, `src/db/schema.ts` and a migration, `style/_chrome.scss` for the card layout, and whatever runs the daily pass. Notably **not** `src/routes/builder.ts`—the autosave path is untouched, which is the point of putting the trigger on `updated_at` rather than in the save handler.
+
+**Status.** planned—**folded into phase 2**, where items 21 and 23 are already building lists of rides that would show these, and where item 27 is already opening the storage layer. Not a beta blocker on its own.
 
 ## Idea backlog (unscheduled)
 
