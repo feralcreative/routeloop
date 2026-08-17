@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 30 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -44,6 +44,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: route thumbnails from Static Maps, built by a five-minute sweep that skips rides still being edited, gated by a URL hash | item 28, folded into phase 2 |
 | **New**: ride lists become card grids on all four browsing surfaces, with the thumbnail as the card face | item 29, phase 2 and after 28 |
 | **New**: visual treatment for the dashboard records block; quips were proposed and dropped the same day | item 30, unscheduled |
+| **New**: yours/average/top columns on all four dashboard tiles, pooled over every rider and every ride | item 31, unscheduled |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -1009,6 +1010,43 @@ Three of the four move together because they are one component. That is a reason
 **Touches.** `style/_dashboard.scss` mainly, `src/routes/home.tsx` for the icons, `src/stats/shape.ts` only if value and unit get split server-side.
 
 **Status.** planned—small and self-contained, no schema and no queries. A good candidate to slot in beside phase 1 work when a break from the builder is wanted.
+
+### 31. Three columns on the dashboard tiles: yours, average, top
+
+**Goal.** Each of the four stat tiles at the top of `/` shows the rider's number, the average across all riders, and the highest anyone has. A number alone says nothing about whether it is a lot.
+
+**Scope, decided 2026-08-16.** All four tiles—**rides, days, legs and waypoints**. **Legs is included knowingly**: a leg is an internal artifact, one per pair of consecutive stops, and it is not a unit any rider thinks in. It was put in the list deliberately rather than by omission, so it is not to be quietly dropped as a cleanup.
+
+**The pool is every rider and every ride, private included.** Decided 2026-08-16 after the alternatives were put up: no opt-in preference, no visibility filter, no minimum cohort size. This is a private beta among friends and the columns carry no names.
+
+**The filters are not the same across the four tiles, and this is the trap.** `src/stats/query.ts` scopes `rides` and `points` by `owned` alone, but `days` and `legs` by `counts`, which adds `eq(days.altActive, true)`. The asymmetry is deliberate and reasoned at line 40—a stop a rider planned is work they did, a mile on a day they decided against is not a road they will ride. **The global query has to mirror each tile's predicate exactly.** Getting it wrong is not a visible bug: the page renders, the numbers look plausible, and every rider is silently measured against a bar that counts alternates their own figure excludes.
+
+**Two more things `query.ts` already knows and this must not relearn.**
+
+- **No mega-join.** The file's opening comment explains why there are five queries rather than one: joining rides to days to points *and* legs multiplies rows against each other and produces sums several times too large, in a way that "looks like enthusiasm rather than arithmetic". A per-user rollup CTE feeding an aggregate has exactly the same hazard—one query per metric family, then aggregate the rollups.
+- **`cachedUsedBytes()` is not a cache.** It reads the denormalized `users.used_bytes` column. There is no TTL-cache precedent in this app to copy, so this item introduces the first one.
+
+**Cache it, because it is identical for every viewer.** Avg and Top do not vary by who is looking and they move slowly, so one computation serves the whole site. An in-process TTL is enough—this is decoration, staleness costs nothing, and a cold cache costs one query. **Note it is per-replica**, so two replicas do the work twice; that is acceptable here and would not be for anything a rider acts on.
+
+**Three edges worth deciding in code rather than discovering.**
+
+- **The rider is the top.** Their number appears in two columns. Say so rather than letting it read as coincidence.
+- **One rider in the pool.** Yours, the average and the top are the same number three times. True in dev today and true on the first day of the beta.
+- **A rider with nothing.** The tiles only render under `hasRides`, so this is already handled—but the average and top are still meaningful for them and are the one case where the comparison is most useful.
+
+**Layout is the real work.** Four tiles × three numbers is twelve figures where there were four, above the fold, on a page that continues into a role chart, an activity graph and a meter. The rider's own number must stay dominant—it is the one they came for—with average and top clearly subordinate. On a phone this needs to degrade to something other than a twelve-cell grid.
+
+**Work.**
+
+- [ ] A global-stats query in `src/stats/query.ts`, one per metric family, each reusing the *same* predicate as its per-user counterpart.
+- [ ] A test that pins the alternates asymmetry: a losing alternate day must move the global `days` and `legs` averages exactly as it moves the rider's own figures, and must not move `rides` or `points`.
+- [ ] TTL cache around it, with the interval named and the per-replica behaviour noted where it is defined.
+- [ ] Shape it in `src/stats/shape.ts`. **Do not widen `Tile`**—it also backs `records: Tile[]`, and the comparison fields would leak into a block that has no use for them. Give the tiles their own type, or make the fields optional and never set them on records.
+- [ ] `src/routes/home.tsx` and `style/_dashboard.scss`—`StatTile` gains the two extra values; the rider's own number keeps visual primacy.
+
+**Touches.** `src/stats/query.ts`, `src/stats/shape.ts`, `src/routes/home.tsx`, `style/_dashboard.scss`. No schema change.
+
+**Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page.
 
 ## Idea backlog (unscheduled)
 
