@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 26 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 27 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -40,6 +40,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: turning Turnstile on, and the gate that would break ride creation | item 24 |
 | **New**: Noob Mode | item 25 |
 | **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
+| **New**: gzip stored originals at rest, 7.2x measured; quota stays uncompressed and the default rises to 100 MB | item 27, folded into phase 2 |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -864,6 +865,37 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 **Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
 
 **Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
+
+### 27. Compress stored originals at rest
+
+**Goal.** Stop spending a rider's quota on uncompressed XML. An imported GPX is the most compressible thing this app stores, and today it sits on disk exactly as it arrived.
+
+**The numbers are measured, not estimated**, taken from `storage/` and the dev database on 2026-08-16.
+
+| What | Today | Compressed | Ratio |
+| --- | --- | --- | --- |
+| One real 8-day GPX import (`storage/2/50-6.gpx`) | 834,594 B | 115,046 B gzip -9 | **7.3x** |
+| The same file, brotli q11 | 834,594 B | 59,895 B | 13.9x |
+| All 20 dev rides, `sum(rides.size_bytes)` | 5,826 kB | ~810 kB gzip | **7.2x** |
+
+**The database is already handled and is not part of this item.** `route_legs.geometry` holds 122,647 points across 134 legs. Its raw jsonb text is 2,966 kB; `pg_column_size` reports 1,162 kB actually stored, so **Postgres TOAST already compresses it 2.55x for free**. Encoding it as a polyline instead would win maybe 2x more while touching every renderer, every export and every test that reads a leg, and would make the column unqueryable. Not worth it, and worth writing down so it is not re-proposed.
+
+**Quota keeps counting uncompressed bytes, and the default rises to 100 MB.** Decided 2026-08-16. The alternative—charging compressed bytes for a ~7x effective quota—was rejected because it makes the number unexplainable: two similar rides charge differently depending on how well their XML happens to compress, and a rider who imports something already compressed gets no benefit and no way to understand why. Keeping `size_bytes` meaning "how big is your GPX" keeps the FAQ answerable, and compression pays for the higher ceiling instead—100 MB of gzipped originals costs about what 25 MB of raw ones costs today. So `users.quota_bytes` moves from `26214400` to `104857600` and nothing about the byte columns changes.
+
+**gzip, not brotli, and the reason is the download path.** `src/maps/downloads.ts` streams an imported ride's stored original byte-for-byte for the format it arrived in—that is the hot path, not an archive path. Storing gzip means the file on disk is already the wire format: serve it with `Content-Encoding: gzip` to any client that accepts it and the common request gets *cheaper* than today, with no decompression at all. Brotli is twice as good at rest but riders in this app download straight to Garmins and phone apps, and `Content-Encoding: br` on an attachment is a bet on every one of those clients. Take the 7x.
+
+**Work.**
+
+- [ ] Raise `users.quota_bytes` default to 104857600 in `src/db/schema.ts`, with a generated migration that also lifts existing rows still on the old default. Leave a rider who has been granted a custom quota alone.
+- [ ] Compress in `writeMapFile()` (`src/maps/storage.ts`), so there is one place that knows files are stored gzipped. The byte columns are written by `src/routes/maps.ts` from the uncompressed buffer and do not change.
+- [ ] Decompress in the read paths: the two download handlers in `src/index.tsx` and the archive loop in `src/account/export.ts:133`. Prefer passing the gzip through with `Content-Encoding` where the request allows it.
+- [ ] Extend `STORED_EXTS` or the naming rule to mark a file compressed. **Both files must be readable during the migration**, so the reader has to try one and fall back—this is the fiddly part, not the compression.
+- [ ] A `utils/` script to compress what is already on disk, idempotent and safe to re-run.
+- [ ] Confirm the account export zip still round-trips: `buildZip` is being handed bytes that were gzip on disk, and the entry must be the plain original.
+
+**Touches.** `src/maps/storage.ts`, `src/index.tsx`, `src/account/export.ts`, `src/db/schema.ts` and a migration, a new `utils/` script. Not `src/maps/downloads.ts`—that table describes formats, not encodings.
+
+**Status.** planned—**folded into phase 2, the Import/Export sprint**, decided 2026-08-16. It opens the same three files that sprint opens anyway, and retrofitting it later means re-opening them plus migrating a larger `storage/` than the 5.8 MB it is now. Not urgent on its own: nobody has come near the quota.
 
 ## Idea backlog (unscheduled)
 

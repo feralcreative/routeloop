@@ -25,6 +25,8 @@ Enums: `provider`, `visibility`, `ride_source`, `point_kind`, `duration_format`,
 
 **`rides.size_bytes` is generated as the sum of every byte column.** A column missing from that expression leaks quota on every delete, silently and permanently, because the app increments `used_bytes` on import and the database decrements it from `size_bytes` on delete.
 
+**`route_legs.geometry` is already compressed, and it is not where the space goes.** Measured on the dev database 2026-08-16: 122,647 points across 134 legs, 2,966 kB of raw jsonb text, 1,162 kB actually stored—**TOAST/pglz gets 2.55x with no work**. Storing an encoded polyline instead would win perhaps 2x more, touch every renderer and export, and make the column unqueryable. The uncompressed bytes are the stored originals on disk, which are three times larger and compress 7.2x; see roadmap item 27.
+
 **One rendering path, and now one shape.** Every ride—imported or native—stores one leg per pair of consecutive stops. An import used to hold its whole track in a single leg at position 0; it is split at the stops on the way in now (`src/maps/track-split.ts`), and `utils/split-imported-legs.ts` brought the existing rows across. Viewers still render `concat(legs)` per day.
 
 ## Migrations
