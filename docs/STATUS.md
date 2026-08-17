@@ -1,7 +1,7 @@
 # Status and handoff
 
 **Updated:** 2026-08-16
-**Branch:** `feat/fixed-day-slider`, eleven commits, none pushed—**929 tests across 39 files** (2 skipped, 931 total)
+**Branch:** `feat/fixed-day-slider`, 25 commits ahead of `main`—14 feature and style, 11 docs—and pushed, in sync with `origin/feat/fixed-day-slider`. **929 tests across 39 files** (2 skipped, 931 total)
 **Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename. The alternate object from roadmap item 14 shipped on this branch; [#68](https://github.com/feralcreative/routeloop/issues/68) still describes the whole bundle including voting and needs rewriting or a child issue.
 **For:** the next agent, or the owner returning cold
 
@@ -23,7 +23,7 @@ Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NUL
 
 ## The builder panel redesign—epic #88, all five phases, 2026-08-15
 
-Nothing in this section is deployed. It is all local on `feat/builder-panel`.
+Nothing in this section is deployed, but it is no longer local: `feat/builder-panel` merged to `main` via [#106](https://github.com/feralcreative/routeloop/pull/106) on 2026-08-15. Read it as history rather than as the current shape of the panel—`feat/fixed-day-slider` has since replaced the floating panel with a left drawer showing every day, and the day slider this section describes is gone.
 
 The panel is the app's primary work surface and had never been designed as one—it grew a control at a time. A measured pass on 2026-08-10 against `/builder/9` found **380px wide holding 198 interactive elements, with 807px of content in a 620px window** on a 3-day ride with 7 stops on the focused day. That measurement became [ROADMAP](ROADMAP.md) item 16 and then epic [#88](https://github.com/feralcreative/routeloop/issues/88). Re-measured on the same ride, the same day and the same viewport after four phases: **380px, 180 elements, 618px of content in a 617px window**—the seven-stop day fits without scrolling, where it used to overflow by 187px. The width is unchanged on purpose; it was never the complaint.
 
