@@ -67,6 +67,7 @@ import {
   listMine,
   listQueue,
   listShipped,
+  mergeDuplicate,
   moderate,
   queueCounts,
   submitReport,
@@ -74,7 +75,7 @@ import {
   wantedBy,
 } from '../feedback/service'
 import type { BoardRow, BoardSort, IncomingAttachment, Moderation } from '../feedback/service'
-import { notifyNewReport } from '../feedback/notify'
+import { notifyNewReport, notifyStatusChange } from '../feedback/notify'
 import { ATTACHMENT_MAX_BYTES, MIME_EXT, pathForKey } from '../feedback/storage'
 import { visibleTo } from '../feedback/policy'
 import { feedbackStateEnum, feedbackStatusEnum } from '../db/schema'
@@ -863,6 +864,18 @@ feedbackRoutes.get('/admin/feedback', requireManageRiders, async (c) => {
                 <button type="submit">Save</button>
               </form>
 
+              {/* Separate from the field above on purpose. Setting `duplicateOf`
+                  records a relationship; merging MOVES this report's wants onto
+                  another one and marks this a duplicate, which is not something
+                  to do by accident while editing a number. */}
+              <form class="q-merge" method="post" action={`/admin/feedback/${r.id}`}>
+                <label>
+                  Merge into report
+                  <input type="number" name="mergeInto" min="1" placeholder="id" />
+                </label>
+                <button type="submit">Merge and transfer wants</button>
+              </form>
+
               <form class="q-text" method="post" action={`/admin/feedback/${r.id}`}>
                 <label class="q-field">
                   <span>Title</span>
@@ -951,19 +964,40 @@ feedbackRoutes.post('/admin/feedback/:id', requireManageRiders, requireSameOrigi
   if ('ownerNote' in raw) m.ownerNote = one(raw.ownerNote)
   if ('publicResponse' in raw) m.publicResponse = one(raw.publicResponse)
 
+  // Read once, before anything is written. `previous` is what decides whether a
+  // status email goes out, and reading it after the update would always compare
+  // the new value against itself.
+  const before = await getById(id)
+  if (!before) return c.notFound()
+
   // 'not_doing' without a reason is worse than no answer at all — it is the one
   // status whose whole content is the explanation. STATUS_META says so in its
   // sub-line; this is what makes the copy true.
   if (m.status === 'not_doing') {
-    const existing = await getById(id)
-    const reason = m.publicResponse ?? existing?.publicResponse ?? ''
+    const reason = m.publicResponse ?? before.publicResponse ?? ''
     if (!reason.trim()) {
       return c.redirect(`${back}${back.includes('?') ? '&' : '?'}err=reason`, 302)
     }
   }
 
+  // Merging is its own operation rather than a field on `moderate`, because it
+  // writes vote rows on a DIFFERENT report and the caller has to be explicit
+  // about that. `duplicateOf` on its own only records the relationship.
+  const mergeInto = Number(one(raw.mergeInto))
+  if (one(raw.mergeInto) && Number.isInteger(mergeInto) && mergeInto > 0 && mergeInto !== id) {
+    const merged = await mergeDuplicate(id, mergeInto)
+    if (!merged) return c.redirect(`${back}${back.includes('?') ? '&' : '?'}err=merge`, 302)
+    return c.redirect(back, 302)
+  }
+
   const updated = await moderate(id, m)
   if (!updated) return c.notFound()
+
+  // After the write has committed, and fire-and-forget. Only fires when the
+  // status actually moved — the queue's small forms each re-POST the status
+  // field, so saving a private note must not mail the rider.
+  notifyStatusChange(updated, before.status)
+
   return c.redirect(back, 302)
 })
 

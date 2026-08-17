@@ -513,6 +513,66 @@ export async function listShipped(limit = 5): Promise<BoardRow[]> {
     .limit(limit)
 }
 
+/**
+ * Fold one report into another: transfer its wants, then mark it a duplicate.
+ *
+ * **The wants are deduplicated BY RIDER, and that is the whole difficulty.** A
+ * rider who wanted the original and also wanted the duplicate is one rider who
+ * wants the thing, not two — and a naive transfer would inflate the top of the
+ * board by exactly the number of people enthusiastic enough to have voted twice,
+ * which is the worst possible set to double-count.
+ *
+ * `INSERT ... SELECT ... ON CONFLICT DO NOTHING` does it in one statement: the
+ * composite primary key on feedback_votes IS the dedupe, so there is no
+ * rider-set arithmetic in application code that could be subtly wrong. The
+ * counts are then recomputed from the rows rather than adjusted arithmetically,
+ * because "how many rows are there" cannot drift and "add the ones that were
+ * new" can.
+ *
+ * The duplicate keeps its own vote rows. They are inert — a duplicate is not on
+ * the board and cannot be wanted — and keeping them is what makes the merge
+ * reversible if it turns out to have been wrong.
+ */
+export async function mergeDuplicate(duplicateId: number, originalId: number): Promise<FeedbackRow | null> {
+  // A report cannot be a duplicate of itself; the self-referencing foreign key
+  // would accept it and every reader would then have a cycle.
+  if (duplicateId === originalId) return null
+
+  return db.transaction(async (tx) => {
+    const [original] = await tx.select().from(feedback).where(eq(feedback.id, originalId)).limit(1)
+    if (!original) return null
+
+    await tx.execute(sql`
+      insert into ${feedbackVotes} (feedback_id, user_id, created_at)
+      select ${originalId}, ${feedbackVotes.userId}, ${feedbackVotes.createdAt}
+      from ${feedbackVotes}
+      where ${feedbackVotes.feedbackId} = ${duplicateId}
+      on conflict do nothing
+    `)
+
+    const recount = (id: number) =>
+      sql`(select count(*)::int from ${feedbackVotes} where ${feedbackVotes.feedbackId} = ${id})`
+
+    await tx
+      .update(feedback)
+      .set({ wantCount: recount(originalId), updatedAt: new Date() })
+      .where(eq(feedback.id, originalId))
+
+    const [dup] = await tx
+      .update(feedback)
+      .set({
+        state: 'duplicate',
+        duplicateOf: originalId,
+        wantCount: recount(duplicateId),
+        updatedAt: new Date(),
+      })
+      .where(eq(feedback.id, duplicateId))
+      .returning()
+
+    return dup ?? null
+  })
+}
+
 /** Which of these reports this rider has already wanted, so the board can render
  *  every button in its right state from one query rather than N. */
 export async function wantedBy(userId: number, feedbackIds: number[]): Promise<Set<number>> {

@@ -698,3 +698,19 @@ $fb-line: $neutral-88;
 .b-count {
   font-size: 0.85rem;
 }
+
+// Merging is destructive-ish — it moves vote rows onto another report — so it
+// reads as its own control rather than one more field in the edit form.
+.queue-page .q-merge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 0.5em;
+  padding-top: 0.5em;
+  border-top: 1px dashed $grey;
+
+  button {
+    border-color: $detour;
+  }
+}
