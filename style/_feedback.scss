@@ -591,3 +591,110 @@ $fb-line: $neutral-88;
     font-size: 0.85rem;
   }
 }
+
+// --- The board ---------------------------------------------------------------
+
+// Read at a desk as often as on a phone, so it inherits the app theme rather
+// than the flow's pinned-light treatment. The want button still gets a proper
+// target — it is the one control on the page and it is worth hitting first time.
+
+.b-shipped {
+  margin: 1.5em 0;
+  padding: 1em 1.2em;
+  border-left: 4px solid $go;
+  background: color-mix(in srgb, $go 8%, transparent);
+
+  h2 {
+    margin: 0 0 0.4em;
+    font-size: 1.1rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.2em;
+  }
+}
+
+.b-sorts {
+  display: flex;
+  gap: 8px;
+  margin: 1.5em 0 1em;
+}
+
+.b-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.b-card {
+  margin: 0 0 1em;
+  padding: 1em 1.2em;
+  border: 1px solid $grey;
+  border-radius: 8px;
+
+  &.is-shipped {
+    border-color: $go;
+  }
+
+  &.is-not_doing {
+    opacity: 0.7;
+  }
+}
+
+.b-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.b-body {
+  margin: 0.4em 0;
+  white-space: pre-wrap;
+}
+
+.b-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.8em;
+}
+
+.b-who {
+  font-size: 0.9rem;
+}
+
+.b-want button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15em;
+  // 44px rather than the flow's 60: this is a desk-and-sofa surface, not a
+  // gas-stop one, but it is still the only control on the card.
+  min-height: 44px;
+  padding: 0.4em 1em;
+  border: 2px solid $url;
+  border-radius: 999px;
+  background: transparent;
+  color: $text;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, $url 10%, transparent);
+  }
+}
+
+.b-want.is-wanted button {
+  background: color-mix(in srgb, $url 16%, transparent);
+  font-weight: 600;
+}
+
+.b-want-label {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.b-count {
+  font-size: 0.85rem;
+}

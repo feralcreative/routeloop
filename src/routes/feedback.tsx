@@ -25,7 +25,14 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { readFile } from 'node:fs/promises'
-import { currentUser, requireActive, requireManageRiders, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import {
+  currentUser,
+  requireActive,
+  requireActiveApi,
+  requireManageRiders,
+  requireSameOrigin,
+  type AuthEnv,
+} from '../auth/middleware'
 import { APP_ORIGIN } from '../config'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -41,6 +48,7 @@ import {
   SUBMIT_LIMIT,
   STATUS_META,
   areaLabel,
+  canWant,
   frequencyLabel,
   impactLabel,
   isAreaId,
@@ -55,13 +63,17 @@ import {
   getByPublicId,
   getDiagnostics,
   isOverSubmitLimit,
+  listBoard,
   listMine,
   listQueue,
+  listShipped,
   moderate,
   queueCounts,
   submitReport,
+  toggleWant,
+  wantedBy,
 } from '../feedback/service'
-import type { IncomingAttachment, Moderation } from '../feedback/service'
+import type { BoardRow, BoardSort, IncomingAttachment, Moderation } from '../feedback/service'
 import { notifyNewReport } from '../feedback/notify'
 import { ATTACHMENT_MAX_BYTES, MIME_EXT, pathForKey } from '../feedback/storage'
 import { visibleTo } from '../feedback/policy'
@@ -953,4 +965,190 @@ feedbackRoutes.post('/admin/feedback/:id', requireManageRiders, requireSameOrigi
   const updated = await moderate(id, m)
   if (!updated) return c.notFound()
   return c.redirect(back, 302)
+})
+
+// --- The public board --------------------------------------------------------
+
+// Published ideas, and the one surface where riders see each other's.
+//
+// **Signed in only.** An anonymous board on an invite-only beta is a scraping
+// target with no upside, which is the same reasoning already applied to /riders.
+// requireActive, not requireAuth: a pending rider has a valid session and no
+// business here yet.
+//
+// What it deliberately does NOT show: bugs, in any state. A published bug is a
+// known-issue banner rather than something to vote on, and mixing the two would
+// turn a wishlist into a defect tracker in front of the exact audience you want
+// believing the product works.
+
+const BOARD_SORTS: { id: BoardSort; label: string }[] = [
+  { id: 'wanted', label: 'Most wanted' },
+  { id: 'new', label: 'Newest' },
+]
+
+const WantButton = ({
+  row,
+  viewer,
+  wanted,
+}: {
+  row: BoardRow
+  viewer: ReturnType<typeof currentUser>
+  wanted: boolean
+}) => {
+  const me = { id: viewer.id, status: viewer.status, canManageRiders: viewer.canManageRiders }
+  const allowed = canWant({ authorId: row.authorId, kind: row.kind, state: 'published' }, me)
+  const count = row.wantCount === 1 ? '1 rider wants this' : `${row.wantCount} riders want this`
+
+  // The author's own idea, whose want was auto-cast at publish. Shown as a fact
+  // rather than a disabled button — a greyed control invites a click and then
+  // explains nothing.
+  if (!allowed) return <span class="b-count">{count}</span>
+
+  // Whether this rider has already wanted it is rendered HERE, by the server,
+  // rather than reconciled on the client from a list of ids. The client only has
+  // the public id and the vote rows are keyed by the numeric one, so any
+  // client-side matching would need a second mapping that exists purely to be
+  // kept in sync.
+  return (
+    <form class={`b-want${wanted ? ' is-wanted' : ''}`} method="post" action={`/board/${row.publicId}/want`} data-want>
+      {/* A real form, so the button works with no JavaScript. feedback.js
+          intercepts the submit and swaps the count in place; without it the
+          POST redirects back to the board, which is slower and still correct. */}
+      <button type="submit" aria-pressed={wanted ? 'true' : 'false'}>
+        <span class="b-want-label">{wanted ? 'You want this' : 'I want this'}</span>
+        <span class="b-count">{count}</span>
+      </button>
+    </form>
+  )
+}
+
+const BoardCard = ({
+  row,
+  viewer,
+  wanted,
+}: {
+  row: BoardRow
+  viewer: ReturnType<typeof currentUser>
+  wanted: boolean
+}) => {
+  const meta = STATUS_META[row.status]
+  return (
+    <li class={`b-card is-${row.status}`}>
+      <div class="b-title">{row.title ?? row.body.slice(0, 80)}</div>
+      <p class="b-body">{row.body}</p>
+      <div class="fb-status">
+        <strong>{statusLabel(row.status, row.kind)}</strong>
+        <span class="fb-status-sub">{meta.sub}</span>
+      </div>
+      {row.publicResponse && <p class="fb-response">{row.publicResponse}</p>}
+      <div class="b-foot">
+        <span class="b-who">{row.authorName}</span>
+        <WantButton row={row} viewer={viewer} wanted={wanted} />
+      </div>
+    </li>
+  )
+}
+
+feedbackRoutes.get('/board', requireActive, async (c) => {
+  const me = currentUser(c)
+  const sortRaw = c.req.query('sort') ?? 'wanted'
+  const sort: BoardSort = sortRaw === 'new' ? 'new' : 'wanted'
+
+  const [rows, shipped] = await Promise.all([listBoard(sort), listShipped()])
+  // One query for every button's state rather than one per card.
+  const mine = await wantedBy(
+    me.id,
+    rows.map((r) => r.id),
+  )
+
+  const body = (
+    <>
+      <h1>The idea board</h1>
+      <p class="lede">Every idea here came from a rider. Tell us the ones you want and they move up the list.</p>
+
+      {/* Permanent, and first. See listShipped(). */}
+      {shipped.length > 0 && (
+        <section class="b-shipped">
+          <h2>Recently shipped</h2>
+          <ul>
+            {shipped.map((r) => (
+              <li>
+                <strong>{r.title ?? r.body.slice(0, 80)}</strong>
+                {r.publicResponse ? ` — ${r.publicResponse}` : ''}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <nav class="b-sorts">
+        {BOARD_SORTS.map((s) => (
+          <a class={`q-filter${s.id === sort ? ' is-on' : ''}`} href={`/board?sort=${s.id}`}>
+            {s.label}
+          </a>
+        ))}
+      </nav>
+
+      {rows.length === 0 ? (
+        <p class="empty">
+          Nothing on the board yet. <a href="/feedback?kind=idea">Be the first</a>.
+        </p>
+      ) : (
+        <ul class="b-list">
+          {rows.map((r) => (
+            <BoardCard row={r} viewer={me} wanted={mine.has(r.id)} />
+          ))}
+        </ul>
+      )}
+      <p class="fb-after">
+        <a class="btn" href="/feedback?kind=idea">
+          Add an idea
+        </a>
+      </p>
+    </>
+  ).toString()
+
+  return c.html(
+    page({
+      title: 'The idea board',
+      user: me,
+      navKey: 'board',
+      body,
+      scripts: `<script src="${asset('/js/feedback.js')}" defer></script>`,
+    }),
+  )
+})
+
+/**
+ * Cast or withdraw a want.
+ *
+ * `requireActiveApi` rather than `requireActive`: feedback.js calls this with
+ * fetch() and wants a 403, not a redirect to an HTML page it would then try to
+ * parse as JSON.
+ *
+ * Idempotent by construction — the service reads the delete's row count instead
+ * of asking first, so two taps racing cannot both insert. The response carries
+ * the count AS STORED so the client never has to guess what to render.
+ */
+feedbackRoutes.post('/board/:publicId/want', requireActiveApi, requireSameOrigin, async (c) => {
+  const me = currentUser(c)
+  const found = await getByPublicId(c.req.param('publicId'))
+  if (!found) return c.json({ error: 'not found' }, 404)
+
+  const report = found.report
+  if (!canWant({ authorId: report.authorId, kind: report.kind, state: report.state }, me)) {
+    // 403 rather than 404: the report is published and the viewer can see it,
+    // so pretending it does not exist would be a lie they can disprove by
+    // scrolling. This is genuinely "no", not "what".
+    return c.json({ error: 'cannot want this' }, 403)
+  }
+
+  const result = await toggleWant(report.id, me.id)
+
+  // A form POST with no JavaScript lands here too, and it wants the board back
+  // rather than a JSON body rendered as text.
+  if (!c.req.header('Accept')?.includes('application/json')) {
+    return c.redirect('/board', 302)
+  }
+  return c.json(result)
 })

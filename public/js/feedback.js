@@ -315,8 +315,67 @@
     });
   }
 
+  // --- Wants -----------------------------------------------------------------
+
+  // Each want is a real <form> that POSTs and redirects. This intercepts the
+  // submit and swaps the count in place instead, because a full page reload
+  // loses the rider's scroll position on a long board — but the form underneath
+  // is what makes the button work at all, and removing it would make wanting an
+  // idea a JavaScript-only feature.
+  function wireWants() {
+    document.querySelectorAll("form[data-want]").forEach(function (form) {
+      const button = form.querySelector("button");
+      const label = form.querySelector(".b-want-label");
+      const count = form.querySelector(".b-count");
+      if (!button || !label || !count) return;
+
+      // The server renders the initial state; this only repaints after a
+      // successful toggle.
+      function paint(on) {
+        form.classList.toggle("is-wanted", on);
+        label.textContent = on ? "You want this" : "I want this";
+        button.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+
+      form.addEventListener("submit", function (ev) {
+        // Let the plain POST happen if fetch is unavailable.
+        if (typeof window.fetch !== "function") return;
+        ev.preventDefault();
+        if (button.disabled) return;
+        button.disabled = true;
+
+        fetch(form.action, {
+          method: "POST",
+          // The route answers JSON only when asked; without this header it
+          // redirects to the board, which is what the no-JavaScript path wants.
+          headers: { Accept: "application/json" },
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error(String(res.status));
+            return res.json();
+          })
+          .then(function (data) {
+            // The count AS STORED, never a local increment — two devices, or a
+            // double tap, would otherwise drift from the row.
+            const n = Number(data.count) || 0;
+            count.textContent = n === 1 ? "1 rider wants this" : n + " riders want this";
+            paint(!!data.wanted);
+          })
+          .catch(function () {
+            // Fall back to the thing that always works rather than leaving a
+            // dead button.
+            form.submit();
+          })
+          .then(function () {
+            button.disabled = false;
+          });
+      });
+    });
+  }
+
   wireDiagnostics();
   wirePhotos();
   wireChips();
   wireFaq();
+  wireWants();
 })();

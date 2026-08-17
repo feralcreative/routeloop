@@ -10,19 +10,21 @@
 // Two invariants this file is responsible for, both enforced by the database
 // rather than by a check here:
 //
-//   - ONE WANT PER RIDER, by the composite primary key on feedback_votes. The
-//     toggle below reads the delete's row count instead of asking first, so two
-//     taps racing cannot both insert.
+//   - ONE WANT PER RIDER, by the composite primary key on feedback_votes.
+//     Neither half of the toggle asks first: the withdraw reads the delete's row
+//     count and the cast uses onConflictDoNothing and reads what it inserted. A
+//     read-then-write would let two taps racing both see "not yet" — verified,
+//     because the first version did exactly that and the loser 500'd.
 //   - want_count MATCHES THE VOTE ROWS, by writing both inside one transaction.
 //     A denormalized count is worth having and is worth exactly nothing if it can
 //     drift.
-import { and, count, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { feedback, feedbackAttachments, feedbackDiagnostics, feedbackVotes, users } from '../db/schema'
 import type { FeedbackKind, FeedbackRow, FeedbackState, FeedbackStatus } from '../db/schema'
 import { generateSlug } from '../maps/slug'
 import { redactDiagnostics } from './diagnostics'
-import { BODY_MAX, SUBMIT_LIMIT, titleFrom } from './policy'
+import { BODY_MAX, KIND_META, SUBMIT_LIMIT, titleFrom } from './policy'
 import { attachmentKey, writeAttachment, type AttachmentExt } from './storage'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -261,31 +263,57 @@ export type Moderation = {
  * `publishedAt` is stamped by this function rather than by the caller, and only
  * on the first publish — re-publishing something already public must not move
  * the date the board sorts and labels by.
+ *
+ * **Publishing an idea auto-casts the author's want**, in the same transaction.
+ * They asked for it, so they want it, and a board where the person who proposed
+ * the top idea is not counted among the people who want it reads as broken. It
+ * also means a freshly published idea shows 1 rather than 0, which is the
+ * difference between "nobody cares" and "one person so far".
+ *
+ * The insert is guarded by onConflictDoNothing rather than a prior check: the
+ * composite primary key on feedback_votes is the real constraint, and an
+ * unpublish/republish cycle would otherwise double-count on the second publish.
+ * That is also why the count is recomputed from the vote rows here instead of
+ * incremented — this is the one write where the denormalized count could
+ * plausibly drift, so it is the one that reconciles.
  */
 export async function moderate(id: number, m: Moderation): Promise<FeedbackRow | null> {
   const [current] = await db.select().from(feedback).where(eq(feedback.id, id)).limit(1)
   if (!current) return null
 
   const publishing = m.state === 'published' && current.publishedAt === null
+  // The kind as it will be AFTER this call — the owner can reclassify and
+  // publish in one go, and reading `current.kind` would miss that.
+  const kindAfter = m.kind ?? current.kind
+  const autoCast = publishing && KIND_META[kindAfter].wantable
 
-  const [row] = await db
-    .update(feedback)
-    .set({
-      ...(m.state !== undefined && { state: m.state }),
-      ...(m.status !== undefined && { status: m.status }),
-      ...(m.kind !== undefined && { kind: m.kind }),
-      ...(m.priority !== undefined && { priority: m.priority }),
-      ...(m.title !== undefined && { title: m.title.trim() || null }),
-      ...(m.ownerNote !== undefined && { ownerNote: m.ownerNote.trim() || null }),
-      ...(m.publicResponse !== undefined && { publicResponse: m.publicResponse.trim() || null }),
-      ...(m.duplicateOf !== undefined && { duplicateOf: m.duplicateOf }),
-      ...(publishing && { publishedAt: new Date() }),
-      updatedAt: new Date(),
-    })
-    .where(eq(feedback.id, id))
-    .returning()
+  return db.transaction(async (tx) => {
+    if (autoCast) {
+      await tx.insert(feedbackVotes).values({ feedbackId: id, userId: current.authorId }).onConflictDoNothing()
+    }
 
-  return row ?? null
+    const [row] = await tx
+      .update(feedback)
+      .set({
+        ...(m.state !== undefined && { state: m.state }),
+        ...(m.status !== undefined && { status: m.status }),
+        ...(m.kind !== undefined && { kind: m.kind }),
+        ...(m.priority !== undefined && { priority: m.priority }),
+        ...(m.title !== undefined && { title: m.title.trim() || null }),
+        ...(m.ownerNote !== undefined && { ownerNote: m.ownerNote.trim() || null }),
+        ...(m.publicResponse !== undefined && { publicResponse: m.publicResponse.trim() || null }),
+        ...(m.duplicateOf !== undefined && { duplicateOf: m.duplicateOf }),
+        ...(publishing && { publishedAt: new Date() }),
+        ...(autoCast && {
+          wantCount: sql`(select count(*)::int from ${feedbackVotes} where ${feedbackVotes.feedbackId} = ${id})`,
+        }),
+        updatedAt: new Date(),
+      })
+      .where(eq(feedback.id, id))
+      .returning()
+
+    return row ?? null
+  })
 }
 
 /** One report by its id, for the moderation handler. The queue addresses rows by
@@ -377,7 +405,25 @@ export async function toggleWant(feedbackId: number, userId: number): Promise<{ 
       return { wanted: false, count: row?.wantCount ?? 0 }
     }
 
-    await tx.insert(feedbackVotes).values({ feedbackId, userId })
+    // onConflictDoNothing, and the returned row count is what says whether this
+    // call actually cast the vote. Without it a genuine double-tap — two
+    // requests in flight before the first resolves, or the same rider on two
+    // devices — makes the loser violate the primary key and 500. The key is
+    // still the guarantee; this just means the redundant request reports the
+    // truth instead of an error.
+    const inserted = await tx
+      .insert(feedbackVotes)
+      .values({ feedbackId, userId })
+      .onConflictDoNothing()
+      .returning({ userId: feedbackVotes.userId })
+
+    if (!inserted.length) {
+      // Someone else's identical request won. The vote exists, so report it as
+      // cast and read the count rather than incrementing it a second time.
+      const [row] = await tx.select({ wantCount: feedback.wantCount }).from(feedback).where(eq(feedback.id, feedbackId))
+      return { wanted: true, count: row?.wantCount ?? 0 }
+    }
+
     const [row] = await tx
       .update(feedback)
       .set({ wantCount: sql`${feedback.wantCount} + 1`, updatedAt: new Date() })
@@ -387,13 +433,97 @@ export async function toggleWant(feedbackId: number, userId: number): Promise<{ 
   })
 }
 
+export type BoardSort = 'wanted' | 'new' | 'shipped'
+
+export type BoardRow = {
+  id: number
+  publicId: string
+  kind: FeedbackKind
+  status: FeedbackStatus
+  title: string | null
+  body: string
+  publicResponse: string | null
+  wantCount: number
+  authorId: number
+  authorName: string
+  publishedAt: Date | null
+}
+
+const BOARD_COLUMNS = {
+  id: feedback.id,
+  publicId: feedback.publicId,
+  kind: feedback.kind,
+  status: feedback.status,
+  title: feedback.title,
+  body: feedback.body,
+  publicResponse: feedback.publicResponse,
+  wantCount: feedback.wantCount,
+  authorId: feedback.authorId,
+  authorName: users.displayName,
+  publishedAt: feedback.publishedAt,
+}
+
+/**
+ * The public board: published ideas only.
+ *
+ * `state = 'published'` is the whole gate, and it is applied HERE rather than
+ * left to the caller. Every other read in this module hands visibility back to
+ * `visibleTo` in policy.ts because the caller knows who is asking — but this one
+ * answers the same for everybody, so a caller that forgot the filter would put
+ * a rider's pending bug on a public page. The one place a query should decide.
+ *
+ * Bugs are excluded even when published. A published bug is a known-issue
+ * banner, not a thing riders vote on; `KIND_META.bug.wantable` says the same
+ * and `canWant` enforces it on the write side.
+ */
+export async function listBoard(sort: BoardSort = 'wanted', limit = 100): Promise<BoardRow[]> {
+  const order =
+    sort === 'new'
+      ? [desc(feedback.publishedAt)]
+      : sort === 'shipped'
+        ? [desc(feedback.updatedAt)]
+        : // Newest breaks a tie, so two ideas on one want do not swap places
+          // between renders — a list that reorders itself on refresh reads as
+          // broken even when the data is right.
+          [desc(feedback.wantCount), desc(feedback.publishedAt)]
+
+  return db
+    .select(BOARD_COLUMNS)
+    .from(feedback)
+    .innerJoin(users, eq(users.id, feedback.authorId))
+    .where(and(eq(feedback.state, 'published'), eq(feedback.kind, 'idea')))
+    .orderBy(...order)
+    .limit(limit)
+}
+
+/**
+ * What has shipped lately, for the strip at the top of the board.
+ *
+ * **This strip is permanent, not decoration.** It is the proof that sending
+ * something works, and it is what earns the next report — a board that only
+ * ever shows a growing list of requests reads as a suggestion box nobody empties.
+ */
+export async function listShipped(limit = 5): Promise<BoardRow[]> {
+  return db
+    .select(BOARD_COLUMNS)
+    .from(feedback)
+    .innerJoin(users, eq(users.id, feedback.authorId))
+    .where(and(eq(feedback.state, 'published'), eq(feedback.status, 'shipped')))
+    .orderBy(desc(feedback.updatedAt))
+    .limit(limit)
+}
+
 /** Which of these reports this rider has already wanted, so the board can render
  *  every button in its right state from one query rather than N. */
 export async function wantedBy(userId: number, feedbackIds: number[]): Promise<Set<number>> {
   if (!feedbackIds.length) return new Set()
+  // `inArray`, not a hand-written `= any(...)`. Interpolating a JS array into a
+  // sql`` template expands it to a tuple — `any(($2, $3, $4))` — which is not
+  // valid SQL and fails at runtime with no type error to warn you. Caught on the
+  // first real render of the board.
   const rows = await db
     .select({ feedbackId: feedbackVotes.feedbackId })
     .from(feedbackVotes)
-    .where(and(eq(feedbackVotes.userId, userId), sql`${feedbackVotes.feedbackId} = any(${feedbackIds})`))
+    .where(and(eq(feedbackVotes.userId, userId), inArray(feedbackVotes.feedbackId, feedbackIds)))
   return new Set(rows.map((r) => r.feedbackId))
 }
