@@ -1,7 +1,7 @@
 # Status and handoff
 
 **Updated:** 2026-08-16
-**Branch:** `feat/rider-feedback`, 11 commits ahead of `main`—6 feature, 5 docs—and pushed, in sync with `origin/feat/rider-feedback`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
+**Branch:** `feat/rider-feedback`, **12 commits ahead of `main`—7 feature, 5 docs—and NOT pushed.** `git ls-remote --heads origin feat/rider-feedback` returns nothing and `git status -sb` reports the upstream as `[gone]`, so a whole finished sprint exists on one machine with no second copy. Verified 2026-08-16 after a handoff claimed otherwise. **1,076 tests across 44 files** (2 skipped, 1,078 total)
 **Closes, since the last update:** the `feat/fixed-day-slider` branch merged to `main` as [#107](https://github.com/feralcreative/routeloop/pull/107). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
 **For:** the next agent, or the owner returning cold
 
@@ -11,7 +11,7 @@ Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where thin
 
 ## Rider feedback, end to end—`feat/rider-feedback`, 2026-08-16
 
-**The whole feature shipped in one branch: intake, owner queue, public board, wants, status emails and duplicate merging.** A rider can report a bug, propose an idea or ask a question from inside the app; the owner triages at `/admin/feedback`; published ideas appear on `/board` where riders vote with "I want this". Built to the plan in [rider-feedback.md](rider-feedback.md), which was written before any of it and held up—the deviations are listed below rather than folded away.
+**The whole feature shipped in one branch: intake, owner queue, the rider board, wants, status emails and duplicate merging.** Note the board is **signed-in only**—`/board` sits behind `requireActive`, exactly as the plan's endpoint table specified. "Public board" appears in older text and means "visible to every rider", never anonymous; confirmed as intended 2026-08-16 and the docs corrected. A rider can report a bug, propose an idea or ask a question from inside the app; the owner triages at `/admin/feedback`; published ideas appear on `/board` where riders vote with "I want this". Built to the plan in [rider-feedback.md](rider-feedback.md), which was written before any of it and held up—the deviations are listed below rather than folded away.
 
 **Four gates in that plan were open and all four were decided on 2026-08-16.** Entry point: **both**—an account-menu item plus a floating button on the builder and viewer that pre-fills `?area=`. Map state: **a plain object on `window`**, so `public/js/map-common.js` stays the only file naming `google.maps` and the boundary is untouched. Bright sun: **light-mode-first regardless of the system theme**, carried by the `feedback-flow` body class. The board: **shipped now** rather than held back.
 

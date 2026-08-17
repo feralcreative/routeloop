@@ -45,6 +45,10 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: ride lists become card grids on all four browsing surfaces, with the thumbnail as the card face | item 29, phase 2 and after 28 |
 | **New**: visual treatment for the dashboard records block; quips were proposed and dropped the same day | item 30, unscheduled |
 | **New**: yours/average/top columns on all four dashboard tiles, pooled over every rider and every ride | item 31, unscheduled |
+| **Shipped, out of order**: the whole rider-feedback sprint, seven commits, phase 3 built before phase 2. **Unmerged and not on the remote** | item 26, and "The road to beta" |
+| **Decided**: item 26's four open calls, plus a fifth on automatic screenshots—`getDisplayMedia()` is unsupported on every mobile browser | item 26, and `docs/rider-feedback.md` |
+| **Corrected**: `/board` is behind `requireActive`. "Public board" meant "visible to every rider" and the word was wrong; confirmed as intended 2026-08-16 | item 26, `docs/rider-feedback.md` |
+| **New dependency**: `style/_feedback.scss` is pinned to light and must be skipped by the scheme axis. It did not exist this morning | item 20, and [#102](https://github.com/feralcreative/routeloop/issues/102) |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -90,6 +94,10 @@ The goal is an MVP a handful of friends can actually test. **The cohort is the c
 1. **The builder panel and the mapping tools.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; what remains is the rest of P1—**including saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)), both confirmed in scope on 2026-08-16**. A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback.
 2. **Import, export and send-to-device.** A tester handed a blank canvas forms no useful opinion. Handed their own familiar routes, the beta becomes an exercise in _using_ the app rather than _learning_ it—which is the only way to find out whether the end-to-end experience actually works. Items 9, 21, 22 and 23, and note that **[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX flavors is literally the "send to device" half** and is the one unshipped piece of item 9. `docs/myrouteapp-formats.md` is the research behind it. **Noob Mode (item 25) rides along here**, decided 2026-08-16: the least technical end of the cohort is exactly who it is for, and first contact is when it pays off—shipping it afterwards means the riders who needed it most already formed their impression without it.
 3. **The feedback sprint, live before the first tester signs in.** Decided 2026-08-16, and the ordering is a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
+
+**Phase 3 shipped first, on an audible called 2026-08-16.** The whole feedback sprint is built—see item 26—which changes what this list means rather than invalidating it. **Phase 2, import/export/send-to-device, is now the only phase left before beta**, and it has grown: items 9, 21, 22, 23, 25 and [#13](https://github.com/feralcreative/routeloop/issues/13), plus 27, 28 and 29 folded in. Phase 1's remainder still outranks it. Nothing about jumping the queue moved phase 1 work behind phase 2.
+
+**Two things from that sprint are outstanding and are not code**: no email has ever actually been delivered (local has no SMTP, so every send logs "skipped" and returns), and the flow has only been driven in a desktop browser when its entire audience is on phones. Both are in item 26 and both want doing before a tester sees the app, not after.
 
 **Rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is _not_ a beta blocker. Reversed 2026-08-16, hours after being made one, because the argument for it was factually wrong.**
 
@@ -684,7 +692,9 @@ The alternative was a second Map ID switched at runtime, and it fails on its own
 - **Does the theme axis interact with `prefers-contrast`?** The OS reports it. Whether `prefers-contrast: more` should auto-select the high-contrast theme, or whether theme stays a pure stored preference with no OS input, is undecided. Note this is now cleanly separable from the scheme question, which is one benefit of splitting the axes.
 - **The emails.** `src/emails/theme.ts` carries its own dark palette, pinned to `_tokens.scss` by `test/email-theme.test.ts`. Once the site has real dark tokens, either the emails adopt them or the split becomes deliberate and documented. The pinning test is the place that will notice first, and that is the test doing its job.
 
-**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. **Not** `public/js/map-common.js` and not a second Map ID—the map question resolved against touching either. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
+**The feedback flow must be skipped, and this dependency did not exist before 2026-08-16.** `style/_feedback.scss` pins that surface to light values on purpose—a dark UI on a phone in direct sunlight is close to unreadable, and it is the screen most used outdoors, at a gas stop or in a parking lot. The file's header comment says so and there is deliberately **no `prefers-color-scheme` block in it**, so an implementing agent adding dark tokens partial-by-partial will find nothing to edit and may read that as an omission. It is not. `.feedback-flow` opts out of the scheme axis entirely; it still follows the *theme* axis, since brand color is not the thing that hurts in sunlight.
+
+**Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token **except `style/_feedback.scss`**, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. **Not** `public/js/map-common.js` and not a second Map ID—the map question resolved against touching either. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
 
 **Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
@@ -851,24 +861,42 @@ Two ways out, and the second is probably right:
 
 **Status.** planned—raised 2026-08-16, and placed in **phase 2 of the road to beta** the same day: it ships with import/export, before testers arrive, because the least technical end of the cohort is who it exists for. Note `/prefs` is accumulating: the duration format shipped, item 20 adds two radio groups, and this adds a switch. Item 22's width and grouping pass should be drawn against all four rather than against what is on the page today.
 
-### 26. Rider feedback: reports, ideas and the public board
+### 26. Rider feedback: reports, ideas and the rider board
 
-**Goal.** Give a beta tester somewhere to say "this broke just now" and "I wish it did this", and give the owner a queue to triage it. Phase 3 of the road to beta, and the thing that closes the loop from testers to a release candidate.
+**Goal.** Give a beta tester somewhere to say "this broke just now" and "I wish it did this", and give the owner a queue to triage it. The thing that closes the loop from testers to a release candidate.
 
-**The detail lives in [`docs/rider-feedback.md`](rider-feedback.md)**, a 437-line design written 2026-08-15. It sat in git-ignored `_PLANS/` until 2026-08-16 and was promoted into `docs/` that day—it is a specification rather than working scratch, and one copy on one machine was the wrong home for it. It carries phased commits, marked decision gates and four open calls of its own.
+**Shipped 2026-08-16, in full, in one sprint.** Seven commits on `feat/rider-feedback`: `e0ad184`, `14bd7a1`, `ca816cb`, `8907819`, `99be027`, `b9f5607`, `7da28de`. Everything `docs/rider-feedback.md` specifies is built—intake at `/feedback`, the rider's own list at `/feedback/mine`, the owner queue at `/admin/feedback`, the board at `/board`, wants, an owner alert email, a rider status email, and duplicate merging with rider-deduplicated vote transfer. **The plan's suggestion to hold its last two commits was overruled deliberately.** The suite went from 929 tests across 39 files to **1076 across 44** (2 skipped).
 
-What that plan settles, in brief, so this entry stands alone if the file is ever lost:
+**It has no GitHub issue and will not get one.** Decided 2026-08-16: it shipped without one, there is nothing left to triage, and this entry plus `docs/rider-feedback.md` are the record. Do not file one retroactively.
+
+**The board is signed-in only, and "public" was the wrong word.** `src/routes/feedback.tsx:1086` registers `/board` behind `requireActive`. Confirmed as intended on 2026-08-16 and the docs corrected to match: rider-submitted text and want counts stay inside the beta rather than being crawlable. "Public" in older text meant "visible to every rider", not "anonymous".
+
+What the design settles, in brief, so this entry stands alone if the file is ever lost:
 
 - **Build rather than buy.** Featurebase and Fider were evaluated and rejected—SSO priced at $59/seat/mo, single boards, site-wide moderation toggles, and a rider bounced to a subdomain that is not this app. The app already has Google auth, sessions, an owner email, a mailer, storage and an admin surface, so a signed-in rider submits in one tap with no second account. That is the argument.
 - **The audience shapes every screen.** Riders on phones, often outdoors, who do not know what a console is and will not write reproduction steps. The intake reads like a person asking what happened and infers the rest.
-- **Vocabulary, chosen to stay clear of `ride > day > leg > stop/POI`.** A **report** (`bug`, `idea` or `question`) has a moderation **state** and a rider-facing **status**; a **want** is a vote, and the button says "I want this". The **board** is public at `/board`, the **queue** is the owner's at `/admin/feedback`.
+- **Vocabulary, chosen to stay clear of `ride > day > leg > stop/POI`.** A **report** (`bug`, `idea` or `question`) has a moderation **state** and a rider-facing **status**; a **want** is a vote, and the button says "I want this". The **board** is at `/board`, the **queue** is the owner's at `/admin/feedback`.
 - **It follows the house rule-from-query split**—`feedback/policy.ts` for pure logic that Vitest can drive with no Postgres, `feedback/service.ts` for anything touching the database—matching `invites/`, `survey/` and `stats/`.
 
-**Work.** Follow [`docs/rider-feedback.md`](rider-feedback.md); it carries phased steps and marked decision gates. Do not restate them here—two copies of a 437-line spec will drift. **Four open calls sit at the end of that document and are explicitly not for an implementing agent to decide:** where the entry point goes, how to read map state without touching the `map-common.js` boundary, bright-sun handling, and whether the public board ships now or waits until a request has arrived five or more times.
+**The four open calls are decided**, answered 2026-08-16 and no longer open anywhere:
 
-**Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
+1. **Entry point—both.** An account-menu item ("Tell us something", "Idea board") *and* a floating button on the builder and viewer that pre-fills `?area=`.
+2. **Map state—a plain object on `window`.** `public/js/map-common.js` was not touched; the boundary is intact.
+3. **Bright sun—light-mode-first regardless of system theme**, carried by the `feedback-flow` body class. See item 20, which now depends on this.
+4. **The board ships now**, rather than waiting for a request to arrive five or more times.
 
-**Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
+**A fifth question was settled mid-sprint: no automatic screenshots, and the reasoning is stronger than the plan's.** The plan rules out DOM-capture libraries because Google Maps composites through WebGL, which holds. But BugHerd-style capture uses `getDisplayMedia()`, which *would* capture the map correctly because it captures the composited frame—and it is **unsupported on every mobile browser**: iOS Safari, Android Chrome, Android Firefox and Samsung Internet, all current versions. The audience is riders on phones, so a file input is the whole answer. Recorded so it is not re-litigated.
+
+**Two things are unverified and neither is in a test.**
+
+- **No email has ever been delivered.** Local has no SMTP, so every send logs "skipped: mail is not configured" and returns. The call paths are wired and do not break the flows they hang off, but nothing has confirmed a message arrives.
+- **The flow has only been driven in a desktop browser.** `docs/rider-feedback.md` asks for a real phone—iOS Safari and Android Chrome, in-browser and installed as a PWA—because mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on hardware.
+
+**The 90-day diagnostics retention was deliberately not built.** `src/content/privacy.html` says so plainly rather than naming a window nothing enforces; diagnostics are deleted with the account by cascade. Decided 2026-08-16—not an oversight, do not file it as one.
+
+**Touches.** `src/db/schema.ts` and `drizzle/0004_complex_zodiak.sql`, `src/feedback/` (seven modules), `src/routes/feedback.tsx`, `style/_feedback.scss`, the mailer, `docs/api.md`, `docs/database.md`.
+
+**Status.** **shipped 2026-08-16**, out of order—it was phase 3 of the road to beta and was built first, on an audible called the same day. **Not merged and not pushed**: `feat/rider-feedback` exists on one machine only, `git ls-remote` shows no such branch on the origin, and `git status` reports the old upstream as `[gone]`. Seven commits of finished work with no second copy is the risk to act on before anything else here.
 
 ### 27. Compress stored originals at rest
 

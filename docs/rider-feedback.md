@@ -1,6 +1,8 @@
-# Rider feedback: reports, ideas and the public board
+# Rider feedback: reports, ideas and the rider board
 
-**Created:** 2026-08-15
+**Created:** 2026-08-15. **Shipped 2026-08-16** in seven commits on `feat/rider-feedback`—this document is now a record of a built feature rather than a plan, and every open call at the end of it is answered.
+
+**"Public board" was the wrong phrase and appears throughout this document.** `/board` is behind `requireActive` and always was—see the endpoint table, which has said "**Signed-in only**" since this was written. Read "public" here as "visible to every rider", never "anonymous". Confirmed as intended on 2026-08-16.
 
 ## Context
 
@@ -427,11 +429,22 @@ Manual browser pass, which nothing automated covers:
 - Publish an idea, want it from a second account, merge a duplicate, confirm the count is right and the author was not double-counted.
 - Delete an account with reports and wants attached and confirm the cascades fire.
 
-## Open calls, collected
+## Open calls, collected—all four answered 2026-08-16
 
-Four, all marked inline above. None should be decided by an implementing agent:
+**Nothing here is open.** The four calls below were put to Ziad and answered on 2026-08-16, and the whole spec shipped that day across seven commits. They are kept as a record of what was decided and why, not as questions. The inline markers earlier in this document should be read the same way.
 
-1. **Entry point placement**—account menu, floating button, or both with `?area=` pre-fill.
-2. **Map state without breaking the `map-common.js` boundary**—propose option (b), the state object already on `window`, and do not touch the boundary file unasked.
-3. **Bright-sun handling**—light-mode-first flow, a toggle, or nothing.
-4. **Whether to ship commits 5 and 6 now or hold the public board** until a request has arrived five or more times.
+1. **Entry point placement—both.** An account-menu item ("Tell us something", "Idea board") *and* a floating button on the builder and viewer that pre-fills `?area=`.
+2. **Map state—option (b), the plain state object on `window`.** `public/js/map-common.js` was not touched and the boundary is intact.
+3. **Bright-sun handling—light-mode-first, regardless of system theme**, carried by the `feedback-flow` body class. `style/_feedback.scss` is pinned to light values with no `prefers-color-scheme` block, deliberately. Roadmap item 20 now records this as a dependency: `.feedback-flow` is the surface the dark scheme must skip.
+4. **Ship commits 5 and 6 now.** The board did not wait for a request to arrive five or more times. This overrules the suggestion made earlier in this document.
+
+**A fifth call came up mid-sprint and was settled: no automatic screenshots.** This document rules out DOM-capture libraries because Google Maps composites through WebGL, and that holds—but the stronger reason is that BugHerd-style capture uses `getDisplayMedia()`, which *would* capture the map correctly since it captures the composited frame, and which is **unsupported on every mobile browser**: iOS Safari, Android Chrome, Android Firefox and Samsung Internet, all current versions. The audience is riders on phones, so a file input is the whole answer. Recorded so it is not re-litigated.
+
+**The 90-day diagnostics retention in this plan was deliberately not built.** `src/content/privacy.html` says so plainly rather than naming a window nothing enforces; diagnostics are deleted with the account by cascade. Decided 2026-08-16—not an oversight.
+
+## Still to verify
+
+Neither of these is reachable by a test, and both want doing before a tester sees the app.
+
+- **No email has ever been delivered.** Local has no SMTP, so every send logs "skipped: mail is not configured" and returns. The call paths are wired and do not break the flows they hang off, but nothing has confirmed a message arrives.
+- **The flow has only been driven in a desktop browser.** The Verification section above asks for a real phone—iOS Safari and Android Chrome, in-browser and installed as a PWA—because mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on hardware.
