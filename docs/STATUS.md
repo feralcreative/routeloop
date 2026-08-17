@@ -1,13 +1,25 @@
 # Status and handoff
 
-**Updated:** 2026-08-15
-**Branch:** `feat/builder-panel`, seven commits ahead of `main`, none pushed—869 tests across 37 files
-**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename
+**Updated:** 2026-08-16
+**Branch:** `feat/fixed-day-slider`, eleven commits, none pushed—**929 tests across 39 files** (2 skipped, 931 total)
+**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename. The alternate object from roadmap item 14 shipped on this branch; [#68](https://github.com/feralcreative/routeloop/issues/68) still describes the whole bundle including voting and needs rewriting or a child issue.
 **For:** the next agent, or the owner returning cold
 
-**One schema change is in this branch and it has been applied to the local dev database only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`. It is additive—a new enum type and one column with a default—so it needs no backfill and rewrites no table, but stage and production have not seen it and the deploy is the thing that applies it.
+**Two schema changes are in play and both are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`. Both are additive with defaults, so neither needs a backfill or rewrites a table—but stage and production have seen neither, and **the deploy is the thing that applies them**. Once the alternates code is deployed without 0003, every save 500s: `insertRideGraph` writes two columns that would not exist.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## Alternate days, and the drawer—`feat/fixed-day-slider`, 2026-08-16
+
+**The alternate object from roadmap item 14 shipped, at day level, for a single planner.** Two or more days can be grouped as alternatives of one another; exactly one is active; only the active one counts toward any mileage, duration or stop count anywhere in the app. Losing alternates are kept, drawn dashed on the map, badged in the viewer legend and the builder, and excluded from the roadbook, the hand-off page and all four lossy export formats. The native JSON keeps everything. **Voting, resolution and vote scoping are not built**—that is the half of item 14 that still depends on riders (item 8).
+
+Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NULL DEFAULT true`, plus the partial unique index `uq_day_alt_active`, in `drizzle/0003_sticky_firebird.sql`. No backfill was needed—the defaults describe every pre-existing row correctly. The rule lives in `src/maps/alternates.ts`, mirrored by `public/js/alternates.js` and pinned by `test/alternates.test.ts`.
+
+**`setRouteDim` could not be reused for ghosting, and this is the design note worth keeping.** `entry.dim` is already owned by day focus in the builder and by hover and the timeline in the viewer, so ghosting through it un-ghosts an alternate the instant it is focused. `map-common.js` gained a third state, `entry.ghost`, drawn dashed with no direction arrows—a different *kind* of line, because opacity already means "not focused".
+
+**The branch carried more than the alternates.** Fourteen feature and style commits in all, and the ones outside the alternates work were not in the hand-off summary: the floating panel became **a left drawer showing every day** (`eda5b7c`), every day gained **its own search row** and the global search box went (`ec89103`), a **day menu and select mode** with bulk day and point actions landed (`6f97a66`), the AI-generated icons were **replaced with human-drawn ones** and the day header tightened to a measured 10px (`8e5a6e8`, `efa16a7`), and `moto-storage` was renamed **`storage`** (`545fa81`). Those are recorded here from their commit messages rather than from a read of the diffs—the alternates detail above came from the implementing agent's own hand-off and was verified against the schema, the files and the suite.
+
+**Suite: 929 passing across 39 files**, 2 skipped, 931 total—verified 2026-08-16, up from 869 across 37.
 
 ## The builder panel redesign—epic #88, all five phases, 2026-08-15
 

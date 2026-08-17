@@ -41,6 +41,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: Noob Mode | item 25 |
 | **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
+| **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
 **Decisions that landed outside this file**, and will not be found by reading it alone:
 
@@ -444,12 +445,12 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] An **alternate** is a first-class thing: two or more candidate paths that share a start and end anchor and diverge between them. Exactly one is the **active** path at a time; the others ride along as recorded options rather than being thrown away.
+- [x] An **alternate** is a first-class thing: two or more candidate paths that share a start and end anchor and diverge between them. Exactly one is the **active** path at a time; the others ride along as recorded options rather than being thrown away. **Shipped 2026-08-16 at day level**, for a single planner—`days.alt_group` / `days.alt_active`, `src/maps/alternates.ts`, and Group as alternatives / Ride this one instead / Ungroup in the builder.
 - [ ] Up/down voting on each alternate—one vote per ride member, changeable until the decision closes—with a live tally.
-- [ ] A resolution step: the ride leader promotes the winning alternate to the active path, or opts into auto-resolve by tally at a deadline. A losing alternate is kept, so a reversed decision doesn't lose the work.
+- [ ] A resolution step: the ride leader promotes the winning alternate to the active path, or opts into auto-resolve by tally at a deadline. A losing alternate is kept, so a reversed decision doesn't lose the work. **Half of this shipped 2026-08-16**: promotion exists as a builder action and losing alternates are kept. Auto-resolve by tally needs the votes.
 - [ ] Voting is scoped to invited ride members, never the public share link, and writes on a member's behalf so it needs the same abuse guardrails as any write.
-- [ ] Draw alternates distinctly—active path solid, alternates ghosted—and let a voter see each option on the map before voting. Reuse the route-dim / hover machinery.
-- [ ] Timeline and roadbook show the **active** path only; alternates never clutter the hand-off.
+- [x] Draw alternates distinctly—active path solid, alternates ghosted—and let a voter see each option on the map before voting. ~~Reuse the route-dim / hover machinery.~~ **Shipped 2026-08-16, with one correction: `setRouteDim` could _not_ be reused.** `entry.dim` is already owned by day focus in the builder and by hover and the timeline in the viewer, so ghosting through it un-ghosts an alternate the moment it is focused. `map-common.js` gained a third state, `entry.ghost`, drawn dashed with no direction arrows—a different _kind_ of line, because opacity already means "not focused".
+- [x] Timeline and roadbook show the **active** path only; alternates never clutter the hand-off. **Shipped 2026-08-16**—`loadRideForExport()` filters unconditionally, so the roadbook, the hand-off page, the zip and all four lossy formats get it without each remembering to.
 
 **Open questions to settle when building.**
 
@@ -460,9 +461,11 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Touches.** `src/db/schema.ts` (alternates + votes), new routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js` (ghosted alternates), the timeline and roadbook (active path only).
 
-**Status.** planned—a group-collaboration feature; depends on riders (item 8) and overlaps the collaborative-editing backlog item.
+**Status.** in progress—**the alternate object shipped 2026-08-16** on `feat/fixed-day-slider`, at day level and for a single planner, which is the split the note below recommended. What remains is the group-collaboration half: voting, vote scoping and auto-resolve, all of which still depend on riders (item 8).
 
-**This item should be split, and item 21 is why.** It currently bundles three things: the **alternate object** (two or more candidates for a stretch, exactly one active), the **voting**, and the **resolution**. Only the first is group collaboration; the other two are. Item 21 needs the object and none of the machinery—a rider importing two files for day 2 is not holding a vote—so as written, linking alternates at import time would sit behind riders (item 8) for no reason at all. Land the alternate object on its own, with the builder able to create and switch alternates for a single planner, and let voting build on top of it when riders exist. That also means the schema question above gets settled by a much smaller piece of work than this whole item.
+**This item was split, and item 21 is why.** It bundled three things: the **alternate object** (two or more candidates for a stretch, exactly one active), the **voting**, and the **resolution**. Only the last two are group collaboration. The object landed on its own on 2026-08-16 with the builder able to create, switch and ungroup alternates for a single planner—so item 21 no longer sits behind riders (item 8), and the schema question was settled by a much smaller piece of work than this whole item, exactly as this note predicted.
+
+**Two limits the shipped object carries, both accepted 2026-08-16.** A group member is exactly one day, so a **multi-day alternate**—"day 3 direct, or days 3b and 3c the long way with an overnight"—has no representation; that was chosen knowingly for the simpler shape, and adding it later means a third `alt_branch` column and a branch filter rather than a toggle. And **`MAX_DAYS = 31` now counts alternates**, so a 31-day ride cannot carry one. The cap's meaning changed quietly when the columns landed; **left as it is, deliberately**—31 days is already an extreme ride and the overlap with wanting alternates is negligible. It is documented here and in `docs/database.md` so the next person meets a stated limit rather than a mystery.
 
 ### 15. On-the-road mobile interface
 
@@ -709,7 +712,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 - [ ] Prefer the file's internal track name over the filename-derived title now that staging makes it available.
 - [ ] **Exact duplicates**—called out, with a one-click drop of the copy.
 - [ ] **Similar routes**—called out as **candidate alternates for the same day**, linkable right there in the table rather than by opening the builder afterwards. Decided 2026-08-16, and it is the point of the feature: a rider who drops two files for day 2 is telling you they have two ways to ride day 2.
-- [ ] Pick which linked candidate is **active**. Item 14 requires exactly one at a time; on import the sane default is the first in day order, with the table able to change it before commit.
+- [ ] Pick which linked candidate is **active**. Item 14 requires exactly one at a time; on import the sane default is the first in day order, with the table able to change it before commit. **The mechanism exists as of 2026-08-16**: set `altActive` on one member of an `altGroup` and the server elects it. If the manifest names none, `resolveAltGroups()` elects the lowest-indexed member, which is already "first in day order".
 - [ ] Rewrite the "the two cannot disagree" comment in `src/maps/filename.ts`.
 - [ ] Extend `test/round-trip.test.ts`'s sibling coverage to the manifest: an edited manifest must produce exactly the ride it describes, which is the only assertion that catches an edit being silently ignored.
 
@@ -720,12 +723,12 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 
 **Open questions.**
 
-- **Does item 14's alternate object have to wait for item 14?** As written it does, and item 14 depends on riders (item 8), which would chain this item behind group collaboration for no good reason. Import needs only the **alternate**—two candidates, one active—and none of the voting, resolution or membership machinery around it. Splitting that object out of item 14 so it can land alone is probably the right move and would unblock this item entirely. Item 14's note now says the same from its side.
+- **Does item 14's alternate object have to wait for item 14? Answered 2026-08-16: no—it shipped without it.** The object landed on its own: `days.alt_group` / `days.alt_active`, one active per group, enforced by `src/maps/alternates.ts`. This item is unblocked and needs no new schema for the link relation. Two things it can rely on: grouping is a payload-carried key re-resolved on every save, so the importer sets it the same way the builder does and stores no id of its own; and a group of one is dissolved rather than rejected, so a manifest that links two files and then drops one is a legal payload rather than a validation error.
 **Decided 2026-08-16: both hashes, and two different prompts.** A byte hash answers "you dropped this same file twice"; a hash of normalized parsed geometry answers "this is the same route exported by a different tool". They are two different rider mistakes and deserve two different sentences—a single generic "duplicate found" makes the rider work out which one happened. The byte hash also earns its place as a cheap pre-filter, since it needs no parse and settles the common case before the expensive path runs. Note the geometry hash strictly subsumes the byte hash, so this is a messaging and performance decision rather than a coverage one, and the two must never both fire on the same pair.
 - **Where the ride-name field goes for a single-file import**, where there is no table to head.
 - **How the export half survives this. Answered 2026-08-16: it does not—it is being replaced too, as item 23.** `/import` already is Import / Export (`import.tsx` renders both under one `<h1>`, though `main-menu.md` carried it as a pending decision long after it shipped), and the export half is now getting its own redesign around search and a cart. So both halves of this page are being redrawn at once and **should be drawn together**, not in sequence. Item 23 also depends on this item's review table for the multi-ride zip to be safe to re-import—see the zip-contract note there. Item 22 widens the page they both sit in and comes first.
 
-**Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging, and the link relation once it is named), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
+**Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging only—the alternates link relation already exists as of 2026-08-16), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
 
 **Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts.
 

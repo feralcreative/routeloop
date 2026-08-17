@@ -95,6 +95,8 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native J
       "color": "#0066cc",
       "startAt": null,
       "endAt": null,
+      "altGroup": null,
+      "altActive": true,
       "stops": [
         {
           "lat": 0,
@@ -122,6 +124,8 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native J
 ```
 
 Geometry pairs are `[lng, lat]`.
+
+`altGroup` and `altActive` mark alternate days—two or more candidates for the same stretch, of which exactly one counts. Both default, so a file written before they existed still validates and `NATIVE_FORMAT_VERSION` did not move. The server re-resolves them on every write: a group of one is dissolved, exactly one member is elected active, and group ids are renumbered densely from 0—so what comes back is not always what was sent, and that is the contract rather than a bug. `ride.json` sends every day including the losing alternates, because the viewer has to receive one in order to ghost it; the four lossy export formats send only the active days, because none of them can express "this is an option" and a re-import would silently promote every loser to a real day.
 
 Server-side integrity on save: all text is sanitized, coordinates are rounded to 6 decimals, and each leg's claimed `distanceM` is clamped to the haversine length of its geometry if it deviates by more than 15 %—Directions stays authoritative in the honest case, and spoofing is bounded.
 
