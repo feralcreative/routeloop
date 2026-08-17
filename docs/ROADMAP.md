@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 29 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 30 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -43,6 +43,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: gzip stored originals at rest, 7.2x measured; quota stays uncompressed and the default rises to 100 MB | item 27, folded into phase 2 |
 | **New**: route thumbnails from Static Maps, built by a five-minute sweep that skips rides still being edited, gated by a URL hash | item 28, folded into phase 2 |
 | **New**: ride lists become card grids on all four browsing surfaces, with the thumbnail as the card face | item 29, phase 2 and after 28 |
+| **New**: visual treatment for the dashboard records block; quips were proposed and dropped the same day | item 30, unscheduled |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -981,6 +982,33 @@ Three of the four move together because they are one component. That is a reason
 **Touches.** `src/views/cards.tsx`, `src/routes/rides.tsx`, `style/_chrome.scss`, and `style/_dashboard.scss` if the dashboard strip diverges. **Interacts with item 22**—a wider content column on desktop is what makes a three- or four-up grid worth having, so the two are better done in either order than half of each.
 
 **Status.** planned—**phase 2, after item 28**, decided 2026-08-16. Blocked on the thumbnails by design rather than by dependency; the code would build without them and should not.
+
+### 30. Make "Your records" flashier
+
+**Goal.** The records block is the most celebratory thing on the dashboard and currently looks like the least. Four bordered white boxes with a 1.15rem number in each—the same weight the app gives a form label. Quips were considered and dropped on 2026-08-16; this is a visual treatment only, no copy changes and no new data.
+
+**What it is today**, `style/_dashboard.scss:262`: a `repeat(auto-fit, minmax(13rem, 1fr))` grid of `li`, each a white box with a 1px border and 10px radius, holding an uppercase 0.8rem `.record-label`, a 1.15rem/600 `.record-value` and a 0.85rem `.record-hint`. The markup is already right—the problem is entirely that nothing in it is loud.
+
+**The moves, cheapest first.**
+
+- **Scale the number up hard.** 1.15rem is timid for the one figure on the block worth reading. The page already has a precedent in `.hero-value`; records should sit clearly between that and body text rather than beside a label.
+- **Split the unit off the number.** "482 mi" reading as one string wastes the emphasis on "mi". Big numeral, small unit, and the same split works for the twist figure.
+- **An icon per record.** There are exactly four kinds and they are fixed, so this is four glyphs and no logic. The icon set was already reworked on this branch (`8e5a6e8`), so there is a house style to match rather than invent.
+- **Give the box some presence.** A tint or accent edge instead of the flat `$grey` border, and a hover lift. These are achievement cards; they should not be styled like the storage meter.
+- **Count-up on load, as the genuinely flashy option.** Cheap—the values are already rendered—and the block is above the fold on a page riders open often. **Gate it on `prefers-reduced-motion`**, and make the final value the rendered one so a rider who blocks scripts sees the number rather than a zero.
+
+**Build it on tokens, not literals, or it gets done twice.** Item 20 brings three themes across light and dark. `_dashboard.scss` currently hard-codes `$white`, `$grey` and `$neutral-57` throughout, which is a pre-existing problem and not this item's to fix—but new tints, accents and shadows added here should come from the theme layer, because anything spelled as a literal color now is work to be redone when item 20 lands.
+
+**Work.**
+
+- [ ] `style/_dashboard.scss`—the `.record-list` treatment: scale, accent, hover.
+- [ ] `src/stats/shape.ts`—split value and unit if the type split is wanted in markup rather than in CSS. This is the only reason the item touches anything but styles.
+- [ ] `src/routes/home.tsx`—icon slot per record kind.
+- [ ] Count-up, behind `prefers-reduced-motion`, degrading to the static number.
+
+**Touches.** `style/_dashboard.scss` mainly, `src/routes/home.tsx` for the icons, `src/stats/shape.ts` only if value and unit get split server-side.
+
+**Status.** planned—small and self-contained, no schema and no queries. A good candidate to slot in beside phase 1 work when a break from the builder is wanted.
 
 ## Idea backlog (unscheduled)
 
