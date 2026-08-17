@@ -1,13 +1,40 @@
 # Status and handoff
 
 **Updated:** 2026-08-16
-**Branch:** `feat/fixed-day-slider`, 25 commits ahead of `main`—14 feature and style, 11 docs—and pushed, in sync with `origin/feat/fixed-day-slider`. **929 tests across 39 files** (2 skipped, 931 total)
-**Closes, since the last update:** epic #88 entire—#39, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98—plus #104's route rename. The alternate object from roadmap item 14 shipped on this branch; [#68](https://github.com/feralcreative/routeloop/issues/68) still describes the whole bundle including voting and needs rewriting or a child issue.
+**Branch:** `feat/rider-feedback`, 11 commits ahead of `main`—6 feature, 5 docs—and pushed, in sync with `origin/feat/rider-feedback`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
+**Closes, since the last update:** the `feat/fixed-day-slider` branch merged to `main` as [#107](https://github.com/feralcreative/routeloop/pull/107). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
 **For:** the next agent, or the owner returning cold
 
-**Two schema changes are in play and both are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`. Both are additive with defaults, so neither needs a backfill or rewrites a table—but stage and production have seen neither, and **the deploy is the thing that applies them**. Once the alternates code is deployed without 0003, every save 500s: `insertRideGraph` writes two columns that would not exist.
+**Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## Rider feedback, end to end—`feat/rider-feedback`, 2026-08-16
+
+**The whole feature shipped in one branch: intake, owner queue, public board, wants, status emails and duplicate merging.** A rider can report a bug, propose an idea or ask a question from inside the app; the owner triages at `/admin/feedback`; published ideas appear on `/board` where riders vote with "I want this". Built to the plan in [rider-feedback.md](rider-feedback.md), which was written before any of it and held up—the deviations are listed below rather than folded away.
+
+**Four gates in that plan were open and all four were decided on 2026-08-16.** Entry point: **both**—an account-menu item plus a floating button on the builder and viewer that pre-fills `?area=`. Map state: **a plain object on `window`**, so `public/js/map-common.js` stays the only file naming `google.maps` and the boundary is untouched. Bright sun: **light-mode-first regardless of the system theme**, carried by the `feedback-flow` body class. The board: **shipped now** rather than held back.
+
+**Screenshots are a file input and nothing else, and the reasoning changed.** The plan ruled out DOM-capture libraries because Google Maps composites through WebGL and hands back a blank rectangle. BugHerd-style capture came up during the build and was checked properly: it uses `getDisplayMedia()`, which *would* capture the map correctly because it captures the composited frame—but it is unsupported on **every** mobile browser (iOS Safari, Android Chrome, Android Firefox, Samsung Internet, all current versions), and this flow's audience is riders on phones. The plan's conclusion survives; the reason is now stronger than "no library can do it".
+
+**Four things a reader should not have to rediscover:**
+
+- **`state` and `status` are two columns, and that pair IS the private-bug feature.** Nothing is visible to anyone but its author and the owner until `state = 'published'`, and nothing publishes a bug by default. There is no separate private-bug mechanism to find.
+- **Wants are deduplicated by Postgres, never by application code.** The composite primary key on `feedback_votes` is the one-per-rider guarantee; the toggle reads what it actually wrote rather than asking first; `mergeDuplicate` transfers votes with `INSERT … SELECT … ON CONFLICT DO NOTHING`. Verified with an overlapping voter: {2,1} merged into {3,1,4} gives 4 unique riders, not 5.
+- **Diagnostics are redacted on the way in, never on the way out.** A redaction applied at render time is not a redaction—the data is already stored and already in a backup. `src/feedback/diagnostics.ts` is the only way in.
+- **The queue is several small forms on purpose.** `moderate()` writes only the fields it is given, so saving a private note cannot blank a public response. One wide form would.
+
+**Deviations from the plan, all deliberate:**
+
+- `GET /feedback/:publicId/photo/:n` was added—it is not in the plan's route table, and without it the queue can store an image and never show one.
+- The owner alert is `src/emails/owner-feedback.tsx`, not the plan's `feedback-received.tsx`, following `owner-signup.tsx`: in that directory the `owner-` prefix means "written for the person running the site".
+- `feedback-buffer.js` loads on **every** page rather than with the flow, because by the time a rider decides to report something the error happened minutes ago on another screen.
+- A `kind` picker was added to the queue, because the "Just start typing" escape hatch stores `bug` and reclassifying has to be possible somewhere.
+- The plan's 90-day diagnostics retention is **not implemented**, and the privacy page says so rather than naming a window nothing enforces. Diagnostics are deleted with the account by cascade.
+
+**Three bugs found by running it, none visible to `tsc`:** `wantedBy` crashed every board render because a JS array interpolated into a `sql``` template expands to a tuple (`inArray` is the fix); a double-tap on a want 500'd on the primary key (`onConflictDoNothing` plus reading what was inserted); and the floating button sat on Google's zoom controls, which occupy the entire right edge of the map from y≈823 down to the attribution strip.
+
+**Not verified: no email has actually been delivered.** SMTP is unconfigured locally, so every send logs "skipped: mail is not configured" and returns. The call paths are wired and do not break the flows they hang off, but the sends themselves are untested until they run somewhere with `SMTP_*` set.
 
 ## Alternate days, and the drawer—`feat/fixed-day-slider`, 2026-08-16
 

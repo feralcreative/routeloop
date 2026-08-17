@@ -27,7 +27,7 @@ export const pageRoutes = new Hono<AuthEnv>()
 // which is exactly why the two cannot share one: bumping privacy would date-
 // stamp a change to terms that never happened, and the privacy page promises
 // the date only moves when something actually moved.
-const PRIVACY_EFFECTIVE = '3 August 2026'
+const PRIVACY_EFFECTIVE = '16 August 2026'
 const TERMS_EFFECTIVE = '1 August 2026'
 
 // Two spans that used to be written as the years they started, which quietly

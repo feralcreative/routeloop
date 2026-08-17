@@ -79,6 +79,32 @@ Import specifics: several files posted at once become the days of one ride, and 
 
 The rule and the claim are deliberately separate: `src/invites/policy.ts` holds what an invite may do as pure functions, and the conditional `UPDATE … RETURNING` in `service.ts` is the race guard, so two riders taking the last seat cannot both win.
 
+## Rider feedback (`routes/feedback.tsx`)
+
+| Route                                     | Gate                                     | Notes                                                                                                                                                                              |
+| ----------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /feedback`                           | `requireActive`                          | The intake. Accepts `?kind=` and `?area=` so an entry point can pre-fill both                                                                                                      |
+| `POST /feedback`                          | `requireActive` + `requireSameOrigin`    | Multipart. `action=next` advances a screen and writes nothing; `action=send` creates the report, its diagnostics row and any attachments in one transaction                        |
+| `GET /feedback/mine`                      | `requireActive`                          | The rider's own reports, every state—the one surface where they see their own declined and duplicate rows                                                                          |
+| `GET /feedback/thanks`                    | `requireActive`                          | Full-screen confirmation. A toast that has already faded is indistinguishable from a form that silently failed                                                                     |
+| `GET /feedback/:publicId`                 | `requireActive`                          | One report. `visibleTo` decides, and a report the viewer may not see is a **404, not a 403**—matching the ride-slug precedent, because a 403 confirms someone reported something   |
+| `GET /feedback/:publicId/photo/:n`        | `requireActive`                          | One attachment, gated by the same `visibleTo` as the report. A storage key is a path, not a capability                                                                             |
+| `GET /board`                              | `requireActive`                          | Published **ideas** only. Signed-in only, the same reasoning as `/riders`                                                                                                          |
+| `POST /board/:publicId/want`              | `requireActiveApi` + `requireSameOrigin` | Idempotent toggle. Answers JSON when `Accept` asks for it and redirects to `/board` otherwise, so the button works with no JavaScript                                              |
+| `GET /admin/feedback`                     | `requireManageRiders`                    | The queue. Pending first, then newest; filterable by state and kind                                                                                                                |
+| `GET /admin/feedback/:id/diagnostics`     | `requireManageRiders`                    | The stored blob for one report, read through `parseDiagnostics`. Its own page because it is 5–50 KB and forty of them inline would make the worklist unusable                       |
+| `POST /admin/feedback/:id`                | `requireManageRiders` + `requireSameOrigin` | Moderation. Fields are optional and only what is present is written                                                                                                             |
+
+`/feedback/mine` and `/feedback/thanks` are registered **before** `/feedback/:publicId`, or the parameterized route swallows them—the same class of bug as the zip route ordering above.
+
+**Two columns, not one.** `state` is the owner's gate (`pending`, `published`, `declined`, `duplicate`, `spam`) and controls visibility; `status` is the rider-facing lifecycle. They are orthogonal on purpose: a bug is routinely `fixed` while still `pending`, and collapsing them into one enum is the mistake the pair exists to prevent. **This is also what makes a bug private without a private-bug feature**—nothing is visible to anyone but its author and the owner until it is `published`, and nothing publishes a bug by default.
+
+`POST /admin/feedback/:id` only writes the fields it is given, so the queue's several small forms cannot blank each other's values. Two behaviours worth knowing: `not_doing` is refused without a `publicResponse`, because that status's whole content is the explanation; and `mergeInto` is a separate operation from the `duplicateOf` field, because merging *moves vote rows onto another report* and setting the field only records the relationship.
+
+Wants are deduplicated by Postgres rather than by application code. The composite primary key on `feedback_votes` is the one-per-rider guarantee, the toggle reads what it actually wrote instead of asking first, and `mergeDuplicate` transfers votes with `INSERT … SELECT … ON CONFLICT DO NOTHING`—so a rider who wanted both the original and the duplicate is counted once.
+
+Diagnostics are collected client-side, redacted server-side by `src/feedback/diagnostics.ts`, and **never stored unredacted**: query strings and fragments are stripped from every URL, coordinate pairs are dropped wherever they appear, and geolocation is recorded as a permission state and never a position.
+
 ## The ride payload (save = load shape)
 
 Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
