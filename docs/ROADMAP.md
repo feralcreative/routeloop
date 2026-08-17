@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 28 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 29 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -42,6 +42,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
 | **New**: gzip stored originals at rest, 7.2x measured; quota stays uncompressed and the default rises to 100 MB | item 27, folded into phase 2 |
 | **New**: route thumbnails from Static Maps, built by a five-minute sweep that skips rides still being edited, gated by a URL hash | item 28, folded into phase 2 |
+| **New**: ride lists become card grids on all four browsing surfaces, with the thumbnail as the card face | item 29, phase 2 and after 28 |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -941,6 +942,45 @@ One consequence worth knowing: restyling the map is a one-parameter change that 
 **Touches.** New `src/maps/thumbnail.ts`, `src/views/cards.tsx`, `src/db/schema.ts` and a migration, `style/_chrome.scss` for the card layout, and whatever runs the daily pass. Notably **not** `src/routes/builder.ts`—the autosave path is untouched, which is the point of putting the trigger on `updated_at` rather than in the save handler.
 
 **Status.** planned—**folded into phase 2**, where items 21 and 23 are already building lists of rides that would show these, and where item 27 is already opening the storage layer. Not a beta blocker on its own.
+
+### 29. Cards instead of rows, wherever rides are listed
+
+**Goal.** A ride in a list should show its route, not just its title. Every browsing list becomes a grid of cards with the item 28 thumbnail as the face of each one. **Stated as a general preference on 2026-08-16**—cards over rows anywhere rides are browsed—rather than as a fix to two named pages.
+
+**It depends on item 28 and is not worth starting before it.** A card without a thumbnail is a row with more padding, and worse: it trades a scannable dense list for a sparse one and gives nothing back. Ship the pictures first.
+
+**The four surfaces, and how they are wired.**
+
+| Surface | Renders via | Notes |
+| --- | --- | --- |
+| `/` dashboard, "Picking up where you left off" | `rideCards()` | A short recent strip inside a page already carrying tiles, a role chart, an activity graph and a meter. The densest context of the four; check it does not crowd. |
+| `/explore` | `rideCards(cards, showViews)` | Also shows a view count. |
+| `/@username` public profiles | `rideCards(cards)` | |
+| `/rides`, "Your rides" | `OwnRideRow` in `src/routes/rides.tsx:22` | **Deliberately not shared**—it carries a visibility pill and an Edit link the public card must never show. Read the comment above it before merging the two; the separation is the contract. |
+
+Three of the four move together because they are one component. That is a reason to convert them together rather than an obstacle.
+
+**Where this stops, and it matters because "everywhere" invites over-application.** This is about lists a rider *browses*. It is **not** the import review table (item 21), which is an editable manifest with draggable day order and inline fields—a data grid, where cards would actively hurt. It is **not** the export cart (item 23), which is a selection list where compact rows are the right density. Both of those are lists of rides, and neither of them wants this.
+
+**Design calls, decided 2026-08-16.**
+
+- **A fixed aspect box, not one per route.** A route's bounding box is whatever shape the road took—a long north-south ride and an east-west one have nothing in common—so uniform cards mean picking one ratio and letting Static Maps fit the route inside it. Its auto-fit already does that when `center` and `zoom` are omitted, so this costs a `size` parameter and no extra logic. `size=320x200&scale=2` renders 640×400 actual pixels, which is within the 640 cap and sharp on a retina card at roughly 320 CSS pixels.
+- **Edit and the visibility pill go in a footer strip inside the card**, pill left, Edit right, below the title and stats. Always visible rather than revealed on hover: hover does not exist on a phone, and a meaningful share of the beta cohort is on one, so a hover-only affordance needs a visible fallback below tablet width and is therefore two implementations to save nothing.
+- **The existing color swatch becomes the placeholder**, for a ride whose thumbnail has not been built yet and for one with no geometry to draw—a ride with stops but no legs is a real state, not a hypothetical.
+
+**One trap, and it is invalid HTML rather than a style bug.** Today `<a class="card">` wraps the whole row and `.editlink` is a **sibling** inside the `<li>` (`src/routes/rides.tsx:24-39`). That structure is what keeps Edit out of the card's link. A footer strip drawn *inside* the card link nests an anchor in an anchor, which browsers silently reparent—so the layout breaks in a way that looks like a CSS problem and is not. Keep the footer a sibling of the card link and position it with the grid.
+
+**Work.**
+
+- [ ] `src/views/cards.tsx`—the card gains a thumbnail slot; `.swatch` becomes the fallback. While in the file, note that `rideCards()` returns a string via `.toString()` for callers that still concatenate; converting it is out of scope here but the comment at the top of the file explains the plan.
+- [ ] `src/routes/rides.tsx`—`OwnRideRow` gains the same thumbnail plus the footer strip. Stays a separate component.
+- [ ] `style/_chrome.scss`—`a.card`, `.swatch`, `.meta`, `.cardrow` and `.editlink` are all built around a flex row and get replaced. A responsive grid on `.cards`, auto-filling on a minimum card width, so one column on a phone falls out of the same rule.
+- [ ] Check the dashboard strip specifically. It is the one surface where a grid competes with everything else on the page, and it may want a smaller card or a horizontal scroller rather than the same grid.
+- [ ] Lazy-load thumbnails below the fold. A profile or an Explore page is an unbounded list of images now, which it never was before.
+
+**Touches.** `src/views/cards.tsx`, `src/routes/rides.tsx`, `style/_chrome.scss`, and `style/_dashboard.scss` if the dashboard strip diverges. **Interacts with item 22**—a wider content column on desktop is what makes a three- or four-up grid worth having, so the two are better done in either order than half of each.
+
+**Status.** planned—**phase 2, after item 28**, decided 2026-08-16. Blocked on the thumbnails by design rather than by dependency; the code would build without them and should not.
 
 ## Idea backlog (unscheduled)
 
