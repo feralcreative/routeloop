@@ -1,13 +1,32 @@
 # Status and handoff
 
 **Updated:** 2026-08-16
-**Branch:** `feat/rider-feedback`, 11 commits ahead of `main`—6 feature, 5 docs—and pushed, in sync with `origin/feat/rider-feedback`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
-**Closes, since the last update:** the `feat/fixed-day-slider` branch merged to `main` as [#107](https://github.com/feralcreative/routeloop/pull/107). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
+**Branch:** `main`, clean and in sync with `origin/main`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
+**Closes, since the last update:** two branches merged—`feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
 **For:** the next agent, or the owner returning cold
+
+**One known defect is on `main` and unfixed—see "The alternates walkthrough" below.** The alternates UI says "alternative" where `AGENTS.md` fixes the noun as **alternate**: nine rider-facing strings across `public/js/builder.js` and `public/js/viewer.js`, plus three undo-step labels. Mechanical to fix and deliberately left rather than folded into an unrelated branch.
 
 **Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## The alternates walkthrough, finally done—2026-08-16
+
+The day-level alternates shipped on 2026-08-16 without the manual pass its own plan called for, because the feedback sprint was called immediately afterwards. That pass has now been run against `main`, on ride 9 (`Bodega Bay via the back roads`, 4 days, 500.3 mi). **All six checks pass.**
+
+- **Grouping drops the ride total.** Days 2 and 3 grouped: 4 days / 500.3 mi became 3 days / 444.7 mi, renumbered 1, 2, 2b, 3.
+- **The group survives a reload.** Stored as `alt_group = 0` on both with one `alt_active`, and `rides.total_miles` cached at 444.7 with the ghost excluded. This is the `loadRidePayload` / `loadExisting` pair the plan names as the silent-failure risk, and it holds.
+- **Promoting a losing alternate moves the total.** 444.7 → 306.3 mi.
+- **Deleting the active member dissolves the group, silently.** All three remaining days came back `alt_group = NULL`, no error raised, total recomputed. `resolveAltGroups` step 3 as specified.
+- **Every lossy surface drops the losing alternate.** GPX, KML, GeoJSON, CSV, the roadbook and the hand-off page: zero of three ghost-exclusive stop names present.
+- **Both lossless surfaces keep it.** Native JSON and `ride.json`: three of three.
+
+**A note on how to run that export check, because the obvious way is wrong.** A first pass grepped each export for the ghost day's stop names and reported leaks in all five lossy formats. Every one was a substring false positive—"Healdsburg" also occurs inside "The dispersed spot, Healdsburg" on an *active* day, and "Bodega Bay" is part of the ride title. Only names that appear on the ghost and **nowhere else in the document** prove anything. Same trap as the banned-word matching in `test/feedback-status-labels.test.ts`.
+
+**The one defect found: the UI says "alternative", not "alternate".** `AGENTS.md` fixes the vocabulary and calls it settled—"Not 'variant', not 'option'"—and "alternatives" is a third wrong word that slipped through because it reads almost right. Nine rider-facing strings: the "Group as alternatives" bulk-action button, "Ungroup alternatives" in the day menu, the `alternative` badge on a ghost day, three toasts, the endpoint-mismatch warning, and four strings in the viewer legend. Plus three `beginEdit()` undo-step labels. It is a find-and-replace in `public/js/builder.js` and `public/js/viewer.js`, leaving the ordinary-English uses in comments alone—`builder.js:1131`, `src/emails/theme.ts`, `src/survey/csv.ts` and `src/views/layout.tsx` all use the word correctly and must not be swept up.
+
+**Still not done, and it needs hardware:** the feedback flow has only been driven in a desktop browser. `docs/rider-feedback.md` asks for a real phone—iOS Safari and Android Chrome, in-browser and installed as a PWA—because mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on a device.
 
 ## Rider feedback, end to end—`feat/rider-feedback`, 2026-08-16
 
