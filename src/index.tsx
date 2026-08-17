@@ -28,6 +28,7 @@ import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
 import { inviteRoutes } from './routes/invites'
 import { surveyRoutes } from './routes/survey'
+import { feedbackRoutes } from './routes/feedback'
 import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
@@ -160,6 +161,11 @@ app.route('/', homeRoutes)
 // regex param is the greediest thing in the table.
 app.route('/', inviteRoutes)
 app.route('/', surveyRoutes)
+// Ahead of pageRoutes for the same reason as the two above. Its own internal
+// ordering matters too — /feedback/mine and /feedback/thanks are registered
+// before /feedback/:publicId inside the module, or the parameterized route
+// swallows them.
+app.route('/', feedbackRoutes)
 app.route('/', ridesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
@@ -524,6 +530,8 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
     user,
     variant: 'map',
     noscript: VIEWER_NOSCRIPT,
+    // Matches areaFromPath('/m/:slug') in src/feedback/policy.ts.
+    feedbackArea: 'map',
     body: `  <div id="map"></div>\n\n  ${viewerPanel(
       m,
       canEditRide(m, user) ? `/builder/${m.id}` : null,

@@ -17,6 +17,7 @@
 // before anything is written.
 import { describe, expect, it } from 'vitest'
 import { DIAG_ERRORS_MAX, DIAG_NET_MAX, parseDiagnostics } from '../src/feedback/policy'
+import { redactDiagnostics, scrubUrls, stripUrl } from '../src/feedback/diagnostics'
 
 describe('parseDiagnostics: lenience', () => {
   // The whole contract in one line — every one of these is a real thing that
@@ -157,6 +158,126 @@ describe('parseDiagnostics: permissions are states, never positions', () => {
 
   it('omits the block when nothing is a known state', () => {
     expect(parseDiagnostics({ permissions: { geolocation: '44.05,-121.31' } }).permissions).toBeUndefined()
+  })
+})
+
+describe('stripUrl', () => {
+  it('drops the query string and the fragment', () => {
+    expect(stripUrl('https://routeloop.app/m/abc123?share=xyz#day2')).toBe('https://routeloop.app/m/abc123')
+  })
+
+  it('handles a relative path', () => {
+    expect(stripUrl('/api/rides?owner=4')).toBe('/api/rides')
+  })
+
+  // Rare, but legal, and there is no reason for one to survive.
+  it('drops credentials in the authority', () => {
+    expect(stripUrl('https://user:pass@example.com/x?y=1')).toBe('https://example.com/x')
+  })
+
+  // The invariant, not the formatting: whatever a malformed URL comes back as,
+  // it must not still be carrying its query string. WHATWG URL is permissive and
+  // parses most junk as a path rather than throwing, so the exact output is not
+  // worth pinning — the absence of the secret is.
+  it('loses the query string even on input it cannot parse cleanly', () => {
+    for (const bad of ['::::not a url?secret=1', 'http://?secret=1', '%%%?secret=1', 'a b c?secret=1']) {
+      expect(stripUrl(bad)).not.toContain('secret')
+    }
+  })
+
+  it('is total on junk', () => {
+    expect(stripUrl('')).toBe('')
+    expect(stripUrl('   ')).toBe('')
+  })
+})
+
+describe('scrubUrls', () => {
+  // The single most likely place a slug leaks. A fetch failure message routinely
+  // embeds the whole URL it failed on, and that text goes straight into the
+  // error ring buffer.
+  it('strips a URL embedded in an error message', () => {
+    const out = scrubUrls('Failed to fetch https://routeloop.app/api/rides/9?token=abc while saving')
+    expect(out).toContain('https://routeloop.app/api/rides/9')
+    expect(out).not.toContain('token=abc')
+  })
+
+  it('strips a relative path embedded in text', () => {
+    expect(scrubUrls('POST /api/save?slug=Xk9 failed')).toBe('POST /api/save failed')
+  })
+
+  it('leaves text with no URL alone', () => {
+    expect(scrubUrls('the map went white')).toBe('the map went white')
+  })
+})
+
+describe('redactDiagnostics', () => {
+  it('strips the query string from the referrer', () => {
+    const out = redactDiagnostics({ app: { referrer: 'https://routeloop.app/rides?filter=mine#top' } })
+    expect(out.app?.referrer).toBe('https://routeloop.app/rides')
+  })
+
+  // The pattern's whole value is grouping six reports into one broken screen,
+  // which a URL carrying an id cannot do. A concrete URL sent here is dropped
+  // rather than stored, so the field never lies about what it is.
+  it('drops a concrete URL sent where the route pattern goes', () => {
+    expect(redactDiagnostics({ app: { pattern: 'https://routeloop.app/m/abc' } }).app?.pattern).toBeUndefined()
+    expect(redactDiagnostics({ app: { pattern: '/m/:slug' } }).app?.pattern).toBe('/m/:slug')
+  })
+
+  it('strips a query string off a pattern before checking it', () => {
+    expect(redactDiagnostics({ app: { pattern: '/build/:slug?day=2' } }).app?.pattern).toBe('/build/:slug')
+  })
+
+  it('strips URLs out of error messages and stacks', () => {
+    const out = redactDiagnostics({
+      errors: [{ message: 'boom at /api/rides?slug=Xk9', stack: 'at fetch (/js/builder.js?v=3:12:1)' }],
+    })
+    expect(out.errors?.[0].message).not.toContain('Xk9')
+    expect(out.errors?.[0].stack).not.toContain('v=3')
+    expect(out.errors?.[0].stack).toContain('builder.js')
+  })
+
+  it('strips the query string from a recorded request path', () => {
+    const out = redactDiagnostics({ net: [{ path: '/api/maps/Xk9abc/save?force=1', status: 500 }] })
+    expect(out.net?.[0].path).toBe('/api/maps/Xk9abc/save')
+  })
+
+  // The belt-and-braces pass. The strict permissions branch in parseDiagnostics
+  // only guards one key; this catches a pair that arrived somewhere else, which
+  // is the failure a whitelist on one key cannot see.
+  it('drops a coordinate pair wherever it appears', () => {
+    const out = redactDiagnostics({ device: { lastFix: '44.0582,-121.3153', os: 'iOS 26' } })
+    expect(out.device).toEqual({ os: 'iOS 26' })
+  })
+
+  it('drops forbidden keys outright', () => {
+    const out = redactDiagnostics({
+      map: { lat: 44.05, lng: -121.31, center: 'x', zoom: 9, dayIndex: 1 },
+      device: { email: 'a@b.c', token: 'secret', os: 'iOS 26' },
+    })
+    expect(out.map).toEqual({ zoom: 9, dayIndex: 1 })
+    expect(out.device).toEqual({ os: 'iOS 26' })
+  })
+
+  it('keeps a geolocation permission state but never a position', () => {
+    expect(redactDiagnostics({ permissions: { geolocation: 'granted' } }).permissions).toEqual({
+      geolocation: 'granted',
+    })
+    expect(redactDiagnostics({ permissions: { geolocation: '44.05,-121.31' } }).permissions).toBeUndefined()
+  })
+
+  // This runs inside the submit transaction. A rider's report must not be lost
+  // because the blob their broken browser produced was itself broken — that is
+  // precisely the browser we most want to hear from.
+  it('never throws, whatever it is handed', () => {
+    for (const raw of [null, undefined, 0, '', 'string', [], { app: 5 }, { errors: 'no' }, { net: {} }]) {
+      expect(() => redactDiagnostics(raw)).not.toThrow()
+    }
+  })
+
+  it('produces something parseDiagnostics accepts unchanged', () => {
+    const once = redactDiagnostics({ app: { pattern: '/build' }, device: { os: 'iOS' } })
+    expect(parseDiagnostics(once)).toEqual(once)
   })
 })
 

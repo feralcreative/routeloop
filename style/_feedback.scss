@@ -1,0 +1,454 @@
+@use "tokens" as *;
+
+// The rider feedback flow: intake, "what you've sent", and the floating way in.
+//
+// **This surface is pinned to light values and stays that way.** The app has no
+// dark theme today, so nothing here looks unusual — but the pin is the point
+// rather than an accident of timing. A dark UI on a phone screen in direct
+// sunlight is close to unreadable, and this flow is used outdoors more than any
+// other screen in the app: at a gas stop, in a parking lot, with the sun
+// overhead. Decided 2026-08-16. When a dark theme arrives, `.feedback-flow` is
+// the surface it must skip, and there is no `prefers-color-scheme` block below
+// on purpose.
+//
+// The sizing is not the house scale, also on purpose. Every target here is
+// bigger than the app's, because the hands using it are gloved:
+//
+//   WCAG 2.2 AA floors a target at 24px and AAA at 44px. A gloved thumb needs
+//   more than AAA, so tap targets are 56–60px with 12–16px between adjacent
+//   ones. Body text is 17px minimum and labels are 20px semibold. Contrast
+//   targets 7:1 rather than the 4.5:1 minimum, and there is no gray-on-gray
+//   helper text anywhere.
+//
+// **No thin or light font weights in this flow.** They smear in glare, which is
+// the exact condition it is designed for.
+
+$fb-tap: 60px;
+$fb-gap: 16px;
+$fb-radius: 12px;
+
+// Pinned rather than inherited, so the flow cannot be swept into a future dark
+// theme. See the header.
+$fb-bg: $white;
+$fb-ink: $neutral-21;
+// $neutral-43 on white is about 6.4:1 — short of the 7:1 target, so helper text
+// uses the body ink at a smaller size instead of a lighter gray. That is the
+// "no gray-on-gray" rule in practice.
+$fb-line: $neutral-88;
+
+.feedback-flow {
+  background: $fb-bg;
+  color: $fb-ink;
+
+  h1 {
+    margin: 0 0 0.4em;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+}
+
+.fb-flow,
+.fb-fork {
+  display: flex;
+  flex-direction: column;
+  gap: $fb-gap;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0 0 6rem; // room for the bottom-anchored send button
+}
+
+// --- Screen 1: the fork ------------------------------------------------------
+
+.fb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  // The minimum is 88px rather than the 60px the rest of the flow uses. These
+  // three cards are the whole of screen one and there is nothing to crowd.
+  min-height: 88px;
+  padding: 1em 1.1em;
+  border: 2px solid $fb-line;
+  border-radius: $fb-radius;
+  background: $fb-bg;
+  color: $fb-ink;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $url;
+  }
+}
+
+.fb-card-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.fb-card-blurb {
+  font-size: 1.0625rem; // 17px floor
+  font-weight: 400;
+}
+
+// The escape hatch. Never let the fork be the abandonment point — someone who
+// cannot classify their own problem still has the problem.
+.fb-escape {
+  margin: 0.5em 0 0;
+  font-size: 1.0625rem;
+}
+
+// --- The typed field ---------------------------------------------------------
+
+.fb-body {
+  width: 100%;
+  padding: 0.75em;
+  border: 2px solid $fb-line;
+  border-radius: $fb-radius;
+  background: $fb-bg;
+  color: $fb-ink;
+  font-family: inherit;
+  font-size: 1.0625rem;
+  font-weight: 400;
+  line-height: 1.45;
+
+  &:focus-visible {
+    border-color: $url;
+    outline: none;
+  }
+}
+
+.fb-help {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 400;
+  color: $fb-ink;
+}
+
+// The example that a placeholder would have carried. Persistent, because
+// placeholder text vanishes on focus and measurably raises error rates.
+.fb-example {
+  margin: 0;
+  font-size: 1rem;
+  font-style: italic;
+  color: $fb-ink;
+}
+
+.fb-error {
+  margin: 0;
+  padding: 0.6em 0.8em;
+  border-left: 4px solid $stop;
+  background: color-mix(in srgb, $stop 8%, $white);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+// --- Chips -------------------------------------------------------------------
+
+// Chips, never a <select>. A native select on iOS opens a wheel picker with
+// roughly 34px rows, which is not operable with gloves on.
+.fb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.fb-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 1.1em;
+  border: 2px solid $fb-line;
+  border-radius: $fb-radius;
+  background: $fb-bg;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  cursor: pointer;
+
+  // The radio still exists and still owns the keyboard, the grouping and the
+  // ARIA — it is only visually removed. Never replace it with a div.
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  &:hover {
+    border-color: $url;
+  }
+
+  // Both, because the class is set by feedback.js and :has covers the case
+  // where it never loaded.
+  &.is-on,
+  &:has(input:checked) {
+    border-color: $url;
+    background: color-mix(in srgb, $url 10%, $white);
+    font-weight: 600;
+  }
+
+  &:focus-within {
+    outline: 3px solid $url;
+    outline-offset: 2px;
+  }
+}
+
+// --- Actions -----------------------------------------------------------------
+
+.fb-actions {
+  display: flex;
+  align-items: center;
+  gap: $fb-gap;
+  margin: 0;
+}
+
+.fb-send,
+.fb-next {
+  min-height: $fb-tap;
+  padding: 0 1.5em;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+// Full-width and bottom-anchored, above the keyboard. `sticky` rather than
+// `fixed` so it scrolls with the form on a desktop and pins on a phone, and
+// `env(safe-area-inset-bottom)` keeps it clear of the home indicator.
+.fb-flow .fb-send {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  flex: 1;
+  width: 100%;
+}
+
+// "Send it now" on a screen that is not the last. Deliberately quieter than
+// Next but never hidden — it is what makes every screen after the first
+// optional, which is the highest-leverage decision in the flow.
+.fb-send-now {
+  min-height: $fb-tap;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.fb-file {
+  min-height: $fb-tap;
+  width: 100%;
+  padding: 0.75em;
+  border: 2px dashed $fb-line;
+  border-radius: $fb-radius;
+  font-size: 1.0625rem;
+}
+
+.fb-confirm {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 400;
+}
+
+// --- The FAQ strip -----------------------------------------------------------
+
+.fb-faq {
+  padding: 0.8em 1em;
+  border-radius: $fb-radius;
+  background: $neutral-96;
+
+  ul {
+    margin: 0.4em 0 0;
+    padding-left: 1.2em;
+  }
+
+  li + li {
+    margin-top: 0.4em;
+  }
+
+  a {
+    font-size: 1.0625rem;
+    font-weight: 500;
+  }
+}
+
+.fb-faq-head {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+// --- The diagnostics note ----------------------------------------------------
+
+.fb-diag {
+  font-size: 1rem;
+
+  summary {
+    cursor: pointer;
+    line-height: 1.4;
+  }
+
+  ul {
+    margin: 0.6em 0;
+    padding-left: 1.2em;
+  }
+}
+
+// --- Confirmation and the rider's own list -----------------------------------
+
+.fb-ref {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.fb-after {
+  margin-top: 1.5em;
+}
+
+.fb-list {
+  margin: 1em 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fb-item {
+  padding: 1em 0;
+  border-top: 1px solid $fb-line;
+}
+
+.fb-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.fb-item-title {
+  margin: 0.3em 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.fb-kind {
+  &.is-bug {
+    color: $stop;
+  }
+
+  &.is-idea {
+    color: $go;
+  }
+
+  &.is-question {
+    color: $url;
+  }
+}
+
+.fb-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  align-items: baseline;
+
+  strong {
+    font-size: 1.0625rem;
+  }
+}
+
+.fb-status-sub {
+  font-size: 1rem;
+}
+
+.fb-response {
+  margin: 0.6em 0 0;
+  padding: 0.6em 0.9em;
+  border-left: 4px solid $url;
+  background: $neutral-96;
+  font-size: 1.0625rem;
+}
+
+.fb-said {
+  white-space: pre-wrap;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.fb-wants,
+.fb-when {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.fb-shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  img {
+    max-width: 100%;
+    border: 1px solid $fb-line;
+    border-radius: 8px;
+  }
+}
+
+// --- The floating way in -----------------------------------------------------
+
+// On the builder and the viewer only, and a plain <a> rather than a scripted
+// overlay: it has to work when the page around it is the thing that is broken,
+// which is the entire circumstance it exists for.
+//
+// **It is inset from the right edge, not tucked into the corner, and that is
+// measured rather than taste.** Google stacks fullscreen and zoom in a 40px
+// column down the right edge — measured on both pages at x 1050–1090, running
+// from y 823 to the attribution strip at 986 — so anything anchored to that
+// corner sits on a control. The first attempt lifted it 120px off the bottom and
+// landed on the fullscreen button, which is above the zoom pair rather than
+// below it. Clearing the column horizontally is what actually works; clearing it
+// vertically does not, because the column is most of the edge.
+//
+// The bottom offset then only has to clear the attribution strip.
+//
+// Re-measure if the map's control layout changes: `.gmnoprint` and
+// `.gm-control-active` on the right edge are the things to check.
+.fb-fab {
+  position: fixed;
+  right: 72px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
+  z-index: $z-map-panel; // the panel's layer; they never overlap horizontally
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 44px;
+  padding: 0 0.9em;
+  border-radius: 22px;
+  background: $panel-bg;
+  box-shadow: 0 2px 8px $panel-shadow;
+  color: $fb-ink;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+
+  &:hover {
+    background: $white;
+  }
+}
+
+.fb-fab-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: $detour;
+}
+
+//@ SM ≤600px — the label goes and the dot carries it, because the builder's
+//  bottom edge is already the timeline bar and a word-wide button competes
+//  with it. The title attribute and the 44px target both survive. The right
+//  inset stays: the map's control column is there at every width.
+@media (max-width: 600px) {
+  .fb-fab-label {
+    display: none;
+  }
+
+  .fb-fab {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+}

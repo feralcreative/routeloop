@@ -68,6 +68,8 @@ export type NavKey =
   | 'invites'
   | 'survey'
   | 'survey-results'
+  | 'feedback'
+  | 'board'
 
 export type PageOpts = {
   /** Without the " – Routeloop" suffix; page() appends it. */
@@ -95,6 +97,18 @@ export type PageOpts = {
   splash?: boolean
   /** Plain message; page() supplies the <noscript> wrapper and markup. */
   noscript?: string
+  /**
+   * Renders the floating "Something wrong?" button, pre-filling `?area=` with
+   * this value.
+   *
+   * Opt-in per page rather than derived from the request, because `page()` never
+   * sees a path and inferring it from `navKey` would silently put the button on
+   * every page that shares a key. The builder and the viewer are the two that
+   * ask for it — they are where things break, and where a rider can least afford
+   * to go hunting through a menu. Values come from AREAS in
+   * src/feedback/policy.ts.
+   */
+  feedbackArea?: string
 }
 
 // The menu, exactly as docs/main-menu.md specifies it. That file is the spec and
@@ -476,6 +490,13 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
         <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
         <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
         <hr />
+        {/* The always-available way in. The floating button on the builder and
+            viewer is the other one and pre-fills ?area=; this is what a rider on
+            any other screen has, and what someone who wants to re-read their own
+            reports looks for. */}
+        <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Tell us something' }} navKey={navKey} />
+        <NavLink item={{ key: 'board', href: '/board', label: 'Idea board' }} navKey={navKey} />
+        <hr />
         <form method="post" action="/logout">
           <button class="linkbtn" type="submit">
             Sign out
@@ -484,6 +505,26 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
       </div>
     </details>
   )
+}
+
+/**
+ * The floating way into the intake, on the builder and the viewer only.
+ *
+ * A plain link, not a scripted overlay: it has to work when the page around it
+ * is the thing that is broken, which is the entire circumstance it exists for.
+ *
+ * The `?area=` it carries is what lets the intake offer a one-tap confirm
+ * instead of an eight-chip group, and it is the reason this button exists at all
+ * rather than only the account-menu item. Inference, never a claim — the confirm
+ * screen offers "Somewhere else".
+ */
+function feedbackFab(area: string): string {
+  return (
+    <a class="fb-fab" href={`/feedback?area=${encodeURIComponent(area)}`} title="Tell us something">
+      <span class="fb-fab-mark" aria-hidden="true"></span>
+      <span class="fb-fab-label">Something wrong?</span>
+    </a>
+  ).toString()
 }
 
 function siteFooter(splash: boolean): string {
@@ -564,9 +605,21 @@ export function page(opts: PageOpts): string {
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
 ${body}
+${opts.feedbackArea && opts.user ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
 ${opts.tb ? jsonScript('TB', opts.tb) : ''}
+<!--
+  The error ring buffer, on every page and first in the list.
+
+  By the time a rider decides to file a report, the error that prompted it
+  happened minutes ago on a different screen. A buffer installed when the
+  feedback form opens has nothing in it, which is why this is not loaded
+  alongside feedback.js. It is ~4 KB, installs four listeners and wraps
+  console.error and fetch, and every read inside it is feature-detected — it is
+  a crash handler, so it must not be able to crash.
+-->
+<script src="${asset('/js/feedback-buffer.js')}" defer></script>
 <script src="${asset('/js/site.js')}" defer></script>
 ${opts.scripts ?? ''}
 ${IS_DEV ? liveReloadScript() : ''}

@@ -568,6 +568,9 @@ function builderHtml(
     variant: 'map',
     bodyClass: 'builder-page',
     navKey: 'builder',
+    // The floating way into the intake. 'planning' matches areaFromPath() in
+    // src/feedback/policy.ts, which is what the account-menu path infers.
+    feedbackArea: 'planning',
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
       titleHtml,
