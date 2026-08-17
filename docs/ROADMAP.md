@@ -25,7 +25,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 26 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -40,6 +40,11 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | **New**: turning Turnstile on, and the gate that would break ride creation | item 24 |
 | **New**: Noob Mode | item 25 |
 | **New**: rider feedback, which existed only in git-ignored `_PLANS/` | item 26 |
+| **New**: gzip stored originals at rest, 7.2x measured; quota stays uncompressed and the default rises to 100 MB | item 27, folded into phase 2 |
+| **New**: route thumbnails from Static Maps, built by a five-minute sweep that skips rides still being edited, gated by a URL hash | item 28, folded into phase 2 |
+| **New**: ride lists become card grids on all four browsing surfaces, with the thumbnail as the card face | item 29, phase 2 and after 28 |
+| **New**: visual treatment for the dashboard records block; quips were proposed and dropped the same day | item 30, unscheduled |
+| **New**: yours/average/top columns on all four dashboard tiles, pooled over every rider and every ride | item 31, unscheduled |
 | **Answered**: item 14's granularity question—day-level, decided by item 21 rather than here | item 14 |
 | **Shipped**: item 14's alternate object, day-level and single-planner—voting and resolution still planned | item 14, and it unblocks item 21. [#68](https://github.com/feralcreative/routeloop/issues/68) **to be rewritten** to the remaining half, decided 2026-08-16 |
 
@@ -864,6 +869,184 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 **Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
 
 **Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
+
+### 27. Compress stored originals at rest
+
+**Goal.** Stop spending a rider's quota on uncompressed XML. An imported GPX is the most compressible thing this app stores, and today it sits on disk exactly as it arrived.
+
+**The numbers are measured, not estimated**, taken from `storage/` and the dev database on 2026-08-16.
+
+| What | Today | Compressed | Ratio |
+| --- | --- | --- | --- |
+| One real 8-day GPX import (`storage/2/50-6.gpx`) | 834,594 B | 115,046 B gzip -9 | **7.3x** |
+| The same file, brotli q11 | 834,594 B | 59,895 B | 13.9x |
+| All 20 dev rides, `sum(rides.size_bytes)` | 5,826 kB | ~810 kB gzip | **7.2x** |
+
+**The database is already handled and is not part of this item.** `route_legs.geometry` holds 122,647 points across 134 legs. Its raw jsonb text is 2,966 kB; `pg_column_size` reports 1,162 kB actually stored, so **Postgres TOAST already compresses it 2.55x for free**. Encoding it as a polyline instead would win maybe 2x more while touching every renderer, every export and every test that reads a leg, and would make the column unqueryable. Not worth it, and worth writing down so it is not re-proposed.
+
+**Quota keeps counting uncompressed bytes, and the default rises to 100 MB.** Decided 2026-08-16. The alternative—charging compressed bytes for a ~7x effective quota—was rejected because it makes the number unexplainable: two similar rides charge differently depending on how well their XML happens to compress, and a rider who imports something already compressed gets no benefit and no way to understand why. Keeping `size_bytes` meaning "how big is your GPX" keeps the FAQ answerable, and compression pays for the higher ceiling instead—100 MB of gzipped originals costs about what 25 MB of raw ones costs today. So `users.quota_bytes` moves from `26214400` to `104857600` and nothing about the byte columns changes.
+
+**gzip, not brotli, and the reason is the download path.** `src/maps/downloads.ts` streams an imported ride's stored original byte-for-byte for the format it arrived in—that is the hot path, not an archive path. Storing gzip means the file on disk is already the wire format: serve it with `Content-Encoding: gzip` to any client that accepts it and the common request gets *cheaper* than today, with no decompression at all. Brotli is twice as good at rest but riders in this app download straight to Garmins and phone apps, and `Content-Encoding: br` on an attachment is a bet on every one of those clients. Take the 7x.
+
+**Work.**
+
+- [ ] Raise `users.quota_bytes` default to 104857600 in `src/db/schema.ts`, with a generated migration that also lifts existing rows still on the old default. Leave a rider who has been granted a custom quota alone.
+- [ ] Compress in `writeMapFile()` (`src/maps/storage.ts`), so there is one place that knows files are stored gzipped. The byte columns are written by `src/routes/maps.ts` from the uncompressed buffer and do not change.
+- [ ] Decompress in the read paths: the two download handlers in `src/index.tsx` and the archive loop in `src/account/export.ts:133`. Prefer passing the gzip through with `Content-Encoding` where the request allows it.
+- [ ] Extend `STORED_EXTS` or the naming rule to mark a file compressed. **Both files must be readable during the migration**, so the reader has to try one and fall back—this is the fiddly part, not the compression.
+- [ ] A `utils/` script to compress what is already on disk, idempotent and safe to re-run.
+- [ ] Confirm the account export zip still round-trips: `buildZip` is being handed bytes that were gzip on disk, and the entry must be the plain original.
+
+**Touches.** `src/maps/storage.ts`, `src/index.tsx`, `src/account/export.ts`, `src/db/schema.ts` and a migration, a new `utils/` script. Not `src/maps/downloads.ts`—that table describes formats, not encodings.
+
+**Status.** planned—**folded into phase 2, the Import/Export sprint**, decided 2026-08-16. It opens the same three files that sprint opens anyway, and retrofitting it later means re-opening them plus migrating a larger `storage/` than the 5.8 MB it is now. Not urgent on its own: nobody has come near the quota.
+
+### 28. Route thumbnails: a preview image per ride
+
+**Goal.** Give every ride a small picture of itself, fitted as tightly to the route as it can be while still showing all of it. It replaces the color swatch in `src/views/cards.tsx:17`, and it is what makes a list of rides scannable rather than a list of titles.
+
+**A Google Static Maps image, not a drawn shape.** Both were considered on 2026-08-16 and a shape-only SVG rendered from `route_legs.geometry` was prototyped against the dev corpus first—it works, costs nothing and themes for free (Bodega Bay: 8,473 points simplified to 329, 3.9 KB). **It was rejected on the design call that a bare squiggle falls flat**, and the pricing below is why that call is affordable. The prototype numbers are kept here because they are the fallback if the cost picture ever changes, and because the simplification they demonstrate is needed either way—see the URL limit below.
+
+**There is no save event and no close event, and this is the fact the whole design turns on.** `public/js/builder.js:331`: "There is no Save button." The builder autosaves on a 3s idle timer with a 20s ceiling, so "regenerate on save" means up to three billable calls a minute for as long as someone is dragging a stop around. "On close" is not an event that exists—`pagehide` is unreliable and misses the ordinary case of navigating away.
+
+**A daily pass over recently-edited rides, gated by a hash of the Static Maps URL.** Two mechanisms, and they do different jobs:
+
+- **The sweep decides when**, and it runs often—every five minutes, over the rides edited since their thumbnail was built **and quiet for at least five minutes**. That second condition is what makes a frequent sweep affordable: an actively-edited ride keeps pushing its own `updated_at` forward and is therefore never selected, so a three-hour editing session produces exactly one call, at the end of it, the same as a thirty-second one. Running out of process also keeps the Google fetch off the render path, which is the reason to prefer this over regenerating lazily when a card is drawn: a fetch inside a page render puts network latency in a ride list and gives a popular stale ride a thundering herd.
+- **The hash decides whether it is worth doing at all.** Everything that changes the picture—the encoded polyline, the extent, the day colors, the style—is already in the Static Maps URL, so an identical URL cannot produce a different image. Hash it, store it, and the daily pass skips every ride whose edit did not move the route. Retitling, changing a stop's dwell, flipping visibility and recoloring the legend are all common edits that leave the picture alone.
+
+A day-count trigger was considered and dropped: dragging a route from the coast to the Sierras leaves the day count untouched while changing the picture completely, and the hash catches that case for free.
+
+**The interval is nearly free to shorten, which is why it is five minutes and not a day.** A 24-hour cadence was the first proposal and was dropped on 2026-08-16 once the arithmetic was done: cost tracks the number of *shape changes*, not the number of checks, because a check is a query and a hash while only a changed hash costs a call. Going from 24 hours to 5 minutes therefore does not multiply spend by 288—with the quiet-period condition above it does not multiply it at all, since either way an editing session yields one call. What it buys is a thumbnail that is correct within about five minutes of a rider stopping, rather than the next day.
+
+**The estimate.** 25 riders × 10 editing sessions a month × one call each ≈ **250 calls, or 2.5% of the 10,000 free monthly allowance**. Even an order of magnitude more activity stays inside it. The quiet period, not the sweep interval, is the number to revisit if that ever stops being true.
+
+One consequence worth knowing: restyling the map is a one-parameter change that changes every hash, so the next pass regenerates every thumbnail by itself, with no migration and no backfill script.
+
+**Cost, checked against Google's own pricing page 2026-08-16.** Maps Static (SKU `3C2D-B525-2E5F`) is an **Essentials** tier SKU with **10,000 free calls per month**, then $2.00/1000 up to 100k. At beta scale the policy above stays inside the free tier by a wide margin. Note this is a *different* SKU from the `maps-backend` dynamic map loads that carry the 500/day cap, so thumbnails do not eat into the ceiling discussed in "The road to beta"—but they are on the same billing account and want their own alert alongside the one decided there.
+
+**Two traps.**
+
+- **Static Maps is GET-only with an 8192-character URL limit.** Simplify to a fixed **point budget**, not a distance tolerance—a tolerance that suits a day ride will silently blow the limit on a dense 8-day import, and the failure is a 4xx at render time rather than anything visible in testing. ~330 points encodes to roughly 2 KB, which is the measured figure from the prototype and leaves ample headroom.
+- **These bytes stay out of `rides.size_bytes` and `users.used_bytes`.** They are derived data, not the rider's file, and charging quota for them would contradict item 27, which raises the quota on the argument that stored bytes mean the rider's own GPX. Follow the precedent in `src/db/schema.ts:786`, where feedback attachments are counted in their own column for exactly this reason.
+
+**Styling: one desaturated map style, not one per theme.** Item 20 brings three themes across light and dark; rendering a variant per combination multiplies calls by six for terrain that is the same terrain. A single neutral style that reads under both schemes is the usual answer, and because a style change costs one URL parameter it is cheap to revisit once the themes exist and it can be judged by eye rather than argued about here.
+
+**Work.**
+
+- [ ] `src/maps/thumbnail.ts`—pure: geometry and day colors in, simplified encoded polyline and a Static Maps URL out. No Postgres, testable in Vitest, sitting beside `twist.ts`, which is the same shape of module.
+- [ ] Simplification to a point budget, with the URL length asserted in a test against the densest ride in the dev corpus.
+- [ ] Schema: the URL hash and a built-at per ride, plus wherever the image lands on disk. Its own column, not folded into the byte columns. `rides.updated_at` is what the pass selects on, so confirm the autosave `PUT` actually bumps it.
+- [ ] The sweep: select rides where `updated_at > built_at` and `updated_at < now() - 5 minutes`, recompute the URL, skip on an unchanged hash, fetch and store otherwise. It needs somewhere to run—there is no scheduler in this app yet, so decide between a container cron and an interval in-process, and note that an in-process one runs once per replica, which at a five-minute cadence is worth getting right rather than tolerating.
+- [ ] Both intervals in one place and named, since the quiet period is the one that bounds cost and the sweep interval is the one that bounds staleness, and confusing them later is easy.
+- [ ] `src/views/cards.tsx`—the thumbnail takes the `.swatch` slot; the color swatch becomes the placeholder for a ride that has never been rendered.
+- [ ] Only `alt_active` days are drawn. Losing alternates are excluded everywhere else and a thumbnail is not the place to make an exception.
+
+**Touches.** New `src/maps/thumbnail.ts`, `src/views/cards.tsx`, `src/db/schema.ts` and a migration, `style/_chrome.scss` for the card layout, and whatever runs the daily pass. Notably **not** `src/routes/builder.ts`—the autosave path is untouched, which is the point of putting the trigger on `updated_at` rather than in the save handler.
+
+**Status.** planned—**folded into phase 2**, where items 21 and 23 are already building lists of rides that would show these, and where item 27 is already opening the storage layer. Not a beta blocker on its own.
+
+### 29. Cards instead of rows, wherever rides are listed
+
+**Goal.** A ride in a list should show its route, not just its title. Every browsing list becomes a grid of cards with the item 28 thumbnail as the face of each one. **Stated as a general preference on 2026-08-16**—cards over rows anywhere rides are browsed—rather than as a fix to two named pages.
+
+**It depends on item 28 and is not worth starting before it.** A card without a thumbnail is a row with more padding, and worse: it trades a scannable dense list for a sparse one and gives nothing back. Ship the pictures first.
+
+**The four surfaces, and how they are wired.**
+
+| Surface | Renders via | Notes |
+| --- | --- | --- |
+| `/` dashboard, "Picking up where you left off" | `rideCards()` | A short recent strip inside a page already carrying tiles, a role chart, an activity graph and a meter. The densest context of the four; check it does not crowd. |
+| `/explore` | `rideCards(cards, showViews)` | Also shows a view count. |
+| `/@username` public profiles | `rideCards(cards)` | |
+| `/rides`, "Your rides" | `OwnRideRow` in `src/routes/rides.tsx:22` | **Deliberately not shared**—it carries a visibility pill and an Edit link the public card must never show. Read the comment above it before merging the two; the separation is the contract. |
+
+Three of the four move together because they are one component. That is a reason to convert them together rather than an obstacle.
+
+**Where this stops, and it matters because "everywhere" invites over-application.** This is about lists a rider *browses*. It is **not** the import review table (item 21), which is an editable manifest with draggable day order and inline fields—a data grid, where cards would actively hurt. It is **not** the export cart (item 23), which is a selection list where compact rows are the right density. Both of those are lists of rides, and neither of them wants this.
+
+**Design calls, decided 2026-08-16.**
+
+- **A fixed aspect box, not one per route.** A route's bounding box is whatever shape the road took—a long north-south ride and an east-west one have nothing in common—so uniform cards mean picking one ratio and letting Static Maps fit the route inside it. Its auto-fit already does that when `center` and `zoom` are omitted, so this costs a `size` parameter and no extra logic. `size=320x200&scale=2` renders 640×400 actual pixels, which is within the 640 cap and sharp on a retina card at roughly 320 CSS pixels.
+- **Edit and the visibility pill go in a footer strip inside the card**, pill left, Edit right, below the title and stats. Always visible rather than revealed on hover: hover does not exist on a phone, and a meaningful share of the beta cohort is on one, so a hover-only affordance needs a visible fallback below tablet width and is therefore two implementations to save nothing.
+- **The existing color swatch becomes the placeholder**, for a ride whose thumbnail has not been built yet and for one with no geometry to draw—a ride with stops but no legs is a real state, not a hypothetical.
+
+**One trap, and it is invalid HTML rather than a style bug.** Today `<a class="card">` wraps the whole row and `.editlink` is a **sibling** inside the `<li>` (`src/routes/rides.tsx:24-39`). That structure is what keeps Edit out of the card's link. A footer strip drawn *inside* the card link nests an anchor in an anchor, which browsers silently reparent—so the layout breaks in a way that looks like a CSS problem and is not. Keep the footer a sibling of the card link and position it with the grid.
+
+**Work.**
+
+- [ ] `src/views/cards.tsx`—the card gains a thumbnail slot; `.swatch` becomes the fallback. While in the file, note that `rideCards()` returns a string via `.toString()` for callers that still concatenate; converting it is out of scope here but the comment at the top of the file explains the plan.
+- [ ] `src/routes/rides.tsx`—`OwnRideRow` gains the same thumbnail plus the footer strip. Stays a separate component.
+- [ ] `style/_chrome.scss`—`a.card`, `.swatch`, `.meta`, `.cardrow` and `.editlink` are all built around a flex row and get replaced. A responsive grid on `.cards`, auto-filling on a minimum card width, so one column on a phone falls out of the same rule.
+- [ ] Check the dashboard strip specifically. It is the one surface where a grid competes with everything else on the page, and it may want a smaller card or a horizontal scroller rather than the same grid.
+- [ ] Lazy-load thumbnails below the fold. A profile or an Explore page is an unbounded list of images now, which it never was before.
+
+**Touches.** `src/views/cards.tsx`, `src/routes/rides.tsx`, `style/_chrome.scss`, and `style/_dashboard.scss` if the dashboard strip diverges. **Interacts with item 22**—a wider content column on desktop is what makes a three- or four-up grid worth having, so the two are better done in either order than half of each.
+
+**Status.** planned—**phase 2, after item 28**, decided 2026-08-16. Blocked on the thumbnails by design rather than by dependency; the code would build without them and should not.
+
+### 30. Make "Your records" flashier
+
+**Goal.** The records block is the most celebratory thing on the dashboard and currently looks like the least. Four bordered white boxes with a 1.15rem number in each—the same weight the app gives a form label. Quips were considered and dropped on 2026-08-16; this is a visual treatment only, no copy changes and no new data.
+
+**What it is today**, `style/_dashboard.scss:262`: a `repeat(auto-fit, minmax(13rem, 1fr))` grid of `li`, each a white box with a 1px border and 10px radius, holding an uppercase 0.8rem `.record-label`, a 1.15rem/600 `.record-value` and a 0.85rem `.record-hint`. The markup is already right—the problem is entirely that nothing in it is loud.
+
+**The moves, cheapest first.**
+
+- **Scale the number up hard.** 1.15rem is timid for the one figure on the block worth reading. The page already has a precedent in `.hero-value`; records should sit clearly between that and body text rather than beside a label.
+- **Split the unit off the number.** "482 mi" reading as one string wastes the emphasis on "mi". Big numeral, small unit, and the same split works for the twist figure.
+- **An icon per record.** There are exactly four kinds and they are fixed, so this is four glyphs and no logic. The icon set was already reworked on this branch (`8e5a6e8`), so there is a house style to match rather than invent.
+- **Give the box some presence.** A tint or accent edge instead of the flat `$grey` border, and a hover lift. These are achievement cards; they should not be styled like the storage meter.
+- **Count-up on load, as the genuinely flashy option.** Cheap—the values are already rendered—and the block is above the fold on a page riders open often. **Gate it on `prefers-reduced-motion`**, and make the final value the rendered one so a rider who blocks scripts sees the number rather than a zero.
+
+**Build it on tokens, not literals, or it gets done twice.** Item 20 brings three themes across light and dark. `_dashboard.scss` currently hard-codes `$white`, `$grey` and `$neutral-57` throughout, which is a pre-existing problem and not this item's to fix—but new tints, accents and shadows added here should come from the theme layer, because anything spelled as a literal color now is work to be redone when item 20 lands.
+
+**Work.**
+
+- [ ] `style/_dashboard.scss`—the `.record-list` treatment: scale, accent, hover.
+- [ ] `src/stats/shape.ts`—split value and unit if the type split is wanted in markup rather than in CSS. This is the only reason the item touches anything but styles.
+- [ ] `src/routes/home.tsx`—icon slot per record kind.
+- [ ] Count-up, behind `prefers-reduced-motion`, degrading to the static number.
+
+**Touches.** `style/_dashboard.scss` mainly, `src/routes/home.tsx` for the icons, `src/stats/shape.ts` only if value and unit get split server-side.
+
+**Status.** planned—small and self-contained, no schema and no queries. A good candidate to slot in beside phase 1 work when a break from the builder is wanted.
+
+### 31. Three columns on the dashboard tiles: yours, average, top
+
+**Goal.** Each of the four stat tiles at the top of `/` shows the rider's number, the average across all riders, and the highest anyone has. A number alone says nothing about whether it is a lot.
+
+**Scope, decided 2026-08-16.** All four tiles—**rides, days, legs and waypoints**. **Legs is included knowingly**: a leg is an internal artifact, one per pair of consecutive stops, and it is not a unit any rider thinks in. It was put in the list deliberately rather than by omission, so it is not to be quietly dropped as a cleanup.
+
+**The pool is every rider and every ride, private included.** Decided 2026-08-16 after the alternatives were put up: no opt-in preference, no visibility filter, no minimum cohort size. This is a private beta among friends and the columns carry no names.
+
+**The filters are not the same across the four tiles, and this is the trap.** `src/stats/query.ts` scopes `rides` and `points` by `owned` alone, but `days` and `legs` by `counts`, which adds `eq(days.altActive, true)`. The asymmetry is deliberate and reasoned at line 40—a stop a rider planned is work they did, a mile on a day they decided against is not a road they will ride. **The global query has to mirror each tile's predicate exactly.** Getting it wrong is not a visible bug: the page renders, the numbers look plausible, and every rider is silently measured against a bar that counts alternates their own figure excludes.
+
+**Two more things `query.ts` already knows and this must not relearn.**
+
+- **No mega-join.** The file's opening comment explains why there are five queries rather than one: joining rides to days to points *and* legs multiplies rows against each other and produces sums several times too large, in a way that "looks like enthusiasm rather than arithmetic". A per-user rollup CTE feeding an aggregate has exactly the same hazard—one query per metric family, then aggregate the rollups.
+- **`cachedUsedBytes()` is not a cache.** It reads the denormalized `users.used_bytes` column. There is no TTL-cache precedent in this app to copy, so this item introduces the first one.
+
+**Cache it, because it is identical for every viewer.** Avg and Top do not vary by who is looking and they move slowly, so one computation serves the whole site. An in-process TTL is enough—this is decoration, staleness costs nothing, and a cold cache costs one query. **Note it is per-replica**, so two replicas do the work twice; that is acceptable here and would not be for anything a rider acts on.
+
+**Three edges worth deciding in code rather than discovering.**
+
+- **The rider is the top.** Their number appears in two columns. Say so rather than letting it read as coincidence.
+- **One rider in the pool.** Yours, the average and the top are the same number three times. True in dev today and true on the first day of the beta.
+- **A rider with nothing.** The tiles only render under `hasRides`, so this is already handled—but the average and top are still meaningful for them and are the one case where the comparison is most useful.
+
+**Layout is the real work.** Four tiles × three numbers is twelve figures where there were four, above the fold, on a page that continues into a role chart, an activity graph and a meter. The rider's own number must stay dominant—it is the one they came for—with average and top clearly subordinate. On a phone this needs to degrade to something other than a twelve-cell grid.
+
+**Work.**
+
+- [ ] A global-stats query in `src/stats/query.ts`, one per metric family, each reusing the *same* predicate as its per-user counterpart.
+- [ ] A test that pins the alternates asymmetry: a losing alternate day must move the global `days` and `legs` averages exactly as it moves the rider's own figures, and must not move `rides` or `points`.
+- [ ] TTL cache around it, with the interval named and the per-replica behaviour noted where it is defined.
+- [ ] Shape it in `src/stats/shape.ts`. **Do not widen `Tile`**—it also backs `records: Tile[]`, and the comparison fields would leak into a block that has no use for them. Give the tiles their own type, or make the fields optional and never set them on records.
+- [ ] `src/routes/home.tsx` and `style/_dashboard.scss`—`StatTile` gains the two extra values; the rider's own number keeps visual primacy.
+
+**Touches.** `src/stats/query.ts`, `src/stats/shape.ts`, `src/routes/home.tsx`, `style/_dashboard.scss`. No schema change.
+
+**Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page.
 
 ## Idea backlog (unscheduled)
 

@@ -36,8 +36,14 @@ Admin ▾                                (only if canManageRiders)
 {displayName} {avatar} ▾
   Your profile        /profile
   Preferences         /prefs
+  ───
+  Tell us something   /feedback
+  Idea board          /board
+  ───
   Sign out            POST /logout
 ```
+
+Plus one thing that is not in the tree: a floating **Something wrong?** button, on the builder and the viewer only. See the decision below.
 
 Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta`.
 
@@ -55,6 +61,16 @@ The label everywhere a rider reads it is **Preferences**. The URL is the short f
 - `settings.tsx` and `settingsRoutes` rename with it, and `NavKey`'s `'settings'` becomes `'prefs'`. `account.tsx` sets that key on three pages and links "Back to settings" twice—that copy becomes "Back to preferences".
 - **Reserve the new names as usernames.** `RESERVED_USERNAMES` in `src/auth/username.ts` holds `dashboard`, `profile`, `builder` and the rest, but **not `settings`**—a live route that was simply missed. Add `prefs`, `preferences` and `settings` while the list is open. Nothing is broken today because no root-level `/:username` route exists yet, which is exactly the window that list says it exists to protect.
 - Also update: `docs/api.md`'s route table, `src/db/schema.ts`'s comment on `duration_format`, `public/js/builder.js:77`'s comment, and `test/duration.test.ts`, whose case name says "the settings page".
+
+**[decided 2026-08-16, shipped] Feedback gets two entry points, and the floating one pre-fills `?area=`.**
+
+Three candidates were put up: a persistent item in the account menu, a floating button on the builder and viewer only, or both. **Both** was chosen.
+
+- **The account menu** carries `Tell us something` → `/feedback` and `Idea board` → `/board`, above the sign-out rule. It is what a rider on any other screen has, and what someone looking to re-read their own reports goes to.
+- **The floating button** renders only on the builder and the viewer, and it exists for one reason: it carries `?area=`, which is what lets the intake offer a one-tap confirm instead of an eight-chip group. That is a real accuracy win on the one field riders are worst at answering. It is opt-in per page via `feedbackArea` on `PageOpts`, not derived from `navKey`—deriving it would silently put the button on every page sharing a key.
+- It is a plain `<a>`, not a scripted overlay, because it has to work when the page around it is the thing that is broken.
+
+**Its position is measured, not chosen.** Google stacks fullscreen and zoom in a 40px column down the right edge of the map, running from roughly y=823 to the attribution strip—so the bottom-right corner is unusable, and lifting the button vertically only moves it onto the fullscreen control. It is inset from the right edge instead. Re-measure `.gmnoprint` and `.gm-control-active` if the map's control layout changes.
 
 **[decided] "About this app" stays in the menu.** It is the only trigger for the alpha modal. Privacy and Terms are deliberately *not* in the menu; the footer carries them on every chrome page, and the splash carries them signed out.
 

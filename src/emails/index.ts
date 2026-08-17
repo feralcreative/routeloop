@@ -10,8 +10,10 @@
 // and no environment, so nothing that reads a table belongs in this directory
 // (the signup notifications live in src/auth/notify.ts for exactly that reason).
 import { approvedEmail } from './approved'
+import { feedbackStatusEmail } from './feedback-status'
 import { inviteEmail } from './invite'
 import { magicLinkEmail } from './magic-link'
+import { ownerFeedbackEmail } from './owner-feedback'
 import { ownerSignupEmail } from './owner-signup'
 import { waitlistEmail } from './waitlist'
 import type { AnyEmailTemplate } from './types'
@@ -21,9 +23,19 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   waitlistEmail,
   approvedEmail,
   ownerSignupEmail,
+  ownerFeedbackEmail,
+  feedbackStatusEmail,
   inviteEmail,
 ]
 
-export { approvedEmail, inviteEmail, magicLinkEmail, ownerSignupEmail, waitlistEmail }
+export {
+  approvedEmail,
+  feedbackStatusEmail,
+  inviteEmail,
+  magicLinkEmail,
+  ownerFeedbackEmail,
+  ownerSignupEmail,
+  waitlistEmail,
+}
 export { renderEmail } from './shell'
 export type { EmailTemplate, Rendered } from './types'
