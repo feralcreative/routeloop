@@ -167,7 +167,7 @@ describe('buildGeoJson → processGeoJson round-trip', () => {
   const ride: ExportRide = {
     title: 'Bodega weekend',
     description: 'two days',
-    hiddenAlternates: 0,
+    hiddenAlts: 0,
     days: [
       {
         title: 'Day 1',

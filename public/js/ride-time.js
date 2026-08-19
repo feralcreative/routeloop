@@ -57,7 +57,7 @@
   // `setLegHighlight(map, i, …)` and `setActive(i)` — those are indices into the
   // FULL array. Hand it a filtered array and every index past the first ghost is
   // off by one, silently, and the map highlights the wrong road.
-  const isLosingAlternate = (day) => day.altGroup != null && !day.altActive;
+  const isLosingAlt = (day) => day.altGroup != null && !day.altActive;
 
   // endAt is normally kept in step by the builder, but a day can carry a start
   // with no end (a stored row we deliberately do not overwrite), so the elapsed
@@ -76,7 +76,7 @@
     let from = null;
     let to = null;
     days.forEach((day) => {
-      if (isLosingAlternate(day)) return;
+      if (isLosingAlt(day)) return;
       const s = dayStartS(day);
       if (s == null) return;
       const e = dayEndS(day);
@@ -209,7 +209,7 @@
     for (let d = 0; d < days.length; d++) {
       const day = days[d];
       // `continue`, so `d` stays the index into the caller's own array.
-      if (isLosingAlternate(day)) continue;
+      if (isLosingAlt(day)) continue;
       const start = dayStartS(day);
       if (start == null) continue;
       if (momentS < start || momentS > dayEndS(day)) continue;
@@ -238,7 +238,7 @@
     dayElapsedS,
     dayStartS,
     dayEndS,
-    isLosingAlternate,
+    isLosingAlt,
     daySchedule,
     rideSpan,
     activeAt,

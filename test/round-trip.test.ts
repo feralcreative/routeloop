@@ -273,7 +273,7 @@ describe('a ride survives export and re-import', () => {
   const ride: ExportRide = {
     title: 'Coast run',
     description: 'Highway 1 north from Santa Cruz.',
-    hiddenAlternates: 0,
+    hiddenAlts: 0,
     days: [
       {
         title: 'Day 1',
@@ -383,7 +383,7 @@ describe('the fidelity that is knowingly lost', () => {
   const twoDays: ExportRide = {
     title: 'Two days',
     description: null,
-    hiddenAlternates: 0,
+    hiddenAlts: 0,
     days: [
       {
         title: 'Day 1',
@@ -509,7 +509,7 @@ describe('a multi-day ride survives its own export', () => {
   const ride: ExportRide = {
     title: 'Three days',
     description: null,
-    hiddenAlternates: 0,
+    hiddenAlts: 0,
     days: [
       day(1, [
         [-122.0, 37.0],

@@ -13,7 +13,7 @@ const ride: ExportRide = {
   description: 'An "interesting" one.',
   // loadRideForExport has already dropped any losing alternates by the time a
   // serializer sees the ride, so a fixture for one always has none hidden.
-  hiddenAlternates: 0,
+  hiddenAlts: 0,
   days: [
     {
       title: 'Day 1',

@@ -3,7 +3,7 @@
 // Split out of feedback.js so it can be tested — test/feedback-buffer.test.ts
 // evals this file the way test/ride-time.test.ts evals ride-time.js, which is
 // the house pattern for a pure client helper (twist.js, route-shape.js,
-// builder-history.js, duration.js, alternates.js).
+// builder-history.js, duration.js, alts.js).
 //
 // **This is a crash handler, so it must not be able to crash.** Every read of a
 // browser API in here is feature-detected, and the one that bites is

@@ -1,19 +1,19 @@
-// The browser's copy of src/maps/alternates.ts.
+// The browser's copy of src/maps/alts.ts.
 //
 // Two implementations for the same reason twist.js, filename.js and duration.js
 // are: the server owns the rule and the builder needs it live, while the rider
 // is still dragging days around. There is no round trip to ask the server which
 // alternate is active or what the ride's mileage now reads.
 //
-// test/alternates.test.ts runs both over the same fixtures and fails if they
-// ever disagree, so change one and change the other. If that test fails the fix
-// is to bring the two back into line, never to loosen the assertion — a
+// test/alts.test.ts runs both over the same fixtures and fails if they ever
+// disagree, so change one and change the other. If that test fails the fix is
+// to bring the two back into line, never to loosen the assertion — a
 // disagreement here is a builder showing one total while the database stores
 // another, with nothing raised.
 //
-// Read the header of src/maps/alternates.ts for WHY the grouping rides in the
-// payload rather than being a table. This file carries only what the browser
-// needs and deliberately repeats none of that reasoning.
+// Read the header of src/maps/alts.ts for WHY the grouping rides in the payload
+// rather than being a table. This file carries only what the browser needs and
+// deliberately repeats none of that reasoning.
 //
 // ONE FUNCTION IS NOT MIRRORED: rideRollup, at the bottom. It is the builder's
 // live totals arithmetic and has no server counterpart — the server's own

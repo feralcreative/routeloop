@@ -192,7 +192,7 @@ describe('a losing alternate is not on the schedule', () => {
   it('leaves an ungrouped day alone whatever altActive says', () => {
     const stale = { ...dated('2026-08-01T09:00', 3), altGroup: null, altActive: false }
     expect(T.rideSpan([stale])).not.toBeNull()
-    expect(T.isLosingAlternate(stale)).toBe(false)
+    expect(T.isLosingAlt(stale)).toBe(false)
   })
 })
 

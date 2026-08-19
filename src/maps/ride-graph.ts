@@ -15,7 +15,7 @@ import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, ro
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
-import { activeDays, resolveAltGroups } from './alternates'
+import { activeDays, resolveAltGroups } from './alts'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
@@ -120,7 +120,7 @@ export function normalize(p: RidePayload): void {
   // Last, and before rideTotals runs: a group of one is dissolved, exactly one
   // member of each surviving group is active, and the ids come out dense. The
   // totals below count active days only, so the election has to have happened
-  // by the time they are computed. See src/maps/alternates.ts.
+  // by the time they are computed. See src/maps/alts.ts.
   resolveAltGroups(p.days)
 }
 

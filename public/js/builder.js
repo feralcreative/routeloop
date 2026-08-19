@@ -95,8 +95,8 @@
     endManual: false,
     // Alternates. A new day is always a plain one — grouping is something a
     // rider does to days that already exist. Both fields DO go in payload() and
-    // both come back in loadExisting(); see src/maps/alternates.ts for what
-    // they mean and why the group id is not stable across a save.
+    // both come back in loadExisting(); see src/maps/alts.ts for what they mean
+    // and why the group id is not stable across a save.
     altGroup: null,
     altActive: true,
     stops: [],
@@ -1206,7 +1206,7 @@
   // the whole alternates feature — everything else about them (ghosting, the
   // totals, the numbering) has been in place since they could only be created by
   // hand-writing a payload.
-  function groupSelectedAsAlternates() {
+  function groupSelectedAsAlts() {
     const rows = selectedDays();
     if (rows.length < 2) return toast("Pick at least two days", true);
     if (rows.some((r) => state.days[r].altGroup != null)) {
@@ -1447,7 +1447,7 @@
   // picks one — and it is why altActive exists as a flag rather than the group's
   // first day simply winning: promoting must not reorder the ride and renumber
   // every day after it.
-  function promoteAlternate(r) {
+  function promoteAlt(r) {
     const day = state.days[r];
     if (!day || day.altGroup == null || day.altActive) return;
     beginEdit("choose alternative");
@@ -1466,7 +1466,7 @@
   // Break a group apart: every member becomes an ordinary day again and all of
   // them start counting toward the ride. The way out of a grouping, without
   // which the feature is a trap.
-  function ungroupAlternates(r) {
+  function ungroupAlts(r) {
     const day = state.days[r];
     if (!day || day.altGroup == null) return;
     beginEdit("ungroup alternatives");
@@ -2949,7 +2949,7 @@
       }
       if (act === "delete") return sel.scope === "day" ? deleteSelectedDays() : deleteSelectedPoints();
       if (act === "duplicate") return duplicateSelectedDays();
-      if (act === "group") return groupSelectedAsAlternates();
+      if (act === "group") return groupSelectedAsAlts();
     });
   }
 
@@ -3167,8 +3167,8 @@
         closeMenu();
         if (act === "day-delete") return deleteDay();
         if (act === "day-duplicate") return duplicateDay(r);
-        if (act === "day-promote") return promoteAlternate(r);
-        if (act === "day-ungroup") return ungroupAlternates(r);
+        if (act === "day-promote") return promoteAlt(r);
+        if (act === "day-ungroup") return ungroupAlts(r);
         if (act === "day-select") return startSelect("day");
         return;
       }

@@ -16,7 +16,7 @@ import { db } from '../db/index'
 import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
-import { activeDays } from './alternates'
+import { activeDays } from './alts'
 
 export type ExportPoint = {
   lat: number
@@ -53,7 +53,7 @@ export type ExportRide = {
    * How many losing alternates loadRideForExport left out, so a caller can say
    * so rather than letting a rider count the days and find one missing.
    */
-  hiddenAlternates: number
+  hiddenAlts: number
 }
 
 // Legs are stored per routed segment and share their joints, so consecutive
@@ -99,7 +99,7 @@ export async function loadRideForExport(
     .orderBy(daysTable.position)
 
   const dayRows = activeDays(allDays)
-  const hiddenAlternates = allDays.length - dayRows.length
+  const hiddenAlts = allDays.length - dayRows.length
 
   const out: ExportDay[] = []
   for (const r of dayRows) {
@@ -135,7 +135,7 @@ export async function loadRideForExport(
     })
   }
 
-  return { title: meta.title, description: meta.description, days: out, hiddenAlternates }
+  return { title: meta.title, description: meta.description, days: out, hiddenAlts }
 }
 
 /**

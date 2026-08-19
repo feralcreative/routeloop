@@ -31,7 +31,7 @@
 
   // Numbering and the active-day filter. The server has already resolved the
   // grouping before ride.json is written, so the viewer only ever reads — it
-  // never calls resolveAltGroups. See public/js/alternates.js.
+  // never calls resolveAltGroups. See public/js/alts.js.
   const ALT = window.TBAlt;
 
   initPanelToggle(() => state.map);
@@ -224,7 +224,7 @@
     const multi = days.length > 1;
     // "Day 3" / "Day 3b" rather than the row index — a ride with two alternates
     // for Thursday has more rows than it has days, and numbering by row would
-    // say it is longer than it is. See public/js/alternates.js.
+    // say it is longer than it is. See public/js/alts.js.
     const ordinals = ALT.dayOrdinals(days);
     const anyAlt = days.some((r) => r.altGroup != null);
     table.innerHTML = days

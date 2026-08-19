@@ -194,10 +194,10 @@
   // --- FAQ suggestions -------------------------------------------------------
 
   // Mirrors matchFaq in src/feedback/faq.ts closely enough to be useful and is
-  // NOT pinned to it by a test, because nothing depends on the two agreeing: the
-  // server never runs this scoring, and a suggestion strip that ranks slightly
-  // differently is not a defect. Contrast alternates.js, where a disagreement
-  // silently corrupts a stored total.
+  // NOT pinned to it by a test, because nothing depends on the two agreeing:
+  // the server never runs this scoring, and a suggestion strip that ranks
+  // slightly differently is not a defect. Contrast alts.js, where a
+  // disagreement silently corrupts a stored total.
   const STOP_WORDS =
     " a an and are be can do does for from how i in is it my of on or the this to what when where why will with you your ";
 

@@ -1,15 +1,54 @@
 # Status and handoff
 
-**Updated:** 2026-08-16
+**Updated:** 2026-08-18
 **Branch:** `main`, clean and in sync with `origin/main`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
-**Closes, since the last update:** two branches merged—`feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
+**Closes, since the last update:** the `alt`/`alts` rename that was the one outstanding cleanup on `main`. Before that, two branches merged—`feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
 **For:** the next agent, or the owner returning cold
 
-**One naming cleanup is outstanding on `main`—see "The alternates walkthrough" below.** Ziad settled the vocabulary on 2026-08-16: **in code it is `alt` and `alts`**, and what a rider-facing surface calls it is deliberately unconstrained. The data model already complies; five function names and three filenames do not.
+**The naming cleanup is done and the mobile pass has been run as far as it can be without hardware—see the next two sections.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated mobile pass found three defects in the feedback surfaces, one of them a control that covers a builder input on any phone in portrait.
 
 **Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## The `alt`/`alts` rename—2026-08-18
+
+**Done, and the whole thing is mechanical.** Three files renamed with `git mv` and five identifiers rewritten; `npm run typecheck`, `npm test` (1,076 passing across 44 files, 2 skipped) and `npm run check:dashes` all pass, and the two client files typecheck cannot see were verified by loading the builder and the viewer in a browser.
+
+| Was | Is |
+| --- | --- |
+| `src/maps/alternates.ts` | `src/maps/alts.ts` |
+| `public/js/alternates.js` | `public/js/alts.js` |
+| `test/alternates.test.ts` | `test/alts.test.ts` |
+| `hiddenAlternates` | `hiddenAlts` |
+| `isLosingAlternate` | `isLosingAlt` |
+| `promoteAlternate` | `promoteAlt` |
+| `ungroupAlternates` | `ungroupAlts` |
+| `groupSelectedAsAlternates` | `groupSelectedAsAlts` |
+
+Both traps the previous handoff named turned out to be real, and both are closed. `hiddenAlts` is a field on the `ExportRide` type, so it was renamed everywhere it is constructed—`src/maps/export.ts` plus the six test fixtures that build an `ExportRide` by hand—but it is internal to that type and reaches no wire format, so nothing a rider has downloaded changes. And the script lists are the half `npm run typecheck` cannot see: `public/js/alts.js` is loaded by path from [src/index.tsx](../src/index.tsx) and [src/routes/builder.ts](../src/routes/builder.ts), both updated, both confirmed by loading `/builder/9` and `/m/:slug` and seeing `/js/alts.js` fetched, `window.TBAlt` resolve, and no console errors on either page.
+
+**`window.TBAlt` was already correct** and did not move, which is why the client half of the rename is only the file path.
+
+Two notes for whoever reads the diff. The import in `test/alts.test.ts` collapsed from six lines to one because the shorter module path now fits inside prettier's 120 columns—that is prettier's doing, not a hand edit. And six comment paragraphs were re-wrapped where the shorter name left a short line mid-paragraph; the committed tree is not prettier-clean under the current config, so the reflow was done by hand at the file's own 80-column comment width rather than by running a formatter across the files.
+
+## The mobile pass—2026-08-18, emulated only
+
+**Read this section for what it did NOT cover first.** There is still no device pass. Everything below was measured in Chrome under device emulation at 393×852, 412×915, 700×900, and 852×393 landscape, which is honest about layout, geometry, tap-target size, overflow, and contrast, and says nothing at all about the things [rider-feedback.md](rider-feedback.md) actually asks for. **Still needing hardware, unchanged:** iOS Safari's engine (the visual-viewport and keyboard interaction, `position: sticky` under an open keyboard, tab eviction), the installed-as-PWA context on either OS and the display-mode field the diagnostics record from it, the real photo pickers (iOS HEIC, Android's chooser, and the client-side shrink on a camera-sized file), and tap accuracy with gloves on.
+
+**Three defects, all portrait-phone, all reproducible in emulation.**
+
+**1. The feedback FAB sits on top of the builder's day sheet and covers a stop's fields.** This is the one worth fixing first. `.fb-fab` carries `z-index: $z-map-panel` with the comment *"the panel's layer; they never overlap horizontally"* ([style/_feedback.scss:413](../style/_feedback.scss#L413)). That is true on a wide screen, where `#info-panel` is a 380px left drawer and the button is at `right: 72px`. It stops being true at `max-width: 767px`, where [style/_map.scss:831](../style/_map.scss#L831) turns the panel into a full-width bottom sheet—`left: 0; right: 0; bottom: 0`, `height: clamp(320px, 62vh, …)`. `.map-timeline` was taught about that sheet in the same media query and gets an extra `bottom` term to clear it; the FAB was not. Measured on `/builder/9`: at 393×852 the button lands on a `.row-dur` input, and at 700×900—inside the band where the FAB still shows its label and is 153px wide, because its own breakpoint is 600px while the sheet's is 767px—it covers a `.row-name` and a `.row-dur` together. Collapsing the sheet does not help; the button then overlaps the collapsed header instead, which is only cosmetic. The viewer is affected by the same rule but currently lands on empty panel space rather than a control. The fix shape is the one `.map-timeline` already uses: give `.fb-fab` the matching `:has(#info-panel:not(.collapsed))` term, or hide it while the sheet is open. Landscape at 852×393 is clean—the panel is a left drawer again and the button clears Google's zoom cluster by 22px and the attribution strip entirely.
+
+**2. Step one of the bug flow puts Next below the fold once the keyboard is up.** At a 516px visual viewport—393×852 less a typical iOS keyboard—the textarea ends at 423px and the Next button spans 570–630px, so it is 114px past the fold and the rider has to scroll with the keyboard open. This is exactly the failure `rider-feedback.md` predicted, and it is worth saying that the plan's own remedy is not obviously right: it asks for a send button that is *"full-width, 60px, bottom-anchored above the keyboard"*, and a bottom-anchored button is the classic iOS Safari trap, because a `position: sticky` bottom element sticks to the layout viewport and the keyboard covers it. The button is 60px tall as specified but 93px wide and in normal flow. **This one is a design call, not a defect to fix blind.**
+
+**3. The escape hatch is a 26px target inside a flow whose own rule is 44px.** [style/_feedback.scss:14](../style/_feedback.scss#L14) states the rule outright—*"Every target here is bigger than the app's, because the hands using it are gloved"*—and the flow keeps it: the three kind cards measure 348×95, the chips 60px tall, the final Send it 329×60 and sticky. "Just start typing →" is 144×26, because it renders as a plain `.linkbtn` and never picked up the flow's sizing. Small, and it is the one control on that screen a rider reaches for when the three big ones did not fit.
+
+**What the emulated pass confirmed is right**, so nobody re-checks it: the photo input is `accept="image/*" multiple` with **no** `capture` attribute, which is what the plan requires; the textarea is 17px so iOS will not zoom on focus, and carries `enterkeyhint="next"` and `autocapitalize="sentences"`; the bright-sun decision holds under `prefers-color-scheme: dark`, where the flow still renders white on `#333` at 12.63:1—and there is no dark theme in the app yet, so `.feedback-flow` is a marker for the one that arrives rather than an override doing work today; no page in the flow overflows horizontally at 393 or 412; `/board` and `/feedback/mine` are clean at phone width with no sub-44px targets; and the bug flow submits end to end at 393px.
+
+**One code-level finding that needs no device, and it is not a bug today.** [style/_feedback.scss:218](../style/_feedback.scss#L218) and [:412](../style/_feedback.scss#L412) both add `env(safe-area-inset-bottom, 0px)`, and the comment above the first says it *"keeps it clear of the home indicator"*. Those insets resolve to `0px` unless the page opts in with `viewport-fit=cover`, and [src/views/layout.tsx:560](../src/views/layout.tsx#L560) ships `width=device-width, initial-scale=1` and nothing else. Nothing is broken, because iOS insets the layout viewport itself at the default `viewport-fit=auto`—but the term is inert, the comment describes a mechanism that is not running, and the day somebody adds `viewport-fit=cover` for an edge-to-edge map the two numbers start mattering. Decide it deliberately rather than discovering it.
+
+**Outside the feedback scope, but the same rider on the same phone:** the viewer's panel at 393px is full of targets under 44px, and the worst are the day-visibility checkboxes at **13×13**. The per-day export buttons are 31×21, the zip links 21×16, and the collapse and exit controls 30×30. None of this shipped with the feedback sprint and none of it is a regression, but it is the surface a rider uses at a gas stop and it is worth its own pass.
 
 ## The alternates walkthrough, finally done—2026-08-16
 
@@ -26,22 +65,7 @@ The day-level alternates shipped on 2026-08-16 without the manual pass its own p
 
 **The walkthrough raised a naming question, and Ziad settled it: in code it is `alt` and `alts`; front-end copy is his to write and is not constrained.** The walkthrough had flagged the UI saying "alternative" as a defect. **It is not one**—do not file it, and do not rewrite copy to match identifiers.
 
-What that leaves is a mechanical rename, and it is genuinely small because the data model already complies: `altGroup` (113 uses), `altActive` (88), `ALT` (17), `alt_group`, `alt_active`, `altClass`, `altBadge`. Only these deviate:
-
-| Now | Should be |
-| --- | --- |
-| `src/maps/alternates.ts` | `src/maps/alts.ts` |
-| `public/js/alternates.js` | `public/js/alts.js` |
-| `test/alternates.test.ts` | `test/alts.test.ts` |
-| `hiddenAlternates` | `hiddenAlts` |
-| `isLosingAlternate` | `isLosingAlt` |
-| `promoteAlternate` | `promoteAlt` |
-| `ungroupAlternates` | `ungroupAlts` |
-| `groupSelectedAsAlternates` | `groupSelectedAsAlts` |
-
-Two traps in doing it. **`hiddenAlternates` is a field on the `ExportRide` type**, so it is a contract and not just a local name. And **the three files are a mirrored pair plus the test that pins them**—`public/js/alternates.js` is loaded by path from `src/index.tsx` and `src/routes/builder.ts`, so renaming the file without those two script lists is a viewer and builder that throw on load, which `npm run typecheck` cannot see because `public/js/**` is not typechecked.
-
-**Still not done, and it needs hardware:** the feedback flow has only been driven in a desktop browser. `docs/rider-feedback.md` asks for a real phone—iOS Safari and Android Chrome, in-browser and installed as a PWA—because mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on a device.
+What that left was a mechanical rename, done on 2026-08-18 and recorded in the next section.
 
 ## Rider feedback, end to end—`feat/rider-feedback`, 2026-08-16
 
@@ -74,7 +98,7 @@ Two traps in doing it. **`hiddenAlternates` is a field on the `ExportRide` type*
 
 **The alternate object from roadmap item 14 shipped, at day level, for a single planner.** Two or more days can be grouped as alternatives of one another; exactly one is active; only the active one counts toward any mileage, duration or stop count anywhere in the app. Losing alternates are kept, drawn dashed on the map, badged in the viewer legend and the builder, and excluded from the roadbook, the hand-off page and all four lossy export formats. The native JSON keeps everything. **Voting, resolution and vote scoping are not built**—that is the half of item 14 that still depends on riders (item 8).
 
-Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NULL DEFAULT true`, plus the partial unique index `uq_day_alt_active`, in `drizzle/0003_sticky_firebird.sql`. No backfill was needed—the defaults describe every pre-existing row correctly. The rule lives in `src/maps/alternates.ts`, mirrored by `public/js/alternates.js` and pinned by `test/alternates.test.ts`.
+Two columns on `days`, `alt_group smallint NULL` and `alt_active boolean NOT NULL DEFAULT true`, plus the partial unique index `uq_day_alt_active`, in `drizzle/0003_sticky_firebird.sql`. No backfill was needed—the defaults describe every pre-existing row correctly. The rule lives in `src/maps/alts.ts`, mirrored by `public/js/alts.js` and pinned by `test/alts.test.ts` (renamed 2026-08-18; it was `alternates.*` when this shipped).
 
 **`setRouteDim` could not be reused for ghosting, and this is the design note worth keeping.** `entry.dim` is already owned by day focus in the builder and by hover and the timeline in the viewer, so ghosting through it un-ghosts an alternate the instant it is focused. `map-common.js` gained a third state, `entry.ghost`, drawn dashed with no direction arrows—a different *kind* of line, because opacity already means "not focused".
 

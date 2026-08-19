@@ -7,25 +7,18 @@
 //      nobody claims it, and how group ids are renumbered.
 //   2. The numbering, which is what a rider actually reads: a ride whose days 3
 //      and 4 are alternates is a three-day ride with four rows.
-//   3. That public/js/alternates.js produces identical answers to
-//      src/maps/alternates.ts. Same arrangement as twist-client.test.ts,
+//   3. That public/js/alts.js produces identical answers to
+//      src/maps/alts.ts. Same arrangement as twist-client.test.ts,
 //      filename-client.test.ts and duration.test.ts, and the same instruction
 //      if it fails: bring the two implementations back into line rather than
 //      loosening the assertion. A disagreement here is a builder showing one
 //      mileage while the database stores another, with nothing raised.
 //
 // rideRollup is tested against the client copy only — it has no server
-// counterpart. See the note at the bottom of public/js/alternates.js.
+// counterpart. See the note at the bottom of public/js/alts.js.
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
-import {
-  activeDayCount,
-  activeDays,
-  dayOrdinal,
-  dayOrdinals,
-  resolveAltGroups,
-  type AltDay,
-} from '../src/maps/alternates'
+import { activeDayCount, activeDays, dayOrdinal, dayOrdinals, resolveAltGroups, type AltDay } from '../src/maps/alts'
 import { normalize, rideTotals, ridePayload } from '../src/maps/ride-graph'
 import { METERS_PER_MILE, trackMeters } from '../src/maps/kml'
 
@@ -33,7 +26,7 @@ let C: any
 
 beforeAll(() => {
   const win: Record<string, unknown> = {}
-  new Function('window', readFileSync('public/js/alternates.js', 'utf8'))(win)
+  new Function('window', readFileSync('public/js/alts.js', 'utf8'))(win)
   C = win.TBAlt
 })
 
@@ -193,7 +186,7 @@ const FIXTURES: AltDay[][] = [
   [d(0), d(0, false), d(0, false), d(1), d(1, false), d(null), d(2, false)],
 ]
 
-describe('public/js/alternates.js matches src/maps/alternates.ts', () => {
+describe('public/js/alts.js matches src/maps/alts.ts', () => {
   it('resolves every fixture identically', () => {
     for (const fixture of FIXTURES) {
       const mine = fixture.map((x) => ({ ...x }))

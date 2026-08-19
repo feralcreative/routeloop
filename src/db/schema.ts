@@ -575,8 +575,8 @@ export const days = pgTable(
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
-    // exactly one counts toward the ride's mileage. See src/maps/alternates.ts,
-    // which owns every rule about these two columns.
+    // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
+    // owns every rule about these two columns.
     //
     // A WITHIN-PAYLOAD PARTITION KEY, NOT A STABLE ID. `alt_group` is rewritten
     // densely from 0 on every save and means only "these days are siblings".

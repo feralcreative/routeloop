@@ -10,8 +10,8 @@
 // `position` already does, and `alt_group` is a within-this-payload partition
 // key rather than a stable id anybody may store elsewhere.
 //
-// WHY IT IS MIRRORED. public/js/alternates.js is the browser's copy, and
-// test/alternates.test.ts runs both over the same fixtures. The two must agree
+// WHY IT IS MIRRORED. public/js/alts.js is the browser's copy, and
+// test/alts.test.ts runs both over the same fixtures. The two must agree
 // because they answer the same question in two places at once: the builder
 // decides live which day is active and what the ride's mileage reads, and the
 // server decides the same thing on save. If they disagree, the client shows one

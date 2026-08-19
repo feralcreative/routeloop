@@ -618,7 +618,7 @@ function builderHtml(
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/builder-history.js')}" defer></script>
   <script src="${asset('/js/route-shape.js')}" defer></script>
-  <script src="${asset('/js/alternates.js')}" defer></script>
+  <script src="${asset('/js/alts.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

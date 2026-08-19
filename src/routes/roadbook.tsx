@@ -143,7 +143,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // alternates, so every reduce and every section below is over the ride as it
   // will be ridden and needs no filtering of its own. A roadbook is a thing you
   // print and carry; printing the road you decided against is worse than useless
-  // on a tank bag. `ride.hiddenAlternates` is how many were left out.
+  // on a tank bag. `ride.hiddenAlts` is how many were left out.
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
   if (ride.days.length === 0) return c.text('Not found', 404)
 
