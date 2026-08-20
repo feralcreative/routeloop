@@ -58,7 +58,7 @@ export const inviteEmail = defineEmail<Props>({
         </Muted>
         <Muted>
           The link is good for {expiry}. You’ll sign in with Google or an emailed link—there’s no password to pick.{' '}
-          <A href={FAQ_URL}>Why it works this way</A>.
+          <A href={FAQ_URL}>Why it works this&nbsp;way</A>.
         </Muted>
       </>
     ).toString(),

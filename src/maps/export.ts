@@ -9,7 +9,7 @@
 //
 // GeoJSON first because it is the format that loses the least: it carries
 // arbitrary `properties`, so a ride exported here and re-imported keeps its
-// roles, its POI/stop distinction and its per-day colours, none of which
+// roles, its POI/stop distinction and its per-day colors, none of which
 // survive a trip through KML or GPX. See the note on ExtractedPoint.kind.
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -181,7 +181,7 @@ export function buildGeoJson(ride: ExportRide, firstDay = 1): string {
           twistinessDpm: r.twistinessDpm,
           twistinessBestDpm: r.twistinessBestDpm,
           // simplestyle-spec, which geojson.io, GitHub and Mapbox all render.
-          // Costs three keys and means the day colours survive into any of them
+          // Costs three keys and means the day colors survive into any of them
           // instead of every day drawing the same default blue.
           stroke: r.color,
           'stroke-width': 4,
@@ -298,8 +298,8 @@ const xml = (v: string | null | undefined): string =>
 
 // --- KML -------------------------------------------------------------------
 
-// KML colours are `aabbggrr` — alpha first and the RGB bytes reversed. Getting
-// this backwards does not fail, it just draws every day in the wrong colour,
+// KML colors are `aabbggrr` — alpha first and the RGB bytes reversed. Getting
+// this backwards does not fail, it just draws every day in the wrong color,
 // which is why it has a test rather than a comment alone.
 function kmlColor(css: string): string {
   const hex = /^#?([0-9a-f]{6})$/i.exec(css.trim())
@@ -379,7 +379,7 @@ export function buildKml(ride: ExportRide, firstDay = 1): string {
 // makes the app's central promise false.
 //
 // A `<trk>` is a record of a path actually taken. Devices follow it rather than
-// re-deriving it, which is the behaviour riders are here for.
+// re-deriving it, which is the behavior riders are here for.
 export function buildGpx(ride: ExportRide, firstDay = 1): string {
   const out: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -423,7 +423,7 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 // is a stop or a POI or how long you sat there, CSV drops the geometry, GeoJSON
 // keeps the points but the importer rebuilds one day out of many. This is the
 // builder's own save payload, so a ride exported here and imported back is the
-// same ride — days, colours, times, via points and all — because it goes
+// same ride — days, colors, times, via points and all — because it goes
 // through the same schema and the same insert the builder's save does.
 //
 // The version key is a version, not decoration: the importer refuses a file

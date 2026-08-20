@@ -57,7 +57,7 @@ test_patterns = [
 ]
 
 [smells]
-# Duplication and complexity, reported not enforced. These are judgement calls —
+# Duplication and complexity, reported not enforced. These are judgment calls —
 # a long function with a reason is not a defect — so they inform rather than
 # fail. Revisit if the codebase starts growing functions nobody can read.
 mode = "comment"

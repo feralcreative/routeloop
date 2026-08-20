@@ -76,7 +76,7 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
             <span class="role-label">{b.label}</span>
             {/*
               The bar is a div, not a chart. Magnitude is carried by length, so
-              one hue is the whole colour requirement — a ramp across seventeen
+              one hue is the whole color requirement — a ramp across seventeen
               rows would imply an ordering the categories do not have.
             */}
             <span class="role-track">
@@ -145,7 +145,7 @@ function Sharing({ stats }: { stats: DashboardStats }) {
             <span class={`split-seg split-${v.key}`} style={`flex:${v.n}`}></span>
           ))}
       </div>
-      {/* Direct labels, always. Identity is never carried by colour alone. */}
+      {/* Direct labels, always. Identity is never carried by color alone. */}
       <ul class="split-key">
         {stats.visibility.map((v) => (
           <li>

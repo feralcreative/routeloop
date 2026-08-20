@@ -43,7 +43,7 @@ export type SplitDay = {
 //
 // Without a tolerance, a route file whose first waypoint sits one vertex in —
 // which is most of them, since the waypoint is a street address and the track
-// starts at the kerb — would get a synthesized "Start" a few metres away from
+// starts at the curb — would get a synthesized "Start" a few meters away from
 // the stop the rider actually named. Two pins on top of each other, one of them
 // invented, is worse than none.
 //

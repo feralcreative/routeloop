@@ -88,7 +88,7 @@ describe('every format reads the same ride the same way', () => {
           expect(r.track).toEqual(EXPECTED_TRACK)
         })
 
-        it('agrees on distance to within a metre', () => {
+        it('agrees on distance to within a meter', () => {
           expect(Math.abs(r.trackMeters - trackMeters(EXPECTED_TRACK))).toBeLessThan(1)
         })
       } else {
@@ -331,7 +331,7 @@ describe('a ride survives export and re-import', () => {
         )
       })
 
-      it('keeps coordinates to within a metre', () => {
+      it('keeps coordinates to within a meter', () => {
         back.points.forEach((p, i) => {
           // ~0.3 m at this latitude, which is finer than any consumer GPS and
           // is the precision round6 stores.
@@ -361,7 +361,7 @@ describe('a ride survives export and re-import', () => {
       })
 
       if (w.keepsTrack) {
-        it('keeps the geometry to within a metre', () => {
+        it('keeps the geometry to within a meter', () => {
           expect(back.track).toHaveLength(EXPECTED_TRACK.length)
           expect(Math.abs(back.trackMeters - trackMeters(EXPECTED_TRACK))).toBeLessThan(1)
         })
@@ -461,22 +461,22 @@ describe('the fidelity that is knowingly lost', () => {
     ])
   })
 
-  // Per-day colour is still not read back: colour comes from the upload form,
-  // and a day's colour is the viewer's business rather than the file's.
-  it('does not carry per-day colour back in', () => {
+  // Per-day color is still not read back: color comes from the upload form,
+  // and a day's color is the viewer's business rather than the file's.
+  it('does not carry per-day color back in', () => {
     const written = JSON.parse(buildGeoJson(twoDays))
     // Written, so the loss is on the import side and a third-party tool still
     // sees it.
     expect(written.features[0].properties.stroke).toBe('#cc0000')
     expect(written.features[0].properties.name).toBe('Day 1')
-    // The name does come back — it is the day's title. Colour does not, and
-    // that is the deliberate part: a day's colour is the viewer's business.
+    // The name does come back — it is the day's title. Color does not, and
+    // that is the deliberate part: a day's color is the viewer's business.
     const back: ExtractedRoute = processGeoJson(buildGeoJson(twoDays))
     expect(back.tracks.map((t) => t.name)).toEqual(['Day 1', 'Day 2'])
   })
 })
 
-// The bug this file used to assert as intended behaviour: a ride built over
+// The bug this file used to assert as intended behavior: a ride built over
 // several days was exported correctly and re-imported as one day, because every
 // parser kept only its longest line. The app could not read its own export.
 describe('a multi-day ride survives its own export', () => {

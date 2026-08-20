@@ -260,7 +260,7 @@ export function statusLabel(status: FeedbackStatus, kind: FeedbackKind): string 
 /**
  * Words that must never appear on a rider-facing surface, in code or in copy.
  *
- * Every one of them is either jargon a rider does not have, or a judgement about
+ * Every one of them is either jargon a rider does not have, or a judgment about
  * the rider rather than the report. "user error" and "invalid" are the two that
  * lose a rider permanently.
  *

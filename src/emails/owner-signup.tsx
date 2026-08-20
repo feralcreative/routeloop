@@ -59,8 +59,8 @@ export const ownerSignupEmail = defineEmail<Props>({
           <strong>{email}</strong> just signed up.
         </P>
         <P>
-          Signed in with {provider}. {pendingCount === 1 ? '1 rider is' : `${pendingCount} riders are`} waiting for
-          approval.
+          Signed in with {provider}. {pendingCount === 1 ? '1 rider is' : `${pendingCount} riders are`} waiting
+          for&nbsp;approval.
         </P>
         <Button href={ADMIN_URL}>Open the rider list</Button>
         <Muted>

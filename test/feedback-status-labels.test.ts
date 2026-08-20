@@ -6,7 +6,7 @@
 // was written to, not by us.
 //
 // The second half is the vocabulary ban. Every word in BANNED_WORDS is either
-// jargon a rider does not have or a judgement about the rider rather than the
+// jargon a rider does not have or a judgment about the rider rather than the
 // report, and the two that lose a rider permanently — "invalid" and "user
 // error" — are both words an engineer reaches for without thinking. The test
 // cannot police a view, so it polices the one table every view reads from.

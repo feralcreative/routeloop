@@ -173,7 +173,7 @@
 
   // Geometry is dropped on the way in, and this is the important decision in
   // the file. A 300-mile day is roughly 19,000 coordinate pairs; a multi-day
-  // ride serialised whole can pass the ~5 MB origin limit and take the write
+  // ride serialized whole can pass the ~5 MB origin limit and take the write
   // down with it. Legs are derived data — the router can rebuild them — while
   // the stops are the thing that cannot be recovered from anywhere. So a draft
   // keeps what is irreplaceable and re-days the rest.

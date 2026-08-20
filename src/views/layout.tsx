@@ -207,7 +207,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
             {/*
               THE WAY OFF A MAP PAGE, and the only item here that is not on every
               page. It replaced an X in the drawer header on 2026-08-19 — see the
-              decision in docs/main-menu.md. The X sat a millimetre from collapse
+              decision in docs/main-menu.md. The X sat a millimeter from collapse
               and read as its pair, which the two are not: one keeps you on the
               map and the other leaves it.
 
@@ -268,7 +268,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 // already looks to dismiss a panel.
 //
 // That grouping was the mistake. Collapse and exit are different verbs — one
-// keeps you on the map, the other leaves it — and sitting them a millimetre
+// keeps you on the map, the other leaves it — and sitting them a millimeter
 // apart made the more consequential of the two the easier to hit by accident.
 // The exit is `Exit map`, first in the menu, in SiteHeader above; the hamburger
 // was always the right place, it just needed to say so. `exitHref` and

@@ -203,12 +203,12 @@
   // either way and only its weight on the page changes.
   //
   // No `color.adjust()` on the hover fill. `.btn`'s reflex is to darken, which
-  // is right when a field is already coloured and merely has to move; here the
-  // hover IS the colour arriving, and $stop diluted by 8% is a worse red than
+  // is right when a field is already colored and merely has to move; here the
+  // hover IS the color arriving, and $stop diluted by 8% is a worse red than
   // $stop.
   //
-  // Left-aligned like every other item rather than centred: it is a row in a
-  // list before it is a button, and centring one row breaks the column the whole
+  // Left-aligned like every other item rather than centered: it is a row in a
+  // list before it is a button, and centering one row breaks the column the whole
   // drawer reads down.
   //
   // THE `:any-link` IS A SPECIFICITY FIX, not decoration, and what it out-ranks

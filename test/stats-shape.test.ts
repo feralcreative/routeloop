@@ -4,7 +4,7 @@
 // not crash and does not look wrong — it just quietly misrepresents their own
 // library back to them, which is worse than an error page.
 //
-// Four things are pinned harder than the rest, because each is a judgement that
+// Four things are pinned harder than the rest, because each is a judgment that
 // could plausibly have gone the other way and would be invisible if it had:
 //
 //   - twistiness rolls up distance-weighted, so a short twisty loop cannot
@@ -136,7 +136,7 @@ describe('roleBars', () => {
   })
 
   // A role removed from ROLE_META but still on old rows must not crash the page.
-  it('ignores a role it does not recognise', () => {
+  it('ignores a role it does not recognize', () => {
     expect(roleBars([{ role: 'teleporter', n: 9 }])).toEqual([])
   })
 

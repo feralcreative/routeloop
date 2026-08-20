@@ -67,7 +67,7 @@ Cloudflare Zero Trust is free for up to 50 users. Past that, the pay-as-you-go p
 | 10,000  | $70,000 / mo      | email only, roughly $1–10 / mo       |
 | 100,000 | $700,000 / mo     | email only, roughly $10–100 / mo     |
 
-App-level auth has no per-user licence cost. The only variable is transactional email for magic links, which is fractions of a cent per message.
+App-level auth has no per-user license cost. The only variable is transactional email for magic links, which is fractions of a cent per message.
 
 #### What you already have
 
@@ -121,7 +121,7 @@ This one is worth stating on its own because it is a full authentication bypass 
 
 Build it now, as you suggested. The reasoning is not that Access is bad—it is that Access is billed per seat, so the migration is not optional, only delayed. Doing it now costs a sprint. Doing it after you open signups means migrating live accounts across an identity boundary, which is materially harder.
 
-Keep `users.status` as the gate. That is what lets you open signups on your own schedule without touching auth again: the NAS capacity limit becomes a policy you enforce in a column, not a licence you buy.
+Keep `users.status` as the gate. That is what lets you open signups on your own schedule without touching auth again: the NAS capacity limit becomes a policy you enforce in a column, not a license you buy.
 
 <!--| PAGE-BREAK -->
 
@@ -188,7 +188,7 @@ Unit rates behind those figures:
 
 #### Reading the table
 
-**Below roughly 1,000 users none of this matters.** Every option is free or close to it. Choosing on cost at your current scale is optimising a rounding error—choose on quality and on migration risk.
+**Below roughly 1,000 users none of this matters.** Every option is free or close to it. Choosing on cost at your current scale is optimizing a rounding error—choose on quality and on migration risk.
 
 **Google is not dramatically more expensive at scale**, which is the surprise. It is ~20% above Mapbox-with-Search-Box at 100,000 users. Google's free tiers are much smaller, but its session-based autocomplete is genuinely free, which offsets most of the difference. Cost is not the argument against Google.
 

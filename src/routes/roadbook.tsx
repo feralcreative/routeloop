@@ -168,7 +168,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
             {anyClock && (
               <p class="rb-caveat">
                 Times are estimates: the day’s riding time spread evenly over its distance, plus the time planned at
-                each stop. Traffic, weather and the way you actually ride are not in them.
+                each stop. Traffic, weather, and the way you actually ride are not in&nbsp;them.
               </p>
             )}
           </header>

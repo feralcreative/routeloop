@@ -339,7 +339,7 @@ Board sorting defaults to most wanted, with newest and recently shipped as alter
 Two new files under `public/js/`, both plain ES modules, no bundler, matching the existing per-glob prettier override:
 
 - **`feedback.js`**—the error ring buffer, the diagnostics collector, client-side image downscale to 1600px on the long edge via canvas before upload, and the want button's `fetch`. **The canvas re-encode also strips EXIF, which matters here specifically: riders will attach ride photos and EXIF carries GPS coordinates.** Publishing an idea with a geotagged photo attached would leak a rider's home address.
-- **`feedback-buffer.js`**—if the ring buffer is worth testing on its own, split it out and `eval` it from a test, following the `ride-time.js` / `twist.js` / `route-shape.js` / `builder-history.js` precedent. Judgement call; four pure client helpers already work this way.
+- **`feedback-buffer.js`**—if the ring buffer is worth testing on its own, split it out and `eval` it from a test, following the `ride-time.js` / `twist.js` / `route-shape.js` / `builder-history.js` precedent. Judgment call; four pure client helpers already work this way.
 
 The intake form itself must work without any of it. `feedback.js` enriches; it is not load-bearing.
 

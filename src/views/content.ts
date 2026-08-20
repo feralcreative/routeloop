@@ -17,7 +17,7 @@ import { join } from 'node:path'
 // root; mirror that here, exactly as views/assets.ts does.
 const CONTENT_DIR = join(process.cwd(), 'src', 'content')
 
-// Guarded by mtime, and that is not an optimisation — it is what keeps editing
+// Guarded by mtime, and that is not an optimization — it is what keeps editing
 // prose bearable. `npm run dev` is `tsx watch src/index.ts`, which watches
 // TypeScript, so nothing restarts when a .html file changes. Read once at
 // startup and you would have to bounce the server for every typo; this way an

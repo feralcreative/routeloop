@@ -81,7 +81,7 @@
 // One row per action: what it does on the left, the button on the right. The
 // rows are deliberately uniform even though they are not equally reversible,
 // because the difference belongs in the copy and in the confirmation screen, not
-// in a button that looks scarier than its neighbour. A rider leaving is doing
+// in a button that looks scarier than its neighbor. A rider leaving is doing
 // something legitimate and the page should not editorialize about it.
 .gtfo {
   margin-top: 3rem;
@@ -98,10 +98,22 @@
   }
 }
 
+// A grid rather than a flex row, so every control sits in ONE shared column and
+// their centers line up down the page. `justify-content: space-between` lined up
+// their right EDGES, and the three controls are three different widths — a guide
+// sign, an octagon, and a line of text standing in for a button with nothing to
+// do — so three different centers came down a section that reads as a stack of
+// signs.
+//
+// The track is a fixed width and not `max-content` because each row is its own
+// grid: sizing to content would size it to that row's own control and put the
+// centers straight back where they were. A control wider than the track
+// overflows evenly on both sides and stays centered, so the number is a
+// comfortable fit rather than a hard limit.
 .gtfo-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem;
   align-items: center;
-  justify-content: space-between;
   gap: 1.5rem;
   padding: 1.25rem 0;
   border-top: 1px solid $grey;
@@ -115,11 +127,12 @@
     max-width: 60ch;
   }
 
-  // The button never shrinks to fit a long paragraph beside it. The form wrapper
-  // is here too, because Save Me posts rather than links.
-  .btn,
-  form {
-    flex: 0 0 auto;
+  // The control, whichever kind this row has. Grid items stretch by default,
+  // which would pull a link the full width of the track and undo the centering
+  // it is here for; `justify-self` shrinks it back to its own size first. This
+  // is also what keeps it centered at XS, where the track becomes the whole row.
+  > :last-child {
+    justify-self: center;
   }
 }
 
@@ -170,14 +183,11 @@
   margin-top: 1.25rem;
 }
 
-//@ XS <576px — the two-column row stops fitting, so the button drops below.
+//@ XS <576px — the two-column row stops fitting, so the control drops below the
+// copy. Nothing else is needed: `justify-self` on the control above centers it
+// in whatever track it lands in, and here that track is the whole row.
 @media (max-width: 575px) {
   .gtfo-item {
-    flex-direction: column;
-    align-items: stretch;
-
-    .btn {
-      text-align: center;
-    }
+    grid-template-columns: minmax(0, 1fr);
   }
 }

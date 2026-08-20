@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { expandTrack } from '../src/maps/expand'
 import { haversineM, trackMeters, type Track } from '../src/maps/kml'
 
-// Roughly metres-to-degrees at 37°N, good enough to build fixtures with.
+// Roughly meters-to-degrees at 37°N, good enough to build fixtures with.
 const M_LAT = 1 / 111_320
 const M_LNG = 1 / (111_320 * Math.cos(37 * (Math.PI / 180)))
 
@@ -66,7 +66,7 @@ describe('where the points go', () => {
     // Every point sits on the route, not somewhere invented. Compared against
     // the nearest stored vertex rather than the line itself, and candidates are
     // interpolated every 100 m, so a point genuinely on the line can still be
-    // tens of metres from the closest vertex.
+    // tens of meters from the closest vertex.
     for (const p of points) expect(nearest(t, p)).toBeLessThan(60)
   })
 

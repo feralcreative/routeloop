@@ -1,11 +1,11 @@
 // Raw aggregate rows in, everything the dashboard renders out.
 //
 // Same split as src/survey/score.ts and for the same reason: query.ts holds the
-// SQL and cannot be tested here, so every judgement that could be WRONG rather
+// SQL and cannot be tested here, so every judgment that could be WRONG rather
 // than merely absent lives in this file, where vitest can pin it without a
 // database.
 //
-// Three of those judgements are not obvious and each has cost someone a
+// Three of those judgments are not obvious and each has cost someone a
 // afternoon somewhere:
 //
 //   - Twistiness rolls up DISTANCE-WEIGHTED, never as an average of averages.

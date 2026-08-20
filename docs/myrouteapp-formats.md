@@ -4,11 +4,11 @@ The question this document answers: of the file types MyRoute-app (MRA) offers u
 
 Every factual claim is footnoted. Claims sourced from community forums rather than official MRA documentation are marked as such inline, because the technical detail here lives almost entirely in forum posts.
 
-A naming caution: **MyRoute-app** (myrouteapp.com, the motorcycle route planner) is a different product from **MyRouteOnline** (myrouteonline.com, a fleet/delivery route optimiser). Search results conflate them constantly. Everything below is MyRoute-app.
+A naming caution: **MyRoute-app** (myrouteapp.com, the motorcycle route planner) is a different product from **MyRouteOnline** (myrouteonline.com, a fleet/delivery route optimizer). Search results conflate them constantly. Everything below is MyRoute-app.
 
 ## The answer
 
-**Save As → `.GPX 1.1 (route, track, POI)`.** One file, and it is the only option that carries all three layers of the route with the waypoint semantics still labelled.
+**Save As → `.GPX 1.1 (route, track, POI)`.** One file, and it is the only option that carries all three layers of the route with the waypoint semantics still labeled.
 
 Nothing else comes close, and the runners-up all lose something specific and unrecoverable:
 
@@ -70,7 +70,7 @@ Ranked by how much survives. Loss column describes what is gone relative to the 
 
 ### Why GPX 1.2 loses despite sounding newer
 
-MRA's GPX 1.2 strips shaping points out of the `<rte>` waypoint list and instead embeds the shape as `gpxx:rpt` route point extension data—Garmin's "hidden" or "ghost" points—inside the via points that remain.[^2] MRA describes the resulting behaviour as "navigation works based on the track, only viapoints are used and shown".[^14]
+MRA's GPX 1.2 strips shaping points out of the `<rte>` waypoint list and instead embeds the shape as `gpxx:rpt` route point extension data—Garmin's "hidden" or "ghost" points—inside the via points that remain.[^2] MRA describes the resulting behavior as "navigation works based on the track, only viapoints are used and shown".[^14]
 
 Two problems for an importer. First, the shaping points a rider deliberately placed are no longer addressable as waypoints, so routeloop cannot show them, let them be edited, or round-trip them. Second, this is a house designation rather than a ratified GPX version—the published GPX schemas I am aware of are 1.0 and 1.1, and a forum analysis reports that standard software such as Garmin BaseCamp does not read MRA's 1.2 as intended.[^1] I have not verified the schema-registry point against Topografix myself.
 
@@ -78,7 +78,7 @@ There is also a live defect trail around it: Garmin outdoor devices reportedly f
 
 ### Why GPX 1.0 loses
 
-MRA's 1.0 export produces a track and an accurate route, "but with all waypoints shown as via points".[^1] Every shaping point is silently promoted. This is almost certainly a schema constraint rather than an MRA choice—GPX 1.0 has no `<extensions>` element in which to carry the distinction, so there is nowhere to put it. I have not confirmed that against the 1.0 schema, but the behaviour is consistent with it.
+MRA's 1.0 export produces a track and an accurate route, "but with all waypoints shown as via points".[^1] Every shaping point is silently promoted. This is almost certainly a schema constraint rather than an MRA choice—GPX 1.0 has no `<extensions>` element in which to carry the distinction, so there is nowhere to put it. I have not confirmed that against the 1.0 schema, but the behavior is consistent with it.
 
 The failure mode is nasty because it is invisible: the file parses fine, the geometry is right, and every shaping point has quietly become an announced stop. A rider importing a 40-waypoint route would get 38 spurious arrival announcements.
 
@@ -153,11 +153,11 @@ Relevant only if routeloop ever needs to push routes back the other way.[^12]
 
 Absent from both directions: `.FIT`, `.TCX`, `.GeoJSON`, and any polyline-encoded format. GPX is the only realistic channel in either direction.
 
-The mobile app is far narrower—`.GPX` only, imported via the OS share sheet, and a route imported on the phone **stays on the phone** rather than appearing in the web account.[^13] Combined with the POI-discard behaviour noted earlier,[^6] MRA's import side is materially weaker than its export side.
+The mobile app is far narrower—`.GPX` only, imported via the OS share sheet, and a route imported on the phone **stays on the phone** rather than appearing in the web account.[^13] Combined with the POI-discard behavior noted earlier,[^6] MRA's import side is materially weaker than its export side.
 
 ## Sources
 
-[^1]: MRA Community Forum, "The Different .gpx Export & Save As Options", <https://forum.myrouteapp.com/topic/1958/the-different-gpx-export-save-as-options>. Community source, not official MRA documentation. Source for the per-version waypoint behaviour comparison (1.0 flattening all waypoints to via points, 1.1 preserving the distinction as authored, 1.2 carrying via points only), the claim that GPX 1.2 is MRA-specific and not read as intended by Garmin BaseCamp, and the observation that the Connector offers no track-only or POI-only option.
+[^1]: MRA Community Forum, "The Different .gpx Export & Save As Options", <https://forum.myrouteapp.com/topic/1958/the-different-gpx-export-save-as-options>. Community source, not official MRA documentation. Source for the per-version waypoint behavior comparison (1.0 flattening all waypoints to via points, 1.1 preserving the distinction as authored, 1.2 carrying via points only), the claim that GPX 1.2 is MRA-specific and not read as intended by Garmin BaseCamp, and the observation that the Connector offers no track-only or POI-only option.
 
 [^2]: MRA Community Forum, "Add option for stripping shaping points in gpx export", <https://forum.myrouteapp.com/topic/6684/add-option-for-stripping-shaping-points-in-gpx-export>. Community source. Source for GPX 1.2 stripping shaping points from the waypoint list while preserving shape as `gpxx:rpt` route point extension data, and for the reported failure of via points to display on Garmin outdoor devices from a 1.2 export together with the BaseCamp workaround.
 
@@ -183,4 +183,4 @@ The mobile app is far narrower—`.GPX` only, imported via the OS share sheet, a
 
 [^13]: MRA Community Forum threads on mobile GPX import, principally "How to bring an external .GPX file into my route App for navigation", <https://forum.myrouteapp.com/topic/10345/how-to-bring-an-external-.gpx-file-into-my-route-app-for-navigation>, and "How do I upload gpx file using the app on ios?", <https://forum.myrouteapp.com/topic/5392/how-do-i-upload-gpx-file-using-the-app-on-ios>. Community sources. Source for the GPX-only restriction on the mobile app, the share-sheet import mechanism, and the fact that app-side imports do not propagate to the web account.
 
-[^14]: MyRoute-app Support, "Garmin - Export", <https://support.myrouteapp.com/en/support/solutions/articles/12000103419-garmin-export>. Source for MRA's own behavioural descriptions of GPX 1.1 ("navigation works based on waypoints, all waypoints (shaping + via) are used and shown") versus GPX 1.2 ("navigation works based on the track, only viapoints are used and shown"), and for the Zumo XT track-only and Tread/XT2 GPX-1.1-only guidance.
+[^14]: MyRoute-app Support, "Garmin - Export", <https://support.myrouteapp.com/en/support/solutions/articles/12000103419-garmin-export>. Source for MRA's own behavioral descriptions of GPX 1.1 ("navigation works based on waypoints, all waypoints (shaping + via) are used and shown") versus GPX 1.2 ("navigation works based on the track, only viapoints are used and shown"), and for the Zumo XT track-only and Tread/XT2 GPX-1.1-only guidance.

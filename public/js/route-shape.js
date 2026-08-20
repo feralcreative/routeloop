@@ -51,7 +51,7 @@
 
   // Nearest vertex to a point, searched only within [from, to] so a via on one
   // leg cannot match a vertex on another that happens to be closer as the crow
-  // flies — a switchback can bring two legs within metres of each other.
+  // flies — a switchback can bring two legs within meters of each other.
   //
   // Squared degrees with a cosine correction on longitude: this only ever ranks
   // candidates against each other over a few miles, so the accuracy of a real
@@ -116,7 +116,7 @@
   // "how far along is this".
   //
   // Interpolation within a segment is plain linear in lng/lat. Adjacent track
-  // vertices are metres apart, so great-circle curvature between them is far
+  // vertices are meters apart, so great-circle curvature between them is far
   // below the six decimal places a coordinate is stored to.
   function pointAtDistance(track, targetM) {
     if (!track || track.length === 0) return null;

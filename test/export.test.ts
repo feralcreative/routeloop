@@ -1,7 +1,7 @@
 // The two generated XML formats.
 //
 // Both have a failure mode that produces a perfectly valid file which is wrong
-// in a way nobody notices until they are on the road: KML's colour bytes are
+// in a way nobody notices until they are on the road: KML's color bytes are
 // reversed, and a GPX written as a route instead of a track makes the device
 // re-derive the ride. Neither throws. Both get a test.
 import { describe, expect, it } from 'vitest'
@@ -49,12 +49,12 @@ describe('buildKml', () => {
   const out = buildKml(ride)
 
   // aabbggrr, not #rrggbb. #cc0000 is pure red, so the red byte must land last.
-  // Reversed, this ships every route in the wrong colour and nothing errors.
-  it('writes the colour as aabbggrr', () => {
+  // Reversed, this ships every route in the wrong color and nothing errors.
+  it('writes the color as aabbggrr', () => {
     expect(out).toContain('<color>ff0000cc</color>')
   })
 
-  it('falls back to a valid colour rather than emitting a broken one', () => {
+  it('falls back to a valid color rather than emitting a broken one', () => {
     const broken = buildKml({ ...ride, days: [{ ...ride.days[0], color: 'rebeccapurple' }] })
     expect(broken).toMatch(/<color>[0-9a-f]{8}<\/color>/)
   })

@@ -46,8 +46,8 @@ export const waitlistEmail = defineEmail<Props>({
       <>
         <P>You’re on the list for Routeloop.</P>
         <P>
-          Beta is invite-only and I approve riders by hand, a few at a time. There’s nothing else for you to do— you’ll
-          get an email when your turn comes up.
+          Beta is invite-only and I approve riders by hand, a few at a time. There’s nothing else for you to do—you’ll
+          get an email when your turn comes&nbsp;up.
         </P>
         <Muted>
           <A href={WELCOME_URL}>Your place</A> · <A href={FAQ_URL}>Why it works this way</A>

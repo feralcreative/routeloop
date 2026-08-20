@@ -70,7 +70,7 @@ importRoutes.get('/import', requireActive, async (c) => {
               Tells /api/maps to answer with a redirect rather than JSON. A
               hidden field rather than sniffing the Accept header: an API client
               that happens to send text/html should still get JSON, and being
-              explicit means the two behaviours cannot be triggered by accident.
+              explicit means the two behaviors cannot be triggered by accident.
             */}
             <input type="hidden" name="redirect" value="1" />
 
@@ -265,7 +265,7 @@ importRoutes.get('/import', requireActive, async (c) => {
           ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>'
           : undefined,
       // filename.js first: import.js reads window.TBFilename at load and bails
-      // if it is not there, which is the correct behaviour for a missing
+      // if it is not there, which is the correct behavior for a missing
       // dependency and the wrong one for a race.
       scripts: [
         `<script src="${asset('/js/filename.js')}"></script>`,

@@ -66,7 +66,7 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
         {rows.length} {rows.length === 1 ? 'ride' : 'rides'}
       </div>
       <p>
-        <a class="btn" href="/builder">
+        <a class="btn btn-sign arrow-right arrow-s" href="/builder">
           Plan a ride
         </a>
       </p>

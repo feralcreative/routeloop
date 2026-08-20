@@ -19,7 +19,7 @@ export const TOKEN_HEX_LENGTH = 48
 export type InviteKind = 'email' | 'link' | 'group'
 
 /**
- * Why an invite will not be honoured, or `ok`.
+ * Why an invite will not be honored, or `ok`.
  *
  * Ordered by how the rider should hear it. An expired invite that is also full
  * reads better as "expired" — that is the fact they can do something about, by

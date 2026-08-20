@@ -320,7 +320,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     gpxUrl: `/api/public/maps/${m.slug}/gpx`,
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     csvUrl: `/api/public/maps/${m.slug}/csv`,
-    // The only lossless one — days, colours, times and via points survive it.
+    // The only lossless one — days, colors, times and via points survive it.
     nativeUrl: `/api/public/maps/${m.slug}/${NATIVE_EXT}`,
     // One file per day, zipped and named by the convention. Offered only for a
     // multi-day ride: a one-day ride zips to an archive holding the file you

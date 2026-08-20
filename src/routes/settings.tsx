@@ -82,7 +82,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
             ))}
           </fieldset>
           <div class="setting-actions">
-            <button type="submit" class="btn">
+            <button type="submit" class="btn btn-sign arrow-right arrow-n">
               Save
             </button>
             {savedDuration ? <span class="form-ok">Saved</span> : null}
@@ -114,7 +114,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
               original files you uploaded. The <code>.routeloop.json</code> in each ride folder is the lossless one.
             </p>
           </div>
-          <a class="btn" href="/account/download">
+          <a class="btn btn-sign" href="/account/download">
             Download Me
           </a>
         </div>
@@ -127,7 +127,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
               {DELETION_HOLD_DAYS} days. Nothing is destroyed before then, and Save Me undoes it at any point.
             </p>
           </div>
-          <a class="btn btn-danger" href="/account/delete">
+          <a class="btn btn-sign btn-stop" href="/account/delete">
             Delete Me
           </a>
         </div>

@@ -3,7 +3,7 @@
 
 // The printable roadbook. Two audiences: someone checking it on screen, and a
 // sheet of US Letter paper in a tank bag window at 60 mph. The paper one wins
-// every trade-off — bigger numbers, more contrast, no colour that costs ink to
+// every trade-off — bigger numbers, more contrast, no color that costs ink to
 // say something a word already says.
 
 .roadbook-page {
@@ -206,7 +206,7 @@
       font-size: 8.5pt;
     }
 
-    // The swatch is the only colour worth spending: it is what matches a day on
+    // The swatch is the only color worth spending: it is what matches a day on
     // the sheet to the same day on the map. Forced, because browsers strip
     // backgrounds when printing by default.
     .rb-day-swatch {

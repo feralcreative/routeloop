@@ -1,7 +1,7 @@
 // Google Maps hand-off links.
 //
 // The numbers here are not arbitrary: 9 waypoints and the current-location
-// behaviour were confirmed on an iPhone against a real 11-point route, and the
+// behavior were confirmed on an iPhone against a real 11-point route, and the
 // batching exists because Maps silently drops what it cannot carry.
 import { describe, expect, it } from 'vitest'
 import { MAX_POINTS_PER_LINK, linkLabel, routeLinks } from '../src/maps/gmaps-links'

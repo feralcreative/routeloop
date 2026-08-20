@@ -295,7 +295,7 @@ Three rules the format rests on:
 - **The `routeloop_` marker is what makes a name structured.** Without it the importer does exactly what it always did—upload order is day order—so your own `day-2.gpx` is never silently reinterpreted.
 - **Optional fields are found by shape, not position.** `routeloop_big-sur-run_d02.gpx` and `routeloop_big-sur-run_2026-08-14.gpx` both parse.
 
-**A filename does not carry the ride, and is not trying to.** Roles, dwell, via points, per-day colours and the stop/POI distinction do not fit in one—`routeloop.json` remains the only lossless format. What the convention carries is the handful of fields the other formats drop, and the one that matters most is the date: **neither GPX nor KML can hold a date at all**, so for those formats the filename is the only place a planned schedule survives a round trip.
+**A filename does not carry the ride, and is not trying to.** Roles, dwell, via points, per-day colors and the stop/POI distinction do not fit in one—`routeloop.json` remains the only lossless format. What the convention carries is the handful of fields the other formats drop, and the one that matters most is the date: **neither GPX nor KML can hold a date at all**, so for those formats the filename is the only place a planned schedule survives a round trip.
 
 Two fields are deliberately absent. **Visibility**, because a file named `public` that publishes a ride on import is a footgun with no upside. And **a timezone**, because the app stores what you typed in your own zone and a filename claiming otherwise would be inventing one.
 

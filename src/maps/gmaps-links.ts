@@ -60,7 +60,7 @@ export type GmapsRouteLinks = {
   links: GmapsLink[]
   // Points that were skipped because they are not routing anchors.
   skippedPois: number
-  // The longest stretch of road with nothing pinning it, in metres, once
+  // The longest stretch of road with nothing pinning it, in meters, once
   // shaping points are in. This is the honest measure of how much freedom the
   // nav app still has, and a caller should show it rather than implying the
   // route is nailed down. Null when there is no geometry to measure.
@@ -72,7 +72,7 @@ export type LinkOptions = {
   // is. Only ever right for the leg being ridden now — a shared plan someone
   // reads at home wants the real start.
   fromCurrentLocation?: boolean
-  // `two-wheeler` exists but is only honoured in some countries and silently
+  // `two-wheeler` exists but is only honored in some countries and silently
   // degrades elsewhere, so driving is the default until there is a reason.
   travelMode?: 'driving' | 'two-wheeler' | 'bicycling' | 'walking'
   // How many shaping points to weave in between the stops to hold the route on

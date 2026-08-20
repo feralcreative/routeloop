@@ -14,12 +14,12 @@
 // there. So there are two parsers, not one:
 //
 //   parseAnswers()       lenient. Every READ. Fills gaps, drops what it does not
-//                        recognise, never throws. A rider must never lose a
+//                        recognize, never throws. A rider must never lose a
 //                        half-finished form because a question was renamed.
 //   validateSubmission() strict. The submit button only. Returns field-keyed
 //                        errors the form re-renders against.
 //
-// The bundles are DELIBERATELY NOT LABELLED as built or planned. The whole point
+// The bundles are DELIBERATELY NOT LABELED as built or planned. The whole point
 // is to learn what riders want, and telling them what already exists gets
 // politeness about finished work instead of an answer.
 import { z } from 'zod'
@@ -47,7 +47,7 @@ export const OPEN_MAX = 2000
 // Still no neutral. A midpoint collects "I have not thought about it" and
 // reports it as a considered opinion.
 //
-// `tone` is carried here rather than derived in CSS because the colour IS the
+// `tone` is carried here rather than derived in CSS because the color IS the
 // meaning — red, yellow, green — and a stylesheet reaching for :nth-child would
 // silently repaint the scale the moment a row is reordered.
 export const RATINGS = [

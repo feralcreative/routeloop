@@ -25,7 +25,7 @@
   // is already showing the numbers, so this exits quietly.
   if (!el || !months.length || typeof uPlot === "undefined") return;
 
-  // Indices, not timestamps. The x axis is twelve labelled buckets, not a
+  // Indices, not timestamps. The x axis is twelve labeled buckets, not a
   // continuous time range — treating it as time would put the ticks at real
   // month boundaries of uneven width and invite a reading ("February is
   // narrower") that means nothing here.

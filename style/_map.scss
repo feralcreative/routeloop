@@ -89,7 +89,7 @@
 // `width: 100vw` while the panel floated on top of it, which is why fitTo() in
 // map-common.js carried 380px of left padding — the map was full width and the
 // left 380 of it was under the panel. Now the drawer takes its own column and
-// the map gets the rest, so that padding is gone and a fitted route is centred
+// the map gets the rest, so that padding is gone and a fitted route is centered
 // in the space a rider can actually see.
 //
 // The transition matches the drawer's so the two move together; without it the
@@ -163,7 +163,7 @@
 // --map-credit-height is the Google wordmark bottom-left and the attribution row
 // bottom-right. Measured at 26px on a phone. This one is not a preference: the
 // Maps terms require the logo and the data attribution to stay visible, so it is
-// a no-go zone rather than a nicety, and covering it is a licence problem and
+// a no-go zone rather than a nicety, and covering it is a license problem and
 // not only an ugly one.
 html.map-page {
   --panel-inset: 2vw;
@@ -182,7 +182,7 @@ html.map-page {
 
 // The whole open/closed switch, in one declaration. :has() rather than a class
 // on <html> so the CSS needs no JavaScript to be correct — initPanelToggle only
-// toggles .collapsed on the drawer, exactly as it always did, and re-centres the
+// toggles .collapsed on the drawer, exactly as it always did, and re-centers the
 // map afterwards because that part genuinely cannot be done in CSS.
 //
 // If :has() ever fails the drawer collapses and the map keeps its open-width
@@ -346,7 +346,7 @@ html.map-page:has(#info-panel.collapsed) {
   // One control, not two. The exit X that shared this rule was removed on
   // 2026-08-19 and is `Exit map` in the menu now — see docs/main-menu.md. The
   // sizing stays as it was: the button is a 30px target holding an 18px glyph,
-  // and nothing about that depended on having a neighbour.
+  // and nothing about that depended on having a neighbor.
   .collapse-toggle {
     background-color: transparent;
     // NO !important on display. It carried one to out-shout the old collapsed
@@ -354,7 +354,7 @@ html.map-page:has(#info-panel.collapsed) {
     // and everything in it. That rule is gone — collapsing narrows the drawer to
     // a rail now — and the leftover !important actively broke the rail: it beat
     // the `display: none` that hides the exit button there, so .panel-controls
-    // stayed 61.4px wide inside a 56px column and centring pushed the collapse
+    // stayed 61.4px wide inside a 56px column and centering pushed the collapse
     // button to x = -2.7, half of it off the screen.
     display: inline-flex;
     justify-content: center;
@@ -404,7 +404,7 @@ html.map-page:has(#info-panel.collapsed) {
   // The artwork is `fill="black"`, not `fill="currentColor"`. An <img> cannot
   // take a color from CSS at all, and inlining the file through hydrateIcons
   // would faithfully reproduce that hardcoded black — so a disabled .day-del
-  // would stay black while the button greyed out around it. Masking ignores the
+  // would stay black while the button grayed out around it. Masking ignores the
   // fill entirely: it reads the alpha channel, paints `currentColor` through it,
   // and therefore inherits hover, disabled opacity and the day tint for free.
   //
@@ -514,7 +514,7 @@ html.map-page:has(#info-panel.collapsed) {
       color: $text;
     }
 
-    // The focused day. Its own colour rather than one accent, so the rail agrees
+    // The focused day. Its own color rather than one accent, so the rail agrees
     // with the routes on the map and the ticks under the slider.
     &[aria-current="true"] {
       color: $white;
@@ -538,7 +538,7 @@ html.map-page:has(#info-panel.collapsed) {
     // slides off the bottom edge with everything still inside it — so the phone
     // block used to un-hide these one at a time by restating `display`, and a
     // restated value is a value somebody has to guess. `.panel-exit` was guessed
-    // as `block` and lost the flex centring that put its X in the middle of its
+    // as `block` and lost the flex centering that put its X in the middle of its
     // own button — that control has since been removed outright, but the lesson
     // it cost is the reason this is scoped rather than restated. `.panel-title`
     // cannot be guessed at all either way, because the viewer wants `flex` and
@@ -890,7 +890,7 @@ table.day-table {
     // 768px and up, so nothing has to be un-hidden and no value has to be
     // guessed. See the note on that media query.
     //
-    // They stop being REACHABLE once they have finished travelling, which is
+    // They stop being REACHABLE once they have finished traveling, which is
     // the one thing `display: none` was doing for free and is not a property to
     // drop quietly. `visibility` is discretely animatable, so the delay holds
     // them on screen for exactly the length of the slide and then takes them
@@ -923,7 +923,7 @@ table.day-table {
   // control gutter. Measured at 390x844: spanning edge to edge at the plain
   // inset it covered Google's wordmark bottom-left, the attribution row along
   // the bottom, AND the bottom 30px of the zoom control. The logo and the
-  // attribution are a licence condition, not a preference.
+  // attribution are a license condition, not a preference.
   //
   // It also has to clear the sheet, which now owns the bottom of the screen —
   // hence the extra term. :has() rather than a body class because the bar is only
@@ -1080,7 +1080,7 @@ table.day-table {
   }
 
   // Both members of a group get one of these, which is what makes them read as
-  // a pair. Same shape either way and only the colour differs, so the eye pairs
+  // a pair. Same shape either way and only the color differs, so the eye pairs
   // them before it reads either word.
   .day-alt {
     display: inline-block;
@@ -1097,7 +1097,7 @@ table.day-table {
     vertical-align: middle;
     cursor: help;
 
-    // The one being ridden, tinted in the day's own colour so it agrees with
+    // The one being ridden, tinted in the day's own color so it agrees with
     // its line on the map and its swatch everywhere else.
     &.is-on {
       background: color-mix(in srgb, var(--day-color, #{$url}) 16%, #{$white});
@@ -1206,7 +1206,7 @@ table.day-table {
   font-weight: 600;
   font-size: 0.9em;
 
-  // brightness() rather than a Sass colour function: the button's background is
+  // brightness() rather than a Sass color function: the button's background is
   // whatever --day-color happens to be at runtime, so there is no compile-time
   // value to adjust in the first place.
   &:hover {

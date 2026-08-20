@@ -114,15 +114,15 @@ $sign-arrow-bearings: (
   color: $white;
   border-radius: 10px;
   // The legend is nudged down a tenth of an em, chosen by eye against the real
-  // login form rather than derived. `align-items: center` centres the text's
-  // line BOX, and the box is not centred on the letters: the baseline sits
+  // login form rather than derived. `align-items: center` centers the text's
+  // line BOX, and the box is not centered on the letters: the baseline sits
   // (ascent − descent) / 2 below the box's middle, so the glyphs ride high. The
   // vertical padding still sums to 1.5rem, so the button's height does not move.
   //
   // Worth knowing before touching it: that offset is independent of
   // line-height. Setting `line-height: 1` was tried as the principled fix and
   // moved nothing, because the term cancels — it only shrinks the box around an
-  // already off-centre baseline. There is no line-height that centres the type
+  // already off-center baseline. There is no line-height that centers the type
   // and no arithmetic that lands on 0.1em; this is a taste value.
   //
   // It reads worse on /login than anywhere else, which is a red herring rather
@@ -169,8 +169,8 @@ $sign-arrow-bearings: (
   // browser reads the rest of the data URI as a fragment and the arrow vanishes.
   //
   // `top` undoes the padding nudge for the arrow alone, so the legend moves and
-  // the arrow stays centred — its drawn shape is symmetric about its box, so
-  // centred is already right for it. Relative offset rather than a negative
+  // the arrow stays centered — its drawn shape is symmetric about its box, so
+  // centered is already right for it. Relative offset rather than a negative
   // margin on purpose: margin would resize the flex line and drag the legend
   // part of the way back up with it.
   &::before {
@@ -272,10 +272,12 @@ $sign-arrow-bearings: (
 // is how it shipped for a day, and the tell was the legend refusing to wrap at
 // any viewport: it was being handed the full declared width to fit in.
 //
-// The legend scales with the panel and the keyline does not. The 3px and 5px are
-// the values that tie this to the guide sign, so they stay absolute; the type is
-// proportional the way it is on a real sign, which is what keeps "Delete Me" on
-// one line inside a panel this small.
+// The legend is left at the same size as every other button's — Ziad's call,
+// 2026-08-19 — which at this panel size means it wraps to two lines. It wraps
+// rather than being sized down: matching the rest of the app's type is worth
+// more here than keeping the label on one line, and a two-line legend is not
+// wrong on a sign. The keyline stays absolute at 3px and 5px either way, since
+// those are the values that tie this to the guide sign.
 //
 // The 2px ring comes out uniform on all eight sides for free, because a regular
 // octagon has the same apothem to every side — scaling one concentrically moves
@@ -301,7 +303,6 @@ $octagon: polygon(
   width: 6.25rem;
   aspect-ratio: 1;
   padding: calc(0.75rem + 0.1em) 0.75rem calc(0.75rem - 0.1em);
-  font-size: 0.8rem;
   border-radius: 0;
   background: $stop;
   box-shadow: none;

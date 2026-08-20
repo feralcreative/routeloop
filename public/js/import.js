@@ -160,7 +160,7 @@
 
   input.addEventListener("change", render);
 
-  // dragover must be cancelled or the browser navigates to the dropped file,
+  // dragover must be canceled or the browser navigates to the dropped file,
   // which loses the form and looks like a crash.
   ["dragenter", "dragover"].forEach(function (evt) {
     zone.addEventListener(evt, function (e) {

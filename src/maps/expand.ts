@@ -16,7 +16,7 @@
 // It also defends against the wrong thing. The router that ruins a route is
 // never ours: it is the Google Maps app carrying the rider's own avoid
 // settings, a Garmin recomputing after a missed turn, Sygic. You cannot verify
-// against a router you do not control, so the only defence is leaving it no
+// against a router you do not control, so the only defense is leaving it no
 // room. That means density, and density is geometry — free, offline, and
 // computed from what is already stored.
 //

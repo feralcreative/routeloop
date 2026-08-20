@@ -1,4 +1,4 @@
-// Starting and cancelling a deletion. The queries; the rules are in ./policy.ts.
+// Starting and canceling a deletion. The queries; the rules are in ./policy.ts.
 import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { users, type UserRow } from '../db/schema'
@@ -42,7 +42,7 @@ export type DeletionRequested = { purgeAfter: Date }
  *
  * Nothing is destroyed and nothing is even hidden by this write. Rides go dark
  * because every read path asks whether the owner is leaving, not because
- * anything about the rides changed, which is what makes cancelling free.
+ * anything about the rides changed, which is what makes canceling free.
  */
 export async function requestDeletion(userId: number, now = new Date()): Promise<DeletionRequested | null> {
   const purgeAfter = purgeDateFor(now)
@@ -77,6 +77,6 @@ export async function cancelDeletion(userId: number, by: 'rider' | 'admin', now 
     .where(and(eq(users.id, userId), isNotNull(users.deletionRequestedAt), isNull(users.purgeStartedAt)))
     .returning({ id: users.id })
 
-  if (row) console.log(`[account] deletion cancelled for user ${userId} by ${by}`)
+  if (row) console.log(`[account] deletion canceled for user ${userId} by ${by}`)
   return Boolean(row)
 }

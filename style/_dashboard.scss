@@ -15,7 +15,7 @@
 // charting library asked to draw a horizontal bar produces worse marks than a
 // span with a width on it.
 //
-// Colours are declared once as custom properties on .home and referenced by role
+// Colors are declared once as custom properties on .home and referenced by role
 // below, so a palette change is one block rather than a search. The three
 // categorical hues were run through the data-viz validator against this page's
 // white card surface: all five checks pass, worst adjacent pair is teal-orange
@@ -30,7 +30,7 @@
   // imply a rank the data does not have.
   --viz-series-1: #{$brand};
   // Categorical slots, validated as a set. Order is fixed: public, unlisted,
-  // private. Colour follows the meaning, never the size of the group.
+  // private. Color follows the meaning, never the size of the group.
   --viz-cat-1: #{$disabled};
   --viz-cat-2: #{$detour};
   --viz-cat-3: #{$interstate};

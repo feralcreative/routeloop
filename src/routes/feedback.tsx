@@ -448,7 +448,7 @@ function stepBody(d: Draft, kind: FeedbackKind, step: StepId, opts: { prefilled?
 // on purpose. Registered after it, the parameterized route swallows them and
 // answers with a 404 for a report whose public id happens to be "mine". Same
 // class of bug as the zip route ordering in src/index.tsx, which is documented
-// there because it was observed rather than theorised.
+// there because it was observed rather than theorized.
 
 feedbackRoutes.get('/feedback', requireActive, (c) => {
   const kindRaw = c.req.query('kind') ?? ''
@@ -1034,7 +1034,7 @@ const WantButton = ({
   const count = row.wantCount === 1 ? '1 rider wants this' : `${row.wantCount} riders want this`
 
   // The author's own idea, whose want was auto-cast at publish. Shown as a fact
-  // rather than a disabled button — a greyed control invites a click and then
+  // rather than a disabled button — a grayed control invites a click and then
   // explains nothing.
   if (!allowed) return <span class="b-count">{count}</span>
 

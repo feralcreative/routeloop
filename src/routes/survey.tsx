@@ -63,7 +63,7 @@ const many = (v: Body[string] | undefined): string[] => {
  * Form body to answers.
  *
  * Deliberately does no validating of its own — it shapes, and parseAnswers()
- * decides what is real. One place makes that judgement, and it is the same place
+ * decides what is real. One place makes that judgment, and it is the same place
  * that judges a row coming back out of the database.
  */
 export function answersFromBody(body: Body): SurveyAnswers {
@@ -122,7 +122,7 @@ function SurveyForm({ answers, errors, saved, welcome }: FormArgs) {
     <>
       <h1>The rider survey</h1>
       <p class="lede">
-        I am building Routeloop on my own judgement about what a trip needs, and my judgement is one rider’s. This is
+        I am building Routeloop on my own judgment about what a trip needs, and my judgment is one rider’s. This is
         how I find out where it is wrong. Everything below is genuinely undecided—the parts I have already made my mind
         up about are not on the list, because asking about those would waste the only 5 minutes you owe me.
       </p>
