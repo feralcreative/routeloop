@@ -180,7 +180,7 @@ accountRoutes.get('/account/gone', requireAuth, (c) => {
             <p>Change your mind. Everything comes back exactly as it was — your rides, your handle, your profile.</p>
           </div>
           <form method="post" action="/account/save">
-            <button type="submit" class="btn">
+            <button type="submit" class="btn btn-sign">
               Save Me
             </button>
           </form>
