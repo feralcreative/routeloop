@@ -472,12 +472,6 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false, signedIn = false): string {
   return panelShell({
     title: m.title,
-    // The viewer is the same black hole the builder was: no footer, a floating
-    // nav, and nothing that says "done looking". Where it goes depends on who is
-    // reading — a rider has their own list to go back to, and a visitor who
-    // followed a shared link has never seen the site and gets the front page.
-    exitHref: signedIn ? '/rides' : '/',
-    exitLabel: signedIn ? 'Leave the map and go to your rides' : 'Leave the map',
     contents: (
       <>
         <div class="details">

@@ -108,7 +108,12 @@
 // drawer still opens and closes, it just arrives immediately.
 @media (prefers-reduced-motion: reduce) {
   #map,
-  #info-panel {
+  #info-panel,
+  // The phone sheet's contents hold their visibility for the length of the
+  // slide. With no slide to wait for, they have nothing to wait for either.
+  #info-panel .panel-title,
+  #info-panel .panel-contents-wrapper,
+  #info-panel .drawer-foot {
     transition: none !important;
   }
 }
@@ -338,8 +343,11 @@ html.map-page:has(#info-panel.collapsed) {
     gap: 0.1em;
   }
 
-  .collapse-toggle,
-  .panel-exit {
+  // One control, not two. The exit X that shared this rule was removed on
+  // 2026-08-19 and is `Exit map` in the menu now — see docs/main-menu.md. The
+  // sizing stays as it was: the button is a 30px target holding an 18px glyph,
+  // and nothing about that depended on having a neighbour.
+  .collapse-toggle {
     background-color: transparent;
     // NO !important on display. It carried one to out-shout the old collapsed
     // pill, which restated `display: inline-flex !important` on .panel-controls
@@ -390,41 +398,21 @@ html.map-page:has(#info-panel.collapsed) {
     mask-image: url("/img/icons/icon-expand.svg");
   }
 
-  // Leaving is the more consequential of the two, so it gets the warmer hover.
-  // Not $kml outright — exiting is not destructive now that the builder
-  // autosaves, and painting it as danger would say otherwise.
-  .panel-exit {
-    font-size: 1.1rem;
-    line-height: 1;
-    // Black rather than the $neutral-43 it shares with .collapse-toggle. The X
-    // is drawn by a mask painting currentColor, so this is what colors the
-    // glyph. Later in source than the shared rule at equal specificity, so it
-    // wins without !important, and the $kml hover below still overrides it.
-    color: $black;
-
-    &:hover {
-      background-color: rgba($kml, 0.12);
-      color: $kml;
-    }
-  }
-
-  // BOTH X CONTROLS DRAW icon-close.svg, as a MASK rather than as an <img> or an
+  // THE DAY ACTIONS DRAW THEIR GLYPHS AS A MASK rather than as an <img> or an
   // inlined SVG, and the choice is not cosmetic.
   //
   // The artwork is `fill="black"`, not `fill="currentColor"`. An <img> cannot
   // take a color from CSS at all, and inlining the file through hydrateIcons
-  // would faithfully reproduce that hardcoded black — so .panel-exit would stay
-  // black through its $kml hover, and a disabled .day-del would stay black while
-  // the button greyed out around it. Masking ignores the fill entirely: it reads
-  // the alpha channel, paints `currentColor` through it, and therefore inherits
-  // hover, disabled opacity and the day tint for free.
+  // would faithfully reproduce that hardcoded black — so a disabled .day-del
+  // would stay black while the button greyed out around it. Masking ignores the
+  // fill entirely: it reads the alpha channel, paints `currentColor` through it,
+  // and therefore inherits hover, disabled opacity and the day tint for free.
   //
   // It also keeps one copy of the artwork. The mask points at the file, so a
   // redraw ships by replacing the file and nothing here changes.
   //
   // Both properties: -webkit-mask is still required for Safari, which has not
   // unprefixed the shorthand.
-  .panel-exit,
   .day-del,
   .day-rev {
     &::before {
@@ -434,7 +422,6 @@ html.map-page:has(#info-panel.collapsed) {
     }
   }
 
-  .panel-exit::before,
   .day-del::before {
     -webkit-mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
     mask: url("/img/icons/icon-close.svg") center / contain no-repeat;
@@ -446,14 +433,6 @@ html.map-page:has(#info-panel.collapsed) {
   .day-rev::before {
     -webkit-mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
     mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
-  }
-
-  // 18px, the same as .collapse-icon above, because the two sit side by side in
-  // the drawer header and have to read as a pair. Sizing this in em got it 11px
-  // against the collapse button's 18 and it looked like a different control.
-  .panel-exit::before {
-    width: 18px;
-    height: 18px;
   }
 
   // Smaller than the header's 18px: this sits inside a .day-actions button,
@@ -552,12 +531,29 @@ html.map-page:has(#info-panel.collapsed) {
   // 380px-wide stop list at 56px is not a smaller stop list, it is a column of
   // broken rows. What survives is the collapse button and the day dots.
   &.collapsed {
-    .drawer-logo,
-    .panel-title,
-    .panel-contents-wrapper,
-    .drawer-foot,
-    .panel-exit {
-      display: none;
+    //@ MD 768px and up — only these widths have a rail to drop things for.
+    //
+    // SCOPED, and the scoping is the fix for a bug that has now bitten twice.
+    // Below 768px the collapsed panel is not a rail at all, it is a sheet that
+    // slides off the bottom edge with everything still inside it — so the phone
+    // block used to un-hide these one at a time by restating `display`, and a
+    // restated value is a value somebody has to guess. `.panel-exit` was guessed
+    // as `block` and lost the flex centring that put its X in the middle of its
+    // own button — that control has since been removed outright, but the lesson
+    // it cost is the reason this is scoped rather than restated. `.panel-title`
+    // cannot be guessed at all either way, because the viewer wants `flex` and
+    // the builder overrides it to `block`.
+    //
+    // Hiding only where a rail exists means the phone inherits every natural
+    // value and restates nothing. If a sixth element ever joins this list, it
+    // joins it here and the sheet keeps working with no counterpart edit.
+    @media (min-width: 768px) {
+      .drawer-logo,
+      .panel-title,
+      .panel-contents-wrapper,
+      .drawer-foot {
+        display: none;
+      }
     }
 
     .drawer-head {
@@ -826,6 +822,30 @@ table.day-table {
   html.map-page,
   html.map-page:has(#info-panel.collapsed) {
     --drawer-current: 0px;
+    // The sheet's two footprints, declared here rather than repeated at each
+    // use, because anything floating over the map at this width has to clear
+    // one of them and a second copy of the expression is a second thing to get
+    // wrong. --sheet-height is 62% of the screen, floored so a short viewport
+    // still shows a usable list and capped so the map never disappears
+    // entirely; a fixed fraction rather than the content's height is the point.
+    // --sheet-collapsed-height is declared rather than measured, the same way
+    // --timeline-height is: collapsed, the sheet is the drawer head and nothing
+    // in it can grow. Measured at 393x852 and 852x393: 52px.
+    --sheet-height: clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance)));
+    --sheet-collapsed-height: 52px;
+  }
+
+  // THE SHEET CLOSES DOWNWARD AT THIS WIDTH, not sideways, so the arrow pair
+  // has to point along the axis the panel actually travels. Both glyphs are
+  // drawn for the desktop drawer — icon-collapse.svg is a bar on the left with
+  // an arrow into it, icon-expand.svg a bracket on the right with an arrow out
+  // of it — and one rotation turns both correctly at once, because they are the
+  // same artwork mirrored: counter-clockwise sends the collapse arrow down onto
+  // a bar at the bottom edge, and the expand arrow up out of a bracket at the
+  // top. Rotating rather than shipping a second pair of files keeps one copy of
+  // each drawing, which is the same reason they are masks rather than <img>.
+  #info-panel .collapse-icon {
+    transform: rotate(-90deg);
   }
 
   #info-panel {
@@ -834,29 +854,61 @@ table.day-table {
     bottom: 0;
     left: 0;
     width: auto;
-    // 62% of the screen, floored so a short viewport still shows a usable list
-    // and capped so the map never disappears entirely. A fixed fraction rather
-    // than the content's height is the point.
-    height: clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance)));
+    height: var(--sheet-height);
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -2px 14px $panel-shadow;
-    transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    // THE SHEET SLIDES, IT DOES NOT SHRINK — and the rule this replaced did
+    // neither. It declared `transition: height 0.28s …` against a collapsed
+    // state of `height: auto`, and a length cannot be interpolated toward a
+    // keyword, so the transition sat there doing nothing while the sheet jumped
+    // 528px to 52px in a single frame. Measured before the change: 33 samples
+    // over 500ms, every one already at the collapsed height. The desktop drawer
+    // was never affected because it animates `width` between two real lengths.
+    //
+    // `transform` rather than a pair of explicit heights because this is the
+    // phone: a translate runs on the compositor and never touches layout, where
+    // animating height would re-lay-out a drawer holding every day of the ride
+    // on every frame of the slide.
+    //
+    // Longer than the drawer's 0.28s because the travel is longer — the sheet
+    // covers about 476px where the drawer covers 324px — and the same easing,
+    // so the two read as one piece of furniture moving two ways.
+    transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   // Collapsed is the sheet pulled down to its own header — the wordmark and the
   // two controls — which doubles as the grab handle to bring it back.
   #info-panel.collapsed {
-    height: auto;
+    // A length, never `auto`: see the note on the transition above. The sheet
+    // keeps its whole box and rides down until only the header is left.
+    height: var(--sheet-height);
     width: auto;
+    transform: translateY(calc(var(--sheet-height) - var(--sheet-collapsed-height)));
+
+    // The head, the heading, the list and the footer are all still here and
+    // still at their own natural `display` — the rail's hiding is scoped to
+    // 768px and up, so nothing has to be un-hidden and no value has to be
+    // guessed. See the note on that media query.
+    //
+    // They stop being REACHABLE once they have finished travelling, which is
+    // the one thing `display: none` was doing for free and is not a property to
+    // drop quietly. `visibility` is discretely animatable, so the delay holds
+    // them on screen for exactly the length of the slide and then takes them
+    // out of the tab order and the accessibility tree. Expanding carries no
+    // delay — this rule simply stops applying — so they are back the instant
+    // the sheet starts coming up.
+    //
+    // Keep the delay and the slide's duration in step.
+    .panel-title,
+    .panel-contents-wrapper,
+    .drawer-foot {
+      visibility: hidden;
+      transition: visibility 0s 0.34s;
+    }
 
     .drawer-head {
       justify-content: space-between;
       padding: 0.75em var(--drawer-pad);
-    }
-
-    .drawer-logo,
-    .panel-exit {
-      display: block;
     }
 
     // The rail is a vertical strip and has no meaning lying on its side. On a
@@ -881,10 +933,16 @@ table.day-table {
     left: var(--panel-inset);
     right: calc(var(--panel-inset) + var(--map-control-gutter));
     bottom: calc(var(--panel-inset) + var(--map-credit-height));
+    // The base rule transitions `left`, which is the drawer's axis and does not
+    // move at this width. Here the bar's `bottom` is what changes, by the whole
+    // height of the sheet, so it gets the slide's duration and easing — without
+    // this it jumped to the far end of that travel on the first frame while the
+    // sheet was still on its way.
+    transition: bottom 0.34s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   html.map-page:has(#info-panel:not(.collapsed)) .map-timeline {
-    bottom: calc(var(--panel-inset) + clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance))));
+    bottom: calc(var(--panel-inset) + var(--sheet-height));
   }
 }
 

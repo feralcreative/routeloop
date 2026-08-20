@@ -11,6 +11,8 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 ## The tree
 
 ```text
+Exit map              /rides           (map pages only; / when signed out)
+
 Rides ▾
   Home                /
   Your rides          /rides
@@ -45,9 +47,21 @@ Admin ▾                                (only if canManageRiders)
 
 Plus one thing that is not in the tree: a floating **Something wrong?** button, on the builder and the viewer only. See the decision below.
 
-Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta`.
+Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta`—plus `Exit map` ahead of them on a map page, pointing at `/`.
+
+`Exit map` is the only item that is not on every page. It renders when, and only when, the page is a map page, which is the same `isMap` the header already uses to decide whether to draw the logo.
 
 ## Decisions
+
+**[decided 2026-08-19] The way off a map page is a menu item, and the panel's X is gone.**
+
+The drawer header carried an X beside the collapse button, and Ziad's call is that it serves no purpose there: the two controls sit a millimeter apart and read as a pair, but they are not a pair—one keeps you on the map and the other leaves it entirely. Putting the more consequential of the two under a fingertip beside the lesser one is how a rider taps *leave* meaning *tidy away*.
+
+- **The X is removed from both panels**, not just the builder. The reasoning does not change between the two, and leaving one behind would mean two ways out that disagree about where they live.
+- **`Exit map` is the first item in the menu**, above the `Rides` group, so it is the first thing under the thumb when the drawer opens.
+- **It replaces `exitHref` / `exitLabel` entirely.** Those were per-page options passed into `panelShell`; the destination is a function of nothing but whether a rider is signed in, so the header works it out and the two call sites stop passing anything.
+- **It is a red button, not a text link**, added 2026-08-19. It is the only item in this menu that leaves the page rather than moving around inside it, and a column of identical text links gave it no way to say so. **Outlined at rest and filled on hover**: red text on a red keyline over the menu's white, inverting to the white legend on a solid `$stop` field when a pointer is on it. One red is involved either way—`$stop` is the road-sign palette's only one, and `$kml` is an alias for the same value. Note this reverses the reasoning on the control it replaced, which deliberately avoided red on the grounds that leaving is not destructive now that the builder autosaves—Ziad's call; the button is red because it is the one door out, not because it is dangerous.
+- What this gives up, stated plainly: the exit is now two taps rather than one. That is the point—leaving is not a thing to do by accident, and the collapse button, which is the one riders actually reach for, keeps its corner to itself.
 
 **[shipped] Import / Export is one page.** `/import` grew an export half rather than a second page being created beside it—the URL already exists, the FAQ links to it, and import is the primary action. The label in the menu is "Import / Export". **This is built**, not pending: `src/routes/import.tsx` renders `<h1>Import / Export</h1>` over two `.transfer-head` sections, and the export half lists the rider's own rides with a per-format download row. It read as an open decision here until 2026-08-16 and misled a planning pass; the URL keeps the singular name it shipped under.
 

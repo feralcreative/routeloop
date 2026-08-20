@@ -204,6 +204,29 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
         </summary>
         <nav class="site-nav" id="site-nav">
           <div class="nav-primary">
+            {/*
+              THE WAY OFF A MAP PAGE, and the only item here that is not on every
+              page. It replaced an X in the drawer header on 2026-08-19 — see the
+              decision in docs/main-menu.md. The X sat a millimetre from collapse
+              and read as its pair, which the two are not: one keeps you on the
+              map and the other leaves it.
+
+              First, so it is the first thing under the thumb when the drawer
+              opens. `isMap` is the same flag that decides whether the header
+              draws a logo, so there is one answer to "is this a map page" rather
+              than two that can disagree.
+
+              Where it goes depends on who is reading: a rider has their own list
+              to go back to, and a visitor who followed a shared link has never
+              seen the site and gets the front page. That is the whole of what
+              `exitHref` used to carry per page, and it is a function of the user
+              alone — which is why the option is gone and this is computed here.
+            */}
+            {isMap && (
+              <a class="nav-exit-map" href={user ? '/rides' : '/'}>
+                Exit map
+              </a>
+            )}
             {user ? (
               <>
                 <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
@@ -237,19 +260,24 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 // The floating map panel scaffold, previously copy-pasted into all three map
 // shells. map-common.js binds the collapse toggle by these class names.
 //
-// `exitHref` is the way OUT of a map page, and it was added because there was
-// not one. A map page has no site footer and its header is the floating nav, so
-// the only way off the builder was the hamburger in the opposite corner, which
-// nobody finds — the builder read as a black hole. The control belongs next to
-// collapse rather than in the nav because that corner is where a reader already
-// looks to dismiss a panel.
+// THERE IS NO EXIT CONTROL IN THIS HEADER, as of 2026-08-19, and it is not an
+// omission. A map page has no site footer and its header is the floating nav, so
+// for a while the only way off the builder was the hamburger in the opposite
+// corner, which nobody finds — the builder read as a black hole. The first fix
+// put an X next to collapse, on the grounds that the corner is where a reader
+// already looks to dismiss a panel.
 //
-// It is deliberately NOT the collapse button, and that distinction is the whole
-// point of the pair: collapse keeps you on the map, exit leaves it. They are
-// different verbs and now they are different controls. (Note for anyone reading
-// issue #91, which describes the existing control as an X: it never was one — it
-// renders icon-collapse.svg, a minimize glyph — so only the missing exit was
-// real, and the collapse affordance did not have to move.)
+// That grouping was the mistake. Collapse and exit are different verbs — one
+// keeps you on the map, the other leaves it — and sitting them a millimetre
+// apart made the more consequential of the two the easier to hit by accident.
+// The exit is `Exit map`, first in the menu, in SiteHeader above; the hamburger
+// was always the right place, it just needed to say so. `exitHref` and
+// `exitLabel` went with it: the destination is a function of whether a rider is
+// signed in and nothing else, so no page has to pass it.
+//
+// (Note for anyone reading issue #91, which describes the control in this header
+// as an X: it never was one, and still is not — the button that remains renders
+// icon-collapse.svg, a minimize glyph.)
 //
 // `titleHtml` exists for the builder, whose heading is an editable input rather
 // than text. The viewer passes a plain `title` and is unchanged.
@@ -276,8 +304,6 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 export function panelShell(o: {
   title?: string
   titleHtml?: string
-  exitHref?: string
-  exitLabel?: string
   extraClass?: string
   contents: string
   /** Pinned to the drawer's bottom edge. The builder's day scrubber. */
@@ -298,7 +324,7 @@ export function panelShell(o: {
           */}
           <button type="button" class="collapse-toggle" aria-label="Collapse panel" aria-expanded="true">
             {/*
-              Empty, like .panel-exit below: icon-collapse.svg and
+              Empty: icon-collapse.svg and
               icon-expand.svg are painted through a CSS mask keyed off the
               button's own aria-expanded, so the pair takes the control's color
               on hover. It was an <img> whose src initPanelToggle swapped, which
@@ -307,21 +333,6 @@ export function panelShell(o: {
             */}
             <span class="collapse-icon" aria-hidden="true"></span>
           </button>
-          {/*
-            The exit is deliberately EMPTY. Its glyph is icon-close.svg, painted
-            through a CSS mask on ::before so it can take the control's own color
-            — see .panel-exit in _map.scss. aria-label is what names it, which it
-            already did while the ✕ character was here: a bare ✕ is announced as
-            "multiplication sign".
-          */}
-          {o.exitHref && (
-            <a
-              class="panel-exit"
-              href={o.exitHref}
-              aria-label={o.exitLabel ?? 'Leave the map'}
-              title={o.exitLabel ?? 'Leave the map'}
-            ></a>
-          )}
         </div>
       </div>
       {(o.titleHtml || o.title) && <h1 class="panel-title">{o.titleHtml ? raw(o.titleHtml) : o.title}</h1>}

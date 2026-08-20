@@ -144,15 +144,31 @@
   // pre-transition size and suggests a bug that is not there. Measured after it
   // settles, the strip is 246px at every name length. **Wait out that transition
   // before believing any measurement of the collapsed panel.**
-  &.collapsed .panel-title #ride-title {
-    height: 1.3em !important;
-    max-height: 1.3em;
-    padding-right: 0.2em;
-    background-image: none;
-    border-color: transparent;
-    pointer-events: none;
-    white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 calc(100% - 1.5em), transparent);
+  //@ MD 768px and up — "collapsed" means the RAIL, and only the rail.
+  //
+  // Below that the collapsed panel is a sheet that slides off the bottom with
+  // its contents intact, and the heading rides down looking exactly as it did a
+  // frame earlier. Unscoped, this rule fired on the first frame of that slide
+  // and reflowed the heading from two lines to one while the sheet was still
+  // moving — the title snapping shut under a panel that had not gone anywhere
+  // yet.
+  //
+  // Worth knowing: this block is inert on the desktop side as well, because the
+  // shared `.collapsed` rule in _map.scss gives `.panel-title` `display: none`
+  // in the rail. It is kept rather than deleted because it describes what the
+  // heading should do if the rail ever shows it again, and the scoping is what
+  // stops a dormant rail rule from waking up on a phone.
+  @media (min-width: 768px) {
+    &.collapsed .panel-title #ride-title {
+      height: 1.3em !important;
+      max-height: 1.3em;
+      padding-right: 0.2em;
+      background-image: none;
+      border-color: transparent;
+      pointer-events: none;
+      white-space: nowrap;
+      mask-image: linear-gradient(to right, #000 calc(100% - 1.5em), transparent);
+    }
   }
 
   // Three bands, one per scope: the ride, the trip across its days, and the one

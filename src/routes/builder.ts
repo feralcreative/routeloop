@@ -574,8 +574,6 @@ function builderHtml(
     noscript: 'JavaScript is required to plan a ride.',
     body: `  <div id="map"></div>\n\n  ${panelShell({
       titleHtml,
-      exitHref: '/rides',
-      exitLabel: 'Leave the builder and go to your rides',
       extraClass: 'builder-panel',
       contents,
       footer: builderActions,
