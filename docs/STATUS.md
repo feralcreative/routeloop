@@ -1,8 +1,8 @@
 # Status and handoff
 
-**Updated:** 2026-08-18
-**Branch:** `main`, clean and in sync with `origin/main`. **1,076 tests across 44 files** (2 skipped, 1,078 total)
-**Closes, since the last update:** the `alt`/`alts` rename that was the one outstanding cleanup on `main`. Before that, two branches merged—`feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108). [#68](https://github.com/feralcreative/routeloop/issues/68) has been retitled to just the voting half, which is what it now describes.
+**Updated:** 2026-08-19
+**Branch:** `style/sign-buttons-and-misc`, clean, pushed, and **three commits ahead of `main` with no PR open**. **1,083 tests across 45 files** (2 skipped, 1,085 total)
+**Closes, since the last update:** nothing on the tracker. This is a presentation and house-style branch—the sign-button treatment, a widow policy, and a spelling sweep. Before it, the `alt`/`alts` rename landed on `main`, along with two merged branches, `feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108).
 **For:** the next agent, or the owner returning cold
 
 **The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the next two sections.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
@@ -10,6 +10,50 @@
 **Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## Sign buttons, widows, and a spelling sweep—`style/sign-buttons-and-misc`, 2026-08-19
+
+**Three unrelated pieces of work on one branch, and the commit history does not separate them cleanly.** Read the commit hygiene note at the end of this section before rewriting any of it.
+
+### The sign-button treatment spread
+
+`.btn-sign` existed but was used on exactly one control, the sign-in submit. It is now the standard treatment for a page's primary action:
+
+| Where | Classes |
+| --- | --- |
+| `/rides`, Plan a ride | `btn btn-sign arrow-right arrow-s` |
+| `/settings`, Save | `btn btn-sign arrow-right arrow-n` |
+| `/settings`, Download Me | `btn btn-sign` (left side, west arrow, both defaults) |
+| `/account/delete`, Save Me | `btn btn-sign` |
+| `/settings`, Delete Me | `btn btn-sign btn-stop`, the new octagon |
+
+**`.btn-stop` is new and is the only control in the app with a clipped shape.** A regular octagon, red field, white keyline inset 3px and 5px—the same absolute values the guide sign uses, because those are what tie the two together. Two things could not be inherited and are rebuilt in [style/\_chrome.scss](../style/_chrome.scss): the keyline, because inset shadows follow `border-radius` rather than a `clip-path` and would have kept rectangular corners, and the focus ring, because `clip-path` clips an outline—`:focus-visible` recolors the keyline to `$accent` instead. The ring is three concentric octagons with no extra markup, using `::before` (free here, since a stop sign carries no arrow) and `::after` at `z-index: -1` under a stacking context the button makes for itself.
+
+**The GTFO rows are a grid now, not a flex row.** `justify-content: space-between` was lining up the controls' right EDGES, and with three different widths that put three different centers down the column. `grid-template-columns: minmax(0, 1fr) 12rem` with `justify-self: center` on the control lines up the centers instead. The track is fixed rather than `max-content` because each row is its own grid—content-sizing would size it to that row's own control and undo the whole point.
+
+**The gotcha that cost the most time is now in [AGENTS.md](../AGENTS.md): there is no global `border-box` reset in this stylesheet.** `width` and `aspect-ratio` on the octagon were describing the CONTENT box while 1.5rem of padding sat outside them, so the sign rendered 24px wider than it declared and its legend could never wrap. Every fixed-size box in the app sets its own `box-sizing`; a new one that forgets is 24px too big and nothing says so.
+
+### Widows have a policy now
+
+**CSS first, `&nbsp;` only where CSS cannot reach.** `text-wrap: pretty` is set on body copy in [style/\_base.scss](../style/_base.scss) and covers every page a browser renders, so page copy needs nothing hand-placed. It degrades silently, which is why it can sit there unguarded—**Firefox has still not shipped it as of August 2026**, and no mail client has.
+
+The two surfaces outside it bind their own last two words instead: `src/emails/` and the printed roadbook. Five templates were touched; `owner-feedback` and `feedback-status` deliberately have none, because their copy is all interpolated props, ends in a URL, or is the rider's verbatim quote. Rendering all seven confirms exactly one bound pair each where intended.
+
+**Two mechanisms, and which to use is decided by the copy, not by taste.** In static JSX write `&nbsp;` straight into the markup—**esbuild decodes the entity to U+00A0 while transpiling, verified rather than assumed**. For a string shared between an email's HTML and text arms, use `noWidow()` from [src/views/widow.ts](../src/views/widow.ts), so only the HTML arm carries the character; a `text/plain` part must not. Seven tests in `test/widow.test.ts`, including one pinning that it is deliberately **not** idempotent.
+
+Never put a raw U+00A0 in source. It is invisible in a diff, so a stray one is unreviewable and a stripped one is undetectable. Also worth knowing: the em-dash tightener counts a non-breaking space as whitespace on both sides of a dash, so a pair bound across an em dash is silently undone by the pre-commit hook.
+
+### British to American, 208 replacements across 73 files
+
+Every hit was verified as prose, a comment, or a test name before anything was written—no identifiers, no data keys, nothing in `drizzle/` or `utils/deploy/sql/`, and the SCSS token `$grey` untouched because AGENTS.md sanctions it. Case preserved, including three all-caps comment headers.
+
+**Three things were deliberately left in British spelling, and a future sweep must leave them alone**, because in each the spelling *is* the subject: the `` `color`, not `colour` `` example inside the rule statement in AGENTS.md, the ROADMAP row whose entire content is `"colours" → "colors"`, and the verbatim quotations from MyRoute-app's forum and support docs in [myrouteapp-formats.md](myrouteapp-formats.md), whose surrounding prose was corrected.
+
+### What is owed, and one thing to know about the history
+
+- **No browser pass on any of it.** Port 6686 was held by another process all session, so the dev server in the repo's tmux window sat in a crash loop and nothing here was seen rendered. The sign buttons, the octagon, and the GTFO grid are all layout changes that nothing automated covers.
+- **Commit hygiene.** `90b066e` is titled "correct British spellings across the repo" and its 84 files also carry the entire widow policy and most of the sign-button work, because it was staged with `git add -A`. The words in it are accurate; the title is not the whole commit. Squash on the PR, or split it before opening one.
+- The branch also carries `fd0fca1`, the panel exit X becoming an "Exit map" menu item. **That is not part of this work**—it was already committed when this session started.
 
 ## The `alt`/`alts` rename—2026-08-18
 
