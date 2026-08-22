@@ -180,7 +180,7 @@
 }
 
 // Squared off against the rounded email controls above it, so the two ways in
-// never read as the same control twice. The colour comes from Google's mark and
+// never read as the same control twice. The color comes from Google's mark and
 // the hover edge rather than a fill: the email submit is the page's only filled
 // primary, and a second one would make the choice look weightier than it is.
 .provider-google {
@@ -193,7 +193,7 @@
   // comment there for why it cannot work from this rule.
 }
 
-// Google's brand terms forbid recolouring, distorting or rebuilding the mark.
+// Google's brand terms forbid recoloring, distorting or rebuilding the mark.
 // Height is set and width left auto for that reason — the artwork is 268x274,
 // so forcing it into an 18px square would squash it by 2%, which is small
 // enough to ship by accident and still a breach.
@@ -596,7 +596,7 @@ body.splash-page {
   }
 
   // .notice is a SOFT TINT, not a solid block — rgba($gpx, 0.12) behind text
-  // coloured a darkened $gpx. That is right on the white pages it was built for
+  // colored a darkened $gpx. That is right on the white pages it was built for
   // and wrong here: 12% of anything over moving footage is transparent, and dark
   // green on a bright frame is close to invisible. The comment that used to sit
   // here asserted the opposite, which is how it survived this long.

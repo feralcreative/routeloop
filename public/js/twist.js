@@ -152,7 +152,7 @@ window.TBTwist = (function () {
     return value;
   }
 
-  // Where each POI falls along the day, in metres from the start.
+  // Where each POI falls along the day, in meters from the start.
   //
   // A port of distFromStartAlongTrack() in src/maps/kml.ts, and pinned to it by
   // test/twist-client.test.ts for the same reason twistiness() is: the server
@@ -160,7 +160,7 @@ window.TBTwist = (function () {
   // rider is still adding stops, when the stored figure does not exist yet.
   //
   // Nearest *vertex*, not nearest segment — matching the server exactly matters
-  // more here than the fraction of a metre a proper projection would gain, and
+  // more here than the fraction of a meter a proper projection would gain, and
   // the ordering is unaffected either way.
   function distFromStartAlongTrack(track, pts) {
     if (!track || track.length === 0) return pts.map(() => 0);
@@ -173,7 +173,7 @@ window.TBTwist = (function () {
       let best = 0;
       let bestD = Infinity;
       for (let i = 0; i < track.length; i++) {
-        // Squared degrees, not metres: only the ordering of the comparison
+        // Squared degrees, not meters: only the ordering of the comparison
         // matters, and this is the cheap version the server also uses.
         const d = (track[i][1] - p.lat) ** 2 + (track[i][0] - p.lng) ** 2;
         if (d < bestD) {

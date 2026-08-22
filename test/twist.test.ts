@@ -12,7 +12,7 @@ import type { Track } from '../src/maps/kml'
 const R_EARTH = 6371000
 const DEG_PER_M_LAT = 180 / (Math.PI * R_EARTH)
 
-/** A due-east straight line of `meters`, sampled every `step` metres. */
+/** A due-east straight line of `meters`, sampled every `step` meters. */
 function straight(meters: number, step = 20, lat = 37): Track {
   const out: Track = []
   const degPerM = DEG_PER_M_LAT / Math.cos((lat * Math.PI) / 180)
@@ -20,7 +20,7 @@ function straight(meters: number, step = 20, lat = 37): Track {
   return out
 }
 
-/** A circular arc of the given radius sweeping `sweepDeg`, sampled every `step` metres. */
+/** A circular arc of the given radius sweeping `sweepDeg`, sampled every `step` meters. */
 function arc(radiusM: number, sweepDeg: number, step = 20, lat = 37): Track {
   const out: Track = []
   const arcLen = radiusM * sweepDeg * (Math.PI / 180)

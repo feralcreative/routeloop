@@ -1,6 +1,6 @@
 // The dashboard's aggregates.
 //
-// This file is where the SQL lives and shape.ts is where the judgement lives, so
+// This file is where the SQL lives and shape.ts is where the judgment lives, so
 // nothing here decides anything a rider would notice — it counts, sums and hands
 // over. That split is what lets the interesting half be tested with no database,
 // exactly as src/survey/score.ts is.

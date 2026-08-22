@@ -12,6 +12,7 @@
 // away in the one place nobody thought to check.
 import { defineEmail } from './types'
 import { A, Button, Muted, P } from './shell'
+import { noWidow } from '../views/widow'
 
 type Props = { url: string }
 
@@ -43,7 +44,7 @@ export const magicLinkEmail = defineEmail<Props>({
         <Muted>
           Or paste this into your browser: <A href={url}>{url}</A>
         </Muted>
-        <Muted>{EXPIRY}</Muted>
+        <Muted>{noWidow(EXPIRY)}</Muted>
       </>
     ).toString(),
 

@@ -98,7 +98,7 @@ describe('isNativeRide', () => {
 // downloaded before that carries the old key, and it is the only lossless copy
 // of their ride they hold — so it stays readable, and this is what says so.
 describe('the legacy tankbag version key', () => {
-  it('is still recognised as a native ride', () => {
+  it('is still recognized as a native ride', () => {
     expect(isNativeRide(legacyNative)).toBe(true)
     expect(isNativeRide(JSON.parse(buildNativeJson(legacyNative)))).toBe(true)
   })

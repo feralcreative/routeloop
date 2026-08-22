@@ -179,7 +179,7 @@ describe('parseDuration', () => {
 })
 
 describe('the format identifier', () => {
-  it('defaults anything it does not recognise', () => {
+  it('defaults anything it does not recognize', () => {
     expect(DEFAULT_DURATION_FORMAT).toBe('hours')
     expect(toDurationFormat('hm')).toBe('hm')
     expect(toDurationFormat('nonsense')).toBe('hours')

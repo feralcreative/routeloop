@@ -185,6 +185,60 @@
     background: rgba($brand, 0.08);
   }
 
+  // EXIT MAP IS A BUTTON, and red. It is the only item in this menu that leaves
+  // the page rather than moving around inside it, and a column of identical text
+  // links gave it no way to say that.
+  //
+  // `$stop` rather than `$kml`, which is the same color — the palette has one
+  // red. `$kml` means "this file is the wrong format"; `$stop` is the road-sign
+  // field, and the sign this borrows from is the one that means stop what you
+  // are doing. Same hue either way, but the name is the part a reader has to
+  // understand, and one of the two is about to be nonsense in a nav.
+  //
+  // OUTLINED AT REST, FILLED ON HOVER. A solid red bar sitting at the top of
+  // every map page's menu shouts before anyone has reached for it; the keyline
+  // says the same thing quietly and the fill arrives when a pointer does. Both
+  // states measure 5.2:1 — red on white and then the white legend the pairing
+  // table in _tokens.scss assigns `$stop` — so the label is equally legible
+  // either way and only its weight on the page changes.
+  //
+  // No `color.adjust()` on the hover fill. `.btn`'s reflex is to darken, which
+  // is right when a field is already colored and merely has to move; here the
+  // hover IS the color arriving, and $stop diluted by 8% is a worse red than
+  // $stop.
+  //
+  // Left-aligned like every other item rather than centered: it is a row in a
+  // list before it is a button, and centering one row breaks the column the whole
+  // drawer reads down.
+  //
+  // THE `:any-link` IS A SPECIFICITY FIX, not decoration, and what it out-ranks
+  // is easy to miss. `html.map-page a:link` in _chrome.scss sets
+  // `font-weight: 500` on every anchor on a map page, and it carries two type
+  // selectors against this rule's one — so a plain `.site-nav a.nav-exit-map`
+  // loses the tiebreak and the weight silently stayed at 500 while every other
+  // property here applied. A pseudo-class here adds the component that settles
+  // it. The element always has an href, so the selector never fails to match.
+  //
+  // NOT `:link`, which is what this was until 2026-08-18 and is why the button
+  // rendered near-black instead of red. `:link` and `:visited` are mutually
+  // exclusive, so the moment a rider had `/rides` in history the whole rule
+  // stopped matching and the anchor fell back to `.site-nav a`'s $text — losing
+  // the keyline and the fill with it, not just the color. `:any-link` matches
+  // both states and carries the same specificity. Nothing in this stylesheet
+  // styles `:visited`, so there is no second rule to keep in step.
+  a.nav-exit-map:any-link {
+    margin-bottom: 0.35rem;
+    border: 2px solid $stop;
+    background: $white;
+    color: $stop;
+    font-weight: 600;
+
+    &:hover {
+      background: $stop;
+      color: $ink-light;
+    }
+  }
+
   form {
     margin: 0;
   }

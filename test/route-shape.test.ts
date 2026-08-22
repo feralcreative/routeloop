@@ -85,7 +85,7 @@ describe('nearestVertexIndex', () => {
     expect(S.nearestVertexIndex(TRACK, [-121.848, 37.001])).toBe(15)
   })
 
-  // A switchback can bring two legs within metres of each other, so a via on
+  // A switchback can bring two legs within meters of each other, so a via on
   // leg 2 must not match a vertex on leg 1 that happens to be nearer.
   it('searches only inside the range it is given', () => {
     expect(S.nearestVertexIndex(TRACK, [-122, 37], 20, 30)).toBe(20)

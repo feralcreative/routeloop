@@ -35,6 +35,29 @@ export function mapFilePath(ownerId: number, mapId: number, ext: StoredExt, inde
   return path
 }
 
+// The ride's generated thumbnail, in the owner's directory beside the originals
+// it is derived from. `-thumb.png` and not an entry in STORED_EXTS: that list is
+// what the containment check treats as a closed set of rider-supplied
+// extensions, and a derived file is a different thing with a different lifetime.
+//
+// Living in the owner directory is what makes account purge work for free — it
+// removes the directory itself rather than files it can name. Ride delete has to
+// be told, and is, in deleteMapFiles below.
+export function thumbFilePath(ownerId: number, rideId: number): string | undefined {
+  if (!Number.isInteger(ownerId) || ownerId <= 0) return undefined
+  if (!Number.isInteger(rideId) || rideId <= 0) return undefined
+  const path = resolve(STORAGE, String(ownerId), `${rideId}-thumb.png`)
+  if (path !== STORAGE && !path.startsWith(STORAGE + sep)) return undefined
+  return path
+}
+
+export async function writeThumbFile(ownerId: number, rideId: number, data: Buffer): Promise<void> {
+  const path = thumbFilePath(ownerId, rideId)
+  if (!path) throw new Error(`refusing to write outside storage root (owner ${ownerId}, ride ${rideId})`)
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, data, { mode: 0o640 })
+}
+
 // 0640: readable by the app and its group, nobody else.
 export async function writeMapFile(
   ownerId: number,
@@ -61,6 +84,11 @@ export async function deleteMapFiles(ownerId: number, mapId: number): Promise<vo
       await unlink(path).catch(() => {})
     }
   }
+  // The generated thumbnail too. It is not in STORED_EXTS, so this line is the
+  // only thing standing between a deleted ride and an orphaned PNG that nothing
+  // will ever name again — the row carrying its id is gone.
+  const thumb = thumbFilePath(ownerId, mapId)
+  if (thumb) await unlink(thumb).catch(() => {})
 }
 
 // The directory holding one rider's stored originals. Same containment check as

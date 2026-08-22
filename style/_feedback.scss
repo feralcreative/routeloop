@@ -94,8 +94,24 @@ $fb-line: $neutral-88;
 // The escape hatch. Never let the fork be the abandonment point — someone who
 // cannot classify their own problem still has the problem.
 .fb-escape {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4em;
   margin: 0.5em 0 0;
   font-size: 1.0625rem;
+
+  // It inherited `.linkbtn` and with it the app's sizing, which put it at
+  // 144x26 on a screen where the three cards are 348x95 and every other target
+  // in the flow is 44px or more. It is the control a rider reaches for when
+  // none of the three big ones fit, so it gets the flow's sizing like
+  // everything else here. See the note at the top of this file.
+  .linkbtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 0.5em;
+  }
 }
 
 // --- The typed field ---------------------------------------------------------
@@ -218,6 +234,26 @@ $fb-line: $neutral-88;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   flex: 1;
   width: 100%;
+}
+
+// STICKY ON EVERY SCREEN, not only the last one. Measured at 393x852 with a
+// 336px keyboard up — a 516px visual viewport — the first screen's Next sat
+// 114px below the fold, which is the failure this flow's own plan predicted.
+// `.fb-send` above already made the bet that a sticky bottom control is the
+// right answer here; this extends that bet to the screens before it rather
+// than introducing a different one.
+//
+// :has() so the last screen is left alone. `.fb-send` is itself sticky, and a
+// sticky box inside a sticky box resolves against the wrong containing block —
+// the row would pin and the button inside it would then never move.
+//
+// The background is not decoration. Without it the help text and the details
+// disclosure scroll under a transparent row and both are readable at once.
+.fb-flow .fb-actions:not(:has(.fb-send)) {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding: 12px 0;
+  background: $fb-bg;
 }
 
 // "Send it now" on a screen that is not the last. Deliberately quieter than
@@ -410,7 +446,12 @@ $fb-line: $neutral-88;
   position: fixed;
   right: 72px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
-  z-index: $z-map-panel; // the panel's layer; they never overlap horizontally
+  // The panel's layer. On a wide screen the two never overlap, because the
+  // panel is a left drawer and this is inset from the right — but at 767px and
+  // under the panel becomes a full-width sheet along the bottom and that
+  // stops being true. The media query further down is what keeps them apart;
+  // the z-index only decides who wins if it ever fails.
+  z-index: $z-map-panel;
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
@@ -437,10 +478,11 @@ $fb-line: $neutral-88;
   background: $detour;
 }
 
-//@ SM ≤600px — the label goes and the dot carries it, because the builder's
-//  bottom edge is already the timeline bar and a word-wide button competes
-//  with it. The title attribute and the 44px target both survive. The right
-//  inset stays: the map's control column is there at every width.
+//@ SM ≤600px — the label goes and the dot carries it, because the bottom of a
+//  phone screen is already carrying the sheet and the timeline bar, and a
+//  word-wide button competes with both. The title attribute and the 44px target
+//  both survive. The right inset stays: the map's control column is there at
+//  every width.
 @media (max-width: 600px) {
   .fb-fab-label {
     display: none;
@@ -450,6 +492,61 @@ $fb-line: $neutral-88;
     justify-content: center;
     width: 44px;
     padding: 0;
+  }
+}
+
+//@ SM ≤767px — the button rides above the sheet rather than over it.
+//
+// This is the breakpoint at which #info-panel stops being a left drawer and
+// becomes a full-width sheet along the bottom edge (see _map.scss), which is
+// the moment `right: 72px` stops being enough to keep the two apart. Measured
+// on /builder/9 before this rule existed: at 393x852 the button sat on a stop's
+// duration field, and at 700x900 — inside the band where it still carries its
+// label and is 153px wide, because the label's breakpoint is 600px and the
+// sheet's is 767px — it covered a stop's name and duration together.
+//
+// The sheet's own height is read from --sheet-height rather than repeated, so
+// the two can only move together. The timeline gets a term of its own because
+// it has already claimed the band directly over the sheet on a ride with dates;
+// on a ride without one it is [hidden] and the term collapses to zero.
+@media (max-width: 767px) {
+  html.map-page {
+    --fb-fab-clear: var(--sheet-collapsed-height);
+    --fb-fab-timeline-clear: 0px;
+  }
+
+  html.map-page:has(#info-panel:not(.collapsed)) {
+    --fb-fab-clear: var(--sheet-height);
+  }
+
+  html.map-page:has(.map-timeline:not([hidden])) {
+    --fb-fab-timeline-clear: var(--timeline-height);
+  }
+
+  .fb-fab {
+    bottom: calc(var(--panel-inset) + var(--fb-fab-clear) + var(--fb-fab-timeline-clear) + 8px);
+    // Rides with the sheet rather than teleporting to the far end of its travel
+    // while the sheet is still moving. Same duration and easing as the slide in
+    // _map.scss; keep the three in step.
+    transition: bottom 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+//@ SM ≤767px and short — there is no room for it, so it goes.
+//
+// --sheet-height has a 320px floor, and on a phone held landscape that floor
+// eats almost the whole screen: at 740x360 the sheet is 320px and leaves 40px
+// of map, which cannot hold a 44px button plus its insets. Lifting it anyway
+// put it 27px off the top of the screen, which is worse than the overlap this
+// rule set out to fix.
+//
+// 400px is where the arithmetic turns: the button needs --panel-inset + 44px +
+// 8px ≈ 60px of map above the sheet, and 400 - 320 is the first round height
+// that clears it. Below that the account menu is the way in, which is why the
+// flow was built with two entry points rather than one.
+@media (max-width: 767px) and (max-height: 400px) {
+  .fb-fab {
+    display: none;
   }
 }
 

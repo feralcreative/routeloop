@@ -16,7 +16,7 @@
   // Fallback riding speed for a leg the router never answered for, matching the
   // 20 m/s (~45 mph) the demo seeder uses. Rough twice over — it is applied to a
   // haversine distance, which is shorter than the road — so anything derived
-  // from it is labelled an estimate rather than presented as a duration.
+  // from it is labeled an estimate rather than presented as a duration.
   const NOMINAL_SPEED_MS = 20;
 
   // A leg with distance but no duration never came back from the router, so its

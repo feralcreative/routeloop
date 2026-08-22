@@ -65,7 +65,7 @@ export type ExtractedPoint = {
   // Only a format that can actually carry the distinction sets this. KML and
   // GPX cannot — a Placemark and a <wpt> are the same thing whatever we meant
   // by them — so their extractors leave it undefined and every point becomes a
-  // stop, which is the behaviour those formats have always had. GeoJSON writes
+  // stop, which is the behavior those formats have always had. GeoJSON writes
   // its own properties, so a ride exported and re-imported keeps its POIs.
   kind?: 'stop' | 'poi'
   // Same reasoning as `kind`: only a format that can carry it sets it. Neither

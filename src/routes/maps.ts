@@ -228,7 +228,7 @@ mapsRoutes.post(
       sources.sort((a, b) => a.planned!.day! - b.planned!.day!)
     }
 
-    // The single-file case keeps every behaviour it had, including the
+    // The single-file case keeps every behavior it had, including the
     // companion-GPX path below, which only ever made sense for one route file.
     const single = sources.length === 1 ? sources[0] : null
     const ext = single?.ext ?? 'mixed'
@@ -512,9 +512,9 @@ mapsRoutes.post(
             .values({
               rideId: ride.id,
               position: i,
-              // Every day the same colour would make the viewer's legend
+              // Every day the same color would make the viewer's legend
               // useless, so a multi-file import walks the palette the builder
-              // uses. A single file keeps exactly the colour that was asked for.
+              // uses. A single file keeps exactly the color that was asked for.
               color: days.length > 1 ? dayColor(i) : meta.color,
               // '' is this column's no-title value (notNull, default ''),
               // and the viewer already falls back to "Day N" when it is empty.

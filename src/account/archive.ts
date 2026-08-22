@@ -197,7 +197,7 @@ function archiveRide({ ride, startDate, originals }: ArchiveRideInput): ArchiveR
   const dir = rideDirFor(ride.slug)
 
   // The same name the per-ride download would give it, so a rider who drags one
-  // file out of the archive and into /import gets exactly today's behaviour.
+  // file out of the archive and into /import gets exactly today's behavior.
   const nameFor = (ext: string): string => `${dir}/${buildExportName({ ride: ride.title, date: startDate, ext })}`
 
   const exports = {} as Record<DownloadFormat, string>

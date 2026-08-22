@@ -3,7 +3,7 @@
 # The app runs via `npm run dev` (hot reload) and connects on 127.0.0.1:5432.
 # The app service is added at deploy time (Phase 5).
 #
-# POSTGRES_USER/PASSWORD/DB only take effect when the cluster is initialised, so
+# POSTGRES_USER/PASSWORD/DB only take effect when the cluster is initialized, so
 # a rename never reaches an existing volume. Recreate it once:
 # docker compose down -v && docker compose up -d --wait db, then
 # npx drizzle-kit push && npx tsx src/db/seed.ts.

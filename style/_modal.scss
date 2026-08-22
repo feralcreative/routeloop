@@ -37,6 +37,14 @@ body.modal-open {
     margin: 0 0 0.75rem;
     font-size: 1.5rem;
   }
+
+  // The container takes focus on open (see site.js) purely so focus is inside
+  // the dialog and the trap has somewhere to start. It is not a control and
+  // nothing is being acted on, so it draws no ring — the ring appears on the
+  // first real control the moment the rider presses Tab.
+  &:focus {
+    outline: none;
+  }
 }
 
 .modal-logo {
@@ -56,25 +64,120 @@ body.modal-open {
   }
 }
 
+// The four contact links: a row of circular marks with a caption under each.
+// They were full-width grey pills carrying the whole sentence until 2026-08-21;
+// the sentence is still there as the accessible name and the tooltip, and only
+// the visible caption shortened.
+//
+// Two embed mechanisms, decided by the artwork and not by taste — see the note
+// on `embed` in src/views/splash.tsx. The first three marks are INLINE <svg>
+// because each is a disc in `currentColor` with the glyph knocked out in white:
+// an external image has no inherited color to resolve against and paints the
+// disc black, and a mask flattens the knockout into a solid silhouette.
+// src/views/icon.ts is what puts those in the document. The Vampires MC mark is
+// an <img> because it carries its own colors and is 64 KB — inlining it would
+// put that on every HTML response, since this modal is on every page.
+//
+// Both are sized and animated identically here, so the seam is invisible.
+//
+// The even spacing is between the MARKS, not between the boxes that hold them.
+// A flex row with a fixed gap spaces the ITEM BOXES evenly, and each box is as
+// wide as its own caption — so with captions running from "Signal" to
+// "Vampires MC" the discs end up at four different distances from each other
+// while the boxes look correctly spaced. Equal-width grid tracks put every disc
+// on the same centre-to-centre pitch no matter what is written under it.
 .modal-links {
   list-style: none;
-  margin: 0 0 1.25rem;
+  // Centred at a width that suits four marks rather than filling the modal, so
+  // the row still reads as a group and does not spread to the corners when a
+  // link is missing.
+  margin: 0 auto 1.5rem;
+  max-width: 22rem;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
+  // Auto-flow rather than repeat(4, …) because an unset URL drops its link —
+  // see LINKS in src/views/splash.tsx — and a hardcoded four would leave an
+  // empty track where the missing one had been.
+  grid-auto-flow: column;
+  // minmax(0, 1fr) and not 1fr, which floors at min-content: on a narrow phone
+  // the widest caption would otherwise push the row wider than the modal
+  // instead of wrapping inside its own track.
+  grid-auto-columns: minmax(0, 1fr);
+}
 
-  a {
+.modal-link {
+  display: grid;
+  justify-items: center;
+  // Top-anchored, so a caption that wraps to two lines lengthens its own track
+  // downward and leaves every disc on the same line.
+  align-content: start;
+  gap: 0.45em;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: $neutral-43;
+
+  svg,
+  img {
     display: block;
-    padding: 0.6em 0.8em;
-    background: $neutral-96;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 600;
-    color: $url;
+    width: 2.75rem;
+    height: 2.75rem;
+    transition:
+      transform 0.12s ease,
+      filter 0.12s ease;
+  }
 
-    &:hover {
-      background: $neutral-94;
-    }
+  // The mark carries the brand color and the caption stays app-neutral. Both
+  // taking it would put four different colors on four words that are set in the
+  // app's own type, which reads as a styling accident rather than a logo.
+  //
+  // No rule for .is-vmc: that mark is fully colored in its own file and has
+  // nothing to inherit.
+  &.is-github svg {
+    color: $github;
+  }
+
+  &.is-signal svg {
+    color: $signal;
+  }
+
+  &.is-discord svg {
+    color: $discord;
+  }
+
+  &:hover svg,
+  &:hover img,
+  &:focus-visible svg,
+  &:focus-visible img {
+    transform: translateY(-2px);
+    filter: brightness(1.12);
+  }
+
+  // Focus is shown ON the mark and not as a box around the link. A rectangle
+  // enclosing disc and caption was the first attempt and reads as a selected
+  // tile rather than a focused control — and it is the first focusable thing in
+  // the dialog, so it appeared unprompted every time the modal opened.
+  //
+  // The ring is a box-shadow with the element rounded to match the artwork,
+  // rather than an outline, because an outline draws the shape of the BOX and
+  // the mark inside it is a circle. `border-radius: 50%` is safe to set here:
+  // all four files are a disc that fills its own square viewBox.
+  &:focus-visible svg,
+  &:focus-visible img {
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px $accent;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: $text;
+  }
+
+  // No outline on the link itself — see the ring on the mark above, which is
+  // what shows focus here.
+  &:focus-visible {
+    outline: none;
   }
 }
 

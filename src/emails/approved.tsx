@@ -45,11 +45,11 @@ export const approvedEmail = defineEmail<Props>({
     (
       <>
         <P>You’re in, {displayName}.</P>
-        <P>Your Routeloop account is approved, so you can sign in and start planning.</P>
+        <P>Your Routeloop account is approved, so you can sign in and start&nbsp;planning.</P>
         <Button href={LOGIN_URL}>Sign in</Button>
         <Muted>
           Two ways to start: <A href={BUILDER_URL}>plan a ride from scratch</A>, or{' '}
-          <A href={IMPORT_URL}>import a route you already have</A>—KML, GPX, GeoJSON or CSV.
+          <A href={IMPORT_URL}>import a route you already have</A>—KML, GPX, GeoJSON, or&nbsp;CSV.
         </Muted>
       </>
     ).toString(),

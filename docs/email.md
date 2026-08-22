@@ -117,7 +117,7 @@ The `-dark` suffix names the ground rather than the ink, here and in `src/views/
 
 Two populations, served by different mechanisms, and the split is what keeps "build light" above still true:
 
-- **Clients that honour `prefers-color-scheme`** (Apple Mail on both platforms is the one that matters) get a real dark design from the `@media` block in `shell.tsx`.
+- **Clients that honor `prefers-color-scheme`** (Apple Mail on both platforms is the one that matters) get a real dark design from the `@media` block in `shell.tsx`.
 - **Clients that do not** (Gmail everywhere—it applies its own inversion and ignores the query) get the light design and invert it cleanly, exactly as before.
 
 So the light values stay inline and remain correct standalone, the dark ones exist **only** inside the media query, and that query overrides with `!important` because an author `!important` is the one thing that outranks an inline declaration. Nothing dark is load-bearing: delete the whole `<style>` block and every message is still correct.

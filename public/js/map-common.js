@@ -141,7 +141,7 @@
             // TOP_CENTER, and every other edge is taken. The site header floats
             // over the map rather than sitting above it, so TOP_LEFT is under
             // the wordmark and TOP_RIGHT is under the nav hamburger — that
-            // second collision was real and visible, not theorised. The left
+            // second collision was real and visible, not theorized. The left
             // edge below that is the builder's panel (fitTo pads 380px for it),
             // RIGHT_BOTTOM is the zoom control, and the bottom edge carries
             // Google's own logo and attribution, which may not be covered.
@@ -308,7 +308,7 @@
   //
   // It lives on the entry rather than only on the Polyline because
   // addRouteLayers destroys and rebuilds the line — rebuildLayers() runs on
-  // every day add, delete, reorder and recolour — so a flag set once at
+  // every day add, delete, reorder and recolor — so a flag set once at
   // construction would quietly vanish. paint() never touches clickable, so
   // once it is on the entry it survives every repaint.
   function addRouteLayers(map, id, track, color, opts) {
@@ -329,7 +329,7 @@
       // On the entry rather than the Polyline for the same reason `shapeable`
       // is, and it is worth restating because it has bitten before:
       // rebuildLayers() destroys and recreates every line on every day add,
-      // delete, reorder and recolour, so a flag set on the Polyline alone would
+      // delete, reorder and recolor, so a flag set on the Polyline alone would
       // vanish the next time a rider touched anything. A ghost that silently
       // becomes a solid line is a ride whose mileage and map disagree.
       ghost: false,
@@ -474,7 +474,7 @@
         zIndex: 4, // above the leg highlight, which may be showing at the time
         clickable: false,
         visible: false,
-        // Deliberately not the route colour: this is a proposal, not the route.
+        // Deliberately not the route color: this is a proposal, not the route.
         strokeColor: "#222222",
       });
     }
@@ -537,7 +537,7 @@
           }
         }
         // Which side of the nearest vertex did the grab land on? Compare
-        // against the neighbours: closer to the next vertex means the rider
+        // against the neighbors: closer to the next vertex means the rider
         // took the segment leaving `best`.
         let edgeForward = true;
         if (best > 0 && best < path.length - 1) {
@@ -880,7 +880,7 @@
   // purpose: both pages bind this toggle at load and create their map inside an
   // await several hundred milliseconds later. Taking the map itself here would
   // capture null forever. A caller that passes nothing still gets a working
-  // toggle, just without the re-centre.
+  // toggle, just without the re-center.
   function initPanelToggle(getMap) {
     const panel = document.getElementById("info-panel");
     const toggle = panel && panel.querySelector(".collapse-toggle");
@@ -888,11 +888,11 @@
     const rail = panel.querySelector(".drawer-rail");
     toggle.addEventListener("click", () => {
       const map = typeof getMap === "function" ? getMap() : null;
-      // THE CENTRE IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the
+      // THE CENTER IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the
       // space beside the drawer now rather than to the whole viewport, so
       // collapsing hands it 324 more pixels — and Google keeps the map's
       // top-left fixed through a resize, which slides the route sideways by
-      // half that. Reinstating the centre afterwards keeps whatever the rider
+      // half that. Reinstating the center afterwards keeps whatever the rider
       // was looking at in the middle of what they can see.
       const center = map && map.getCenter && map.getCenter();
 
@@ -915,7 +915,7 @@
       // second thing to keep in step, and there is nothing to do here.
 
       if (!center) return;
-      // Re-centred on transitionend rather than immediately: the width animates
+      // Re-centered on transitionend rather than immediately: the width animates
       // over 0.28s and a setCenter against the old width is undone by the very
       // next frame. The timeout is the fallback for a browser that never fires
       // the event — prefers-reduced-motion kills the transition entirely, and

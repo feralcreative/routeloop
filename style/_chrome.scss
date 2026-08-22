@@ -105,6 +105,23 @@ $sign-arrow-bearings: (
   "ne": 315deg,
 );
 
+// One drawing, used by `::before` and — for `.arrow-both` — by `::after` too.
+// A mixin and not two copies of the path: the whole reason the arrow is rotated
+// rather than redrawn per bearing is that there should be exactly one shape to
+// correct if it is ever revised, and a second literal copy here would undo that
+// the moment someone edits one of them. Bearing is deliberately NOT set here —
+// every caller supplies its own.
+@mixin sign-arrow {
+  content: "";
+  flex: none;
+  position: relative;
+  top: -0.1em;
+  width: 1.3125em;
+  height: 1.3125em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
 .btn.btn-sign {
   display: inline-flex;
   align-items: center;
@@ -114,15 +131,15 @@ $sign-arrow-bearings: (
   color: $white;
   border-radius: 10px;
   // The legend is nudged down a tenth of an em, chosen by eye against the real
-  // login form rather than derived. `align-items: center` centres the text's
-  // line BOX, and the box is not centred on the letters: the baseline sits
+  // login form rather than derived. `align-items: center` centers the text's
+  // line BOX, and the box is not centered on the letters: the baseline sits
   // (ascent − descent) / 2 below the box's middle, so the glyphs ride high. The
   // vertical padding still sums to 1.5rem, so the button's height does not move.
   //
   // Worth knowing before touching it: that offset is independent of
   // line-height. Setting `line-height: 1` was tried as the principled fix and
   // moved nothing, because the term cancels — it only shrinks the box around an
-  // already off-centre baseline. There is no line-height that centres the type
+  // already off-center baseline. There is no line-height that centers the type
   // and no arithmetic that lands on 0.1em; this is a taste value.
   //
   // It reads worse on /login than anywhere else, which is a red herring rather
@@ -169,27 +186,21 @@ $sign-arrow-bearings: (
   // browser reads the rest of the data URI as a fragment and the arrow vanishes.
   //
   // `top` undoes the padding nudge for the arrow alone, so the legend moves and
-  // the arrow stays centred — its drawn shape is symmetric about its box, so
-  // centred is already right for it. Relative offset rather than a negative
+  // the arrow stays centered — its drawn shape is symmetric about its box, so
+  // centered is already right for it. Relative offset rather than a negative
   // margin on purpose: margin would resize the flex line and drag the legend
   // part of the way back up with it.
   &::before {
-    content: "";
-    flex: none;
-    position: relative;
-    top: -0.1em;
-    width: 1.3125em;
-    height: 1.3125em;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
-      center / contain no-repeat;
+    @include sign-arrow;
+
     transform: rotate(map.get($sign-arrow-bearings, "w"));
   }
 
   // Side, by reversing the flex line rather than moving the arrow to ::after.
-  // There are only two items on it, so reversing swaps them, and it keeps one
-  // definition of the arrow instead of a mixin included in two places. The
-  // element order the DOM sees does not change, which is right — the arrow is
-  // decoration and was never in the accessibility tree to begin with.
+  // There are only two items on it, so reversing swaps them, and it keeps the
+  // arrow on one pseudo-element instead of two that can drift. The element order
+  // the DOM sees does not change, which is right — the arrow is decoration and
+  // was never in the accessibility tree to begin with.
   //
   // The horizontal padding swaps with it, so the tighter side stays the side the
   // arrow is on.
@@ -203,11 +214,36 @@ $sign-arrow-bearings: (
     }
   }
 
-  // Explicit bearings, last so they beat both defaults. Each is (0,3,1), the
-  // same as `.btn.btn-sign.arrow-right::before` above, so it is source order
-  // and not specificity doing the work — these have to stay below it.
+  // A pair, one at each end. This is the one case that cannot be done by
+  // reversing the flex line, because it needs two arrows rather than one on a
+  // chosen side, so it spends `::after` — free on a guide sign, and unavailable
+  // only on .btn-stop, which carries no arrow at all.
+  //
+  // Both default to pointing outward, matching the single arrow's rule that a
+  // bearing follows the side it sits on. A bearing class overrides both together
+  // — `.arrow-both.arrow-n` is the flanking pair of up arrows — which is the
+  // only behavior worth having: two arrows on one sign pointing different ways
+  // is a contradiction, not a layout.
+  //
+  // Padding goes tight on both sides for the same reason it swaps above: the
+  // arrow's bounding box carries air that a word's glyphs do not.
+  &.arrow-both {
+    padding-right: 1.05rem;
+    padding-left: 1.05rem;
+
+    &::after {
+      @include sign-arrow;
+
+      transform: rotate(map.get($sign-arrow-bearings, "e"));
+    }
+  }
+
+  // Explicit bearings, last so they beat every default above. Each is (0,3,1),
+  // the same as `.btn.btn-sign.arrow-right::before`, so it is source order and
+  // not specificity doing the work — these have to stay below it.
   @each $name, $bearing in $sign-arrow-bearings {
-    &.arrow-#{$name}::before {
+    &.arrow-#{$name}::before,
+    &.arrow-#{$name}::after {
       transform: rotate($bearing);
     }
   }
@@ -228,6 +264,129 @@ $sign-arrow-bearings: (
   &:focus-visible {
     outline: 2px solid $accent;
     outline-offset: 2px;
+  }
+}
+
+// The stop sign: same family as the guide sign above — a field, and a white
+// keyline inset from the edge so a band of field still shows outside it — but
+// red and an octagon, and a REGULAR octagon, so it is a fixed square badge
+// rather than a button that grows with its label. Ziad's call, 2026-08-19. It
+// is the only control in the app shaped like this, which is the point: Delete
+// Me should not be reachable by muscle memory in a column of identical pills.
+//
+// Two things the guide sign does cannot survive `clip-path`, so both are rebuilt
+// here rather than inherited:
+//
+//   - The keyline. Inset shadows follow `border-radius`, not the clip, so the
+//     ring would stay a rounded rectangle with its corners sliced off.
+//   - The focus ring. `clip-path` clips an outline too, so `:focus-visible`
+//     below recolors the keyline instead of drawing anything outside the shape.
+//
+// The keyline is three concentric octagons and still no extra markup: the
+// element paints the field, `::before` paints white inset 3px, `::after` paints
+// the field again inset 5px, and what survives is a 2px white ring — the same
+// 3px and 5px the guide sign uses. `::before` is the ARROW on every other
+// variant; a stop sign carries no bearing, so here it is free and is redefined
+// outright rather than patched. `width`/`height` have to be cleared explicitly:
+// left over from the arrow they would over-constrain a box that now sets all
+// four `inset` values, and the ring would come out an em and a third wide.
+//
+// Both layers are `z-index: -1` under a stacking context the button makes for
+// itself. Positioned descendants otherwise paint ABOVE inline content and would
+// bury the legend; negative z-index puts them under the text but still over the
+// element's own background, which is the order wanted.
+//
+// A regular octagon inscribed in a square cuts each corner at 1 / (2 + √2) =
+// 29.289% of the side. That figure is why `aspect-ratio` forces the box square:
+// feed the same percentages a wider box and the diagonals stop being 45°, and it
+// reads as a stretched hexagon rather than as signage.
+//
+// `box-sizing` is declared explicitly because there is NO global border-box
+// reset in this stylesheet — every other fixed-size box in the app sets its own.
+// Without it `width` and `aspect-ratio` describe the CONTENT box, the 1.5rem of
+// padding lands outside them, and the sign renders 24px wider than it says. That
+// is how it shipped for a day, and the tell was the legend refusing to wrap at
+// any viewport: it was being handed the full declared width to fit in.
+//
+// The legend is left at the same size as every other button's — Ziad's call,
+// 2026-08-19 — which at this panel size means it wraps to two lines. It wraps
+// rather than being sized down: matching the rest of the app's type is worth
+// more here than keeping the label on one line, and a two-line legend is not
+// wrong on a sign. The keyline stays absolute at 3px and 5px either way, since
+// those are the values that tie this to the guide sign.
+//
+// The 2px ring comes out uniform on all eight sides for free, because a regular
+// octagon has the same apothem to every side — scaling one concentrically moves
+// every edge inward by the same distance. That is not true of the general case,
+// and it is the reason keeping it regular is worth the fixed footprint.
+$octagon-cut: 29.289%;
+$octagon-far: 70.711%;
+$octagon: polygon(
+  $octagon-cut 0,
+  $octagon-far 0,
+  100% $octagon-cut,
+  100% $octagon-far,
+  $octagon-far 100%,
+  $octagon-cut 100%,
+  0 $octagon-far,
+  0 $octagon-cut
+);
+
+.btn.btn-sign.btn-stop {
+  position: relative;
+  z-index: 0;
+  box-sizing: border-box;
+  width: 6.25rem;
+  aspect-ratio: 1;
+  padding: calc(0.75rem + 0.1em) 0.75rem calc(0.75rem - 0.1em);
+  border-radius: 0;
+  background: $stop;
+  box-shadow: none;
+  clip-path: $octagon;
+  text-align: center;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    width: auto;
+    height: auto;
+    transform: none;
+    clip-path: $octagon;
+  }
+
+  &::before {
+    inset: 3px;
+    background: $white;
+  }
+
+  &::after {
+    inset: 5px;
+    background: $stop;
+  }
+
+  // The field darkens and the keyline stays white, the same way the guide sign
+  // reads as lit differently rather than as a different sign. Both octagons that
+  // carry the field have to move together, or the outer 3px stays bright and
+  // shows as a rim.
+  &:hover {
+    $lit: color.adjust($stop, $lightness: -8%);
+
+    background: $lit;
+    box-shadow: none;
+
+    &::after {
+      background: $lit;
+    }
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    &::before {
+      background: $accent;
+    }
   }
 }
 
@@ -268,6 +427,29 @@ a.card {
   height: 14px;
   border-radius: 50%;
   flex: 0 0 auto;
+}
+
+// The generated route thumbnail, in the swatch's slot. Interim treatment: item
+// 29 turns these rows into a card grid with the picture as the card face, and
+// this is what it looks like until then.
+//
+// `object-fit: cover` matters even though Static Maps renders exactly this
+// aspect: the image is 640x400 for retina and any future change to the render
+// size would otherwise stretch rather than crop. `box-sizing` because there is
+// no global border-box reset in this stylesheet — see AGENTS.md.
+// 160x100 has a floor under it rather than being a taste value: Google's
+// required attribution is drawn at a fixed pixel size, so the smaller this box
+// is the more of the picture the wordmark and the "Map data ©" line occupy. At
+// 64px they were most of it. The source is 640x400, so this is still a 4x
+// downscale and sharp on any display.
+.card-thumb {
+  box-sizing: border-box;
+  width: 160px;
+  height: 100px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 6px;
+  background: $neutral-96;
 }
 
 .meta {

@@ -3,7 +3,7 @@
 // and road-routed legs (legs[i] connects stops[i] → stops[i+1]).
 //
 // Every day is drawn on the map at once, always. The day slider changes which
-// one is emphasised and never hides anything — seeing the whole ride on a single
+// one is emphasized and never hides anything — seeing the whole ride on a single
 // map is the point of the app, so dimming is the only thing focus does.
 (function () {
   "use strict";
@@ -65,7 +65,7 @@
   const MAX_VIAS_PER_LEG = 20;
 
   // Injected by the page shell from src/maps/palette.ts, the same way
-  // window.TB.roles carries the role table. The importer colours the days of a
+  // window.TB.roles carries the role table. The importer colors the days of a
   // folder import server-side, so the palette cannot live only in here.
   const DAY_COLORS = window.TB.dayColors;
 
@@ -110,14 +110,14 @@
     meta: { title: "", description: "", visibility: "private", external_url: "" },
     days: [newDay()],
     // The active day, as a plain index into state.days. It is where a map click
-    // puts a stop and which day the map emphasises; it is NOT a filter, because
+    // puts a stop and which day the map emphasizes; it is NOT a filter, because
     // every day is on screen at once.
     //
     // It was `focus`, a 0..N slider value with 0 meaning "all days". Both the
     // off-by-one and the null-means-all case went with the slider.
     active: 0,
     // The timeline's position, in epoch seconds, or null for "no moment
-    // chosen". When it is set it is the single source of what is emphasised:
+    // chosen". When it is set it is the single source of what is emphasized:
     // the day containing it, and the leg being ridden at it. The day slider
     // does not compete with this — moving it just picks a new moment (that
     // day's start), so there is one model and two ways to drive it. Null falls
@@ -538,7 +538,7 @@
     // Two stops in the same place have no route between them, and asking is both
     // a billable Routes request and a guaranteed 422 — which surfaces as "no road
     // route for that leg" in a toast, for a leg the rider never asked to route.
-    // The straight leg above is already the right answer: zero metres, zero
+    // The straight leg above is already the right answer: zero meters, zero
     // seconds. This became reachable the moment duplicate-a-point shipped, which
     // by design puts the copy exactly on top of its original.
     if (!vias.length && a[0] === b[0] && a[1] === b[1]) return;
@@ -633,7 +633,7 @@
       const ghost = day.altGroup != null && !day.altActive;
       setRouteDim(state.map, r, dim);
       // Set every pass rather than once when a day is grouped: rebuildLayers()
-      // recreates the entry on every add, delete, reorder and recolour, and
+      // recreates the entry on every add, delete, reorder and recolor, and
       // applyFocus is what runs after all of them.
       setRouteGhost(state.map, r, ghost);
       const m = state.markers[r];
@@ -903,7 +903,7 @@
   }
 
   // MOVE a stop to an arbitrary index, which is what a drag produces. moveStop
-  // below SWAPS with a neighbour, which is the same thing only for a one-step
+  // below SWAPS with a neighbor, which is the same thing only for a one-step
   // move — dragging stop 2 to position 5 with a swap would put stop 5 at 2, and
   // that is not what anybody dragging means.
   //
@@ -1521,7 +1521,7 @@
   //
   // Recomputed per call rather than cached on the day, because it depends on
   // every other day: adding, deleting, reordering or promoting one renumbers
-  // its neighbours. TBAlt.dayOrdinals does the whole array in one pass and is
+  // its neighbors. TBAlt.dayOrdinals does the whole array in one pass and is
   // what a render loop should use; this is the single lookup.
   const dayNumber = (r) => ALT.dayOrdinal(state.days, r);
   const dayName = (r) => (state.days[r] && state.days[r].title) || "";
@@ -1605,7 +1605,7 @@
           ' aria-label="Select ' + esc(dayLabel(r)) + '">'
         : "") +
       // The day's own drag handle. A separate grip rather than dragging by the
-      // header itself: the header holds a colour input, a text field and buttons,
+      // header itself: the header holds a color input, a text field and buttons,
       // and making all of that a drag surface would mean every attempt to type in
       // the name started a drag.
       //
@@ -2584,7 +2584,7 @@
         // reorderStop no-ops on from === to. For a POI it was not: the handler
         // below reads the rows it landed BETWEEN and moves the pin to the middle
         // of them, so lifting a POI and dropping it in place relocated it to the
-        // midpoint of its neighbours. Observed, not theorised.
+        // midpoint of its neighbors. Observed, not theorized.
         if (evt.oldIndex === evt.newIndex) return;
 
         const i = Number(evt.item.dataset.i);

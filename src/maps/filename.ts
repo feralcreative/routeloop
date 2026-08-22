@@ -88,7 +88,7 @@ export function slugField(s: string, max = MAX_FIELD): string {
 }
 
 /**
- * A slug read back as a title. A guess, and labelled one everywhere it is used:
+ * A slug read back as a title. A guess, and labeled one everywhere it is used:
  * word boundaries and capitalisation were destroyed by slugField and cannot be
  * recovered, so "avenue-of-giants" comes back "Avenue Of Giants". Callers use
  * this only where the file itself offers nothing better.

@@ -130,7 +130,7 @@ describe('endpoints', () => {
 
   it('tolerates a stop near the end rather than doubling it up', () => {
     // The real case: a route file's first waypoint is a street address and the
-    // track starts at the kerb, tens of metres apart. Two pins on top of each
+    // track starts at the curb, tens of meters apart. Two pins on top of each
     // other, one of them invented, is worse than none.
     const track = line(25)
     const nearStart = stop(-122, 37.0003, 'Home') // ~33 m off vertex 0

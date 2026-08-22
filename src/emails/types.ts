@@ -46,7 +46,7 @@ export type EmailTemplate<P> = {
   /**
    * The body markup ONLY. `renderEmail()` supplies the doctype, the head, the
    * table scaffold, the header and the footer, so a template never repeats them
-   * and cannot get them subtly different from its neighbours.
+   * and cannot get them subtly different from its neighbors.
    */
   html: (props: P) => string
 

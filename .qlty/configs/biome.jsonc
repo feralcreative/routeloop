@@ -48,7 +48,7 @@
         // preference and not wanted for links to our own FAQ.
         "noBlankTarget": "off",
         // Suggests <dialog> for role="dialog". The alpha modal is deliberately
-        // a div: <dialog> brings its own focus and backdrop behaviour that
+        // a div: <dialog> brings its own focus and backdrop behavior that
         // site.js already implements and tests.
         "useSemanticElements": "off"
       }

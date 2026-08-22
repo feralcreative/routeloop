@@ -144,15 +144,31 @@
   // pre-transition size and suggests a bug that is not there. Measured after it
   // settles, the strip is 246px at every name length. **Wait out that transition
   // before believing any measurement of the collapsed panel.**
-  &.collapsed .panel-title #ride-title {
-    height: 1.3em !important;
-    max-height: 1.3em;
-    padding-right: 0.2em;
-    background-image: none;
-    border-color: transparent;
-    pointer-events: none;
-    white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 calc(100% - 1.5em), transparent);
+  //@ MD 768px and up — "collapsed" means the RAIL, and only the rail.
+  //
+  // Below that the collapsed panel is a sheet that slides off the bottom with
+  // its contents intact, and the heading rides down looking exactly as it did a
+  // frame earlier. Unscoped, this rule fired on the first frame of that slide
+  // and reflowed the heading from two lines to one while the sheet was still
+  // moving — the title snapping shut under a panel that had not gone anywhere
+  // yet.
+  //
+  // Worth knowing: this block is inert on the desktop side as well, because the
+  // shared `.collapsed` rule in _map.scss gives `.panel-title` `display: none`
+  // in the rail. It is kept rather than deleted because it describes what the
+  // heading should do if the rail ever shows it again, and the scoping is what
+  // stops a dormant rail rule from waking up on a phone.
+  @media (min-width: 768px) {
+    &.collapsed .panel-title #ride-title {
+      height: 1.3em !important;
+      max-height: 1.3em;
+      padding-right: 0.2em;
+      background-image: none;
+      border-color: transparent;
+      pointer-events: none;
+      white-space: nowrap;
+      mask-image: linear-gradient(to right, #000 calc(100% - 1.5em), transparent);
+    }
   }
 
   // Three bands, one per scope: the ride, the trip across its days, and the one
@@ -162,7 +178,7 @@
   // Tint and an accent rather than captions and rules. At 380px a horizontal
   // rule reads as clutter and three extra label lines are three lines of the
   // vertical budget — the grouping itself carries the meaning, and the day band
-  // names its own scope through the colour it is accented in.
+  // names its own scope through the color it is accented in.
   .panel-band {
     padding: 0.7em 0.75em;
     border-radius: 8px;
@@ -203,7 +219,7 @@
   // showing one day at a time was a constraint of the old floating panel rather
   // than a decision. renderDays() in builder.js fills #day-list with these.
   //
-  // Accented in the day's own colour, which is also what every role icon inside
+  // Accented in the day's own color, which is also what every role icon inside
   // it inherits. --day-color is set per section by renderDays().
   .day-list {
     display: flex;
@@ -224,7 +240,7 @@
     // any other drawer chrome must stay as they are.
     color: var(--day-color, #{$text});
 
-    // Text is not tinted — a whole panel of coloured prose is unreadable, and
+    // Text is not tinted — a whole panel of colored prose is unreadable, and
     // the point is the icons.
     input,
     textarea,
@@ -237,7 +253,7 @@
     // THE ACTIVE DAY, which is where a map click puts its stop. It needs to be
     // obvious without being loud: every day is on screen, so this is the only
     // thing saying which one is about to receive an edit. A ring in the day's own
-    // colour rather than a fill, because a fill would fight the row backgrounds.
+    // color rather than a fill, because a fill would fight the row backgrounds.
     &.is-active {
       background: rgba(0, 0, 0, 0.06);
       box-shadow: inset 0 0 0 1px var(--day-color, #{$url});
@@ -247,7 +263,7 @@
     // quieted — not hidden and not disabled, because it is a real day the rider
     // can still edit, name, reorder and promote.
     //
-    // Deliberately NOT `opacity` on the section: that would take the colour
+    // Deliberately NOT `opacity` on the section: that would take the color
     // swatch, the twirl and every control with it, and a working control that
     // looks disabled is worse than one that looks ordinary.
     &.in-alt-group {
@@ -305,7 +321,7 @@
   }
 
   // The day's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
-  // box centred inside it by a ::before — and not, as it was first written, a
+  // box centered inside it by a ::before — and not, as it was first written, a
   // repeating background-image on the element itself. That tiled dots edge to
   // edge across the whole tab at whatever height the header happened to be, so
   // it rendered as a speckled block rather than as a grip.
@@ -341,8 +357,8 @@
 
     // Two columns by three rows: an 8x12 box on the same 4px tile the row grips
     // use, so the two read as one gesture at two scales. `0 0` rather than
-    // `center` for the same reason as .row-drag — centring aligns a TILE's
-    // centre, which slices the outer dots in half.
+    // `center` for the same reason as .row-drag — centering aligns a TILE's
+    // center, which slices the outer dots in half.
     &::before {
       content: "";
       position: absolute;
@@ -513,7 +529,7 @@
     }
   }
 
-  // Both checkboxes take the day's colour, so a ticked row still says which day
+  // Both checkboxes take the day's color, so a ticked row still says which day
   // it belongs to at a glance.
   .day-pick,
   .row-pick {
@@ -611,7 +627,7 @@
   // Narrower than the 2em the generic input[type="color"] rule gives it, and
   // scoped to the header so the swatch on any other form keeps its size. The
   // generic rule already pads the well down to 2px, so 1.6em still shows a
-  // 20px block of colour — enough to read as the day's colour at a glance,
+  // 20px block of color — enough to read as the day's color at a glance,
   // which is all it does here.
   .day-head .day-color {
     width: 1.6em;
@@ -720,7 +736,7 @@
         font-size: 0.85em;
         line-height: 1;
         padding: 0.35em 0.45em;
-        // Centres .day-del's masked glyph. Its three neighbours are still text
+        // Centers .day-del's masked glyph. Its three neighbors are still text
         // characters and are unaffected by it.
         display: inline-flex;
         align-items: center;
@@ -767,7 +783,7 @@
     cursor: default;
   }
 
-  // A "?" beside a control the FAQ defines. Sized and coloured to sit under
+  // A "?" beside a control the FAQ defines. Sized and colored to sit under
   // everything around it: this is a thing you look for when you are stuck, not
   // a thing that should be competing with the controls in a 380px panel. It
   // only earns full contrast on hover.
@@ -804,7 +820,7 @@
   // this row is a pair of settings rather than a pair of questions: it is read
   // once, set once, and then sat above the work for the rest of the session.
   //
-  // (The `#day-color` rule that used to live here was dead — the colour picker
+  // (The `#day-color` rule that used to live here was dead — the color picker
   // is in .day-head and never has been in this row.)
   .meta-row {
     display: flex;
@@ -1079,12 +1095,12 @@
       width: 16px;
       border-radius: 8px 0 0 8px;
       cursor: grab;
-      // THE DAY'S OWN COLOUR, faded back. This was deliberately neutral on the
+      // THE DAY'S OWN COLOR, faded back. This was deliberately neutral on the
       // reasoning that a grip is furniture — "drag me" is true of every row on
       // every day — and that held while only one day was ever on screen. With
       // every day listed at once the left edge of each row is the fastest way to
       // see where one day stops and the next starts, so the grips are now the
-      // day's colour and read as a continuous rail down its rows.
+      // day's color and read as a continuous rail down its rows.
       //
       // Two mixes, not one: the tab is faint enough to sit under the row's own
       // white, and the dots inside it are strong enough to still read as a grip
@@ -1098,7 +1114,7 @@
       // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
       //
       // **`background-position` MUST be `0 0` here, not `center`**, and this is
-      // not a nitpick — `center` aligns a TILE's centre with the box's centre,
+      // not a nitpick — `center` aligns a TILE's center with the box's center,
       // so on an 8px box the tiles land at -2, 2 and 6 and the dots at x = 0, 4
       // and 8. That renders three columns with the outer two sliced in half, and
       // five rows the same way vertically. `0 0` starts the grid at the corner,
@@ -1298,7 +1314,7 @@
         padding: 0.45em 0.55em;
         text-align: left;
         cursor: pointer;
-        // Same button-resets-colour trap as .row-roles-btn above.
+        // Same button-resets-color trap as .row-roles-btn above.
         color: inherit;
         .tb-inline-icon {
           width: 18px;
@@ -1307,8 +1323,8 @@
           flex: 0 0 18px;
         }
         // Selected. The tint used to be $url regardless of the day, which now
-        // fights the band's colour — the highlight is the background, and the
-        // icon keeps the day's colour like every other icon here.
+        // fights the band's color — the highlight is the background, and the
+        // icon keeps the day's color like every other icon here.
         &.on {
           border-color: currentColor;
           background: rgba(0, 0, 0, 0.06);

@@ -18,7 +18,7 @@
 // distinction is what keeps the rest of the file true. There are two populations
 // and they are served by different mechanisms:
 //
-//   Clients that honour prefers-color-scheme (Apple Mail on both platforms is
+//   Clients that honor prefers-color-scheme (Apple Mail on both platforms is
 //   the one that matters) get a real dark design, from the @media block below.
 //
 //   Clients that do not (Gmail everywhere, which applies its own inversion and
@@ -174,7 +174,7 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
  * at all in the clients that most need a fallback.
  *
  * `mso-hide:all` AND the conditional comment are both here on purpose: Word
- * honours neither display:none nor max-height reliably, and being wrong shows
+ * honors neither display:none nor max-height reliably, and being wrong shows
  * the reader two logos stacked. The belt-and-braces costs one comment.
  */
 function header(): string {

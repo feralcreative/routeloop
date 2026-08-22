@@ -119,7 +119,7 @@ export function bearing(a: [number, number], b: [number, number]): number {
 /** Shortest signed difference between two bearings, -180..180. */
 export const turn = (from: number, to: number): number => ((to - from + 540) % 360) - 180
 
-/** Walk the polyline emitting a point every `spacing` metres. */
+/** Walk the polyline emitting a point every `spacing` meters. */
 export function resample(track: Track, spacing: number): Track {
   const out: Track = [track[0]]
   let carry = 0

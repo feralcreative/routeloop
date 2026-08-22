@@ -90,17 +90,17 @@
   }
 }
 
-// The scale is a traffic light: no, maybe, yes. The colour carries the meaning,
+// The scale is a traffic light: no, maybe, yes. The color carries the meaning,
 // which is why the tone comes from RATINGS in questions.ts rather than from an
 // :nth-child here — reorder the scale and a positional selector would repaint it
 // silently, which is the worst possible way for this to be wrong.
 //
-// Hover shows the colour on the border, selection fills it. That gives the whole
+// Hover shows the color on the border, selection fills it. That gives the whole
 // strip a preview of what each answer means before you commit to one, and it
-// means colour is never the ONLY signal: an unselected option is outlined and a
-// selected one is solid, so the state survives being colour-blind or printed.
+// means color is never the ONLY signal: an unselected option is outlined and a
+// selected one is solid, so the state survives being color-blind or printed.
 //
-// Text colour is per-tone and not decorative. White on the yellow would be
+// Text color is per-tone and not decorative. White on the yellow would be
 // around 1.3:1 and effectively invisible, so yellow takes the dark ink; the
 // other two take white. The green is Material Green 800 rather than $gpx, which
 // is Green 600 and lands at 3.3:1 behind white — the same family's darker step,
@@ -178,7 +178,7 @@ $rate-tones: (
     padding: 0.5rem 0.3rem;
     font-size: 0.8rem;
     // Two-word labels wrap to two lines inside a 90px column, and a wrapped
-    // label must not push the box taller than its neighbours — the row has to
+    // label must not push the box taller than its neighbors — the row has to
     // read as one control.
     line-height: 1.2;
   }
@@ -295,7 +295,7 @@ $rate-tones: (
 // The distribution bar. One segment per point on the scale, flexed by its count,
 // so a room split between "must have" and "don't care" looks different from a
 // room that all said the same middling thing — which is the finding an average
-// cannot show. Segment colours come from the $rate-tones loop above, so the bar
+// cannot show. Segment colors come from the $rate-tones loop above, so the bar
 // reads as the same traffic light the rider answered with.
 .spread {
   display: flex;

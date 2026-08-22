@@ -1,6 +1,6 @@
 // The zip writer, and the multi-entry reading the naming convention needs.
 //
-// The reader's security behaviour is already covered end to end by
+// The reader's security behavior is already covered end to end by
 // test/kmz.test.ts, which drives the same code through extractKmlFromKmz. What
 // is asserted here is what that path never exercises: writing an archive other
 // software will open, and reading more than one entry out of one.
@@ -95,7 +95,7 @@ describe('entryBaseName', () => {
     expect(entryBaseName('one.gpx')).toBe('one.gpx')
   })
 
-  // Not a path traversal defence on its own — callers write to integer-id paths
+  // Not a path traversal defense on its own — callers write to integer-id paths
   // and never to this — but it is what makes the name safe to *read*.
   it('flattens a traversal to a plain name', () => {
     expect(entryBaseName('../../etc/passwd')).toBe('passwd')

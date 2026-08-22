@@ -18,6 +18,32 @@ html.map-page body {
   font: 300 14px/1.1em $font;
 }
 
+// WIDOWS. A widow is the last word of a paragraph stranded alone on its own
+// line. `pretty` is the browser's own fix: a slower line-breaking algorithm that
+// looks ahead and refuses to leave a short last line. It goes on the block
+// rather than into the copy, which is the whole advantage over a hand-placed
+// `&nbsp;`. It re-solves at every viewport width, where a bound word pair only
+// ever fixes the width it was measured at, and it can move a break anywhere in
+// the paragraph rather than only at the final pair.
+//
+// It degrades silently, which is the only reason it can sit here unguarded.
+// Firefox has not shipped it as of August 2026 and no mail client has, so this
+// covers the browser and nothing else. `src/emails/` and the printed half of the
+// roadbook bind their own last two words with `&nbsp;` instead — that is not a
+// duplicate of this rule, it is the surfaces this rule cannot reach.
+//
+// Not `balance`. That evens line lengths across a short block, browsers cap it
+// at a handful of lines, and it is a heading treatment rather than a body one.
+p,
+li,
+dd,
+blockquote,
+figcaption,
+.lede,
+.sub {
+  text-wrap: pretty;
+}
+
 // Headings and inline emphasis carry no weight rule of their own anywhere else,
 // so they were rendering at the user agent's `bold` — 700 — and were the one
 // thing the sheet-wide thinning could not reach. Naming them here puts them on
