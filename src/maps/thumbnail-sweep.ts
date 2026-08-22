@@ -81,6 +81,29 @@ async function loadThumbDays(rideId: number): Promise<ThumbDay[]> {
 }
 
 /**
+ * Clears every thumbnail stamp, so the next sweeps reconsider the whole corpus.
+ *
+ * This exists because of a gap worth understanding rather than working around.
+ * The sweep selects on `updated_at > thumb_built_at`, and only THEN compares
+ * hashes — so the hash can only ever prevent work on a ride that was already
+ * selected. It cannot cause work. Changing anything on the render side (the map
+ * style, the size, the line weight, the point budget) changes every hash, but no
+ * ride's `updated_at` moves, so nothing is selected and nothing regenerates.
+ *
+ * docs/ROADMAP.md item 28 claimed a restyle "regenerates every thumbnail by
+ * itself, with no migration and no backfill script". That is not true of the
+ * design as built; this function is the backfill script, and it is one line of
+ * SQL rather than a column, because a restyle is rare and deliberate.
+ *
+ * The hash still earns its keep: after this runs, a ride whose picture genuinely
+ * did not change costs a query and a hash rather than a Google call.
+ */
+export async function resetThumbnailStamps(): Promise<number> {
+  const rows = await db.update(rides).set({ thumbBuiltAt: null }).returning({ id: rides.id })
+  return rows.length
+}
+
+/**
  * One pass. Returns what it did, which is what makes it worth calling by hand
  * from a script as well as on the timer.
  *

@@ -11,10 +11,15 @@
 import { createHash } from 'node:crypto'
 import { activeDays, type AltDay } from './alts'
 
-// The image, in CSS pixels, and the multiplier that makes it sharp on a retina
-// card. 320x200 at scale 2 renders 640x400 actual pixels, which is exactly the
-// 640 cap on the Essentials tier — going wider silently drops to the cap rather
-// than erroring.
+// What Google renders: 320x200 at scale 2 is 640x400 actual pixels, which is
+// exactly the 640 cap on the Essentials tier — going wider silently drops to the
+// cap rather than erroring.
+//
+// Deliberately larger than the box it is displayed in, and not only for retina.
+// The mandatory Google attribution is drawn at a fixed pixel size, so requesting
+// a small image makes the attribution proportionally BIGGER. Rendering at 640x400
+// and letting the browser scale down is what keeps it a footnote instead of a
+// third of the frame.
 //
 // `center` and `zoom` are deliberately never sent. Omitting both is what makes
 // Static Maps auto-fit the paths, which is the whole requirement: fitted as
@@ -51,8 +56,25 @@ const PATH_WEIGHT = 3
 // Also worth knowing: because the style is in the URL, changing it changes every
 // hash, so the next sweep regenerates every thumbnail by itself — no migration
 // and no backfill script.
-const MAP_STYLE = 'feature:all|element:labels|visibility:off'
-const MAP_SATURATION = 'feature:all|element:geometry|saturation:-70|lightness:10'
+//
+// Note what is NOT removable: the Google wordmark and the "Map data ©" line are
+// required by the Maps Platform terms and no style rule takes them off. They are
+// drawn at a FIXED pixel size, so they are the reason the display box below has a
+// floor — rendered into a 64px-wide card they were most of the picture, which
+// read as "the styling is not applying" and was not.
+const MAP_STYLES = [
+  'feature:all|element:labels|visibility:off',
+  // POI, transit and administrative off together: pins, rail lines and the
+  // dashed state borders are all noise at this size, and the borders in
+  // particular read as part of the route.
+  'feature:poi|visibility:off',
+  'feature:transit|visibility:off',
+  'feature:administrative|visibility:off',
+  // Near-neutral ground so the day colors are the only saturated thing in the
+  // frame. -95 rather than -100 keeps a hint of green and blue, which is what
+  // stops it reading as a fax.
+  'feature:all|element:geometry|saturation:-95|lightness:35',
+]
 
 // AltDay rather than a plain `active: boolean`, so the alternate rule is read
 // from src/maps/alts.ts rather than restated here. It is not the bare column: a
@@ -262,8 +284,7 @@ export function thumbnailRequest(days: ThumbDay[]): string | null {
     `size=${THUMB_WIDTH}x${THUMB_HEIGHT}`,
     `scale=${THUMB_SCALE}`,
     'maptype=roadmap',
-    `style=${encodeURIComponent(MAP_STYLE)}`,
-    `style=${encodeURIComponent(MAP_SATURATION)}`,
+    ...MAP_STYLES.map((v) => `style=${encodeURIComponent(v)}`),
   ]
 
   drawn.forEach((day, i) => {

@@ -437,13 +437,18 @@ a.card {
 // aspect: the image is 640x400 for retina and any future change to the render
 // size would otherwise stretch rather than crop. `box-sizing` because there is
 // no global border-box reset in this stylesheet — see AGENTS.md.
+// 160x100 has a floor under it rather than being a taste value: Google's
+// required attribution is drawn at a fixed pixel size, so the smaller this box
+// is the more of the picture the wordmark and the "Map data ©" line occupy. At
+// 64px they were most of it. The source is 640x400, so this is still a 4x
+// downscale and sharp on any display.
 .card-thumb {
   box-sizing: border-box;
-  width: 64px;
-  height: 40px;
+  width: 160px;
+  height: 100px;
   flex: 0 0 auto;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   background: $neutral-96;
 }
 

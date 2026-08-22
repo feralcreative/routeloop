@@ -29,8 +29,8 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
             class="card-thumb"
             src={`/api/public/maps/${ride.slug}/thumb.png?v=${ride.thumbHash}`}
             alt=""
-            width="64"
-            height="40"
+            width="160"
+            height="100"
             loading="lazy"
             decoding="async"
           />

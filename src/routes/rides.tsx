@@ -36,8 +36,8 @@ function OwnRideRow({ ride, color }: { ride: RideRow; color: string | null }) {
             class="card-thumb"
             src={`/api/public/maps/${ride.slug}/thumb.png?v=${ride.thumbHash}`}
             alt=""
-            width="64"
-            height="40"
+            width="160"
+            height="100"
             loading="lazy"
             decoding="async"
           />
