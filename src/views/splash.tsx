@@ -1,13 +1,24 @@
 // The "this is an alpha" modal, injected into every page by page(). Behavior
-// (show/dismiss/remember) lives in public/js/site.js.
+// (show/dismiss/remember) lives in public/js/site.js, which also carries the
+// ?alpha=1 design hook that pins this open on a local host.
+import { raw } from 'hono/html'
 import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL } from '../config'
+import { icon } from './icon'
 
-type Link = { url: string; label: string }
+// `name` is both the icon file (`icon-<name>.svg`) and the CSS hook that gives
+// the mark its brand color, so the two cannot drift apart.
+//
+// Two labels rather than one: `label` is the caption under the mark and has to
+// stay short enough that three of them fit across a 460px modal, while `title`
+// is the full sentence the row used to read as. The long one is not discarded —
+// it becomes the accessible name and the tooltip, so nothing is lost by the
+// caption being a single word.
+type Link = { url: string; name: string; label: string; title: string }
 
 const LINKS: Link[] = [
-  { url: ALPHA_GITHUB_URL, label: 'Report an issue on GitHub' },
-  { url: ALPHA_SIGNAL_URL, label: 'Message me on Signal' },
-  { url: ALPHA_DISCORD_URL, label: 'Vampires MC Discord' },
+  { url: ALPHA_GITHUB_URL, name: 'github', label: 'GitHub', title: 'Report an issue on GitHub' },
+  { url: ALPHA_SIGNAL_URL, name: 'signal', label: 'Signal', title: 'Message me on Signal' },
+  { url: ALPHA_DISCORD_URL, name: 'discord', label: 'Discord', title: 'Vampires MC Discord' },
 ]
 
 export function alphaSplash(): string {
@@ -32,8 +43,16 @@ export function alphaSplash(): string {
             <ul class="modal-links">
               {links.map((l) => (
                 <li>
-                  <a href={l.url} target="_blank" rel="noopener">
-                    {l.label}
+                  <a
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener"
+                    class={`modal-link is-${l.name}`}
+                    title={l.title}
+                    aria-label={l.title}
+                  >
+                    {raw(icon(l.name))}
+                    <span>{l.label}</span>
                   </a>
                 </li>
               ))}

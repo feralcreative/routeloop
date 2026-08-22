@@ -211,6 +211,15 @@ $label: color.adjust($warning, $lightness: -22%);
 // their mark and an approximation reads as a knock-off.
 $google-blue: #4285f4;
 
+// The three contact marks on the alpha modal, in each service's own brand
+// color. Literals rather than anything derived from the palette for the same
+// reason $google-blue is one: they sit under recognizable logos and are not
+// ours to harmonize. Nothing else in the app should reach for these — a
+// Routeloop surface that wants blue wants $url.
+$github: #181717;
+$signal: #3a76f0;
+$discord: #5865f2;
+
 // Chosen as the only accent legible over the sign-in clip. It was originally
 // lifted from the Routeloop wordmark's dashed center line, became a standalone
 // accent while the tankbag artwork was in use because that mark carries no

@@ -56,25 +56,76 @@ body.modal-open {
   }
 }
 
+// The three contact links: a row of circular marks with a caption under each.
+// They were full-width grey pills carrying the whole sentence until 2026-08-21;
+// the sentence is still there as the accessible name and the tooltip, and only
+// the visible caption shortened.
+//
+// The SVGs are INLINE, not <img> and not a mask, and that is load-bearing rather
+// than a preference. Each file is a disc in `currentColor` with the glyph
+// knocked out in white: an external image has no inherited color to resolve
+// against and paints the disc black, and a mask flattens the knockout into a
+// solid silhouette. src/views/icon.ts is what puts them in the document.
 .modal-links {
   list-style: none;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1.5rem;
   padding: 0;
+  display: flex;
+  justify-content: center;
+  gap: 1.75rem;
+}
+
+.modal-link {
   display: grid;
-  gap: 0.5rem;
+  justify-items: center;
+  gap: 0.45em;
+  text-decoration: none;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: $neutral-43;
 
-  a {
+  svg {
     display: block;
-    padding: 0.6em 0.8em;
-    background: $neutral-96;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 600;
-    color: $url;
+    width: 2.75rem;
+    height: 2.75rem;
+    transition:
+      transform 0.12s ease,
+      filter 0.12s ease;
+  }
 
-    &:hover {
-      background: $neutral-94;
-    }
+  // The mark carries the brand color and the caption stays app-neutral. Both
+  // taking it would put three different colors on three words that are set in
+  // the app's own type, which reads as a styling accident rather than a logo.
+  &.is-github svg {
+    color: $github;
+  }
+
+  &.is-signal svg {
+    color: $signal;
+  }
+
+  &.is-discord svg {
+    color: $discord;
+  }
+
+  &:hover svg,
+  &:focus-visible svg {
+    transform: translateY(-2px);
+    filter: brightness(1.12);
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: $text;
+  }
+
+  // The focus ring goes on the whole link rather than the svg, so it encloses
+  // the caption too — a ring around the disc alone leaves the word it labels
+  // outside the thing being focused.
+  &:focus-visible {
+    outline: 2px solid $url;
+    outline-offset: 3px;
+    border-radius: 6px;
   }
 }
 

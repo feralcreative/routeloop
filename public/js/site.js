@@ -27,6 +27,21 @@
     }
   }
 
+  // Design-hook hosts. `npm run dev` serves on localhost:6686; the .local name
+  // is what a phone on the LAN reaches it by, which is the whole point of
+  // testing a layout on real hardware.
+  const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|.+\.local)$/.test(window.location.hostname);
+
+  // Query-string read, wrapped for the same reason the storage helpers are: a
+  // malformed search string must read as "absent", not take the page down.
+  function readParam(name) {
+    try {
+      return new URLSearchParams(window.location.search).get(name);
+    } catch (e) {
+      return null;
+    }
+  }
+
   const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
   // --- Nav --------------------------------------------------------------
@@ -100,6 +115,19 @@
     const hideBox = document.getElementById("alpha-hide");
     let lastFocus = null;
 
+    // Design hook: ?alpha=1 pins the modal open. It ignores a stored dismissal,
+    // reopens on every load so the SCSS watcher's live reload brings it straight
+    // back, and makes close a no-op so nothing you click dismisses what you are
+    // styling. It also never writes the dismissal key, so a styling session
+    // cannot poison the real one. Drop the param for normal behavior.
+    //
+    // Local hosts only. Ungated, a link carrying the param would pin an
+    // undismissable modal on any rider who opened it — petty rather than
+    // dangerous, but there is no reason to leave it reachable. The check is on
+    // hostname and not on window.TB because this file is loaded by the two
+    // legacy map pages too and must not assume TB exists.
+    const pinned = IS_LOCAL && readParam("alpha") === "1";
+
     function open() {
       lastFocus = document.activeElement;
       backdrop.hidden = false;
@@ -111,6 +139,7 @@
     // Only an explicitly checked box persists. Otherwise the modal returns on
     // the next load, which is the requested behavior.
     function close() {
+      if (pinned) return;
       if (hideBox && hideBox.checked) writeStore(ALPHA_KEY, ALPHA_SPLASH_VERSION);
       backdrop.hidden = true;
       document.body.classList.remove("modal-open");
@@ -144,7 +173,7 @@
       if (e.target.closest("[data-open-alpha]")) open();
     });
 
-    if (readStore(ALPHA_KEY) !== ALPHA_SPLASH_VERSION) open();
+    if (pinned || readStore(ALPHA_KEY) !== ALPHA_SPLASH_VERSION) open();
   }
 
   // --- Sign-in background clip ---------------------------------------------
