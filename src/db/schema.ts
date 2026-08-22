@@ -524,6 +524,24 @@ export const rides = pgTable(
     totalDurationS: integer('total_duration_s').notNull().default(0),
     stopCount: smallint('stop_count').notNull().default(0),
     viewCount: integer('view_count').notNull().default(0),
+    // The thumbnail's bookkeeping. Both null means one has never been built,
+    // which is the state every existing ride starts in and the state a ride with
+    // no drawable geometry stays in — the card shows its color swatch instead.
+    //
+    // `thumb_hash` is a fingerprint of the Static Maps request MINUS the API
+    // key; see src/maps/thumbnail.ts for why the key is kept out of it. The
+    // sweep recomputes the request and skips the fetch when the hash matches, so
+    // retitling a ride, changing a stop's dwell or flipping visibility all cost
+    // a query and nothing else.
+    //
+    // There is deliberately NO byte column here. The PNG is derived data, not
+    // the rider's file: it must not eat a quota that exists to bound uploads,
+    // and `size_bytes` above must name every byte column on this table, so a
+    // column that has to be excluded from it does not belong on it. Same
+    // reasoning as feedback_attachments, which counts its bytes in its own
+    // table for exactly this reason.
+    thumbHash: varchar('thumb_hash', { length: 32 }),
+    thumbBuiltAt: timestamp('thumb_built_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -532,6 +550,14 @@ export const rides = pgTable(
     index('idx_owner').on(t.ownerId),
     index('idx_browse').on(t.visibility, t.createdAt),
     index('idx_popular').on(t.visibility, t.viewCount),
+    // What the sweep selects on: rides edited since their thumbnail was built.
+    // Partial, because a ride whose thumbnail is current is the overwhelming
+    // majority and is never a candidate — the index only needs to hold the work
+    // queue. `thumb_built_at is null` is in it so a ride that has never been
+    // rendered is picked up by the same scan.
+    index('idx_thumb_stale')
+      .on(t.updatedAt)
+      .where(sql`${t.thumbBuiltAt} is null or ${t.updatedAt} > ${t.thumbBuiltAt}`),
   ],
 )
 

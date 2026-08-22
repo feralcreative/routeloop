@@ -22,7 +22,8 @@ import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } fro
 import { DOWNLOADS, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
-import { mapFilePath } from './maps/storage'
+import { mapFilePath, thumbFilePath } from './maps/storage'
+import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -393,6 +394,39 @@ app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/
 // suffix would have to be spelled inside the format regex, and a `:format`
 // param that sometimes carries an extension is exactly the kind of thing that
 // reads fine and matches wrong.
+// The ride's generated thumbnail. Registered ahead of the generic `:format`
+// route below for the same reason the zip route is — that route is constrained
+// to four extensions today, but the convention in this file is that the specific
+// path comes first, and the zip route is the standing evidence for why.
+//
+// Served from here rather than from public/ because the file lives under
+// STORAGE_PATH, outside the web root, and because a private ride's picture has
+// to pass the same visibility gate the ride does. getViewable is that gate.
+app.get('/api/public/maps/:slug/thumb.png', async (c) => {
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !m.thumbHash) return c.text('Not found', 404)
+
+  const path = thumbFilePath(m.ownerId, m.id)
+  const buf = path ? await readFile(path).catch(() => null) : null
+  // A row that says a thumbnail exists and a filesystem that disagrees is a real
+  // state after a restore. 404 rather than falling through to anything: the card
+  // already knows how to draw its color swatch instead.
+  if (!buf) return c.text('Not found', 404)
+
+  return new Response(buf, {
+    headers: {
+      'Content-Type': 'image/png',
+      'X-Content-Type-Options': 'nosniff',
+      // The card links to `?v=<thumb_hash>`, so a changed picture is a changed
+      // URL and this can be immutable. `private` for anything not public: the
+      // slug is unguessable, but an unlisted or private ride's picture has no
+      // business in a shared cache at the edge.
+      'Cache-Control':
+        m.visibility === 'public' ? 'public, max-age=31536000, immutable' : 'private, max-age=31536000, immutable',
+    },
+  })
+})
+
 app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => {
   const format = c.req.param('format')
   const spec = DOWNLOADS[format]
@@ -552,3 +586,8 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
 })
+
+// After serve(), so a slow first pass cannot delay the port binding — the
+// container's healthcheck is what the deploy waits on. The timer is unref'd, so
+// this never holds the process open.
+startThumbnailSweep()

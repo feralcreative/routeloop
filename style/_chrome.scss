@@ -429,6 +429,24 @@ a.card {
   flex: 0 0 auto;
 }
 
+// The generated route thumbnail, in the swatch's slot. Interim treatment: item
+// 29 turns these rows into a card grid with the picture as the card face, and
+// this is what it looks like until then.
+//
+// `object-fit: cover` matters even though Static Maps renders exactly this
+// aspect: the image is 640x400 for retina and any future change to the render
+// size would otherwise stretch rather than crop. `box-sizing` because there is
+// no global border-box reset in this stylesheet — see AGENTS.md.
+.card-thumb {
+  box-sizing: border-box;
+  width: 64px;
+  height: 40px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 4px;
+  background: $neutral-96;
+}
+
 .meta {
   color: $neutral-57;
   font-size: 0.85em;

@@ -16,7 +16,27 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
   return (
     <li>
       <a class="card" href={`/m/${ride.slug}`}>
-        <span class="swatch" style={{ background: color ?? '#0000cc' }}></span>
+        {ride.thumbHash ? (
+          // The picture takes the swatch's slot when there is one; the color dot
+          // is what a ride falls back to before its first sweep, and for one with
+          // no geometry to draw. `?v=` is the request hash, which is what lets the
+          // route serve this immutable — a changed picture is a changed URL.
+          //
+          // Lazy, because /explore and a public profile are unbounded lists of
+          // images now, which they never were before. width/height are the CSS
+          // box, so the row does not reflow as each one lands.
+          <img
+            class="card-thumb"
+            src={`/api/public/maps/${ride.slug}/thumb.png?v=${ride.thumbHash}`}
+            alt=""
+            width="64"
+            height="40"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span class="swatch" style={{ background: color ?? '#0000cc' }}></span>
+        )}
         <span>{ride.title}</span>
         {/*
           Literal · rather than &middot;, and the two are not interchangeable
