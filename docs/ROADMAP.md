@@ -217,7 +217,7 @@ The two big migrations (auth and maps) are **done**, in the code and in the Goog
 - [x] Regenerate the favicons and social image from the current Routeloop mark. Done 2026-07-31; the files live in `public/img/favicon/`.
 - [x] Add privacy-policy and terms pages (required to publish the OAuth consent screen past 100 users).
 - [x] Set per-API daily quota caps on the GCP project so a runaway loop can't run up a bill. Done 2026-08-02—five metrics capped; see STATUS.
-- [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding.
+- [x] Disable the Maps APIs the app does not use. Done 2026-08-02—23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding. **Maps Static was switched back on 2026-08-21** for the ride thumbnails; see item 28.
 
 **Touches.** `public/js/profile.js`, `src/routes/routing.ts`, `src/routes/*` viewer shells, `src/index.tsx`, `src/config.ts`, `src/views/layout.ts`, `public/img/`.
 
@@ -920,7 +920,7 @@ A day-count trigger was considered and dropped: dragging a route from the coast 
 
 **The estimate.** 25 riders × 10 editing sessions a month × one call each ≈ **250 calls, or 2.5% of the 10,000 free monthly allowance**. Even an order of magnitude more activity stays inside it. The quiet period, not the sweep interval, is the number to revisit if that ever stops being true.
 
-One consequence worth knowing: restyling the map is a one-parameter change that changes every hash, so the next pass regenerates every thumbnail by itself, with no migration and no backfill script.
+One consequence worth knowing, and it was stated backwards here until 2026-08-21: **restyling the map does NOT regenerate anything by itself.** A style change does alter every hash, but the sweep selects on `updated_at > thumb_built_at` and only compares hashes among the rows it has already selected—so the hash can prevent work, never cause it. A restyle moves no ride's `updated_at`, so nothing is selected and nothing is rebuilt. `resetThumbnailStamps()` in `src/maps/thumbnail-sweep.ts` is the backfill, reached as `npx tsx utils/sweep-thumbnails.ts --all --until-done`, and it is one `UPDATE` rather than a column because a restyle is rare and deliberate. The hash still earns its keep afterwards: a ride whose picture genuinely did not change costs a query and a hash instead of a Google call.
 
 **Cost, checked against Google's own pricing page 2026-08-16.** Maps Static (SKU `3C2D-B525-2E5F`) is an **Essentials** tier SKU with **10,000 free calls per month**, then $2.00/1000 up to 100k. At beta scale the policy above stays inside the free tier by a wide margin. Note this is a *different* SKU from the `maps-backend` dynamic map loads that carry the 500/day cap, so thumbnails do not eat into the ceiling discussed in "The road to beta"—but they are on the same billing account and want their own alert alongside the one decided there.
 
@@ -933,17 +933,21 @@ One consequence worth knowing: restyling the map is a one-parameter change that 
 
 **Work.**
 
-- [ ] `src/maps/thumbnail.ts`—pure: geometry and day colors in, simplified encoded polyline and a Static Maps URL out. No Postgres, testable in Vitest, sitting beside `twist.ts`, which is the same shape of module.
-- [ ] Simplification to a point budget, with the URL length asserted in a test against the densest ride in the dev corpus.
-- [ ] Schema: the URL hash and a built-at per ride, plus wherever the image lands on disk. Its own column, not folded into the byte columns. `rides.updated_at` is what the pass selects on, so confirm the autosave `PUT` actually bumps it.
-- [ ] The sweep: select rides where `updated_at > built_at` and `updated_at < now() - 5 minutes`, recompute the URL, skip on an unchanged hash, fetch and store otherwise. It needs somewhere to run—there is no scheduler in this app yet, so decide between a container cron and an interval in-process, and note that an in-process one runs once per replica, which at a five-minute cadence is worth getting right rather than tolerating.
-- [ ] Both intervals in one place and named, since the quiet period is the one that bounds cost and the sweep interval is the one that bounds staleness, and confusing them later is easy.
-- [ ] `src/views/cards.tsx`—the thumbnail takes the `.swatch` slot; the color swatch becomes the placeholder for a ride that has never been rendered.
-- [ ] Only `alt_active` days are drawn. Losing alternates are excluded everywhere else and a thumbnail is not the place to make an exception.
+- [x] `src/maps/thumbnail.ts`—pure: geometry and day colors in, simplified encoded polyline and a Static Maps URL out. It returns the request **without the API key**, which was not in the plan and matters twice: the stored hash survives a key rotation, and no row, log or error message can carry an IP-restricted server key.
+- [x] Simplification to a point budget. Douglas-Peucker with the tolerance binary-searched to hit 330 points, since no fixed tolerance maps onto a budget. Worst measured case—8 days × 8,473 points—is **2,927 characters, 36% of the limit**.
+- [x] Schema: `thumb_hash` and `thumb_built_at` on `rides`, both nullable, `drizzle/0005_classy_mattie_franklin.sql`. No byte column at all, decided 2026-08-21: the rule that `size_bytes` must name every byte column on that table means a column that has to be excluded from it does not belong on it. The PNG lands at `storage/{ownerId}/{rideId}-thumb.png` and `deleteMapFiles` was extended to sweep it. **Confirmed the autosave `PUT` does bump `updated_at`**—`src/routes/builder.ts:253`, inside the save transaction.
+- [x] The sweep, in `src/maps/thumbnail-sweep.ts`. **An in-process interval, decided 2026-08-21**, so this is the app's first scheduler—`src/auth/mailer.ts` and `src/invites/service.ts` both say there is none and should now be read as "there was none". The per-replica caveat is recorded at `startThumbnailSweep()`: at two replicas the hash makes the second pass harmless but the overlap window can double-fetch, and that is when it moves to a cron or an advisory lock.
+- [x] Both intervals in one place and named.
+- [x] `src/views/cards.tsx`, and `OwnRideRow` in `src/routes/rides.tsx` as well—leaving "Your rides" the only surface without pictures made the feature look half-built, and adding the image to the existing row needs none of the footer-strip restructure item 29 describes.
+- [x] Only active days are drawn, and the module calls `activeDays()` from `src/maps/alts.ts` rather than reading `alt_active`. Those are not the same rule: an ungrouped day is active whatever the column says, and the first cut of this had that wrong.
 
 **Touches.** New `src/maps/thumbnail.ts`, `src/views/cards.tsx`, `src/db/schema.ts` and a migration, `style/_chrome.scss` for the card layout, and whatever runs the daily pass. Notably **not** `src/routes/builder.ts`—the autosave path is untouched, which is the point of putting the trigger on `updated_at` rather than in the save handler.
 
-**Status.** planned—**folded into phase 2**, where items 21 and 23 are already building lists of rides that would show these, and where item 27 is already opening the storage layer. Not a beta blocker on its own.
+**Status.** **shipped 2026-08-21** on `style/sign-buttons-and-misc`, built out of phase order at Ziad's call. 22 tests in `test/thumbnail.test.ts`; the whole dev corpus renders.
+
+**It needed a Google Cloud change, and that reverses part of item 1.** The Maps Static API was one of the 23 APIs switched off on 2026-08-02, so every call 403'd with "This API is not activated on your API project"—which is a project-level message and not a key one, and worth knowing because the two read almost the same. Enabled on project `tankbag` 2026-08-21, and `static-maps-backend.googleapis.com` added to the server key's API restrictions, which now reads Routes + Geocoding + Static Maps. Item 1's line about "23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding" is therefore out of date. Restriction changes take a few minutes to propagate; a 403 straight after the change is not a failure.
+
+**Still owed:** the quota alert this section asks for, alongside the one decided in "The road to beta". Nothing has been set up on the Static Maps SKU.
 
 ### 29. Cards instead of rows, wherever rides are listed
 
