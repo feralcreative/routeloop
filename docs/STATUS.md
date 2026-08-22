@@ -1,15 +1,49 @@
 # Status and handoff
 
-**Updated:** 2026-08-19
-**Branch:** `style/sign-buttons-and-misc`, clean, pushed, and **three commits ahead of `main` with no PR open**. **1,083 tests across 45 files** (2 skipped, 1,085 total)
-**Closes, since the last update:** nothing on the tracker. This is a presentation and house-style branch—the sign-button treatment, a widow policy, and a spelling sweep. Before it, the `alt`/`alts` rename landed on `main`, along with two merged branches, `feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108).
+**Updated:** 2026-08-21
+**Branch:** `style/sign-buttons-and-misc`, clean and **nine commits ahead of `main`**, PR about to open. **1,105 tests across 46 files** (2 skipped, 1,107 total)
+**Closes, since the last update:** nothing on the tracker, because none of it has an issue. The branch started as presentation work—the sign-button treatment, a widow policy, a spelling sweep—and grew two features: the alpha modal's contact marks, and **roadmap item 28, ride thumbnails**, built out of phase order at Ziad's call. It squash-merges, which is what makes the mixed history harmless. Before it, the `alt`/`alts` rename landed on `main`, along with `feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108).
 **For:** the next agent, or the owner returning cold
 
 **The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the next two sections.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
 
-**Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
+**FOUR schema changes are in play and all are local-dev only.** `drizzle/0005_classy_mattie_franklin.sql` is the newest—`rides.thumb_hash`, `rides.thumb_built_at` and a partial index—and like the three below it is additive, needs no backfill, and has been applied to the dev database only.
+
+**The first three:** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## Ride thumbnails—roadmap item 28, 2026-08-21
+
+**Shipped, and it works against the real dev corpus**: every ride in the list now shows a picture of its own route, each day in its own color. 22 tests in `test/thumbnail.test.ts`.
+
+**It needed a Google Cloud change nobody had anticipated, and that is the part worth reading.** Maps Static was one of the 23 APIs switched off on 2026-08-02, so every call came back 403 with *"This API is not activated on your API project"*. That message is **project-level, not key-level**, and the key-level one reads almost identically—the giveaway was that the browser key and the server key returned *different* strings, which is what identified it. Fixed by enabling `static-maps-backend.googleapis.com` on project `tankbag` and adding it to the server key's API restrictions (now Routes + Geocoding + Static Maps). **Restriction changes take a few minutes to propagate**, so a 403 immediately afterwards is not a failure; it cleared on its own.
+
+**The key never enters anything that gets stored.** `thumbnailRequest()` returns the Static Maps path *without* the API key; that keyless string is what gets hashed into `rides.thumb_hash`, and `thumbnailUrl()` appends the key only at fetch time. Two things follow, and both were the reason: a key rotation does not silently invalidate every thumbnail in the database, and no row, log line or error message can carry an IP-restricted server key.
+
+**Simplification targets a point budget, not a tolerance**, because the 8192-character URL limit is a budget and no fixed tolerance maps onto one. Douglas-Peucker with the tolerance binary-searched to land on 330 points. Worst measured case—8 days × 8,473 points—is **2,927 characters, 36% of the limit**.
+
+**A design gap found during the work, and the roadmap said the opposite.** Item 28 claimed a restyle "regenerates every thumbnail by itself, with no migration and no backfill script". It does not. The sweep selects on `updated_at > thumb_built_at` and only compares hashes among rows it has *already* selected—so the hash can prevent work, never cause it, and a style change moves no ride's `updated_at`. `resetThumbnailStamps()` is the backfill, reached as `npx tsx utils/sweep-thumbnails.ts --all --until-done`. The roadmap entry has been corrected rather than left to mislead the next reader.
+
+**This is the app's first scheduler.** An in-process interval, Ziad's call 2026-08-21; `src/auth/mailer.ts` and `src/invites/service.ts` both still say the app has no scheduler and should now be read as "there was none". It runs **once per replica**: at one that is right, at two the hash makes the second pass harmless but the overlap window can double-fetch. That is when it moves to a cron or takes an advisory lock, and the note is at `startThumbnailSweep()`.
+
+**Two sizing facts that look like styling bugs and are not.** Google's wordmark and "Map data ©" line are required by the Maps terms, cannot be styled off, and are drawn at a **fixed pixel size**—so at the original 64×40 display box they were most of the picture, which reads exactly like "the map style is not applying". The fix is the display box (now 160×100) and rendering larger than it (640×400) so the attribution scales down with everything else.
+
+**Still owed:** a quota alert on the Static Maps SKU, which item 28 asks for and which nothing has been set up for. The SKU is Essentials, 10,000 free calls a month, and is separate from the `maps-backend` 500/day cap—so thumbnails do not eat that ceiling.
+
+**Not built, on purpose:** roadmap item 29, cards instead of rows. The thumbnails landed in the existing row layout, which item 29 replaces with a grid across all four browsing surfaces. It is unblocked now.
+
+## The alpha modal—2026-08-21
+
+The "This is an alpha" modal got its three contact links as brand-colored marks plus a fourth for Vampires MC, and its button became a guide sign with a flanking pair of up arrows.
+
+**Two embed mechanisms, decided by the artwork rather than by taste.** GitHub, Signal and Discord are each a disc in `currentColor` with the glyph knocked out white, so they must be **inline** `<svg>`—an `<img>` has no inherited color and paints the disc black, and a CSS mask flattens the knockout into a silhouette. `src/views/icon.ts` inlines them. The Vampires MC mark carries its own colors and is **64 KB**, and this modal is injected into *every* page, so it is an `<img>`: inlining would put 64 KB on every HTML response to draw one 44px logo.
+
+**`?alpha=1` pins the modal open** for design work—ignores a stored dismissal, reopens on every load so the SCSS watcher's live reload brings it back, and makes close a no-op. **Local hosts only**; ungated, a link carrying it would pin an undismissable modal on any rider who opened it.
+
+**Even spacing is between the marks, not the boxes.** A flex row with a fixed gap spaces the item *boxes*, and each box is as wide as its own caption—so captions running from "Signal" to "Vampires MC" put the discs at four different distances. Equal-width grid tracks fix it; verified at an even 88px pitch, and 68px on a 360px phone where "Vampires MC" wraps inside its own track.
+
+Focus is shown on the mark as a circular ring rather than a rectangle around the block, and initial focus now lands on the dialog container rather than the first link—so nothing is ringed when the modal opens.
 
 ## Sign buttons, widows, and a spelling sweep—`style/sign-buttons-and-misc`, 2026-08-19
 
