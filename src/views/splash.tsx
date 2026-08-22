@@ -2,23 +2,33 @@
 // (show/dismiss/remember) lives in public/js/site.js, which also carries the
 // ?alpha=1 design hook that pins this open on a local host.
 import { raw } from 'hono/html'
-import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL } from '../config'
+import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL, ALPHA_VMC_URL } from '../config'
 import { icon } from './icon'
 
 // `name` is both the icon file (`icon-<name>.svg`) and the CSS hook that gives
 // the mark its brand color, so the two cannot drift apart.
 //
 // Two labels rather than one: `label` is the caption under the mark and has to
-// stay short enough that three of them fit across a 460px modal, while `title`
+// stay short enough that four of them fit across a 460px modal, while `title`
 // is the full sentence the row used to read as. The long one is not discarded —
 // it becomes the accessible name and the tooltip, so nothing is lost by the
-// caption being a single word.
-type Link = { url: string; name: string; label: string; title: string }
+// caption being a word or two.
+//
+// `embed` picks how the mark reaches the page, and it is a property of the
+// artwork rather than a preference. The first three are a disc in
+// `currentColor` with the glyph knocked out, so they have to be IN the document
+// for the color to reach them. The Vampires MC mark carries its own colors on
+// its own black disc, needs nothing inherited, and is 64 KB of path data — this
+// modal is injected into EVERY page, so inlining it would put 64 KB on every
+// HTML response, uncacheable, to draw one 44px logo. As an <img> the browser
+// fetches it once and caches it.
+type Link = { url: string; name: string; label: string; title: string; embed: 'inline' | 'img' }
 
 const LINKS: Link[] = [
-  { url: ALPHA_GITHUB_URL, name: 'github', label: 'GitHub', title: 'Report an issue on GitHub' },
-  { url: ALPHA_SIGNAL_URL, name: 'signal', label: 'Signal', title: 'Message me on Signal' },
-  { url: ALPHA_DISCORD_URL, name: 'discord', label: 'Discord', title: 'Vampires MC Discord' },
+  { url: ALPHA_GITHUB_URL, name: 'github', label: 'GitHub', title: 'Report an issue on GitHub', embed: 'inline' },
+  { url: ALPHA_SIGNAL_URL, name: 'signal', label: 'Signal', title: 'Message me on Signal', embed: 'inline' },
+  { url: ALPHA_DISCORD_URL, name: 'discord', label: 'Discord', title: 'Vampires MC Discord', embed: 'inline' },
+  { url: ALPHA_VMC_URL, name: 'vmc', label: 'Vampires MC', title: 'Vampires MC', embed: 'img' },
 ]
 
 export function alphaSplash(): string {
@@ -30,7 +40,21 @@ export function alphaSplash(): string {
 
   return (
     <div class="modal-backdrop" id="alpha-splash" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="alpha-title" aria-describedby="alpha-body">
+      {/*
+        tabindex="-1" so site.js can move focus to the DIALOG on open rather than
+        to the first control inside it. Focusing the first control ringed the
+        GitHub mark every time the modal appeared, which reads as a selection
+        nobody made. Programmatically focusable, never tab-focusable — the -1 is
+        what keeps it out of the tab order and out of FOCUSABLE in site.js.
+      */}
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="alpha-title"
+        aria-describedby="alpha-body"
+        tabindex={-1}
+      >
         {/* .modal is $white, so this takes the dark artwork, not the reversed one. */}
         <img class="modal-logo" src="/img/logo-routeloop.svg" alt="" width="920" height="518" />
         <h2 id="alpha-title">This is an alpha</h2>
@@ -51,7 +75,11 @@ export function alphaSplash(): string {
                     title={l.title}
                     aria-label={l.title}
                   >
-                    {raw(icon(l.name))}
+                    {l.embed === 'inline' ? (
+                      raw(icon(l.name))
+                    ) : (
+                      <img src={`/img/icons/icon-${l.name}.svg`} alt="" width="1000" height="1000" />
+                    )}
                     <span>{l.label}</span>
                   </a>
                 </li>
@@ -62,7 +90,12 @@ export function alphaSplash(): string {
         <label class="modal-dismiss">
           <input type="checkbox" id="alpha-hide" /> Don’t show this again
         </label>
-        <button type="button" class="btn" data-close-alpha>
+        {/*
+          The guide-sign treatment with a flanking pair of up arrows —
+          `arrow-both` puts one at each end and `arrow-n` points them both north.
+          Ziad's call, 2026-08-21.
+        */}
+        <button type="button" class="btn btn-sign arrow-both arrow-n" data-close-alpha>
           Got it
         </button>
       </div>

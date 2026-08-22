@@ -132,8 +132,12 @@
       lastFocus = document.activeElement;
       backdrop.hidden = false;
       document.body.classList.add("modal-open");
-      const first = dialog.querySelector(FOCUSABLE);
-      if (first) first.focus();
+      // The dialog itself, not the first control in it. Focus has to move inside
+      // for the trap below and for a screen reader to announce the dialog, but
+      // focusing the first LINK drew a focus ring on the GitHub mark every time
+      // the modal opened, which reads as a selection the rider did not make.
+      // The container carries tabindex="-1" for exactly this.
+      dialog.focus();
     }
 
     // Only an explicitly checked box persists. Otherwise the modal returns on
@@ -160,7 +164,11 @@
       if (!items.length) return;
       const first = items[0];
       const last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      // `|| dialog` because focus starts on the container, which is deliberately
+      // not in `items` — without it, the first shift+Tab of a freshly opened
+      // modal escapes to the browser chrome instead of wrapping to the last
+      // control.
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {

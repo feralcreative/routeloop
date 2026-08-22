@@ -105,6 +105,23 @@ $sign-arrow-bearings: (
   "ne": 315deg,
 );
 
+// One drawing, used by `::before` and — for `.arrow-both` — by `::after` too.
+// A mixin and not two copies of the path: the whole reason the arrow is rotated
+// rather than redrawn per bearing is that there should be exactly one shape to
+// correct if it is ever revised, and a second literal copy here would undo that
+// the moment someone edits one of them. Bearing is deliberately NOT set here —
+// every caller supplies its own.
+@mixin sign-arrow {
+  content: "";
+  flex: none;
+  position: relative;
+  top: -0.1em;
+  width: 1.3125em;
+  height: 1.3125em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
 .btn.btn-sign {
   display: inline-flex;
   align-items: center;
@@ -174,22 +191,16 @@ $sign-arrow-bearings: (
   // margin on purpose: margin would resize the flex line and drag the legend
   // part of the way back up with it.
   &::before {
-    content: "";
-    flex: none;
-    position: relative;
-    top: -0.1em;
-    width: 1.3125em;
-    height: 1.3125em;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
-      center / contain no-repeat;
+    @include sign-arrow;
+
     transform: rotate(map.get($sign-arrow-bearings, "w"));
   }
 
   // Side, by reversing the flex line rather than moving the arrow to ::after.
-  // There are only two items on it, so reversing swaps them, and it keeps one
-  // definition of the arrow instead of a mixin included in two places. The
-  // element order the DOM sees does not change, which is right — the arrow is
-  // decoration and was never in the accessibility tree to begin with.
+  // There are only two items on it, so reversing swaps them, and it keeps the
+  // arrow on one pseudo-element instead of two that can drift. The element order
+  // the DOM sees does not change, which is right — the arrow is decoration and
+  // was never in the accessibility tree to begin with.
   //
   // The horizontal padding swaps with it, so the tighter side stays the side the
   // arrow is on.
@@ -203,11 +214,36 @@ $sign-arrow-bearings: (
     }
   }
 
-  // Explicit bearings, last so they beat both defaults. Each is (0,3,1), the
-  // same as `.btn.btn-sign.arrow-right::before` above, so it is source order
-  // and not specificity doing the work — these have to stay below it.
+  // A pair, one at each end. This is the one case that cannot be done by
+  // reversing the flex line, because it needs two arrows rather than one on a
+  // chosen side, so it spends `::after` — free on a guide sign, and unavailable
+  // only on .btn-stop, which carries no arrow at all.
+  //
+  // Both default to pointing outward, matching the single arrow's rule that a
+  // bearing follows the side it sits on. A bearing class overrides both together
+  // — `.arrow-both.arrow-n` is the flanking pair of up arrows — which is the
+  // only behavior worth having: two arrows on one sign pointing different ways
+  // is a contradiction, not a layout.
+  //
+  // Padding goes tight on both sides for the same reason it swaps above: the
+  // arrow's bounding box carries air that a word's glyphs do not.
+  &.arrow-both {
+    padding-right: 1.05rem;
+    padding-left: 1.05rem;
+
+    &::after {
+      @include sign-arrow;
+
+      transform: rotate(map.get($sign-arrow-bearings, "e"));
+    }
+  }
+
+  // Explicit bearings, last so they beat every default above. Each is (0,3,1),
+  // the same as `.btn.btn-sign.arrow-right::before`, so it is source order and
+  // not specificity doing the work — these have to stay below it.
   @each $name, $bearing in $sign-arrow-bearings {
-    &.arrow-#{$name}::before {
+    &.arrow-#{$name}::before,
+    &.arrow-#{$name}::after {
       transform: rotate($bearing);
     }
   }
