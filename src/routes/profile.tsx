@@ -267,9 +267,27 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           )}
         </fieldset>
 
-        <fieldset disabled>
+        {/*
+          Saved places. NOT part of the profile form's own submit — every write
+          goes through /api/places as JSON, so this is a region inside the
+          fieldset rather than fields on it. A nested <form> would be invalid
+          HTML and the outer submit would swallow it.
+
+          Places are CREATED from the builder ("Save to my places" on a stop),
+          because a place needs a pin and the builder is where the map is. This
+          screen is for organizing what is already there: rename, refile, delete.
+          A create-from-scratch flow here wants the address picker from roadmap
+          item 19 and should wait for it rather than ship a lat/lng text box.
+        */}
+        <fieldset>
           <legend>Your places</legend>
-          <p class="field-hint">Saved places are coming in the next release.</p>
+          <p class="field-hint">
+            Save a stop from the ride builder and it turns up here, and in the builder&rsquo;s search box on every ride
+            after&nbsp;that.
+          </p>
+          <div id="places-manager" data-places-manager>
+            <p class="field-hint">Loading&hellip;</p>
+          </div>
         </fieldset>
 
         <p>
@@ -288,7 +306,8 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
     body,
     // Only the token: profile.js geocodes the address so the builder can read
     // coordinates straight off the profile instead of looking them up per ride.
-    scripts: `<script src="${asset('/js/profile.js')}" defer></script>`,
+    scripts: `<script src="${asset('/js/profile.js')}" defer></script>
+  <script src="${asset('/js/places.js')}" defer></script>`,
   })
 }
 

@@ -895,6 +895,84 @@ export const feedbackAttachments = pgTable(
   (t) => [index('idx_feedback_attachment').on(t.feedbackId)],
 )
 
+// A rider's reusable library of locations: home, the good fuel stop, the meet
+// point everyone knows. Dropped into any ride as a stop.
+//
+// **A place is COPIED into a ride, never referenced.** Ziad's call, 2026-08-21.
+// There is deliberately no `place_id` on `points`: a ride is a record of what
+// the rider planned, so renaming "Bob's Gas" or deleting it must not reach back
+// and rewrite a ride from last year. It also sidesteps the churn problem
+// entirely — points are deleted and re-inserted on every save, so a foreign key
+// from a point to a place would have to survive that, and there is no reason to
+// make it.
+//
+// The cost, stated plainly so nobody re-litigates it as a bug: fixing a badly
+// placed pin fixes it for FUTURE rides only. Rides that already copied it keep
+// the old coordinates.
+export const placeGroups = pgTable(
+  'place_groups',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ownerId: bigint('owner_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 80 }).notNull(),
+    // Rider-defined order, so a library can be arranged the way the rider
+    // thinks about it rather than alphabetically.
+    position: smallint('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uq_place_group_name').on(t.ownerId, t.name), index('idx_place_group_owner').on(t.ownerId)],
+)
+
+export const places = pgTable(
+  'places',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ownerId: bigint('owner_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // NULLABLE, and that is a usability decision rather than an omission.
+    // Requiring a group would mean inventing one before a rider can save their
+    // first place, which is friction in front of the very first use. Ungrouped
+    // is a real state and the UI shows it as its own section.
+    //
+    // `set null` on delete rather than cascade: deleting a group must not delete
+    // the places in it. Losing a rider's saved locations because they tidied up
+    // a folder name would be unforgivable and is exactly what cascade would do.
+    groupId: bigint('group_id', { mode: 'number' }).references(() => placeGroups.id, { onDelete: 'set null' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    // Same taxonomy as a point, so a saved hotel drops in already wearing the
+    // hotel icon. src/maps/roles.ts is the source of truth for both.
+    roles: waypointRoleEnum('roles')
+      .array()
+      .notNull()
+      .default(sql`'{}'::waypoint_role[]`),
+    // The DURABLE half of what rich stop details holds — a hotel's phone number
+    // is a fact about the hotel, and does not change between rides. Copied into
+    // a stop's point_details when the place is dropped in.
+    //
+    // Confirmation numbers and check-in times are deliberately NOT here: those
+    // belong to one trip, not to the place, and storing them would mean every
+    // ride using the place inherited last trip's reservation.
+    phone: varchar('phone', { length: 40 }),
+    address: varchar('address', { length: 300 }),
+    links: jsonb('links')
+      .$type<Array<{ label: string; url: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_place_owner').on(t.ownerId),
+    index('idx_place_group').on(t.groupId),
+    check('ck_place_roles_max4', sql`cardinality(roles) <= 4`),
+  ],
+)
+
 export type UserRow = typeof users.$inferSelect
 /** The authorization states, derived from the enum so the two cannot drift. */
 export type UserStatus = (typeof userStatusEnum.enumValues)[number]
@@ -908,6 +986,8 @@ export type InviteRedemptionRow = typeof inviteRedemptions.$inferSelect
 export type SurveyResponseRow = typeof surveyResponses.$inferSelect
 /** The three ways an invite is handed out, derived from the enum so the two cannot drift. */
 export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
+export type PlaceGroupRow = typeof placeGroups.$inferSelect
+export type PlaceRow = typeof places.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type DayRow = typeof days.$inferSelect
 export type PointRow = typeof points.$inferSelect

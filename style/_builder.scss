@@ -1679,6 +1679,34 @@
       font-size: 0.85em;
     }
   }
+
+  // A rider's own saved place, above the Google predictions. Marked rather than
+  // left to blend in: it costs nothing to pick, it arrives with roles and
+  // contact details attached, and it is the one row in the list the rider
+  // themselves put there.
+  li.hit-saved {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  // The rule sits under the LAST saved row, so it separates the library from the
+  // predictions without needing a wrapper element around either group.
+  li.hit-saved:last-of-type,
+  li.hit-saved:has(+ li.hit-google) {
+    border-bottom: 1px solid $neutral-88;
+  }
+
+  .hit-badge {
+    display: inline-block;
+    padding: 0 0.35em;
+    border-radius: 3px;
+    background: $interstate;
+    color: $white;
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: 0.1em;
+  }
 }
 
 //@ Reduced motion — the pulse is decoration; the color and the text both

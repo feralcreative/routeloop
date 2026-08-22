@@ -24,6 +24,7 @@ import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
 import { mapFilePath, thumbFilePath } from './maps/storage'
 import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
+import { placesRoutes } from './routes/places'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -169,6 +170,10 @@ app.route('/', surveyRoutes)
 // swallows them.
 app.route('/', feedbackRoutes)
 app.route('/', ridesRoutes)
+// All literal `/api/places` and `/api/place-groups` paths, so ordering against
+// the parameterized modules does not matter — mounted here to sit with the other
+// API modules rather than for any routing reason.
+app.route('/', placesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
 app.route('/', importRoutes)

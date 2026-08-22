@@ -307,13 +307,17 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [ ] Schema for places and place groups.
-- [ ] CRUD endpoints and a marker-group primitive in the map engine.
-- [ ] Builder integration: search or pick from saved places when adding a stop.
+- [x] Schema for places and place groups—`places` and `place_groups`, migration `drizzle/0007_glossy_charles_xavier.sql`.
+- [x] CRUD endpoints at `/api/places` and `/api/place-groups`. **No marker-group primitive was built**, and it turned out not to be needed: saved places surface through the builder's existing search field rather than as a layer on the map, so there is nothing extra to draw. Revisit only if a "show all my places" view is actually wanted.
+- [x] Builder integration—saved places appear IN the add-row search list, above the Google predictions, matched locally from one character with no network call and no billing. "Save to my places" on any stop's row menu is the creation path.
 
-**Touches.** `src/db/schema.ts`, new `src/routes/places.ts`, `public/js/map-common.js`, `public/js/builder.js`, `src/routes/profile.ts` (the profile already reserves a section for this).
+**Where places are created, and why not on the profile.** A place needs a pin, and the builder is where the map is. The profile screen manages what is already there—rename, refile, delete, and the groups themselves. A create-from-scratch flow there wants the address picker from item 19 rather than a pair of lat/lng boxes, and should wait for it.
 
-**Status.** planned—designed in `_PLANS/sprint-01-260725T2320Z.md` Phase B, cut from Sprint 2 for size.
+**Touches.** `src/db/schema.ts`, new `src/places/policy.ts` and `src/places/service.ts` (rule-from-query split), new `src/routes/places.ts`, new `public/js/places.js`, `public/js/builder.js`, `src/routes/profile.tsx`, `style/_builder.scss`, `style/_forms.scss`.
+
+**Status.** **shipped 2026-08-21** on `feat/saved-places`, closing [#10](https://github.com/feralcreative/routeloop/issues/10). 24 tests in `test/places.test.ts`. Stacked on `feat/rich-stop-details` rather than branched from `main`, because a place pre-fills a stop's details and those only exist there.
+
+**Three decisions, all Ziad's, 2026-08-21.** **Copy, not reference**—see the note in AGENTS.md and `placeToStop()`. **Groups from the start**, but a group is optional: requiring one would mean inventing a folder before saving a first place, so `group_id` is nullable and "Not in a group" is a real section. **Places carry phone, address and links**—the half of rich stop details that is a fact about the place rather than about one trip.
 
 ### 7. Bikes and range planning
 

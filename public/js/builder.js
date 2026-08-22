@@ -106,6 +106,107 @@
     };
   }
 
+  // The rider's saved-place library, loaded once when the builder opens.
+  //
+  // Held in memory rather than re-fetched per keystroke: it is one rider's own
+  // list, bounded at 500 by MAX_PLACES server-side, and matching it locally is
+  // what lets a saved place appear in the search list INSTANTLY and for free.
+  // The Google predictions that arrive 300ms later are appended below them.
+  //
+  // A failure here is silent and non-fatal. Saved places are an accelerant, not
+  // a dependency — a builder that cannot reach /api/places must still let a
+  // rider plan a ride.
+  let savedPlaces = [];
+  async function loadSavedPlaces() {
+    try {
+      const res = await fetch("/api/places");
+      if (!res.ok) return;
+      const data = await res.json();
+      savedPlaces = (data.sections || []).flatMap((sec) =>
+        (sec.places || []).map((pl) => ({ ...pl, groupName: sec.group ? sec.group.name : "" })),
+      );
+    } catch (e) {
+      console.warn("[builder] saved places unavailable:", e);
+    }
+  }
+
+  // Substring match on name, group and address, cheapest thing that works on a
+  // list this size. Matches from ONE character rather than three: the Google
+  // search waits for three because each call is billed, and this one costs
+  // nothing.
+  function matchSavedPlaces(q) {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    return savedPlaces
+      .filter((pl) =>
+        (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle),
+      )
+      .slice(0, 5);
+  }
+
+  // The client half of placeToStop() in src/places/policy.ts. A saved place is
+  // COPIED into the ride and keeps no reference back — see the table comment in
+  // src/db/schema.ts — so this builds a plain point and nothing ties it to the
+  // row it came from.
+  //
+  // Only the DURABLE half of the details travels: a phone number is a fact about
+  // the place, a confirmation number is a fact about one trip.
+  function stopFromPlace(pl) {
+    const durable = Boolean(pl.phone || pl.address || (pl.links || []).length);
+    const pt = newPoint(pl.lng, pl.lat, pl.name);
+    pt.roles = (pl.roles || []).slice();
+    if (durable) {
+      pt.details = {
+        ...blankDetails(),
+        phone: pl.phone || "",
+        address: pl.address || "",
+        links: (pl.links || []).map((l) => ({ ...l })),
+      };
+    }
+    return pt;
+  }
+
+  // Saves a stop into the rider's library, so the good fuel stop found once is
+  // droppable into every ride after it.
+  //
+  // Sends only the DURABLE half of the stop's details — a phone number belongs
+  // to the place, a confirmation number to one trip. Sending the confirmation
+  // would put last September's booking reference on every future ride that used
+  // the place, which is worse than having none.
+  //
+  // The saved copy is independent from this moment on: editing the stop
+  // afterwards does not change the place, and editing the place does not change
+  // the stop. That is the copy-not-reference decision, and it runs in both
+  // directions.
+  async function savePointAsPlace(point) {
+    if (!point) return;
+    if (!point.name.trim()) return toast("Give the stop a name first", true);
+    const d = point.details || {};
+    try {
+      const res = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: point.name.trim(),
+          lat: point.lat,
+          lng: point.lng,
+          roles: point.roles || [],
+          phone: d.phone || "",
+          address: d.address || "",
+          links: (d.links || []).filter((l) => l.url),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return toast(data.error || "Could not save that place", true);
+      // Pushed into the in-memory list rather than re-fetching, so the place is
+      // searchable on the very next keystroke without a round trip.
+      savedPlaces.push({ ...data, groupName: "" });
+      toast("Saved to your places");
+    } catch (e) {
+      toast("Could not save that place", true);
+    }
+  }
+
   function blankDetails() {
     return { confirmation: "", checkInAt: null, checkOutAt: null, phone: "", address: "", links: [], notes: "" };
   }
@@ -864,13 +965,16 @@
   // their own index explicitly: a row is unambiguous about which day it belongs
   // to in a way the global search box never was, and that ambiguity is the
   // reason the box is gone.
-  function addStop(lng, lat, name, dayIndex) {
+  // `prebuilt` is how a saved place enters the ride: stopFromPlace() has already
+  // made the point, roles and durable details included, and this must not
+  // discard it by minting a bare one. Every other caller passes nothing.
+  function addStop(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
     beginEdit("add stop");
-    day.stops.push(newPoint(lng, lat, name));
+    day.stops.push(prebuilt || newPoint(lng, lat, name));
     const n = day.stops.length;
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
@@ -881,7 +985,7 @@
     markDirty();
   }
 
-  function addPoi(lng, lat, name, dayIndex) {
+  function addPoi(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
@@ -890,7 +994,7 @@
     // durationMin present from the start, matching a stop: blank means "rode
     // past", which is the common case, and the field has to exist for the row to
     // round-trip through save and reload.
-    day.pois.push(newPoint(lng, lat, name));
+    day.pois.push(prebuilt || newPoint(lng, lat, name));
     renderMarkers();
     renderDayList(r);
     markDirty();
@@ -2539,6 +2643,7 @@
           if (first) first.focus();
           return;
         }
+        if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
         if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
         if (act === "up") return moveStop(i, -1);
@@ -2617,6 +2722,7 @@
   const MENU_ITEMS = [
     { act: "notes", label: "Edit notes" },
     { act: "details", label: "Reservation & details" },
+    { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
     { act: "up", label: "Move up", stopOnly: true },
@@ -3024,6 +3130,45 @@
     if (wrapper) wrapper.addEventListener("scroll", hideSearchResults, { passive: true });
     window.addEventListener("resize", hideSearchResults);
 
+    // A saved place looks different from a Google prediction on purpose: it is
+    // the rider's own, it costs nothing to pick, and it arrives with roles and
+    // contact details attached. The badge is what says so.
+    function savedResultsHtml(list) {
+      return list
+        .map(
+          (pl, i) =>
+            '<li class="hit-saved" data-saved="' + i + '">' +
+            '<span class="hit-badge">Saved</span> <strong>' + esc(pl.name) + "</strong> " +
+            '<span class="hit-ctx">' + esc(pl.groupName || pl.address || "") + "</span></li>",
+        )
+        .join("");
+    }
+
+    // Rewired on every render because the list is rebuilt wholesale — the same
+    // reason the search field itself is delegated rather than bound per input.
+    function wireSavedResults(host, list) {
+      host.querySelectorAll("li.hit-saved").forEach((li) => {
+        li.addEventListener("click", () => {
+          const pl = list[Number(li.dataset.saved)];
+          if (!pl) return;
+          const r = Number(host.dataset.day);
+          const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
+          const asPoi = kindEl && kindEl.value === "poi";
+          hideSearchResults();
+          setActive(r);
+          // Built here and handed in, rather than letting addStop mint a bare
+          // point: the roles and the durable details are the reason a saved
+          // place is worth having.
+          const pt = stopFromPlace(pl);
+          if (asPoi) addPoi(pl.lng, pl.lat, pl.name, r, pt);
+          else addStop(pl.lng, pl.lat, pl.name, r, pt);
+          panTo(state.map, [pl.lng, pl.lat], 11);
+          const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
+          if (next) next.focus();
+        });
+      });
+    }
+
     // Delegated on #day-list, because renderDays() replaces every one of these
     // fields on any structural change. Binding per input would either be lost
     // on the next render or leak a listener per render.
@@ -3033,10 +3178,24 @@
       const day = Number(input.closest(".add-row").dataset.day);
       clearTimeout(searchTimer);
       const q = input.value.trim();
-      if (q.length < 3) {
+
+      // Saved places first, and they are drawn IMMEDIATELY — no debounce, no
+      // network, no minimum length beyond one character. Typing "bob" surfaces
+      // your own "Bob's Gas" before Google has been asked anything, which is the
+      // whole reason to have a library. The predictions land underneath 300ms
+      // later and are appended rather than replacing these.
+      const saved = matchSavedPlaces(q);
+      if (saved.length) {
+        results.dataset.day = String(day);
+        results.innerHTML = savedResultsHtml(saved);
+        results.hidden = false;
+        placeResults(input, results);
+        wireSavedResults(results, saved);
+      } else if (q.length < 3) {
         hideSearchResults();
-        return;
       }
+
+      if (q.length < 3) return;
       searchTimer = setTimeout(async () => {
         // Predictions come back out of order often enough to matter; a slow
         // early keystroke must not overwrite a fast later one.
@@ -3048,16 +3207,24 @@
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
           results.dataset.day = String(day);
-          results.innerHTML = hits
-            .map(
-              (h, i) =>
-                '<li data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
-                '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
-            )
-            .join("");
-          results.hidden = hits.length === 0;
+          // Saved matches keep their place at the top; the predictions are
+          // appended under them. Re-derived rather than read off the DOM so a
+          // response that arrives after the query changed cannot pair the new
+          // predictions with the old library rows.
+          const savedNow = matchSavedPlaces(input.value.trim());
+          results.innerHTML =
+            savedResultsHtml(savedNow) +
+            hits
+              .map(
+                (h, i) =>
+                  '<li class="hit-google" data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+                  '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
+              )
+              .join("");
+          results.hidden = hits.length === 0 && savedNow.length === 0;
           if (!results.hidden) placeResults(input, results);
-          results.querySelectorAll("li").forEach((li) => {
+          wireSavedResults(results, savedNow);
+          results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills
               // per call, so resolving all five would cost five times as much.
@@ -3688,6 +3855,11 @@
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
+    // Deliberately NOT awaited. The library is an accelerant on the search box,
+    // not something the map or the panel needs in order to render — blocking
+    // init on it would put a network round trip in front of a builder that works
+    // perfectly without one.
+    loadSavedPlaces();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {

@@ -50,6 +50,13 @@
       "when": 1787376204200,
       "tag": "0006_wild_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787377787467,
+      "tag": "0007_glossy_charles_xavier",
+      "breakpoints": true
     }
   ]
 }
