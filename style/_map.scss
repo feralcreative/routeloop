@@ -38,6 +38,37 @@
       color: $text;
     }
   }
+  // The owner-only block: reservations, codes, private notes. Set off from the
+  // public half by a rule and a label, so it is obvious at a glance which part
+  // of the popup a rider is looking at — that distinction is the whole feature,
+  // and a panel that mixed the two would make it unreadable.
+  //
+  // The key is absent entirely from a non-owner's ride.json, so this block is
+  // never rendered for them. Nothing here is a permission check and nothing here
+  // should become one.
+  &-private {
+    margin-top: 0.6em;
+    padding-top: 0.5em;
+    border-top: 1px solid $neutral-88;
+  }
+  &-private-head {
+    margin-bottom: 0.35em;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: $neutral-50;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  &-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-top: 0.4em;
+  }
+  &-link {
+    font-size: 0.9em;
+    color: $url;
+  }
   &-num {
     display: flex;
     flex-direction: column;
@@ -101,7 +132,9 @@
   left: var(--drawer-current);
   width: calc(100vw - var(--drawer-current));
   height: 100vh;
-  transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 // Nobody should watch the furniture animate if they have asked not to. The

@@ -14,7 +14,13 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 
 type Snap = { meta: Record<string, unknown>; days: any[] }
-type Store = { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void; key(i: number): string | null; length: number }
+type Store = {
+  getItem(k: string): string | null
+  setItem(k: string, v: string): void
+  removeItem(k: string): void
+  key(i: number): string | null
+  length: number
+}
 
 let H: any
 let store: Store & { _map: Map<string, string>; _failOn: null | ((k: string, v: string) => boolean) }
@@ -346,7 +352,16 @@ describe('drafts', () => {
 
   it('keeps empty days, which payload() drops', () => {
     const s = stateOf()
-    s.days.push({ title: '', color: '#0000cc', startAt: null, endAt: null, endManual: false, stops: [], pois: [], legs: [] })
+    s.days.push({
+      title: '',
+      color: '#0000cc',
+      startAt: null,
+      endAt: null,
+      endManual: false,
+      stops: [],
+      pois: [],
+      legs: [],
+    })
     H.Draft.write(41, s)
     expect(H.Draft.read(41).days).toHaveLength(2)
   })
@@ -442,5 +457,48 @@ describe('drafts', () => {
     const moved = H.Draft.read(77)
     expect(moved.rideId).toBe(77)
     expect(moved.meta.title).toBe('Three days')
+  })
+})
+
+// The snapshot rule, for the field this feature added. `roles` has been copied
+// since the beginning; `details` joins it, and `leg.viaPoints` moved between the
+// shared and copied groups the day drag-to-shape shipped without anything
+// failing loudly. Re-check this whenever an edit-in-place feature lands.
+describe('snapshot copies details rather than sharing them', () => {
+  const withDetails = () => ({
+    meta: {},
+    days: [
+      {
+        stops: [{ uid: 'aaaaaaaaaaaa', roles: [], details: { notes: 'gate 4417', links: [{ label: 'a', url: 'b' }] } }],
+        pois: [],
+        legs: [],
+      },
+    ],
+  })
+
+  it('does not share the details object', () => {
+    const state = withDetails()
+    const snap = H.snapshot(state)
+    state.days[0].stops[0].details.notes = 'changed'
+    expect(snap.days[0].stops[0].details.notes).toBe('gate 4417')
+  })
+
+  it('does not share the links array inside details', () => {
+    const state = withDetails()
+    const snap = H.snapshot(state)
+    state.days[0].stops[0].details.links.push({ label: 'x', url: 'y' })
+    expect(snap.days[0].stops[0].details.links).toHaveLength(1)
+  })
+
+  it('does not share a link object inside that array', () => {
+    const state = withDetails()
+    const snap = H.snapshot(state)
+    state.days[0].stops[0].details.links[0].url = 'changed'
+    expect(snap.days[0].stops[0].details.links[0].url).toBe('b')
+  })
+
+  it('leaves a stop with no details as null', () => {
+    const snap = H.snapshot({ meta: {}, days: [{ stops: [{ roles: [], details: null }], pois: [], legs: [] }] })
+    expect(snap.days[0].stops[0].details).toBeNull()
   })
 })

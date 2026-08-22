@@ -662,14 +662,79 @@ export const points = pgTable(
       .default(sql`'{}'::waypoint_role[]`),
     durationMin: integer('duration_min'),
     distFromStartM: integer('dist_from_start_m'), // server-computed cumulative meters
+    // The point's DURABLE identity, and the thing `id` is not.
+    //
+    // `PUT /api/rides/:id` deletes and re-inserts every day and point on every
+    // save — a deliberate decision on 2026-08-15, and autosave makes it happen
+    // constantly. So `id` churns, and anything that referenced a point across a
+    // save would silently lose it. Rich stop details is the first feature that
+    // needs a point to keep its identity, and this is how it does: the client
+    // owns the uid, the save carries it through unchanged, and point_details is
+    // keyed by it rather than by the row id that keeps changing.
+    //
+    // Client-generated rather than server-assigned so the builder can attach
+    // details to a stop it has only just created, before any save has happened.
+    // A payload arriving without one — an old tab, a native JSON file written
+    // before this shipped, an import from another app — gets one server-side.
+    //
+    // Unique per DAY and not globally: it only ever has to disambiguate within
+    // the ride being saved, and a global unique index would make two riders
+    // importing the same file collide for no reason.
+    uid: varchar('uid', { length: 12 }).notNull(),
   },
   (t) => [
     // Stops get distinct positions; POIs all carry null (NULLS DISTINCT).
     uniqueIndex('uq_point_day_pos').on(t.dayId, t.position),
     index('idx_point_day').on(t.dayId),
+    uniqueIndex('uq_point_day_uid').on(t.dayId, t.uid),
     check('ck_point_roles_max4', sql`cardinality(roles) <= 4`),
     check('ck_point_stop_pos', sql`kind <> 'stop' OR position IS NOT NULL`),
   ],
+)
+
+// The private half of a stop: reservations, confirmation numbers, gate codes,
+// check-in and check-out, phone, address, links, and freeform notes.
+//
+// A SEPARATE TABLE, and that is the load-bearing part of the whole feature.
+// `points` is what `ride.json` is built from and what every export serializes,
+// so a confirmation number stored as a column on `points` is one forgetful
+// `select()` away from a public share. Keeping it in its own table means the
+// public path cannot leak it by accident — it has to JOIN to leak it, and a
+// join is visible in review in a way an extra column in a `select *` is not.
+// Same reasoning that splits `user_profiles` from `users`.
+//
+// Keyed by (ride_id, uid) rather than by point_id, because point ids churn on
+// every save — see points.uid above. ride_id cascades, so deleting a ride takes
+// the details with it; a point deleted from a ride is cleaned up by uid at save
+// time, in src/maps/ride-graph.ts.
+export const pointDetails = pgTable(
+  'point_details',
+  {
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    uid: varchar('uid', { length: 12 }).notNull(),
+    // Reservation and arrival. checkInAt/checkOutAt are timestamptz where
+    // days.start_at is too — a hotel check-in is a wall-clock moment in a place,
+    // and the roadbook already renders that column with an explicit timeZone.
+    confirmation: varchar('confirmation', { length: 120 }),
+    checkInAt: timestamp('check_in_at', { withTimezone: true }),
+    checkOutAt: timestamp('check_out_at', { withTimezone: true }),
+    phone: varchar('phone', { length: 40 }),
+    address: varchar('address', { length: 300 }),
+    // Up to MAX_LINKS_PER_POINT {label, url} pairs — a booking link, a menu, a
+    // map. jsonb rather than three columns because which links a stop wants is
+    // a property of the stop, not of the schema, and rather than its own table
+    // because nothing ever queries across them.
+    links: jsonb('links')
+      .$type<Array<{ label: string; url: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    // "Gate code 4417, park behind the barn, ask for Dave."
+    notes: varchar('notes', { length: 2000 }),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.rideId, t.uid] }), index('idx_point_details_ride').on(t.rideId)],
 )
 
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from

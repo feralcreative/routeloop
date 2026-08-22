@@ -14,7 +14,10 @@
   "use strict";
 
   const esc = (s) =>
-    String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    String(s ?? "").replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+    );
 
   // --- Coordinate order -----------------------------------------------------
 
@@ -293,7 +296,13 @@
       // where the two share tarmac — which, being alternates, they usually do
       // at both ends.
       zIndex: ghost ? 0 : entry.dim ? 1 : 2,
-      icons: !entry.visible ? [] : ghost ? dashIcons(entry.color) : entry.arrowsOn ? arrowIcons(entry.color, entry.dim) : [],
+      icons: !entry.visible
+        ? []
+        : ghost
+          ? dashIcons(entry.color)
+          : entry.arrowsOn
+            ? arrowIcons(entry.color, entry.dim)
+            : [],
     });
     entry.line.setVisible(entry.visible);
   }
@@ -731,9 +740,7 @@
 
   function roleTitle(roles) {
     if (!roles || roles.length === 0) return "Waypoint";
-    return roles
-      .map((r) => (window.TB.roles[r] ? window.TB.roles[r].title : r))
-      .join(" / ");
+    return roles.map((r) => (window.TB.roles[r] ? window.TB.roles[r].title : r)).join(" / ");
   }
 
   function iconImgHtml(roles, color) {
@@ -781,8 +788,58 @@
       "<div class='waypoint-tooltip-name'>" +
       esc(point.name || "") +
       "</div>" +
-      (point.description ? "<div class='waypoint-tooltip-desc'>" + esc(point.description) + "</div>" : "")
+      (point.description ? "<div class='waypoint-tooltip-desc'>" + esc(point.description) + "</div>" : "") +
+      detailsBlock(point.details)
     );
+  }
+
+  // The private half of a stop, in the popup.
+  //
+  // `point.details` is present ONLY when the server decided the viewer is the
+  // ride's owner — ride.json omits the key entirely for everyone else, so there
+  // is no client-side permission check here and there must not be one. A viewer
+  // that had the data and chose not to draw it would still have shipped it.
+  //
+  // Every value goes through esc(), links included, and the URL was already
+  // constrained to http(s) at save time by fields.external_url — an href is the
+  // one place esc() alone is not enough.
+  function detailsBlock(d) {
+    if (!d) return "";
+    let rows = "";
+    if (d.confirmation) rows += numRow("Confirmation", esc(d.confirmation));
+    if (d.checkInAt) rows += numRow("Check in", esc(fmtStamp(d.checkInAt)));
+    if (d.checkOutAt) rows += numRow("Check out", esc(fmtStamp(d.checkOutAt)));
+    if (d.phone) rows += numRow("Phone", "<a href='tel:" + esc(d.phone) + "'>" + esc(d.phone) + "</a>");
+    if (d.address) rows += numRow("Address", esc(d.address));
+    const links = (d.links || [])
+      .filter((l) => l.url)
+      .map(
+        (l) =>
+          "<a class='waypoint-tooltip-link' href='" +
+          esc(l.url) +
+          "' target='_blank' rel='noopener'>" +
+          esc(l.label || l.url) +
+          "</a>",
+      )
+      .join("");
+    if (!rows && !links && !d.notes) return "";
+    return (
+      "<div class='waypoint-tooltip-private'>" +
+      "<div class='waypoint-tooltip-private-head'>Only you can see this</div>" +
+      rows +
+      (d.notes ? "<div class='waypoint-tooltip-desc'>" + esc(d.notes) + "</div>" : "") +
+      (links ? "<div class='waypoint-tooltip-links'>" + links + "</div>" : "") +
+      "</div>"
+    );
+  }
+
+  // The stored value is an instant; the rider wants the wall clock where the
+  // stop is. Rendered in the browser's zone, which is the same assumption the
+  // datetime-local control in the builder makes when it writes one.
+  function fmtStamp(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
   // Inline the tooltip's icon (same currentColor trick as the markers).

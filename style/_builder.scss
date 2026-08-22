@@ -1059,7 +1059,6 @@
       }
     }
 
-
     // The drag handle, replacing the per-row up/down arrow pair. Dotted rather
     // than an icon file: it is the conventional grip texture, it costs no asset,
     // and it stays crisp at any size because it is a gradient.
@@ -1143,7 +1142,6 @@
       &:active {
         cursor: grabbing;
       }
-
     }
     .row-main {
       display: flex;
@@ -1336,6 +1334,123 @@
       width: 100%;
       margin: 0.35em 0 0.1em 0;
       resize: vertical;
+    }
+
+    // The reservation panel. Hidden until the row menu opens it, because a stop
+    // carrying a confirmation number is the exception — a panel of empty inputs
+    // under every row would bury the ride it belongs to.
+    .row-details {
+      margin: 0.4em 0 0.2em;
+      padding: 0.6em;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.04);
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    // auto-fit rather than a fixed column count: the panel is the full width of
+    // a 320px drawer on a phone and of a much wider one on a desktop, and the
+    // fields are short. minmax(0, 1fr) so a long value shrinks its column
+    // instead of pushing the grid wider than the row.
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+      gap: 0.4em 0.6em;
+    }
+
+    .detail-field {
+      display: grid;
+      gap: 0.15em;
+      font-size: 0.8em;
+      color: $neutral-43;
+
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 1.1em;
+      }
+
+      textarea {
+        min-height: 3.5em;
+        resize: vertical;
+      }
+    }
+
+    .detail-notes {
+      margin-top: 0.5em;
+    }
+
+    .detail-links {
+      margin-top: 0.5em;
+      display: grid;
+      gap: 0.3em;
+    }
+
+    // Label and URL side by side with the delete button pinned to the end. The
+    // URL gets the wider share because a label is a word and a URL is not.
+    .detail-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+      gap: 0.3em;
+      align-items: center;
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+      }
+    }
+
+    .detail-link-del {
+      border: 0;
+      background: none;
+      padding: 0 0.3em;
+      font-size: 1.1em;
+      line-height: 1;
+      color: $neutral-57;
+      cursor: pointer;
+
+      &:hover {
+        color: $stop;
+      }
+    }
+
+    .detail-link-add {
+      justify-self: start;
+      border: 0;
+      background: none;
+      padding: 0.2em 0;
+      font: inherit;
+      font-size: 0.85em;
+      color: $url;
+      cursor: pointer;
+      text-decoration: underline;
+
+      &:disabled {
+        color: $neutral-63;
+        cursor: default;
+        text-decoration: none;
+      }
+    }
+
+    // Says on the surface what canSeeDetails enforces in code. A rider deciding
+    // whether to type a door code into a web app is entitled to read where it
+    // goes without taking it on faith.
+    .detail-privacy {
+      margin: 0.6em 0 0;
+      font-size: 0.75em;
+      color: $neutral-50;
+    }
+
+    // Marks a row whose stop carries details, so they are findable without
+    // opening each one.
+    .row-detail-flag {
+      flex: none;
+      align-self: center;
+      font-size: 0.7em;
+      color: $url;
     }
   }
 

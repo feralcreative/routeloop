@@ -395,15 +395,21 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] Structured detail fields on a stop: confirmation / reservation number, check-in and check-out date-time (feeds the timeline, item 2), phone, address, and one or more URLs (booking link, menu, map).
-- [ ] A freeform notes field for the unstructured stuff—"gate code 4417, park behind the barn, ask for Dave."
-- [ ] Surface fields **by role** rather than as one giant form: a HOTEL / CAMP stop wants check-in/out and a confirmation number; a FOOD stop wants a reservation time and a menu link. The role taxonomy already has hotel, camp, food, coffee, drinks, grocery to key off.
-- [ ] Builder UI to edit the details; viewer UI to show them in the stop's info window / panel.
-- [ ] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
+- [x] Structured detail fields on a stop: confirmation number, check-in and check-out date-time, phone, address, and up to five labelled URLs. In `point_details`, migration `drizzle/0006_wild_hammerhead.sql`.
+- [x] A freeform notes field.
+- [x] Surfaced **by role**—`detailFieldsFor()` in `public/js/builder.js`. Lodging gets check-in/out; a table role gets a reservation time; everything else gets phone, address, notes and links. **A stop with NO roles gets the full set**, not the minimum: an uncategorized stop is one the rider has not labelled yet, and hiding fields from it looks like a bug.
+- [x] Builder UI behind a row-menu item, with a badge on rows that carry details; viewer UI as a ruled-off block in the popup headed "Only you can see this".
+- [x] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 
-**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/builder.ts` (payload + sanitize—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
+**Touches.** `src/db/schema.ts`, `src/maps/uid.ts` and `src/maps/point-details.ts` (both new), `src/maps/ride-graph.ts`, `src/maps/export.ts`, `src/routes/builder.ts`, `src/routes/maps.ts`, `src/index.tsx`, `src/account/export.ts`, `public/js/builder.js`, `public/js/builder-history.js`, `public/js/map-common.js`.
 
-**Status.** planned.
+**Status.** **shipped 2026-08-21** on `feat/rich-stop-details`, closing [#15](https://github.com/feralcreative/routeloop/issues/15). 25 tests in `test/point-details.test.ts` plus four in `test/builder-history.test.ts`.
+
+**The ID-churn prerequisite was solved differently from the plan, and that is the decision worth recording.** The governing text above and in item 16 assumed "send ids in the payload and diff server-side", which rewrites `insertRideGraph`, `ridePayload` and `loadRidePayload`—the path the native JSON import shares. **Ziad's call 2026-08-21: a client-minted `points.uid` instead.** The delete-and-re-insert model accepted on 2026-08-15 is untouched; `point_details` is keyed by `(ride_id, uid)` rather than by the row id that churns, and identity rides along in native JSON exports for free. `insertRideGraph` barely changed. **Row ids still churn**, so anything else that needs a point to keep its identity—a comment, a photo—uses the uid too and does not need this revisited.
+
+**Exports: native JSON only, decided 2026-08-21.** Details are in the lossless native JSON, because that is the rider's own backup and re-import path, and stripped from GPX, KML, GeoJSON and CSV—those get handed to devices and forwarded to riding buddies, and none of them can express "this field is private". `loadNativeRide` takes the details map as an argument rather than fetching it, so forgetting to pass it fails CLOSED: the export is merely incomplete rather than a leak.
+
+**Verified against a real public ride, not reasoned about.** A canary detail row was planted on a public ride and all seven anonymous surfaces (`ride.json`, both native names, and the four lossy formats) were fetched and checked; every one returned 200 and none carried it. A second signed-in rider who is not the owner also saw nothing. The owner sees them in the builder, in `ride.json` and in the popup.
 
 ### 12. Quality and platform
 

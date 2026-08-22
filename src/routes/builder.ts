@@ -21,6 +21,7 @@ import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type A
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
 import { toDurationFormat, type DurationFormat } from '../maps/duration'
 import { DAY_COLORS } from '../maps/palette'
+import { detailsForOwner } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
@@ -130,24 +131,12 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     return c.json({ error: 'not found' }, 404)
   }
 
-  const srcRoutes = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, src.id))
-    .orderBy(daysTable.position)
+  const srcRoutes = await db.select().from(daysTable).where(eq(daysTable.rideId, src.id)).orderBy(daysTable.position)
 
   const payloadDays = []
   for (const r of srcRoutes) {
-    const pts = await db
-      .select()
-      .from(pointsTable)
-      .where(eq(pointsTable.dayId, r.id))
-      .orderBy(pointsTable.position)
-    const legs = await db
-      .select()
-      .from(routeLegs)
-      .where(eq(routeLegs.dayId, r.id))
-      .orderBy(routeLegs.position)
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
 
     const point = (p: (typeof pts)[number]) => ({
       lat: p.lat,
@@ -155,6 +144,19 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       name: p.name,
       description: '',
       roles: p.roles,
+      // A clone gets FRESH identities and NO private details, and both halves of
+      // that are deliberate.
+      //
+      // `details: null` is a privacy boundary, not a tidiness choice. A public
+      // ride is clonable by anyone, and its author's confirmation numbers, gate
+      // codes and phone numbers are exactly what point_details exists to keep
+      // off a stranger's screen. Copying them here would hand them over wholesale
+      // — the one place a clone could leak what `ride.json` is careful not to.
+      //
+      // `uid: null` follows from it: the new ride mints its own, so nothing ties
+      // a cloned stop back to the original's details row.
+      uid: null,
+      details: null,
     })
 
     payloadDays.push({
@@ -269,11 +271,11 @@ builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
 })
 
 export async function loadRidePayload(ride: RideRow) {
-  const dayRows = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, ride.id))
-    .orderBy(daysTable.position)
+  // Owner-only by construction: every caller reaches this behind `ownRide()`.
+  // detailsForOwner and not detailsForViewer for that reason — the check has
+  // already happened, and doing it twice would mean two places to get it wrong.
+  const details = await detailsForOwner(ride.id)
+  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position)
   const out = {
     id: ride.id,
     slug: ride.slug,
@@ -298,6 +300,11 @@ export async function loadRidePayload(ride: RideRow) {
       // This function names every field it carries; nothing is spread.
       altGroup: r.altGroup,
       altActive: r.altActive,
+      // uid and details go out here and are sent straight back by the next
+      // save. Omitting either is how a stop's confirmation number silently
+      // disappears: without the uid the save mints a new one and orphans the
+      // details row, and without the details the reconcile pass reads the stop
+      // as cleared and deletes it.
       stops: pts
         .filter((p) => p.kind === 'stop')
         .map((p) => ({
@@ -307,6 +314,8 @@ export async function loadRidePayload(ride: RideRow) {
           description: p.description ?? '',
           roles: p.roles,
           durationMin: p.durationMin,
+          uid: p.uid,
+          details: details.get(p.uid) ?? null,
         })),
       pois: pts
         .filter((p) => p.kind === 'poi')
@@ -319,6 +328,8 @@ export async function loadRidePayload(ride: RideRow) {
           // Same shape as a stop now. Omitting this is how a saved POI dwell
           // silently disappears on the next load.
           durationMin: p.durationMin,
+          uid: p.uid,
+          details: details.get(p.uid) ?? null,
         })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
@@ -376,9 +387,7 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
     .limit(1)
   return {
     publicStart:
-      p?.lat == null || p?.lng == null
-        ? null
-        : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
+      p?.lat == null || p?.lng == null ? null : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
     durationFormat: toDurationFormat(p?.durationFormat),
   }
 }
