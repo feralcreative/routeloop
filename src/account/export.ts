@@ -6,6 +6,7 @@ import { db } from '../db/index'
 import { rides, userIdentities, userProfiles, usernameHistory, type UserRow } from '../db/schema'
 import { DOWNLOADS, DOWNLOAD_FORMATS } from '../maps/downloads'
 import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from '../maps/export'
+import { detailsForOwner } from '../maps/point-details'
 import { listOwnerFiles, mapFilePath } from '../maps/storage'
 import { buildZip, type ZipFile } from '../maps/zip'
 import {
@@ -116,12 +117,19 @@ export async function buildAccountArchive(user: UserRow, exportedAt: Date): Prom
 
     // The manifest decided every path above; this only fills them in. There is
     // no second place a name is computed, so the two cannot disagree.
-    const native = await loadNativeRide(ride.id, {
-      title: ride.title,
-      description: ride.description,
-      visibility: ride.visibility,
-      externalUrl: ride.externalUrl,
-    })
+    const native = await loadNativeRide(
+      ride.id,
+      {
+        title: ride.title,
+        description: ride.description,
+        visibility: ride.visibility,
+        externalUrl: ride.externalUrl,
+      },
+      // The account archive is the rider's own data by definition, so it
+      // carries their details — this is the "you can always get your data out"
+      // path, and a backup missing every reservation would make that false.
+      await detailsForOwner(ride.id),
+    )
     add(entry.native, Buffer.from(buildNativeJson(native), 'utf8'))
 
     const forExport = await loadRideForExport(ride.id, { title: ride.title, description: ride.description })

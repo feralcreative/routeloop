@@ -59,6 +59,190 @@
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
   const MAX_STOPS = 200;
   const MAX_POIS = 200;
+  const MAX_LINKS = 5;
+
+  // A point's durable identity. Mirrors newUid() in src/maps/uid.ts and is pinned
+  // to it by test/point-details.test.ts — same alphabet, same length, or a uid
+  // minted here fails server validation and the save 400s.
+  //
+  // Minted on the CLIENT rather than assigned by the server because a rider can
+  // open a stop and type a confirmation number into it before any save has
+  // happened; without an identity at creation time there would be nothing to
+  // attach those details to.
+  //
+  // crypto.getRandomValues over Math.random for the same reason the server uses
+  // randomBytes: a repeat inside one save violates the per-day unique index and
+  // fails the whole request. Rejection sampling — bytes at or above 252 are
+  // discarded, because 256 % 36 would otherwise bias the first four symbols.
+  const UID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+  function uid() {
+    let out = "";
+    while (out.length < 12) {
+      const buf = new Uint8Array(12);
+      crypto.getRandomValues(buf);
+      for (const b of buf) {
+        if (b >= 252) continue;
+        out += UID_ALPHABET[b % 36];
+        if (out.length === 12) break;
+      }
+    }
+    return out;
+  }
+
+  // A stop or POI as it is born: an identity, and no details until the rider
+  // opens the editor. `details: null` rather than an empty object so that
+  // "nothing filled in" is one representation rather than two, matching what the
+  // server stores and what loadRidePayload sends back.
+  function newPoint(lng, lat, name) {
+    return {
+      lat: +lat.toFixed(6),
+      lng: +lng.toFixed(6),
+      name: name || "",
+      description: "",
+      roles: [],
+      durationMin: null,
+      uid: uid(),
+      details: null,
+    };
+  }
+
+  // The rider's saved-place library, loaded once when the builder opens.
+  //
+  // Held in memory rather than re-fetched per keystroke: it is one rider's own
+  // list, bounded at 500 by MAX_PLACES server-side, and matching it locally is
+  // what lets a saved place appear in the search list INSTANTLY and for free.
+  // The Google predictions that arrive 300ms later are appended below them.
+  //
+  // A failure here is silent and non-fatal. Saved places are an accelerant, not
+  // a dependency — a builder that cannot reach /api/places must still let a
+  // rider plan a ride.
+  let savedPlaces = [];
+  async function loadSavedPlaces() {
+    try {
+      const res = await fetch("/api/places");
+      if (!res.ok) return;
+      const data = await res.json();
+      savedPlaces = (data.sections || []).flatMap((sec) =>
+        (sec.places || []).map((pl) => ({ ...pl, groupName: sec.group ? sec.group.name : "" })),
+      );
+    } catch (e) {
+      console.warn("[builder] saved places unavailable:", e);
+    }
+  }
+
+  // Substring match on name, group and address, cheapest thing that works on a
+  // list this size. Matches from ONE character rather than three: the Google
+  // search waits for three because each call is billed, and this one costs
+  // nothing.
+  function matchSavedPlaces(q) {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    return savedPlaces
+      .filter((pl) =>
+        (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle),
+      )
+      .slice(0, 5);
+  }
+
+  // The client half of placeToStop() in src/places/policy.ts. A saved place is
+  // COPIED into the ride and keeps no reference back — see the table comment in
+  // src/db/schema.ts — so this builds a plain point and nothing ties it to the
+  // row it came from.
+  //
+  // Only the DURABLE half of the details travels: a phone number is a fact about
+  // the place, a confirmation number is a fact about one trip.
+  function stopFromPlace(pl) {
+    const durable = Boolean(pl.phone || pl.address || (pl.links || []).length);
+    const pt = newPoint(pl.lng, pl.lat, pl.name);
+    pt.roles = (pl.roles || []).slice();
+    if (durable) {
+      pt.details = {
+        ...blankDetails(),
+        phone: pl.phone || "",
+        address: pl.address || "",
+        links: (pl.links || []).map((l) => ({ ...l })),
+      };
+    }
+    return pt;
+  }
+
+  // Saves a stop into the rider's library, so the good fuel stop found once is
+  // droppable into every ride after it.
+  //
+  // Sends only the DURABLE half of the stop's details — a phone number belongs
+  // to the place, a confirmation number to one trip. Sending the confirmation
+  // would put last September's booking reference on every future ride that used
+  // the place, which is worse than having none.
+  //
+  // The saved copy is independent from this moment on: editing the stop
+  // afterwards does not change the place, and editing the place does not change
+  // the stop. That is the copy-not-reference decision, and it runs in both
+  // directions.
+  async function savePointAsPlace(point) {
+    if (!point) return;
+    if (!point.name.trim()) return toast("Give the stop a name first", true);
+    const d = point.details || {};
+    try {
+      const res = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: point.name.trim(),
+          lat: point.lat,
+          lng: point.lng,
+          roles: point.roles || [],
+          phone: d.phone || "",
+          address: d.address || "",
+          links: (d.links || []).filter((l) => l.url),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return toast(data.error || "Could not save that place", true);
+      // Pushed into the in-memory list rather than re-fetching, so the place is
+      // searchable on the very next keystroke without a round trip.
+      savedPlaces.push({ ...data, groupName: "" });
+      toast("Saved to your places");
+    } catch (e) {
+      toast("Could not save that place", true);
+    }
+  }
+
+  function blankDetails() {
+    return { confirmation: "", checkInAt: null, checkOutAt: null, phone: "", address: "", links: [], notes: "" };
+  }
+
+  // Which detail fields a stop actually shows, keyed off its roles.
+  //
+  // By role rather than one giant form: a HOTEL wants check-in/out and a
+  // confirmation number, a FOOD stop wants a reservation time and a menu link,
+  // and showing a rider fourteen inputs for a gas stop is how a feature like
+  // this stops being used. Notes and links are on everything — "gate code 4417,
+  // park behind the barn" fits nowhere else and belongs everywhere.
+  //
+  // A stop with no roles gets the full set rather than the minimum: an unlabelled
+  // stop is one the rider has not categorized yet, and hiding fields from it
+  // would make the editor look broken.
+  const LODGING_ROLES = ["hotel", "camp"];
+  const TABLE_ROLES = ["food", "coffee", "drinks", "grocery"];
+  function detailFieldsFor(roles) {
+    const has = (set) => (roles || []).some((r) => set.indexOf(r) >= 0);
+    const base = ["notes", "links"];
+    if (has(LODGING_ROLES)) return ["confirmation", "checkInAt", "checkOutAt", "phone", "address"].concat(base);
+    if (has(TABLE_ROLES)) return ["confirmation", "checkInAt", "phone", "address"].concat(base);
+    if (!roles || roles.length === 0) {
+      return ["confirmation", "checkInAt", "checkOutAt", "phone", "address"].concat(base);
+    }
+    return ["phone", "address"].concat(base);
+  }
+
+  // Anything filled in at all — what badges the row so a rider can see which
+  // stops carry detail without opening each one.
+  function hasDetails(d) {
+    if (!d) return false;
+    return Boolean(
+      d.confirmation || d.checkInAt || d.checkOutAt || d.phone || d.address || d.notes || (d.links || []).length,
+    );
+  }
   // Matches MAX_VIAS_PER_LEG in src/maps/ride-graph.ts, which the save path
   // enforces. Refusing the 21st here is the difference between a rider being
   // told now and a whole ride failing to save later.
@@ -781,20 +965,16 @@
   // their own index explicitly: a row is unambiguous about which day it belongs
   // to in a way the global search box never was, and that ambiguity is the
   // reason the box is gone.
-  function addStop(lng, lat, name, dayIndex) {
+  // `prebuilt` is how a saved place enters the ride: stopFromPlace() has already
+  // made the point, roles and durable details included, and this must not
+  // discard it by minting a bare one. Every other caller passes nothing.
+  function addStop(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
     beginEdit("add stop");
-    day.stops.push({
-      lat: +lat.toFixed(6),
-      lng: +lng.toFixed(6),
-      name: name || "",
-      description: "",
-      roles: [],
-      durationMin: null,
-    });
+    day.stops.push(prebuilt || newPoint(lng, lat, name));
     const n = day.stops.length;
     if (n >= 2) computeLeg(r, n - 2);
     renderMarkers();
@@ -805,7 +985,7 @@
     markDirty();
   }
 
-  function addPoi(lng, lat, name, dayIndex) {
+  function addPoi(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
@@ -814,14 +994,7 @@
     // durationMin present from the start, matching a stop: blank means "rode
     // past", which is the common case, and the field has to exist for the row to
     // round-trip through save and reload.
-    day.pois.push({
-      lat: +lat.toFixed(6),
-      lng: +lng.toFixed(6),
-      name: name || "",
-      description: "",
-      roles: [],
-      durationMin: null,
-    });
+    day.pois.push(prebuilt || newPoint(lng, lat, name));
     renderMarkers();
     renderDayList(r);
     markDirty();
@@ -884,7 +1057,17 @@
     if (list.length >= cap) return toast((kind === "stop" ? "Stop" : "POI") + " limit reached (" + cap + ")", true);
 
     beginEdit("duplicate " + kind);
-    const copy = { ...src, roles: (src.roles || []).slice() };
+    // A FRESH uid and a deep copy of details. The uid because two points sharing
+    // one violates the per-day unique index — the server's ensureUids would break
+    // the tie, but then the client and the database would disagree about which
+    // copy owns the details until the next reload. The deep copy because a shared
+    // details object means typing into one copy edits both.
+    const copy = {
+      ...src,
+      roles: (src.roles || []).slice(),
+      uid: uid(),
+      details: src.details ? { ...src.details, links: (src.details.links || []).map((l) => ({ ...l })) } : null,
+    };
     list.splice(i + 1, 0, copy);
 
     if (kind === "stop") {
@@ -2040,14 +2223,93 @@
       // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
       // roughly a third of the width, which on a 320px row is width the name
       // field gets instead.
+      // Shown only when something is filled in, so a rider can see at a glance
+      // which stops carry a reservation without opening every row. Not a button:
+      // the row menu is how the panel opens, and a second affordance for the same
+      // thing on a 320px row costs width the name field needs.
+      (hasDetails(point.details)
+        ? '<span class="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
+        : "") +
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
       (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
       '<div class="row-roles" hidden>' + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
+      '<div class="row-details" hidden>' + detailsHtml(point, kind, i) + "</div>" +
       "</li>"
     );
+  }
+
+  // The private half of a stop: reservations, codes, check-in, links, notes.
+  //
+  // Fields are chosen by role — see detailFieldsFor — so a gas stop does not
+  // present a check-out time. The whole block is `hidden` until the rider opens
+  // it from the row menu, because a stop's details are the exception rather than
+  // the rule and a panel of empty inputs under every row would bury the ride.
+  //
+  // Every input carries `data-field`, and one delegated handler writes whichever
+  // one changed. Naming them individually would mean a handler per field and a
+  // new one every time the set grows.
+  const DETAIL_LABELS = {
+    confirmation: "Confirmation number",
+    checkInAt: "Check in",
+    checkOutAt: "Check out",
+    phone: "Phone",
+    address: "Address",
+  };
+
+  // datetime-local wants "YYYY-MM-DDTHH:MM" and the value is stored as an ISO
+  // string with an offset. Slicing rather than constructing a Date and
+  // reformatting: the stored value already IS local wall-clock for the place the
+  // stop is in, and round-tripping it through a Date would re-interpret it in
+  // the browser's zone and shift it.
+  function toLocalInput(iso) {
+    return iso ? String(iso).slice(0, 16) : "";
+  }
+
+  function detailsHtml(point, kind, i) {
+    const d = point.details || blankDetails();
+    const fields = detailFieldsFor(point.roles);
+    let out = '<div class="detail-grid">';
+    for (const f of fields) {
+      if (f === "notes" || f === "links") continue;
+      const isTime = f === "checkInAt" || f === "checkOutAt";
+      out +=
+        '<label class="detail-field"><span>' + esc(DETAIL_LABELS[f]) + "</span>" +
+        '<input type="' + (isTime ? "datetime-local" : f === "phone" ? "tel" : "text") + '"' +
+        ' data-field="' + f + '"' +
+        ' name="' + kind + "-" + f + "-" + i + '"' +
+        (isTime ? "" : ' maxlength="' + (f === "confirmation" ? 120 : f === "phone" ? 40 : 300) + '"') +
+        ' autocomplete="off" value="' + esc(isTime ? toLocalInput(d[f]) : d[f] || "") + '"></label>';
+    }
+    out += "</div>";
+
+    out += '<div class="detail-links">';
+    (d.links || []).forEach((l, n) => {
+      out +=
+        '<div class="detail-link" data-link="' + n + '">' +
+        '<input type="text" data-field="linkLabel" maxlength="60" placeholder="Label" value="' + esc(l.label || "") + '">' +
+        '<input type="url" data-field="linkUrl" maxlength="500" placeholder="https://" value="' + esc(l.url || "") + '">' +
+        '<button type="button" class="detail-link-del" aria-label="Remove link">\u00d7</button>' +
+        "</div>";
+    });
+    out +=
+      '<button type="button" class="detail-link-add"' +
+      ((d.links || []).length >= MAX_LINKS ? " disabled" : "") +
+      ">Add link</button></div>";
+
+    out +=
+      '<label class="detail-field detail-notes"><span>Private notes</span>' +
+      '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, where to park, who to ask for">' +
+      esc(d.notes || "") + "</textarea></label>";
+
+    // Stated on the surface rather than only in the code, because a rider
+    // deciding whether to type a door code into a web app is entitled to know
+    // where it goes. It is also true — see canSeeDetails in
+    // src/maps/point-details.ts.
+    out += '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
+    return out;
   }
 
   // Reads the row's OWN day, not the active one. Those are the same thing by the
@@ -2294,6 +2556,33 @@
       beginEdit("edit stop", "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className);
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
+      // The detail fields, all of them, through one branch. `data-field` is what
+      // makes that possible — adding a field to detailsHtml needs nothing here.
+      //
+      // `details` is created lazily on the first keystroke rather than at row
+      // build time: a stop nobody has typed into keeps `details: null`, which is
+      // what the server reconciles as "no row", and what stops every stop in the
+      // ride growing a detail row it does not need.
+      const field = e.target.dataset && e.target.dataset.field;
+      if (field) {
+        if (!point.details) point.details = blankDetails();
+        if (field === "linkLabel" || field === "linkUrl") {
+          const n = Number(e.target.closest(".detail-link").dataset.link);
+          const link = point.details.links[n];
+          if (link) link[field === "linkLabel" ? "label" : "url"] = e.target.value;
+        } else if (field === "checkInAt" || field === "checkOutAt") {
+          // datetime-local gives back "YYYY-MM-DDTHH:MM" with no zone. The
+          // column is timestamptz and the payload is validated as an ISO string
+          // WITH an offset, so a zone has to be attached — and it has to be the
+          // browser's, because that is the only one this control knows about. A
+          // bare "Z" would silently move a 3pm check-in by the rider's offset.
+          point.details[field] = e.target.value ? new Date(e.target.value).toISOString() : null;
+        } else {
+          point.details[field] = e.target.value;
+        }
+        markDirty();
+        return;
+      }
       if (e.target.classList.contains("row-dur")) {
         // Parsed on every keystroke, reformatted on none of them. Rewriting the
         // field as it is typed is hostile in every format and actively breaks
@@ -2343,11 +2632,43 @@
           ta.focus();
           return;
         }
+        if (act === "details") {
+          const box = row.querySelector(".row-details");
+          // Re-rendered on open rather than only at row build time, because the
+          // rider may have changed the stop's roles since — and roles are what
+          // decide which fields show.
+          box.innerHTML = detailsHtml(point, row.dataset.kind, i);
+          box.hidden = false;
+          const first = box.querySelector("input, textarea");
+          if (first) first.focus();
+          return;
+        }
+        if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
         if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
         if (act === "up") return moveStop(i, -1);
         if (act === "down") return moveStop(i, 1);
         if (act === "select") return startSelect("point");
+        return;
+      }
+      if (btn.classList.contains("detail-link-add")) {
+        beginEdit("add link");
+        if (!point.details) point.details = blankDetails();
+        if (point.details.links.length >= MAX_LINKS) return toast("Up to " + MAX_LINKS + " links per stop", true);
+        point.details.links.push({ label: "", url: "" });
+        const box = row.querySelector(".row-details");
+        box.innerHTML = detailsHtml(point, row.dataset.kind, i);
+        const inputs = box.querySelectorAll(".detail-link input");
+        if (inputs.length) inputs[inputs.length - 2].focus();
+        markDirty();
+        return;
+      }
+      if (btn.classList.contains("detail-link-del")) {
+        beginEdit("remove link");
+        const n = Number(btn.closest(".detail-link").dataset.link);
+        if (point.details) point.details.links.splice(n, 1);
+        row.querySelector(".row-details").innerHTML = detailsHtml(point, row.dataset.kind, i);
+        markDirty();
         return;
       }
       if (btn.classList.contains("row-roles-btn")) {
@@ -2400,6 +2721,8 @@
   // on #day-list, so the day menu needs no equivalent.
   const MENU_ITEMS = [
     { act: "notes", label: "Edit notes" },
+    { act: "details", label: "Reservation & details" },
+    { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
     { act: "up", label: "Move up", stopOnly: true },
@@ -2807,6 +3130,45 @@
     if (wrapper) wrapper.addEventListener("scroll", hideSearchResults, { passive: true });
     window.addEventListener("resize", hideSearchResults);
 
+    // A saved place looks different from a Google prediction on purpose: it is
+    // the rider's own, it costs nothing to pick, and it arrives with roles and
+    // contact details attached. The badge is what says so.
+    function savedResultsHtml(list) {
+      return list
+        .map(
+          (pl, i) =>
+            '<li class="hit-saved" data-saved="' + i + '">' +
+            '<span class="hit-badge">Saved</span> <strong>' + esc(pl.name) + "</strong> " +
+            '<span class="hit-ctx">' + esc(pl.groupName || pl.address || "") + "</span></li>",
+        )
+        .join("");
+    }
+
+    // Rewired on every render because the list is rebuilt wholesale — the same
+    // reason the search field itself is delegated rather than bound per input.
+    function wireSavedResults(host, list) {
+      host.querySelectorAll("li.hit-saved").forEach((li) => {
+        li.addEventListener("click", () => {
+          const pl = list[Number(li.dataset.saved)];
+          if (!pl) return;
+          const r = Number(host.dataset.day);
+          const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
+          const asPoi = kindEl && kindEl.value === "poi";
+          hideSearchResults();
+          setActive(r);
+          // Built here and handed in, rather than letting addStop mint a bare
+          // point: the roles and the durable details are the reason a saved
+          // place is worth having.
+          const pt = stopFromPlace(pl);
+          if (asPoi) addPoi(pl.lng, pl.lat, pl.name, r, pt);
+          else addStop(pl.lng, pl.lat, pl.name, r, pt);
+          panTo(state.map, [pl.lng, pl.lat], 11);
+          const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
+          if (next) next.focus();
+        });
+      });
+    }
+
     // Delegated on #day-list, because renderDays() replaces every one of these
     // fields on any structural change. Binding per input would either be lost
     // on the next render or leak a listener per render.
@@ -2816,10 +3178,24 @@
       const day = Number(input.closest(".add-row").dataset.day);
       clearTimeout(searchTimer);
       const q = input.value.trim();
-      if (q.length < 3) {
+
+      // Saved places first, and they are drawn IMMEDIATELY — no debounce, no
+      // network, no minimum length beyond one character. Typing "bob" surfaces
+      // your own "Bob's Gas" before Google has been asked anything, which is the
+      // whole reason to have a library. The predictions land underneath 300ms
+      // later and are appended rather than replacing these.
+      const saved = matchSavedPlaces(q);
+      if (saved.length) {
+        results.dataset.day = String(day);
+        results.innerHTML = savedResultsHtml(saved);
+        results.hidden = false;
+        placeResults(input, results);
+        wireSavedResults(results, saved);
+      } else if (q.length < 3) {
         hideSearchResults();
-        return;
       }
+
+      if (q.length < 3) return;
       searchTimer = setTimeout(async () => {
         // Predictions come back out of order often enough to matter; a slow
         // early keystroke must not overwrite a fast later one.
@@ -2831,16 +3207,24 @@
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
           results.dataset.day = String(day);
-          results.innerHTML = hits
-            .map(
-              (h, i) =>
-                '<li data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
-                '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
-            )
-            .join("");
-          results.hidden = hits.length === 0;
+          // Saved matches keep their place at the top; the predictions are
+          // appended under them. Re-derived rather than read off the DOM so a
+          // response that arrives after the query changed cannot pair the new
+          // predictions with the old library rows.
+          const savedNow = matchSavedPlaces(input.value.trim());
+          results.innerHTML =
+            savedResultsHtml(savedNow) +
+            hits
+              .map(
+                (h, i) =>
+                  '<li class="hit-google" data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+                  '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
+              )
+              .join("");
+          results.hidden = hits.length === 0 && savedNow.length === 0;
           if (!results.hidden) placeResults(input, results);
-          results.querySelectorAll("li").forEach((li) => {
+          wireSavedResults(results, savedNow);
+          results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills
               // per call, so resolving all five would cost five times as much.
@@ -3471,6 +3855,11 @@
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
+    // Deliberately NOT awaited. The library is an accelerant on the search box,
+    // not something the map or the panel needs in order to render — blocking
+    // init on it would put a network round trip in front of a builder that works
+    // perfectly without one.
+    loadSavedPlaces();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {

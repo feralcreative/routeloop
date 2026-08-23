@@ -6,16 +6,18 @@
 // same insert the builder's save runs — not a second path that agrees with it
 // today and drifts tomorrow. rides.ts already imports from routes/maps.ts, so
 // leaving this there and importing it back would have been a cycle.
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 // Only the transaction type is needed here; the queries all run on the `tx`
 // the caller passes in.
 import type { db } from '../db/index'
-import { days as daysTable, points as pointsTable, routeLegs } from '../db/schema'
+import { days as daysTable, pointDetails, points as pointsTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, round6, type Track } from './kml'
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
+import { ensureUids } from './uid'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
@@ -30,6 +32,36 @@ export const MAX_PTS_PER_RIDE = 200000
 
 const lngLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
 
+// Up to five {label, url} pairs on a stop — a booking link, a menu, a map. The
+// cap is here rather than only in the UI because this schema is also what a
+// native JSON import is validated against.
+export const MAX_LINKS_PER_POINT = 5
+
+// The private half of a stop. Optional throughout: a payload from a client that
+// predates this feature carries no `details` at all, and a stop with nothing
+// filled in carries an empty object rather than being a special case.
+//
+// Every string is trimmed and empty-to-null'd at persist time, so a rider
+// clearing a field removes the row's value instead of storing ''.
+const detailsSchema = z.object({
+  confirmation: z.string().max(120).default(''),
+  checkInAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  checkOutAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  phone: z.string().max(40).default(''),
+  address: z.string().max(300).default(''),
+  // `fields.external_url` and not a looser string: this value is rendered as an
+  // href, so http(s)-only is the rule, and reusing the ride-level one is what
+  // stops the two drifting. sanitizeText only removes the COLON from a
+  // `javascript:` — enough for prose, not enough for an attribute.
+  links: z
+    .array(z.object({ label: z.string().max(60).default(''), url: fields.external_url.default('') }))
+    .max(MAX_LINKS_PER_POINT)
+    .default([]),
+  notes: z.string().max(2000).default(''),
+})
+
+export type PointDetailsInput = z.infer<typeof detailsSchema>
+
 const stopSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
@@ -37,6 +69,12 @@ const stopSchema = z.object({
   description: z.string().max(2000).default(''),
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
   durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
+  // The point's durable identity — see src/maps/uid.ts. Optional in the payload
+  // and repaired by ensureUids() rather than rejected: an old tab, an old native
+  // JSON file and an import from another app all arrive without one, and a
+  // rider who duplicated a stop arrives with two the same.
+  uid: z.string().max(12).nullable().default(null),
+  details: detailsSchema.nullable().default(null),
 })
 // A POI carries a duration now, the same as a stop. It is still not a routing
 // anchor — the router never sees it and it splits no leg — but a rider who
@@ -72,7 +110,13 @@ const daySchema = z
     // and the shapes it would reject — a group of one, two members briefly
     // claiming active — are exactly what a rider passes through mid-edit while
     // the autosave fires. normalize() repairs them instead.
-    altGroup: z.number().int().min(0).max(MAX_DAYS - 1).nullable().default(null),
+    altGroup: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_DAYS - 1)
+      .nullable()
+      .default(null),
     altActive: z.boolean().default(true),
   })
   .refine((r) => r.legs.length === Math.max(0, r.stops.length - 1), {
@@ -153,6 +197,11 @@ export function rideTotals(p: RidePayload) {
 // on a ride that has no days (fresh insert or after a full-replace delete).
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<void> {
+  // Collected across every day and reconciled once at the end — see
+  // writePointDetails below for why this cannot ride along with the points.
+  const details: Array<{ uid: string; d: PointDetailsInput }> = []
+  const liveUids: string[] = []
+
   for (let ri = 0; ri < p.days.length; ri++) {
     const r = p.days[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
@@ -187,7 +236,14 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     // Stops: cumulative distance is the prefix sum of leg distances.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
-    const stopRows = r.stops.map((s, i) => ({
+    // uids are settled for the day's stops and POIs TOGETHER, because the unique
+    // index is per day across both kinds — settling each list separately could
+    // hand a POI the same uid as a stop.
+    const withUids = ensureUids([...r.stops, ...r.pois])
+    const stopsU = withUids.slice(0, r.stops.length)
+    const poisU = withUids.slice(r.stops.length)
+
+    const stopRows = stopsU.map((s, i) => ({
       dayId: day.id,
       kind: 'stop' as const,
       position: i,
@@ -198,11 +254,12 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
       roles: s.roles,
       durationMin: s.durationMin,
       distFromStartM: prefix[Math.min(i, prefix.length - 1)],
+      uid: s.uid,
     }))
 
     // POIs: projected onto the route's concatenated track (built above).
     const poiDists = distFromStartAlongTrack(track, r.pois)
-    const poiRows = r.pois.map((s, i) => ({
+    const poiRows = poisU.map((s, i) => ({
       dayId: day.id,
       kind: 'poi' as const,
       position: null,
@@ -213,7 +270,13 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
       roles: s.roles,
       durationMin: s.durationMin,
       distFromStartM: poiDists[i],
+      uid: s.uid,
     }))
+
+    for (const s of withUids) {
+      liveUids.push(s.uid)
+      if (s.details) details.push({ uid: s.uid, d: s.details })
+    }
 
     const allPoints = [...stopRows, ...poiRows]
     if (allPoints.length > 0) await tx.insert(pointsTable).values(allPoints)
@@ -229,5 +292,93 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
         })),
       )
     }
+  }
+
+  await writePointDetails(tx, rideId, details, liveUids)
+}
+
+// Empty string to null, so clearing a field removes the value rather than
+// storing ''. `''` and `null` would otherwise both mean "nothing here" and every
+// reader would have to test for both.
+const orNull = (v: string): string | null => {
+  const t = sanitizeText(v)
+  return t === '' ? null : t
+}
+
+/**
+ * Reconciles a ride's private stop details against the payload just written.
+ *
+ * This runs AFTER the day loop and outside it, and both matter.
+ *
+ * `point_details` is keyed by `(ride_id, uid)` and cascades from `rides`, not
+ * from `days` — so the `delete(days)` that opens every save does NOT take it
+ * with it, which is the whole reason a stop's confirmation number survives a
+ * save at all. The flip side is that nothing else cleans it up: a stop the rider
+ * deleted leaves its details behind forever unless this removes them. Hence the
+ * delete-what-is-no-longer-here pass.
+ *
+ * A stop with no details at all writes no row rather than a row of nulls, so the
+ * table holds only stops a rider actually filled something in for.
+ */
+async function writePointDetails(
+  tx: Tx,
+  rideId: number,
+  details: Array<{ uid: string; d: PointDetailsInput }>,
+  liveUids: string[],
+): Promise<void> {
+  const rows = details
+    .map(({ uid, d }) => ({
+      rideId,
+      uid,
+      confirmation: orNull(d.confirmation),
+      checkInAt: d.checkInAt ? new Date(d.checkInAt) : null,
+      checkOutAt: d.checkOutAt ? new Date(d.checkOutAt) : null,
+      phone: orNull(d.phone),
+      address: orNull(d.address),
+      // A link with no URL is a label the rider started and abandoned; dropping
+      // it here keeps the viewer from rendering an anchor that goes nowhere.
+      links: d.links.filter((l) => l.url).map((l) => ({ label: sanitizeText(l.label), url: l.url })),
+      notes: orNull(d.notes),
+      updatedAt: new Date(),
+    }))
+    // Everything blank means the rider cleared the last field. Writing the row
+    // anyway would leave a stop marked as "has details" forever.
+    .filter(
+      (r) => r.confirmation || r.checkInAt || r.checkOutAt || r.phone || r.address || r.notes || r.links.length > 0,
+    )
+
+  const keep = new Set(rows.map((r) => r.uid))
+
+  // Delete first, then upsert. Two things go in this pass: details for a stop
+  // that is gone from the ride, and details for a stop that is still here but
+  // whose fields the rider just emptied — the filter above dropped those rows,
+  // so `keep` does not contain them and this removes them.
+  //
+  // inArray and never a raw `= any(...)` over a JS array: drizzle expands an
+  // array into a tuple, which is not valid SQL there, and it fails at runtime
+  // with no type error. See AGENTS.md.
+  const existing = await tx.select({ uid: pointDetails.uid }).from(pointDetails).where(eq(pointDetails.rideId, rideId))
+  const doomed = existing.map((r) => r.uid).filter((uid) => !keep.has(uid))
+  if (doomed.length > 0) {
+    await tx.delete(pointDetails).where(and(eq(pointDetails.rideId, rideId), inArray(pointDetails.uid, doomed)))
+  }
+
+  if (rows.length > 0) {
+    await tx
+      .insert(pointDetails)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: [pointDetails.rideId, pointDetails.uid],
+        set: {
+          confirmation: sql`excluded.confirmation`,
+          checkInAt: sql`excluded.check_in_at`,
+          checkOutAt: sql`excluded.check_out_at`,
+          phone: sql`excluded.phone`,
+          address: sql`excluded.address`,
+          links: sql`excluded.links`,
+          notes: sql`excluded.notes`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      })
   }
 }

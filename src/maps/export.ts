@@ -13,6 +13,7 @@
 // survive a trip through KML or GPX. See the note on ExtractedPoint.kind.
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
+import type { PointDetailsOut } from './point-details'
 import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
@@ -92,11 +93,7 @@ export async function loadRideForExport(
   rideId: number,
   meta: { title: string; description: string | null },
 ): Promise<ExportRide> {
-  const allDays = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(daysTable.position)
+  const allDays = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
 
   const dayRows = activeDays(allDays)
   const hiddenAlts = allDays.length - dayRows.length
@@ -498,26 +495,41 @@ export function upgradeNativeRide(file: NativeRide): object {
 export async function loadNativeRide(
   rideId: number,
   meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
+  // Private stop details, already resolved for whoever is asking — an empty map
+  // for anyone but the owner.
+  //
+  // Passed in rather than looked up here, and that is the safety property: this
+  // function is reachable by a stranger, because a PUBLIC ride's native JSON is
+  // a public download. If it fetched details itself it would have to know who
+  // was asking, and the day someone forgot to tell it, every gate code in the
+  // ride would ship in the file. Defaulting to empty means forgetting fails
+  // CLOSED — the export is merely incomplete, not a leak.
+  details: Map<string, PointDetailsOut> = new Map(),
 ): Promise<NativeRide> {
-  const dayRows = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(daysTable.position)
+  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
 
   const out = []
   for (const r of dayRows) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
 
-    const point = (p: (typeof pts)[number]) => ({
-      lat: p.lat,
-      lng: p.lng,
-      name: p.name,
-      description: p.description ?? '',
-      roles: p.roles,
-      durationMin: p.durationMin,
-    })
+    // uid rides along so a re-import reattaches details to the right stops. It
+    // is not sensitive on its own — nothing is authorized by knowing one — and
+    // without it a rider's own backup restores as a ride whose stops have all
+    // lost their reservations.
+    const point = (p: (typeof pts)[number]) => {
+      const d = details.get(p.uid)
+      return {
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        description: p.description ?? '',
+        roles: p.roles,
+        durationMin: p.durationMin,
+        uid: p.uid,
+        ...(d ? { details: d } : {}),
+      }
+    }
 
     out.push({
       title: r.title,

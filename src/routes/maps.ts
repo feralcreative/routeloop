@@ -16,6 +16,7 @@ import { z } from 'zod'
 import { db } from '../db/index'
 import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { newUid } from '../maps/uid'
 import {
   FORMAT_INFO,
   GPX_MAX_BYTES,
@@ -592,6 +593,11 @@ mapsRoutes.post(
                   roles: p.roles,
                   durationMin: p.durationMin ?? null,
                   distFromStartM: stopDists[n],
+                  // A file from another app carries no uid, so one is minted
+                  // here. This is the second place points are inserted —
+                  // insertRideGraph is the other — and both have to mint them or
+                  // the NOT NULL fails at runtime with nothing to say why.
+                  uid: newUid(),
                 }
               }),
             )
@@ -660,10 +666,7 @@ mapsRoutes.post(
 // here: it records where the ride came from, which `source_format`, the byte
 // columns and the GTFO archive all depend on. It was never a statement about
 // what may be done with the ride.
-export function canEditRide(
-  ride: { ownerId: number },
-  viewer: { id: number; status: string } | null,
-): boolean {
+export function canEditRide(ride: { ownerId: number }, viewer: { id: number; status: string } | null): boolean {
   if (!viewer || viewer.status !== 'active') return false
   return ride.ownerId === viewer.id
 }

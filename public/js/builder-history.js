@@ -42,13 +42,27 @@
   //
   // Everything else on `state` is UI or identity and is deliberately absent —
   // restoring a map handle or a marker list would fight the renderer.
+  function copyDetails(d) {
+    if (!d) return null;
+    return { ...d, links: (d.links || []).map((l) => ({ ...l })) };
+  }
+
   function snapshotRoute(r) {
     return {
       // Spread carries endManual, which payload() drops. Losing it would turn
       // an end time the rider typed by hand back into a derived one, silently.
       ...r,
-      stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice() })),
-      pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+      // roles and details are both COPIED rather than shared, and for the same
+      // reason: the editor mutates them in place. roles because splice() does;
+      // details because the field editor assigns into the object a field at a
+      // time. Share either and undo restores a point whose contents already
+      // changed underneath the snapshot — the failure is silent and looks like
+      // undo simply not working on that field.
+      //
+      // `links` needs its own copy inside details for the same reason again: it
+      // is an array the editor pushes to and splices.
+      stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice(), details: copyDetails(s.details) })),
+      pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice(), details: copyDetails(p.details) })),
       legs: (r.legs || []).map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
     };
   }
@@ -99,7 +113,7 @@
       // key like "name:2:0" and repeated pushes with that key fold into the
       // first, which is what stops a typed word eating twenty undo steps.
       push(snap, label, coalesce) {
-        if (coalesce && coalesce === coalesceKey && past.length > 0) return
+        if (coalesce && coalesce === coalesceKey && past.length > 0) return;
         coalesceKey = coalesce || null;
         past.push({ snap, label: label || "change" });
         // Oldest goes first. 100 is far past any real editing session, and
