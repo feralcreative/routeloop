@@ -1,19 +1,79 @@
 # Status and handoff
 
-**Updated:** 2026-08-22
-**Branch:** `main`, clean and in sync with `origin`. **1,154 tests across 48 files** (2 skipped, 1,156 total)
-**Closes, since the last update:** [#15](https://github.com/feralcreative/routeloop/issues/15) rich stop details and [#10](https://github.com/feralcreative/routeloop/issues/10) saved places, merged together as [#111](https://github.com/feralcreative/routeloop/pull/111). Before them, the sign-button and house-style branch landed as [#109](https://github.com/feralcreative/routeloop/pull/109).
+**Updated:** 2026-08-23
+**Branch:** `main`, with the POI-first work uncommitted in the tree. **1,167 tests across 49 files** (2 skipped, 1,169 total)
+**Closes, since the last update:** nothing on the tracker—the POI-first change was raised directly and has no issue. Before it, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
+
+**A point is a POI until it is promoted, and a day is one ordered list.** That landed 2026-08-23 and it is the largest change to the data model since the `routes`→`days` rename—read the next section before touching the builder, the ride payload or anything that counts stops.
 
 **Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
 **The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the sections below.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
 
-**Five schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums; `drizzle/0006_wild_hammerhead.sql` adds `point_details` and `points.uid`; `drizzle/0007_glossy_charles_xavier.sql` adds `places` and `place_groups`. Stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does; deploy either of the newest two without 0006 and every save 500s on a NOT NULL that is not there yet.
+**Six schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums; `drizzle/0006_wild_hammerhead.sql` adds `point_details` and `points.uid`; `drizzle/0007_glossy_charles_xavier.sql` adds `places` and `place_groups`; `drizzle/0008_quick_fat_cobra.sql` makes `points.position` NOT NULL for both kinds. Stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does; deploy either of the newest three without 0006 and every save 500s on a NOT NULL that is not there yet.
+
+**0008 needs the same reading as 0006 and for the same reason.** Both are hand-rewritten, and both are hand-rewritten because the differ emitted a bare `SET NOT NULL` against a populated table with no backfill in front of it. See the POI-first section below for what 0008 actually does.
 
 **0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## POI first: one ordered list of points—2026-08-23
+
+**Every point a rider creates is a POI until they promote it, and a day is ONE ordered array rather than two.** Ziad's call. It replaces a model where the kind was chosen at creation time, from a radio pair on each day's add row—a decision asked for at the moment the rider knows least about the place they just dropped.
+
+**The five decisions, all Ziad's, all 2026-08-23:**
+
+| Decision | What it means |
+| --- | --- |
+| Creation is unchanged | Click the map, or search on a day's row. No radios, no checkboxes, no kind choice anywhere |
+| POI is the baseline type | Every path—map click, either search arm, a saved place—produces a POI |
+| The first point of a day is promoted automatically | It becomes a stop and is tagged `start`, which is what keeps "at least one stop per day" true without asking |
+| No route line until two stops | Legs connect stops, so three POIs draw three dots and no road. Stated rather than treated as a bug |
+| One ordered list, `kind` is a flag | Every point carries `position`, both kinds. Promotion moves nothing |
+
+**Promotion is a row-menu item, both directions**—"Make this a stop" and "Make this a POI". That one was chosen rather than specified: it is the only place that adds no new control, it is keyboard-reachable, and it is reversible, which matters because a mis-promotion would otherwise cost a delete and a re-add and take the point's notes and details with it. **Demoting a day's last stop is offered and disabled**, not hidden—it is a real action that is unavailable for a reason worth stating.
+
+### The migration, which is the part to read before deploying
+
+`drizzle/0008_quick_fat_cobra.sql` makes `points.position` NOT NULL for both kinds, drops `ck_point_stop_pos`, and leaves `uq_point_day_pos` as a real uniqueness constraint rather than one leaning on NULLS DISTINCT to let every POI in a day share a null.
+
+**drizzle-kit generated two statements and both were wrong to run.** It emitted `DROP CONSTRAINT` then a bare `ALTER COLUMN "position" SET NOT NULL`, which fails outright against any populated table—every POI ever written carries null, and nothing in the generated file supplies a value. This is the second time the differ has done exactly this (see 0006) and the second time the rule in AGENTS.md was what caught it.
+
+The hand-written version drops the unique index first, renumbers **both** kinds densely from 0 per day, sets NOT NULL, then rebuilds the index. Stops keep the order they already had; POIs follow them in along-the-route order, which is the order the builder was already displaying them in, so nothing a rider is looking at moves. The index comes out because the renumber deliberately does not trust stop positions to be dense, and a renumber that moves a stop could transiently collide with another—a unique index is checked per row and cannot be deferred.
+
+**Verified against the local database**: 39 days, every one dense from 0, no nulls, no duplicates, and every day still has a stop.
+
+### What changed shape, and the two places that deliberately did not
+
+The payload, the client state and the native JSON all became one ordered `points` array with `kind` on each element. `day.stops`/`day.pois` are gone from `builder.js`; `stopsOf()` on both sides is the only bridge to the leg math, which still counts in stop ordinals because a leg joins stop *i* to stop *i+1*.
+
+**`ride.json` still sends `stops` and `pois` as two arrays, deliberately.** The viewer draws markers and a timeline and never renders points as a sequence, so it gains nothing from the interleaving—and filtering an ordered read preserves each array's order anyway. The payoff is that `viewer.js` was not touched at all. **`ride-time.js` and `twist.js` are shared by both surfaces and now accept EITHER shape**, with `stopsOf`/`poisOf` at the top of each as the only place that difference is known. That is the thing to keep intact: break it and the builder and the viewer disagree about a ride's schedule, silently.
+
+**Native JSON is format version 4, and 2 and 3 still import.** `upgradeNativeRide` merges an older file's two arrays into one list, stops first, stamping each kind explicitly—a v3 stop must not fall through to the `poi` default. Appending rather than interleaving is the honest reading: a v3 POI had no stored order, so there is no sequence to recover. Riders have those files on disk.
+
+### Two rules that had to be re-stated rather than inherited
+
+**"At least one stop per day" is now an explicit refine.** The old schema said it as `stops.min(1)`; `points.min(1)` is satisfied by a day of nothing but POIs, so the guarantee would have been dropped silently. Everything downstream still assumes it—a day with no anchors has no legs, no mileage, no roadbook rows and nothing to hand to Maps.
+
+**The roadbook prints the rider's order now, not the measured distance.** It used to re-sort every row by `distFromStartM`, because a POI had no stored order and its projection onto the track was the only thing that could place it. That projection is now the worse of the two answers: it is null on a trackless import, and a null sorted to the end moved a point the rider had put in the middle. Four tests pinned the old rule and were rewritten to pin the new one rather than patched to pass.
+
+### What a drag means now, and one bug class that went with it
+
+**Dragging is a reorder, for both kinds.** It used to be two different operations: a stop drag reordered, and a POI drag REPOSITIONED the pin to the road midway between the rows it was dropped between, because a POI had no order for a drag to change. That moved a place the rider had chosen, and dropping one back where it started relocated it to the midpoint of its neighbors. `movePoiToDistance()` and the whole midpoint branch are gone.
+
+The index mapping went with it. Every row's `data-i` indexes `day.points` whatever its kind, so Sortable's own indices finally mean something and `orderedRows()` collapsed from an interleave-and-sort to the array itself.
+
+### Verified by hand, not reasoned about
+
+Driven in a browser on a fresh ride and on `/builder/9`: the home seed lands as stop 1 carrying `{start, home}`; two map clicks land as dotted POIs; promoting one draws the route and numbers it 2; demoting works and the last stop's demote is disabled; reorder works for both kinds; save, reload, and the order and kinds come back. The database showed the two distance algorithms correctly split by kind—prefix sum for the stop, projection for the POI.
+
+**Both round trips were exercised against the running app**, not just unit-tested. The v4 native export re-imported to an identical ride: same order, same kinds, 10 legs and 15 points either side. A v3 file reconstructed from it imported correctly too. All four lossy formats still render, and the viewer and the roadbook were checked on the same ride.
+
+### One thing fixed in passing
+
+`utils/seed-demo-rides.ts` had been broken since 0006—it never supplied `uid`, which has been NOT NULL since then. `utils/` is not in `tsconfig.json`, so it fails at runtime with nothing useful to say. It now mints uids and gives POIs positions.
 
 ## Saved places—`feat/saved-places`, 2026-08-22
 
