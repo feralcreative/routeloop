@@ -114,7 +114,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
               original files you uploaded. The <code>.routeloop.json</code> in each ride folder is the lossless one.
             </p>
           </div>
-          <a class="btn btn-sign" href="/account/download">
+          <a class="btn btn-sign arrow-left" href="/account/download">
             Download Me
           </a>
         </div>
