@@ -1,15 +1,85 @@
 # Status and handoff
 
-**Updated:** 2026-08-19
-**Branch:** `style/sign-buttons-and-misc`, clean, pushed, and **three commits ahead of `main` with no PR open**. **1,083 tests across 45 files** (2 skipped, 1,085 total)
-**Closes, since the last update:** nothing on the tracker. This is a presentation and house-style branch—the sign-button treatment, a widow policy, and a spelling sweep. Before it, the `alt`/`alts` rename landed on `main`, along with two merged branches, `feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108).
+**Updated:** 2026-08-22
+**Branch:** `main`, clean and in sync with `origin`. **1,154 tests across 48 files** (2 skipped, 1,156 total)
+**Closes, since the last update:** [#15](https://github.com/feralcreative/routeloop/issues/15) rich stop details and [#10](https://github.com/feralcreative/routeloop/issues/10) saved places, merged together as [#111](https://github.com/feralcreative/routeloop/pull/111). Before them, the sign-button and house-style branch landed as [#109](https://github.com/feralcreative/routeloop/pull/109).
 **For:** the next agent, or the owner returning cold
 
-**The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the next two sections.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
+**Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
-**Three schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
+**The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the sections below.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
+
+**Five schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums; `drizzle/0006_wild_hammerhead.sql` adds `point_details` and `points.uid`; `drizzle/0007_glossy_charles_xavier.sql` adds `places` and `place_groups`. Stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does; deploy either of the newest two without 0006 and every save 500s on a NOT NULL that is not there yet.
+
+**0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## Saved places—`feat/saved-places`, 2026-08-22
+
+**A rider keeps a library of locations and drops one into any ride.** Home, the good fuel stop, the meet point everyone knows. Closes [#10](https://github.com/feralcreative/routeloop/issues/10). Stacked on `feat/rich-stop-details` rather than branched from `main`, because a place pre-fills a stop's details and those only exist there.
+
+**A place is COPIED into a ride, never referenced, and that is the decision the whole feature turns on.** There is deliberately no `place_id` on `points`. A ride is a record of what the rider planned, so renaming "Bob's Gas" or deleting it must not reach back and rewrite a ride from last year. It also sidesteps the churn problem entirely—points are deleted and re-inserted on every save, so a foreign key from a point to a place would have to survive that for no gain. `placeToStop()` in [src/places/policy.ts](../src/places/policy.ts) is that decision in code, mirrored client-side by `stopFromPlace()` in [public/js/builder.js](../public/js/builder.js).
+
+**The cost, stated plainly so nobody files it as a bug later: fixing a badly placed pin fixes FUTURE rides only.** Rides that already copied it keep the old coordinates. That is the trade, and it was taken knowingly.
+
+**A place carries the durable half of rich stop details and never the per-trip half.** Phone, address, and links are facts about the place. Confirmation numbers and check-in times are facts about one trip, so `placeToStop()` returns an empty confirmation for the rider to fill in—inheriting last September's reservation number would be worse than having none. It returns `details: null` outright when the place has nothing durable to give, so a bare pin does not create an empty `point_details` row in every ride it lands in.
+
+### Groups are optional, and deleting one does not delete its places
+
+`places.group_id` is nullable, because requiring a group would mean inventing a folder before a rider can save their first place—friction in front of the very first use. "Not in a group" is a real section rather than a missing value, and `groupPlaces()` renders it **last**: a rider who has organized their library should see the organization before the leftovers, and it is only drawn when it has something in it.
+
+**The FK is `set null`, not cascade.** Deleting a group keeps its places and makes them ungrouped. Losing a rider's saved locations because they tidied up a folder name would be unforgivable, and cascade is exactly how that would happen. The client says so before it asks.
+
+A duplicate group name answers **409, not 400**—`onConflictDoNothing` on the per-owner unique index, and the sensible answer is "you already have that one" rather than a validation error on a well-formed request.
+
+### Where places surface, and the primitive that was not built
+
+The roadmap asked for "a marker-group primitive in the map engine". **It was not built and it turned out not to be needed.** Saved places surface inside the builder's existing add-row search list, above the Google predictions, matched locally from one character with **no network call and no billing**. There is nothing extra to draw on the map, so there is nothing extra to draw it with. Revisit only if a "show all my places" view is actually wanted.
+
+**Creation happens in the builder, not on the profile**, and that is deliberate: a place needs a pin, and the builder is where the map is. "Save to my places" on any stop's row menu is the creation path. The profile screen manages what is already there—rename, refile, delete, and the groups themselves. A create-from-scratch flow there wants the address picker from item 19 rather than a pair of lat/lng boxes, and should wait for it.
+
+### The privacy shape, which is two layers on purpose
+
+A place library holds a rider's home address and the phone numbers of the places they stay. **There is no public surface here and there should never be one.** Every route is behind `requireActiveApi`, and separately every query in [src/places/service.ts](../src/places/service.ts) folds the owner id into its `WHERE` clause—so a route that lost its gate would return nothing rather than someone else's library. Both layers, deliberately. A group id arriving in a payload is honored only if the rider actually owns that group, or a crafted request could file a place into a stranger's library.
+
+"Not found" and "not yours" answer identically with a 404. A 403 would confirm the row exists.
+
+**Rule-from-query split**, the same one invites, survey, stats, and feedback already use: [policy.ts](../src/places/policy.ts) is pure and holds every rule, [service.ts](../src/places/service.ts) is queries and nothing else. That is what lets `test/places.test.ts` pin the limits, the grouping order, and `placeToStop()` with no Postgres.
+
+Caps are a backstop against a runaway client rather than a product limit: 500 places, 50 groups, 5 links each. A rider with 200 saved places is using the feature as intended; one with 300 has a script. The limits ride along in the list response so the client can disable its own add affordance rather than discovering the cap by being refused.
+
+## Rich stop details—`feat/rich-stop-details`, 2026-08-21
+
+**A stop can carry a confirmation number, check-in and check-out, phone, address, up to five labeled links, and freeform notes**—"gate code 4417, park behind the barn, ask for Dave." Closes [#15](https://github.com/feralcreative/routeloop/issues/15).
+
+**The separate table is the load-bearing part, not an implementation detail.** `points` is what `ride.json` is built from and what every export serializes, so a confirmation number stored as a column on `points` is one forgetful `select()` away from a public share. In its own table it has to be JOINed to leak, and a join is visible in review in a way an extra column inside a `select *` is not. Same reasoning that splits `user_profiles` from `users`.
+
+[src/maps/point-details.ts](../src/maps/point-details.ts) is the only module that reads `point_details`, which makes the boundary greppable: if a surface shows private detail, it imports from there. **`canSeeDetails()` is the entire rule—owner only, and deliberately blind to `visibility`.** A public ride's details are as private as a private ride's, because sharing a route is not sharing a reservation. `detailsForViewer()` returns an empty map rather than null or a throw for a non-owner, so a viewer with no details and a viewer forbidden from seeing them render identically and the presence of details is not itself a signal.
+
+**Details reach exactly three surfaces**: the builder's own load, `ride.json` for the owner, and the native JSON. They are stripped from GPX, KML, GeoJSON, and CSV—those get handed to devices and forwarded to riding buddies, and none of them can express "this field is private". A clone drops them, because a public ride is clonable by anyone. `loadNativeRide()` takes the details map as an argument rather than fetching it, so forgetting to pass it **fails closed**: the export is merely incomplete rather than a leak.
+
+**Verified against a real public ride rather than reasoned about.** A canary detail row was planted on a public ride and all seven anonymous surfaces were fetched and checked—`ride.json`, both native names, and the four lossy formats. Every one returned 200 and none carried it. A second signed-in rider who is not the owner also saw nothing.
+
+### The ID-churn prerequisite was solved differently from the plan
+
+The roadmap's governing text assumed this feature meant "send ids in the payload and diff server-side", which rewrites `insertRideGraph`, `ridePayload`, and `loadRidePayload`—the path the native JSON import shares. **Ziad's call, 2026-08-21: a client-minted `points.uid` instead.**
+
+The delete-and-re-insert model accepted on 2026-08-15 is untouched. `point_details` is keyed by `(ride_id, uid)` rather than by the row id that churns, identity rides along in native JSON exports for free, and `insertRideGraph` barely changed. **Row ids still churn**, so anything else that later needs a point to keep its identity—a comment, a photo—uses the uid too and does not need this revisited.
+
+[src/maps/uid.ts](../src/maps/uid.ts) is the server half: lowercase base36, twelve characters, `randomBytes` with rejection sampling because 256 % 36 = 4 would bias the first four symbols. No uppercase, deliberately—the uid ends up in URLs and hand-typed fixtures, and a case-sensitive identifier that looks case-insensitive is a bug waiting to happen. `uid()` in `public/js/builder.js` mirrors it and **both must agree on the alphabet and the length or the save 400s**.
+
+**`ensureUids()` repairs rather than rejects**, for the same reason `normalize()` repairs alternate groups: the payload arrives from an autosave the rider did not press, so a 400 is a save they silently lost. Three things arrive without usable uids and all three are ordinary—a tab opened before this shipped, a native JSON file written before it, and a ride imported from another app. A duplicate is just as ordinary, since duplicating a stop copies its row wholesale. Uids are settled for a day's stops and POIs **together**, because the unique index is per day across both kinds and settling the lists separately could hand a POI the same uid as a stop.
+
+**`point_details` cascades from `rides`, not from `days`**, which is what makes a confirmation number survive the `delete(days)` at the top of every save. The flip side is that nothing else cleans it up, so `writePointDetails` deletes rows whose uid left the payload. Skip that and a deleted stop's gate code lives forever.
+
+### Fields are shown by role, and a stop with no roles gets all of them
+
+`detailFieldsFor()` in `builder.js` keys off the existing role taxonomy: lodging gets check-in and check-out, a table role gets a reservation time, and everything else gets phone, address, notes, and links. **A stop with no roles at all gets the full set rather than the minimum**—an uncategorized stop is one the rider has not labeled yet, and hiding fields from it looks like a bug.
+
+The builder edits them behind a row-menu item and badges the rows that carry any. The viewer shows them as a ruled-off block headed "Only you can see this".
+
+**One snapshot note that generalizes.** `point.details` had to join `point.roles` in the copied-not-shared half of the builder's undo snapshot, because the field editor assigns into that object one field at a time and `details.links` is an array it pushes to. That set changes every time an edit-in-place feature ships, and nothing fails loudly when it is missed.
 
 ## Sign buttons, widows, and a spelling sweep—`style/sign-buttons-and-misc`, 2026-08-19
 

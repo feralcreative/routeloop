@@ -309,7 +309,14 @@
     moment: null,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
-    addMode: "stop",
+    // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a day's "+ Stop"
+    // button and cleared by the click that satisfies it.
+    //
+    // One value rather than a boolean plus a day index: two fields can disagree
+    // with each other, and the disagreement here would put a stop on the wrong
+    // day silently. Every armed button re-derives its own state from this, so
+    // there is no class anybody has to remember to move.
+    arm: null,
     dirty: false,
     // A flush is in flight. Declared rather than sprung into existence by the
     // first assignment, because autosave now READS it before any save has run.
@@ -983,6 +990,55 @@
     renderDayList(r);
     refreshDerived();
     markDirty();
+  }
+
+  // --- Arming a map click ---------------------------------------------------
+  //
+  // "+ Stop" at the end of a day cannot place anything on its own: a button in a
+  // list has no coordinates. It arms the NEXT map click for that day instead —
+  // press it, click the road you meant, and the stop lands there.
+  //
+  // This is the behavior the removed panel-wide + Stop / + POI pair actually
+  // had. What was wrong with that pair was not the mechanism but that it read as
+  // "add something" while being a mode switch, sat nowhere near the day it would
+  // affect, and never said it was on. This one lives on the day it acts on and
+  // shows its own state.
+  function armPlace(r) {
+    // A second press on the armed button turns it off. The button is the only
+    // affordance that can be armed, so it has to be the one that disarms too —
+    // an escape key is not discoverable and a rider who pressed it by mistake
+    // should not have to click the map to get out.
+    if (state.arm === r) return disarmPlace();
+    if (!state.days[r]) return;
+    if (state.days[r].stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
+    state.arm = r;
+    // The armed day becomes the working day, so everything else that keys off
+    // "where the rider is" agrees with the thing about to happen.
+    setActive(r);
+    paintArm();
+    toast("Click the map to add a stop to " + dayLabel(r));
+  }
+
+  // Returns whether it did anything, so the Escape chain can tell "I handled it"
+  // from "nothing was armed" without reading state a second time.
+  function disarmPlace() {
+    if (state.arm == null) return false;
+    state.arm = null;
+    paintArm();
+    return true;
+  }
+
+  // Painted rather than re-rendered. renderDayList() would rebuild the row and
+  // take the focus ring with it, and arming is not an edit — it must not touch
+  // the undo history or mark the ride dirty. addRowHtml() reads state.arm on its
+  // own, so a render that happens for some other reason still comes back armed.
+  function paintArm() {
+    document.querySelectorAll(".add-place-btn").forEach((b) => {
+      const on = Number(b.dataset.day) === state.arm;
+      b.classList.toggle("is-armed", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    document.body.classList.toggle("is-arming", state.arm != null);
   }
 
   function addPoi(lng, lat, name, dayIndex, prebuilt) {
@@ -2218,7 +2274,10 @@
       (isStop ? "Stop duration" : "How long you stop here, if you stop") + " (" + esc(DUR.unitName(durFormat)) +
       ')" value="' + esc(DUR.format(point.durationMin, durFormat)) + '">' +
       '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
-      (roleIconsHtml(point) || '<span class="role-add">+</span>') + "</button>" +
+      // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn
+      // in CSS, so there is nothing to read here. aria-hidden because the button
+      // already carries its own label.
+      (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') + "</button>" +
       '<span class="row-actions">' +
       // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
       // roughly a third of the width, which on a 320px row is width the name
@@ -2403,6 +2462,15 @@
       '<label><input type="radio" name="add-kind-' + r + '" value="stop" checked><span>Stop</span></label>' +
       '<label><input type="radio" name="add-kind-' + r + '" value="poi"><span>POI</span></label>' +
       "</span>" +
+      // Arms the next map click for THIS day — see armPlace(). The armed state
+      // is derived from state.arm rather than left on the element, because this
+      // row is rebuilt on every structural change and a class living only in the
+      // DOM would be lost by the next render.
+      '<button type="button" class="add-place-btn' + (state.arm === r ? " is-armed" : "") + '"' +
+      ' data-day="' + r + '"' + (full ? " disabled" : "") +
+      ' aria-pressed="' + (state.arm === r ? "true" : "false") + '"' +
+      ' title="' + (full ? "Stop limit reached" : "Add a stop to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
+      "+ Stop</button>" +
       "</li>"
     );
   }
@@ -2686,7 +2754,7 @@
         btn.classList.toggle("on");
         btn.setAttribute("aria-pressed", String(point.roles.includes(role)));
         const rolesBtn = row.querySelector(".row-roles-btn");
-        rolesBtn.innerHTML = roleIconsHtml(point) || '<span class="role-add">+</span>';
+        rolesBtn.innerHTML = roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>';
         rolesBtn.title = roleTitle(point);
         hydrateIcons(rolesBtn);
         renderMarkers();
@@ -2832,6 +2900,9 @@
         if (btn) btn.focus();
         return;
       }
+      // Before select mode and after a menu: arming is the shallower of the two
+      // and costs nothing to redo, where a selection took work to build.
+      if (disarmPlace()) return;
       if (state.select) endSelect();
     });
   }
@@ -2866,6 +2937,19 @@
       // search field. The add row is always last.
       draggable: ".point-row",
       filter: ".add-row",
+      // WITHOUT THIS THE SEARCH FIELD CANNOT BE CLICKED INTO. `preventOnFilter`
+      // defaults to TRUE, which makes Sortable call preventDefault() on the
+      // pointerdown whenever it lands inside a filtered element — and the
+      // default action being prevented is the one that moves focus. So every
+      // day's add row was inert to the mouse: the input could be tabbed to and
+      // typed in, but a click on it left focus on <body>. Observed on
+      // /builder/9, not theorized — `e.defaultPrevented` reads true on the
+      // pointerdown, and the whole .add-row is filtered, search field included.
+      //
+      // `filter` is still doing its real job either way: it stops a DRAG
+      // starting on the add row. That is a Sortable-internal check and does not
+      // need the event canceled to work.
+      preventOnFilter: false,
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
@@ -3260,6 +3344,12 @@
           console.warn("[builder] search:", e);
         }
       }, 300);
+    });
+
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest(".add-place-btn");
+      if (!btn || btn.disabled) return;
+      armPlace(Number(btn.dataset.day));
     });
 
     // Escape dismisses the suggestions without clearing the query — the rider
@@ -3708,14 +3798,6 @@
       markDirty();
       offerPublicStart();
     });
-    document.querySelectorAll(".mode-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (btn.disabled) return;
-        document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.addMode = btn.dataset.mode;
-      });
-    });
     // Narrowed from "dirty" to "dirty and not yet flushed". With autosave most
     // of a session is clean within three seconds of the last keystroke, so the
     // old guard would have fired on almost every exit for work that was already
@@ -3872,8 +3954,20 @@
       // it. The rider would then delete a different set from the one they
       // ticked, silently. Saying so beats acting on the stale keys.
       if (state.select?.scope === "point") return toast("Finish selecting first", true);
-      if (state.addMode === "poi") addPoi(lng, lat, "");
-      else addStop(lng, lat, "");
+      // ALWAYS A STOP. The panel-wide + Stop / + POI pair that used to decide
+      // this was removed on 2026-08-22 — it read as a pair of buttons that add
+      // something and was really a mode switch that added nothing, which is
+      // exactly how it was reported. Stop or POI is still a choice, made per
+      // row by the radios in the day's add row, which is where the rider is
+      // already looking when they name the thing.
+      //
+      // An armed "+ Stop" names the day explicitly; an unarmed click falls back
+      // to whichever day the rider last touched, which is what it always did.
+      // Read and cleared BEFORE the add, so a failed add cannot leave the
+      // builder armed with the button still lit.
+      const armed = state.arm;
+      disarmPlace();
+      addStop(lng, lat, "", armed);
     });
   }
 

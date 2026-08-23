@@ -778,11 +778,6 @@
     }
   }
 
-  .mode-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
   // A "?" beside a control the FAQ defines. Sized and colored to sit under
   // everything around it: this is a thing you look for when you are stuck, not
   // a thing that should be competing with the controls in a 380px panel. It
@@ -832,12 +827,17 @@
       padding: 0.3em 0.4em;
     }
 
-    .add-mode {
+    // Pushed to the right end of the row, which is where the removed + Stop /
+    // + POI pair used to claim the free space. It is the only control on this
+    // row that acts rather than sets, so it gets the end to itself.
+    //
+    // Styled at all, which it was not: this shipped as a bare <button> with no
+    // rule anywhere in the stylesheet, so it rendered as the browser's native
+    // grey chrome beside two custom pills and read as broken. It always worked.
+    // Not a `.btn` — that is a highway sign now, and a sign at 0.85em in a
+    // 380px panel would be the loudest thing on the page.
+    .day-add {
       margin-left: auto;
-      display: flex;
-      gap: 0.25em;
-    }
-    .mode-btn {
       font: inherit;
       font-size: 0.85em;
       padding: 0.3em 0.55em;
@@ -846,10 +846,20 @@
       background: $white;
       color: $text;
       cursor: pointer;
-      &.active {
-        background: $url;
+
+      &:hover:not(:disabled) {
         border-color: $url;
-        color: $white;
+        color: $url;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $accent;
+        outline-offset: 1px;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
       }
     }
   }
@@ -907,9 +917,52 @@
     }
   }
 
-  // Stop or POI for THIS row, separate from the panel's + Stop / + POI pair,
-  // which decides what a map click adds. Hidden until the row is engaged: it is
-  // an answer to a question the rider has not asked until they start typing.
+  // Arms the next map click for this day. Quiet until it is armed, because a
+  // lit button per day would put 31 of them down the panel — the whole reason
+  // the day search box is borderless until it is used.
+  .add-place-btn {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.8em;
+    white-space: nowrap;
+    padding: 0.25em 0.5em;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: color.adjust($text, $lightness: 25%);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $grey;
+      background: $white;
+      color: $text;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $accent;
+      outline-offset: 1px;
+    }
+
+    // ARMED. It borrows the day's own color rather than one accent for all of
+    // them, so on a nine-day ride the lit button says WHICH day is waiting
+    // without being read.
+    &.is-armed {
+      border-color: currentColor;
+      background: $white;
+      color: var(--day-color, $url);
+      font-weight: 700;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+
+  // Stop or POI for THIS row, separate from the panel-wide pair that used to
+  // decide what a map click adds — that pair is gone, and an armed "+ Stop"
+  // above names the day instead. Hidden until the row is engaged: it is an
+  // answer to a question the rider has not asked until they start typing.
   .add-kind {
     display: none;
     flex: 0 0 auto;
@@ -1250,9 +1303,21 @@
         background: $white;
         color: $neutral-43;
       }
-      // The empty state: no roles yet, so the button offers to add one.
+      // The empty state: no roles yet. A solid dot in the DAY'S color rather
+      // than a "+" glyph — Ziad's call, 2026-08-22. `currentColor` is what makes
+      // it the day color for free: `.row-roles-btn` sets `color: inherit` a few
+      // lines up specifically so the band's --day-color reaches in here, and the
+      // role icons already ride on the same value.
+      //
+      // 10px against the 16px role chip, so a categorized row and an
+      // uncategorized one are still told apart at a glance in a column of
+      // thirty.
       .role-add {
-        color: $neutral-50;
+        width: 10px;
+        height: 10px;
+        flex: none;
+        border-radius: 50%;
+        background: currentColor;
       }
     }
 

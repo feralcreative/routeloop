@@ -132,7 +132,7 @@ authRoutes.get('/login', (c) => {
                   autocomplete="email"
                   placeholder="you@example.com"
                 />
-                <button class="btn btn-sign" type="submit">
+                <button class="btn btn-sign arrow-left" type="submit">
                   Join the list
                 </button>
               </form>

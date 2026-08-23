@@ -459,10 +459,7 @@ function builderHtml(
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, unlisted and public')}
-            <div class="add-mode" role="radiogroup" title="What a map click adds">
-              <button type="button" class="mode-btn active" data-mode="stop">+ Stop</button>
-              <button type="button" class="mode-btn" data-mode="poi">+ POI</button>
-            </div>${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
+            ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
             <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
         </div>
