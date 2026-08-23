@@ -27,8 +27,12 @@ const ride = {
       color: '#0066cc',
       startAt: '2026-08-03T15:00:00.000Z',
       endAt: '2026-08-03T23:30:00.000Z',
-      stops: [
+      // ONE ORDERED LIST, with the POI where the rider put it — between the two
+      // stops rather than appended after them, which is the thing the old
+      // two-array shape could not say.
+      points: [
         {
+          kind: 'stop' as const,
           lat: 36.9741,
           lng: -122.0308,
           name: 'Santa Cruz',
@@ -37,22 +41,22 @@ const ride = {
           durationMin: null,
         },
         {
-          lat: 37.4636,
-          lng: -122.4286,
-          name: 'Half Moon Bay',
-          description: '',
-          roles: ['gas' as const, 'food' as const],
-          durationMin: 45,
-        },
-      ],
-      pois: [
-        {
+          kind: 'poi' as const,
           lat: 37.1819,
           lng: -122.3878,
           name: 'Pigeon Point',
           description: '',
           roles: ['view' as const],
           durationMin: 20,
+        },
+        {
+          kind: 'stop' as const,
+          lat: 37.4636,
+          lng: -122.4286,
+          name: 'Half Moon Bay',
+          description: '',
+          roles: ['gas' as const, 'food' as const],
+          durationMin: 45,
         },
       ],
       legs: [
@@ -77,7 +81,7 @@ const native: NativeRide = { routeloop: NATIVE_FORMAT_VERSION, exportedFrom: 'ro
 const legacyNative: NativeRide = { tankbag: 2, exportedFrom: 'tankbag.app', ride }
 
 describe('isNativeRide', () => {
-  it('recognises a Routeloop export', () => {
+  it('recognizes a Routeloop export', () => {
     expect(isNativeRide(JSON.parse(buildNativeJson(native)))).toBe(true)
   })
 
@@ -144,13 +148,15 @@ describe('the exported shape is what the importer accepts', () => {
     expect(day.color).toBe('#0066cc')
     expect(day.startAt).toBe('2026-08-03T15:00:00.000Z')
     expect(day.endAt).toBe('2026-08-03T23:30:00.000Z')
-    expect(day.stops.map((s) => s.name)).toEqual(['Santa Cruz', 'Half Moon Bay'])
-    expect(day.stops[1].roles).toEqual(['gas', 'food'])
-    expect(day.stops[1].durationMin).toBe(45)
-    expect(day.stops[0].description).toBe('Meet at the wharf.')
+    // Order preserved across the whole list, both kinds — the POI sits between
+    // the two stops because that is where it was written.
+    expect(day.points.map((s) => s.name)).toEqual(['Santa Cruz', 'Pigeon Point', 'Half Moon Bay'])
+    expect(day.points.map((s) => s.kind)).toEqual(['stop', 'poi', 'stop'])
+    expect(day.points[2].roles).toEqual(['gas', 'food'])
+    expect(day.points[2].durationMin).toBe(45)
+    expect(day.points[0].description).toBe('Meet at the wharf.')
     // The distinction KML and GPX cannot carry at all.
-    expect(day.pois).toHaveLength(1)
-    expect(day.pois[0]).toMatchObject({ name: 'Pigeon Point', durationMin: 20, roles: ['view'] })
+    expect(day.points[1]).toMatchObject({ name: 'Pigeon Point', durationMin: 20, roles: ['view'] })
     // Legs, not a flattened track — the leg boundaries are where the stops are.
     expect(day.legs[0].geometry).toHaveLength(3)
     expect(day.legs[0].durationS).toBe(4200)
@@ -227,7 +233,7 @@ describe('what the importer refuses', () => {
       days: [
         {
           ...ride.days[0],
-          stops: [{ ...ride.days[0].stops[0], lat: 991 }, ride.days[0].stops[1]],
+          points: [{ ...ride.days[0].points[0], lat: 991 }, ride.days[0].points[1], ride.days[0].points[2]],
         },
       ],
     }
@@ -242,12 +248,16 @@ describe('what the importer refuses', () => {
       days: [
         {
           ...ride.days[0],
-          stops: [{ ...ride.days[0].stops[0], name: '<script>alert(1)</script>Santa Cruz' }, ride.days[0].stops[1]],
+          points: [
+            { ...ride.days[0].points[0], name: '<script>alert(1)</script>Santa Cruz' },
+            ride.days[0].points[1],
+            ride.days[0].points[2],
+          ],
         },
       ],
     }
     const out = ridePayload.parse(nasty)
     normalize(out)
-    expect(out.days[0].stops[0].name).toBe('alert(1)Santa Cruz')
+    expect(out.days[0].points[0].name).toBe('alert(1)Santa Cruz')
   })
 })

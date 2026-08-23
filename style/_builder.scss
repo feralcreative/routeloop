@@ -959,34 +959,6 @@
     }
   }
 
-  // Stop or POI for THIS row, separate from the panel-wide pair that used to
-  // decide what a map click adds — that pair is gone, and an armed "+ Stop"
-  // above names the day instead. Hidden until the row is engaged: it is an
-  // answer to a question the rider has not asked until they start typing.
-  .add-kind {
-    display: none;
-    flex: 0 0 auto;
-    gap: 0.15em;
-    font-size: 0.7em;
-
-    label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.2em;
-      cursor: pointer;
-      color: color.adjust($text, $lightness: 20%);
-    }
-
-    input {
-      margin: 0;
-      accent-color: var(--day-color, $url);
-    }
-  }
-
-  .add-row:focus-within .add-kind {
-    display: inline-flex;
-  }
-
   // Directly under the ride name now, outside .panel-contents-wrapper, so it
   // stays put while the stop list scrolls. It used to sit in the band below both
   // sliders, three controls away from the thing it summarizes.

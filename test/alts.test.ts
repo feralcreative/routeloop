@@ -299,7 +299,8 @@ describe('rideTotals', () => {
     endAt: null,
     altGroup: opts.altGroup ?? null,
     altActive: opts.altActive ?? true,
-    stops: Array.from({ length: legs + 1 }, (_, i) => ({
+    points: Array.from({ length: legs + 1 }, (_, i) => ({
+      kind: 'stop' as const,
       lat: 37 + i / 100,
       lng: -122,
       name: `Stop ${i}`,

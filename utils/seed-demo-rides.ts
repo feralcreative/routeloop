@@ -22,6 +22,7 @@ import { and, eq, inArray, like } from 'drizzle-orm'
 import { db } from '../src/db/index'
 import { users, rides, days, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
 import { generateSlug } from '../src/maps/slug'
+import { newUid } from '../src/maps/uid'
 import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
 
 // schema.ts exports row types but not the role union, so derive it from the
@@ -433,6 +434,9 @@ async function main(): Promise<void> {
           roles: s.roles,
           durationMin: s.durationMin ?? null,
           distFromStartM: Math.round(distFromStartM),
+          // NOT NULL since drizzle/0006. This file is not in tsconfig.json, so
+          // a missing column here fails at runtime rather than at typecheck.
+          uid: newUid(),
         }
       })
       await db.insert(points).values(stopRows)
@@ -441,15 +445,18 @@ async function main(): Promise<void> {
       const pois = makePois(track, between(0, 3))
       if (pois.length) {
         await db.insert(points).values(
-          pois.map((p) => ({
+          // POIs continue the day's numbering after its stops — every point
+          // carries a position since drizzle/0008, both kinds, dense from 0.
+          pois.map((p, i) => ({
             dayId: route.id,
             kind: 'poi' as const,
-            position: null,
+            position: spec.stops.length + i,
             lat: p.lngLat[1],
             lng: p.lngLat[0],
             name: p.name,
             description: '',
             roles: p.roles,
+            uid: newUid(),
           })),
         )
       }

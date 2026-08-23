@@ -126,8 +126,7 @@ describe('the details payload', () => {
   const day = (stop: Record<string, unknown>) => ({
     title: '',
     color: '#0000cc',
-    stops: [{ lat: 38, lng: -122, ...stop }],
-    pois: [],
+    points: [{ kind: 'stop' as const, lat: 38, lng: -122, ...stop }],
     legs: [],
   })
   const parse = (stop: Record<string, unknown>) =>
@@ -136,7 +135,7 @@ describe('the details payload', () => {
   it('accepts a stop with no details at all', () => {
     const r = parse({})
     expect(r.success).toBe(true)
-    if (r.success) expect(r.data.days[0].stops[0].details).toBeNull()
+    if (r.success) expect(r.data.days[0].points[0].details).toBeNull()
   })
 
   it('accepts a filled-in stop', () => {
@@ -144,7 +143,7 @@ describe('the details payload', () => {
       details: { confirmation: 'ABC123', notes: 'gate code 4417', links: [{ label: 'Book', url: 'https://ex.com' }] },
     })
     expect(r.success).toBe(true)
-    if (r.success) expect(r.data.days[0].stops[0].details?.confirmation).toBe('ABC123')
+    if (r.success) expect(r.data.days[0].points[0].details?.confirmation).toBe('ABC123')
   })
 
   // A link is rendered as an href, so http(s)-only — the same rule the ride's

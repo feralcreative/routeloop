@@ -190,15 +190,19 @@ window.TBTwist = (function () {
   // both — dragging a POI marker changes neither array's identity nor its
   // length.
   const poiCache = new WeakMap();
+  // Accepts either day shape — one ordered `points` array with per-element kinds
+  // (the builder since 2026-08-23) or the `pois` array ride.json still sends.
   function dayPoiDistances(day) {
-    if (!day || !day.pois || day.pois.length === 0) return [];
-    let sig = legsSignature(day) + "|" + day.pois.length + ":";
-    for (const p of day.pois) sig += p.lng + "," + p.lat + ";";
+    if (!day) return [];
+    const pois = day.points ? day.points.filter((p) => p.kind === "poi") : day.pois;
+    if (!pois || pois.length === 0) return [];
+    let sig = legsSignature(day) + "|" + pois.length + ":";
+    for (const p of pois) sig += p.lng + "," + p.lat + ";";
     const hit = poiCache.get(day);
     if (hit && hit.sig === sig) return hit.dists;
     const track = [];
     for (const leg of day.legs || []) for (const p of leg.geometry || []) track.push(p);
-    const dists = distFromStartAlongTrack(track, day.pois);
+    const dists = distFromStartAlongTrack(track, pois);
     poiCache.set(day, { sig, dists });
     return dists;
   }

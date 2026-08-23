@@ -22,8 +22,13 @@ import { ensureUids } from './uid'
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
 
+// One cap over both kinds now that a day is one ordered list. It is the old
+// MAX_STOPS plus MAX_POIS, so no ride that was legal before this change becomes
+// illegal after it — the two caps could each be met independently.
+export const MAX_POINTS = 400
+// Kept because promotion has to be bounded on its own: a day of 400 POIs must
+// not be promotable into 400 routing anchors, which is 399 Directions calls.
 export const MAX_STOPS = 200
-export const MAX_POIS = 200
 export const MAX_VIAS_PER_LEG = 20
 export const MAX_PTS_PER_LEG = 25000
 export const MAX_PTS_PER_RIDE = 200000
@@ -62,7 +67,16 @@ const detailsSchema = z.object({
 
 export type PointDetailsInput = z.infer<typeof detailsSchema>
 
-const stopSchema = z.object({
+const pointSchema = z.object({
+  // THE ONLY THING THAT MAKES A POINT A STOP. Ziad's call, 2026-08-23: a point
+  // is created as a POI and promoted later, so the kind is a flag on an element
+  // of one ordered list rather than a choice of which list to put it in.
+  //
+  // Defaults to 'poi' — the baseline type. A payload from an older client, or a
+  // native JSON file written before this shipped, is merged into this shape by
+  // the reader, which stamps the kind explicitly; nothing relies on the default
+  // to classify a legacy point.
+  kind: z.enum(['stop', 'poi']).default('poi'),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   name: z.string().max(255).default(''),
@@ -76,11 +90,15 @@ const stopSchema = z.object({
   uid: z.string().max(12).nullable().default(null),
   details: detailsSchema.nullable().default(null),
 })
-// A POI carries a duration now, the same as a stop. It is still not a routing
+// A POI carries a duration, the same as a stop. It is still not a routing
 // anchor — the router never sees it and it splits no leg — but a rider who
 // spends half an hour at a viewpoint has spent half an hour, and the day's end
 // time has to say so.
-const poiSchema = stopSchema
+export type PointInput = z.infer<typeof pointSchema>
+
+/** The stops of a day, in order. The routing anchors, and nothing else. */
+export const stopsOf = <T extends { kind: 'stop' | 'poi' }>(points: T[]): T[] =>
+  points.filter((pt) => pt.kind === 'stop')
 
 const legSchema = z.object({
   geometry: z.array(lngLat).min(2).max(MAX_PTS_PER_LEG),
@@ -95,8 +113,8 @@ const daySchema = z
     color: fields.color.default('#0000cc'),
     startAt: z.iso.datetime({ offset: true }).nullable().default(null),
     endAt: z.iso.datetime({ offset: true }).nullable().default(null),
-    stops: z.array(stopSchema).min(1).max(MAX_STOPS),
-    pois: z.array(poiSchema).max(MAX_POIS).default([]),
+    // ONE ORDERED LIST. The array order IS the rider's order, for both kinds.
+    points: z.array(pointSchema).min(1).max(MAX_POINTS),
     legs: z.array(legSchema),
     // ALTERNATES. Both default, which is what keeps every native JSON file a
     // rider already downloaded — and every in-flight save from a tab opened
@@ -119,8 +137,25 @@ const daySchema = z
       .default(null),
     altActive: z.boolean().default(true),
   })
-  .refine((r) => r.legs.length === Math.max(0, r.stops.length - 1), {
+  // Legs still connect consecutive STOPS — that is what a stop is. POIs sit
+  // between them in the list and bend nothing, so they are counted out here.
+  .refine((r) => r.legs.length === Math.max(0, stopsOf(r.points).length - 1), {
     message: 'legs must connect consecutive stops (stops - 1 legs)',
+  })
+  .refine((r) => stopsOf(r.points).length <= MAX_STOPS, {
+    message: `a day may have at most ${MAX_STOPS} stops`,
+  })
+  // AT LEAST ONE STOP PER DAY, which the old shape said as `stops.min(1)` and
+  // this shape would otherwise have quietly dropped — `points.min(1)` is
+  // satisfied by a day of nothing but POIs.
+  //
+  // The rule survives because everything downstream still assumes it: a day with
+  // no anchors has no legs, no mileage, no roadbook rows and nothing to hand to
+  // Maps. The builder upholds it by promoting the first point of every day on
+  // the spot, so a rider never meets this message; it is here for a hand-written
+  // payload and for a native file from some future client.
+  .refine((r) => stopsOf(r.points).length >= 1, {
+    message: 'a day needs at least one stop',
   })
 
 export const ridePayload = z
@@ -148,7 +183,7 @@ export type RidePayload = z.infer<typeof ridePayload>
 export function normalize(p: RidePayload): void {
   for (const r of p.days) {
     r.title = sanitizeText(r.title)
-    for (const s of [...r.stops, ...r.pois]) {
+    for (const s of r.points) {
       s.lat = round6(s.lat)
       s.lng = round6(s.lng)
       s.name = sanitizeText(s.name)
@@ -186,9 +221,9 @@ export function rideTotals(p: RidePayload) {
   for (const r of activeDays(p.days)) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
-    seconds += r.stops.reduce((n, s) => n + (s.durationMin ?? 0) * 60, 0)
-    seconds += r.pois.reduce((n, p) => n + (p.durationMin ?? 0) * 60, 0)
-    stops += r.stops.length
+    // Dwell from BOTH kinds: time spent at a viewpoint is time spent.
+    seconds += r.points.reduce((n, pt) => n + (pt.durationMin ?? 0) * 60, 0)
+    stops += stopsOf(r.points).length
   }
   return { totalMiles: (meters / METERS_PER_MILE).toFixed(1), totalDurationS: seconds, stopCount: stops }
 }
@@ -236,50 +271,59 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     // Stops: cumulative distance is the prefix sum of leg distances.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
-    // uids are settled for the day's stops and POIs TOGETHER, because the unique
-    // index is per day across both kinds — settling each list separately could
-    // hand a POI the same uid as a stop.
-    const withUids = ensureUids([...r.stops, ...r.pois])
-    const stopsU = withUids.slice(0, r.stops.length)
-    const poisU = withUids.slice(r.stops.length)
+    // One settle over the whole day. The unique index is per day across both
+    // kinds, so the lists could never have been settled separately without
+    // risking a POI and a stop sharing a uid.
+    const withUids = ensureUids(r.points)
 
-    const stopRows = stopsU.map((s, i) => ({
-      dayId: day.id,
-      kind: 'stop' as const,
-      position: i,
-      lat: s.lat,
-      lng: s.lng,
-      name: s.name,
-      description: s.description || null,
-      roles: s.roles,
-      durationMin: s.durationMin,
-      distFromStartM: prefix[Math.min(i, prefix.length - 1)],
-      uid: s.uid,
-    }))
+    // DISTANCE IS STILL COMPUTED TWO WAYS, and the split is by kind rather than
+    // by which array a point came from.
+    //
+    // A stop's distance is the prefix sum of the legs before it — exact, because
+    // the legs are the road. A POI's is its projection onto the concatenated
+    // track, because a POI is beside the route rather than on it and has no leg
+    // boundary of its own. Promotion therefore changes which algorithm produces
+    // a point's stored distance, which is correct: it stops being an annotation
+    // and becomes an anchor the road actually runs through.
+    //
+    // Projection is run over the POIs alone so its returned array lines up with
+    // the POIs in order; stops are indexed by their own ordinal among stops.
+    const poiPoints = withUids.filter((pt) => pt.kind === 'poi')
+    const poiDists = distFromStartAlongTrack(track, poiPoints)
+    const poiDistByIndex = new Map<number, number | null>()
+    let poiN = 0
+    let stopN = 0
+    const stopOrdinal = new Map<number, number>()
+    withUids.forEach((pt, i) => {
+      if (pt.kind === 'poi') poiDistByIndex.set(i, poiDists[poiN++] ?? null)
+      else stopOrdinal.set(i, stopN++)
+    })
 
-    // POIs: projected onto the route's concatenated track (built above).
-    const poiDists = distFromStartAlongTrack(track, r.pois)
-    const poiRows = poisU.map((s, i) => ({
-      dayId: day.id,
-      kind: 'poi' as const,
-      position: null,
-      lat: s.lat,
-      lng: s.lng,
-      name: s.name,
-      description: s.description || null,
-      roles: s.roles,
-      durationMin: s.durationMin,
-      distFromStartM: poiDists[i],
-      uid: s.uid,
-    }))
+    const pointRows = withUids.map((s, i) => {
+      const isStop = s.kind === 'stop'
+      const ord = stopOrdinal.get(i) ?? 0
+      return {
+        dayId: day.id,
+        kind: s.kind,
+        // The rider's order, dense over both kinds.
+        position: i,
+        lat: s.lat,
+        lng: s.lng,
+        name: s.name,
+        description: s.description || null,
+        roles: s.roles,
+        durationMin: s.durationMin,
+        distFromStartM: isStop ? prefix[Math.min(ord, prefix.length - 1)] : (poiDistByIndex.get(i) ?? null),
+        uid: s.uid,
+      }
+    })
 
     for (const s of withUids) {
       liveUids.push(s.uid)
       if (s.details) details.push({ uid: s.uid, d: s.details })
     }
 
-    const allPoints = [...stopRows, ...poiRows]
-    if (allPoints.length > 0) await tx.insert(pointsTable).values(allPoints)
+    if (pointRows.length > 0) await tx.insert(pointsTable).values(pointRows)
     if (r.legs.length > 0) {
       await tx.insert(routeLegs).values(
         r.legs.map((l, i) => ({

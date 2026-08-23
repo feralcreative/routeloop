@@ -32,7 +32,6 @@ import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
 import { fields, firstIssue } from '../maps/fields'
 import {
-  MAX_POIS,
   MAX_DAYS,
   MAX_STOPS,
   insertRideGraph,
@@ -173,10 +172,11 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // the losing alternates would become ordinary days.
       altGroup: r.altGroup,
       altActive: r.altActive,
-      // Both kinds carry a duration, so a clone keeps the POI dwell too —
-      // dropping it would quietly shorten every cloned day.
-      stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...point(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...point(p), durationMin: p.durationMin })),
+      // ONE ORDERED LIST, and the read above is already ordered by position,
+      // so the rider's own sequence clones intact. Both kinds carry a duration,
+      // so a clone keeps the POI dwell too — dropping it would quietly shorten
+      // every cloned day.
+      points: pts.map((p) => ({ ...point(p), kind: p.kind, durationMin: p.durationMin })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -305,32 +305,21 @@ export async function loadRidePayload(ride: RideRow) {
       // disappears: without the uid the save mints a new one and orphans the
       // details row, and without the details the reconcile pass reads the stop
       // as cleared and deletes it.
-      stops: pts
-        .filter((p) => p.kind === 'stop')
-        .map((p) => ({
-          lat: p.lat,
-          lng: p.lng,
-          name: p.name,
-          description: p.description ?? '',
-          roles: p.roles,
-          durationMin: p.durationMin,
-          uid: p.uid,
-          details: details.get(p.uid) ?? null,
-        })),
-      pois: pts
-        .filter((p) => p.kind === 'poi')
-        .map((p) => ({
-          lat: p.lat,
-          lng: p.lng,
-          name: p.name,
-          description: p.description ?? '',
-          roles: p.roles,
-          // Same shape as a stop now. Omitting this is how a saved POI dwell
-          // silently disappears on the next load.
-          durationMin: p.durationMin,
-          uid: p.uid,
-          details: details.get(p.uid) ?? null,
-        })),
+      // ONE ORDERED LIST, in the rider's own order — the read above is ordered
+      // by position, which is now set for both kinds. The two arms this
+      // replaced were field-for-field identical apart from the filter, which is
+      // the clearest sign the split was never carrying its weight.
+      points: pts.map((p) => ({
+        kind: p.kind,
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        description: p.description ?? '',
+        roles: p.roles,
+        durationMin: p.durationMin,
+        uid: p.uid,
+        details: details.get(p.uid) ?? null,
+      })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,

@@ -61,8 +61,13 @@
       //
       // `links` needs its own copy inside details for the same reason again: it
       // is an array the editor pushes to and splices.
-      stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice(), details: copyDetails(s.details) })),
-      pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice(), details: copyDetails(p.details) })),
+      // ONE ORDERED LIST, both kinds. `kind` rides along in the spread, which is
+      // what makes undo able to take a promotion back.
+      points: (r.points || []).map((pt) => ({
+        ...pt,
+        roles: (pt.roles || []).slice(),
+        details: copyDetails(pt.details),
+      })),
       legs: (r.legs || []).map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
     };
   }

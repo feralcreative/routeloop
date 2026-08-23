@@ -57,6 +57,13 @@
       "when": 1787377787467,
       "tag": "0007_glossy_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787502951744,
+      "tag": "0008_quick_fat_cobra",
+      "breakpoints": true
     }
   ]
 }
