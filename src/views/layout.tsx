@@ -93,7 +93,17 @@ export type PageOpts = {
   head?: string
   /** Extra <script> tags, emitted last. */
   scripts?: string
-  /** Serialized to window.TB via jsonScript. */
+  /**
+   * Serialized to window.TB via jsonScript.
+   *
+   * `version` is merged in by page() and does not belong here — public/js/feedback.js
+   * has always read `window.TB.version` into a bug report's diagnostics, and
+   * nothing ever set it, so every report filed so far names no build. That is
+   * also why TB is now emitted on EVERY page rather than only where a page asks
+   * for one: a report can be filed from anywhere the button is, and a report
+   * that cannot say which build it came from is the one thing the version was
+   * added to fix. Every existing reader guards with `window.TB && window.TB.x`.
+   */
   tb?: Record<string, unknown>
   /** Set false to suppress the alpha modal on a page. */
   splash?: boolean
@@ -711,7 +721,7 @@ ${opts.feedbackArea && opts.user ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
-${opts.tb ? jsonScript('TB', opts.tb) : ''}
+${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
 <!--
   The error ring buffer, on every page and first in the list.
 
