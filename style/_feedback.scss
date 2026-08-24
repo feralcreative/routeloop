@@ -445,78 +445,255 @@ $fb-line: $neutral-88;
 // THE PAIR. Reporting something broken and reading what changed are different
 // errands, so they are two marks rather than one control with a menu.
 //
-// The GROUP is what is positioned; the buttons inside it are static. Before this
-// the single button was `position: fixed` itself, and every responsive rule
-// below moved it — so the group inherits that job wholesale and the rules did
-// not have to be rewritten, only re-pointed.
-.fab-group {
+// The help launcher: one control at the corner that opens a short menu.
+//
+// This is the support-widget shape — Intercom, Zendesk, Crisp, Drift — chosen
+// because a tester recognizes it before they read anything. Ziad's call,
+// 2026-08-23. It replaced a dock of two permanent marks, which saved a tap on
+// the bug report and charged a second piece of chrome on every screen for it.
+//
+// The DOCK is what is positioned; the launcher and the menu inside it are laid
+// out against it. Before this the buttons were positioned individually and every
+// responsive rule below moved them, so the wrapper inherits that job wholesale.
+.fab-dock {
   position: fixed;
-  right: 72px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
-  z-index: $z-map-panel;
+  // A plain corner inset. `right: 72px` was clearing the map's control column,
+  // which is a map's problem and not every page's — that offset moved to the
+  // .map-page rule below, where the thing it dodges actually exists.
+  right: calc(env(safe-area-inset-right, 0px) + 24px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  z-index: $z-fab;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
 }
 
-.fb-fab {
+// Not on the flow itself. The bug item opens the page it would be sitting on,
+// and that flow is built around a sticky full-width control at the bottom edge —
+// which is also WCAG 2.2 SC 2.4.11 (Focus Not Obscured), the rule that says a
+// fixed element must not hide the control a rider has just focused.
+//
+// Ziad's call to make: this is the single page the "on every page" rule of
+// 2026-08-23 is deliberately not applied to. Delete these three lines to apply
+// it there too.
+.feedback-flow .fab-dock {
+  display: none;
+}
+
+// Over a map the dock still has to clear the zoom and basemap controls stacked
+// down the right edge, which is what the old unconditional 72px was for.
+.map-page .fab-dock {
+  right: calc(env(safe-area-inset-right, 0px) + 72px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
+}
+
+.fab-launcher {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  // 44px is the tap target the whole feedback flow is built to — see the note at
-  // the top of this file about gloved hands. The disc fills it.
-  width: 44px;
-  height: 44px;
+  // 56px rather than the 44px the marks used to be. A launcher is one target
+  // instead of two and it is the only way in, so it takes the size the support
+  // widgets use — comfortably past the 44px of WCAG 2.5.5, which the flow behind
+  // it is built to throughout. See the note at the top of this file about gloves.
+  width: 56px;
+  // The shield is 385x401, so it is NOT square. Height follows the artwork
+  // rather than being forced to match the width, which would squash it.
+  height: 58px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
   background: none;
+  color: $interstate;
   cursor: pointer;
-  // The mark is a disc in `currentColor` with the glyph knocked out white, so
-  // the button's own color IS the disc's fill. Nothing here paints a background.
-  box-shadow: 0 2px 8px $panel-shadow;
+  // drop-shadow, not box-shadow, and this is the whole reason it is worth a
+  // comment: box-shadow traces the BORDER BOX, so a shield would sit inside a
+  // rounded rectangle of shadow with daylight in the shoulders. A filter follows
+  // the alpha of what is actually painted, so the shadow is shield-shaped.
+  filter: drop-shadow(0 3px 8px $panel-shadow);
+  transition: filter 0.18s ease;
 
   svg {
     display: block;
     width: 100%;
     height: 100%;
-    border-radius: 50%;
+  }
+
+  // Lifts rather than lightens. It sits over a map whose color underneath is
+  // unknown, so a hover that changed the fill would read differently on terrain
+  // than on satellite; a shadow reads the same over both.
+  &:hover {
+    filter: drop-shadow(0 5px 12px $panel-shadow);
   }
 
   &:focus-visible {
     outline: 2px solid $accent;
     outline-offset: 3px;
-  }
-
-  // Lifts rather than lightens. These sit over a map whose color underneath them
-  // is unknown, so a hover that changed the fill would read differently on
-  // terrain than on satellite; a shadow reads the same over both.
-  &:hover {
-    box-shadow: 0 4px 14px $panel-shadow;
+    // The outline traces the border box, so on a non-rectangular mark it needs a
+    // shape to sit on or it reads as a stray box around nothing.
+    border-radius: 6px;
   }
 }
 
-// The bug. Red because it is the one control on the map that means "something
-// is wrong", and $stop is the app's red for exactly that.
-.fb-fab--bug {
+// The launcher carries both marks and swaps them, rather than the menu carrying
+// its own close button: one control that toggles is what the pattern trained
+// everyone to expect, and it keeps the target in the same place through the
+// whole interaction.
+.fab-launcher-close {
+  display: none;
+}
+
+// Closing swaps the shield for a plain disc. Two different silhouettes for two
+// states is deliberate: the shield is the app's mark and means "the way in",
+// where the X is a generic control and means "put this away".
+.fab-dock.is-open .fab-launcher {
+  color: $neutral-36;
+  // The X is a disc, so the shield's shape-following shadow would look wrong
+  // under it — and a disc's box-shadow is exact.
+  filter: none;
+  box-shadow: 0 3px 12px $panel-shadow;
+  border-radius: 50%;
+  // Square again, because the disc is.
+  height: 56px;
+
+  .fab-launcher-open {
+    display: none;
+  }
+
+  .fab-launcher-close {
+    display: block;
+    // icon-close.svg is a bare X with no disc behind it, unlike every other mark
+    // here — so this one needs the field the others carry inside the artwork.
+    //
+    // Both values are named. `background: currentColor` was the obvious way to
+    // pick up the launcher's own color and it painted a white disc on a white X:
+    // the `color` below is what currentColor resolves against, and it is set in
+    // this same rule, so the field and the glyph came out the same value.
+    padding: 17px;
+    border-radius: 50%;
+    background: $neutral-36;
+    color: $white;
+  }
+}
+
+// UNREAD. Shown by site.js only when this build is one the rider has not opened
+// the notes for, so it is information rather than an ornament: after they read
+// them it is gone until the next deploy. Empty on purpose — the launcher's own
+// aria-label is what gets announced, and a dot that also spoke would say the
+// destination twice.
+.fab-badge {
+  box-sizing: border-box;
+  position: absolute;
+  // Sat at the border box's top-right corner, which on a shield is empty air —
+  // the mark tapers to a point up there, so the dot read as detached from it.
+  // These put it on the right SHOULDER, where the silhouette is actually widest.
+  top: 9px;
+  right: -1px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid $white;
+  border-radius: 50%;
+  background: $stop;
+}
+
+.fab-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 15rem;
+  padding: 6px;
+  border-radius: 14px;
+  background: $panel-bg;
+  box-shadow: 0 6px 24px $panel-shadow;
+  // The map shows through the 0.9 alpha above; without this it reads as a
+  // grubby pane rather than a floating one.
+  backdrop-filter: blur(8px);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.fab-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  // 48px, because this is a menu row rather than the flow's primary control —
+  // still past the 44px of WCAG 2.5.5 and comfortably past 2.2's 24px floor.
+  min-height: 48px;
+  padding: 0 0.75rem 0 0.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: $text;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+
+  // Safe to tint, unlike the launcher: the menu paints its own surface between
+  // this row and whatever is behind the dock, so what is underneath is known.
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: -2px;
+  }
+}
+
+.fab-item-mark {
+  display: block;
+  flex: none;
+  width: 26px;
+  height: 26px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.fab-item-mark--bug {
   color: $stop;
 }
 
-// The notes. Deliberately NOT a second red disc and not the guide-sign green
-// either: it is neither an alarm nor an action, and a pair of loud marks side by
-// side would make the bug report harder to find rather than easier.
-.fb-fab--notes {
+// Not a second red disc: one alarm-colored mark in a two-item menu is what
+// makes the bug easy to find, and two would make it harder.
+.fab-item-mark--notes {
   color: $neutral-43;
 }
 
-//@ SM ≤600px — the gap tightens. The buttons were already 44px discs at every
-//  width once the label went with the pair on 2026-08-23, so there is nothing
-//  left to collapse here; what a phone needs is the two of them taking less
-//  horizontal room beside the map's own control column.
+.fab-item-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+// The build, where a rider is already looking for it. Not a title attribute:
+// a tooltip is unreachable by touch, which is most of them.
+.fab-item-sub {
+  color: $neutral-50;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+//@ SM ≤600px — the menu stops being a fixed 15rem and fits the screen instead.
+//  The launcher itself does not shrink: it is the only way in, and a phone is
+//  where the gloves are.
 @media (max-width: 600px) {
-  .fab-group {
-    gap: 0.35rem;
+  .fab-menu {
+    min-width: 0;
+    width: max-content;
+    max-width: calc(100vw - 3rem);
   }
 }
 
@@ -526,9 +703,9 @@ $fb-line: $neutral-88;
 // becomes a full-width sheet along the bottom edge (see _map.scss), which is
 // the moment `right: 72px` stops being enough to keep the two apart. Measured
 // on /builder/9 before this rule existed: at 393x852 the button sat on a stop's
-// duration field, and at 700x900 — inside the band where it still carries its
-// label and is 153px wide, because the label's breakpoint is 600px and the
-// sheet's is 767px — it covered a stop's name and duration together.
+// duration field, and at 700x900 it covered a stop's name and duration together.
+// (Both measurements were taken when this was a labelled 153px-wide button; it
+// is a 56px launcher now, so the overlap is smaller and the rule still right.)
 //
 // The sheet's own height is read from --sheet-height rather than repeated, so
 // the two can only move together. The timeline gets a term of its own because
@@ -548,7 +725,12 @@ $fb-line: $neutral-88;
     --fb-fab-timeline-clear: var(--timeline-height);
   }
 
-  .fab-group {
+  // Scoped to the map. Every term here is a map custom property, and on a page
+  // with no sheet they resolve to nothing — an invalid calc, which drops the
+  // whole declaration and leaves the dock wherever the base rule put it. That
+  // happens to be survivable, but only by luck, and it stops being true the
+  // moment someone adds a fallback to one of these vars.
+  .map-page .fab-dock {
     bottom: calc(var(--panel-inset) + var(--fb-fab-clear) + var(--fb-fab-timeline-clear) + 8px);
     // Rides with the sheet rather than teleporting to the far end of its travel
     // while the sheet is still moving. Same duration and easing as the slide in
@@ -570,7 +752,11 @@ $fb-line: $neutral-88;
 // that clears it. Below that the account menu is the way in, which is why the
 // flow was built with two entry points rather than one.
 @media (max-width: 767px) and (max-height: 400px) {
-  .fab-group {
+  // Map pages only. The arithmetic below is entirely about the sheet's 320px
+  // floor eating the screen, and a landscape phone reading /rides or the FAQ has
+  // no sheet and plenty of room — hiding the dock there would remove the way in
+  // for no reason.
+  .map-page .fab-dock {
     display: none;
   }
 }

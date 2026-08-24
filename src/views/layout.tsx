@@ -110,15 +110,20 @@ export type PageOpts = {
   /** Plain message; page() supplies the <noscript> wrapper and markup. */
   noscript?: string
   /**
-   * Renders the floating "Something wrong?" button, pre-filling `?area=` with
-   * this value.
+   * Pre-fills `?area=` on the floating bug button, so screen 3 of the report can
+   * offer a one-tap confirm instead of eight cold chips. Values come from AREAS
+   * in src/feedback/policy.ts.
    *
-   * Opt-in per page rather than derived from the request, because `page()` never
-   * sees a path and inferring it from `navKey` would silently put the button on
-   * every page that shares a key. The builder and the viewer are the two that
-   * ask for it — they are where things break, and where a rider can least afford
-   * to go hunting through a menu. Values come from AREAS in
-   * src/feedback/policy.ts.
+   * **It no longer decides whether the buttons appear.** They are site chrome as
+   * of 2026-08-23 and render on every page a signed-in rider can reach — this
+   * only makes the report better where the route happens to know the answer.
+   *
+   * Still opt-in rather than inferred, and deliberately so: `areaFromPath()` in
+   * src/feedback/policy.ts is the ONE inference mechanism, and it is reached
+   * from the request. page() never sees a path, so anything it worked out here
+   * would be a second mechanism that could disagree with the first. Where no
+   * area is given the link simply carries none, which is a state the form is
+   * built for.
    */
   feedbackArea?: string
 }
@@ -531,48 +536,94 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
 }
 
 /**
- * The floating way into the intake, on the builder and the viewer only.
+ * The floating way into the intake, and the way into the release notes. Site
+ * chrome: on every page a signed-in rider can reach.
+ *
+ * It was the builder and the viewer only, on the reasoning that those are where
+ * things break. That was half right and it cost the other half — a rider who
+ * hits something wrong on /rides, /import or their profile is exactly as stuck,
+ * and the way in was an account-menu item they had to know about. Ziad's call,
+ * 2026-08-23.
  *
  * A plain link, not a scripted overlay: it has to work when the page around it
  * is the thing that is broken, which is the entire circumstance it exists for.
  *
- * The `?area=` it carries is what lets the intake offer a one-tap confirm
- * instead of an eight-chip group, and it is the reason this button exists at all
- * rather than only the account-menu item. Inference, never a claim — the confirm
- * screen offers "Somewhere else".
+ * `area` is optional and pre-fills the intake's third screen with a one-tap
+ * confirm instead of an eight-chip group. Inference, never a claim — that screen
+ * always offers "Somewhere else", which is also what an absent area lands on.
  */
-function feedbackFab(area: string): string {
-  // TWO MARKS, not one control with two jobs. Reporting something broken and
-  // reading what changed are different errands, and a rider who has just hit a
-  // bug should not have to read a menu to find the first one.
+function feedbackFab(area?: string): string {
+  // ONE LAUNCHER that opens a short menu — the shape Intercom, Zendesk, Crisp
+  // and every other support widget uses, so a tester arrives already knowing
+  // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
   //
-  // Both are icon-only discs — the label went with the pair on 2026-08-23. It
-  // only ever showed above 600px anyway (see _feedback.scss), so the phone
-  // already had this shape; what changed is that the desktop stopped being the
-  // exception. `title` and `aria-label` carry the meaning at every width.
+  // It was two permanent marks for most of that day, which cost one fewer tap on
+  // a bug report and bought a second piece of chrome on every screen forever.
+  // The convention is one affordance for the same reason: the errands behind it
+  // are occasional, and a dock that grows a mark per errand is a menu that
+  // refuses to admit it is a menu.
+  //
+  // THE LAUNCHER IS A CALIFORNIA ROUTE SHIELD WITH AN `i` WHERE THE NUMBER GOES.
+  // Ziad's artwork, 2026-08-23. It is the only mark here that is not a disc, and
+  // that is the point: the house style is highway signs — `.btn` is a guide sign
+  // and the roles are shield-shaped — so the one piece of chrome on every screen
+  // reads as part of the road rather than as a widget bolted to the corner.
+  //
+  // The arched CALIFORNIA lettering came with the artwork and is deliberately
+  // gone: at 56px it was illegible texture, and naming a state on a button that
+  // opens a bug report says nothing about what the button does. The `i` is
+  // centered on its own and sized to the room that left.
+  //
+  // What it beat, so nobody re-proposes them: a speech bubble is the
+  // support-chat glyph and promises a person on the other end within the minute,
+  // and there is nobody there. A question mark is the other half of that
+  // convention, but icon-wtf.svg is ALREADY a `?` on a currentColor disc meaning
+  // an unclassified stop, and the builder is one screen showing both. A
+  // megaphone was tried and drawn badly.
+  //
+  // The shield's field is `currentColor` like every other mark, so it takes
+  // $interstate from .fab-launcher; the border and the `i` are white, and the
+  // outline is a real black stroke as a road sign has.
   //
   // The marks are INLINE SVG via icon(), not <img> or a CSS mask: each is a disc
   // in `currentColor` with the glyph knocked out white, so the element has to be
   // in the document for the color to reach it. Same mechanism and the same
   // reasoning as the alpha modal's contact marks — see src/views/icon.ts.
   return (
-    <div class="fab-group">
-      <a
-        class="fb-fab fb-fab--bug"
-        href={`/feedback?area=${encodeURIComponent(area)}`}
-        title="Something wrong? Tell us"
-        aria-label="Something wrong? Tell us"
-      >
-        {raw(icon('bug'))}
-      </a>
+    <div class="fab-dock" data-fab-dock>
+      {/* Before the launcher in the DOM so it opens UPWARD in the tab order as
+          well as visually — a menu that reads after the button that opened it
+          is what a keyboard expects. */}
+      <div class="fab-menu" id="fab-menu" hidden>
+        <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
+          <span class="fab-item-mark fab-item-mark--bug">{raw(icon('bug'))}</span>
+          <span class="fab-item-label">Something wrong?</span>
+        </a>
+        <button type="button" class="fab-item" data-open-notes data-fab-notes>
+          <span class="fab-item-mark fab-item-mark--notes">{raw(icon('info'))}</span>
+          <span class="fab-item-label">
+            What's new
+            {/* The build is here rather than in a title attribute: this is the
+                one surface where a rider is already looking for it, and a
+                tooltip is not reachable by touch at all. */}
+            <span class="fab-item-sub">{APP_VERSION}</span>
+          </span>
+        </button>
+      </div>
       <button
         type="button"
-        class="fb-fab fb-fab--notes"
-        data-open-notes
-        title={`What's new — you are on ${APP_VERSION}`}
-        aria-label={`What's new. You are on version ${APP_VERSION}`}
+        class="fab-launcher"
+        aria-expanded="false"
+        aria-controls="fab-menu"
+        aria-label="Help and feedback"
+        title="Help and feedback"
       >
-        {raw(icon('info'))}
+        <span class="fab-launcher-open">{raw(icon('help'))}</span>
+        <span class="fab-launcher-close">{raw(icon('close'))}</span>
+        {/* Unread, not decoration — site.js shows it only when this build is
+            one the rider has not opened the notes for. Empty and aria-hidden
+            because the launcher's own label is what gets announced. */}
+        <span class="fab-badge" data-fab-badge hidden aria-hidden="true"></span>
       </button>
     </div>
   ).toString()
@@ -717,7 +768,7 @@ export function page(opts: PageOpts): string {
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
 ${body}
-${opts.feedbackArea && opts.user ? feedbackFab(opts.feedbackArea) : ''}
+${opts.user && variant !== 'splash' ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}

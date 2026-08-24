@@ -393,13 +393,100 @@
       }
     });
 
-    // Delegated, because the openers are in two places — the floating "i" on the
-    // map pages and the version string in every footer.
+    // Delegated, because the openers are in two places — the item inside the
+    // help launcher and the version string in every footer.
     document.addEventListener("click", function (e) {
       if (e.target.closest("[data-open-notes]")) {
         e.preventDefault();
+        markNotesSeen();
         open();
       }
+    });
+  }
+
+  // What build this rider has already read the notes for.
+  //
+  // Per browser, deliberately: it answers "have I seen this" for the person
+  // looking at the screen, and the server has no business knowing which dialogs
+  // someone opened. Every access is guarded — a private window, cleared site
+  // data, or a browser set to block storage all THROW here rather than
+  // returning null, and an unread dot is not worth a broken page.
+  const NOTES_SEEN_KEY = "rl.notes.seen";
+
+  function currentBuild() {
+    return (window.TB && window.TB.version) || "";
+  }
+
+  function notesSeen() {
+    try {
+      return window.localStorage.getItem(NOTES_SEEN_KEY);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function markNotesSeen() {
+    const badge = document.querySelector("[data-fab-badge]");
+    if (badge) badge.hidden = true;
+    try {
+      window.localStorage.setItem(NOTES_SEEN_KEY, currentBuild());
+    } catch (_) {
+      /* Nothing to do. The dot comes back next load, which is the harmless half
+         of the failure—the alternative is not showing it to anyone. */
+    }
+  }
+
+  // The launcher: one control that opens a short menu, which is the shape every
+  // support widget a tester has met already uses.
+  function initFab() {
+    const dock = document.querySelector("[data-fab-dock]");
+    if (!dock) return;
+    const launcher = dock.querySelector(".fab-launcher");
+    const menu = dock.querySelector(".fab-menu");
+    const badge = dock.querySelector("[data-fab-badge]");
+
+    // UNREAD, not "new". The dot means "this build is one you have not opened
+    // the notes for", so a rider who has read them sees nothing until the next
+    // deploy. An empty stored value is a first visit, which counts as unread —
+    // it is how a tester finds the notes at all.
+    if (badge && currentBuild() && notesSeen() !== currentBuild()) badge.hidden = false;
+
+    function setOpen(on) {
+      menu.hidden = !on;
+      dock.classList.toggle("is-open", on);
+      launcher.setAttribute("aria-expanded", on ? "true" : "false");
+    }
+
+    launcher.addEventListener("click", function () {
+      const willOpen = menu.hidden;
+      setOpen(willOpen);
+      if (willOpen) {
+        const first = menu.querySelector(FOCUSABLE);
+        if (first) first.focus();
+      }
+    });
+
+    // Deliberately NOT a focus trap. This is a menu, not a dialog: tabbing out
+    // of it should land on the page behind, and trapping would strand a
+    // keyboard user in a two-item popover.
+    dock.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || menu.hidden) return;
+      setOpen(false);
+      launcher.focus();
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!menu.hidden && !dock.contains(e.target)) setOpen(false);
+    });
+
+    // Closes on the way to whatever the item does, so the menu is not still
+    // hanging open behind the notes dialog or over the page /feedback lands on.
+    menu.addEventListener("click", function () {
+      setOpen(false);
+    });
+
+    dock.addEventListener("focusout", function (e) {
+      if (!menu.hidden && !dock.contains(e.relatedTarget)) setOpen(false);
     });
   }
 
@@ -407,6 +494,7 @@
     initNav();
     initSplash();
     initNotes();
+    initFab();
     initSplashVideo();
     initFaq();
   }
