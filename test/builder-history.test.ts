@@ -72,7 +72,7 @@ function stateOf(): any {
   return {
     // Present on purpose: none of these may survive a snapshot.
     map: { fake: 'map handle' },
-    markers: [{ stops: [], pois: [] }],
+    markers: [{ points: [] }],
     rideId: 41,
     saving: false,
     focus: 2,
@@ -90,11 +90,13 @@ function stateOf(): any {
         startAt: '2026-08-01T09:00:00Z',
         endAt: '2026-08-01T17:00:00Z',
         endManual: true,
-        stops: [
-          { lat: 37, lng: -122, name: 'A', description: '', roles: ['start'], durationMin: null },
-          { lat: 38, lng: -121, name: 'B', description: '', roles: ['gas', 'food'], durationMin: 20 },
+        // One ordered list, with the POI between the two stops — where the
+        // rider put it, which is the thing the two-array shape could not say.
+        points: [
+          { kind: 'stop', lat: 37, lng: -122, name: 'A', description: '', roles: ['start'], durationMin: null },
+          { kind: 'poi', lat: 37.5, lng: -121.5, name: 'View', description: '', roles: ['scenic'], durationMin: null },
+          { kind: 'stop', lat: 38, lng: -121, name: 'B', description: '', roles: ['gas', 'food'], durationMin: 20 },
         ],
-        pois: [{ lat: 37.5, lng: -121.5, name: 'View', description: '', roles: ['scenic'], durationMin: null }],
         legs: [leg(500)],
       },
     ],
@@ -109,7 +111,8 @@ describe('what a snapshot carries', () => {
     const snap: Snap = H.snapshot(s)
     expect(snap.meta.title).toBe('Three days')
     expect(snap.days).toHaveLength(1)
-    expect(snap.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
+    expect(snap.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
+    expect(snap.days[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
   })
 
   // payload() drops this, so deriving the snapshot from payload() would lose
@@ -166,24 +169,25 @@ describe('what a snapshot copies and what it shares', () => {
   it('copies roles arrays, which ARE mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.days[0].stops[1].roles).not.toBe(s.days[0].stops[1].roles)
-    s.days[0].stops[1].roles.push('hotel')
-    expect(snap.days[0].stops[1].roles).toEqual(['gas', 'food'])
+    expect(snap.days[0].points[2].roles).not.toBe(s.days[0].points[2].roles)
+    s.days[0].points[2].roles.push('hotel')
+    expect(snap.days[0].points[2].roles).toEqual(['gas', 'food'])
   })
 
   it('survives every in-place mutation the builder actually performs', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     // Each of these mirrors a real site in builder.js.
-    s.days[0].stops.reverse() // reverseDay
-    s.days[0].stops[0].lat = 99 // marker dragend
-    s.days[0].stops[0].name = 'typed' // row input
-    s.days[0].pois.splice(0, 1) // deletePoi
-    s.days[0].legs.splice(0, 1) // deleteStop
+    s.days[0].points.reverse() // reverseDay
+    s.days[0].points[0].lat = 99 // marker dragend
+    s.days[0].points[0].name = 'typed' // row input
+    s.days[0].points[0].kind = 'poi' // setPointKind
+    s.days[0].points.splice(0, 1) // deletePoint
+    s.days[0].legs.splice(0, 1) // deletePoint, stop branch
     s.meta.title = 'renamed' // ride-title input
-    expect(snap.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
-    expect(snap.days[0].stops[0].lat).toBe(37)
-    expect(snap.days[0].pois).toHaveLength(1)
+    expect(snap.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
+    expect(snap.days[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
+    expect(snap.days[0].points[0].lat).toBe(37)
     expect(snap.days[0].legs).toHaveLength(1)
     expect(snap.meta.title).toBe('Three days')
   })
@@ -193,10 +197,10 @@ describe('restore', () => {
   it('puts the snapshot back', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    s.days[0].stops.pop()
+    s.days[0].points.pop()
     s.meta.title = 'wrong'
     H.restore(s, snap)
-    expect(s.days[0].stops).toHaveLength(2)
+    expect(s.days[0].points).toHaveLength(3)
     expect(s.meta.title).toBe('Three days')
   })
 
@@ -211,16 +215,16 @@ describe('restore', () => {
     H.restore(s, snap)
     expect(s.days[0]).not.toBe(beforeRoute)
     expect(s.days[0]).not.toBe(snap.days[0])
-    expect(s.days[0].stops[0]).not.toBe(snap.days[0].stops[0])
+    expect(s.days[0].points[0]).not.toBe(snap.days[0].points[0])
   })
 
   it('can be restored twice without the first restore aliasing the second', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     H.restore(s, snap)
-    s.days[0].stops[0].name = 'clobbered'
+    s.days[0].points[0].name = 'clobbered'
     H.restore(s, snap)
-    expect(s.days[0].stops[0].name).toBe('A')
+    expect(s.days[0].points[0].name).toBe('A')
   })
 
   it('resets legSeq, so nothing in flight is let through', () => {
@@ -320,7 +324,7 @@ describe('drafts', () => {
     const back = H.Draft.read(41)
     expect(back.rideId).toBe(41)
     expect(back.meta.title).toBe('Three days')
-    expect(back.days[0].stops.map((x: any) => x.name)).toEqual(['A', 'B'])
+    expect(back.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
   })
 
   it('keys a never-saved ride separately from a saved one', () => {
@@ -358,8 +362,7 @@ describe('drafts', () => {
       startAt: null,
       endAt: null,
       endManual: false,
-      stops: [],
-      pois: [],
+      points: [],
       legs: [],
     })
     H.Draft.write(41, s)
@@ -469,8 +472,9 @@ describe('snapshot copies details rather than sharing them', () => {
     meta: {},
     days: [
       {
-        stops: [{ uid: 'aaaaaaaaaaaa', roles: [], details: { notes: 'gate 4417', links: [{ label: 'a', url: 'b' }] } }],
-        pois: [],
+        points: [
+          { kind: 'stop', uid: 'aaaaaaaaaaaa', roles: [], details: { notes: 'gate 4417', links: [{ label: 'a', url: 'b' }] } },
+        ],
         legs: [],
       },
     ],
@@ -479,26 +483,26 @@ describe('snapshot copies details rather than sharing them', () => {
   it('does not share the details object', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].stops[0].details.notes = 'changed'
-    expect(snap.days[0].stops[0].details.notes).toBe('gate 4417')
+    state.days[0].points[0].details.notes = 'changed'
+    expect(snap.days[0].points[0].details.notes).toBe('gate 4417')
   })
 
   it('does not share the links array inside details', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].stops[0].details.links.push({ label: 'x', url: 'y' })
-    expect(snap.days[0].stops[0].details.links).toHaveLength(1)
+    state.days[0].points[0].details.links.push({ label: 'x', url: 'y' })
+    expect(snap.days[0].points[0].details.links).toHaveLength(1)
   })
 
   it('does not share a link object inside that array', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].stops[0].details.links[0].url = 'changed'
-    expect(snap.days[0].stops[0].details.links[0].url).toBe('b')
+    state.days[0].points[0].details.links[0].url = 'changed'
+    expect(snap.days[0].points[0].details.links[0].url).toBe('b')
   })
 
   it('leaves a stop with no details as null', () => {
-    const snap = H.snapshot({ meta: {}, days: [{ stops: [{ roles: [], details: null }], pois: [], legs: [] }] })
-    expect(snap.days[0].stops[0].details).toBeNull()
+    const snap = H.snapshot({ meta: {}, days: [{ points: [{ kind: 'stop', roles: [], details: null }], legs: [] }] })
+    expect(snap.days[0].points[0].details).toBeNull()
   })
 })

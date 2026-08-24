@@ -570,22 +570,20 @@ mapsRoutes.post(
             day.track.length > 0 ? distFromStartAlongTrack(day.track, ordered) : ordered.map(() => null)
 
           if (ordered.length > 0) {
-            // Stops carry a position and POIs carry null, matching what the
-            // builder writes — a POI is not a routing anchor and has no place
-            // in the stop order. So the counter advances only for stops.
-            //
-            // `ordered` puts the stops first and in ALONG-TRACK order, which is
-            // the order their legs connect them in. It is not necessarily the
-            // order they appeared in the file: GPX writes <wpt> elements at
-            // document level with nothing tying them to a track.
-            let stopPos = 0
+            // EVERY point carries a position now, both kinds, dense from 0 —
+            // matching what the builder writes. `ordered` puts the stops first
+            // and in ALONG-TRACK order, which is the order their legs connect
+            // them in, then the POIs; that concatenation IS the imported ride's
+            // order. It is not necessarily the order they appeared in the file:
+            // GPX writes <wpt> elements at document level with nothing tying
+            // them to a track.
             await tx.insert(points).values(
               ordered.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
                   dayId: dayRow.id,
                   kind: isPoi ? ('poi' as const) : ('stop' as const),
-                  position: isPoi ? null : stopPos++,
+                  position: n,
                   lat: p.lat,
                   lng: p.lng,
                   name: p.name,

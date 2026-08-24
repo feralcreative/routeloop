@@ -639,10 +639,20 @@ export const days = pgTable(
   ],
 )
 
-// The dots (docs/ideas.md). Stops are the ordered routing anchors — not riding
-// for a while; durationMin null = no duration (ride ends). POIs are unordered
-// annotations near the day's route and never affect routing. The third dot kind
-// — ephemeral shaping waypoints — lives in route_legs.via_points, not here.
+// The dots (docs/ideas.md). EVERY point in a day is ordered — `position` is the
+// rider's own sequence and is set for both kinds. `kind` says only whether the
+// point anchors routing: a stop does and a POI does not, so legs connect
+// consecutive STOPS while POIs sit between them without bending the road.
+//
+// Ziad's call, 2026-08-23, and it replaced a model where only stops carried a
+// position and a POI's place in the list was DERIVED by projecting it onto the
+// day's track. That derivation had no answer before a route existed — every POI
+// on a trackless day reported distance 0 — and the new model needs one, because
+// a point now starts life as a POI and is promoted later. Promotion is a flag
+// flip that moves nothing.
+//
+// The third dot kind — ephemeral shaping waypoints — lives in
+// route_legs.via_points, not here.
 export const points = pgTable(
   'points',
   {
@@ -651,7 +661,8 @@ export const points = pgTable(
       .notNull()
       .references(() => days.id, { onDelete: 'cascade' }),
     kind: pointKindEnum('kind').notNull(),
-    position: smallint('position'), // stop order along the day; null for POIs
+    // The rider's order within the day, for BOTH kinds. Dense from 0.
+    position: smallint('position').notNull(),
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
@@ -683,12 +694,15 @@ export const points = pgTable(
     uid: varchar('uid', { length: 12 }).notNull(),
   },
   (t) => [
-    // Stops get distinct positions; POIs all carry null (NULLS DISTINCT).
+    // Now a real uniqueness constraint over every point in the day. It used to
+    // lean on NULLS DISTINCT so that any number of POIs could coexist carrying
+    // null; with position NOT NULL for both kinds there is nothing to except.
     uniqueIndex('uq_point_day_pos').on(t.dayId, t.position),
     index('idx_point_day').on(t.dayId),
     uniqueIndex('uq_point_day_uid').on(t.dayId, t.uid),
     check('ck_point_roles_max4', sql`cardinality(roles) <= 4`),
-    check('ck_point_stop_pos', sql`kind <> 'stop' OR position IS NOT NULL`),
+    // ck_point_stop_pos is gone: it said "a stop must have a position", which
+    // the NOT NULL above now says about every point.
   ],
 )
 

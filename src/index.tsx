@@ -323,6 +323,16 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // for it — see the schedule in ride-time.js.
       // `details` is absent rather than null for a non-owner, so the public
       // contract is unchanged for every viewer who was already using it.
+      //
+      // STILL TWO ARRAYS, deliberately, where the builder payload and the native
+      // JSON became one ordered list on 2026-08-23. The viewer draws markers and
+      // a timeline and never renders the points as a sequence, so the interleaved
+      // order buys it nothing — and `ride-time.js` keys its schedule off
+      // `distFromStartMi`, which both kinds still carry. Splitting here costs
+      // nothing and keeps a shipped public contract stable.
+      //
+      // The read is ordered by position, and filtering preserves relative order,
+      // so each array comes out in the rider's own order.
       stops: pts.filter((p) => p.kind === 'stop').map((p) => withDetails(pointOut(p), p, details)),
       pois: pts.filter((p) => p.kind === 'poi').map((p) => withDetails(pointOut(p), p, details)),
     })

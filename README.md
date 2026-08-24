@@ -229,7 +229,7 @@ Imported files live in a private `STORAGE_PATH` **outside** the web root, served
 
 - **Ride**—the shareable package (slug, visibility, title): holds many routes.
 - **Route**—one day/session: an ordered list of stops joined by road-snapped legs, with an optional start/end date-time.
-- **Points** come in two kinds: **Stops** (ordered routing anchors, can carry a duration) and **POIs** (unordered annotations that don't affect routing). Ephemeral **shaping waypoints** are stored on the leg, not as points.
+- **Points** sit in one ordered list per day and come in two kinds: **Stops** (routing anchors—the road is drawn through them) and **POIs** (annotations that don't affect routing). Both carry an order and a duration. Every point you drop starts as a POI and is promoted to a stop when you want the route to go through it; the first point of a day is promoted for you. Ephemeral **shaping waypoints** are stored on the leg, not as points.
 - **Legs** carry the snapped geometry and the distance/duration between consecutive stops. That is true of imported rides too: the import cuts the uploaded track at its stops, so one code path renders both and an imported ride opens in the builder like any other.
 
 Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns that order too when asked for `GEO_JSON_LINESTRING`, so the migration needed no data backfill. Google's own JavaScript objects use `{lat, lng}`, and getting the two confused still renders a map, just in the wrong place, so exactly two functions do the conversion: `toGoogleWaypoint` on the server and `toLatLng`/`fromLatLng` in `map-common.js` on the client.

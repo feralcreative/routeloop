@@ -73,7 +73,8 @@ Consequences before editing `public/js/builder.js`:
 - **Clicking a marker on a dimmed day focuses that day first**, otherwise the row it scrolls to would not be in the rendered list.
 - **A new day is seeded with the previous day's last stop**, because a day begins where the last one ended.
 - **Layers are keyed by day index**, so a delete or reorder invalidates every key at or after it. `rebuildLayers()` tears down and re-adds all of them rather than patching—O(days) on a list capped at 31, and it removes a whole class of stale-layer bug.
-- **Empty days are dropped at save time.** The API requires at least one stop per day, so `payload()` filters them and `save()` reports how many went.
+- **Empty days are dropped at save time.** The API requires at least one stop per day, so `payload()` filters days with no points and `save()` reports how many went.
+- **A day is one ordered list of points; `kind` says only whether a point anchors routing.** Every point created by a rider is a POI, promoted to a stop from the row menu—except the first point of a day, which `addPoint()` promotes on the spot and tags `start`. Legs connect consecutive stops, so a day of POIs alone draws dots and no line. `stopsOf()` in `src/maps/ride-graph.ts` and in `public/js/builder.js` is the bridge between the list's index space and the stop ordinals the leg array uses.
 
 ## The role taxonomy
 

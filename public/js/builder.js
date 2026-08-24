@@ -57,8 +57,11 @@
 
   const MILE = 1609.344;
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
+  // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
+  // whole list, plus a separate ceiling on how many of them may be routing
+  // anchors — promoting 400 POIs would be 399 Directions calls.
+  const MAX_POINTS = 400;
   const MAX_STOPS = 200;
-  const MAX_POIS = 200;
   const MAX_LINKS = 5;
 
   // A point's durable identity. Mirrors newUid() in src/maps/uid.ts and is pinned
@@ -95,6 +98,10 @@
   // server stores and what loadRidePayload sends back.
   function newPoint(lng, lat, name) {
     return {
+      // THE BASELINE TYPE. Ziad's call, 2026-08-23: a point is a POI until it is
+      // promoted, so nothing has to be decided at the moment of creation — which
+      // is the moment a rider knows least about the place they just dropped.
+      kind: "poi",
       lat: +lat.toFixed(6),
       lng: +lng.toFixed(6),
       name: name || "",
@@ -104,6 +111,43 @@
       uid: uid(),
       details: null,
     };
+  }
+
+  // --- One ordered list -----------------------------------------------------
+  //
+  // A day holds ONE array, `points`, in the rider's order, and `kind` says only
+  // whether a point anchors routing. It replaced `day.stops` and `day.pois`,
+  // where "stopness" was expressed by which array an object sat in and a POI had
+  // no stored order at all — its place in the list was derived by projecting it
+  // onto the day's track, which has no answer before a route exists.
+  //
+  // LEG MATH STILL COUNTS IN STOPS, because a leg connects stop i to stop i+1
+  // and a POI bends no road. So there are two index spaces — position in the
+  // day, and ordinal among the stops — and these three helpers are the entire
+  // bridge between them. Convert here or not at all; an ad-hoc conversion at a
+  // call site is how the two silently disagree.
+  const stopsOf = (day) => day.points.filter((pt) => pt.kind === "stop");
+  const poisOf = (day) => day.points.filter((pt) => pt.kind === "poi");
+
+  /** Indices into day.points of the day's stops, in order. stopIdx(day)[si] is where stop si lives. */
+  function stopIdx(day) {
+    const out = [];
+    day.points.forEach((pt, k) => {
+      if (pt.kind === "stop") out.push(k);
+    });
+    return out;
+  }
+
+  /**
+   * How many stops sit before day.points[k].
+   *
+   * For a stop that IS its ordinal among the stops; for a POI it is the ordinal
+   * of the leg it sits inside, which is what the row numbering wants.
+   */
+  function stopOrdinalAt(day, k) {
+    let count = 0;
+    for (let j = 0; j < k && j < day.points.length; j++) if (day.points[j].kind === "stop") count++;
+    return count;
   }
 
   // The rider's saved-place library, loaded once when the builder opens.
@@ -283,8 +327,8 @@
     // and why the group id is not stable across a save.
     altGroup: null,
     altActive: true,
-    stops: [],
-    pois: [],
+    // One ordered list of both kinds — see stopsOf() and friends above.
+    points: [],
     legs: [],
   });
 
@@ -570,7 +614,7 @@
   // and waits.
   function saveBlockReason() {
     if (!state.meta.title.trim()) return "Needs a title";
-    if (!state.days.some((r) => r.stops.length > 0)) return "Needs a stop";
+    if (!state.days.some((r) => r.points.length > 0)) return "Needs a stop";
     return null;
   }
 
@@ -666,15 +710,16 @@
   // instant it was opened would be a page load that silently spends money.
   // Touching a stop routes its legs, which is the rider asking.
   function fillMissingLegs(day) {
-    const want = Math.max(0, day.stops.length - 1);
+    const stops = stopsOf(day);
+    const want = Math.max(0, stops.length - 1);
     if (day.legs.length === want) return;
     // Trim first: more legs than pairs cannot be saved either, and a leg with
     // no pair of stops to connect has nothing to be about.
     day.legs.length = Math.min(day.legs.length, want);
     for (let i = 0; i < want; i++) {
       if (day.legs[i]) continue;
-      const a = day.stops[i];
-      const b = day.stops[i + 1];
+      const a = stops[i];
+      const b = stops[i + 1];
       day.legs[i] = straightLeg([a.lng, a.lat], [b.lng, b.lat], []);
     }
   }
@@ -715,12 +760,16 @@
     };
   }
 
-  // Recomputes leg i of day r (stops[i] → stops[i+1]).
+  // Recomputes leg i of day r, joining the i-th STOP to the (i+1)-th. `i` is an
+  // ordinal among the day's stops, not an index into day.points — POIs sit in
+  // that list too and none of them anchors a leg.
   function computeLeg(r, i) {
     const day = state.days[r];
-    if (!day || !day.stops[i] || !day.stops[i + 1]) return;
-    const a = [day.stops[i].lng, day.stops[i].lat];
-    const b = [day.stops[i + 1].lng, day.stops[i + 1].lat];
+    if (!day) return;
+    const stops = stopsOf(day);
+    if (!stops[i] || !stops[i + 1]) return;
+    const a = [stops[i].lng, stops[i].lat];
+    const b = [stops[i + 1].lng, stops[i + 1].lat];
     const vias = (day.legs[i] && day.legs[i].viaPoints) || [];
     day.legs[i] = straightLeg(a, b, vias);
     renderTrack(r);
@@ -752,7 +801,7 @@
   }
 
   function computeLegsAround(r, indices) {
-    const n = state.days[r].stops.length - 1;
+    const n = stopsOf(state.days[r]).length - 1;
     [...new Set(indices)].filter((i) => i >= 0 && i < n).forEach((i) => computeLeg(r, i));
   }
 
@@ -829,7 +878,7 @@
       setRouteGhost(state.map, r, ghost);
       const m = state.markers[r];
       if (!m) return;
-      [...m.stops, ...m.pois].forEach(({ el }) => {
+      m.points.forEach(({ el }) => {
         // A ghost stays quiet even while it is the focused day — the rider
         // clicked into it to edit it, which is precisely when they need to see
         // it is the one that does not count.
@@ -851,8 +900,7 @@
 
   function clearMarkers() {
     state.markers.forEach((m) => {
-      m.stops.forEach(({ marker }) => removeMarker(marker));
-      m.pois.forEach(({ marker }) => removeMarker(marker));
+      m.points.forEach(({ marker }) => removeMarker(marker));
       // Vias came later than the other two. A kind that renderMarkers creates
       // and this forgets does not error — it just leaves the old handles on the
       // map, so every redraw stacks another set on top of the last.
@@ -861,8 +909,11 @@
     state.markers = [];
   }
 
-  function makeStopMarker(r, stop, i) {
-    const el = markerElement(stop, state.days[r].color, "stop");
+  // ONE MAKER FOR BOTH KINDS. `i` indexes day.points; the kind decides only the
+  // marker's CSS class — `.tb-marker-poi` is the smaller, solid, day-colored dot
+  // — and whether a drag has legs to invalidate.
+  function makePointMarker(r, point, i) {
+    const el = markerElement(point, state.days[r].color, point.kind);
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       // Clicking a marker on a dimmed day makes that day active, so the map's
@@ -870,34 +921,23 @@
       // now, so this is no longer what makes the row reachable — focusRow scrolls
       // to it either way.
       if (editIndex() !== r) goToDay(r);
-      focusRow("stop", i, r);
+      focusRow(point.kind, i, r);
     });
-    const marker = addMarker(state.map, [stop.lng, stop.lat], el, { draggable: true });
+    const marker = addMarker(state.map, [point.lng, point.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
-      beginEdit("move stop");
-      stop.lng = +lng.toFixed(6);
-      stop.lat = +lat.toFixed(6);
-      // A moved anchor invalidates its shaping points.
-      if (state.days[r].legs[i - 1]) state.days[r].legs[i - 1].viaPoints = [];
-      if (state.days[r].legs[i]) state.days[r].legs[i].viaPoints = [];
-      computeLegsAround(r, [i - 1, i]);
-      markDirty();
-    });
-    return { marker, el };
-  }
-
-  function makePoiMarker(r, poi, i) {
-    const el = markerElement(poi, state.days[r].color, "poi");
-    el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (editIndex() !== r) goToDay(r);
-      focusRow("poi", i, r);
-    });
-    const marker = addMarker(state.map, [poi.lng, poi.lat], el, { draggable: true });
-    onMarkerDragEnd(marker, ([lng, lat]) => {
-      beginEdit("move POI");
-      poi.lng = +lng.toFixed(6);
-      poi.lat = +lat.toFixed(6);
+      const day = state.days[r];
+      const isStop = point.kind === "stop";
+      beginEdit(isStop ? "move stop" : "move POI");
+      point.lng = +lng.toFixed(6);
+      point.lat = +lat.toFixed(6);
+      // Only a routing anchor bends the road, so only a stop's legs go stale.
+      // Dragging a POI moves a dot and costs nothing.
+      if (isStop) {
+        const si = stopOrdinalAt(day, i);
+        if (day.legs[si - 1]) day.legs[si - 1].viaPoints = [];
+        if (day.legs[si]) day.legs[si].viaPoints = [];
+        computeLegsAround(r, [si - 1, si]);
+      }
       markDirty();
     });
     return { marker, el };
@@ -957,8 +997,7 @@
   function renderMarkers() {
     clearMarkers();
     state.markers = state.days.map((day, r) => ({
-      stops: day.stops.map((s, i) => makeStopMarker(r, s, i)),
-      pois: day.pois.map((p, i) => makePoiMarker(r, p, i)),
+      points: day.points.map((pt, i) => makePointMarker(r, pt, i)),
       // One handle per shaping point, so a via can be moved or taken back out.
       vias: day.legs.flatMap((leg, li) => (leg.viaPoints || []).map((v, vi) => makeViaMarker(r, li, vi, v))),
     }));
@@ -975,18 +1014,79 @@
   // `prebuilt` is how a saved place enters the ride: stopFromPlace() has already
   // made the point, roles and durable details included, and this must not
   // discard it by minting a bare one. Every other caller passes nothing.
-  function addStop(lng, lat, name, dayIndex, prebuilt) {
+  // THE ONE CREATION PATH. A map click, either search arm, a saved place, the
+  // home seed and a new day's inherited first point all land here, and they all
+  // produce a POI — the kind is not a choice anybody makes at creation time any
+  // more. Ziad's call, 2026-08-23.
+  //
+  // EXCEPT THE FIRST POINT OF A DAY, which is promoted on the spot and tagged
+  // `start`. A day has to begin somewhere, the server still requires at least
+  // one stop per day, and a rider who drops one pin and saves should get a day
+  // that means something rather than a validation error. It is the only implicit
+  // promotion in the app.
+  function addPoint(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
-    if (day.stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
-    beginEdit("add stop");
-    day.stops.push(prebuilt || newPoint(lng, lat, name));
-    const n = day.stops.length;
-    if (n >= 2) computeLeg(r, n - 2);
+    if (day.points.length >= MAX_POINTS) return toast("Point limit reached (" + MAX_POINTS + ")", true);
+    beginEdit("add point");
+    const pt = prebuilt || newPoint(lng, lat, name);
+    const first = day.points.length === 0;
+    if (first) {
+      pt.kind = "stop";
+      // Only when the caller has not said otherwise — the home seed brings its
+      // own role and a saved place brings the ones the rider filed it under.
+      if (!(pt.roles || []).length) pt.roles = ["start"];
+    } else {
+      pt.kind = "poi";
+    }
+    day.points.push(pt);
     renderMarkers();
     // renderDayList(r), not renderList(): renderList redraws the ACTIVE day, and
     // a search row can add to a day that is not it.
+    renderDayList(r);
+    refreshDerived();
+    markDirty();
+  }
+
+  /**
+   * Promotes a POI to a stop, or demotes a stop back to a POI.
+   *
+   * A flag flip. Nothing moves — that is the whole point of one ordered list,
+   * and it is why this is cheap enough to be reversible: a mis-promotion costs
+   * one menu item rather than a delete and a re-add that would lose the point's
+   * notes and details.
+   *
+   * The legs are rebuilt around the change because the stop sequence just
+   * changed, and their shaping points are dropped for the same reason a reorder
+   * drops them: a via-point belongs to the pair of stops its leg used to join.
+   */
+  function setPointKind(i, kind) {
+    const r = editIndex();
+    if (r == null) return;
+    const day = state.days[r];
+    const pt = day.points[i];
+    if (!pt || pt.kind === kind) return;
+    if (kind === "stop" && stopsOf(day).length >= MAX_STOPS) {
+      return toast("Stop limit reached (" + MAX_STOPS + ")", true);
+    }
+    // The last stop of a day cannot be demoted: the day would have none, the
+    // save would 400, and payload() would drop the day whole.
+    if (kind === "poi" && stopsOf(day).length <= 1) {
+      return toast("A day needs at least one stop", true);
+    }
+    beginEdit(kind === "stop" ? "make a stop" : "make a POI");
+    pt.kind = kind;
+    // Where this point sits in the stop order once the flip has happened. A
+    // promotion splits the leg it was sitting inside; a demotion merges the two
+    // it joined. Recomputing the pair either side covers both.
+    const so = stopOrdinalAt(day, i);
+    day.legs = [];
+    state.legSeq[r] = [];
+    fillMissingLegs(day);
+    computeLegsAround(r, [so - 1, so, so + 1]);
+    renderTrack(r);
+    renderMarkers();
     renderDayList(r);
     refreshDerived();
     markDirty();
@@ -1010,7 +1110,7 @@
     // should not have to click the map to get out.
     if (state.arm === r) return disarmPlace();
     if (!state.days[r]) return;
-    if (state.days[r].stops.length >= MAX_STOPS) return toast("Stop limit reached (" + MAX_STOPS + ")", true);
+    if (state.days[r].points.length >= MAX_POINTS) return toast("Point limit reached (" + MAX_POINTS + ")", true);
     state.arm = r;
     // The armed day becomes the working day, so everything else that keys off
     // "where the rider is" agrees with the thing about to happen.
@@ -1041,37 +1141,31 @@
     document.body.classList.toggle("is-arming", state.arm != null);
   }
 
-  function addPoi(lng, lat, name, dayIndex, prebuilt) {
-    const r = dayIndex == null ? editIndex() : dayIndex;
-    if (r == null || !state.days[r]) return noDayYet();
-    const day = state.days[r];
-    if (day.pois.length >= MAX_POIS) return toast("POI limit reached (" + MAX_POIS + ")", true);
-    beginEdit("add POI");
-    // durationMin present from the start, matching a stop: blank means "rode
-    // past", which is the common case, and the field has to exist for the row to
-    // round-trip through save and reload.
-    day.pois.push(prebuilt || newPoint(lng, lat, name));
-    renderMarkers();
-    renderDayList(r);
-    markDirty();
-  }
-
-  function deleteStop(i) {
-    beginEdit("delete stop");
+  // `i` indexes day.points. A POI leaves no hole in the route; a stop does, and
+  // its legs need the same surgery they always did — expressed in stop ordinals,
+  // which is the only space the leg array understands.
+  function deletePoint(i) {
     const r = editIndex();
     if (r == null) return;
     const day = state.days[r];
-    day.stops.splice(i, 1);
-    // Remove the legs that touched stop i, then bridge the gap (if any).
-    if (day.legs.length) {
-      const from = Math.max(0, i - 1);
-      day.legs.splice(from, i === 0 || i === day.stops.length ? 1 : 2);
+    const pt = day.points[i];
+    if (!pt) return;
+    const wasStop = pt.kind === "stop";
+    const si = stopOrdinalAt(day, i);
+    beginEdit(wasStop ? "delete stop" : "delete POI");
+    day.points.splice(i, 1);
+
+    if (wasStop && day.legs.length) {
+      const stops = stopsOf(day);
+      // Remove the legs that touched stop si, then bridge the gap (if any).
+      const from = Math.max(0, si - 1);
+      day.legs.splice(from, si === 0 || si === stops.length ? 1 : 2);
       state.legSeq[r] = [];
-      if (i > 0 && i < day.stops.length) {
+      if (si > 0 && si < stops.length) {
         day.legs.splice(
           from,
           0,
-          straightLeg([day.stops[i - 1].lng, day.stops[i - 1].lat], [day.stops[i].lng, day.stops[i].lat]),
+          straightLeg([stops[si - 1].lng, stops[si - 1].lat], [stops[si].lng, stops[si].lat]),
         );
         computeLeg(r, from);
       }
@@ -1080,16 +1174,6 @@
     renderMarkers();
     renderList();
     refreshDerived();
-    markDirty();
-  }
-
-  function deletePoi(i) {
-    beginEdit("delete POI");
-    const r = editIndex();
-    if (r == null) return;
-    state.days[r].pois.splice(i, 1);
-    renderMarkers();
-    renderList();
     markDirty();
   }
 
@@ -1106,10 +1190,10 @@
     const r = editIndex();
     if (r == null) return noDayYet();
     const day = state.days[r];
-    const list = kind === "stop" ? day.stops : day.pois;
+    const list = day.points;
     const src = list[i];
     if (!src) return;
-    const cap = kind === "stop" ? MAX_STOPS : MAX_POIS;
+    const cap = MAX_POINTS;
     if (list.length >= cap) return toast((kind === "stop" ? "Stop" : "POI") + " limit reached (" + cap + ")", true);
 
     beginEdit("duplicate " + kind);
@@ -1141,95 +1225,72 @@
     markDirty();
   }
 
-  // MOVE a stop to an arbitrary index, which is what a drag produces. moveStop
-  // below SWAPS with a neighbor, which is the same thing only for a one-step
-  // move — dragging stop 2 to position 5 with a swap would put stop 5 at 2, and
+  // MOVE a point to an arbitrary index, which is what a drag produces. movePoint
+  // below steps one place at a time, which is the same thing only for a one-step
+  // move — dragging point 2 to position 5 with a swap would put point 5 at 2, and
   // that is not what anybody dragging means.
   //
-  // Which legs are wrong afterwards: a leg joins consecutive stops, so moving
-  // between `from` and `to` invalidates every leg from the one BEFORE the earlier
-  // position through the one AT the later position. Worked through on an 8-stop
-  // day, 2 -> 5 leaves L0 and L6 untouched and breaks L1..L5, which is exactly
-  // [min-1, max]. Recomputing the whole day instead would be correct and would
-  // also fire a routing request per leg, which is the half that costs money.
-  // Dragging a POI MOVES ITS PIN, and that is the whole difference between the
-  // two kinds. A stop carries `position` and its order is stored, so dragging it
-  // rewrites that order. A POI does not — ride-graph.ts writes `position: null`
-  // for every one and its place in the list is its projected distance along the
-  // day's track — so there is nothing for a drag to reorder. Dropping it between
-  // two rows therefore relocates it to the road between them, and the projection
-  // then puts it exactly where it was dropped.
+  // Which legs are wrong afterwards: a leg joins consecutive STOPS, so a move
+  // that leaves the stop sequence untouched — any POI drag, and a stop dropped
+  // among POIs without passing another stop — costs nothing. When the sequence
+  // does change, every leg from the one BEFORE the earlier stop through the one
+  // AFTER the later one is refilled. Recomputing the whole day instead would be
+  // correct and would also fire a routing request per leg, which is the half that
+  // costs money.
   //
-  // This MOVES A PLACE THE RIDER CHOSE, which is the thing to be careful about:
-  // a POI is usually a specific spot, and its coordinates feed the roadbook and
-  // every export. It is one undo step, deliberately, so taking it back is one
-  // action rather than a hunt for the original position.
-  function movePoiToDistance(i, targetM) {
-    const r = editIndex();
-    if (r == null) return;
-    const day = state.days[r];
-    if (!day.pois[i]) return;
-    const { track } = trackAndSpans(r);
-    // No routed geometry means no road to move onto — a day with a single stop,
-    // or one whose legs have not come back from the router yet.
-    if (track.length < 2) return toast("No route to place it along yet", true);
-    const p = window.TBShape.pointAtDistance(track, targetM);
-    if (!p) return;
-
-    beginEdit("move POI");
-    day.pois[i].lng = +p[0].toFixed(6);
-    day.pois[i].lat = +p[1].toFixed(6);
-    renderMarkers();
-    renderList();
-    refreshDerived();
-    markDirty();
-  }
-
-  function reorderStop(from, to) {
+  // What used to be here: a POI drag was a REPOSITION, not a reorder — the pin
+  // was relocated to the road midway between the rows it was dropped between,
+  // because a POI had no stored order for a drag to change. It moved a place the
+  // rider had chosen, and dropping one back where it started relocated it to the
+  // midpoint of its neighbors. Both are gone: a POI has a position now.
+  function reorderPoint(from, to) {
     if (from === to) return;
     const r = editIndex();
     if (r == null) return;
     const day = state.days[r];
-    if (from < 0 || from >= day.stops.length || to < 0 || to >= day.stops.length) return;
+    if (from < 0 || from >= day.points.length || to < 0 || to >= day.points.length) return;
 
-    beginEdit("move stop");
-    const [moved] = day.stops.splice(from, 1);
-    day.stops.splice(to, 0, moved);
+    // The stop sequence BEFORE, so the leg work below can be skipped entirely
+    // when only a POI moved — which is the common case while sketching and the
+    // one that must not spend a Directions call.
+    const before = stopsOf(day)
+      .map((pt) => pt.uid)
+      .join(",");
 
-    const lo = Math.min(from, to) - 1;
-    const hi = Math.max(from, to);
-    const idx = [];
-    for (let k = lo; k <= hi; k++) {
-      // Shaping points belong to the pair of stops the leg used to join, so they
-      // are meaningless once either end changes. Same reasoning as moveStop.
-      if (day.legs[k]) day.legs[k].viaPoints = [];
-      idx.push(k);
+    beginEdit("move point");
+    const [moved] = day.points.splice(from, 1);
+    day.points.splice(to, 0, moved);
+
+    const after = stopsOf(day)
+      .map((pt) => pt.uid)
+      .join(",");
+    if (before !== after) {
+      const lo = Math.min(stopOrdinalAt(day, Math.min(from, to)), stopOrdinalAt(day, Math.max(from, to))) - 1;
+      const hi = stopOrdinalAt(day, Math.max(from, to)) + 1;
+      const idx = [];
+      for (let k = lo; k <= hi; k++) {
+        // Shaping points belong to the pair of stops the leg used to join, so
+        // they are meaningless once either end changes.
+        if (day.legs[k]) day.legs[k].viaPoints = [];
+        idx.push(k);
+      }
+      computeLegsAround(r, idx);
     }
-    computeLegsAround(r, idx);
     renderMarkers();
     renderList();
     refreshDerived();
     markDirty();
   }
 
-  function moveStop(i, dir) {
-    beginEdit("move stop");
+  // The row menu's Move up / Move down, and the keyboard path. `i` indexes
+  // day.points and both kinds get it now — a POI has an order to change.
+  function movePoint(i, dir) {
     const r = editIndex();
     if (r == null) return;
     const day = state.days[r];
     const j = i + dir;
-    if (j < 0 || j >= day.stops.length) return;
-    const s = day.stops;
-    [s[i], s[j]] = [s[j], s[i]];
-    // Reordered anchors: recompute every leg touching either position, and drop
-    // their shaping points.
-    [i - 1, i, j - 1, j].forEach((k) => {
-      if (day.legs[k]) day.legs[k].viaPoints = [];
-    });
-    computeLegsAround(r, [i - 1, i, j - 1, j]);
-    renderMarkers();
-    renderList();
-    markDirty();
+    if (j < 0 || j >= day.points.length) return;
+    reorderPoint(i, j);
   }
 
   // --- Days -----------------------------------------------------------------
@@ -1263,9 +1324,10 @@
 
     // A day begins where the last one ended. Without this every new day starts
     // with a search for a place you already have on the map.
-    const last = prev && prev.stops[prev.stops.length - 1];
+    const lastStops = prev ? stopsOf(prev) : [];
+    const last = lastStops[lastStops.length - 1];
     if (last) {
-      day.stops.push({
+      day.points.push({
         lat: last.lat,
         lng: last.lng,
         name: last.name,
@@ -1330,9 +1392,10 @@
     const r = editIndex();
     if (r == null) return noDayYet();
     const day = state.days[r];
-    if (day.stops.length < 2) return toast("Nothing to reverse yet", true);
+    const stops = stopsOf(day);
+    if (stops.length < 2) return toast("Nothing to reverse yet", true);
 
-    const legCount = Math.max(0, day.stops.length - 1);
+    const legCount = Math.max(0, stops.length - 1);
     // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
     // routes→days rename caught this string, which a rider reads in a dialog.
     if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
@@ -1340,11 +1403,14 @@
     // Every guard and the confirm are behind us, so this is the first point at
     // which the day is certainly going to change.
     beginEdit("reverse day");
-    day.stops.reverse();
+    // REVERSE THE WHOLE LIST, both kinds. A POI has a place in the order now, and
+    // a day ridden backwards passes its viewpoints in the opposite order too —
+    // leaving them where they were would strand each one beside the wrong leg.
+    day.points.reverse();
 
     // A stop tagged as the start is the finish now. Nothing else about a role
     // has a direction — a gas stop is a gas stop either way round.
-    day.stops.forEach((s) => {
+    day.points.forEach((s) => {
       s.roles = (s.roles || []).map((role) => (role === "start" ? "finish" : role === "finish" ? "start" : role));
     });
 
@@ -1478,7 +1544,7 @@
   // becomes active.
   function endpointGap(rows) {
     const ends = rows.map((r) => {
-      const s = state.days[r].stops;
+      const s = stopsOf(state.days[r]);
       return s.length ? { first: s[0], last: s[s.length - 1] } : null;
     });
     const base = ends[0];
@@ -1543,8 +1609,7 @@
         title: src.title ? src.title + " (copy)" : "",
         altGroup: null,
         altActive: true,
-        stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
-        pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+        points: src.points.map((pt) => ({ ...pt, roles: (pt.roles || []).slice() })),
         legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
       });
       state.legSeq.splice(r + 1, 0, []);
@@ -1572,10 +1637,7 @@
       const day = state.days[r];
       if (!day) continue;
       // Already sorted descending by selectedPointsByDay().
-      list.forEach((p) => {
-        if (p.kind === "stop") day.stops.splice(p.i, 1);
-        else day.pois.splice(p.i, 1);
-      });
+      list.forEach((p) => day.points.splice(p.i, 1));
       // Legs are rebuilt wholesale for any day that lost a stop rather than
       // repaired around each removal — with several gone at once there is no
       // "the leg either side" to bridge.
@@ -1590,8 +1652,10 @@
     renderMarkers();
     touched.forEach((r) => {
       const day = state.days[r];
-      if (day && day.stops.length >= 2 && day.legs.length === 0) {
-        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      const nStops = day ? stopsOf(day).length : 0;
+      if (day && nStops >= 2 && day.legs.length === 0) {
+        fillMissingLegs(day);
+        computeLegsAround(r, Array.from({ length: nStops - 1 }, (_, k) => k));
       }
     });
     refreshDerived();
@@ -1610,8 +1674,7 @@
       const day = state.days[r];
       if (!day || r === toDay) continue;
       list.forEach((p) => {
-        const arr = p.kind === "stop" ? day.stops : day.pois;
-        const [pt] = arr.splice(p.i, 1);
+        const [pt] = day.points.splice(p.i, 1);
         if (pt) moved.push({ kind: p.kind, pt });
       });
       day.legs = [];
@@ -1619,10 +1682,7 @@
     }
     // Reversed, because each day's list was spliced descending and the points
     // came off in the opposite order to the one they were in.
-    moved.reverse().forEach(({ kind, pt }) => {
-      if (kind === "stop") dst.stops.push(pt);
-      else dst.pois.push(pt);
-    });
+    moved.reverse().forEach(({ pt }) => dst.points.push(pt));
     dst.legs = [];
     state.legSeq[toDay] = [];
     const touched = new Set([...byDay.keys(), toDay]);
@@ -1632,8 +1692,10 @@
     renderMarkers();
     touched.forEach((r) => {
       const day = state.days[r];
-      if (day && day.stops.length >= 2) {
-        computeLegsAround(r, Array.from({ length: day.stops.length - 1 }, (_, k) => k));
+      const nStops = day ? stopsOf(day).length : 0;
+      if (day && nStops >= 2) {
+        fillMissingLegs(day);
+        computeLegsAround(r, Array.from({ length: nStops - 1 }, (_, k) => k));
       }
     });
     refreshDerived();
@@ -1665,8 +1727,7 @@
       // rider has not been asked about.
       altGroup: null,
       altActive: true,
-      stops: src.stops.map((s) => ({ ...s, roles: (s.roles || []).slice() })),
-      pois: src.pois.map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+      points: src.points.map((pt) => ({ ...pt, roles: (pt.roles || []).slice() })),
       legs: src.legs.map((l) => ({ ...l, viaPoints: (l.viaPoints || []).slice() })),
     };
     state.days.splice(r + 1, 0, copy);
@@ -2092,10 +2153,10 @@
     } else if (a.legIndex != null) {
       what = dayLabel(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.days[a.dayIndex].legs.length;
     } else if (a.poiIndex != null) {
-      const poi = state.days[a.dayIndex].pois[a.poiIndex];
+      const poi = poisOf(state.days[a.dayIndex])[a.poiIndex];
       what = dayLabel(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
-      const stop = a.stopIndex == null ? null : state.days[a.dayIndex].stops[a.stopIndex];
+      const stop = a.stopIndex == null ? null : stopsOf(state.days[a.dayIndex])[a.stopIndex];
       what = dayLabel(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
     }
     say(fmtMoment(state.moment) + " · " + what);
@@ -2238,14 +2299,17 @@
   // data-day is what makes every handler below day-agnostic: pointOf() reads the
   // point out of that day, and any interaction with the row makes that day active
   // so the shared edit functions land in the right place.
-  function pointRowHtml(kind, point, i, dayIndex) {
+  // `n` is the row's stop number, or null for a POI — worked out by orderedRows()
+  // because it counts stops only and `i` indexes the whole list.
+  function pointRowHtml(kind, point, i, dayIndex, n) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
       '<div class="row-main">' +
-      '<span class="row-drag" title="' +
-      (isStop ? "Drag to reorder" : "Drag to move it along the route") +
-      '" aria-hidden="true"></span>' +
+      // Both kinds reorder now — a POI has a place in the list of its own, so
+      // there is one gesture with one meaning rather than a drag that reordered
+      // a stop and repositioned a POI's pin.
+      '<span class="row-drag" title="Drag to reorder" aria-hidden="true"></span>' +
       // THE CHECKBOX REPLACES THE NUMBER rather than joining it. A 380px row has
       // no spare width and .row-name is already the thing that shrinks; the stop
       // number is the one element that is redundant while you are ticking boxes,
@@ -2254,9 +2318,9 @@
       (state.select?.scope === "point"
         ? '<input type="checkbox" class="row-pick" data-day="' + dayIndex + '" data-kind="' + kind + '" data-i="' + i + '"' +
           (state.select.points.has(pointKey(dayIndex, kind, i)) ? " checked" : "") +
-          ' aria-label="Select ' + (isStop ? "stop " + (i + 1) : "POI") + '">'
+          ' aria-label="Select ' + (isStop ? "stop " + n : "POI") + '">'
         : isStop
-          ? '<span class="row-num">' + (i + 1) + "</span>"
+          ? '<span class="row-num">' + n + "</span>"
           : '<span class="row-num poi-dot"></span>') +
       '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
       // POIs get the same dwell field. Blank means "rode past without stopping",
@@ -2379,7 +2443,7 @@
     const i = Number(row.dataset.i);
     const day = state.days[Number(row.dataset.day)];
     if (!day) return null;
-    return row.dataset.kind === "stop" ? day.stops[i] : day.pois[i];
+    return day.points[i];
   }
 
   // Stops and POIs in the order you would meet them, which is the order the day
@@ -2391,28 +2455,26 @@
   // dayPoiDistances), so a POI 40 miles in lands between the stops at 30 and
   // 60.
   //
-  // The two index spaces stay separate: a row keeps `data-kind` and its index
-  // within its own array, so pointOf(), moveStop() and deleteStop() are
-  // unchanged by the merge. Stops keep their numbers and POIs keep the dot, so
-  // the distinction survives being interleaved.
+  // ONE INDEX SPACE: a row's `data-i` indexes day.points, whatever its kind, so
+  // pointOf(), movePoint() and deletePoint() all take the same number. Stops keep
+  // their numbers and POIs keep the dot, so the distinction is still visible.
+  // THE ARRAY IS THE ORDER. This used to interleave two arrays by projecting the
+  // POIs onto the day's track and sorting, which was the only thing that could
+  // place a point with no stored position — and it had no answer at all before a
+  // route existed, so every POI on a fresh day reported distance 0 and they came
+  // out in whatever order the array happened to hold.
+  //
+  // `n` is the stop number a row displays, or null for a POI. It counts stops
+  // only, so promoting a point renumbers everything after it and demoting one
+  // closes the gap, with no renumbering logic of its own.
   function orderedRows(day) {
-    const prefix = [0];
-    for (const l of day.legs) prefix.push(prefix[prefix.length - 1] + (l.distanceM || 0));
-    const rows = day.stops.map((s, i) => ({
-      kind: "stop",
-      point: s,
+    let stopN = 0;
+    return day.points.map((point, i) => ({
+      kind: point.kind,
+      point,
       i,
-      // A stop with no leg after it (the last one) reuses the final prefix.
-      dist: prefix[Math.min(i, prefix.length - 1)],
+      n: point.kind === "stop" ? ++stopN : null,
     }));
-    const poiDists = dayPoiDistances(day);
-    day.pois.forEach((p, i) => {
-      rows.push({ kind: "poi", point: p, i, dist: poiDists[i] ?? 0 });
-    });
-    // Stable ties broken toward the stop: arriving somewhere is the anchor, and
-    // a POI at the same spot reads as being *at* that stop rather than before it.
-    rows.sort((a, b) => a.dist - b.dist || (a.kind === b.kind ? a.i - b.i : a.kind === "stop" ? -1 : 1));
-    return rows;
   }
 
   // One day's rows. Takes the day index rather than reading the active one,
@@ -2424,7 +2486,7 @@
     if (!day) return;
     list.innerHTML =
       orderedRows(day)
-        .map((row) => pointRowHtml(row.kind, row.point, row.i, r))
+        .map((row) => pointRowHtml(row.kind, row.point, row.i, r, row.n))
         .join("") + addRowHtml(r, day);
     hydrateIcons(list);
   }
@@ -2436,32 +2498,24 @@
   // touched. That is invisible until it is wrong: you scroll to day 4, type an
   // address, and it lands on day 2 because day 2 held the last field you
   // clicked in. Putting the field IN the day removes the guess — the row knows
-  // its own `data-day` and passes it to addStop/addPoi.
+  // its own `data-day` and passes it to addPoint().
   //
   // Rendered on every day whether or not it has points, so it is also the empty
   // state; the `.empty-hint` li it replaced said "click the map or search to
   // add your first stop" while pointing at neither.
   //
   // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
-  // resolve a row to `state.days[day].stops[i]`. SortableJS is also told to
+  // resolve a row to `state.days[day].points[i]`. SortableJS is also told to
   // leave it alone — see the filter option in initDragToReorder.
   function addRowHtml(r, day) {
-    const full = day.stops.length >= MAX_STOPS;
+    const full = day.points.length >= MAX_POINTS;
     return (
       '<li class="add-row" data-day="' + r + '">' +
       '<span class="add-row-mark" aria-hidden="true">+</span>' +
       '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
-      ' placeholder="' + (full ? "Stop limit reached" : "Search, or click the map") + '"' +
+      ' placeholder="' + (full ? "Point limit reached" : "Search, or click the map") + '"' +
       (full ? " disabled" : "") +
       ' aria-label="Add a place to ' + esc(dayLabel(r)) + '">' +
-      // The kind is chosen HERE rather than by the panel-wide + Stop / + POI
-      // pair, because that pair belongs to the map click and a searched address
-      // is a different gesture. Two radios rather than a select: there are two
-      // options and they are both one word.
-      '<span class="add-kind" role="group" aria-label="What to add">' +
-      '<label><input type="radio" name="add-kind-' + r + '" value="stop" checked><span>Stop</span></label>' +
-      '<label><input type="radio" name="add-kind-' + r + '" value="poi"><span>POI</span></label>' +
-      "</span>" +
       // Arms the next map click for THIS day — see armPlace(). The armed state
       // is derived from state.arm rather than left on the element, because this
       // row is rebuilt on every structural change and a class living only in the
@@ -2469,8 +2523,8 @@
       '<button type="button" class="add-place-btn' + (state.arm === r ? " is-armed" : "") + '"' +
       ' data-day="' + r + '"' + (full ? " disabled" : "") +
       ' aria-pressed="' + (state.arm === r ? "true" : "false") + '"' +
-      ' title="' + (full ? "Stop limit reached" : "Add a stop to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
-      "+ Stop</button>" +
+      ' title="' + (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
+      "+ Point</button>" +
       "</li>"
     );
   }
@@ -2528,7 +2582,7 @@
 
   function renderTotals() {
     const totalsEl = $("totals");
-    const anyStops = state.days.some((r) => r.stops.length > 0);
+    const anyStops = state.days.some((r) => stopsOf(r).length > 0);
     if (!anyStops) {
       totalsEl.textContent = "";
       return;
@@ -2713,9 +2767,11 @@
         }
         if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
-        if (act === "delete") return isStop ? deleteStop(i) : deletePoi(i);
-        if (act === "up") return moveStop(i, -1);
-        if (act === "down") return moveStop(i, 1);
+        if (act === "delete") return deletePoint(i);
+        if (act === "up") return movePoint(i, -1);
+        if (act === "down") return movePoint(i, 1);
+        if (act === "promote") return setPointKind(i, "stop");
+        if (act === "demote") return setPointKind(i, "poi");
         if (act === "select") return startSelect("point");
         return;
       }
@@ -2793,8 +2849,16 @@
     { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
-    { act: "up", label: "Move up", stopOnly: true },
-    { act: "down", label: "Move down", stopOnly: true },
+    // PROMOTION LIVES HERE and nowhere else. Every point is created as a POI, so
+    // this is how a route gets its anchors — one item, both directions, on the
+    // menu the row already has. No new control, keyboard-reachable, and
+    // reversible, which matters because a mis-promotion would otherwise cost a
+    // delete and a re-add and take the point's notes and details with it.
+    { act: "promote", label: "Make this a stop", when: (pt) => pt.kind !== "stop" },
+    { act: "demote", label: "Make this a POI", when: (pt) => pt.kind === "stop" },
+    // No longer stopOnly: a POI has a place in the list of its own now.
+    { act: "up", label: "Move up" },
+    { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
   ];
 
@@ -2853,15 +2917,24 @@
   }
 
   function toggleRowMenu(row, btn) {
-    const isStop = row.dataset.kind === "stop";
     const i = Number(row.dataset.i);
     const day = editRoute();
-    const last = isStop && day ? day.stops.length - 1 : 0;
-    // Disabled rather than absent at the ends, so the first stop's menu is the
-    // same shape as every other one.
-    const items = MENU_ITEMS.filter((m) => !m.stopOnly || isStop).map((m) => ({
+    const last = day ? day.points.length - 1 : 0;
+    const point = day && day.points[i];
+    if (!point) return;
+    // Promote and demote are ABSENT rather than disabled — unlike the ends below
+    // — because exactly one of the pair applies to any row and showing the other
+    // greyed out would say a point can be made into what it already is.
+    //
+    // Demoting the day's last stop IS shown and disabled: it is a real action
+    // that is unavailable right now for a reason worth stating, and setPointKind
+    // says which.
+    const items = MENU_ITEMS.filter((m) => !m.when || m.when(point)).map((m) => ({
       ...m,
-      off: (m.act === "up" && i === 0) || (m.act === "down" && i === last),
+      off:
+        (m.act === "up" && i === 0) ||
+        (m.act === "down" && i === last) ||
+        (m.act === "demote" && stopsOf(day).length <= 1),
     }));
     openMenu(row, btn, items);
   }
@@ -2986,45 +3059,21 @@
         const day = state.days[Number(evt.from.dataset.day)];
         if (!day) return;
         // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
-        // onEnd for every drop, including one that changed nothing — picking a
-        // row up and putting it back. For a stop that was harmless, since
-        // reorderStop no-ops on from === to. For a POI it was not: the handler
-        // below reads the rows it landed BETWEEN and moves the pin to the middle
-        // of them, so lifting a POI and dropping it in place relocated it to the
-        // midpoint of its neighbors. Observed, not theorized.
+        // onEnd for every drop, including one that changed nothing.
         if (evt.oldIndex === evt.newIndex) return;
 
+        // ONE OPERATION FOR BOTH KINDS, and Sortable's own indices finally mean
+        // something: every row is a point in day.points and the list on screen is
+        // that array in order. The whole index-mapping problem this handler used
+        // to solve — two arrays, a derived interleave, a POI drag that was a
+        // reposition rather than a reorder — went away with the merge.
+        //
+        // .add-row is filtered so it can never be the dragged item, but it IS a
+        // child of the list, and it is always last, so a drop below every point
+        // row can report an index one past the end. Clamped rather than trusted.
         const i = Number(evt.item.dataset.i);
-
-        if (evt.item.dataset.kind === "stop") {
-          // Stops carry a stored order, so the drop is a reorder. Reading the
-          // DOM order of the stop rows and taking their data-i sidesteps the
-          // interleaving with POIs entirely — Sortable's own indices count all
-          // children and mean nothing here.
-          const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')].map((el) => Number(el.dataset.i));
-          const to = order.indexOf(i);
-          if (to < 0 || to === i) return;
-          return reorderStop(i, to);
-        }
-
-        // A POI has no order to change, so the drop is a position. Its target
-        // distance is read from the rows it landed BETWEEN, using the distances
-        // orderedRows() already computed for this render.
-        const dists = new Map();
-        for (const row of orderedRows(day)) dists.set(row.kind + ":" + row.i, row.dist);
-        const at = (el) => (el ? dists.get(el.dataset.kind + ":" + el.dataset.i) : undefined);
-
-        const rows = [...evt.to.querySelectorAll(".point-row")];
-        const pos = rows.indexOf(evt.item);
-        const before = at(rows[pos - 1]);
-        const after = at(rows[pos + 1]);
-
-        let target;
-        if (before == null && after == null) return; // dropped alone; nothing to sit between
-        else if (before == null) target = after / 2; // above every other row
-        else if (after == null) target = Infinity; // below every other row—clamped to the end
-        else target = (before + after) / 2;
-        movePoiToDistance(i, target);
+        const to = Math.max(0, Math.min(day.points.length - 1, evt.newIndex));
+        return reorderPoint(i, to);
       },
     });
   }
@@ -3106,34 +3155,36 @@
     const dst = state.days[toDay];
     if (!src || !dst || fromDay === toDay) return;
 
-    const kind = evt.item.dataset.kind;
     const i = Number(evt.item.dataset.i);
+    const moving = src.points[i];
+    if (!moving) return;
+    const kind = moving.kind;
 
     beginEdit("move " + (kind === "stop" ? "stop" : "POI") + " between days");
 
-    if (kind === "poi") {
-      const [poi] = src.pois.splice(i, 1);
-      if (!poi) return;
-      // A POI's distance along the track belongs to the day it was measured on
-      // and means nothing on another one. Null is honest — "near this day's
-      // route, position not measured" — and is exactly what an import with no
-      // track stores. See the null-is-not-zero note in AGENTS.md.
-      poi.distFromStartMi = null;
-      dst.pois.push(poi);
-    } else {
-      const [stop] = src.stops.splice(i, 1);
-      if (!stop) return;
-      // Where it landed among the DESTINATION's stops, read from the DOM the
-      // same way the same-day branch does — the rows it sits between are the
-      // answer, whatever POIs are interleaved with them.
-      const order = [...evt.to.querySelectorAll('.point-row[data-kind="stop"]')];
-      const at = Math.max(0, Math.min(dst.stops.length, order.indexOf(evt.item)));
-      dst.stops.splice(at, 0, stop);
-      src.legs = [];
-      dst.legs = [];
-      state.legSeq[fromDay] = [];
-      state.legSeq[toDay] = [];
+    const [pt] = src.points.splice(i, 1);
+    // Where it landed in the DESTINATION's list — Sortable's index into the
+    // rows, clamped because .add-row is a child too and always last.
+    const at = Math.max(0, Math.min(dst.points.length, evt.newIndex));
+    // A POI's distance along the track belongs to the day it was measured on and
+    // means nothing on another one. Null is honest — "near this day's route,
+    // position not measured" — and is exactly what an import with no track
+    // stores. See the null-is-not-zero note in AGENTS.md.
+    pt.distFromStartMi = null;
+    dst.points.splice(at, 0, pt);
+
+    // A DAY MUST KEEP A STOP. Dragging the last one out would leave a day the
+    // save refuses and payload() drops whole, so the first survivor is promoted
+    // in its place — the same rule addPoint applies to a day's first point,
+    // applied to a day that has just lost its only anchor.
+    if (kind === "stop" && stopsOf(src).length === 0 && src.points.length > 0) {
+      src.points[0].kind = "stop";
     }
+
+    src.legs = [];
+    dst.legs = [];
+    state.legSeq[fromDay] = [];
+    state.legSeq[toDay] = [];
 
     // Rebuilt rather than patched: both lists have shifted indices, and every
     // row's data-i has to agree with the arrays again before any later handler
@@ -3141,10 +3192,14 @@
     renderDays();
     rebuildLayers();
     renderMarkers();
-    if (kind === "stop") {
-      computeLegsAround(fromDay, Array.from({ length: Math.max(0, src.stops.length - 1) }, (_, k) => k));
-      computeLegsAround(toDay, Array.from({ length: Math.max(0, dst.stops.length - 1) }, (_, k) => k));
-    }
+    // Both days are refilled regardless of kind: the legs were cleared above and
+    // a day whose points merely shifted still needs its placeholders back.
+    [fromDay, toDay].forEach((r) => {
+      const day = state.days[r];
+      if (!day) return;
+      fillMissingLegs(day);
+      computeLegsAround(r, Array.from({ length: Math.max(0, stopsOf(day).length - 1) }, (_, k) => k));
+    });
     setActive(toDay);
     refreshDerived();
     markDirty();
@@ -3236,16 +3291,13 @@
           const pl = list[Number(li.dataset.saved)];
           if (!pl) return;
           const r = Number(host.dataset.day);
-          const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
-          const asPoi = kindEl && kindEl.value === "poi";
           hideSearchResults();
           setActive(r);
-          // Built here and handed in, rather than letting addStop mint a bare
+          // Built here and handed in, rather than letting addPoint mint a bare
           // point: the roles and the durable details are the reason a saved
           // place is worth having.
           const pt = stopFromPlace(pl);
-          if (asPoi) addPoi(pl.lng, pl.lat, pl.name, r, pt);
-          else addStop(pl.lng, pl.lat, pl.name, r, pt);
+          addPoint(pl.lng, pl.lat, pl.name, r, pt);
           panTo(state.map, [pl.lng, pl.lat], 11);
           const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
           if (next) next.focus();
@@ -3322,15 +3374,12 @@
               // The row's own radio, not the panel's + Stop / + POI pair. That
               // pair belongs to the map click; a searched address is a separate
               // gesture and deserves its own answer.
-              const kindEl = document.querySelector('.add-row[data-day="' + r + '"] .add-kind input:checked');
-              const asPoi = kindEl && kindEl.value === "poi";
               hideSearchResults();
               // The day whose row was used becomes the active one, so a map
               // click afterwards continues where the rider is working rather
               // than wherever they last clicked.
               setActive(r);
-              if (asPoi) addPoi(lng, lat, picked.name, r);
-              else addStop(lng, lat, picked.name, r);
+              addPoint(lng, lat, picked.name, r);
               panTo(state.map, picked.lngLat, 11);
               // The add above re-rendered the list, so this row is a new
               // element. Put the cursor in its replacement: adding several
@@ -3414,8 +3463,7 @@
         if (sel.scope === "day") state.days.forEach((_, r) => sel.days.add(r));
         else {
           state.days.forEach((day, r) => {
-            day.stops.forEach((_, i) => sel.points.add(pointKey(r, "stop", i)));
-            day.pois.forEach((_, i) => sel.points.add(pointKey(r, "poi", i)));
+            day.points.forEach((pt, i) => sel.points.add(pointKey(r, pt.kind, i)));
           });
         }
         renderDays();
@@ -3439,7 +3487,7 @@
       // never filled in would fail validation for the whole ride. Dropping it
       // is what the rider means; save() warns when it happens.
       days: state.days
-        .filter((r) => r.stops.length > 0)
+        .filter((r) => r.points.length > 0)
         .map((r) => ({
           title: r.title,
           color: r.color,
@@ -3452,8 +3500,7 @@
           // group with one member, which is exactly the case that dissolves.
           altGroup: r.altGroup,
           altActive: r.altActive,
-          stops: r.stops,
-          pois: r.pois,
+          points: r.points,
           legs: r.legs,
         })),
     };
@@ -3565,8 +3612,9 @@
       // `?? null` rather than `|| null` because 0 is a real group id.
       altGroup: r.altGroup ?? null,
       altActive: r.altActive ?? true,
-      stops: r.stops || [],
-      pois: r.pois || [],
+      // One ordered list. A payload from before 2026-08-23 cannot reach this —
+      // loadRidePayload is the only source and it was changed with the schema.
+      points: r.points || [],
       legs: r.legs || [],
     }));
     state.days.forEach(fillMissingLegs);
@@ -3738,7 +3786,7 @@
     const shared = state.meta.visibility === "public" || state.meta.visibility === "unlisted";
     const start = window.TB.publicStart;
     const day = state.days[0];
-    const first = day && day.stops[0];
+    const first = day && stopsOf(day)[0];
     if (!shared || !start || !first || !(first.roles || []).includes("home")) return;
     if (state.startSwapDeclined) return;
 
@@ -3820,7 +3868,7 @@
     const pts = [];
     state.days.forEach((day, r) => {
       pts.push(...fullTrack(r));
-      [...day.stops, ...day.pois].forEach((p) => pts.push([p.lng, p.lat]));
+      day.points.forEach((p) => pts.push([p.lng, p.lat]));
     });
     return pts;
   }
@@ -3875,7 +3923,7 @@
       state.days.forEach((_, r) =>
         computeLegsAround(
           r,
-          Array.from({ length: Math.max(0, state.days[r].stops.length - 1) }, (_, i) => i),
+          Array.from({ length: Math.max(0, stopsOf(state.days[r]).length - 1) }, (_, i) => i),
         ),
       );
       markDirty();
@@ -3926,9 +3974,13 @@
     // The server only sends TB.home on the new-ride day, so this cannot fire
     // while editing. Guarding on stops.length as well means a reload of a
     // half-built ride does not stack a second home stop on the first.
-    if (window.TB.home && !state.rideId && state.days[0].stops.length === 0) {
-      addStop(window.TB.home.lng, window.TB.home.lat, "Home");
-      state.days[0].stops[0].roles = ["home"];
+    if (window.TB.home && !state.rideId && state.days[0].points.length === 0) {
+      // Seeded with its roles already set, so addPoint's auto-promotion leaves
+      // them alone — it only supplies `start` when the caller named nothing. Both
+      // are true of this point: it is where the ride begins and it is home.
+      const seed = newPoint(window.TB.home.lng, window.TB.home.lat, "Home");
+      seed.roles = ["start", "home"];
+      addPoint(window.TB.home.lng, window.TB.home.lat, "Home", 0, seed);
     }
 
     rebuildLayers();
@@ -3967,7 +4019,7 @@
       // builder armed with the button still lit.
       const armed = state.arm;
       disarmPlace();
-      addStop(lng, lat, "", armed);
+      addPoint(lng, lat, "", armed);
     });
   }
 
