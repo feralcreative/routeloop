@@ -10,6 +10,8 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { asset } from './assets'
 import { IS_DEV } from '../config'
+import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD } from '../version'
+import { icon } from './icon'
 import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
@@ -91,22 +93,37 @@ export type PageOpts = {
   head?: string
   /** Extra <script> tags, emitted last. */
   scripts?: string
-  /** Serialized to window.TB via jsonScript. */
+  /**
+   * Serialized to window.TB via jsonScript.
+   *
+   * `version` is merged in by page() and does not belong here — public/js/feedback.js
+   * has always read `window.TB.version` into a bug report's diagnostics, and
+   * nothing ever set it, so every report filed so far names no build. That is
+   * also why TB is now emitted on EVERY page rather than only where a page asks
+   * for one: a report can be filed from anywhere the button is, and a report
+   * that cannot say which build it came from is the one thing the version was
+   * added to fix. Every existing reader guards with `window.TB && window.TB.x`.
+   */
   tb?: Record<string, unknown>
   /** Set false to suppress the alpha modal on a page. */
   splash?: boolean
   /** Plain message; page() supplies the <noscript> wrapper and markup. */
   noscript?: string
   /**
-   * Renders the floating "Something wrong?" button, pre-filling `?area=` with
-   * this value.
+   * Pre-fills `?area=` on the floating bug button, so screen 3 of the report can
+   * offer a one-tap confirm instead of eight cold chips. Values come from AREAS
+   * in src/feedback/policy.ts.
    *
-   * Opt-in per page rather than derived from the request, because `page()` never
-   * sees a path and inferring it from `navKey` would silently put the button on
-   * every page that shares a key. The builder and the viewer are the two that
-   * ask for it — they are where things break, and where a rider can least afford
-   * to go hunting through a menu. Values come from AREAS in
-   * src/feedback/policy.ts.
+   * **It no longer decides whether the buttons appear.** They are site chrome as
+   * of 2026-08-23 and render on every page a signed-in rider can reach — this
+   * only makes the report better where the route happens to know the answer.
+   *
+   * Still opt-in rather than inferred, and deliberately so: `areaFromPath()` in
+   * src/feedback/policy.ts is the ONE inference mechanism, and it is reached
+   * from the request. page() never sees a path, so anything it worked out here
+   * would be a second mechanism that could disagree with the first. Where no
+   * area is given the link simply carries none, which is a state the form is
+   * built for.
    */
   feedbackArea?: string
 }
@@ -519,22 +536,138 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
 }
 
 /**
- * The floating way into the intake, on the builder and the viewer only.
+ * The floating way into the intake, and the way into the release notes. Site
+ * chrome: on every page a signed-in rider can reach.
+ *
+ * It was the builder and the viewer only, on the reasoning that those are where
+ * things break. That was half right and it cost the other half — a rider who
+ * hits something wrong on /rides, /import or their profile is exactly as stuck,
+ * and the way in was an account-menu item they had to know about. Ziad's call,
+ * 2026-08-23.
  *
  * A plain link, not a scripted overlay: it has to work when the page around it
  * is the thing that is broken, which is the entire circumstance it exists for.
  *
- * The `?area=` it carries is what lets the intake offer a one-tap confirm
- * instead of an eight-chip group, and it is the reason this button exists at all
- * rather than only the account-menu item. Inference, never a claim — the confirm
- * screen offers "Somewhere else".
+ * `area` is optional and pre-fills the intake's third screen with a one-tap
+ * confirm instead of an eight-chip group. Inference, never a claim — that screen
+ * always offers "Somewhere else", which is also what an absent area lands on.
  */
-function feedbackFab(area: string): string {
+function feedbackFab(area?: string): string {
+  // ONE LAUNCHER that opens a short menu — the shape Intercom, Zendesk, Crisp
+  // and every other support widget uses, so a tester arrives already knowing
+  // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
+  //
+  // It was two permanent marks for most of that day, which cost one fewer tap on
+  // a bug report and bought a second piece of chrome on every screen forever.
+  // The convention is one affordance for the same reason: the errands behind it
+  // are occasional, and a dock that grows a mark per errand is a menu that
+  // refuses to admit it is a menu.
+  //
+  // THE LAUNCHER IS A CALIFORNIA ROUTE SHIELD WITH AN `i` WHERE THE NUMBER GOES.
+  // Ziad's artwork, 2026-08-23. It is the only mark here that is not a disc, and
+  // that is the point: the house style is highway signs — `.btn` is a guide sign
+  // and the roles are shield-shaped — so the one piece of chrome on every screen
+  // reads as part of the road rather than as a widget bolted to the corner.
+  //
+  // The arched CALIFORNIA lettering came with the artwork and is deliberately
+  // gone: at 56px it was illegible texture, and naming a state on a button that
+  // opens a bug report says nothing about what the button does. The `i` is
+  // centered on its own and sized to the room that left.
+  //
+  // What it beat, so nobody re-proposes them: a speech bubble is the
+  // support-chat glyph and promises a person on the other end within the minute,
+  // and there is nobody there. A question mark is the other half of that
+  // convention, but icon-wtf.svg is ALREADY a `?` on a currentColor disc meaning
+  // an unclassified stop, and the builder is one screen showing both. A
+  // megaphone was tried and drawn badly.
+  //
+  // The shield's field is `currentColor` like every other mark, so it takes
+  // $interstate from .fab-launcher; the border and the `i` are white, and the
+  // outline is a real black stroke as a road sign has.
+  //
+  // The marks are INLINE SVG via icon(), not <img> or a CSS mask: each is a disc
+  // in `currentColor` with the glyph knocked out white, so the element has to be
+  // in the document for the color to reach it. Same mechanism and the same
+  // reasoning as the alpha modal's contact marks — see src/views/icon.ts.
   return (
-    <a class="fb-fab" href={`/feedback?area=${encodeURIComponent(area)}`} title="Tell us something">
-      <span class="fb-fab-mark" aria-hidden="true"></span>
-      <span class="fb-fab-label">Something wrong?</span>
-    </a>
+    <div class="fab-dock" data-fab-dock>
+      {/* Before the launcher in the DOM so it opens UPWARD in the tab order as
+          well as visually — a menu that reads after the button that opened it
+          is what a keyboard expects. */}
+      <div class="fab-menu" id="fab-menu" hidden>
+        <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
+          <span class="fab-item-mark fab-item-mark--bug">{raw(icon('bug'))}</span>
+          <span class="fab-item-label">Something wrong?</span>
+        </a>
+        <button type="button" class="fab-item" data-open-notes data-fab-notes>
+          <span class="fab-item-mark fab-item-mark--notes">{raw(icon('info'))}</span>
+          <span class="fab-item-label">
+            What's new
+            {/* The build is here rather than in a title attribute: this is the
+                one surface where a rider is already looking for it, and a
+                tooltip is not reachable by touch at all. */}
+            <span class="fab-item-sub">{APP_VERSION}</span>
+          </span>
+        </button>
+      </div>
+      <button
+        type="button"
+        class="fab-launcher"
+        aria-expanded="false"
+        aria-controls="fab-menu"
+        aria-label="Help and feedback"
+        title="Help and feedback"
+      >
+        <span class="fab-launcher-open">{raw(icon('help'))}</span>
+        <span class="fab-launcher-close">{raw(icon('close'))}</span>
+        {/* Unread, not decoration — site.js shows it only when this build is
+            one the rider has not opened the notes for. Empty and aria-hidden
+            because the launcher's own label is what gets announced. */}
+        <span class="fab-badge" data-fab-badge hidden aria-hidden="true"></span>
+      </button>
+    </div>
+  ).toString()
+}
+
+/**
+ * The release-notes modal, injected into every page by page().
+ *
+ * EMPTY ON ARRIVAL. The notes grow with every release and this modal is on every
+ * page, so shipping the copy inline would put a file that only gets longer onto
+ * every HTML response for the sake of a dialog most riders never open. The body
+ * is fetched from /api/release-notes the first time it is opened and kept for
+ * the life of the page.
+ *
+ * Same markup contract as the alpha modal so both are driven by the same focus
+ * trap and the same close handling in site.js — see initModal there.
+ */
+function releaseNotesModal(): string {
+  return (
+    <div class="modal-backdrop" id="release-notes" hidden>
+      <div class="modal modal--notes" role="dialog" aria-modal="true" aria-labelledby="rn-title" tabindex={-1}>
+        <button type="button" class="modal-close" data-close-notes aria-label="Close">
+          &times;
+        </button>
+        <h2 id="rn-title" class="rn-title">
+          What's new
+        </h2>
+        {/* The version a rider is actually running, beside the notes that say
+            what it contains. This is the answer to "which build did I see that
+            on", and it is why the string is in the footer too. */}
+        <p class="rn-version">
+          <span class="rn-version-label">You are on</span> <code>{APP_VERSION}</code>
+          {IS_DEV_BUILD && <span class="rn-version-dev"> — a local build, not a deploy</span>}
+        </p>
+        {/* Filled by site.js on first open. The <noscript> is the honest
+            fallback rather than a dead dialog: the page it points at is the
+            same content, server-rendered. */}
+        <div class="modal-body rn-body" id="rn-body" data-src="/api/release-notes">
+          <p class="rn-loading">
+            <a href="/release-notes">Read what's new</a>
+          </p>
+        </div>
+      </div>
+    </div>
   ).toString()
 }
 
@@ -546,7 +679,26 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">Routeloop is in a closed alpha.</p>}
+      {!splash && (
+        <p class="site-footer-note">
+          Routeloop is in a closed alpha.{' '}
+          {/* A button, not a link: it opens the modal on the page you are
+              already on. It degrades to the real page when scripting is off,
+              which is what the href on the <noscript> path covers — see
+              releaseNotesModal. The build SHA rides in the title for a bug
+              report that needs to name an exact tree; it is deliberately not
+              rendered, because a hex string beside a date invites a rider to
+              quote the wrong one. */}
+          <button
+            type="button"
+            class="site-footer-version"
+            data-open-notes
+            title={BUILD_SHA ? `Build ${BUILD_SHA} — see what's new` : "See what's new"}
+          >
+            {APP_VERSION}
+          </button>
+        </p>
+      )}
     </footer>
   ).toString()
 }
@@ -616,10 +768,11 @@ export function page(opts: PageOpts): string {
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
 ${body}
-${opts.feedbackArea && opts.user ? feedbackFab(opts.feedbackArea) : ''}
+${opts.user && variant !== 'splash' ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
+${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
-${opts.tb ? jsonScript('TB', opts.tb) : ''}
+${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
 <!--
   The error ring buffer, on every page and first in the list.
 

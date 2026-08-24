@@ -105,6 +105,15 @@ Wants are deduplicated by Postgres rather than by application code. The composit
 
 Diagnostics are collected client-side, redacted server-side by `src/feedback/diagnostics.ts`, and **never stored unredacted**: query strings and fragments are stripped from every URL, coordinate pairs are dropped wherever they appear, and geolocation is recorded as a permission state and never a position.
 
+## Release notes
+
+| Route | Gate | Returns |
+| --- | --- | --- |
+| `GET /release-notes` | public | The full page, chrome and all—the no-JavaScript path and the linkable URL |
+| `GET /api/release-notes` | public | The same copy as a bare HTML fragment, fetched by the modal on first open |
+
+One source, `src/content/release-notes.html`. The fragment exists so the notes—which only get longer—are not on every HTML response for a dialog most riders never open. The modal hides the fragment's `<h1>` and lede in CSS rather than the server stripping them, because the standalone page wants both.
+
 ## The ride payload (save = load shape)
 
 Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
