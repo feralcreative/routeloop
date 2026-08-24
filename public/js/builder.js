@@ -26,6 +26,7 @@
     removeMarker,
     onMarkerDragEnd,
     searchPlaces,
+    mapCenter,
     markerElement,
     initPanelToggle,
   } = window.TBMap;
@@ -51,6 +52,10 @@
   // be right while the rider is still moving stops around. See twist.js for why
   // there are two implementations and what keeps them honest.
   const { dayTwistiness, twistLabel } = window.TBTwist;
+
+  // Category-vs-name detection and the place-type to role map. See
+  // public/js/place-query.js — pure, and pinned by test/place-query.test.ts.
+  const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
   const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
@@ -320,8 +325,32 @@
     legs: [],
   });
 
+  // THE NAME A RIDE HAS BEFORE ANYBODY NAMES IT. Ziad's call, 2026-08-24.
+  //
+  // A ride used to be unsaveable without a title: saveBlockReason() refused, so
+  // autosave never fired, and a rider who dropped three pins and closed the tab
+  // lost all three to a naming rule. That is the defect — not the missing name.
+  //
+  // Visible rather than hidden, and pre-filled rather than a placeholder, which
+  // is what Docs, Figma and Notion all do. A placeholder would leave `title`
+  // genuinely empty and fields.title would still refuse it server-side; a real
+  // value saves, and the field selects itself on focus so the first keystroke
+  // replaces it.
+  const UNTITLED = "Untitled ride";
+
   const state = {
     map: null,
+    // Which row has its category picker open, as {day, i}, or null.
+    //
+    // In state rather than in the DOM because picking a category now changes the
+    // point's KIND, which renumbers every stop after it — so the row has to be
+    // re-rendered, and a picker whose openness lived only in a `hidden` attribute
+    // would slam shut after every icon tap.
+    rolesOpen: null,
+    // Which gap between two points has its add-row open, as {day, at}, or null.
+    // `at` is an index into day.points: 0 is before the first point, and
+    // day.points.length would be the bottom row, which is always there anyway.
+    insertAt: null,
     rideId: window.TB.rideId || null,
     meta: { title: "", description: "", visibility: "private", external_url: "" },
     days: [newDay()],
@@ -601,7 +630,10 @@
   // would be the worst thing in the app. The status line states the condition
   // and waits.
   function saveBlockReason() {
-    if (!state.meta.title.trim()) return "Needs a title";
+    // NO TITLE CHECK. An unnamed ride saves as UNTITLED — see the constant above
+    // for why blocking it was the bug rather than the safeguard. A ride with no
+    // points still cannot save, and that one is real: the API requires at least
+    // one stop per day and there would be nothing to store.
     if (!state.days.some((r) => r.points.length > 0)) return "Needs a stop";
     return null;
   }
@@ -1042,27 +1074,53 @@
   // leg from the one before it, which is what makes a start plus one POI draw a
   // road — the report that changed this on 2026-08-24. Note the cost that comes
   // with it: adding a POI is a Routes request now, where it used to be free.
-  function addPoint(lng, lat, name, dayIndex, prebuilt) {
+  // `at` is where in the day's list the point goes, and it defaults to the end —
+  // which is every caller except the insert-between rows. It is what makes
+  // "wedge a stop between these two" the same code path as appending one, so a
+  // point inserted mid-day gets the same kinds, the same roles and the same legs.
+  function addPoint(lng, lat, name, dayIndex, prebuilt, at) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
     const day = state.days[r];
     if (day.points.length >= MAX_POINTS) return toast("Point limit reached (" + MAX_POINTS + ")", true);
+    const oldLen = day.points.length;
+    const where = at == null ? oldLen : Math.max(0, Math.min(at, oldLen));
     beginEdit("add point");
     const pt = prebuilt || newPoint(lng, lat, name);
-    const first = day.points.length === 0;
+    const first = oldLen === 0;
     if (first) {
       pt.kind = "stop";
       // Only when the caller has not said otherwise — the home seed brings its
       // own role and a saved place brings the ones the rider filed it under.
       if (!(pt.roles || []).length) pt.roles = ["start"];
     } else {
-      pt.kind = "poi";
+      // TAGGED MEANS STOPPING, the same rule the category picker follows. A point
+      // arriving with roles was found by searching for a kind of place — a Gas
+      // chip, a category query, a saved place filed under Lodging — and the rider
+      // was looking for somewhere to stop when they did it. Untagged still lands
+      // as a POI, which is every map click and every plain name search.
+      pt.kind = (pt.roles || []).length ? "stop" : "poi";
     }
-    day.points.push(pt);
-    // The leg into the new point. `first` has no leg before it, and
-    // computeLegsAround clamps anything out of range, so this is a no-op on the
-    // first point of a day and one request on every point after it.
-    if (!first) computeLegsAround(r, [day.points.length - 2]);
+    day.points.splice(where, 0, pt);
+
+    // ONE NEW LEG, wherever the point landed. A day with N points has N−1 legs,
+    // so inserting one point adds exactly one leg — and splicing a placeholder in
+    // at `where` puts the two legs that need recomputing at `where - 1` and
+    // `where`, which is what computeLegsAround is given below.
+    //
+    // Worked through: [A,B] with leg [AB], insert X at 1 → legs become
+    // [AB, placeholder], recomputing 0 and 1 gives [AX, XB]. Insert at 0 →
+    // [placeholder, AB], recomputing 0 gives [XA] and leg 1 stays AB. Appending
+    // is the same operation with `where === oldLen`, which is why there is no
+    // separate branch for it.
+    if (!first) {
+      day.legs.splice(Math.min(where, day.legs.length), 0, straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat]));
+      state.legSeq[r] = [];
+      computeLegsAround(r, [where - 1, where]);
+    }
+    // The slot has been used, so it closes. Left open, the next render would put
+    // a second field in the middle of the day the rider just finished with.
+    state.insertAt = null;
     renderTrack(r);
     renderMarkers();
     // renderDayList(r), not renderList(): renderList redraws the ACTIVE day, and
@@ -1102,6 +1160,12 @@
     }
     beginEdit(kind === "stop" ? "make a stop" : "make a POI");
     pt.kind = kind;
+    // DEMOTING CLEARS THE CATEGORIES, because a category is what says the rider
+    // means to stop. Left in place they would contradict the kind — a POI tagged
+    // Gas — and anything that re-derived one from the other would promote the
+    // point straight back. Promoting adds none: "make this a stop" is the path
+    // for a stop with no reason given, which is the whole point of keeping it.
+    if (kind === "poi") pt.roles = [];
     // No leg work and no renderTrack: the road is identical either side of this.
     renderMarkers();
     renderDayList(r);
@@ -1120,20 +1184,34 @@
   // "add something" while being a mode switch, sat nowhere near the day it would
   // affect, and never said it was on. This one lives on the day it acts on and
   // shows its own state.
-  function armPlace(r) {
+  // True when THIS row is the armed one. Both halves matter: an insert row and
+  // the day's bottom row are different affordances on the same day, so arming one
+  // must not light the other.
+  function isArmed(r, at) {
+    const slot = at == null ? null : at;
+    return state.arm === r && state.armAt === slot;
+  }
+
+  function armPlace(r, at) {
+    const slot = at == null ? null : at;
     // A second press on the armed button turns it off. The button is the only
     // affordance that can be armed, so it has to be the one that disarms too —
     // an escape key is not discoverable and a rider who pressed it by mistake
     // should not have to click the map to get out.
-    if (state.arm === r) return disarmPlace();
+    if (isArmed(r, slot)) return disarmPlace();
     if (!state.days[r]) return;
     if (state.days[r].points.length >= MAX_POINTS) return toast("Point limit reached (" + MAX_POINTS + ")", true);
     state.arm = r;
+    state.armAt = slot;
     // The armed day becomes the working day, so everything else that keys off
     // "where the rider is" agrees with the thing about to happen.
     setActive(r);
     paintArm();
-    toast("Click the map to add a stop to " + dayLabel(r));
+    toast(
+      slot == null
+        ? "Click the map to add a stop to " + dayLabel(r)
+        : "Click the map to insert a point into " + dayLabel(r),
+    );
   }
 
   // Returns whether it did anything, so the Escape chain can tell "I handled it"
@@ -1141,6 +1219,7 @@
   function disarmPlace() {
     if (state.arm == null) return false;
     state.arm = null;
+    state.armAt = null;
     paintArm();
     return true;
   }
@@ -1875,6 +1954,18 @@
   function renderDays() {
     const host = $("day-list");
     if (!host) return;
+    // AN OPEN SLOT DOES NOT SURVIVE A STRUCTURAL REBUILD. This runs when points
+    // are deleted, reordered, moved between days or a day is added — all of which
+    // shift the indices the slot is expressed in, so "before points[3]" stops
+    // meaning the gap the rider was looking at. Closing it is honest; silently
+    // pointing somewhere else is not.
+    //
+    // renderDayList() deliberately does NOT do this, which is what lets opening a
+    // slot render itself.
+    state.insertAt = null;
+    // Same reasoning: {day, i} stops meaning the row the rider was looking at the
+    // moment a delete or a reorder shifts the indices.
+    state.rolesOpen = null;
     const open = openSections();
     host.innerHTML = state.days.map((day, r) => daySectionHtml(day, r, open)).join("");
     state.days.forEach((_, r) => renderDayList(r));
@@ -2294,6 +2385,8 @@
     '<a class="faq-link" href="/faq#' + anchor + '" target="_blank" rel="noopener"' +
     ' title="What is ' + esc(what) + '?" aria-label="What is ' + esc(what) + '? Opens the questions page in a new tab">?</a>';
 
+  const rolesAreOpen = (r, i) => !!state.rolesOpen && state.rolesOpen.day === r && state.rolesOpen.i === i;
+
   function rolePickerHtml(point) {
     return Object.keys(window.TB.roles)
       .map((r) => {
@@ -2387,7 +2480,7 @@
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
       (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
-      '<div class="row-roles" hidden>' + rolePickerHtml(point) + "</div>" +
+      '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
       '<div class="row-details" hidden>' + detailsHtml(point, kind, i) + "</div>" +
@@ -2509,9 +2602,18 @@
     if (!list) return;
     const day = state.days[r];
     if (!day) return;
+    const open = state.insertAt && state.insertAt.day === r ? state.insertAt.at : null;
     list.innerHTML =
       orderedRows(day)
-        .map((row) => pointRowHtml(row.kind, row.point, row.i, r, row.n))
+        .map(
+          (row) =>
+            // The gap ABOVE each row, so slot `i` means "before points[i]" and
+            // the indices read the same way addPoint's `at` does. The gap below
+            // the last row is the bottom add-row, which is always present, so no
+            // slot is rendered for it.
+            (open === row.i ? addRowHtml(r, day, row.i) : insertSlotHtml(r, row.i)) +
+            pointRowHtml(row.kind, row.point, row.i, r, row.n),
+        )
         .join("") + addRowHtml(r, day);
     hydrateIcons(list);
   }
@@ -2532,10 +2634,32 @@
   // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
   // resolve a row to `state.days[day].points[i]`. SortableJS is also told to
   // leave it alone — see the filter option in initDragToReorder.
-  function addRowHtml(r, day) {
-    const full = day.points.length >= MAX_POINTS;
+  // A hairline with a + in it, between two rows. Excel's "insert row here",
+  // which is what it was asked for by.
+  //
+  // Rendered for every gap rather than on hover, because a control that only
+  // exists while the pointer is over it does not exist on a touch screen at all
+  // — and the drawer is a phone sheet on a narrow viewport. It is quiet enough
+  // at rest (a 1px rule and a small glyph) that 30 of them read as row
+  // separators rather than as 30 buttons.
+  function insertSlotHtml(r, at) {
     return (
-      '<li class="add-row" data-day="' + r + '">' +
+      '<li class="insert-slot" data-day="' + r + '" data-at="' + at + '">' +
+      '<button type="button" class="insert-btn" data-day="' + r + '" data-at="' + at + '"' +
+      ' title="Add a point here" aria-label="Add a point above point ' + (at + 1) + '">+</button>' +
+      "</li>"
+    );
+  }
+
+  // `at` is the slot this row inserts into, or undefined for the day's own
+  // bottom row, which appends. It rides on the element as data-at so every
+  // handler below — search, chips, arm-a-map-click — reads it from one place
+  // rather than each keeping its own copy of where the rider was.
+  function addRowHtml(r, day, at) {
+    const full = day.points.length >= MAX_POINTS;
+    const slot = at == null ? "" : ' data-at="' + at + '"';
+    return (
+      '<li class="add-row' + (at == null ? "" : " is-insert") + '" data-day="' + r + '"' + slot + '>' +
       '<span class="add-row-mark" aria-hidden="true">+</span>' +
       '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
       ' placeholder="' + (full ? "Point limit reached" : "Search, or click the map") + '"' +
@@ -2545,12 +2669,46 @@
       // is derived from state.arm rather than left on the element, because this
       // row is rebuilt on every structural change and a class living only in the
       // DOM would be lost by the next render.
-      '<button type="button" class="add-place-btn' + (state.arm === r ? " is-armed" : "") + '"' +
-      ' data-day="' + r + '"' + (full ? " disabled" : "") +
-      ' aria-pressed="' + (state.arm === r ? "true" : "false") + '"' +
+      '<button type="button" class="add-place-btn' + (isArmed(r, at) ? " is-armed" : "") + '"' +
+      ' data-day="' + r + '"' + slot + (full ? " disabled" : "") +
+      ' aria-pressed="' + (isArmed(r, at) ? "true" : "false") + '"' +
       ' title="' + (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
       "+ Point</button>" +
+      chipsHtml(r, full, at) +
       "</li>"
+    );
+  }
+
+  // The categories worth one tap, and nothing more.
+  //
+  // Four, not seventeen. These are what a rider is actually hunting for mid-plan
+  // — fuel, a meal, a bed, coffee — and a row of seventeen chips would be a
+  // worse version of typing the word. Everything else reaches the same search
+  // through the box: "campground near lake tahoe" is one query away and costs no
+  // screen.
+  //
+  // Each chip carries the ROLE, so a picked result arrives already tagged. The
+  // alternative is finding the station and then opening the row menu to say it
+  // is a gas station, which is the sort of thing that makes a tool feel stupid.
+  const CHIPS = [
+    { role: "gas", label: "Gas", query: "gas station" },
+    { role: "food", label: "Food", query: "restaurant" },
+    { role: "coffee", label: "Coffee", query: "coffee shop" },
+    { role: "hotel", label: "Lodging", query: "hotel" },
+  ];
+
+  function chipsHtml(r, full, at) {
+    if (full) return "";
+    const slot = at == null ? "" : ' data-at="' + at + '"';
+    return (
+      '<div class="add-chips" role="group" aria-label="Find nearby">' +
+      CHIPS.map(
+        (c) =>
+          '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
+          ' title="Find ' + esc(c.label.toLowerCase()) + ' near this day\'s last point">' +
+          esc(c.label) + "</button>",
+      ).join("") +
+      "</div>"
     );
   }
 
@@ -2824,23 +2982,61 @@
       }
       if (btn.classList.contains("row-roles-btn")) {
         closeRowMenu();
-        row.querySelector(".row-roles").hidden = !row.querySelector(".row-roles").hidden;
+        const r = Number(row.dataset.day);
+        const i = Number(row.dataset.i);
+        // Toggled in state, not on the element — see state.rolesOpen. Only one
+        // picker is open at a time, which is what the old DOM toggle gave by
+        // accident (each row had its own) and is now deliberate: two open grids
+        // in a 380px drawer is most of the panel.
+        state.rolesOpen = rolesAreOpen(r, i) ? null : { day: r, i: i };
+        renderDayList(r);
         return;
       }
+      // A CATEGORY IS A REASON TO STOP, so choosing one promotes the point and
+      // clearing the last one demotes it. Ziad's call, 2026-08-24.
+      //
+      // The old flow was two actions for one intention: pick "Gas", then open the
+      // menu again and say "make this a stop". Tagging a point already says you
+      // mean to be there — including the `poi` role itself, which is now labeled
+      // Sight and means a place you stop to look at rather than one you ride past.
+      //
+      // "Make this a stop" survives in the menu for the case categories cannot
+      // express: a stop with no reason given. Imports and the day's first point
+      // both produce those, so the row has to render them either way.
       if (btn.classList.contains("role-opt")) {
         const role = btn.dataset.role;
+        const r = Number(row.dataset.day);
+        const day = state.days[r];
+        const i = Number(row.dataset.i);
+        const had = point.roles.indexOf(role);
+        const removing = had >= 0;
+        const last = removing && point.roles.length === 1;
+
+        // REFUSED BEFORE beginEdit, so a rejected untag pushes no undo step. The
+        // day would otherwise be left with no stop at all, which the API refuses
+        // and payload() drops the whole day for. Same guard setPointKind applies
+        // to an explicit demote, reached from a different direction.
+        if (last && point.kind === "stop" && stopsOf(day).length <= 1) {
+          return toast("A day needs at least one stop—give this one a category or make another a stop", true);
+        }
+        if (!removing && point.roles.length >= 4) return toast("Up to 4 categories per point", true);
+
         beginEdit("change category");
-        const idx = point.roles.indexOf(role);
-        if (idx >= 0) point.roles.splice(idx, 1);
-        else if (point.roles.length < 4) point.roles.push(role);
-        else return toast("Up to 4 categories per point", true);
-        btn.classList.toggle("on");
-        btn.setAttribute("aria-pressed", String(point.roles.includes(role)));
-        const rolesBtn = row.querySelector(".row-roles-btn");
-        rolesBtn.innerHTML = roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>';
-        rolesBtn.title = roleTitle(point);
-        hydrateIcons(rolesBtn);
+        if (removing) point.roles.splice(had, 1);
+        else point.roles.push(role);
+
+        // The kind follows the categories. Note this is an INTERACTION rule, not a
+        // schema one: points.kind stays its own column, because an untagged stop
+        // is a real shape the importer and the first-point rule both create.
+        point.kind = point.roles.length ? "stop" : "poi";
+
+        // Re-rendered rather than patched. The kind decides the row's number and
+        // stops are numbered in sequence, so promoting one renumbers every row
+        // below it — an in-place patch would leave the rest of the day wrong.
+        // state.rolesOpen is what keeps the grid open across it.
+        renderDayList(r);
         renderMarkers();
+        refreshDerived();
         markDirty();
       }
     });
@@ -2876,12 +3072,19 @@
     { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
-    // PROMOTION LIVES HERE and nowhere else. Every point is created as a POI, so
-    // this is how a route gets its anchors — one item, both directions, on the
-    // menu the row already has. No new control, keyboard-reachable, and
-    // reversible, which matters because a mis-promotion would otherwise cost a
-    // delete and a re-add and take the point's notes and details with it.
+    // PROMOTION ALSO LIVES HERE, and no longer only here. Picking a category
+    // promotes a point on its own as of 2026-08-24 — tagging it Gas already says
+    // you mean to stop — so these two items are the path for what a category
+    // cannot say: a stop with no reason given, and taking one back without having
+    // to find which tag to remove.
+    //
+    // Kept keyboard-reachable and reversible, which matters because a
+    // mis-promotion would otherwise cost a delete and a re-add and take the
+    // point's notes and details with it.
     { act: "promote", label: "Make this a stop", when: (pt) => pt.kind !== "stop" },
+    // Clears the categories with it, or the point would come straight back as a
+    // stop the next time anything re-derived the kind from its roles — and it
+    // would read as a POI that is somehow tagged Gas.
     { act: "demote", label: "Make this a POI", when: (pt) => pt.kind === "stop" },
     // No longer stopOnly: a POI has a place in the list of its own now.
     { act: "up", label: "Move up" },
@@ -3035,8 +3238,12 @@
       // .point-row — but `filter` is what stops a drag STARTING on it, and
       // without it a drop can be placed after it, putting a real row below the
       // search field. The add row is always last.
+      //
+      // .insert-slot is filtered for the same reason and one more: there is one
+      // between every pair of rows, so an unfiltered drag starting on a hairline
+      // would be the easiest drag in the list to begin by accident.
       draggable: ".point-row",
-      filter: ".add-row",
+      filter: ".add-row, .insert-slot",
       // WITHOUT THIS THE SEARCH FIELD CANNOT BE CLICKED INTO. `preventOnFilter`
       // defaults to TRUE, which makes Sortable call preventDefault() on the
       // pointerdown whenever it lands inside a filtered element — and the
@@ -3299,6 +3506,113 @@
     // A saved place looks different from a Google prediction on purpose: it is
     // the rider's own, it costs nothing to pick, and it arrives with roles and
     // contact details attached. The badge is what says so.
+    // The slot a row inserts into, or null for the day's bottom row. One reader,
+    // so the search, the chips and the arm button cannot disagree about where the
+    // point is going.
+    const slotOf = (el) => {
+      const row = el && el.closest ? el.closest(".add-row") : null;
+      const raw = row && row.dataset.at;
+      return raw == null || raw === "" ? null : Number(raw);
+    };
+
+    // --- Category search ----------------------------------------------------
+
+    // Where a category search with no place in its text should look.
+    //
+    // The day's LAST point, because that is where the rider has got to — asking
+    // for gas while planning day 3 means gas near the end of day 3, not near the
+    // start of day 1. Falls back to the map viewport on a day with no points
+    // yet, and to nothing at all before the map has settled, in which case Text
+    // Search answers unbiased rather than not at all.
+    //
+    // A typed query that names a place ("gas station in oakdale ca") does not
+    // come through here: Text Search reads the place out of the text itself, so
+    // sending an anchor as well would fight it.
+    function anchorFor(r) {
+      const day = state.days[r];
+      const last = day && day.points.length ? day.points[day.points.length - 1] : null;
+      if (last) return [last.lng, last.lat];
+      return mapCenter(state.map);
+    }
+
+    async function nearbySearch(query, near) {
+      const res = await fetch("/api/places/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(near ? { query: query, near: near } : { query: query }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = new Error((data && data.error) || "search failed (" + res.status + ")");
+        err.status = res.status;
+        throw err;
+      }
+      return (data && data.places) || [];
+    }
+
+    // A heading above the nearby block, because two kinds of answer in one list
+    // with nothing between them reads as one ranked list where the good matches
+    // happen to be at the top. They are not the same question: above are places
+    // matching what you typed, below are places OF the kind you asked for.
+    function nearbyResultsHtml(hits) {
+      if (!hits.length) return "";
+      return (
+        '<li class="hit-head" aria-hidden="true">Nearby</li>' +
+        hits
+          .map(
+            (h, i) =>
+              '<li class="hit-nearby" data-nearby="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+              '<span class="hit-ctx">' + esc(h.address) + "</span></li>",
+          )
+          .join("")
+      );
+    }
+
+    // `role` is the chip's role, or the one parse() read out of the query. It
+    // wins over the place's own type — the rider said "gas", so a convenience
+    // store that came back among the stations is still the answer to a question
+    // about fuel. roleForType() fills in only when nothing was asked for.
+    function wireNearbyResults(host, hits, role) {
+      host.querySelectorAll("li.hit-nearby").forEach((li) => {
+        li.addEventListener("click", () => {
+          const h = hits[Number(li.dataset.nearby)];
+          if (!h) return;
+          const r = Number(host.dataset.day);
+          hideSearchResults();
+          setActive(r);
+          // Built here rather than letting addPoint mint a bare one, for the same
+          // reason a saved place is: the role is the point of having searched by
+          // category, and addPoint's auto-promotion leaves a supplied role alone.
+          const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name);
+          const tag = role || QUERY.roleForType(h.type);
+          if (tag) pt.roles = [tag];
+          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, openSlot(host));
+          panTo(state.map, h.lngLat, 13);
+          const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
+          if (next) next.focus();
+        });
+      });
+    }
+
+    // One line, shown IN the dropdown rather than as a toast.
+    //
+    // Both of the states this covers used to be invisible. A search that threw
+    // was a console.warn and nothing else; a search that matched nothing set
+    // `hidden = true`, so "no results" and "the search is broken" were the same
+    // empty box. That is how a server key missing the Places API would present:
+    // type a query, get nothing, learn nothing.
+    function noticeHtml(text) {
+      return '<li class="hit-note">' + esc(text) + "</li>";
+    }
+
+    function searchErrorText(e) {
+      const st = e && e.status;
+      if (st === 401) return "Signed out—reload the page to search";
+      if (st === 403) return "Your account cannot search yet";
+      if (st === 503) return (e && e.message) || "Search is not configured";
+      return "Search is unavailable right now";
+    }
+
     function savedResultsHtml(list) {
       return list
         .map(
@@ -3312,6 +3626,8 @@
 
     // Rewired on every render because the list is rebuilt wholesale — the same
     // reason the search field itself is delegated rather than bound per input.
+    const openSlot = (host) => (host.dataset.at === "" || host.dataset.at == null ? null : Number(host.dataset.at));
+
     function wireSavedResults(host, list) {
       host.querySelectorAll("li.hit-saved").forEach((li) => {
         li.addEventListener("click", () => {
@@ -3324,7 +3640,7 @@
           // point: the roles and the durable details are the reason a saved
           // place is worth having.
           const pt = stopFromPlace(pl);
-          addPoint(pl.lng, pl.lat, pl.name, r, pt);
+          addPoint(pl.lng, pl.lat, pl.name, r, pt, openSlot(host));
           panTo(state.map, [pl.lng, pl.lat], 11);
           const next = document.querySelector('.add-row[data-day="' + r + '"] .add-search');
           if (next) next.focus();
@@ -3339,6 +3655,7 @@
       const input = e.target.closest(".add-search");
       if (!input) return;
       const day = Number(input.closest(".add-row").dataset.day);
+      const at = slotOf(input);
       clearTimeout(searchTimer);
       const q = input.value.trim();
 
@@ -3350,6 +3667,7 @@
       const saved = matchSavedPlaces(q);
       if (saved.length) {
         results.dataset.day = String(day);
+        results.dataset.at = at == null ? "" : String(at);
         results.innerHTML = savedResultsHtml(saved);
         results.hidden = false;
         placeResults(input, results);
@@ -3363,18 +3681,47 @@
         // Predictions come back out of order often enough to matter; a slow
         // early keystroke must not overwrite a fast later one.
         const mine = ++searchSeq;
+        // A CATEGORY QUERY RUNS BOTH SEARCHES. Autocomplete still answers, because
+        // "coffee" might be the name of the place the rider means; the category
+        // results are appended under a heading. parse() returns null for anything
+        // that reads as a name, and that is the common case — a Text Search call
+        // is the expensive one and it only fires when the query genuinely asks
+        // for a kind of place.
+        const cat = QUERY.parse(q);
         try {
-          const hits = await searchPlaces(state.map, q);
+          // allSettled, NOT all. These are two independent services and either
+          // can fail on its own — the category search in particular fails
+          // wholesale when the server key has no Places API on it. With
+          // Promise.all one rejection took the other answer down with it, so a
+          // misconfigured category search would have broken name search too,
+          // which is a strictly worse bug than the one being fixed.
+          const [nameRes, nearRes] = await Promise.allSettled([
+            searchPlaces(state.map, q),
+            // No anchor when the text names a place: Text Search reads it out of
+            // the query, and biasing to the rider's current position as well
+            // would pull the answer back home.
+            cat ? nearbySearch(cat.text, /\b(in|near|around|close to|by)\b/.test(q) ? null : anchorFor(day)) : [],
+          ]);
           if (mine !== searchSeq) return;
+          const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
+          const nearby = nearRes.status === "fulfilled" ? nearRes.value : [];
+          // Whichever half failed, named. Both failing is the interesting case
+          // and it falls through to the catch below via this throw.
+          const failed = [nameRes, nearRes].filter((x) => x.status === "rejected");
+          if (failed.length === 2) throw failed[0].reason;
+          if (nearRes.status === "rejected") console.warn("[builder] category search:", nearRes.reason.message);
+          if (nameRes.status === "rejected") console.warn("[builder] name search:", nameRes.reason.message);
           // The rows may have been rebuilt out from under this response, in
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
           results.dataset.day = String(day);
+        results.dataset.at = at == null ? "" : String(at);
           // Saved matches keep their place at the top; the predictions are
           // appended under them. Re-derived rather than read off the DOM so a
           // response that arrives after the query changed cannot pair the new
           // predictions with the old library rows.
           const savedNow = matchSavedPlaces(input.value.trim());
+          const nothing = hits.length === 0 && savedNow.length === 0 && nearby.length === 0;
           results.innerHTML =
             savedResultsHtml(savedNow) +
             hits
@@ -3383,10 +3730,21 @@
                   '<li class="hit-google" data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
                   '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
               )
-              .join("");
-          results.hidden = hits.length === 0 && savedNow.length === 0;
-          if (!results.hidden) placeResults(input, results);
+              .join("") +
+            nearbyResultsHtml(nearby) +
+            // SAID OUT LOUD, not left as an empty box. "Nothing matched" and
+            // "the search broke" were pixel-identical before this.
+            (nothing ? noticeHtml("No matches for “" + q + "”") : "") +
+            // One half down while the other answered: the results still show,
+            // with a line saying what is missing. Silently returning half an
+            // answer is how a broken category search would go unnoticed for a
+            // week.
+            (nearRes.status === "rejected" ? noticeHtml(searchErrorText(nearRes.reason)) : "") +
+            (nameRes.status === "rejected" && nearby.length ? noticeHtml("Name search is unavailable") : "");
+          results.hidden = false;
+          placeResults(input, results);
           wireSavedResults(results, savedNow);
+          wireNearbyResults(results, nearby, cat && cat.role);
           results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills
@@ -3406,7 +3764,7 @@
               // click afterwards continues where the rider is working rather
               // than wherever they last clicked.
               setActive(r);
-              addPoint(lng, lat, picked.name, r);
+              addPoint(lng, lat, picked.name, r, null, openSlot(results));
               panTo(state.map, picked.lngLat, 11);
               // The add above re-rendered the list, so this row is a new
               // element. Put the cursor in its replacement: adding several
@@ -3417,7 +3775,16 @@
             });
           });
         } catch (e) {
-          console.warn("[builder] search:", e);
+          console.warn("[builder] search:", e.status || "", e.message);
+          if (mine !== searchSeq || !input.isConnected) return;
+          // The failure REACHES THE RIDER. This was a bare console.warn, so a
+          // referrer-restricted key, a pending account or a Places API that was
+          // never enabled all presented as an empty dropdown and no explanation.
+          results.dataset.day = String(day);
+        results.dataset.at = at == null ? "" : String(at);
+          results.innerHTML = noticeHtml(searchErrorText(e));
+          results.hidden = false;
+          placeResults(input, results);
         }
       }, 300);
     });
@@ -3425,15 +3792,99 @@
     host.addEventListener("click", (e) => {
       const btn = e.target.closest(".add-place-btn");
       if (!btn || btn.disabled) return;
-      armPlace(Number(btn.dataset.day));
+      armPlace(Number(btn.dataset.day), slotOf(btn));
+    });
+
+    // Opening a gap. Re-rendered rather than patched in place: the row that
+    // replaces the hairline is a real .add-row with a search field, chips and an
+    // arm button, and every handler for those is delegated on #day-list and
+    // resolves the row from its own data attributes. Building it through the
+    // normal render is what makes an inserted point behave identically to an
+    // appended one.
+    //
+    // NOT an edit. No beginEdit, no markDirty — opening a field changes nothing
+    // about the ride, and putting it on the undo stack would make Ctrl-Z close a
+    // text box instead of undoing the last real change.
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest(".insert-btn");
+      if (!btn) return;
+      const r = Number(btn.dataset.day);
+      const at = Number(btn.dataset.at);
+      // A second press on the same gap closes it, matching how the arm button
+      // toggles rather than needing a separate dismiss.
+      const open = state.insertAt;
+      state.insertAt = open && open.day === r && open.at === at ? null : { day: r, at: at };
+      // Arming belongs to the row that armed it, and that row may have just
+      // stopped existing.
+      disarmPlace();
+      hideSearchResults();
+      setActive(r);
+      renderDayList(r);
+      const field = document.querySelector('.add-row.is-insert[data-day="' + r + '"] .add-search');
+      if (field) field.focus();
+    });
+
+    // A CHIP IS A SEARCH, not a mode. One tap runs the category search for that
+    // day and opens the same dropdown a typed query would — the pick path, the
+    // role tagging and the error line are all shared, so a chip cannot behave
+    // differently from typing the same words.
+    //
+    // The field is left empty on purpose. Filling it with "gas station" would
+    // look like the rider typed it and would then be re-searched on the next
+    // keystroke, spending a second call to get the same answer.
+    host.addEventListener("click", async (e) => {
+      const chip = e.target.closest(".chip");
+      if (!chip || chip.disabled) return;
+      const r = Number(chip.dataset.day);
+      const spec = CHIPS.find((c) => c.role === chip.dataset.chip);
+      if (!spec || !state.days[r]) return;
+      const at = slotOf(chip);
+      const row = chip.closest(".add-row");
+      const input = row ? row.querySelector(".add-search") : null;
+      const results = searchResultsEl();
+      results.dataset.day = String(r);
+      results.dataset.at = at == null ? "" : String(at);
+      const mine = ++searchSeq;
+      // Something in the box immediately: a billed round trip with no feedback
+      // reads as a dead button, and this one is a button.
+      results.innerHTML = noticeHtml("Finding " + spec.label.toLowerCase() + "…");
+      results.hidden = false;
+      if (input) placeResults(input, results);
+      try {
+        const nearby = await nearbySearch(spec.query, anchorFor(r));
+        if (mine !== searchSeq) return;
+        results.innerHTML =
+          nearbyResultsHtml(nearby) ||
+          noticeHtml("No " + spec.label.toLowerCase() + " found near this day");
+        results.hidden = false;
+        if (input) placeResults(input, results);
+        wireNearbyResults(results, nearby, spec.role);
+      } catch (err) {
+        console.warn("[builder] chip search:", err.status || "", err.message);
+        if (mine !== searchSeq) return;
+        results.innerHTML = noticeHtml(searchErrorText(err));
+        results.hidden = false;
+        if (input) placeResults(input, results);
+      }
     });
 
     // Escape dismisses the suggestions without clearing the query — the rider
     // may have meant to close the list, not to start over.
     host.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && resultsEl && !resultsEl.hidden && e.target.closest(".add-search")) {
+      if (e.key !== "Escape" || !e.target.closest(".add-search")) return;
+      // The dropdown first, then the row. Two presses to back all the way out of
+      // an insert, which is the same shape as closing a menu inside a dialog —
+      // one Escape should not dismiss two things.
+      if (resultsEl && !resultsEl.hidden) {
         e.stopPropagation();
         hideSearchResults();
+        return;
+      }
+      if (state.insertAt && e.target.closest(".add-row.is-insert")) {
+        e.stopPropagation();
+        const r = state.insertAt.day;
+        state.insertAt = null;
+        renderDayList(r);
       }
     });
 
@@ -3506,7 +3957,11 @@
 
   function payload() {
     return {
-      title: state.meta.title,
+      // FALLS BACK HERE TOO, not only in the field's blur handler. A draft
+      // restored from before the default existed carries an empty title, and
+      // fields.title is min(1) server-side — so an empty string 400s the whole
+      // save and the rider is told nothing useful about why.
+      title: state.meta.title.trim() || UNTITLED,
       description: state.meta.description,
       visibility: state.meta.visibility,
       external_url: state.meta.external_url,
@@ -3847,6 +4302,33 @@
   }
 
   function wireMeta() {
+    // A new ride opens already named, so it can save from the first pin. An
+    // EXISTING ride is left exactly as stored — including a rider who genuinely
+    // named their ride "Untitled ride", which is theirs to keep.
+    if (!state.rideId && !state.meta.title) {
+      state.meta.title = UNTITLED;
+      $("ride-title").value = UNTITLED;
+      fitTitle();
+    }
+
+    // Select the default so the first keystroke replaces it. Only the default:
+    // selecting a name the rider chose would make an accidental keypress destroy
+    // it, which is the failure mode this pattern is usually blamed for.
+    $("ride-title").addEventListener("focus", (e) => {
+      if (e.target.value === UNTITLED) e.target.select();
+    });
+
+    // Cleared back to empty falls back to the default rather than to "", because
+    // fields.title is min(1) server-side and an empty title 400s the whole save.
+    // Done on blur, not on input, so the field can be emptied and retyped.
+    $("ride-title").addEventListener("blur", (e) => {
+      if (e.target.value.trim()) return;
+      e.target.value = UNTITLED;
+      state.meta.title = UNTITLED;
+      fitTitle();
+      markDirty();
+    });
+
     $("ride-title").addEventListener("input", (e) => {
       // A ride name is one line of text even though the control holding it is a
       // textarea, so newlines are flattened rather than stored. They arrive by
@@ -3934,6 +4416,28 @@
   // A draft only means something if it is newer than what was just loaded, and
   // nothing is applied until the rider says so — restoring over a saved ride
   // without asking is its own kind of data loss.
+  // Tell the layout how tall the page-top banner is, so the map and the drawer
+  // move down instead of being painted over.
+  //
+  // MEASURED, not declared. The recovery text wraps to two lines in a narrow
+  // drawer and the maps-misconfigured banner is longer again, so no constant is
+  // right — and a constant that is wrong either leaves a gap or puts the banner
+  // back over the logo. Re-measured on resize for the same reason.
+  //
+  // Reads 0 when the banner is hidden or absent, which is what every other page
+  // gets and what makes the calc()s in _map.scss a no-op by default.
+  function setBannerOffset() {
+    const bar = document.querySelector(".tb-banner:not([hidden])");
+    const h = bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--banner-h", h + "px");
+    // The map's own viewport changed size, and Google only notices on a resize
+    // event. Without this the tiles keep the old height and the controls sit
+    // off the bottom edge until something else nudges it.
+    if (state.map && h) window.dispatchEvent(new Event("resize"));
+  }
+
+  window.addEventListener("resize", setBannerOffset);
+
   function offerRecovery() {
     const d = HIST.Draft.read(state.rideId);
     if (!d) return;
@@ -3942,6 +4446,7 @@
     $("recover-text").textContent =
       "Unsaved changes from " + (mins < 60 ? mins + " minute" + (mins === 1 ? "" : "s") : "over an hour") + " ago. ";
     bar.hidden = false;
+    setBannerOffset();
     $("recover-yes").addEventListener("click", () => {
       beginEdit("restore draft");
       state.meta = { ...d.meta };
@@ -3949,6 +4454,7 @@
       state.legSeq = [];
       renderEverything();
       bar.hidden = true;
+      setBannerOffset();
       // Geometry is not in the draft — the router rebuilds it. Stops are what
       // could not have been recovered from anywhere else.
       state.days.forEach((_, r) =>
@@ -3963,6 +4469,9 @@
     $("recover-no").addEventListener("click", () => {
       HIST.Draft.clear(state.rideId);
       bar.hidden = true;
+      // Put the map and the drawer back, or they stay pushed down by a banner
+      // that is no longer there.
+      setBannerOffset();
     });
   }
 
@@ -3972,6 +4481,7 @@
         "afterbegin",
         '<div class="tb-banner">Maps are not configured—set GMAPS_KEY and GMAPS_MAP_ID and restart.</div>',
       );
+      setBannerOffset();
       return;
     }
     wireMeta();
@@ -4050,8 +4560,9 @@
       // Read and cleared BEFORE the add, so a failed add cannot leave the
       // builder armed with the button still lit.
       const armed = state.arm;
+      const armedAt = state.armAt;
       disarmPlace();
-      addPoint(lng, lat, "", armed);
+      addPoint(lng, lat, "", armed, null, armedAt);
     });
   }
 

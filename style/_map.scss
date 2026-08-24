@@ -128,10 +128,10 @@
 #map {
   display: block;
   position: fixed;
-  top: 0;
+  top: var(--banner-h);
   left: var(--drawer-current);
   width: calc(100vw - var(--drawer-current));
-  height: 100vh;
+  height: calc(100vh - var(--banner-h));
   transition:
     left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -198,7 +198,21 @@
 // Maps terms require the logo and the data attribution to stay visible, so it is
 // a no-go zone rather than a nicety, and covering it is a license problem and
 // not only an ugly one.
+// --banner-h is the height of a page-top banner, or 0 when there is none.
+//
+// It exists because EVERY piece of furniture on this page is fixed over a
+// full-viewport map, so a banner in normal flow pushes nothing — it just paints
+// over the drawer's logo and the top of the map, which is exactly how the
+// unsaved-changes bar was reported. Nothing here can be pushed down by a sibling;
+// it has to be told to move.
+//
+// Set from JavaScript because the banner's height is not a number anyone can
+// declare: the recovery text wraps to two lines on a narrow drawer and the
+// maps-misconfigured banner is longer still. See setBannerOffset() in
+// public/js/builder.js. It stays 0 for every page that never shows one, which is
+// most of them, so the calc()s below are a no-op by default.
 html.map-page {
+  --banner-h: 0px;
   --panel-inset: 2vw;
   --panel-width: 380px;
   --drawer-rail: 56px;
@@ -242,7 +256,10 @@ html.map-page:has(#info-panel.collapsed) {
   align-items: stretch;
   position: fixed;
   z-index: 1000;
-  top: 0;
+  // Below the banner, not under it. The drawer carries the wordmark since
+  // 2026-08-16, so a banner painting over the top of this is a banner painting
+  // over the logo.
+  top: var(--banner-h);
   bottom: 0;
   left: 0;
   box-shadow: 2px 0 14px $panel-shadow;

@@ -205,6 +205,17 @@
     return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
+  // Where the map is looking, as [lng, lat], or null before it has settled.
+  //
+  // Here rather than in builder.js because this file is the only one that names
+  // a vendor API. The caller is the category search, which needs somewhere to
+  // anchor "coffee" when the rider has typed no place and the day has no points
+  // to work from.
+  function mapCenter(map) {
+    const c = map && map.getCenter && map.getCenter();
+    return c ? fromLatLng(c) : null;
+  }
+
   // --- Track + arrow layers -------------------------------------------------
 
   const TRACK_OPACITY = 0.8;
@@ -1008,6 +1019,7 @@
     removeMarker,
     onMarkerDragEnd,
     searchPlaces,
+    mapCenter,
     markerElement,
     popupHtml,
     attachPopup,

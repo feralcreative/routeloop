@@ -873,12 +873,91 @@
   // the only thing marking it as an empty slot.
   .add-row {
     display: flex;
+    // WRAP, or the chips below are a flex item on the same line as the search
+    // field. .add-chips has a 100% flex basis so it takes its own row — on a
+    // nowrap line that basis instead crushed the input to zero visible width,
+    // which is how the chips were reported: no room to see a single character.
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.35em;
     padding: 0.25em 0.3em;
     border: 1px dashed color.adjust($grey, $lightness: -5%);
     border-radius: 6px;
     background: none;
+  }
+
+  // The gap between two rows: a hairline with a + in it, for wedging a point in
+  // between. Excel's "insert row here".
+  //
+  // Always present rather than revealed on hover, because a hover-only control
+  // does not exist on a touch screen — and this drawer becomes a bottom sheet on
+  // a phone. It stays quiet enough at rest that thirty of them read as row
+  // separators: a 1px rule, and a glyph that only gains contrast on approach.
+  .insert-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    // Short, and the negative margins pull the rows either side back together —
+    // a full row's height between every pair would double the length of the day.
+    height: 10px;
+    margin: -3px 0;
+    // Above the rule, so the glyph sits ON the line rather than beside it.
+    position: relative;
+    cursor: default;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: $neutral-88;
+      // Invisible until the row is approached. At rest the day reads as a list
+      // of stops, not as a grid.
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+
+    &:hover::before,
+    &:focus-within::before {
+      opacity: 1;
+    }
+  }
+
+  .insert-btn {
+    position: relative;
+    box-sizing: border-box;
+    width: 18px;
+    height: 14px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: $white;
+    color: color.adjust($text, $lightness: 45%);
+    font: 700 12px/1 $font;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+
+    .insert-slot:hover &,
+    &:focus-visible {
+      opacity: 1;
+    }
+
+    &:hover,
+    &:focus-visible {
+      color: $interstate;
+    }
+  }
+
+  // An add row standing in for a gap. Marked so it reads as belonging between
+  // the two rows either side rather than as the day's own trailing field, which
+  // is the one thing that could make a rider add to the wrong place.
+  .add-row.is-insert {
+    border-style: solid;
+    border-color: $interstate;
+    margin: 0.2em 0;
   }
 
   // Sits where .row-drag does on a real row, so the fields below line up with
@@ -1743,6 +1822,90 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     vertical-align: 0.1em;
+  }
+
+  // The divider above the category results, so the two kinds of answer do not
+  // read as one ranked list. Above are places matching what was typed; below are
+  // places OF the kind that was asked for.
+  li.hit-head {
+    padding: 0.3em 0.6em;
+    border-top: 1px solid $neutral-88;
+    background: rgba(0, 0, 0, 0.02);
+    color: color.adjust($text, $lightness: 30%);
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: default;
+
+    // It is a label, not a result.
+    &:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+  }
+
+  // "No matches", "Finding gas…", and every reason a search failed. Both states
+  // this covers used to be an empty box: a thrown search was a console warning
+  // and nothing else, and a search that matched nothing simply did not open. So
+  // "nothing there" and "it is broken" looked identical, which is exactly how a
+  // server key missing the Places API presented.
+  li.hit-note {
+    color: color.adjust($text, $lightness: 25%);
+    font-style: italic;
+    cursor: default;
+
+    &:hover {
+      background: none;
+    }
+  }
+}
+
+// Category chips on a day's add row: one tap for the four things a rider hunts
+// for mid-plan. Everything else reaches the same search by typing the word, so
+// this stays four wide and does not grow into a second role picker.
+.add-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  // Its own box-sizing, and the padding-left below is why. There is no global
+  // border-box reset in style/, so a 100% basis plus padding measured 9px wider
+  // than the row it sits in and overflowed it. The comment on .chip warns about
+  // exactly this and it still happened here.
+  box-sizing: border-box;
+  // Spans the full row under the field and the + button, which are laid out
+  // above it — hence the full-width basis rather than a grid column. Requires
+  // flex-wrap on .add-row; without it this basis eats the field's width.
+  flex: 0 0 100%;
+  // Indented to the field's left edge, past the + mark, so the chips read as
+  // belonging to the search rather than to the row.
+  padding-left: calc(14px + 0.35em);
+  margin-top: 0.15em;
+
+  .chip {
+    // Its own box-sizing: there is no global border-box reset in style/, so a
+    // fixed-size box that forgets has its padding sit outside its width. See the
+    // note in AGENTS.md — this cost a day on .btn-stop.
+    box-sizing: border-box;
+    padding: 0.1em 0.45em;
+    border: 1px solid $neutral-88;
+    border-radius: 999px;
+    background: $white;
+    color: color.adjust($text, $lightness: 15%);
+    // Small on purpose. These are a shortcut, not the primary way in — the
+    // search field above them is — so they sit under it and stay quiet.
+    font-size: 0.68em;
+    line-height: 1.5;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $interstate;
+      color: $interstate;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
   }
 }
 
