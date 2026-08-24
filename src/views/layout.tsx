@@ -10,6 +10,8 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { asset } from './assets'
 import { IS_DEV } from '../config'
+import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD } from '../version'
+import { icon } from './icon'
 import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
@@ -530,11 +532,81 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
  * screen offers "Somewhere else".
  */
 function feedbackFab(area: string): string {
+  // TWO MARKS, not one control with two jobs. Reporting something broken and
+  // reading what changed are different errands, and a rider who has just hit a
+  // bug should not have to read a menu to find the first one.
+  //
+  // Both are icon-only discs — the label went with the pair on 2026-08-23. It
+  // only ever showed above 600px anyway (see _feedback.scss), so the phone
+  // already had this shape; what changed is that the desktop stopped being the
+  // exception. `title` and `aria-label` carry the meaning at every width.
+  //
+  // The marks are INLINE SVG via icon(), not <img> or a CSS mask: each is a disc
+  // in `currentColor` with the glyph knocked out white, so the element has to be
+  // in the document for the color to reach it. Same mechanism and the same
+  // reasoning as the alpha modal's contact marks — see src/views/icon.ts.
   return (
-    <a class="fb-fab" href={`/feedback?area=${encodeURIComponent(area)}`} title="Tell us something">
-      <span class="fb-fab-mark" aria-hidden="true"></span>
-      <span class="fb-fab-label">Something wrong?</span>
-    </a>
+    <div class="fab-group">
+      <a
+        class="fb-fab fb-fab--bug"
+        href={`/feedback?area=${encodeURIComponent(area)}`}
+        title="Something wrong? Tell us"
+        aria-label="Something wrong? Tell us"
+      >
+        {raw(icon('bug'))}
+      </a>
+      <button
+        type="button"
+        class="fb-fab fb-fab--notes"
+        data-open-notes
+        title={`What's new — you are on ${APP_VERSION}`}
+        aria-label={`What's new. You are on version ${APP_VERSION}`}
+      >
+        {raw(icon('info'))}
+      </button>
+    </div>
+  ).toString()
+}
+
+/**
+ * The release-notes modal, injected into every page by page().
+ *
+ * EMPTY ON ARRIVAL. The notes grow with every release and this modal is on every
+ * page, so shipping the copy inline would put a file that only gets longer onto
+ * every HTML response for the sake of a dialog most riders never open. The body
+ * is fetched from /api/release-notes the first time it is opened and kept for
+ * the life of the page.
+ *
+ * Same markup contract as the alpha modal so both are driven by the same focus
+ * trap and the same close handling in site.js — see initModal there.
+ */
+function releaseNotesModal(): string {
+  return (
+    <div class="modal-backdrop" id="release-notes" hidden>
+      <div class="modal modal--notes" role="dialog" aria-modal="true" aria-labelledby="rn-title" tabindex={-1}>
+        <button type="button" class="modal-close" data-close-notes aria-label="Close">
+          &times;
+        </button>
+        <h2 id="rn-title" class="rn-title">
+          What's new
+        </h2>
+        {/* The version a rider is actually running, beside the notes that say
+            what it contains. This is the answer to "which build did I see that
+            on", and it is why the string is in the footer too. */}
+        <p class="rn-version">
+          <span class="rn-version-label">You are on</span> <code>{APP_VERSION}</code>
+          {IS_DEV_BUILD && <span class="rn-version-dev"> — a local build, not a deploy</span>}
+        </p>
+        {/* Filled by site.js on first open. The <noscript> is the honest
+            fallback rather than a dead dialog: the page it points at is the
+            same content, server-rendered. */}
+        <div class="modal-body rn-body" id="rn-body" data-src="/api/release-notes">
+          <p class="rn-loading">
+            <a href="/release-notes">Read what's new</a>
+          </p>
+        </div>
+      </div>
+    </div>
   ).toString()
 }
 
@@ -546,7 +618,26 @@ function siteFooter(splash: boolean): string {
       <nav class="site-footer-links">
         <SiteLinkRow />
       </nav>
-      {!splash && <p class="site-footer-note">Routeloop is in a closed alpha.</p>}
+      {!splash && (
+        <p class="site-footer-note">
+          Routeloop is in a closed alpha.{' '}
+          {/* A button, not a link: it opens the modal on the page you are
+              already on. It degrades to the real page when scripting is off,
+              which is what the href on the <noscript> path covers — see
+              releaseNotesModal. The build SHA rides in the title for a bug
+              report that needs to name an exact tree; it is deliberately not
+              rendered, because a hex string beside a date invites a rider to
+              quote the wrong one. */}
+          <button
+            type="button"
+            class="site-footer-version"
+            data-open-notes
+            title={BUILD_SHA ? `Build ${BUILD_SHA} — see what's new` : "See what's new"}
+          >
+            {APP_VERSION}
+          </button>
+        </p>
+      )}
     </footer>
   ).toString()
 }
@@ -618,6 +709,7 @@ ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey}
 ${body}
 ${opts.feedbackArea && opts.user ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
+${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
 ${opts.tb ? jsonScript('TB', opts.tb) : ''}
 <!--

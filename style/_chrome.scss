@@ -569,6 +569,33 @@ a.card {
   color: $neutral-50;
 }
 
+// The build, on every page. A button rather than a link because it opens the
+// release-notes dialog on the page you are already on — but it is styled as the
+// running text it sits in, because a second visible control in the footer would
+// compete with the links above it for no reason. The dotted underline is the
+// only affordance it needs.
+.site-footer-version {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover {
+    color: $brand;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
 .site-footer.is-splash {
   margin-top: 2rem;
   padding-top: 0;

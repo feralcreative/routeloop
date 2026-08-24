@@ -195,3 +195,124 @@ body.modal-open {
     accent-color: $url;
   }
 }
+
+// --- Release notes -----------------------------------------------------------
+//
+// Wider than the alpha modal and left-aligned, because it is a document rather
+// than an announcement: it holds a dated list that only gets longer, and 460px
+// of centered text is the wrong shape to read a changelog in.
+.modal--notes {
+  max-width: 34rem;
+  text-align: left;
+  position: relative;
+}
+
+// A real control, unlike the alpha modal's — that one is dismissed by its own
+// button, the backdrop or Escape, and has no X. This dialog is something a
+// rider OPENED, so the way back out has to be visible rather than remembered.
+.modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: $neutral-50;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: $neutral-94;
+    color: $text;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+.rn-title {
+  margin-right: 2rem;
+}
+
+// The build a rider is actually on, directly under the heading, because "which
+// one am I looking at" is the question that brought most of them here.
+.rn-version {
+  margin: 0 0 1rem;
+  color: $neutral-50;
+  font-size: 0.85rem;
+
+  code {
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+    background: $neutral-94;
+    color: $text;
+    font-weight: 600;
+  }
+}
+
+.rn-version-dev {
+  font-style: italic;
+}
+
+.rn-body {
+  // The notes grow forever; the dialog does not. .modal already caps at 90vh and
+  // scrolls, but the heading and the version line should stay put while the list
+  // moves under them.
+  max-height: 60vh;
+  overflow-y: auto;
+  text-wrap: pretty;
+
+  // The fetched fragment carries the page's <h1> and lede, which the dialog has
+  // already said in its own heading. Hidden rather than stripped server-side:
+  // the same bytes are the standalone page at /release-notes, where both belong.
+  h1,
+  .rn-lede {
+    display: none;
+  }
+}
+
+.rn-release {
+  padding-top: 0.9rem;
+  border-top: 1px solid $grey;
+
+  &:first-of-type {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    // Tabular so a column of dated versions lines up rather than shimmying.
+    font-variant-numeric: tabular-nums;
+  }
+
+  ul {
+    margin: 0 0 1rem;
+    padding-left: 1.1rem;
+  }
+
+  li {
+    margin-bottom: 0.35rem;
+    text-wrap: pretty;
+  }
+}
+
+.rn-date {
+  margin-left: 0.5rem;
+  color: $neutral-50;
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.rn-foot {
+  margin: 0;
+  color: $neutral-50;
+  font-size: 0.85rem;
+}

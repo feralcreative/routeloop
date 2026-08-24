@@ -442,56 +442,81 @@ $fb-line: $neutral-88;
 //
 // Re-measure if the map's control layout changes: `.gmnoprint` and
 // `.gm-control-active` on the right edge are the things to check.
-.fb-fab {
+// THE PAIR. Reporting something broken and reading what changed are different
+// errands, so they are two marks rather than one control with a menu.
+//
+// The GROUP is what is positioned; the buttons inside it are static. Before this
+// the single button was `position: fixed` itself, and every responsive rule
+// below moved it — so the group inherits that job wholesale and the rules did
+// not have to be rewritten, only re-pointed.
+.fab-group {
   position: fixed;
   right: 72px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
-  // The panel's layer. On a wide screen the two never overlap, because the
-  // panel is a left drawer and this is inset from the right — but at 767px and
-  // under the panel becomes a full-width sheet along the bottom and that
-  // stops being true. The media query further down is what keeps them apart;
-  // the z-index only decides who wins if it ever fails.
   z-index: $z-map-panel;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fb-fab {
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  min-height: 44px;
-  padding: 0 0.9em;
-  border-radius: 22px;
-  background: $panel-bg;
-  box-shadow: 0 2px 8px $panel-shadow;
-  color: $fb-ink;
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-decoration: none;
-  backdrop-filter: blur(4px);
-
-  &:hover {
-    background: $white;
-  }
-}
-
-.fb-fab-mark {
-  width: 10px;
-  height: 10px;
+  justify-content: center;
+  flex: none;
+  // 44px is the tap target the whole feedback flow is built to — see the note at
+  // the top of this file about gloved hands. The disc fills it.
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  background: $detour;
-}
+  background: none;
+  cursor: pointer;
+  // The mark is a disc in `currentColor` with the glyph knocked out white, so
+  // the button's own color IS the disc's fill. Nothing here paints a background.
+  box-shadow: 0 2px 8px $panel-shadow;
 
-//@ SM ≤600px — the label goes and the dot carries it, because the bottom of a
-//  phone screen is already carrying the sheet and the timeline bar, and a
-//  word-wide button competes with both. The title attribute and the 44px target
-//  both survive. The right inset stays: the map's control column is there at
-//  every width.
-@media (max-width: 600px) {
-  .fb-fab-label {
-    display: none;
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
   }
 
-  .fb-fab {
-    justify-content: center;
-    width: 44px;
-    padding: 0;
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 3px;
+  }
+
+  // Lifts rather than lightens. These sit over a map whose color underneath them
+  // is unknown, so a hover that changed the fill would read differently on
+  // terrain than on satellite; a shadow reads the same over both.
+  &:hover {
+    box-shadow: 0 4px 14px $panel-shadow;
+  }
+}
+
+// The bug. Red because it is the one control on the map that means "something
+// is wrong", and $stop is the app's red for exactly that.
+.fb-fab--bug {
+  color: $stop;
+}
+
+// The notes. Deliberately NOT a second red disc and not the guide-sign green
+// either: it is neither an alarm nor an action, and a pair of loud marks side by
+// side would make the bug report harder to find rather than easier.
+.fb-fab--notes {
+  color: $neutral-43;
+}
+
+//@ SM ≤600px — the gap tightens. The buttons were already 44px discs at every
+//  width once the label went with the pair on 2026-08-23, so there is nothing
+//  left to collapse here; what a phone needs is the two of them taking less
+//  horizontal room beside the map's own control column.
+@media (max-width: 600px) {
+  .fab-group {
+    gap: 0.35rem;
   }
 }
 
@@ -523,7 +548,7 @@ $fb-line: $neutral-88;
     --fb-fab-timeline-clear: var(--timeline-height);
   }
 
-  .fb-fab {
+  .fab-group {
     bottom: calc(var(--panel-inset) + var(--fb-fab-clear) + var(--fb-fab-timeline-clear) + 8px);
     // Rides with the sheet rather than teleporting to the far end of its travel
     // while the sheet is still moving. Same duration and easing as the slide in
@@ -545,7 +570,7 @@ $fb-line: $neutral-88;
 // that clears it. Below that the account menu is the way in, which is why the
 // flow was built with two entry points rather than one.
 @media (max-width: 767px) and (max-height: 400px) {
-  .fb-fab {
+  .fab-group {
     display: none;
   }
 }

@@ -107,6 +107,18 @@
     });
   }
 
+  // TWO DIALOGS SHARE `body.modal-open`, so neither may clear it on its own —
+  // closing one while the other is up would unlock scrolling behind a modal
+  // that is still on screen. Barely reachable today (the alpha modal opens on
+  // load and its backdrop covers the openers behind it) but it costs one query
+  // to be correct, and the third dialog will not be so lucky.
+  function syncModalOpen() {
+    const open = Array.prototype.some.call(document.querySelectorAll(".modal-backdrop"), function (el) {
+      return !el.hidden;
+    });
+    document.body.classList.toggle("modal-open", open);
+  }
+
   // --- Alpha splash --------------------------------------------------------
   function initSplash() {
     const backdrop = document.getElementById("alpha-splash");
@@ -131,7 +143,7 @@
     function open() {
       lastFocus = document.activeElement;
       backdrop.hidden = false;
-      document.body.classList.add("modal-open");
+      syncModalOpen();
       // The dialog itself, not the first control in it. Focus has to move inside
       // for the trap below and for a screen reader to announce the dialog, but
       // focusing the first LINK drew a focus ring on the GitHub mark every time
@@ -146,7 +158,7 @@
       if (pinned) return;
       if (hideBox && hideBox.checked) writeStore(ALPHA_KEY, ALPHA_SPLASH_VERSION);
       backdrop.hidden = true;
-      document.body.classList.remove("modal-open");
+      syncModalOpen();
       if (lastFocus && lastFocus.focus) lastFocus.focus();
     }
 
@@ -300,9 +312,101 @@
     window.addEventListener("hashchange", openFromHash);
   }
 
+  // --- Release notes -------------------------------------------------------
+  //
+  // Its own function rather than a second copy of initSplash: the two dialogs
+  // share markup and keyboard behavior, but the alpha modal owns a dismissal
+  // key, a design pin and an auto-open on load, and none of that belongs here.
+  // What IS shared is the focus trap, and it is small enough that a second
+  // honest copy beats a shared abstraction with two callers pulling in different
+  // directions.
+  function initNotes() {
+    const backdrop = document.getElementById("release-notes");
+    if (!backdrop) return;
+    const dialog = backdrop.querySelector(".modal");
+    const body = document.getElementById("rn-body");
+    let lastFocus = null;
+    let loaded = false;
+
+    // FETCHED ON FIRST OPEN, then kept. The notes only ever get longer and this
+    // modal is on every page, so inlining them would put a growing file on every
+    // HTML response for a dialog most riders never open.
+    //
+    // A failure leaves the fallback link that shipped in the markup, which goes
+    // to the same content server-rendered. That is the whole error path: there
+    // is nothing useful to say about a fetch that failed, and a rider who wants
+    // the notes can still read them.
+    function load() {
+      if (loaded) return;
+      loaded = true;
+      const url = body && body.dataset.src;
+      if (!url) return;
+      fetch(url, { headers: { Accept: "text/html" } })
+        .then(function (r) {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.text();
+        })
+        .then(function (html) {
+          body.innerHTML = html;
+        })
+        .catch(function () {
+          // Left as it was — the fallback link is still in there.
+          loaded = false;
+        });
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      load();
+      backdrop.hidden = false;
+      syncModalOpen();
+      dialog.focus();
+    }
+
+    function close() {
+      backdrop.hidden = true;
+      syncModalOpen();
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    backdrop.addEventListener("click", function (e) {
+      if (e.target === backdrop || e.target.closest("[data-close-notes]")) close();
+    });
+
+    backdrop.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") return close();
+      if (e.key !== "Tab") return;
+      const items = Array.prototype.filter.call(dialog.querySelectorAll(FOCUSABLE), function (el) {
+        return el.offsetParent !== null;
+      });
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      // `|| dialog` for the same reason as the alpha modal: focus starts on the
+      // container, which is deliberately not in `items`.
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+
+    // Delegated, because the openers are in two places — the floating "i" on the
+    // map pages and the version string in every footer.
+    document.addEventListener("click", function (e) {
+      if (e.target.closest("[data-open-notes]")) {
+        e.preventDefault();
+        open();
+      }
+    });
+  }
+
   function init() {
     initNav();
     initSplash();
+    initNotes();
     initSplashVideo();
     initFaq();
   }

@@ -167,6 +167,27 @@ fi
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
+# The build's version, shown to riders in the footer and in the release-notes
+# modal. YYYY.MM.DD.N, where N counts the commits HEAD contains from that day.
+#
+# Derived from the COMMIT rather than from the deploy, so redeploying the same
+# tree reports the same version — it is the same code, and a number that moved
+# would be a claim that something changed. Nothing is stored, so there is no
+# counter to get out of step with reality.
+#
+# Committer date, not author date: a rebase rewrites the second and leaves the
+# first, and what this wants to say is when the build's history was actually
+# assembled. UTC on both sides of the comparison or a late-evening commit lands
+# in the wrong day.
+BUILD_DAY=$(git show -s --format=%cd --date=format-local:%Y.%m.%d HEAD 2>/dev/null || echo "")
+if [ -n "$BUILD_DAY" ]; then
+  BUILD_SEQ=$(TZ=UTC git log --format=%cd --date=format-local:%Y.%m.%d 2>/dev/null | grep -c "^${BUILD_DAY}$")
+  APP_VERSION="${BUILD_DAY}.${BUILD_SEQ}"
+else
+  APP_VERSION="unknown"
+fi
+export APP_VERSION
+
 if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${FORCE:-}" ]; then
   if [ -n "$(git status --porcelain)" ]; then
     log_error "Working tree is dirty. Commit/stash, or pass --force."; exit 1
@@ -181,6 +202,7 @@ if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${DRY_RUN:-}" ]; then
   echo -e "${RED}${BOLD}⚠  You are about to deploy to PRODUCTION${NC}"
   echo -e "   URL    : ${BOLD}${TARGET_URL}${NC}"
   echo -e "   Commit : ${BOLD}${GIT_SHA}${NC} on ${BOLD}${GIT_BRANCH}${NC}"
+  echo -e "   Version: ${BOLD}${APP_VERSION}${NC}"
   read -r -p "Type 'yes' to continue: " CONFIRM
   [ "$CONFIRM" = "yes" ] || { log_error "Aborted."; exit 1; }
 fi
@@ -222,6 +244,8 @@ printf '%s\n' \
   "SMTP_USER=${SMTP_USER:-}" \
   "SMTP_PASS=${SMTP_PASS:-}" \
   "MAIL_FROM=${MAIL_FROM:-}" \
+  "APP_VERSION=${APP_VERSION}" \
+  "BUILD_SHA=${GIT_SHA}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,
@@ -350,6 +374,7 @@ echo ""
 echo -e "${CYAN}═══ ${PROJECT_NAME} — ${ENV_COLOR}${ENV_LABEL}${NC}${CYAN} deploy complete ═══${NC}"
 echo -e "  Target        : ${BOLD}${TARGET_URL}${NC}"
 echo -e "  Git           : ${BOLD}${GIT_SHA}${NC} (${GIT_BRANCH})"
+echo -e "  Version       : ${BOLD}${APP_VERSION}${NC}"
 echo -e "  Container     : ${CONTAINER_NAME} → 127.0.0.1:${HOST_PORT}"
 echo -e "  Build time    : $(format_time $BUILD_TIME)"
 echo -e "  Transfer time : $(format_time $TRANSFER_TIME)"

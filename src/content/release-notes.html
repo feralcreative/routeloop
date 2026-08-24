@@ -1,0 +1,76 @@
+<!--
+  What changed, for the people testing this.
+
+  HOW TO ADD A RELEASE. Copy the block below, put it at the TOP, and fill it in.
+  The deploy prints the version it is about to ship ("Version : 2026.08.23.7") —
+  use that string, so a tester reading the footer can find the matching entry.
+
+    <section class="rn-release">
+      <h3>2026.08.24.2 <span class="rn-date">24 August 2026</span></h3>
+      <ul>
+        <li>One sentence per change, in a rider's words.</li>
+      </ul>
+    </section>
+
+  Write for someone who rides, not someone who reads diffs. "Stops you add now
+  start as points of interest" beats "refactored the point kind model". If a
+  change is invisible to a tester, it does not need a line.
+
+  This file is read by src/views/content.ts, the same way the FAQ is, so an edit
+  shows up on the next request with no restart.
+-->
+
+<h1>What's new</h1>
+
+<p class="rn-lede">
+  Routeloop is in a closed alpha and changes most days. The newest build is at the top, and the version in the page
+  footer tells you which one you are on.
+</p>
+
+<section class="rn-release">
+  <h3>2026.08.23 <span class="rn-date">23 August 2026</span></h3>
+  <ul>
+    <li>
+      <strong>Every point you drop now starts as a point of interest.</strong> Drop pins wherever you are thinking of
+      going, in whatever order, then promote the ones the route actually has to run through — "Make this a stop" in the
+      row's ⋮ menu. The road is drawn once two of them are stops. The first point of each day is promoted for you.
+    </li>
+    <li>Changed your mind? "Make this a POI" puts it back, and the point keeps its notes, categories and reservations.</li>
+    <li>Dragging a row reorders it, whichever kind it is. Dragging a point of interest no longer moves its pin.</li>
+    <li>This page, and a version number in the footer, so you can tell which build you found something in.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>2026.08.22 <span class="rn-date">22 August 2026</span></h3>
+  <ul>
+    <li>
+      <strong>Buttons look like highway signs.</strong> The green field and white keyline are the house style now rather
+      than something a few buttons opted into.
+    </li>
+    <li>Fixed: you could not click into the search box at the bottom of a day. It could be tabbed to but not clicked.</li>
+    <li>Each day has its own <em>+ Point</em> button. Press it, then click the map, and the point lands on that day.</li>
+    <li>The <em>+ Day</em> button looked broken. It always worked — it just had no styling at all.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>2026.08.21 <span class="rn-date">21 August 2026</span></h3>
+  <ul>
+    <li>
+      <strong>Saved places.</strong> Keep a library of the places you use — home, the good fuel stop, the meet point
+      everyone knows — and drop one into any ride from the day's search box. File them into groups if you want to.
+    </li>
+    <li>
+      <strong>Stop details.</strong> A stop can hold a confirmation number, check-in and check-out, a phone number, an
+      address, links and notes. <strong>Only you can see them.</strong> They never go out with a shared link and they are
+      stripped from every export except your own backup file.
+    </li>
+    <li>A place you save carries its phone number and address into every ride you use it in, but never a confirmation number — that belongs to one trip.</li>
+  </ul>
+</section>
+
+<p class="rn-foot">
+  Found something wrong? The red button on the map is the fastest way to tell us, and it brings the details of what you
+  were doing with it.
+</p>
