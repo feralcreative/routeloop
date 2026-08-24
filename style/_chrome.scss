@@ -581,6 +581,10 @@ a.card {
   font: inherit;
   color: inherit;
   font-variant-numeric: tabular-nums;
+  // The version is hyphenated (`2026-08-23-1834PT`) and a browser will break
+  // after a hyphen given a narrow enough footer, splitting the one string a
+  // rider is meant to read off the page and quote back.
+  white-space: nowrap;
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   cursor: pointer;

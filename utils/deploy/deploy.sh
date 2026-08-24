@@ -168,21 +168,26 @@ GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
 # The build's version, shown to riders in the footer and in the release-notes
-# modal. YYYY.MM.DD.N, where N counts the commits HEAD contains from that day.
+# modal. `YYYY-MM-DD-HHMMPT` — the minute HEAD's history was assembled, on the
+# clock Ziad keeps.
 #
 # Derived from the COMMIT rather than from the deploy, so redeploying the same
-# tree reports the same version — it is the same code, and a number that moved
+# tree reports the same version — it is the same code, and a string that moved
 # would be a claim that something changed. Nothing is stored, so there is no
 # counter to get out of step with reality.
 #
+# Pacific, and the suffix says so ALOUD. A bare timestamp is read in whatever
+# zone the reader is sitting in, and a tester a few hours ahead would put the
+# build they are running in the future. `PT` rather than `PDT`/`PST` because the
+# zone database already swaps those for us and a rider does not care which half
+# of the year it is — they care that it is not their own clock.
+#
 # Committer date, not author date: a rebase rewrites the second and leaves the
 # first, and what this wants to say is when the build's history was actually
-# assembled. UTC on both sides of the comparison or a late-evening commit lands
-# in the wrong day.
-BUILD_DAY=$(git show -s --format=%cd --date=format-local:%Y.%m.%d HEAD 2>/dev/null || echo "")
-if [ -n "$BUILD_DAY" ]; then
-  BUILD_SEQ=$(TZ=UTC git log --format=%cd --date=format-local:%Y.%m.%d 2>/dev/null | grep -c "^${BUILD_DAY}$")
-  APP_VERSION="${BUILD_DAY}.${BUILD_SEQ}"
+# assembled. The zone belongs on the `git` call, because `format-local` reads TZ.
+BUILD_STAMP=$(TZ=America/Los_Angeles git show -s --format=%cd --date=format-local:%Y-%m-%d-%H%M HEAD 2>/dev/null || echo "")
+if [ -n "$BUILD_STAMP" ]; then
+  APP_VERSION="${BUILD_STAMP}PT"
 else
   APP_VERSION="unknown"
 fi

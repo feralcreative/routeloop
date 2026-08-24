@@ -5,12 +5,20 @@
 // version, because it is the same code. A scheme keyed on deploy count would
 // say otherwise and be lying.
 //
-// The shape is `YYYY.MM.DD.N` — Ziad's call, 2026-08-23 — where N is how many
-// commits that day the build contains. Date-based because the question a beta
-// tester actually asks is "is this newer than the one I found that bug in", and
-// a date answers it without them learning what our minor version means. The
-// counter disambiguates two builds on one day and is derived rather than stored,
-// so there is no state anywhere that can drift.
+// The shape is `YYYY-MM-DD-HHMMPT` — Ziad's call, 2026-08-23. Date-based because
+// the question a beta tester actually asks is "is this newer than the one I
+// found that bug in", and a date answers it without them learning what our minor
+// version means. The time is the same answer at a finer grain: on a day with
+// four deploys, a sequence counter tells a rider which build came later but a
+// clock tells them how long ago, which is the thing they were really asking.
+//
+// It is the COMMIT's minute, so it is derived rather than stored and there is no
+// state anywhere that can drift.
+//
+// `PT` is part of the string, not decoration. A bare timestamp gets read in the
+// reader's own zone, and a tester a few hours ahead would place the build they
+// are running in the future. `PT` and not `PDT`/`PST` because the zone database
+// already swaps those and the half of the year is not what is being said.
 //
 // Computed by utils/deploy/deploy.sh and shipped as APP_VERSION. There is no
 // fallback to running `git` here: this module is imported by the request path
@@ -33,8 +41,8 @@ export const BUILD_SHA = (process.env.BUILD_SHA ?? '').trim()
 /**
  * The version as a rider sees it.
  *
- * `v` is not prefixed — the string is a date and `v2026.08.23.1` reads like a
- * major version 2026. The word "Version" belongs to whatever labels this, not
+ * `v` is not prefixed — the string is a date and `v2026-08-23-1834PT` reads like
+ * a major version 2026. The word "Version" belongs to whatever labels this, not
  * to the value.
  */
 export const versionLabel = (): string => APP_VERSION

@@ -2,15 +2,21 @@
   What changed, for the people testing this.
 
   HOW TO ADD A RELEASE. Copy the block below, put it at the TOP, and fill it in.
-  The deploy prints the version it is about to ship ("Version : 2026.08.23.7") —
-  use that string, so a tester reading the footer can find the matching entry.
+  The deploy prints the version it is about to ship ("Version : 2026-08-24-0912PT")
+  — use that exact string, including the PT, so a tester reading it in the page
+  footer can find the matching entry by eye. The plain-English date beside it is
+  the gloss; 0912PT is not something anyone should have to decode.
 
     <section class="rn-release">
-      <h3>2026.08.24.2 <span class="rn-date">24 August 2026</span></h3>
+      <h3><code>2026-08-24-0912PT</code> <span class="rn-date">24 August 2026</span></h3>
       <ul>
         <li>One sentence per change, in a rider's words.</li>
       </ul>
     </section>
+
+  The three entries below predate the first stamped build, so they are headed by
+  day rather than by version — all of that work ships in whatever the first
+  versioned deploy turns out to be. Every entry from here on gets a version.
 
   Write for someone who rides, not someone who reads diffs. "Stops you add now
   start as points of interest" beats "refactored the point kind model". If a
@@ -28,7 +34,7 @@
 </p>
 
 <section class="rn-release">
-  <h3>2026.08.23 <span class="rn-date">23 August 2026</span></h3>
+  <h3><code>2026-08-23</code> <span class="rn-date">23 August 2026</span></h3>
   <ul>
     <li>
       <strong>Every point you drop now starts as a point of interest.</strong> Drop pins wherever you are thinking of
@@ -42,7 +48,7 @@
 </section>
 
 <section class="rn-release">
-  <h3>2026.08.22 <span class="rn-date">22 August 2026</span></h3>
+  <h3><code>2026-08-22</code> <span class="rn-date">22 August 2026</span></h3>
   <ul>
     <li>
       <strong>Buttons look like highway signs.</strong> The green field and white keyline are the house style now rather
@@ -55,7 +61,7 @@
 </section>
 
 <section class="rn-release">
-  <h3>2026.08.21 <span class="rn-date">21 August 2026</span></h3>
+  <h3><code>2026-08-21</code> <span class="rn-date">21 August 2026</span></h3>
   <ul>
     <li>
       <strong>Saved places.</strong> Keep a library of the places you use — home, the good fuel stop, the meet point

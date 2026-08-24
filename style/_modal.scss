@@ -253,6 +253,9 @@ body.modal-open {
     background: $neutral-94;
     color: $text;
     font-weight: 600;
+    // Same reason as the footer: the hyphens are break opportunities, and half
+    // a version wrapped onto the next line inside a chip looks like two.
+    white-space: nowrap;
   }
 }
 
@@ -291,6 +294,17 @@ body.modal-open {
     font-size: 1rem;
     // Tabular so a column of dated versions lines up rather than shimmying.
     font-variant-numeric: tabular-nums;
+
+    // The version is the string a rider quotes in a bug report, so it is marked
+    // up as one. It inherits the heading's face rather than going monospace — a
+    // list of these reads as a timeline, and twenty code chips down a dialog is
+    // noise. `nowrap` is the part that matters: `2026-08-23-1834PT` is full of
+    // hyphens and a browser will happily break after one, which would split a
+    // version across two lines and make it unquotable.
+    code {
+      font: inherit;
+      white-space: nowrap;
+    }
   }
 
   ul {
