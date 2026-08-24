@@ -738,7 +738,15 @@
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      throw new Error((data && data.error) || "no route found (" + res.status + ")");
+      // THE STATUS RIDES ALONG. Every failure used to reach the caller as a bare
+      // message and be reported as "no road route for that leg", which blames
+      // the road for a 401 — and a session problem looks exactly like a pair of
+      // stops with no road between them. That cost a long debugging session on
+      // 2026-08-24: an account sitting at `status = 'pending'` 403s every leg,
+      // the map drew straight lines, and nothing on screen said why.
+      const err = new Error((data && data.error) || "no route found (" + res.status + ")");
+      err.status = res.status;
+      throw err;
     }
     return {
       geometry: data.geometry,
@@ -746,6 +754,24 @@
       durationS: data.durationS,
       viaPoints: vias || [],
     };
+  }
+
+  // What to tell the rider when a leg does not come back.
+  //
+  // The leg is drawn straight either way — a placeholder beats no line at all —
+  // but WHY it is straight decides whether there is anything they can do about
+  // it. "No road route" is the only one of these that is about the route; the
+  // rest are about the session or the service, and reporting them as a routing
+  // failure sends the rider off to move their stops when they should be
+  // reloading the page.
+  function legErrorText(e) {
+    const s = e && e.status;
+    if (s === 401) return "Signed out—reload the page. The leg is drawn straight until then";
+    if (s === 403) return "Your account cannot route yet—the leg is drawn straight";
+    if (s === 422) return "No road route for that leg—drawn straight, its time is estimated";
+    if (s === 503) return "Routing is not configured—legs are drawn straight";
+    if (s >= 500) return "Routing is unavailable right now—the leg is drawn straight";
+    return "Could not route that leg—drawn straight, its time is estimated";
   }
 
   // Recomputes leg i of day r, joining points[i] to points[i+1]. `i` indexes
@@ -783,8 +809,8 @@
         refreshDerived();
       })
       .catch((e) => {
-        console.warn("[builder] directions:", e.message);
-        toast("No road route for that leg—drawn straight, its time is estimated", true);
+        console.warn("[builder] directions:", e.status || "", e.message);
+        toast(legErrorText(e), true);
       });
   }
 
