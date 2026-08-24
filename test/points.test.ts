@@ -49,7 +49,7 @@ const rideWith = (points: unknown[], legs = 0) => ({
 describe('the shape of a day', () => {
   it('keeps one ordered list, both kinds interleaved as the rider left them', () => {
     const r = ridePayload.parse(
-      rideWith([pt({ kind: 'stop', name: 'A' }), pt({ name: 'View' }), pt({ kind: 'stop', name: 'B' })], 1),
+      rideWith([pt({ kind: 'stop', name: 'A' }), pt({ name: 'View' }), pt({ kind: 'stop', name: 'B' })], 2),
     )
     expect(r.days[0].points.map((p) => p.name)).toEqual(['A', 'View', 'B'])
     expect(r.days[0].points.map((p) => p.kind)).toEqual(['stop', 'poi', 'stop'])
@@ -58,28 +58,38 @@ describe('the shape of a day', () => {
   // The baseline type. A payload that says nothing about a point is describing a
   // POI, because that is what every point starts as.
   it('defaults a point with no kind to a POI', () => {
-    const r = ridePayload.parse(rideWith([pt({ kind: 'stop' }), { lat: 37, lng: -122 }]))
+    const r = ridePayload.parse(rideWith([pt({ kind: 'stop' }), { lat: 37, lng: -122 }], 1))
     expect(r.days[0].points[1].kind).toBe('poi')
   })
 
-  it('counts legs against the stops, not against every point', () => {
-    // Three POIs between two stops still means exactly one leg.
+  // Ziad's call, 2026-08-24: a POI is something you at least ride BY, so it is
+  // part of the route and anchors a leg like any other point. Three POIs between
+  // two stops are four legs, not one.
+  it('counts legs against every point, both kinds', () => {
     const ok = ridePayload.safeParse(
-      rideWith([pt({ kind: 'stop' }), pt(), pt(), pt(), pt({ kind: 'stop' })], 1),
+      rideWith([pt({ kind: 'stop' }), pt(), pt(), pt(), pt({ kind: 'stop' })], 4),
     )
     expect(ok.success).toBe(true)
   })
 
-  it('refuses a day whose legs do not connect its stops', () => {
-    const bad = ridePayload.safeParse(rideWith([pt({ kind: 'stop' }), pt(), pt({ kind: 'stop' })], 2))
+  // The regression that changed the model: a start and one POI drew two dots and
+  // no road, because the leg count was measured in stops and there was only one.
+  it('gives a day of a stop and a POI a leg between them', () => {
+    const ok = ridePayload.safeParse(rideWith([pt({ kind: 'stop' }), pt({ name: 'View' })], 1))
+    expect(ok.success).toBe(true)
+  })
+
+  it('refuses a day whose legs do not connect its points', () => {
+    const bad = ridePayload.safeParse(rideWith([pt({ kind: 'stop' }), pt(), pt({ kind: 'stop' })], 1))
     expect(bad.success).toBe(false)
     if (!bad.success) expect(JSON.stringify(bad.error.issues)).toMatch(/legs must connect/)
   })
 
-  // The rule the old `stops.min(1)` carried, which `points.min(1)` does not: a
-  // day of nothing but POIs has no legs, no mileage and no roadbook rows.
+  // Still required, and no longer for a routing reason: a day of nothing but POIs
+  // draws a complete road now. It is the roadbook's numbered rows, the Maps
+  // hand-off and the start/finish roles that need a stop to exist.
   it('refuses a day with no stops at all', () => {
-    const bad = ridePayload.safeParse(rideWith([pt(), pt()]))
+    const bad = ridePayload.safeParse(rideWith([pt(), pt()], 1))
     expect(bad.success).toBe(false)
     if (!bad.success) expect(JSON.stringify(bad.error.issues)).toMatch(/at least one stop/)
   })
@@ -89,21 +99,21 @@ describe('the shape of a day', () => {
       ...Array.from({ length: MAX_STOPS + 1 }, () => pt({ kind: 'stop' })),
       ...Array.from({ length: 5 }, () => pt()),
     ]
-    const bad = ridePayload.safeParse(rideWith(many, MAX_STOPS))
+    const bad = ridePayload.safeParse(rideWith(many, many.length - 1))
     expect(bad.success).toBe(false)
     if (!bad.success) expect(JSON.stringify(bad.error.issues)).toMatch(/at most 200 stops/)
   })
 })
 
 describe('stopsOf', () => {
-  it('is the routing anchors in order and nothing else', () => {
+  it('is the points the rider means to stop at, in order, and nothing else', () => {
     const points = [pt({ kind: 'stop', name: 'A' }), pt({ name: 'X' }), pt({ kind: 'stop', name: 'B' })]
     expect(stopsOf(points).map((p) => p.name)).toEqual(['A', 'B'])
   })
 })
 
-// Riders have v2 and v3 files on disk. A backup that will not restore is not a
-// backup, which is the whole reason the format carries a version at all.
+// Riders have v2, v3 and v4 files on disk. A backup that will not restore is not
+// a backup, which is the whole reason the format carries a version at all.
 describe('a native file written before the merge', () => {
   const legacy = (version: number, key: 'routeloop' | 'tankbag' = 'routeloop'): NativeRide =>
     ({
@@ -131,6 +141,9 @@ describe('a native file written before the merge', () => {
       },
     }) as unknown as NativeRide
 
+  // Two migrations run over this fixture: the v4 merge into one ordered list, and
+  // the v5 re-cut that gives it a leg per pair. Both have to have happened for it
+  // to validate, which is what the schema check below is really asserting.
   it('is merged into one ordered list, stops first', () => {
     const upgraded = upgradeNativeRide(legacy(3)) as { days: Array<{ points: Array<{ name: string }> }> }
     expect(upgraded.days[0].points.map((p) => p.name)).toEqual(['A', 'B', 'View'])

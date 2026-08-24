@@ -194,13 +194,23 @@
   // the file. A 300-mile day is roughly 19,000 coordinate pairs; a multi-day
   // ride serialized whole can pass the ~5 MB origin limit and take the write
   // down with it. Legs are derived data — the router can rebuild them — while
-  // the stops are the thing that cannot be recovered from anywhere. So a draft
-  // keeps what is irreplaceable and re-days the rest.
+  // the points are the thing that cannot be recovered from anywhere. So a draft
+  // keeps what is irreplaceable and re-routes the rest.
+  //
+  // ONE ORDERED LIST. This deep-copied `stops` and `pois` long after the builder
+  // stopped holding them that way, which was not fatal — `{...r}` carried
+  // `points` through regardless — but it carried it BY REFERENCE, so a draft
+  // shared its roles arrays with live state and wrote two dead empty arrays into
+  // every stored draft. `details` is copied for the same reason it is in the undo
+  // snapshot: the field editor assigns into that object and pushes to its links.
   function stripped(days) {
     return (days || []).map((r) => ({
       ...r,
-      stops: (r.stops || []).map((s) => ({ ...s, roles: (s.roles || []).slice() })),
-      pois: (r.pois || []).map((p) => ({ ...p, roles: (p.roles || []).slice() })),
+      points: (r.points || []).map((pt) => ({
+        ...pt,
+        roles: (pt.roles || []).slice(),
+        details: pt.details ? { ...pt.details, links: (pt.details.links || []).map((l) => ({ ...l })) } : null,
+      })),
       legs: (r.legs || []).map((l) => ({
         distanceM: l.distanceM,
         durationS: l.durationS,

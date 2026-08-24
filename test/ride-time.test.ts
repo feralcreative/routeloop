@@ -3,13 +3,18 @@
 // Ported from a scratch suite that was rewritten three times across the timeline
 // sprints. ride-time.js is a plain IIFE that assigns window.TBTime, so it loads
 // by evaluating it against a stub global rather than importing.
+//
+// ONE DAY SHAPE, as of 2026-08-24: an ordered `points` array with a `kind` on
+// each element, and `legs[i]` joining `points[i]` to `points[i+1]`. The module
+// used to accept a second shape as well, because ride.json sent `stops` and
+// `pois` as two arrays — see the header of ride-time.js for why that stopped
+// being possible.
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 
 type Leg = { durationS: number; distanceM: number }
-type Stop = { name?: string; durationMin: number | null }
-type Poi = { name?: string; durationMin: number | null; distFromStartMi?: number }
-type Route = { startAt: string | null; endAt: string | null; stops: Stop[]; pois?: Poi[]; legs: Leg[] }
+type Point = { kind: 'stop' | 'poi'; name?: string; durationMin: number | null }
+type Route = { startAt: string | null; endAt: string | null; points: Point[]; legs: Leg[] }
 
 let T: any
 
@@ -20,14 +25,14 @@ beforeAll(() => {
 })
 
 const leg = (durationS: number, distanceM = 1000): Leg => ({ durationS, distanceM })
-const stop = (name: string, durationMin: number | null = null): Stop => ({ name, durationMin })
+const stop = (name: string, durationMin: number | null = null): Point => ({ kind: 'stop', name, durationMin })
+const poi = (name: string, durationMin: number | null = null): Point => ({ kind: 'poi', name, durationMin })
 const at = (iso: string) => new Date(iso).toISOString()
 
 const day = (): Route => ({
   startAt: at('2026-08-01T09:00'),
   endAt: null,
-  stops: [stop('Home'), stop('Lunch', 120), stop('Motel')],
-  pois: [],
+  points: [stop('Home'), stop('Lunch', 120), stop('Motel')],
   legs: [leg(3600), leg(1800)],
 })
 
@@ -68,20 +73,20 @@ describe('walking a day', () => {
   const walk = (minutes: number) => T.activeAt(day(), minutes * 60)
 
   it('starts on the first leg', () => {
-    expect(walk(0)).toEqual({ legIndex: 0, stopIndex: null, poiIndex: null })
+    expect(walk(0)).toEqual({ legIndex: 0, pointIndex: null })
   })
 
-  it('is parked at the stop once the leg is done', () => {
-    expect(walk(60)).toEqual({ legIndex: null, stopIndex: 1, poiIndex: null })
-    expect(walk(119)).toEqual({ legIndex: null, stopIndex: 1, poiIndex: null })
+  it('is parked at the point once the leg is done', () => {
+    expect(walk(60)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(walk(119)).toEqual({ legIndex: null, pointIndex: 1 })
   })
 
   it('rides again when the dwell ends', () => {
-    expect(walk(180)).toEqual({ legIndex: 1, stopIndex: null, poiIndex: null })
+    expect(walk(180)).toEqual({ legIndex: 1, pointIndex: null })
   })
 
-  it('parks at the final stop past the end of the day', () => {
-    expect(walk(999)).toEqual({ legIndex: null, stopIndex: 2, poiIndex: null })
+  it('parks at the final point past the end of the day', () => {
+    expect(walk(999)).toEqual({ legIndex: null, pointIndex: 2 })
   })
 
   it('reports no leg at all while parked', () => {
@@ -95,7 +100,7 @@ describe('placing a moment across days', () => {
   const day2 = (): Route => ({
     startAt: at('2026-08-02T08:00'),
     endAt: null,
-    stops: [stop('Motel'), stop('Home')],
+    points: [stop('Motel'), stop('Home')],
     legs: [leg(3600)],
   })
   const both = () => {
@@ -116,8 +121,7 @@ describe('placing a moment across days', () => {
     expect(T.activeAtMoment(both(), secs('2026-08-01T20:00'))).toEqual({
       dayIndex: null,
       legIndex: null,
-      stopIndex: null,
-      poiIndex: null,
+      pointIndex: null,
     })
   })
 })
@@ -133,13 +137,13 @@ describe('trip span', () => {
   })
 
   it('is nothing at all for an undated ride', () => {
-    expect(T.rideSpan([{ startAt: null, endAt: null, stops: [], pois: [], legs: [] }])).toBeNull()
+    expect(T.rideSpan([{ startAt: null, endAt: null, points: [], legs: [] }])).toBeNull()
   })
 
   it('does not let an undated day stretch it', () => {
     const d = day()
     d.endAt = new Date((T.dayStartS(d) + T.dayElapsedS(d)) * 1000).toISOString()
-    const undated = { startAt: null, endAt: null, stops: [stop('X')], pois: [], legs: [] }
+    const undated = { startAt: null, endAt: null, points: [stop('X')], legs: [] }
     expect(T.rideSpan([d, undated])).toEqual(T.rideSpan([d]))
   })
 
@@ -155,8 +159,7 @@ describe('a losing alternate is not on the schedule', () => {
   const dated = (startIso: string, hours: number): any => ({
     startAt: at(startIso),
     endAt: at(new Date(new Date(startIso).getTime() + hours * 3600e3).toISOString()),
-    stops: [stop('A'), stop('B')],
-    pois: [],
+    points: [stop('A'), stop('B')],
     legs: [leg(hours * 3600)],
     altGroup: null,
     altActive: true,
@@ -196,50 +199,71 @@ describe('a losing alternate is not on the schedule', () => {
   })
 })
 
-describe('a POI you stop at', () => {
-  // 40km of leg 0 then 20km of leg 1, so a POI at 20km sits halfway along the
-  // first leg — 30 minutes into an hour of riding.
-  const withPoi = (durationMin: number | null, mi: number): Route => ({
+// Ziad's call, 2026-08-24: a POI is something you at least ride BY. It is part of
+// the route and anchors a leg like any other point, so its dwell falls on a leg
+// boundary and every figure below is arrived at the same way it would be for a
+// stop.
+//
+// WHAT THIS REPLACED, because the machinery was substantial and its absence is
+// the point: a POI used to sit BESIDE the route with no place in the sequence, so
+// daySchedule projected each one onto the day's concatenated track, sorted them by
+// that distance, and cut the leg a POI landed inside at whatever fraction of the
+// way along it sat. Callers had to compute those distances and thread them in as a
+// `poiDistsM` argument or every POI reported distance 0 and stacked up at the
+// start of the day. All of it is gone.
+describe('a POI is on the road', () => {
+  const withPoi = (durationMin: number | null): Route => ({
     startAt: at('2026-08-01T09:00'),
     endAt: null,
-    stops: [stop('Home'), stop('Lunch', 120), stop('Motel')],
-    pois: [{ name: 'Vista', durationMin, distFromStartMi: mi }],
-    legs: [{ durationS: 3600, distanceM: 40000 }, { durationS: 1800, distanceM: 20000 }],
+    points: [stop('Home'), poi('Vista', durationMin), stop('Lunch', 120), stop('Motel')],
+    legs: [leg(1800, 20000), leg(1800, 20000), leg(1800, 20000)],
   })
-  const MI = 1609.344
 
   it('adds its dwell to the day, so the day ends later', () => {
-    const without = T.dayElapsedS(withPoi(null, 20000 / MI))
-    expect(T.dayElapsedS(withPoi(30, 20000 / MI))).toBe(without + 1800)
+    expect(T.dayElapsedS(withPoi(30))).toBe(T.dayElapsedS(withPoi(null)) + 1800)
   })
 
   it('costs nothing when you ride past without stopping', () => {
-    expect(T.dayStoppedS(withPoi(null, 20000 / MI))).toBe(7200)
-    expect(T.dayStoppedS(withPoi(0, 20000 / MI))).toBe(7200)
+    expect(T.dayStoppedS(withPoi(null))).toBe(7200)
+    expect(T.dayStoppedS(withPoi(0))).toBe(7200)
   })
 
-  it('interrupts the leg it falls in, rather than waiting for the next stop', () => {
-    const r = withPoi(30, 20000 / MI)
-    // Half of leg 0 is 1800s of riding, then the POI holds for 1800s.
+  it('holds between the legs either side of it, never inside one', () => {
+    const r = withPoi(30)
     expect(T.activeAt(r, 1799).legIndex).toBe(0)
-    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, stopIndex: null, poiIndex: 0 })
-    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, stopIndex: null, poiIndex: 0 })
-    // ...and then the rest of leg 0 resumes.
-    expect(T.activeAt(r, 3600).legIndex).toBe(0)
+    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, pointIndex: 1 })
+    // ...and then the NEXT leg, not the rest of the one it interrupted.
+    expect(T.activeAt(r, 3600).legIndex).toBe(1)
   })
 
-  it('sits where its distance says, not where its array index does', () => {
-    const early = withPoi(30, 5000 / MI)
-    const late = withPoi(30, 35000 / MI)
-    // 1/8 of the way along leg 0 versus 7/8 of the way.
-    expect(T.activeAt(early, 500).poiIndex).toBe(0)
-    expect(T.activeAt(late, 500).legIndex).toBe(0)
-    expect(T.activeAt(late, 3200).poiIndex).toBe(0)
+  it('is placed by its position in the list, not by a distance', () => {
+    // The array IS the sequence. A POI at the end of the list is ridden to last
+    // whatever its coordinates would have projected to, which is the thing the
+    // old distance-sorted walk could not express.
+    const late: Route = {
+      startAt: at('2026-08-01T09:00'),
+      endAt: null,
+      points: [stop('Home'), stop('Lunch', 120), stop('Motel'), poi('Vista', 30)],
+      legs: [leg(1800), leg(1800), leg(1800)],
+    }
+    expect(T.activeAt(late, 0).legIndex).toBe(0)
+    expect(T.activeAt(late, 1800).pointIndex).toBe(1)
+    // Past every leg the day ends AT the POI, because that is where it ends.
+    expect(T.activeAt(late, 99999).pointIndex).toBe(3)
   })
 
-  it('takes its time at the end when it projects past the last leg', () => {
-    const r = withPoi(30, 999)
-    expect(T.dayElapsedS(r)).toBe(3600 + 1800 + 7200 + 1800)
+  it('gives a day of a stop and one POI a leg to draw', () => {
+    // The report that changed the model. Nothing about the schedule was wrong
+    // before — there was simply no leg, so there was no road and no riding time.
+    const fresh: Route = {
+      startAt: at('2026-08-01T09:00'),
+      endAt: null,
+      points: [stop('Start'), poi('Vista')],
+      legs: [leg(1800, 20000)],
+    }
+    expect(T.dayRidingS(fresh)).toBe(1800)
+    expect(T.activeAt(fresh, 0).legIndex).toBe(0)
   })
 })
 
@@ -250,10 +274,24 @@ describe('the schedule and the elapsed time cannot disagree', () => {
   // matters most in this file.
   const cases: Route[] = [
     day(),
-    { ...day(), pois: [{ durationMin: 45, distFromStartMi: 10 }] },
-    { ...day(), pois: [{ durationMin: 20, distFromStartMi: 0 }, { durationMin: 20, distFromStartMi: 99 }] },
-    { ...day(), pois: [{ durationMin: null, distFromStartMi: 5 }] },
-    { startAt: null, endAt: null, stops: [stop('Only')], pois: [], legs: [] },
+    {
+      ...day(),
+      points: [stop('Home'), poi('V', 45), stop('Lunch', 120), stop('Motel')],
+      legs: [leg(3600), leg(900), leg(1800)],
+    },
+    // A day that OPENS on a POI and closes on one. Legal, and reachable by
+    // dragging: nothing says the first point of a day has to stay a stop.
+    {
+      ...day(),
+      points: [poi('V0', 20), stop('Home'), stop('Lunch', 120), stop('Motel'), poi('V1', 20)],
+      legs: [leg(600), leg(3600), leg(1800), leg(600)],
+    },
+    {
+      ...day(),
+      points: [stop('Home'), poi('V', null), stop('Lunch', 120), stop('Motel')],
+      legs: [leg(3600), leg(900), leg(1800)],
+    },
+    { startAt: null, endAt: null, points: [stop('Only')], legs: [] },
   ]
 
   it.each(cases.map((c, i) => [i, c] as const))('holds for case %i', (_i, day) => {
@@ -268,11 +306,11 @@ describe('the schedule and the elapsed time cannot disagree', () => {
   })
 })
 
-describe('a day with fewer legs than its stops imply', () => {
+describe('a day with fewer legs than its points imply', () => {
   // THIS WAS A LIVE BUG, and it is the reason the shape is worth a test of its
-  // own. daySchedule walks stops and legs together and stops dead at the first
-  // missing leg. Every imported ride used to be stored as ONE leg holding the
-  // whole track however many stops sat on it — so from stop 1 onward, every
+  // own. daySchedule walks points and legs together and used to stop dead at the
+  // first missing leg. Every imported ride was stored as ONE leg holding the
+  // whole track however many points sat on it — so from point 1 onward, every
   // dwell was silently dropped from the day and the timeline ran short by
   // exactly that much. Nothing said so; the slider just ended early.
   //
@@ -284,16 +322,15 @@ describe('a day with fewer legs than its stops imply', () => {
   const truncated: Route = {
     startAt: at('2026-08-01T09:00'),
     endAt: null,
-    stops: [stop('Start'), stop('Lunch', 60), stop('Fuel', 30), stop('Motel')],
-    pois: [],
+    points: [stop('Start'), stop('Lunch', 60), stop('Fuel', 30), stop('Motel')],
     legs: [leg(3600, 72000)],
   }
 
-  it('still counts the dwell of stops past the last leg', () => {
+  it('still counts the dwell of points past the last leg', () => {
     const segs = T.daySchedule(truncated)
-    const dwelled = segs.filter((s: { kind: string }) => s.kind === 'stop').map((s: { index: number }) => s.index)
-    // Lunch is stop 1 and Fuel is stop 2. Before the fix the walk broke after
-    // stop 0's leg and Fuel never appeared at all.
+    const dwelled = segs.filter((s: { kind: string }) => s.kind === 'point').map((s: { index: number }) => s.index)
+    // Lunch is point 1 and Fuel is point 2. Before the fix the walk broke after
+    // point 0's leg and Fuel never appeared at all.
     expect(dwelled).toContain(1)
     expect(dwelled).toContain(2)
   })

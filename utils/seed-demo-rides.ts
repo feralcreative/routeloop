@@ -23,6 +23,7 @@ import { db } from '../src/db/index'
 import { users, rides, days, points, routeLegs, waypointRoleEnum } from '../src/db/schema'
 import { generateSlug } from '../src/maps/slug'
 import { newUid } from '../src/maps/uid'
+import { splitDayTrack } from '../src/maps/track-split'
 import { GMAPS_SERVER_KEY, OWNER_EMAIL, isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
 
 // schema.ts exports row types but not the role union, so derive it from the
@@ -418,56 +419,78 @@ async function main(): Promise<void> {
         })
         .returning()
 
-      // Cumulative distance to each stop is the sum of the legs before it —
+      // ONE LEG PER PAIR OF POINTS, POIs included — Ziad's call, 2026-08-24. The
+      // router was asked for stop-to-stop legs above, so the POIs generated below
+      // sit inside them; splitDayTrack re-cuts the concatenated track at every
+      // point and hands back one ordered list. Nothing is re-routed and no
+      // coordinate is invented.
+      //
+      // This used to insert the stops, then append the POIs after them with
+      // stops-1 legs, which is a shape the builder can no longer open: a demo ride
+      // would have had straight placeholder legs drawn out to each viewpoint and
+      // back the moment anyone edited it.
+      const track = spec.legs.flatMap((l) => l.geometry)
+      const routed = makePois(track, between(0, 3))
+      const split = splitDayTrack(
+        track,
+        [
+          ...spec.stops.map((st) => ({
+            lat: st.lngLat[1],
+            lng: st.lngLat[0],
+            name: st.name,
+            description: null,
+            roles: st.roles,
+            kind: 'stop' as const,
+            durationMin: st.durationMin ?? null,
+          })),
+          ...routed.map((po) => ({
+            lat: po.lngLat[1],
+            lng: po.lngLat[0],
+            name: po.name,
+            description: null,
+            roles: po.roles,
+            kind: 'poi' as const,
+            durationMin: null,
+          })),
+        ],
+      )
+
+      // The router's own durations, spread across the re-cut legs by distance.
+      // Zeroing them would make every demo day read as an estimate.
+      const totalS = spec.legs.reduce((t, l) => t + l.durationS, 0)
+      const cutM = split.legs.reduce((t, l) => t + l.distanceM, 0)
+
+      // Cumulative distance to each point is the sum of the legs before it —
       // this is what the viewer's From Start / From Gas columns read.
-      let cum = 0
-      const stopRows = spec.stops.map((s, i) => {
-        const distFromStartM = i === 0 ? 0 : (cum += spec.legs[i - 1].distanceM)
-        return {
+      const prefix: number[] = [0]
+      for (const l of split.legs) prefix.push(prefix[prefix.length - 1] + l.distanceM)
+
+      await db.insert(points).values(
+        split.points.map((pt, i) => ({
           dayId: route.id,
-          kind: 'stop' as const,
+          kind: pt.kind === 'poi' ? ('poi' as const) : ('stop' as const),
+          // Dense over both kinds since drizzle/0008.
           position: i,
-          lat: s.lngLat[1],
-          lng: s.lngLat[0],
-          name: s.name,
+          lat: pt.lat,
+          lng: pt.lng,
+          name: pt.name,
           description: '',
-          roles: s.roles,
-          durationMin: s.durationMin ?? null,
-          distFromStartM: Math.round(distFromStartM),
+          roles: pt.roles,
+          durationMin: pt.durationMin ?? null,
+          distFromStartM: prefix[Math.min(i, prefix.length - 1)],
           // NOT NULL since drizzle/0006. This file is not in tsconfig.json, so
           // a missing column here fails at runtime rather than at typecheck.
           uid: newUid(),
-        }
-      })
-      await db.insert(points).values(stopRows)
-
-      const track = spec.legs.flatMap((l) => l.geometry)
-      const pois = makePois(track, between(0, 3))
-      if (pois.length) {
-        await db.insert(points).values(
-          // POIs continue the day's numbering after its stops — every point
-          // carries a position since drizzle/0008, both kinds, dense from 0.
-          pois.map((p, i) => ({
-            dayId: route.id,
-            kind: 'poi' as const,
-            position: spec.stops.length + i,
-            lat: p.lngLat[1],
-            lng: p.lngLat[0],
-            name: p.name,
-            description: '',
-            roles: p.roles,
-            uid: newUid(),
-          })),
-        )
-      }
+        })),
+      )
 
       await db.insert(routeLegs).values(
-        spec.legs.map((l, i) => ({
+        split.legs.map((l, i) => ({
           dayId: route.id,
           position: i,
           geometry: l.geometry,
           distanceM: l.distanceM,
-          durationS: l.durationS,
+          durationS: cutM > 0 ? Math.round((totalS * l.distanceM) / cutM) : 0,
         })),
       )
     }

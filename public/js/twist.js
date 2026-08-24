@@ -185,34 +185,21 @@ window.TBTwist = (function () {
     });
   }
 
-  // O(track x pois): about 380,000 comparisons for a long day with twenty POIs.
-  // Depends on the POI positions as well as the track, so the signature covers
-  // both — dragging a POI marker changes neither array's identity nor its
-  // length.
-  const poiCache = new WeakMap();
-  // Accepts either day shape — one ordered `points` array with per-element kinds
-  // (the builder since 2026-08-23) or the `pois` array ride.json still sends.
-  function dayPoiDistances(day) {
-    if (!day) return [];
-    const pois = day.points ? day.points.filter((p) => p.kind === "poi") : day.pois;
-    if (!pois || pois.length === 0) return [];
-    let sig = legsSignature(day) + "|" + pois.length + ":";
-    for (const p of pois) sig += p.lng + "," + p.lat + ";";
-    const hit = poiCache.get(day);
-    if (hit && hit.sig === sig) return hit.dists;
-    const track = [];
-    for (const leg of day.legs || []) for (const p of leg.geometry || []) track.push(p);
-    const dists = distFromStartAlongTrack(track, pois);
-    poiCache.set(day, { sig, dists });
-    return dists;
-  }
-
+  // distFromStartAlongTrack STAYS, and dayPoiDistances that used to sit here is
+  // gone. It projected each of a day's POIs onto the concatenated track to find
+  // how far along the day it sat, which was the only way to place a POI in the
+  // sequence while a POI anchored no leg. Every point anchors a leg as of
+  // 2026-08-24, so a point's distance from the start is the prefix sum of the
+  // legs before it — exact, free, and the same number the server stores. The
+  // projection survives here only because test/twist-client.test.ts pins it to
+  // src/maps/kml.ts, and the lossy import path still needs it: a GPX waypoint
+  // arrives with no position at all and the track is the only thing that can
+  // place it.
   return {
     twistiness,
     twistLabel,
     dayTwistiness,
     distFromStartAlongTrack,
-    dayPoiDistances,
     SPACING_M,
     DEADBAND_DEG,
     WINDOW_MI,

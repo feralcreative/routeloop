@@ -144,11 +144,14 @@ describe('batching a long day', () => {
 })
 
 describe('what is left out', () => {
-  it('routes through stops but not POIs', () => {
+  // Ziad's call, 2026-08-24: a POI is somewhere the rider at least rides BY, so it
+  // is part of the route and the hand-off has to carry it. It used to be skipped
+  // here, on the grounds that routing through one would bend the road to reach it
+  // — which was right while a POI sat beside the route. Excluding them now would
+  // send the rider down a different road than the builder drew.
+  it('routes through both kinds, POIs included', () => {
     const r = routeLinks(routeOf([stop(1), stop(2, 'poi'), stop(3)]))
-    expect(r.skippedPois).toBe(1)
-    // A POI is somewhere worth knowing, not somewhere the road has to go.
-    expect(waypointsOf(r.links[0].url)).toEqual([])
+    expect(waypointsOf(r.links[0].url)).toEqual(['37.02,-121.98'])
     expect(params(r.links[0].url).get('destination')).toBe('37.03,-121.97')
   })
 

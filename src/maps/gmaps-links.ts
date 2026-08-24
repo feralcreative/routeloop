@@ -47,19 +47,17 @@ export type GmapsLink = {
   // 1-based, for "part 2 of 5".
   part: number
   parts: number
-  // The rider's own stops in this link, so a caller can list them. Shaping
+  // The rider's own points in this link, so a caller can list them. Shaping
   // points are deliberately not here — they are not places anyone is going,
   // and listing "unnamed point" thirty times helps nobody.
   points: ExportPoint[]
-  // How many shaping points this link carries alongside those stops.
+  // How many shaping points this link carries alongside those points.
   shaping: number
 }
 
 export type GmapsRouteLinks = {
   title: string | null
   links: GmapsLink[]
-  // Points that were skipped because they are not routing anchors.
-  skippedPois: number
   // The longest stretch of road with nothing pinning it, in meters, once
   // shaping points are in. This is the honest measure of how much freedom the
   // nav app still has, and a caller should show it rather than implying the
@@ -154,16 +152,19 @@ function weave(anchors: ExportPoint[], track: Track, shaping: Track): { seq: Lin
 // One day's points as an ordered series of links. Never batches across a
 // day boundary: day 2 starting where day 1 ended is a rest, not a leg.
 export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLinks {
-  // POIs are excluded on purpose. A POI is somewhere worth knowing about, not a
-  // place the route has to pass through, and handing one to Maps as a waypoint
-  // bends the road to reach it. Stops are the routing anchors, which is exactly
-  // the distinction the schema draws.
-  const anchors = day.points.filter((p) => p.kind !== 'poi')
-  const skippedPois = day.points.length - anchors.length
+  // BOTH KINDS ARE HANDED OVER, as of 2026-08-24. POIs used to be excluded here,
+  // on the grounds that routing through one would bend the road to reach it —
+  // which was right while a POI sat beside the route. It IS the route now, so
+  // excluding them would send the rider down a different road than the one the
+  // builder drew and the roadbook printed, with nothing saying so.
+  //
+  // The cost is waypoints, and the batching below already absorbs it: a day with
+  // many POIs comes out as more links rather than a wrong one.
+  const anchors = day.points
 
   // A single point is a destination, not a route: one link, no waypoints.
   if (anchors.length < 2) {
-    if (anchors.length === 0) return { title: day.title, links: [], skippedPois, longestGapM: null }
+    if (anchors.length === 0) return { title: day.title, links: [], longestGapM: null }
     const params = new URLSearchParams({ api: '1', destination: coord(anchors[0]) })
     params.set('travelmode', opts.travelMode ?? 'driving')
     return {
@@ -177,7 +178,6 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
           shaping: 0,
         },
       ],
-      skippedPois,
       longestGapM: null,
     }
   }
@@ -222,7 +222,6 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
       points: batch.filter((p) => p.stop).map((p) => p.stop as ExportPoint),
       shaping: batch.filter((p) => !p.stop).length,
     })),
-    skippedPois,
     longestGapM,
   }
 }

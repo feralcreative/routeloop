@@ -50,7 +50,7 @@
   // is whatever the geometry looked like at the last save, and this panel has to
   // be right while the rider is still moving stops around. See twist.js for why
   // there are two implementations and what keeps them honest.
-  const { dayTwistiness, twistLabel, dayPoiDistances } = window.TBTwist;
+  const { dayTwistiness, twistLabel } = window.TBTwist;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
   const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
@@ -116,39 +116,26 @@
   // --- One ordered list -----------------------------------------------------
   //
   // A day holds ONE array, `points`, in the rider's order, and `kind` says only
-  // whether a point anchors routing. It replaced `day.stops` and `day.pois`,
-  // where "stopness" was expressed by which array an object sat in and a POI had
-  // no stored order at all — its place in the list was derived by projecting it
-  // onto the day's track, which has no answer before a route exists.
+  // whether the rider means to STOP there. It replaced `day.stops` and
+  // `day.pois`, where "stopness" was expressed by which array an object sat in
+  // and a POI had no stored order at all — its place in the list was derived by
+  // projecting it onto the day's track, which has no answer before a route
+  // exists.
   //
-  // LEG MATH STILL COUNTS IN STOPS, because a leg connects stop i to stop i+1
-  // and a POI bends no road. So there are two index spaces — position in the
-  // day, and ordinal among the stops — and these three helpers are the entire
-  // bridge between them. Convert here or not at all; an ad-hoc conversion at a
-  // call site is how the two silently disagree.
+  // ONE INDEX SPACE, as of 2026-08-24. `legs[i]` joins `points[i]` to
+  // `points[i+1]`, whatever kind either end is, so a point's position in the day
+  // IS its leg index and there is nothing to convert.
+  //
+  // What used to be here: stopIdx() and stopOrdinalAt(), the bridge between
+  // "position in the day" and "ordinal among the stops", because a leg connected
+  // stop i to stop i+1 and a POI bent no road. A POI is part of the route now — it
+  // is something the rider will at least ride BY — so the second index space is
+  // gone and every leg call site indexes points directly.
+  //
+  // stopsOf() survives for the things that genuinely count stops rather than
+  // points: the row numbering, the at-least-one-stop guard, and the endpoints of
+  // an alternate group.
   const stopsOf = (day) => day.points.filter((pt) => pt.kind === "stop");
-  const poisOf = (day) => day.points.filter((pt) => pt.kind === "poi");
-
-  /** Indices into day.points of the day's stops, in order. stopIdx(day)[si] is where stop si lives. */
-  function stopIdx(day) {
-    const out = [];
-    day.points.forEach((pt, k) => {
-      if (pt.kind === "stop") out.push(k);
-    });
-    return out;
-  }
-
-  /**
-   * How many stops sit before day.points[k].
-   *
-   * For a stop that IS its ordinal among the stops; for a POI it is the ordinal
-   * of the leg it sits inside, which is what the row numbering wants.
-   */
-  function stopOrdinalAt(day, k) {
-    let count = 0;
-    for (let j = 0; j < k && j < day.points.length; j++) if (day.points[j].kind === "stop") count++;
-    return count;
-  }
 
   // The rider's saved-place library, loaded once when the builder opens.
   //
@@ -327,7 +314,8 @@
     // and why the group id is not stable across a save.
     altGroup: null,
     altActive: true,
-    // One ordered list of both kinds — see stopsOf() and friends above.
+    // One ordered list of both kinds, and legs[i] joins points[i] to points[i+1]
+    // whatever kind either end is — see the One ordered list block above.
     points: [],
     legs: [],
   });
@@ -693,13 +681,13 @@
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
 
-  // Every day arrives with exactly stops−1 legs, whatever it was stored as.
+  // Every day arrives with exactly points−1 legs, whatever it was stored as.
   //
-  // A CSV import is a list of stops with NO geometry at all — csv.ts refuses to
+  // A CSV import is a list of points with NO geometry at all — csv.ts refuses to
   // join them with straight lines, because a distance no motorcycle can ride is
-  // worse than no distance. So it lands with N stops and zero legs, which the
+  // worse than no distance. So it lands with N points and zero legs, which the
   // ride payload rejects on the way back out: `legs must connect consecutive
-  // stops`. That never mattered while imported rides could not be opened; the
+  // points`. That never mattered while imported rides could not be opened; the
   // moment the builder started accepting them, a rider could open a CSV import
   // and watch every autosave fail.
   //
@@ -710,16 +698,16 @@
   // instant it was opened would be a page load that silently spends money.
   // Touching a stop routes its legs, which is the rider asking.
   function fillMissingLegs(day) {
-    const stops = stopsOf(day);
-    const want = Math.max(0, stops.length - 1);
+    const pts = day.points;
+    const want = Math.max(0, pts.length - 1);
     if (day.legs.length === want) return;
     // Trim first: more legs than pairs cannot be saved either, and a leg with
-    // no pair of stops to connect has nothing to be about.
+    // no pair of points to connect has nothing to be about.
     day.legs.length = Math.min(day.legs.length, want);
     for (let i = 0; i < want; i++) {
       if (day.legs[i]) continue;
-      const a = stops[i];
-      const b = stops[i + 1];
+      const a = pts[i];
+      const b = pts[i + 1];
       day.legs[i] = straightLeg([a.lng, a.lat], [b.lng, b.lat], []);
     }
   }
@@ -760,22 +748,22 @@
     };
   }
 
-  // Recomputes leg i of day r, joining the i-th STOP to the (i+1)-th. `i` is an
-  // ordinal among the day's stops, not an index into day.points — POIs sit in
-  // that list too and none of them anchors a leg.
+  // Recomputes leg i of day r, joining points[i] to points[i+1]. `i` indexes
+  // day.points directly — both kinds anchor a leg, so there is no ordinal to
+  // convert from.
   function computeLeg(r, i) {
     const day = state.days[r];
     if (!day) return;
-    const stops = stopsOf(day);
-    if (!stops[i] || !stops[i + 1]) return;
-    const a = [stops[i].lng, stops[i].lat];
-    const b = [stops[i + 1].lng, stops[i + 1].lat];
+    const pts = day.points;
+    if (!pts[i] || !pts[i + 1]) return;
+    const a = [pts[i].lng, pts[i].lat];
+    const b = [pts[i + 1].lng, pts[i + 1].lat];
     const vias = (day.legs[i] && day.legs[i].viaPoints) || [];
     day.legs[i] = straightLeg(a, b, vias);
     renderTrack(r);
     refreshDerived();
 
-    // Two stops in the same place have no route between them, and asking is both
+    // Two points in the same place have no route between them, and asking is both
     // a billable Routes request and a guaranteed 422 — which surfaces as "no road
     // route for that leg" in a toast, for a leg the rider never asked to route.
     // The straight leg above is already the right answer: zero meters, zero
@@ -801,7 +789,7 @@
   }
 
   function computeLegsAround(r, indices) {
-    const n = stopsOf(state.days[r]).length - 1;
+    const n = state.days[r].points.length - 1;
     [...new Set(indices)].filter((i) => i >= 0 && i < n).forEach((i) => computeLeg(r, i));
   }
 
@@ -926,18 +914,17 @@
     const marker = addMarker(state.map, [point.lng, point.lat], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
       const day = state.days[r];
-      const isStop = point.kind === "stop";
-      beginEdit(isStop ? "move stop" : "move POI");
+      beginEdit(point.kind === "stop" ? "move stop" : "move POI");
       point.lng = +lng.toFixed(6);
       point.lat = +lat.toFixed(6);
-      // Only a routing anchor bends the road, so only a stop's legs go stale.
-      // Dragging a POI moves a dot and costs nothing.
-      if (isStop) {
-        const si = stopOrdinalAt(day, i);
-        if (day.legs[si - 1]) day.legs[si - 1].viaPoints = [];
-        if (day.legs[si]) day.legs[si].viaPoints = [];
-        computeLegsAround(r, [si - 1, si]);
-      }
+      // BOTH KINDS BEND THE ROAD. Dragging a POI used to move a dot and cost
+      // nothing, because a POI anchored no leg; it anchors the two either side of
+      // it now, so the same surgery a stop always got applies to every point.
+      // Their shaping points go with them — a via belongs to the pair of points
+      // its leg used to join.
+      if (day.legs[i - 1]) day.legs[i - 1].viaPoints = [];
+      if (day.legs[i]) day.legs[i].viaPoints = [];
+      computeLegsAround(r, [i - 1, i]);
       markDirty();
     });
     return { marker, el };
@@ -1024,6 +1011,11 @@
   // one stop per day, and a rider who drops one pin and saves should get a day
   // that means something rather than a validation error. It is the only implicit
   // promotion in the app.
+  //
+  // EVERY POINT IS ROUTED TO, whatever its kind. A point appended to a day gets a
+  // leg from the one before it, which is what makes a start plus one POI draw a
+  // road — the report that changed this on 2026-08-24. Note the cost that comes
+  // with it: adding a POI is a Routes request now, where it used to be free.
   function addPoint(lng, lat, name, dayIndex, prebuilt) {
     const r = dayIndex == null ? editIndex() : dayIndex;
     if (r == null || !state.days[r]) return noDayYet();
@@ -1041,6 +1033,11 @@
       pt.kind = "poi";
     }
     day.points.push(pt);
+    // The leg into the new point. `first` has no leg before it, and
+    // computeLegsAround clamps anything out of range, so this is a no-op on the
+    // first point of a day and one request on every point after it.
+    if (!first) computeLegsAround(r, [day.points.length - 2]);
+    renderTrack(r);
     renderMarkers();
     // renderDayList(r), not renderList(): renderList redraws the ACTIVE day, and
     // a search row can add to a day that is not it.
@@ -1052,14 +1049,16 @@
   /**
    * Promotes a POI to a stop, or demotes a stop back to a POI.
    *
-   * A flag flip. Nothing moves — that is the whole point of one ordered list,
-   * and it is why this is cheap enough to be reversible: a mis-promotion costs
-   * one menu item rather than a delete and a re-add that would lose the point's
-   * notes and details.
+   * A FLAG FLIP AND NOTHING ELSE, as of 2026-08-24. Every point anchors a leg
+   * whatever its kind, so the road does not change, no leg is rebuilt, no shaping
+   * point is dropped and no Routes request is made. What changes is the row's
+   * number, the marker's size, and whether the ride counts it as a stop.
    *
-   * The legs are rebuilt around the change because the stop sequence just
-   * changed, and their shaping points are dropped for the same reason a reorder
-   * drops them: a via-point belongs to the pair of stops its leg used to join.
+   * It used to rebuild the legs either side and clear their vias, because the
+   * STOP SEQUENCE changed and a via belonged to the pair of stops its leg joined.
+   * That is the cost this model removes: promoting a point is now free and exactly
+   * reversible, where before it spent two Routes calls and silently threw away the
+   * rider's shaping work on both legs.
    */
   function setPointKind(i, kind) {
     const r = editIndex();
@@ -1077,15 +1076,7 @@
     }
     beginEdit(kind === "stop" ? "make a stop" : "make a POI");
     pt.kind = kind;
-    // Where this point sits in the stop order once the flip has happened. A
-    // promotion splits the leg it was sitting inside; a demotion merges the two
-    // it joined. Recomputing the pair either side covers both.
-    const so = stopOrdinalAt(day, i);
-    day.legs = [];
-    state.legSeq[r] = [];
-    fillMissingLegs(day);
-    computeLegsAround(r, [so - 1, so, so + 1]);
-    renderTrack(r);
+    // No leg work and no renderTrack: the road is identical either side of this.
     renderMarkers();
     renderDayList(r);
     refreshDerived();
@@ -1141,31 +1132,31 @@
     document.body.classList.toggle("is-arming", state.arm != null);
   }
 
-  // `i` indexes day.points. A POI leaves no hole in the route; a stop does, and
-  // its legs need the same surgery they always did — expressed in stop ordinals,
-  // which is the only space the leg array understands.
+  // `i` indexes day.points, and EVERY kind leaves a hole in the route — a POI is
+  // ridden through, so removing one joins its neighbors the same way removing a
+  // stop does. The surgery used to be a stop-only path expressed in stop
+  // ordinals; there is one index space now and one code path.
   function deletePoint(i) {
     const r = editIndex();
     if (r == null) return;
     const day = state.days[r];
     const pt = day.points[i];
     if (!pt) return;
-    const wasStop = pt.kind === "stop";
-    const si = stopOrdinalAt(day, i);
-    beginEdit(wasStop ? "delete stop" : "delete POI");
+    beginEdit(pt.kind === "stop" ? "delete stop" : "delete POI");
     day.points.splice(i, 1);
 
-    if (wasStop && day.legs.length) {
-      const stops = stopsOf(day);
-      // Remove the legs that touched stop si, then bridge the gap (if any).
-      const from = Math.max(0, si - 1);
-      day.legs.splice(from, si === 0 || si === stops.length ? 1 : 2);
+    if (day.legs.length) {
+      const pts = day.points;
+      // Remove the legs that touched point i, then bridge the gap (if any). One
+      // leg at either end of the day, two in the middle.
+      const from = Math.max(0, i - 1);
+      day.legs.splice(from, i === 0 || i === pts.length ? 1 : 2);
       state.legSeq[r] = [];
-      if (si > 0 && si < stops.length) {
+      if (i > 0 && i < pts.length) {
         day.legs.splice(
           from,
           0,
-          straightLeg([stops[si - 1].lng, stops[si - 1].lat], [stops[si].lng, stops[si].lat]),
+          straightLeg([pts[i - 1].lng, pts[i - 1].lat], [pts[i].lng, pts[i].lat]),
         );
         computeLeg(r, from);
       }
@@ -1210,15 +1201,17 @@
     };
     list.splice(i + 1, 0, copy);
 
-    if (kind === "stop") {
-      // A stop inserted at i+1 sits on top of its original, so the leg into it
-      // is zero length and the one out of it is the original's old leg. Both
-      // ends get recomputed rather than guessed.
-      day.legs.splice(i, 0, straightLeg([src.lng, src.lat], [src.lng, src.lat]));
-      state.legSeq[r] = [];
-      computeLegsAround(r, [i - 1, i, i + 1]);
-      renderTrack(r);
-    }
+    // A point inserted at i+1 sits on top of its original, so the leg into it is
+    // zero length and the one out of it is the original's old leg. Both ends get
+    // recomputed rather than guessed.
+    //
+    // This used to be a stop-only branch, and it indexed the leg array with `i` —
+    // a points index — which was already wrong for any day with a POI ahead of the
+    // duplicated stop. One index space makes it right rather than papering over it.
+    day.legs.splice(i, 0, straightLeg([src.lng, src.lat], [src.lng, src.lat]));
+    state.legSeq[r] = [];
+    computeLegsAround(r, [i - 1, i, i + 1]);
+    renderTrack(r);
     renderMarkers();
     renderList();
     refreshDerived();
@@ -1230,13 +1223,17 @@
   // move — dragging point 2 to position 5 with a swap would put point 5 at 2, and
   // that is not what anybody dragging means.
   //
-  // Which legs are wrong afterwards: a leg joins consecutive STOPS, so a move
-  // that leaves the stop sequence untouched — any POI drag, and a stop dropped
-  // among POIs without passing another stop — costs nothing. When the sequence
-  // does change, every leg from the one BEFORE the earlier stop through the one
-  // AFTER the later one is refilled. Recomputing the whole day instead would be
-  // correct and would also fire a routing request per leg, which is the half that
-  // costs money.
+  // Which legs are wrong afterwards: a leg joins consecutive POINTS, so ANY move
+  // changes the road. Every leg from the one before the earlier index through the
+  // one after the later index is refilled — recomputing the whole day instead
+  // would be correct and would also fire a routing request per leg, which is the
+  // half that costs money.
+  //
+  // There used to be a short circuit here: a move that left the STOP sequence
+  // untouched — any POI drag, or a stop dropped among POIs without passing
+  // another stop — changed no leg and cost nothing. A POI is on the route now, so
+  // there is no such move and the short circuit is gone with it. Dragging a POI is
+  // a real re-route.
   //
   // What used to be here: a POI drag was a REPOSITION, not a reorder — the pin
   // was relocated to the road midway between the rows it was dropped between,
@@ -1250,32 +1247,21 @@
     const day = state.days[r];
     if (from < 0 || from >= day.points.length || to < 0 || to >= day.points.length) return;
 
-    // The stop sequence BEFORE, so the leg work below can be skipped entirely
-    // when only a POI moved — which is the common case while sketching and the
-    // one that must not spend a Directions call.
-    const before = stopsOf(day)
-      .map((pt) => pt.uid)
-      .join(",");
-
     beginEdit("move point");
     const [moved] = day.points.splice(from, 1);
     day.points.splice(to, 0, moved);
 
-    const after = stopsOf(day)
-      .map((pt) => pt.uid)
-      .join(",");
-    if (before !== after) {
-      const lo = Math.min(stopOrdinalAt(day, Math.min(from, to)), stopOrdinalAt(day, Math.max(from, to))) - 1;
-      const hi = stopOrdinalAt(day, Math.max(from, to)) + 1;
-      const idx = [];
-      for (let k = lo; k <= hi; k++) {
-        // Shaping points belong to the pair of stops the leg used to join, so
-        // they are meaningless once either end changes.
-        if (day.legs[k]) day.legs[k].viaPoints = [];
-        idx.push(k);
-      }
-      computeLegsAround(r, idx);
+    const lo = Math.min(from, to) - 1;
+    const hi = Math.max(from, to) + 1;
+    const idx = [];
+    for (let k = lo; k <= hi; k++) {
+      // Shaping points belong to the pair of points the leg used to join, so
+      // they are meaningless once either end changes.
+      if (day.legs[k]) day.legs[k].viaPoints = [];
+      idx.push(k);
     }
+    computeLegsAround(r, idx);
+    renderTrack(r);
     renderMarkers();
     renderList();
     refreshDerived();
@@ -1324,8 +1310,12 @@
 
     // A day begins where the last one ended. Without this every new day starts
     // with a search for a place you already have on the map.
-    const lastStops = prev ? stopsOf(prev) : [];
-    const last = lastStops[lastStops.length - 1];
+    //
+    // The last POINT, not the last stop. Every point is somewhere the rider rides
+    // to, so the day physically ends at the last one in the list whatever its
+    // kind — a day finishing at a viewpoint ends at the viewpoint.
+    const lastPts = prev ? prev.points : [];
+    const last = lastPts[lastPts.length - 1];
     if (last) {
       day.points.push({
         lat: last.lat,
@@ -1392,10 +1382,11 @@
     const r = editIndex();
     if (r == null) return noDayYet();
     const day = state.days[r];
-    const stops = stopsOf(day);
-    if (stops.length < 2) return toast("Nothing to reverse yet", true);
+    // POINTS, not stops. A day of three POIs draws a road and has something to
+    // reverse; counting stops would have told the rider there was nothing there.
+    if (day.points.length < 2) return toast("Nothing to reverse yet", true);
 
-    const legCount = Math.max(0, stops.length - 1);
+    const legCount = Math.max(0, day.points.length - 1);
     // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
     // routes→days rename caught this string, which a rider reads in a dialog.
     if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
@@ -1543,9 +1534,12 @@
   // when they do. Compared against the first selected day, which is the one that
   // becomes active.
   function endpointGap(rows) {
+    // The first and last POINTS of each candidate. Where a day starts and ends is
+    // where its road starts and ends, and both ends anchor a leg whatever kind
+    // they are.
     const ends = rows.map((r) => {
-      const s = stopsOf(state.days[r]);
-      return s.length ? { first: s[0], last: s[s.length - 1] } : null;
+      const pts = state.days[r].points;
+      return pts.length ? { first: pts[0], last: pts[pts.length - 1] } : null;
     });
     const base = ends[0];
     if (!base) return null;
@@ -1627,24 +1621,28 @@
     const byDay = selectedPointsByDay();
     const n = selectedPointCount();
     if (!n) return;
-    // Every stop removed drops the legs either side and re-requests one, so a
+    // Every point removed drops the legs either side and re-requests one, so a
     // big selection is real money and a visibly empty map while it runs. Same
-    // threshold and same reasoning as reverseDay's confirm.
-    const stops = [...byDay.values()].reduce((m, list) => m + list.filter((p) => p.kind === "stop").length, 0);
-    if (stops > 12 && !window.confirm("Deleting " + stops + " stops re-routes the legs around each. Continue?")) return;
+    // threshold and same reasoning as reverseDay's confirm. Counted over both
+    // kinds now — a POI costs exactly what a stop costs.
+    if (n > 12 && !window.confirm("Deleting " + n + " points re-routes the legs around each. Continue?")) return;
     beginEdit("delete points");
     for (const [r, list] of byDay) {
       const day = state.days[r];
       if (!day) continue;
       // Already sorted descending by selectedPointsByDay().
       list.forEach((p) => day.points.splice(p.i, 1));
-      // Legs are rebuilt wholesale for any day that lost a stop rather than
-      // repaired around each removal — with several gone at once there is no
-      // "the leg either side" to bridge.
-      if (list.some((p) => p.kind === "stop")) {
-        day.legs = [];
-        state.legSeq[r] = [];
-      }
+      // A DAY MUST KEEP A STOP. A selection can take every stop and leave the
+      // POIs, which the API refuses and payload() drops the day for — so the
+      // first survivor is promoted, the same rule addPoint applies to a day's
+      // first point and the cross-day drag applies to a day that has just lost
+      // its only anchor.
+      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+      // Legs are rebuilt wholesale rather than repaired around each removal —
+      // with several gone at once there is no "the leg either side" to bridge.
+      // Unconditional now: losing any point of either kind changes the road.
+      day.legs = [];
+      state.legSeq[r] = [];
     }
     const touched = [...byDay.keys()];
     endSelect();
@@ -1652,10 +1650,10 @@
     renderMarkers();
     touched.forEach((r) => {
       const day = state.days[r];
-      const nStops = day ? stopsOf(day).length : 0;
-      if (day && nStops >= 2 && day.legs.length === 0) {
+      const nPts = day ? day.points.length : 0;
+      if (day && nPts >= 2 && day.legs.length === 0) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nStops - 1 }, (_, k) => k));
+        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
       }
     });
     refreshDerived();
@@ -1677,12 +1675,17 @@
         const [pt] = day.points.splice(p.i, 1);
         if (pt) moved.push({ kind: p.kind, pt });
       });
+      // Same rule as the bulk delete: moving every stop out of a day leaves one
+      // the save refuses, so the first point left behind becomes the anchor.
+      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
       day.legs = [];
       state.legSeq[r] = [];
     }
     // Reversed, because each day's list was spliced descending and the points
     // came off in the opposite order to the one they were in.
     moved.reverse().forEach(({ pt }) => dst.points.push(pt));
+    // And the destination, which can be a day whose points all arrived as POIs.
+    if (dst.points.length > 0 && stopsOf(dst).length === 0) dst.points[0].kind = "stop";
     dst.legs = [];
     state.legSeq[toDay] = [];
     const touched = new Set([...byDay.keys(), toDay]);
@@ -1692,10 +1695,10 @@
     renderMarkers();
     touched.forEach((r) => {
       const day = state.days[r];
-      const nStops = day ? stopsOf(day).length : 0;
-      if (day && nStops >= 2) {
+      const nPts = day ? day.points.length : 0;
+      if (day && nPts >= 2) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nStops - 1 }, (_, k) => k));
+        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
       }
     });
     refreshDerived();
@@ -2094,13 +2097,13 @@
 
   // --- Timeline -------------------------------------------------------------
 
-  // Live POI distances, one array per day, for the time model. The builder's
-  // POIs carry no stored distFromStartMi — it does not exist until save — so the
-  // timeline would otherwise place every POI at the start of its day.
-  const allPoiDists = () => state.days.map((r) => dayPoiDistances(r));
-
-  const activeNow = () =>
-    state.moment == null ? null : activeAtMoment(state.days, state.moment, allPoiDists());
+  // The live POI distances this used to compute are gone. A POI carried no stored
+  // distFromStartMi — it does not exist until save — so the time model projected
+  // each one onto the day's track to place it, and the builder had to pass those
+  // distances in or the timeline put every POI at the start of its day. Points sit
+  // on leg boundaries now, so the schedule reads the order straight off the array
+  // and needs nothing passed to it.
+  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.days, state.moment));
 
   function renderTimeline() {
     const wrap = $("ride-timeline");
@@ -2146,18 +2149,20 @@
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
     }
-    const a = activeAtMoment(state.days, state.moment, allPoiDists());
+    const a = activeAtMoment(state.days, state.moment);
     let what;
     if (a.dayIndex == null) {
       what = "between days";
     } else if (a.legIndex != null) {
       what = dayLabel(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.days[a.dayIndex].legs.length;
-    } else if (a.poiIndex != null) {
-      const poi = poisOf(state.days[a.dayIndex])[a.poiIndex];
-      what = dayLabel(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
-      const stop = a.stopIndex == null ? null : stopsOf(state.days[a.dayIndex])[a.stopIndex];
-      what = dayLabel(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
+      // ONE INDEX, into the day's own points array — no filtering, so no chance
+      // of reading the wrong element. A point with no name falls back to its
+      // position in the day rather than a stop number, because the number a row
+      // shows counts stops only and a POI has none.
+      const pt = a.pointIndex == null ? null : state.days[a.dayIndex].points[a.pointIndex];
+      const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
+      what = dayLabel(a.dayIndex) + " · at " + ((pt && pt.name) || fallback);
     }
     say(fmtMoment(state.moment) + " · " + what);
   }
@@ -2166,7 +2171,7 @@
   // the two controls can never show different days.
   function setMoment(momentS) {
     state.moment = momentS;
-    const a = activeAtMoment(state.days, momentS, allPoiDists());
+    const a = activeAtMoment(state.days, momentS);
     // A moment between days leaves the active day where it was — there is no day
     // to move it to, and snapping it somewhere arbitrary would be a lie.
     if (a.dayIndex != null) setActive(a.dayIndex);
@@ -2449,12 +2454,6 @@
   // Stops and POIs in the order you would meet them, which is the order the day
   // actually happens in.
   //
-  // They were two lists before, POIs below the stops, which said a POI came
-  // after every stop — it does not, it sits between two of them. Stops carry
-  // their position; POIs are placed by projecting them onto the day's track (see
-  // dayPoiDistances), so a POI 40 miles in lands between the stops at 30 and
-  // 60.
-  //
   // ONE INDEX SPACE: a row's `data-i` indexes day.points, whatever its kind, so
   // pointOf(), movePoint() and deletePoint() all take the same number. Stops keep
   // their numbers and POIs keep the dot, so the distinction is still visible.
@@ -2582,8 +2581,10 @@
 
   function renderTotals() {
     const totalsEl = $("totals");
-    const anyStops = state.days.some((r) => stopsOf(r).length > 0);
-    if (!anyStops) {
+    // ANY POINT, not any stop. A day of POIs draws a road and has a mileage now,
+    // so a ride made of them has totals worth printing.
+    const anyPoints = state.days.some((r) => r.points.length > 0);
+    if (!anyPoints) {
       totalsEl.textContent = "";
       return;
     }
@@ -3198,7 +3199,7 @@
       const day = state.days[r];
       if (!day) return;
       fillMissingLegs(day);
-      computeLegsAround(r, Array.from({ length: Math.max(0, stopsOf(day).length - 1) }, (_, k) => k));
+      computeLegsAround(r, Array.from({ length: Math.max(0, day.points.length - 1) }, (_, k) => k));
     });
     setActive(toDay);
     refreshDerived();
@@ -3785,8 +3786,12 @@
   function offerPublicStart() {
     const shared = state.meta.visibility === "public" || state.meta.visibility === "unlisted";
     const start = window.TB.publicStart;
+    // points[0], not the first STOP. The first point of every day is promoted on
+    // the spot, so they are the same element — reading the ordered list directly
+    // keeps it true if that ever stops being the case, and leg 0 below runs out
+    // of points[0] either way.
     const day = state.days[0];
-    const first = day && stopsOf(day)[0];
+    const first = day && day.points[0];
     if (!shared || !start || !first || !(first.roles || []).includes("home")) return;
     if (state.startSwapDeclined) return;
 
@@ -3923,7 +3928,7 @@
       state.days.forEach((_, r) =>
         computeLegsAround(
           r,
-          Array.from({ length: Math.max(0, stopsOf(state.days[r]).length - 1) }, (_, i) => i),
+          Array.from({ length: Math.max(0, state.days[r].points.length - 1) }, (_, i) => i),
         ),
       );
       markDirty();
@@ -4006,12 +4011,13 @@
       // it. The rider would then delete a different set from the one they
       // ticked, silently. Saying so beats acting on the stale keys.
       if (state.select?.scope === "point") return toast("Finish selecting first", true);
-      // ALWAYS A STOP. The panel-wide + Stop / + POI pair that used to decide
-      // this was removed on 2026-08-22 — it read as a pair of buttons that add
-      // something and was really a mode switch that added nothing, which is
-      // exactly how it was reported. Stop or POI is still a choice, made per
-      // row by the radios in the day's add row, which is where the rider is
-      // already looking when they name the thing.
+      // NEVER A CHOICE HERE. addPoint() decides the kind and it is the only place
+      // that does: a POI, unless this is the day's first point. The panel-wide
+      // + Stop / + POI pair that used to decide it was removed on 2026-08-22 —
+      // it read as a pair of buttons that add something and was really a mode
+      // switch that added nothing, which is exactly how it was reported — and the
+      // per-row radios that briefly replaced it went on 2026-08-23 with the
+      // POI-first model. Promotion is a row-menu item now, and free.
       //
       // An armed "+ Stop" names the day explicitly; an unarmed click falls back
       // to whichever day the rider last touched, which is what it always did.

@@ -1,18 +1,30 @@
 /**
- * Re-cuts imported rides written before the import split its tracks into legs.
+ * Re-cuts stored rides whose legs do not match the current N points, N−1 rule.
  *
- *   npx tsx utils/split-imported-legs.ts           # every day still holding one leg
+ *   npx tsx utils/split-imported-legs.ts           # every day with the wrong leg count
  *   npx tsx utils/split-imported-legs.ts --dry-run # report, change nothing
  *   npx tsx utils/split-imported-legs.ts --ride 42 # one ride
  *
  * An imported day used to be stored as ONE route_legs row carrying the whole
- * track, however many stops sat along it. The builder's model is N stops and
+ * track, however many points sat along it. The builder's model is N points and
  * N−1 legs, so those rides could not be opened, saved or exported as valid
  * native JSON — see src/maps/track-split.ts. New imports are split on the way
  * in; this brings the ones already in the table up to the same shape.
  *
+ * BOTH KINDS ANCHOR A LEG as of 2026-08-24, so the target shape is points−1 legs
+ * rather than stops−1. That makes EVERY day written before that date with a POI on
+ * it work to do, not just the unsplit imports this script was written for — a day
+ * carrying stops−1 legs opens in the builder and gets straight placeholder legs
+ * drawn out to each POI and back, silently, on the first edit. Run this before
+ * anyone opens a ride that predates the change.
+ *
+ * The two shapes are treated differently and the day loop says why: one leg means
+ * an unsplit import whose point order came out of a file, so it is sorted along
+ * the track; several legs means a day somebody arranged, so the order is kept and
+ * only the cuts move.
+ *
  * WHAT IT CHANGES, and nothing else: the route_legs rows of a day, and the
- * position and dist_from_start_m of its stops (splitting puts them in
+ * position and dist_from_start_m of its points (splitting puts them in
  * along-track order, which is the order their legs connect them in). Geometry
  * is only ever sliced — every coordinate written was already there, and
  * concatenating the new legs reproduces the old single leg exactly.
@@ -29,7 +41,7 @@
  * rides.stop_count. All four are measured against the whole track and a change
  * in how it is sliced is not a reason for a stored figure to move.
  *
- * Idempotent — a day already carrying stops−1 legs is skipped — but it rewrites
+ * Idempotent — a day already carrying points−1 legs is skipped — but it rewrites
  * the largest column in the schema, so it is refused against a non-local
  * database and wants a db-backup first regardless.
  */
@@ -38,8 +50,9 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '../src/db/index'
 import { days, points, rides, routeLegs } from '../src/db/schema'
 import { isLocalDatabaseUrl, redactDatabaseUrl } from '../src/config'
-import { splitDayTrack } from '../src/maps/track-split'
-import { distFromStartAlongTrack, type ExtractedPoint, type Track } from '../src/maps/kml'
+import { concatSplitLegs, relegDay, splitDayTrack } from '../src/maps/track-split'
+import { type ExtractedPoint, type Track } from '../src/maps/kml'
+import { newUid } from '../src/maps/uid'
 
 const args = process.argv.slice(2)
 const dryRun = args.includes('--dry-run')
@@ -79,32 +92,44 @@ for (const ride of targets) {
   for (const day of dayRows) {
     const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, day.id)).orderBy(asc(routeLegs.position))
     const pts = await db.select().from(points).where(eq(points.dayId, day.id)).orderBy(asc(points.position))
-    const stopCount = pts.filter((p) => p.kind === 'stop').length
     const label = `ride ${String(ride.id).padStart(4)} day ${day.position}`
 
-    // Already the right shape — N stops and N−1 legs, with at least the two
-    // stops a day needs to have a leg at all.
-    if (stopCount >= 2 && legs.length === stopCount - 1) {
+    // Already the right shape — N points and N−1 legs, with at least the two
+    // points a day needs to have a leg at all.
+    if (pts.length >= 2 && legs.length === pts.length - 1) {
       skipped++
       continue
     }
-    // Nothing to work from. A trackless import (a CSV) is a list of stops with
+    // Nothing to work from. A trackless import (a CSV) is a list of points with
     // no geometry and is left exactly as it is; the builder fills its legs in
     // memory when it is opened.
     if (legs.length === 0) {
       skipped++
       continue
     }
-    if (legs.length !== 1) {
-      console.log(`  ${label}  SKIPPED — ${legs.length} legs against ${stopCount} stops, not a shape this wrote`)
-      skipped++
-      continue
-    }
-
-    // The whole-track leg is the only geometry there is; splitting it is the
-    // point. Anything else means this day has already been through here.
-    const track = legs[0].geometry as Track
-    const extracted: ExtractedPoint[] = pts.map((p) => ({
+    // TWO SHAPES REACH HERE AND THEY NEED DIFFERENT TREATMENT.
+    //
+    // ONE leg is an unsplit import: the whole track in a single row, with points
+    // whose order came out of a file and means nothing. splitDayTrack projects
+    // them and sorts along the track, which is the only order available.
+    //
+    // SEVERAL legs is a day written under the pre-2026-08-24 rule — stops−1 legs,
+    // with POIs sitting inside them anchoring nothing. Those points ARE in the
+    // rider's order, so relegDay keeps it and re-cuts the concatenated track at
+    // every one of them. Sorting here would rearrange a day somebody arranged.
+    //
+    // Left alone by both: nothing. Every day that reaches this line has geometry
+    // and the wrong number of legs, and opening one in the builder would have it
+    // silently filled with straight placeholder legs out to each POI and back.
+    const track = concatSplitLegs(legs as Array<{ geometry: Track }>)
+    const unsplit = legs.length === 1
+    // The uid rides along, which ExtractedPoint has no field for — it is carried
+    // through splitDayTrack's sort at runtime and read back off the other side
+    // with a cast. A point's uid is its durable identity and what point_details
+    // is keyed by, so minting fresh ones here would orphan every gate code and
+    // confirmation number on the day. A synthesized endpoint has none and gets
+    // one below.
+    const extracted = pts.map((p) => ({
       lat: p.lat,
       lng: p.lng,
       name: p.name,
@@ -112,16 +137,23 @@ for (const ride of targets) {
       roles: p.roles,
       kind: p.kind,
       durationMin: p.durationMin,
-    }))
+      uid: p.uid,
+    })) as ExtractedPoint[]
 
-    const out = splitDayTrack(track, extracted)
-    const ordered = [...out.stops, ...out.pois]
-    const dists = track.length > 0 ? distFromStartAlongTrack(track, ordered) : ordered.map(() => null)
+    const out = unsplit
+      ? splitDayTrack(track, extracted)
+      : { points: extracted, legs: relegDay(track, extracted), synthesizedStart: false, synthesizedEnd: false }
+    const ordered = out.points as Array<ExtractedPoint & { uid?: string }>
+    // The prefix sum of the new legs, which is what insertRideGraph writes and
+    // what a point's distance from the start now means. This used to project each
+    // point onto the track; the prefix is exact and never null.
+    const prefix: number[] = [0]
+    for (const leg of out.legs) prefix.push(prefix[prefix.length - 1] + leg.distanceM)
 
     console.log(
-      `  ${label}  ${String(stopCount).padStart(3)} stops  1 leg -> ${String(out.legs.length).padStart(3)} legs` +
-        (out.synthesizedStart || out.synthesizedEnd ? '  +ends' : '') +
-        (out.demoted > 0 ? `  ${out.demoted} demoted to POI` : ''),
+      `  ${label}  ${String(ordered.length).padStart(3)} points  ` +
+        `${String(legs.length).padStart(3)} leg${legs.length === 1 ? ' ' : 's'} -> ${String(out.legs.length).padStart(3)} legs` +
+        (out.synthesizedStart || out.synthesizedEnd ? '  +ends' : ''),
     )
 
     if (dryRun) {
@@ -139,23 +171,30 @@ for (const ride of targets) {
           distanceM: leg.distanceM,
         })),
       )
-      // Stops are rewritten rather than deleted and re-inserted: their ids are
-      // not referenced anywhere, but rewriting in place keeps the row count and
-      // anything a future feature hangs off them.
+      // Deleted and re-inserted rather than updated in place: the split reorders
+      // them, so every row's position changes and there is no stable pairing to
+      // update against. `points.id` is referenced by nothing — `uid` is the
+      // durable identity and it is carried across, which is what keeps each
+      // point's private details attached.
       await tx.delete(points).where(eq(points.dayId, day.id))
-      let stopPos = 0
       await tx.insert(points).values(
         ordered.map((p, n) => ({
           dayId: day.id,
           kind: p.kind === 'poi' ? ('poi' as const) : ('stop' as const),
-          position: p.kind === 'poi' ? null : stopPos++,
+          // DENSE OVER BOTH KINDS. This wrote `null` for every POI, which was the
+          // model until 2026-08-23 and has been a NOT NULL violation since — the
+          // script would have thrown on the first day carrying a POI.
+          position: n,
           lat: p.lat,
           lng: p.lng,
           name: p.name,
           description: p.description,
           roles: p.roles,
           durationMin: p.durationMin ?? null,
-          distFromStartM: dists[n],
+          distFromStartM: prefix[Math.min(n, prefix.length - 1)],
+          // The THIRD place points are inserted, and it supplied no uid at all —
+          // also a NOT NULL violation, and one that would have hit every day.
+          uid: p.uid ?? newUid(),
         })),
       )
     })

@@ -1,17 +1,23 @@
 // Turning one imported track into the legs a builder can edit.
 //
 // THE PROBLEM. An imported day was stored as a single `route_legs` row holding
-// the entire track, however many stops sat along it. The builder's model is N
-// stops and exactly N−1 legs, one per consecutive pair, and `daySchema` in
+// the entire track, however many points sat along it. The builder's model is N
+// points and exactly N−1 legs, one per consecutive pair, and `daySchema` in
 // ride-graph.ts enforces it — so an imported ride could never be opened, saved
 // or exported as valid native JSON. That is the whole reason `/builder/:id`
 // answered 409 for imports, and it is what this file removes.
 //
-// THE APPROACH. Project each stop onto the track, then slice the track at those
+// THE APPROACH. Project each point onto the track, then slice the track at those
 // vertices. Nothing is re-routed and no coordinate is invented: the legs are cut
 // from the imported geometry, so concatenating them gives back the original
 // track element-for-element. Re-routing would replace a recorded line with
 // Google's guess, which is the one thing importing exists to avoid.
+//
+// BOTH KINDS ARE PROJECTED, as of 2026-08-24. A POI used to be passed through
+// untouched, because a POI sat beside the route and anchored no leg; it is on the
+// route now, so it takes a boundary like any other point. Leaving POIs out would
+// append them after the last stop, which draws a road out to a viewpoint that was
+// actually halfway along the day.
 //
 // Legs SHARE their joint vertex — leg k is `track[i_k .. i_{k+1}]` inclusive, so
 // leg k's last coordinate is leg k+1's first. That is the form the builder
@@ -26,16 +32,15 @@ import { haversineM, nearestVertexIndex, trackMeters, type ExtractedPoint, type 
 export type SplitLeg = { geometry: Track; distanceM: number }
 
 export type SplitDay = {
-  /** Stops in along-track order, which is the order their legs connect them in. */
-  stops: ExtractedPoint[]
-  /** Untouched — a POI does not anchor a leg and takes no part in the split. */
-  pois: ExtractedPoint[]
+  /**
+   * Every point, both kinds, in along-track order — which is the order their
+   * legs connect them in. One list, matching `day.points` everywhere else.
+   */
+  points: ExtractedPoint[]
   legs: SplitLeg[]
-  /** True when this file named no stop at that end and one was invented. */
+  /** True when this file named no point at that end and one was invented. */
   synthesizedStart: boolean
   synthesizedEnd: boolean
-  /** Stops demoted to POIs because the track was too short to give them a leg. */
-  demoted: number
 }
 
 // How near a track's end a stop has to be to count AS that end rather than
@@ -61,100 +66,144 @@ function pointAt(track: Track, i: number, name: string): ExtractedPoint {
 const metersBetween = (a: Track[number], p: { lat: number; lng: number }) => haversineM(a[1], a[0], p.lat, p.lng)
 
 /**
- * Split one day's track into the legs its stops imply.
+ * Split one day's track into the legs its points imply.
  *
- * `points` is the mixed list the parsers produce — POIs are separated out and
- * passed through untouched. Stops come back in ALONG-TRACK order, which is not
- * necessarily the order they appeared in the file: GPX writes `<wpt>` elements
- * at document level with nothing tying them to a track, so their order is
- * whatever the exporting tool felt like.
+ * `points` is the mixed list the parsers produce, and BOTH KINDS are placed.
+ * They come back in ALONG-TRACK order, which is not necessarily the order they
+ * appeared in the file: GPX writes `<wpt>` elements at document level with
+ * nothing tying them to a track, so their order is whatever the exporting tool
+ * felt like. That was already true of stops and is just as true of POIs.
  */
 export function splitDayTrack(track: Track, points: ExtractedPoint[]): SplitDay {
-  const pois = points.filter((p) => p.kind === 'poi')
-  const stops = points.filter((p) => p.kind !== 'poi')
-
   // No geometry to cut. A CSV import lands here by design — it is a list of
-  // stops with no line, and saying so is better than joining them with straight
+  // points with no line, and saying so is better than joining them with straight
   // lines and reporting a distance no motorcycle can ride.
   if (track.length < 2) {
-    return { stops, pois, legs: [], synthesizedStart: false, synthesizedEnd: false, demoted: 0 }
+    return { points, legs: [], synthesizedStart: false, synthesizedEnd: false }
   }
 
   const last = track.length - 1
 
-  // Project, then sort along the track. Stable, so two stops on the same vertex
+  // Project, then sort along the track. Stable, so two points on the same vertex
   // keep their file order relative to each other.
-  const placed = stops
-    .map((stop, order) => ({ stop, order, at: nearestVertexIndex(track, stop) }))
+  const placed = points
+    .map((point, order) => ({ point, order, at: nearestVertexIndex(track, point) }))
     .sort((a, b) => a.at - b.at || a.order - b.order)
 
-  // A track can only carry as many stops as it has vertices — each leg needs at
-  // least two, and they share their joints, so N stops need N vertices. Beyond
-  // that, a stop cannot be given its own piece of road.
+  // NO OVERFLOW CASE, where there used to be one. A track could only carry as
+  // many STOPS as it had vertices, because every leg needed two of its own, so
+  // the excess were demoted to POIs — which worked precisely because a POI
+  // consumed no vertex. POIs consume one now, so demotion would buy nothing and
+  // the cap has to go somewhere else.
   //
-  // The overflow becomes POIs rather than being dropped. That is not a
-  // consolation prize: a POI is by definition a point near the route that does
-  // not anchor routing, which is exactly what these are. Nothing is lost, and
-  // the ride stays a valid graph. Only reachable on a pathological file — a
-  // four-vertex track with six named stops — but "pathological" and "rejected
-  // at upload" should not be the same thing.
-  let demoted = 0
-  if (placed.length > track.length) {
-    for (const extra of placed.splice(track.length)) {
-      pois.push({ ...extra.stop, kind: 'poi' })
-      demoted++
-    }
-  }
+  // It goes into the leg: two points landing on the same vertex get a leg of
+  // `[v, v]`, which is two coordinates and satisfies legSchema, zero meters
+  // long. That is the honest reading — two points in the same place have no road
+  // between them — and it is the same degenerate leg the builder already writes
+  // when a rider duplicates a point. See the slice below.
 
   // Anchor both ends of the track.
   //
-  // The head and tail are real road that was ridden. If the outermost stops sit
+  // The head and tail are real road that was ridden. If the outermost points sit
   // somewhere in the middle, slicing only between them would silently discard
-  // everything before the first and after the last — so either a stop already
+  // everything before the first and after the last — so either a point already
   // stands at each end, or one is invented there.
+  //
+  // A synthesized endpoint is a STOP, not a POI. It is where the day begins or
+  // ends, the at-least-one-stop rule has to be satisfiable, and `start`/`finish`
+  // mean something only on a stop.
   let synthesizedStart = false
   let synthesizedEnd = false
 
   const first = placed[0]
-  if (!first || (first.at !== 0 && metersBetween(track[0], first.stop) > ENDPOINT_TOLERANCE_M)) {
-    placed.unshift({ stop: pointAt(track, 0, START_NAME), order: -1, at: 0 })
+  if (!first || (first.at !== 0 && metersBetween(track[0], first.point) > ENDPOINT_TOLERANCE_M)) {
+    placed.unshift({ point: pointAt(track, 0, START_NAME), order: -1, at: 0 })
     synthesizedStart = true
   } else {
     first.at = 0
   }
 
   const tail = placed[placed.length - 1]
-  if (placed.length < 2 || (tail.at !== last && metersBetween(track[last], tail.stop) > ENDPOINT_TOLERANCE_M)) {
-    placed.push({ stop: pointAt(track, last, FINISH_NAME), order: Infinity, at: last })
+  if (placed.length < 2 || (tail.at !== last && metersBetween(track[last], tail.point) > ENDPOINT_TOLERANCE_M)) {
+    placed.push({ point: pointAt(track, last, FINISH_NAME), order: Infinity, at: last })
     synthesizedEnd = true
   } else {
     tail.at = last
   }
 
-  // Strictly increasing, or a leg ends up with fewer than the two vertices
-  // `legSchema.geometry` requires. Two stops projecting to the same vertex is
-  // ordinary — a lunch stop and a fuel stop in the same village — so the later
-  // one is nudged forward rather than refused. The demotion above guarantees
-  // there is room.
+  // NON-DECREASING, not strictly increasing. The sort already guarantees it;
+  // this is here so a caller reading the slice below can rely on it without
+  // re-deriving it, and so a hand-built `placed` cannot produce a backwards
+  // slice.
   for (let i = 1; i < placed.length; i++) {
-    if (placed[i].at <= placed[i - 1].at) placed[i].at = placed[i - 1].at + 1
-  }
-  // The nudge can only ever push the last boundary past the end when the track
-  // is exactly as long as the stop count, so pull the run back from the tail.
-  if (placed[placed.length - 1].at > last) {
-    placed[placed.length - 1].at = last
-    for (let i = placed.length - 2; i >= 0; i--) {
-      if (placed[i].at >= placed[i + 1].at) placed[i].at = placed[i + 1].at - 1
-    }
+    if (placed[i].at < placed[i - 1].at) placed[i].at = placed[i - 1].at
   }
 
+  // A DAY NEEDS A STOP, and a file of nothing but POIs would leave it without
+  // one — the payload refine would reject the whole import. The first point is
+  // promoted, which is the same rule the builder applies to the first point of
+  // every day.
+  if (!placed.some((p) => p.point.kind !== 'poi')) {
+    placed[0] = { ...placed[0], point: { ...placed[0].point, kind: 'stop' } }
+  }
+
+  return {
+    points: placed.map((p) => p.point),
+    legs: sliceAt(
+      track,
+      placed.map((p) => p.at),
+    ),
+    synthesizedStart,
+    synthesizedEnd,
+  }
+}
+
+/**
+ * Cut a track at a list of vertex indices, one leg per consecutive pair.
+ *
+ * `at` must be non-decreasing. A pair on the same vertex yields a zero-length
+ * `[v, v]` leg rather than the one-coordinate slice `legSchema` would refuse —
+ * the duplicate collapses again in every reader's concatenation, so the track
+ * comes back element-for-element either way.
+ */
+function sliceAt(track: Track, at: number[]): SplitLeg[] {
   const legs: SplitLeg[] = []
-  for (let i = 0; i < placed.length - 1; i++) {
-    const geometry = track.slice(placed[i].at, placed[i + 1].at + 1)
+  for (let i = 0; i < at.length - 1; i++) {
+    const from = at[i]
+    const to = at[i + 1]
+    const geometry = to > from ? track.slice(from, to + 1) : [track[from], track[from]]
     legs.push({ geometry, distanceM: Math.round(trackMeters(geometry)) })
   }
+  return legs
+}
 
-  return { stops: placed.map((p) => p.stop), pois, legs, synthesizedStart, synthesizedEnd, demoted }
+/**
+ * Re-cut a day's legs for a list of points whose ORDER IS ALREADY RIGHT.
+ *
+ * This is the restore path for a native file written before 2026-08-24, when a
+ * day carried `stops - 1` legs. The points are all there and in the order the
+ * rider put them in; what the file lacks is a leg per pair. Concatenating what it
+ * does have gives the day's track back, and cutting that at every point produces
+ * the missing legs without inventing a coordinate or asking the router.
+ *
+ * The rider's order is KEPT rather than re-derived, which is what separates this
+ * from splitDayTrack above. In a v4 file a POI's place in the list was the
+ * rider's own choice — they could drag it — so sorting along the track would
+ * quietly rearrange a day they had arranged. A point that projects behind its
+ * predecessor is clamped forward to it instead, which costs a zero-length leg and
+ * keeps the sequence.
+ *
+ * Both ends are forced onto the track's ends: the outermost points anchored legs
+ * in every older version, so the whole recorded line belongs between them, and
+ * anything outside would be silently dropped.
+ */
+export function relegDay(track: Track, points: Array<{ lat: number; lng: number }>): SplitLeg[] {
+  if (track.length < 2 || points.length < 2) return []
+  const at = points.map((p) => nearestVertexIndex(track, p))
+  at[0] = 0
+  at[at.length - 1] = track.length - 1
+  for (let i = 1; i < at.length; i++) if (at[i] < at[i - 1]) at[i] = at[i - 1]
+  return sliceAt(track, at)
 }
 
 /**

@@ -537,11 +537,11 @@ mapsRoutes.post(
             })
             .returning()
 
-          // ONE LEG PER PAIR OF STOPS, cut from the imported track.
+          // ONE LEG PER PAIR OF POINTS, cut from the imported track.
           //
           // This used to write a single leg holding the whole track, which is
           // what made an imported ride impossible to open in the builder: the
-          // builder's model — and `daySchema` in ride-graph.ts — is N stops and
+          // builder's model — and `daySchema` in ride-graph.ts — is N points and
           // exactly N−1 legs. An imported ride could not satisfy that, so
           // /builder/:id answered 409 and the FAQ's promise of "an editable
           // ride, not a picture of one" was false.
@@ -553,8 +553,13 @@ mapsRoutes.post(
           // track-based export formats and twistiness are unaffected. See
           // src/maps/track-split.ts for the rules, including what happens at
           // the ends and to a file with no waypoints at all.
+          //
+          // BOTH KINDS ARE PLACED as of 2026-08-24. The split used to pass POIs
+          // through untouched and this line appended them after the stops, which
+          // was right while a POI anchored no leg. It would now draw a road out
+          // to a viewpoint that sat halfway along the day and back again.
           const split = splitDayTrack(day.track, day.points)
-          const ordered = [...split.stops, ...split.pois]
+          const ordered = split.points
 
           // Deliberately still measured against the whole track rather than
           // summed from the legs. `days.distance_m` and `rides.total_miles`
@@ -570,13 +575,12 @@ mapsRoutes.post(
             day.track.length > 0 ? distFromStartAlongTrack(day.track, ordered) : ordered.map(() => null)
 
           if (ordered.length > 0) {
-            // EVERY point carries a position now, both kinds, dense from 0 —
-            // matching what the builder writes. `ordered` puts the stops first
-            // and in ALONG-TRACK order, which is the order their legs connect
-            // them in, then the POIs; that concatenation IS the imported ride's
-            // order. It is not necessarily the order they appeared in the file:
-            // GPX writes <wpt> elements at document level with nothing tying
-            // them to a track.
+            // EVERY point carries a position, both kinds, dense from 0 —
+            // matching what the builder writes. `ordered` is one list in
+            // ALONG-TRACK order, which is the order their legs connect them in.
+            // It is not necessarily the order they appeared in the file: GPX
+            // writes <wpt> elements at document level with nothing tying them to
+            // a track.
             await tx.insert(points).values(
               ordered.map((p, n) => {
                 const isPoi = p.kind === 'poi'

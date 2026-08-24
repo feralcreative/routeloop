@@ -24,6 +24,18 @@ The dated files in `utils/deploy/sql/` are the `push`-era record of what ran aga
 
 The `routes` table was renamed to `days` because every rider-facing surface already said "day"—the builder slider, the viewer legend, `DAY_COLORS`, the `dNN` filename field—while the code said "route", and "route" was simultaneously the import copy's word for a whole ride and the ~130 `app.route()` identifiers that mean HTTP handlers. "Route" now means only a path, or a route _file_ from another app. `route_legs` keeps its name because the route there is the path a day traces.
 
+## A POI is on the route, 2026-08-24
+
+Reported as a bug: a new day with a start point and one POI drew two dots and no line. It was not a bug—a POI was defined as "near the route and does not affect routing", so there was nothing the router had been asked to join—but the definition was wrong. A POI is somewhere you will at least ride BY: an address, or a spot in the middle of nowhere. It is always part of the route; it just is not necessarily somewhere you stop.
+
+So `legs[i]` joins `points[i]` to `points[i+1]` for both kinds, and `kind` means only "do I stop here". The second index space that existed to convert between a point's position in the day and its ordinal among the stops is gone, and with it `stopIdx()`, `stopOrdinalAt()`, the projection of POIs onto the day's track, and the `poiDistsM` argument every schedule caller had to thread through. `stopsOf()` survives for the four surfaces that genuinely count stops: `rides.stop_count`, the roadbook's numbered rows, the Maps hand-off, and the at-least-one-stop rule.
+
+**Rejected: making POIs shaping vias on their enclosing leg.** It is a far smaller change—mostly one function—and it keeps the leg array counting in stops. It also does not fix the report: a POI before the first stop or after the last one still routes nothing, so a start plus one POI still draws no line, which is the exact case that prompted this.
+
+**Rejected: a third kind.** Keep POI meaning an off-route landmark and promote the ephemeral shaping waypoint to a real point kind. It preserves the ability to pin something genuinely off the road, at the cost of three kinds in the vocabulary, the row menu, and the icons. The premise did not hold: an off-route landmark is not what the word was being used for.
+
+**Consequences accepted, not to be filed as defects.** Adding a POI is a Routes request now, where it used to be free. A day's leg count is bounded by `MAX_POINTS` (400) rather than `MAX_STOPS` (200), so up to 399 legs and 399 `route_legs` rows. `ride.json` lost the deliberate two-array `stops`/`pois` split, because the schedule walks points and legs together and two arrays cannot carry the order. The Google Maps hand-off now sends both kinds—excluding POIs would send the rider down a different road than the builder drew. And the native format went to 5, the first bump that is not a rename: a v4 file's `stops - 1` legs are re-cut from its own track at every point.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.

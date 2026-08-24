@@ -56,7 +56,7 @@
     const pts = [];
     for (const r of state.ride.days) {
       pts.push(...r.track);
-      for (const s of [...r.stops, ...r.pois]) pts.push([s.lng, s.lat]);
+      for (const s of r.points) pts.push([s.lng, s.lat]);
     }
     return pts;
   }
@@ -73,12 +73,15 @@
     state.days[i] = rs;
     if (day.track.length >= 2) addRouteLayers(state.map, i, day.track, day.color);
 
-    const mileages = stopMileages(day.stops);
-    day.stops.forEach((stop, si) => {
-      rs.markers.push(place(day, stop, "stop", mileages[si]));
-    });
-    day.pois.forEach((poi) => {
-      rs.markers.push(place(day, poi, "poi", { fromStartMi: poi.distFromStartMi, showCharge: false }));
+    // ONE LOOP OVER ONE LIST. ride.json sent `stops` and `pois` as two arrays
+    // until 2026-08-24 and this walked them separately, which meant a POI's
+    // mileage figures were built by hand and its fuel range was never computed.
+    // Every point is on the road now, so they all go through stopMileages in the
+    // rider's order and a POI carrying a `gas` role resets the range like any
+    // other point would.
+    const mileages = stopMileages(day.points);
+    day.points.forEach((point, i) => {
+      rs.markers.push(place(day, point, point.kind, mileages[i]));
     });
   }
 
@@ -171,14 +174,13 @@
       what = "between days";
     } else if (a.legIndex != null) {
       what = dayName(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.ride.days[a.dayIndex].legs.length;
-    } else if (a.poiIndex != null) {
-      // The viewer passes no distances: a published ride carries distFromStartMi
-      // for every POI already, and ride-time.js falls back to it.
-      const poi = state.ride.days[a.dayIndex].pois[a.poiIndex];
-      what = dayName(a.dayIndex) + " · at " + ((poi && poi.name) || "a point of interest");
     } else {
-      const stop = a.stopIndex == null ? null : state.ride.days[a.dayIndex].stops[a.stopIndex];
-      what = dayName(a.dayIndex) + " · at " + ((stop && stop.name) || "stop " + ((a.stopIndex || 0) + 1));
+      // ONE INDEX into the day's own points array, matching what the builder
+      // reads. It used to be a stopIndex or a poiIndex, each into its own
+      // filtered array — see the note in ride-time.js on why that is a trap.
+      const pt = a.pointIndex == null ? null : state.ride.days[a.dayIndex].points[a.pointIndex];
+      const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
+      what = dayName(a.dayIndex) + " · at " + ((pt && pt.name) || fallback);
     }
     say(fmtMoment(state.moment) + " · " + what);
   }

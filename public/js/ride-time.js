@@ -7,12 +7,12 @@
 // each. Two copies of this walk would drift, and the drift would show up as a
 // map highlighting a different road than the one the planner saw.
 //
-// TWO DAY SHAPES REACH THIS MODULE, and it accepts both rather than making
-// either caller reshape first. The builder holds one ordered `points` array with
-// a `kind` on each element (2026-08-23); `ride.json` still sends `stops` and
-// `pois` as two arrays, deliberately, because the viewer never renders points as
-// a sequence. stopsOf/poisOf below are the only place that difference is known,
-// and every other line here reads through them.
+// ONE DAY SHAPE REACHES THIS MODULE: an ordered `points` array with a `kind` on
+// each element, and `legs[i]` joining `points[i]` to `points[i+1]`. It used to
+// accept a second shape as well, because `ride.json` sent `stops` and `pois` as
+// two separate arrays — that split was fine while a POI was beside the route and
+// took no part in the schedule. A POI is ON the route now (2026-08-24), so the
+// walk below needs the interleaved order and two arrays cannot supply it.
 (function () {
   "use strict";
 
@@ -31,19 +31,21 @@
   const legDurationS = (leg) =>
     legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
 
-  // The shape bridge. A day either carries `points` with per-element kinds, or
-  // the older pair of arrays. Nothing below this line tests for which.
-  const stopsOf = (day) => (day.points ? day.points.filter((p) => p.kind === "stop") : day.stops || []);
-  const poisOf = (day) => (day.points ? day.points.filter((p) => p.kind === "poi") : day.pois || []);
+  // Every point of the day, in the rider's order. `legs[i]` joins `pointsOf(day)[i]`
+  // to `pointsOf(day)[i+1]`, whatever kind either of them is.
+  const pointsOf = (day) => day.points || [];
+
+  // Kept for the surfaces that still care which points are stops — the stop
+  // count on a ride card, the roadbook's numbered rows, the hand-off to Google
+  // Maps. It has nothing to do with the leg math any more.
+  const stopsOf = (day) => pointsOf(day).filter((p) => p.kind === "stop");
 
   const dayRidingS = (day) => day.legs.reduce((n, l) => n + legDurationS(l), 0);
-  // Stops AND POIs. A POI is not a routing anchor and never splits a leg, but a
-  // rider who spends forty minutes at a viewpoint has spent forty minutes, and
-  // the day ends forty minutes later. Most POIs carry no duration at all — you
-  // rode past — and contribute nothing.
+  // BOTH KINDS, from the one list. A rider who spends forty minutes at a
+  // viewpoint has spent forty minutes, and the day ends forty minutes later.
+  // Most POIs carry no duration at all — you rode past — and contribute nothing.
   const dwellS = (p) => (p.durationMin || 0) * 60;
-  const dayStoppedS = (day) =>
-    stopsOf(day).reduce((n, s) => n + dwellS(s), 0) + poisOf(day).reduce((n, p) => n + dwellS(p), 0);
+  const dayStoppedS = (day) => pointsOf(day).reduce((n, p) => n + dwellS(p), 0);
   const dayIsEstimated = (day) => day.legs.some(legIsEstimated);
 
   // How long a day actually occupies: riding plus every planned stop. This is
@@ -94,127 +96,79 @@
     return from == null || to == null || to <= from ? null : { from, to };
   }
 
-  // The day as an ordered list of segments: parked at a stop, riding part of a
-  // leg, paused at a POI, riding the rest of that leg, and so on.
+  // The day as an ordered list of segments: parked at a point, riding the leg
+  // out of it, parked at the next, and so on.
   //
-  // This used to be a walk that alternated stop-dwell and leg-riding, which had
-  // no place to put a POI. A POI is not a routing anchor — it splits no leg and
-  // the router never sees it — so a pause at one falls *inside* a leg, at
-  // whatever fraction of the way along it the POI sits. Building the day as data
-  // rather than as control flow is what makes that expressible, and it is
-  // testable in a way the walk was not.
-  //
-  // POI distances are supplied by the caller because the two callers know them
-  // differently: the viewer reads distFromStartMi straight out of ride.json,
-  // while the builder computes them live from the current geometry (see
-  // dayPoiDistances in twist.js). Omitting the argument falls back to the
-  // stored value, which is what the viewer wants.
-  //
-  // A POI with no duration is left out entirely: riding past something changes
-  // nothing about when the day ends.
-  function daySchedule(day, poiDistsM) {
+  // A PLAIN WALK, because every point is on the road now. This used to project
+  // each POI onto the concatenated track, sort the POIs by that distance, and
+  // emit a leg in pieces so a pause could fall *inside* it at whatever fraction
+  // of the way along the POI sat. All of that existed because a POI anchored no
+  // leg and so had no place of its own in the sequence. It has one now —
+  // `legs[i]` runs from `points[i]` to `points[i+1]` whatever kind either end is
+  // — so a pause at a POI lands on a leg boundary like every other pause, and
+  // the projection, the sort and the `poiDistsM` argument every caller had to
+  // thread through are all gone with it.
+  function daySchedule(day) {
     const segs = [];
-    const prefix = [0];
-    for (const l of day.legs) prefix.push(prefix[prefix.length - 1] + (l.distanceM || 0));
-
-    const stops = poisOf(day)
-      .map((p, i) => ({
-        i,
-        dur: dwellS(p),
-        d: poiDistsM
-          ? poiDistsM[i] || 0
-          : p.distFromStartMi != null
-            ? p.distFromStartMi * 1609.344
-            : 0,
-      }))
-      .filter((p) => p.dur > 0)
-      .sort((a, b) => a.d - b.d);
-
+    const points = pointsOf(day);
     let t = 0;
-    let poiIdx = 0;
-    const dayStops = stopsOf(day);
-    for (let i = 0; i < dayStops.length; i++) {
-      const dwell = dwellS(dayStops[i]);
-      if (dwell > 0) segs.push({ kind: "stop", index: i, start: t, end: t + dwell });
-      t += dwell;
+    for (let i = 0; i < points.length; i++) {
+      const dwell = dwellS(points[i]);
+      if (dwell > 0) {
+        segs.push({ kind: "point", index: i, start: t, end: t + dwell });
+        t += dwell;
+      }
 
-      // CONTINUE, NOT BREAK, and the difference was a real bug worth naming.
+      // A MISSING LEG IS ABSORBED, not treated as the end of the day. This used
+      // to `break`, which silently abandoned every remaining point — their dwell
+      // vanished from the schedule while dayElapsedS, which sums the points
+      // independently, went on counting it. The two then disagreed, and the
+      // invariant that the last segment's end equals dayElapsedS — the one this
+      // file's tests call the one that matters most — was quietly false.
       //
-      // This used to `break` on the first missing leg, which silently abandoned
-      // every remaining stop — their dwell vanished from the schedule while
-      // dayElapsedS, which sums the stops independently, went on counting it.
-      // The two then disagreed, and the invariant that the last segment's end
-      // equals dayElapsedS — the one this file's tests call the one that matters
-      // most — was quietly false.
-      //
-      // It was reachable for real: an imported ride was stored as ONE leg
-      // holding the whole track however many stops sat along it, so on every
-      // imported ride with more than two stops the timeline ran short by the
-      // sum of all their dwell. Imports carry proper legs now
-      // (src/maps/track-split.ts) and the builder fills any gap on load, so the
-      // shape should not arrive here from either direction — but a schedule that
-      // simply stops early is the kind of wrong that nothing reports, so it
-      // absorbs the shape rather than trusting that.
+      // Every day should arrive here with exactly points-1 legs: fillMissingLegs
+      // supplies them in the builder and daySchema refuses a payload without
+      // them. So this guards a malformed shape rather than a real one, but a
+      // schedule that simply stops early is the kind of wrong nothing reports.
       const leg = day.legs[i];
       if (!leg) continue;
       const riding = legDurationS(leg);
-      const from = prefix[i];
-      const span = prefix[i + 1] - from;
-
-      // Emit the leg in pieces, pausing wherever a POI falls inside it.
-      let ridden = 0;
-      while (poiIdx < stops.length && stops[poiIdx].d < prefix[i + 1]) {
-        const p = stops[poiIdx];
-        const frac = span > 0 ? Math.max(0, Math.min(1, (p.d - from) / span)) : 0;
-        const at = riding * frac;
-        if (at > ridden) {
-          segs.push({ kind: "leg", index: i, start: t, end: t + (at - ridden) });
-          t += at - ridden;
-          ridden = at;
-        }
-        segs.push({ kind: "poi", index: p.i, start: t, end: t + p.dur });
-        t += p.dur;
-        poiIdx++;
-      }
-      if (riding > ridden) {
-        segs.push({ kind: "leg", index: i, start: t, end: t + (riding - ridden) });
-        t += riding - ridden;
+      if (riding > 0) {
+        segs.push({ kind: "leg", index: i, start: t, end: t + riding });
+        t += riding;
       }
     }
-
-    // A POI projected past the end of the last leg — off-route, or on a day
-    // whose track stops short. It still takes its time; it takes it at the end.
-    while (poiIdx < stops.length) {
-      const p = stops[poiIdx++];
-      segs.push({ kind: "poi", index: p.i, start: t, end: t + p.dur });
-      t += p.dur;
-    }
-
     return segs;
   }
 
   // Where the rider is at a given offset into the day.
   //
-  // A moment spent at a stop or a POI is on no leg at all, and says so.
-  // Highlighting the leg just ridden (or the one about to be) would put a line
-  // on the map claiming the rider is somewhere they are not.
-  function activeAt(day, offsetS, poiDistsM) {
-    const none = { legIndex: null, stopIndex: null, poiIndex: null };
-    for (const seg of daySchedule(day, poiDistsM)) {
+  // A moment spent at a point is on no leg at all, and says so. Highlighting the
+  // leg just ridden (or the one about to be) would put a line on the map
+  // claiming the rider is somewhere they are not.
+  //
+  // ONE INDEX INTO `day.points`, where this used to return a `stopIndex` and a
+  // `poiIndex` that each indexed their own FILTERED array. That is the same
+  // off-by-one trap the isLosingAlt comment above warns about, one level down: a
+  // caller holding the ordered list had to filter it the same way to read the
+  // answer, and a single index into the list they already have cannot drift.
+  function activeAt(day, offsetS) {
+    const none = { legIndex: null, pointIndex: null };
+    for (const seg of daySchedule(day)) {
       if (offsetS < seg.end) {
         if (seg.kind === "leg") return { ...none, legIndex: seg.index };
-        if (seg.kind === "stop") return { ...none, stopIndex: seg.index };
-        return { ...none, poiIndex: seg.index };
+        return { ...none, pointIndex: seg.index };
       }
     }
-    // Past the end of the day: parked at the final stop.
-    return { ...none, stopIndex: stopsOf(day).length ? stopsOf(day).length - 1 : null };
+    // Past the end of the day: parked at the final point.
+    const n = pointsOf(day).length;
+    return { ...none, pointIndex: n ? n - 1 : null };
   }
 
   // Which day and leg a moment falls in. A moment in the gap between two days —
   // the overnight — belongs to neither, and returns nulls rather than being
   // rounded into the nearest day.
-  function activeAtMoment(days, momentS, poiDistsM) {
+  function activeAtMoment(days, momentS) {
     for (let d = 0; d < days.length; d++) {
       const day = days[d];
       // `continue`, so `d` stays the index into the caller's own array.
@@ -222,10 +176,10 @@
       const start = dayStartS(day);
       if (start == null) continue;
       if (momentS < start || momentS > dayEndS(day)) continue;
-      const a = activeAt(day, momentS - start, poiDistsM && poiDistsM[d]);
-      return { dayIndex: d, legIndex: a.legIndex, stopIndex: a.stopIndex, poiIndex: a.poiIndex };
+      const a = activeAt(day, momentS - start);
+      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex };
     }
-    return { dayIndex: null, legIndex: null, stopIndex: null, poiIndex: null };
+    return { dayIndex: null, legIndex: null, pointIndex: null };
   }
 
   const fmtMoment = (s) =>
@@ -239,6 +193,8 @@
 
   window.TBTime = {
     NOMINAL_SPEED_MS,
+    pointsOf,
+    stopsOf,
     legIsEstimated,
     legDurationS,
     dayRidingS,

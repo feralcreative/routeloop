@@ -153,23 +153,12 @@ describe('POI distances agree with the server', () => {
     expect(C.distFromStartAlongTrack([], pts)).toEqual(serverDistFromStart([], pts))
   })
 
-  it('orders POIs along the day, which is what the interleaved list needs', () => {
-    const r: any = {
-      legs: [{ geometry: straightTrack, distanceM: 20000 }],
-      pois: [at(0.75), at(0.25), at(0.5)],
-    }
-    const d = C.dayPoiDistances(r)
-    expect(d[1]).toBeLessThan(d[2])
-    expect(d[2]).toBeLessThan(d[0])
-  })
-
-  it('recomputes when a POI moves, which changes neither array length nor identity', () => {
-    const r: any = {
-      legs: [{ geometry: straightTrack, distanceM: 20000 }],
-      pois: [at(0.25)],
-    }
-    const before = C.dayPoiDistances(r)[0]
-    r.pois[0] = at(0.9)
-    expect(C.dayPoiDistances(r)[0]).toBeGreaterThan(before)
-  })
+  // dayPoiDistances used to live here too, wrapping this projection in a cache to
+  // place a day's POIs in the sequence. It is gone as of 2026-08-24: every point
+  // anchors a leg, so a point's distance from the start is the prefix sum of the
+  // legs before it — exact rather than nearest-vertex, and never null.
+  //
+  // The projection itself stays, and these keep it pinned to the server, because
+  // the lossy import path still needs it: a GPX waypoint arrives with no position
+  // at all and the track is the only thing that can place it.
 })

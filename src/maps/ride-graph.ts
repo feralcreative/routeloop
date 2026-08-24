@@ -12,7 +12,7 @@ import { z } from 'zod'
 // the caller passes in.
 import type { db } from '../db/index'
 import { days as daysTable, pointDetails, points as pointsTable, routeLegs } from '../db/schema'
-import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, round6, type Track } from './kml'
+import { METERS_PER_MILE, sanitizeText, trackMeters, round6, type Track } from './kml'
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
@@ -26,8 +26,12 @@ export const MAX_DAYS = 31
 // MAX_STOPS plus MAX_POIS, so no ride that was legal before this change becomes
 // illegal after it — the two caps could each be met independently.
 export const MAX_POINTS = 400
-// Kept because promotion has to be bounded on its own: a day of 400 POIs must
-// not be promotable into 400 routing anchors, which is 399 Directions calls.
+// Kept, but the reason changed on 2026-08-24. It used to bound promotion — a day
+// of 400 POIs must not become 400 routing anchors and 399 Directions calls — and
+// that no longer applies: 400 points are 399 legs whatever their kinds, and
+// promoting one is a flag flip that routes nothing. What it still bounds is the
+// surfaces that count stops rather than points: rides.stop_count, the roadbook's
+// numbered rows, and the Google Maps hand-off.
 export const MAX_STOPS = 200
 export const MAX_VIAS_PER_LEG = 20
 export const MAX_PTS_PER_LEG = 25000
@@ -90,13 +94,19 @@ const pointSchema = z.object({
   uid: z.string().max(12).nullable().default(null),
   details: detailsSchema.nullable().default(null),
 })
-// A POI carries a duration, the same as a stop. It is still not a routing
-// anchor — the router never sees it and it splits no leg — but a rider who
-// spends half an hour at a viewpoint has spent half an hour, and the day's end
-// time has to say so.
+// A POI carries a duration, the same as a stop, and is routed through the same
+// way. `kind` says only whether the rider plans to STOP there — Ziad's call,
+// 2026-08-24. It no longer touches the router.
 export type PointInput = z.infer<typeof pointSchema>
 
-/** The stops of a day, in order. The routing anchors, and nothing else. */
+/**
+ * The stops of a day, in order.
+ *
+ * NOT the leg math any more. Every point anchors a leg as of 2026-08-24, so this
+ * survives for the surfaces that care whether a rider means to stop: the
+ * `rides.stop_count` cache, the roadbook's numbered rows, the hand-off to Google
+ * Maps, and the at-least-one-stop rule below.
+ */
 export const stopsOf = <T extends { kind: 'stop' | 'poi' }>(points: T[]): T[] =>
   points.filter((pt) => pt.kind === 'stop')
 
@@ -137,23 +147,31 @@ const daySchema = z
       .default(null),
     altActive: z.boolean().default(true),
   })
-  // Legs still connect consecutive STOPS — that is what a stop is. POIs sit
-  // between them in the list and bend nothing, so they are counted out here.
-  .refine((r) => r.legs.length === Math.max(0, stopsOf(r.points).length - 1), {
-    message: 'legs must connect consecutive stops (stops - 1 legs)',
+  // LEGS CONNECT CONSECUTIVE POINTS, both kinds. A POI is something the rider
+  // will at least ride BY — it is always part of the route, just not necessarily
+  // somewhere they stop — so `legs[i]` joins `points[i]` to `points[i+1]`
+  // whatever kind either end is. Ziad's call, 2026-08-24.
+  //
+  // This used to count in stops, and the consequence was the report that changed
+  // it: a new day with a start and one POI drew two dots and no road, because
+  // there was nothing the router had been asked to join.
+  .refine((r) => r.legs.length === Math.max(0, r.points.length - 1), {
+    message: 'legs must connect consecutive points (points - 1 legs)',
   })
+  // Still capped, though it no longer bounds the leg array — MAX_POINTS does
+  // that. This bounds the roadbook's numbered rows and the hand-off URL.
   .refine((r) => stopsOf(r.points).length <= MAX_STOPS, {
     message: `a day may have at most ${MAX_STOPS} stops`,
   })
-  // AT LEAST ONE STOP PER DAY, which the old shape said as `stops.min(1)` and
-  // this shape would otherwise have quietly dropped — `points.min(1)` is
-  // satisfied by a day of nothing but POIs.
+  // AT LEAST ONE STOP PER DAY. Note this is no longer about routing: a day of
+  // nothing but POIs draws a complete road now, because every point anchors a
+  // leg. It survives for the surfaces that count stops rather than points — the
+  // roadbook numbers its rows from them, the Google Maps hand-off is built from
+  // them, and `start`/`finish` are roles on a stop.
   //
-  // The rule survives because everything downstream still assumes it: a day with
-  // no anchors has no legs, no mileage, no roadbook rows and nothing to hand to
-  // Maps. The builder upholds it by promoting the first point of every day on
-  // the spot, so a rider never meets this message; it is here for a hand-written
-  // payload and for a native file from some future client.
+  // The builder upholds it by promoting the first point of every day on the spot,
+  // so a rider never meets this message; it is here for a hand-written payload
+  // and for a native file from some future client.
   .refine((r) => stopsOf(r.points).length >= 1, {
     message: 'a day needs at least one stop',
   })
@@ -240,8 +258,6 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   for (let ri = 0; ri < p.days.length; ri++) {
     const r = p.days[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
-    // The same concatenation the POI projection below uses, hoisted so the
-    // track is walked once for both.
     const track = r.legs.flatMap((l) => l.geometry) as Track
     const twist = twistiness(track)
     const [day] = await tx
@@ -268,7 +284,8 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
       })
       .returning()
 
-    // Stops: cumulative distance is the prefix sum of leg distances.
+    // Cumulative distance is the prefix sum of leg distances, and `prefix[i]` is
+    // how far into the day `points[i]` sits.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
     // One settle over the whole day. The unique index is per day across both
@@ -276,47 +293,28 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     // risking a POI and a stop sharing a uid.
     const withUids = ensureUids(r.points)
 
-    // DISTANCE IS STILL COMPUTED TWO WAYS, and the split is by kind rather than
-    // by which array a point came from.
-    //
-    // A stop's distance is the prefix sum of the legs before it — exact, because
-    // the legs are the road. A POI's is its projection onto the concatenated
-    // track, because a POI is beside the route rather than on it and has no leg
-    // boundary of its own. Promotion therefore changes which algorithm produces
-    // a point's stored distance, which is correct: it stops being an annotation
-    // and becomes an anchor the road actually runs through.
-    //
-    // Projection is run over the POIs alone so its returned array lines up with
-    // the POIs in order; stops are indexed by their own ordinal among stops.
-    const poiPoints = withUids.filter((pt) => pt.kind === 'poi')
-    const poiDists = distFromStartAlongTrack(track, poiPoints)
-    const poiDistByIndex = new Map<number, number | null>()
-    let poiN = 0
-    let stopN = 0
-    const stopOrdinal = new Map<number, number>()
-    withUids.forEach((pt, i) => {
-      if (pt.kind === 'poi') poiDistByIndex.set(i, poiDists[poiN++] ?? null)
-      else stopOrdinal.set(i, stopN++)
-    })
-
-    const pointRows = withUids.map((s, i) => {
-      const isStop = s.kind === 'stop'
-      const ord = stopOrdinal.get(i) ?? 0
-      return {
-        dayId: day.id,
-        kind: s.kind,
-        // The rider's order, dense over both kinds.
-        position: i,
-        lat: s.lat,
-        lng: s.lng,
-        name: s.name,
-        description: s.description || null,
-        roles: s.roles,
-        durationMin: s.durationMin,
-        distFromStartM: isStop ? prefix[Math.min(ord, prefix.length - 1)] : (poiDistByIndex.get(i) ?? null),
-        uid: s.uid,
-      }
-    })
+    // ONE ALGORITHM FOR BOTH KINDS, where there used to be two. A stop's
+    // distance was the prefix sum of the legs before it and a POI's was its
+    // projection onto the concatenated track, because a POI sat beside the route
+    // and had no leg boundary of its own. Every point has one now, so the prefix
+    // is the answer for all of them — and it is the better answer twice over: it
+    // is exact rather than nearest-vertex, and it is never null, where a
+    // projection is null on a trackless import. Promotion no longer changes a
+    // point's stored distance either, which is one fewer thing a flag flip does.
+    const pointRows = withUids.map((s, i) => ({
+      dayId: day.id,
+      kind: s.kind,
+      // The rider's order, dense over both kinds.
+      position: i,
+      lat: s.lat,
+      lng: s.lng,
+      name: s.name,
+      description: s.description || null,
+      roles: s.roles,
+      durationMin: s.durationMin,
+      distFromStartM: prefix[Math.min(i, prefix.length - 1)],
+      uid: s.uid,
+    }))
 
     for (const s of withUids) {
       liveUids.push(s.uid)

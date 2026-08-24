@@ -4,7 +4,8 @@ import { newUid } from '../maps/uid'
 import { sql } from 'drizzle-orm'
 import { db } from './index'
 import { users, rides, days, points, routeLegs } from './schema'
-import { distFromStartAlongTrack, METERS_PER_MILE, processKml } from '../maps/kml'
+import { METERS_PER_MILE, processKml } from '../maps/kml'
+import { splitDayTrack } from '../maps/track-split'
 
 // Dev seed: one user + the sample ride, structured rows extracted from the KML
 // already on disk at storage/1/1.kml (owner id 1, ride id 1 after
@@ -45,12 +46,22 @@ async function main() {
     .values({ rideId: ride.id, position: 0, color: '#0066cc', distanceM: distM })
     .returning()
 
-  const stopDists = distFromStartAlongTrack(kml.track, kml.points)
-  if (kml.points.length > 0) {
+  // ONE LEG PER PAIR OF POINTS, cut from the KML track — the same shape the
+  // import path writes, and the shape daySchema requires.
+  //
+  // This used to write the whole track as a SINGLE leg alongside N stops, which
+  // was the pre-track-split import shape: a seeded sample ride could not be
+  // opened in the builder, and autosave on it would have failed validation every
+  // time. See src/maps/track-split.ts.
+  const split = splitDayTrack(kml.track, kml.points)
+  const prefix: number[] = [0]
+  for (const l of split.legs) prefix.push(prefix[prefix.length - 1] + l.distanceM)
+
+  if (split.points.length > 0) {
     await db.insert(points).values(
-      kml.points.map((p, i) => ({
+      split.points.map((p, i) => ({
         dayId: route.id,
-        kind: 'stop' as const,
+        kind: p.kind === 'poi' ? ('poi' as const) : ('stop' as const),
         position: i,
         uid: newUid(),
         lat: p.lat,
@@ -58,14 +69,18 @@ async function main() {
         name: p.name,
         description: p.description,
         roles: p.roles,
-        distFromStartM: stopDists[i],
+        distFromStartM: prefix[Math.min(i, prefix.length - 1)],
       })),
     )
   }
-  await db.insert(routeLegs).values({ dayId: route.id, position: 0, geometry: kml.track, distanceM: distM })
+  if (split.legs.length > 0) {
+    await db.insert(routeLegs).values(
+      split.legs.map((l, i) => ({ dayId: route.id, position: i, geometry: l.geometry, distanceM: l.distanceM })),
+    )
+  }
 
   console.log(
-    `seeded user #${u.id} + ride 'sample-route-one' (${kml.points.length} stops, ${(kml.trackMeters / METERS_PER_MILE).toFixed(1)} mi)`,
+    `seeded user #${u.id} + ride 'sample-route-one' (${split.points.length} points, ${(kml.trackMeters / METERS_PER_MILE).toFixed(1)} mi)`,
   )
 }
 

@@ -1,11 +1,13 @@
 # Status and handoff
 
-**Updated:** 2026-08-23
-**Branch:** `main`, with the POI-first work uncommitted in the tree. **1,167 tests across 49 files** (2 skipped, 1,169 total)
-**Closes, since the last update:** nothing on the tracker—the POI-first change was raised directly and has no issue. Before it, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
+**Updated:** 2026-08-24
+**Branch:** `fix/map-mechanics`, with the POI-on-route work uncommitted in the tree. **1,172 tests across 49 files** (2 skipped, 1,174 total)
+**Closes, since the last update:** nothing on the tracker—both POI changes were raised directly and neither has an issue. Before them, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
 
-**A point is a POI until it is promoted, and a day is one ordered list.** That landed 2026-08-23 and it is the largest change to the data model since the `routes`→`days` rename—read the next section before touching the builder, the ride payload or anything that counts stops.
+**A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the next two sections before touching the builder, the ride payload or anything that counts stops.
+
+**THERE IS A MIGRATION OWED AND IT IS NOT A SQL FILE.** Every stored day written before 2026-08-24 that has a POI on it carries `stops - 1` legs where the app now requires `points - 1`. Nothing rejects those rows, and opening one in the builder fills the gap with straight placeholder legs drawn out to each POI and back—silently, on the first edit. `npx tsx utils/split-imported-legs.ts --dry-run` reports what is affected and running it without the flag re-cuts each day's legs from its own stored track. **Take a `db-backup` first**; it rewrites the largest column in the schema and refuses a non-local database. The native export repairs the count on the way out (`relegNative`), so a backup taken before the migration still restores—but that is a safety net, not the migration.
 
 **Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
@@ -18,6 +20,32 @@
 **0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## A POI is on the route—2026-08-24
+
+**Reported as a bug: a new day with a start point and one POI drew two dots and no line.** It was not a bug under the old model—a POI was "near the route and does not affect routing", so there was nothing the router had been asked to join—but the definition was wrong. Ziad's call: **a POI is somewhere you at least ride BY.** An address, or a spot in the middle of nowhere. It is always part of the route; it just is not necessarily somewhere you stop.
+
+**So `legs[i]` joins `points[i]` to `points[i+1]` for both kinds, and `kind` means only "do I stop here".** The second index space—position in the day versus ordinal among the stops—is gone, along with `stopIdx()`, `stopOrdinalAt()`, the projection of POIs onto the day's track, `dayPoiDistances()` in `twist.js`, and the `poiDistsM` argument every schedule caller had to thread through. `stopsOf()` survives on both sides for the four surfaces that genuinely count stops: `rides.stop_count`, the roadbook's numbered rows, the Maps hand-off, and the at-least-one-stop rule.
+
+**What this bought, beyond the report:**
+
+| Before | Now |
+| --- | --- |
+| Promoting a point rebuilt the legs either side, spent two Routes calls, and threw away the rider's shaping points on both | A flag flip. No leg work, no request, exactly reversible |
+| A POI's `dist_from_start_m` was a nearest-vertex projection, null on a trackless import | The prefix sum of the legs before it—exact, and never null on a day with legs |
+| `daySchedule()` projected, sorted, and cut a leg at a fraction to place a pause | A plain walk: dwell at `points[i]`, ride `legs[i]`, dwell at `points[i+1]` |
+| `activeAt()` returned `stopIndex`/`poiIndex`, each into its own filtered array | One `pointIndex`, into the list the caller already holds |
+| The Maps hand-off dropped POIs, so it sent the rider down a different road than the builder drew | Both kinds, batched as before |
+
+**The costs, all accepted and none of them defects.** Adding a POI is a Routes request now, where it used to be free—it splits the leg it lands in. A day's leg count is bounded by `MAX_POINTS` (400) rather than `MAX_STOPS` (200), so up to 399 legs and 399 `route_legs` rows. And `ride.json` lost its deliberate two-array `stops`/`pois` split: the schedule walks points and legs together and two arrays cannot carry the order, so the viewer contract is one ordered `points` array with `kind` on each element. `viewer.js` reads it in one loop and every point now goes through `stopMileages`, which means a POI carrying a `gas` role resets the fuel range like any other point.
+
+**No schema change.** `route_legs` is keyed by `(day_id, position)` and never referenced a stop, so the leg count changing needed no migration—which is exactly why the data migration above is a script rather than a SQL file, and why nothing will fail loudly if it is skipped.
+
+**Native JSON went to 5**, the first bump that is not a rename. A v4 file holds `stops - 1` legs, so `upgradeNativeRide` re-cuts every day's legs from its own track at every point (`relegDay`) and spreads the recorded riding time across them by distance rather than zeroing it. The rider's ORDER is kept rather than re-derived: a v4 POI's place in the list was their own choice, so a point projecting behind its predecessor is clamped forward for a zero-length leg instead of being sorted past it.
+
+**Two latent runtime bugs surfaced and were fixed while in here**, both in `utils/split-imported-legs.ts`, which is not in `tsconfig.json`: it wrote `position: null` for every POI and supplied no `uid` at all. Both columns are `NOT NULL`, so the script would have thrown on the first day it touched. `src/db/seed.ts` and `utils/seed-demo-rides.ts` were also writing the old leg shape and now go through `splitDayTrack`.
+
+**Owed: a browser pass.** Nothing automated covers the map or the builder, and this touched the leg math on every mutation path—add, delete, duplicate, reorder, drag, bulk delete, bulk move, cross-day drag, reverse, and undo.
 
 ## POI first: one ordered list of points—2026-08-23
 
