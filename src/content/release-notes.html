@@ -4,19 +4,30 @@
   HOW TO ADD A RELEASE. Copy the block below, put it at the TOP, and fill it in.
   The deploy prints the version it is about to ship ("Version : 2026-08-24-0912PT")
   — use that exact string, including the PT, so a tester reading it in the page
-  footer can find the matching entry by eye. The plain-English date beside it is
-  the gloss; 0912PT is not something anyone should have to decode.
+  footer can find the matching entry by eye. It goes in the <code>, AFTER the
+  plain-English date: a rider scans this page by date, and the build stamp is
+  reference, not the headline. 0912PT is not something anyone should have to
+  read as a time.
+
+  The <code> earns its place ONLY because a stamp says more than the heading —
+  it carries the minute and the zone. Do not put a bare date in it: that is the
+  heading again in a second format, which is why none of the backfilled entries
+  below have one.
 
     <section class="rn-release">
-      <h3><code>2026-08-24-0912PT</code> <span class="rn-date">24 August 2026</span></h3>
+      <h3>24 August 2026 <code>2026-08-24-0912PT</code></h3>
       <ul>
         <li>One sentence per change, in a rider's words.</li>
       </ul>
     </section>
 
-  The three entries below predate the first stamped build, so they are headed by
-  day rather than by version — all of that work ships in whatever the first
-  versioned deploy turns out to be. Every entry from here on gets a version.
+  EVERYTHING BELOW IS BACKFILLED, and headed by DAY rather than by version. None
+  of it was ever a stamped deploy — the version scheme did not exist yet, and
+  neither did the beta. It was read back out of the commit log so a tester can
+  see how the app got here, and so the answer to "when did that change?" is
+  written down somewhere other than git. Days that shipped nothing a rider could
+  see are not listed; there were a lot of them, and a list of internal
+  refactors is not a release note.
 
   Write for someone who rides, not someone who reads diffs. "Stops you add now
   start as points of interest" beats "refactored the point kind model". If a
@@ -33,46 +44,284 @@
   footer tells you which one you are on.
 </p>
 
+<!-- Outside .rn-lede on purpose: the dialog hides the lede because it says the
+     same thing in its own heading, and this note is not said anywhere else. It
+     belongs on both surfaces, so it needs to survive that rule. -->
+<p class="rn-note">
+  Everything below is headed by day rather than by build. It predates the version stamp — and the alpha — and was read
+  back out of the commit log, so you can see how the app got to you.
+</p>
+
 <section class="rn-release">
-  <h3><code>2026-08-23</code> <span class="rn-date">23 August 2026</span></h3>
+  <h3>23 August 2026</h3>
   <ul>
     <li>
       <strong>Every point you drop now starts as a point of interest.</strong> Drop pins wherever you are thinking of
       going, in whatever order, then promote the ones the route actually has to run through — "Make this a stop" in the
       row's ⋮ menu. The road is drawn once two of them are stops. The first point of each day is promoted for you.
     </li>
-    <li>Changed your mind? "Make this a POI" puts it back, and the point keeps its notes, categories and reservations.</li>
+    <li>
+      Changed your mind? "Make this a POI" puts it back, and the point keeps its notes, categories and reservations.
+    </li>
     <li>Dragging a row reorders it, whichever kind it is. Dragging a point of interest no longer moves its pin.</li>
     <li>This page, and a version number in the footer, so you can tell which build you found something in.</li>
+    <li>The red button on the map is now a bug, and the grey one beside it opens this page.</li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3><code>2026-08-22</code> <span class="rn-date">22 August 2026</span></h3>
-  <ul>
-    <li>
-      <strong>Buttons look like highway signs.</strong> The green field and white keyline are the house style now rather
-      than something a few buttons opted into.
-    </li>
-    <li>Fixed: you could not click into the search box at the bottom of a day. It could be tabbed to but not clicked.</li>
-    <li>Each day has its own <em>+ Point</em> button. Press it, then click the map, and the point lands on that day.</li>
-    <li>The <em>+ Day</em> button looked broken. It always worked — it just had no styling at all.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3><code>2026-08-21</code> <span class="rn-date">21 August 2026</span></h3>
+  <h3>22 August 2026</h3>
   <ul>
     <li>
       <strong>Saved places.</strong> Keep a library of the places you use — home, the good fuel stop, the meet point
       everyone knows — and drop one into any ride from the day's search box. File them into groups if you want to.
     </li>
     <li>
-      <strong>Stop details.</strong> A stop can hold a confirmation number, check-in and check-out, a phone number, an
-      address, links and notes. <strong>Only you can see them.</strong> They never go out with a shared link and they are
-      stripped from every export except your own backup file.
+      A place you save carries its phone number and address into every ride you use it in, but never a confirmation
+      number — that belongs to one trip.
     </li>
-    <li>A place you save carries its phone number and address into every ride you use it in, but never a confirmation number — that belongs to one trip.</li>
+    <li>
+      <strong>Buttons look like highway signs.</strong> The green field and white keyline are the house style now rather
+      than something a few buttons opted into.
+    </li>
+    <li>
+      Fixed: you could not click into the search box at the bottom of a day. It could be tabbed to but not clicked.
+    </li>
+    <li>
+      Each day has its own button for adding a point. Press it, then click the map, and the point lands on that day.
+    </li>
+    <li>The button that adds a day looked broken. It always worked — it just had no styling at all.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>21 August 2026</h3>
+  <ul>
+    <li>
+      <strong>Stop details.</strong> A stop can hold a confirmation number, check-in and check-out, a phone number, an
+      address, links and notes. <strong>Only you can see them.</strong> They never go out with a shared link and they
+      are stripped from every export except your own backup file.
+    </li>
+    <li>Your rides show a map of themselves on the list, instead of all looking alike.</li>
+    <li>The alpha notice picked up its club marks and a bit of paint.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>19 August 2026</h3>
+  <ul>
+    <li>Leaving the map is an "Exit map" menu item now, rather than an X you had to find.</li>
+    <li>
+      Fixed: the stop-duration setting rendered wider than it declared, and the legend refused to wrap at any window
+      size.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>16 August 2026</h3>
+  <ul>
+    <li>
+      <strong>Alternate days.</strong> Two or more versions of the same stretch, grouped, with one of them live. The
+      others are drawn as dashed ghosts and stay out of your mileage, your exports and your roadbook until you make one
+      of them the active one.
+    </li>
+    <li>
+      <strong>Tell us something.</strong> Report a bug or ask for a feature from inside the app, with a screenshot if it
+      helps. A bug is private between you and the owner unless it gets published; the idea board is where feature wants
+      go, and you can back someone else's instead of filing your own.
+    </li>
+    <li>You get an email when something you reported changes state.</li>
+    <li>Every day has its own search row now, instead of one search box that had to be told which day it meant.</li>
+    <li>A day menu, and a select mode for acting on several days or points at once.</li>
+    <li>The builder's icons were redrawn by an actual human.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>15 August 2026</h3>
+  <ul>
+    <li>
+      <strong>The builder is a drawer down the left side showing every day at once</strong>, instead of a panel that
+      floated over the map showing one.
+    </li>
+    <li>
+      <strong>The Save button is gone, and that is on purpose.</strong> Your work saves itself when you stop typing. If
+      the browser dies mid-edit, the draft is waiting when you come back.
+    </li>
+    <li>Drag a row to reorder it, or use the menu on the row if you would rather not drag.</li>
+    <li>The ride timeline moved to the bottom edge of the map, where it stops covering the road.</li>
+    <li>Terrain is the default map now, and there is a switcher for the others.</li>
+    <li>Choose how stop times are written — <em>1h 30m</em> or <em>1:30</em> — in Settings.</li>
+    <li>The ride's name is the headline of the drawer, so you can tell two half-finished rides apart.</li>
+    <li>
+      <strong>An imported file opens in the builder and can be edited</strong>, rather than being a route you could only
+      look at.
+    </li>
+    <li>
+      <strong>Delete Me.</strong> Ask for your account to be destroyed and it goes on a 30-day hold, with a Save Me
+      button that calls it off. Nothing skips the hold, including us.
+    </li>
+    <li>Your rides live at their own address now, and old rollchart.app links land in the right place.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>14 August 2026</h3>
+  <ul>
+    <li><strong>Download Me.</strong> Everything the app holds about you, packaged and handed over, in one file.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>13 August 2026</h3>
+  <ul>
+    <li>
+      The typeface is served by us rather than borrowed from Google, so pages stop flashing an unstyled headline on the
+      way in.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>11 August 2026</h3>
+  <ul>
+    <li>
+      <strong>The app is called Routeloop.</strong> It was TankBag, and briefly RouteLoop before that.
+      <strong>Files you already downloaded still import.</strong> Anything named <code>tankbag_…</code> is read exactly
+      as before, day order and dates intact — that is deliberate and it is not going away.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>9 August 2026</h3>
+  <ul>
+    <li>A proper navigation bar on a desktop screen, with About and your account as their own menus.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>8 August 2026</h3>
+  <ul>
+    <li>
+      <strong>The signed-in home page is your numbers</strong> — miles, days, rides, and what you have been planning —
+      rather than a list you already had.
+    </li>
+    <li>Invitations, and a short survey for the riders who take one.</li>
+    <li>
+      <strong>Downloads are named so they can be re-imported.</strong> The long filename carries the ride, the day, the
+      date and the order, because GPX and KML cannot hold a schedule inside themselves. Drop the files back in and the
+      ride comes back with its days in the right order.
+    </li>
+    <li>Drop a file anywhere on the import page rather than hunting for a file picker.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>7 August 2026</h3>
+  <ul>
+    <li>
+      Mail from the app now comes from the app's own domain and looks like something a person sent — the sign-in link, a
+      waitlist confirmation, and an approval notice.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>5 August 2026</h3>
+  <ul>
+    <li><strong>Undo and redo in the builder</strong>, and a recovered draft if the browser falls over.</li>
+    <li>
+      <strong>Drag the route line onto the road you actually meant.</strong> The point you drop shapes that one leg and
+      nothing else re-routes.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>4 August 2026</h3>
+  <ul>
+    <li><strong>Hand a day off to Google Maps</strong> as an ordered series of links.</li>
+    <li>
+      <strong>Expand</strong> weaves extra shaping points into those links so Maps has too little room to pick its own
+      roads — and it tells you the longest stretch Maps still chooses for itself rather than hiding it.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>3 August 2026</h3>
+  <ul>
+    <li>Fixed: a file holding several tracks kept only the longest one. It keeps all of them now.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>2 August 2026</h3>
+  <ul>
+    <li>
+      <strong>Import and export.</strong> KML, KMZ, GPX, GeoJSON and CSV in and out, plus a lossless Routeloop backup
+      file that re-imports as the same ride. Hand it several files at once and they become the days of one ride.
+    </li>
+    <li>
+      <strong>A printable roadbook</strong> for the tank bag: stop by stop, leg and running miles, miles since fuel, and
+      an estimated clock.
+    </li>
+    <li>
+      <strong>Twisty.</strong> Every route gets a rough measure of how much the road actually bends, from Straight to
+      Very twisty. Hover it for the number behind the word.
+    </li>
+    <li>
+      A point of interest can carry how long you expect to be there, and sits in the list where it falls along the road.
+    </li>
+    <li>The questions page collapses into an accordion, and each answer has a link you can send someone.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>1 August 2026</h3>
+  <ul>
+    <li>
+      <strong>A timeline slider across the whole ride.</strong> Drag it and the day it lands on comes forward while the
+      rest dim, on both the builder and the shared view.
+    </li>
+    <li><strong>Find a ride</strong> — a gallery of the rides other people have made public.</li>
+    <li><strong>Clone a public ride into your own account</strong> and change it however you like.</li>
+    <li>Pick a username, and a starting point that shows on a ride you make public.</li>
+    <li>Reverse a day, and throw away unsaved changes without reloading.</li>
+    <li>Pause the video on the sign-in page.</li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>31 July 2026</h3>
+  <ul>
+    <li>
+      Give a day a start and end time, and get an honest estimate for a leg the router could not route rather than a
+      zero.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>30 July 2026</h3>
+  <ul>
+    <li>
+      <strong>The map engine moved to Google Maps</strong>, and a ride became several days drawn together on one map
+      instead of a single route.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>Before all that, July 2026</h3>
+  <ul>
+    <li>
+      The app was rebuilt from scratch in its second week, sign-in was tried three different ways before landing on
+      Google and an emailed link, and it was called something else twice. None of that is worth a line each — but it is
+      why the earliest rides in your account may look like they were made by a different app. They were.
+    </li>
   </ul>
 </section>
 

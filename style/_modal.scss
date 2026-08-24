@@ -270,6 +270,13 @@ body.modal-open {
   max-height: 60vh;
   overflow-y: auto;
   text-wrap: pretty;
+  // Room for the timeline mark, which sits 4px LEFT of each release's rail. A
+  // scroll container with overflow-y:auto computes overflow-x to auto as well,
+  // so without this the marks land outside the content box and the dialog grows
+  // a horizontal scrollbar to reach them. The standalone page has no scroll
+  // container and does not need it, which is why it is set here and not on
+  // .rn-release.
+  padding-left: 6px;
 
   // The fetched fragment carries the page's <h1> and lede, which the dialog has
   // already said in its own heading. Hidden rather than stripped server-side:
@@ -280,53 +287,152 @@ body.modal-open {
   }
 }
 
+// One release, drawn as a stop on a timeline.
+//
+// This was twenty stacked hairlines, which is what a list of separators looks
+// like rather than what a chronology looks like: nothing said the entries were
+// in time order, and each rule drew as much ink as the heading above it. One
+// continuous rail with a mark per release says "these happened in this order"
+// with less ink, and the space the rules were eating goes back into the copy.
+//
+// The rail is a border on each section rather than a line behind the list, so
+// it cannot drift out of step when a release is added — and the sections are
+// spaced with PADDING, not margin, because a margin would break the rail into
+// twenty separate segments.
 .rn-release {
-  padding-top: 0.9rem;
-  border-top: 1px solid $grey;
+  position: relative;
+  padding: 0 0 1.5rem 1.3rem;
+  border-left: 2px solid $neutral-94;
 
-  &:first-of-type {
-    padding-top: 0;
-    border-top: 0;
+  // The mark. box-sizing is declared because this stylesheet inherits no global
+  // border-box reset — see AGENTS.md — and a fixed-size box that forgets renders
+  // wider than it declares the moment anyone adds padding or a border to it.
+  //
+  // Deliberately NO ring around the dot. A ring has to be painted in the color
+  // of whatever is behind it, and there are two behinds: white in the dialog,
+  // $neutral-96 on the standalone page. It would be right on one and a halo on
+  // the other — the same trap .rn-note fell into. The dot is four steps darker
+  // than the rail instead, which separates them on any background.
+  &::before {
+    content: "";
+    box-sizing: border-box;
+    position: absolute;
+    // -6px against a 2px rail centers a 10px dot on it: the padding box starts
+    // after the border, so the dot spans -4px to 6px and the rail spans 0 to
+    // 2px. Both center on 1px.
+    left: -6px;
+    top: 0.3rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: $neutral-76;
+  }
+
+  // The newest release is the one nearly everyone opened this to read, so it is
+  // the only mark carrying the brand color. Everything below it is history.
+  &:first-of-type::before {
+    background: $interstate;
+  }
+
+  &:last-of-type {
+    padding-bottom: 0;
   }
 
   h3 {
-    margin: 0 0 0.4rem;
-    font-size: 1rem;
-    // Tabular so a column of dated versions lines up rather than shimmying.
-    font-variant-numeric: tabular-nums;
+    margin: 0 0 0.6rem;
+    color: $text;
+    font-size: 1.02rem;
+    line-height: 1.3;
 
-    // The version is the string a rider quotes in a bug report, so it is marked
-    // up as one. It inherits the heading's face rather than going monospace — a
-    // list of these reads as a timeline, and twenty code chips down a dialog is
-    // noise. `nowrap` is the part that matters: `2026-08-23-1834PT` is full of
-    // hyphens and a browser will happily break after one, which would split a
-    // version across two lines and make it unquotable.
+    // The build stamp, demoted to a reference. It USED to lead the heading and
+    // that was the wrong way round: a rider scans this list by date and reaches
+    // for the version only when filing a report, so the date is the headline
+    // and this is the footnote that makes the entry quotable. Tracked out and
+    // small so it reads as a different kind of thing rather than a smaller
+    // heading — the same move the FAQ section labels make.
+    //
+    // `nowrap` is load-bearing: `2026-08-23-1834PT` is full of hyphens, a
+    // browser will happily break after one, and half a version on the next line
+    // is not a version anyone can quote.
     code {
+      margin-left: 0.5rem;
+      color: $neutral-57;
       font: inherit;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      vertical-align: 0.15em;
     }
   }
 
   ul {
-    margin: 0 0 1rem;
-    padding-left: 1.1rem;
+    margin: 0;
+    padding-left: 1.15rem;
   }
 
   li {
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.6rem;
+    // Darker than .modal-body's mid-grey, which every line of this inherited.
+    // A changelog is read, not glanced at, and body copy set at the weight of a
+    // caption is the whole reason the dialog looked washed out.
+    color: $neutral-29;
+    line-height: 1.6;
     text-wrap: pretty;
+
+    // The lead-in of each item — the part that says WHAT changed — was the same
+    // grey as the sentence explaining it, so bolding it bought nothing.
+    strong {
+      color: $text;
+    }
+
+    // The bullet is punctuation, not content. Left at text color it competed
+    // with the first word of every line.
+    &::marker {
+      color: $neutral-70;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
   }
 }
 
-.rn-date {
-  margin-left: 0.5rem;
-  color: $neutral-50;
-  font-weight: 400;
+// The one line of the fragment's own preamble that the dialog does NOT hide: it
+// explains why the list below is dated by day instead of by build, which the
+// dialog's heading and version line do not say. Set apart rather than sized down
+// — a rider reads it once and then never again, and it should not compete with
+// the first release for attention.
+// Set on its own surface rather than behind a rule. It sat on a left border
+// until the releases below it grew their own rail, at which point two stacked
+// left borders read as one broken line — and a tinted box says "aside" without
+// borrowing the timeline's vocabulary.
+// The hairline is what makes this legible on BOTH surfaces, and it is not
+// decoration: the fill is $neutral-96, which is also the page background, so on
+// the standalone /release-notes the tint alone renders an invisible box. In the
+// dialog the fill does the work and the border is a quiet edge; on the page the
+// border does the work and the fill matches its surroundings.
+.rn-note {
+  margin: 0 0 1.5rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid $neutral-88;
+  border-radius: 8px;
+  background: $neutral-96;
+  color: $neutral-43;
   font-size: 0.85rem;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
+// Sits below the end of the timeline, so it takes the rule the releases gave
+// up — one hairline at the bottom of the list reads as a close, where twenty
+// between the entries read as noise.
 .rn-foot {
-  margin: 0;
+  margin: 1.4rem 0 0;
+  padding-top: 1.1rem;
+  border-top: 1px solid $neutral-94;
+  line-height: 1.55;
   color: $neutral-50;
   font-size: 0.85rem;
 }
