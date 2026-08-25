@@ -36,7 +36,9 @@
 
 **Both tracker gaps are closed. Twenty-three issues were filed on 2026-08-24, [#115](https://github.com/feralcreative/routeloop/issues/115) through [#137](https://github.com/feralcreative/routeloop/issues/137).** Fourteen were written against work that had already shipped and closed the same minute; nine are roadmap items 21 through 31 that had never been filed, and each now carries a P-label so the Priorities section can see it. The item-to-issue mapping is a table in the 2026-08-24 section of `docs/ROADMAP.md`.
 
-**That is now the working rule, Ziad's call 2026-08-24: an audible gets its issue written AFTER the fact and closed immediately.** The point is to work fluidly without losing the history—nobody stops to file a ticket before fixing something that was just described out loud, but the tracker should still be able to answer what happened and why. Recorded in `AGENTS.md` under the commit conventions.
+**Every issue now carries an `area:` label, open and closed, and the area is the unit of work.** Ziad's call 2026-08-24: pick an area, branch, clear what you can of it, one PR, move on—**group liberally, because a hyper-granular history of one-issue branches is not wanted.** Two new labels were added because nothing covered those pages (`area:account`, `area:chrome`) and two were created and then folded back the same day (`area:routing` into `area:builder`, `area:riders` into `area:schema`) for exactly that reason. The nine areas and their open counts are tabled in `AGENTS.md`; `area:builder` is the biggest at 15.
+
+**And the other working rule, Ziad's call 2026-08-24: an audible gets its issue written AFTER the fact and closed immediately.** The point is to work fluidly without losing the history—nobody stops to file a ticket before fixing something that was just described out loud, but the tracker should still be able to answer what happened and why. Recorded in `AGENTS.md` under the commit conventions.
 
 **Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
 

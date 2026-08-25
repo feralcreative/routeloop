@@ -195,6 +195,21 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
 - **An audible gets its issue written AFTER the fact, and closed immediately.** Ziad's call, 2026-08-24. Work here is often raised out loud and built the same day, and stopping to file a ticket first is exactly the friction that makes it not happen—so the issue is written when the work is done, describing what was decided and why, and closed in the same breath. **It is not optional bookkeeping**: the tracker is what answers "why is it like this" a year from now, and twenty-three issues had to be reconstructed on 2026-08-24 because nobody had been doing it. One issue per coherent unit of work, labeled as if it had been filed up front.
 - Conventional Commits: `type(scope): subject`, imperative mood. Types in use: `feat`, `fix`, `refactor`, `docs`, `chore`, `style`, `test`. Scope optional, welcome when it clarifies.
 - Branch as `type/kebab-subject`—`feat/trip-timeline-slider`, `fix/multi-track-import`.
+- **BRANCH BY AREA, NOT BY ISSUE, AND PREFER FEWER LARGER PRs.** Ziad's call, 2026-08-24. Every issue carries exactly one `area:` label (a few carry two where the work genuinely straddles), and an area is the unit of work: pick one, branch, clear what you can of `gh issue list --label area:<name>`, open one PR, move on. **Group liberally**—a hyper-granular history of one-issue branches is explicitly not wanted. The nine areas, and the open count as of 2026-08-24:
+
+  | Area | Open | What it covers |
+  | --- | --- | --- |
+  | `area:builder` | 15 | The builder page, its panel, stop and point handling, and routing preferences |
+  | `area:schema` | 11 | `src/db/schema.ts` and the rider/group layer—friendships, membership, subgroups, voting |
+  | `area:ops` | 5 | Config, deploy, CI, infra, and the feedback subsystem |
+  | `area:dashboard` | 5 | The dashboard at `/`—`home.tsx`, `dashboard.js`, `_dashboard.scss` |
+  | `area:import-export` | 4 | `kml.ts`, `export.ts`, `maps.ts`, and the `/import` page's format work |
+  | `area:viewer` | 3 | `viewer.js`, the timeline, the navigate page, and the roadbook |
+  | `area:account` | 3 | Profile, preferences, and the account pages—`account.tsx`, `settings.tsx`, `/prefs` |
+  | `area:chrome` | 2 | Site-wide layout, styling, and shared components—`_chrome.scss`, `layout.tsx`, themes |
+  | `area:map-engine` | 1 | `map-common.js`, `expand.ts`, `gmaps-links.ts`—the load-bearing `google.maps` boundary |
+
+  **Two folds were deliberate and are not gaps to fill later:** routing options live in `area:builder` rather than an `area:routing` of their own, and the whole rider/group layer lives in `area:schema` rather than an `area:riders`. Both were split out and then folded back the same day, because fewer branches beat a truer taxonomy.
 - Hand over a single chained one-liner (`git add -A && git commit -m "…"`) and let Ziad run it. Do not commit unasked.
 - Before opening a PR: `npm run typecheck`, `npm test`, and `npm run sass` if SCSS changed. Link the issue it closes. A fix for something the tests missed should come with the test that would have caught it.
 - Never commit: `.env`, compiled CSS, `storage/`, `_PLANS/`, database dumps.
