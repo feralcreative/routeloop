@@ -381,14 +381,14 @@
 .notice {
   padding: 0.7rem 0.9rem;
   border-radius: 8px;
-  background: rgba($gpx, 0.12);
-  border: 1px solid rgba($gpx, 0.35);
+  background: color-mix(in srgb, $gpx 12%, transparent);
+  border: 1px solid color-mix(in srgb, $gpx 35%, transparent);
   color: $gpx-d12;
   font-weight: 600;
 
   &.is-error {
-    background: rgba($kml, 0.1);
-    border-color: rgba($kml, 0.35);
+    background: color-mix(in srgb, $kml 10%, transparent);
+    border-color: color-mix(in srgb, $kml 35%, transparent);
     color: $kml-d8;
   }
 }

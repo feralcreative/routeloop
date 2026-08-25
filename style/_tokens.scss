@@ -223,6 +223,17 @@ $day: var(--day);
 $date: var(--date);
 $label: var(--label);
 
+// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` used to appear
+// in eighteen places and every one of them broke silently the moment tokens
+// became `var()` references: Sass passes the call through untouched, so it
+// compiled to `rgba(var(--brand), 0.06)`, which is not valid CSS and drops the
+// declaration. Nothing warns — the build succeeds and the tint is simply gone.
+//
+// A tint is written `color-mix(in srgb, $brand 6%, transparent)` instead, which
+// takes a custom property and themes with it. The same rule covers any future
+// mix, fade or adjust: if Sass has to compute it, it needs a real color, and the
+// only real colors left are in _palette.scss.
+
 // --- THE DERIVED SET --------------------------------------------------------
 //
 // Every color the stylesheets used to compute inline with `color.adjust()`, now

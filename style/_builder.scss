@@ -583,7 +583,7 @@
 
     &:hover:not(:disabled),
     &:focus-visible {
-      background: rgba($brand, 0.1);
+      background: color-mix(in srgb, $brand 10%, transparent);
     }
 
     // Shown rather than dropped, so the first stop's menu is the same shape as
@@ -598,7 +598,7 @@
       color: $kml;
       &:hover:not(:disabled),
       &:focus-visible {
-        background: rgba($kml, 0.1);
+        background: color-mix(in srgb, $kml 10%, transparent);
       }
     }
   }
@@ -1176,12 +1176,12 @@
       }
 
       &.flash {
-        background: rgba($brand, 0.12);
+        background: color-mix(in srgb, $brand 12%, transparent);
       }
       // Sortable's ghost, the placeholder left where the row will land.
       &.is-dragging {
         opacity: 0.35;
-        background: rgba($brand, 0.1);
+        background: color-mix(in srgb, $brand 10%, transparent);
       }
     }
 

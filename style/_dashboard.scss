@@ -380,7 +380,7 @@
   top: 4px;
   bottom: 4px;
   z-index: -1;
-  background: rgba($brand, 0.14);
+  background: color-mix(in srgb, $brand 14.000000000000002%, transparent);
   border-radius: 3px;
 }
 

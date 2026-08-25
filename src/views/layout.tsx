@@ -97,6 +97,16 @@ export type PageOpts = {
   /** Extra <script> tags, emitted last. */
   scripts?: string
   /**
+   * The rider's palette. **Almost nothing passes these** — they come off `user`,
+   * which the session already carries, so every page is themed without its route
+   * knowing. They exist as an override for the one case that needs it: the
+   * preferences page previewing a choice before it is saved.
+   *
+   * Absent on a signed-out request, which renders the default light palette.
+   */
+  theme?: string
+  scheme?: string
+  /**
    * Serialized to window.TB via jsonScript.
    *
    * `version` is merged in by page() and does not belong here — public/js/feedback.js
@@ -716,6 +726,29 @@ export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
   const htmlClass = isMap ? ' class="map-page"' : ''
+
+  // THE TWO APPEARANCE ATTRIBUTES, read by style/_theme.scss.
+  //
+  // Stamped on <html> rather than <body> because the palettes are emitted on
+  // `:root`, and because a custom property has to be defined above everything
+  // that reads one — including the page background, which paints from <html>.
+  //
+  // EACH IS OMITTED WHEN IT WOULD SAY NOTHING, and the two reasons differ. The
+  // default theme is the bare `:root` block, so an attribute would be redundant.
+  // `system` is different and load-bearing: there is no `data-scheme="system"`
+  // rule and there cannot be one, because the server does not know the reader's
+  // OS setting. Absence is what lets `prefers-color-scheme` answer instead — see
+  // schemeAttr() in src/views/appearance.ts and the media block in _theme.scss.
+  //
+  // Server-rendered rather than set by script, so there is no flash of the wrong
+  // palette before the first paint.
+  // Read off the user rather than passed in, so all 32 call sites get it without
+  // being touched — see the note in src/auth/session.ts about why.
+  const u = opts.user as (UserRow & { theme?: string; scheme?: string }) | null
+  const theme = opts.theme ?? u?.theme
+  const scheme = opts.scheme ?? u?.scheme
+  const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
+  const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -726,7 +759,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

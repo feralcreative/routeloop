@@ -26,7 +26,7 @@
   // Marked on the row, not the input, because the thing that is wrong is "you
   // did not answer this question" and the question is the row.
   &.has-error {
-    background: rgba($kml, 0.05);
+    background: color-mix(in srgb, $kml 5%, transparent);
     box-shadow: inset 3px 0 0 $kml;
   }
 }
@@ -339,7 +339,7 @@ $rate-tones: (
   position: absolute;
   inset: 0 auto 0 0;
   z-index: -1;
-  background: rgba($brand, 0.14);
+  background: color-mix(in srgb, $brand 14.000000000000002%, transparent);
   border-radius: 4px;
 }
 

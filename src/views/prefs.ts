@@ -16,6 +16,7 @@ import type { AuthEnv } from '../auth/middleware'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { type DateFormat, fromAcceptLanguage, toDateFormat } from './date-format'
+import { type Scheme, type Theme, toScheme, toTheme } from './appearance'
 
 /**
  * Which date format this request should render in.
@@ -51,4 +52,36 @@ export async function dateFormatFor(c: Context<AuthEnv>): Promise<DateFormat> {
     if (p) return toDateFormat(p.dateFormat)
   }
   return fromAcceptLanguage(c.req.header('Accept-Language'))
+}
+
+/**
+ * Which palette this request should render in.
+ *
+ * ONE QUERY FOR BOTH AXES, because they are two columns on one row and a rider
+ * has one appearance. Returned as a pair rather than by two functions so a caller
+ * cannot accidentally pay for the row twice on a page that needs both — which is
+ * every page, since layout.tsx stamps both attributes on <html>.
+ *
+ * NO Accept-Language EQUIVALENT HERE, and the asymmetry with dateFormatFor above
+ * is deliberate rather than an omission. A browser tells us its language, so a
+ * rider with no stored row can still be given day-first dates. **No header
+ * carries a palette or an OS light/dark setting**, so the fallback for scheme is
+ * the value `system`, which pushes the question to CSS where the answer actually
+ * lives — `prefers-color-scheme` in style/_theme.scss. Guessing here would be
+ * guessing where the browser already knows.
+ *
+ * Works for a signed-out request, which the splash and any public page needs:
+ * `c.get('user')` is null for those and they get the defaults.
+ */
+export async function appearanceFor(c: Context<AuthEnv>): Promise<{ theme: Theme; scheme: Scheme }> {
+  const user = c.get('user')
+  if (user) {
+    const [p] = await db
+      .select({ theme: userProfiles.theme, scheme: userProfiles.scheme })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, user.id))
+      .limit(1)
+    if (p) return { theme: toTheme(p.theme), scheme: toScheme(p.scheme) }
+  }
+  return { theme: toTheme(undefined), scheme: toScheme(undefined) }
 }

@@ -24,6 +24,18 @@
   border: 0;
 }
 
+// A visible legend, for the settings that ask more than one question in a single
+// form. The date and duration settings each have one fieldset and hide theirs —
+// the <h2> above already says what is being chosen — but appearance has two
+// fieldsets in one form, and an unlabeled pair of radio groups is a guess.
+.choice-legend {
+  padding: 0;
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: $text-l20;
+}
+
 .choice {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -53,7 +65,7 @@
 
   &:has(input:checked) {
     border-color: $brand;
-    background: rgba($brand, 0.06);
+    background: color-mix(in srgb, $brand 6%, transparent);
   }
 
   // The label is the whole row, so the focus ring has to be too — the radio

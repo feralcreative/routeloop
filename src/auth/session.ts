@@ -8,7 +8,8 @@ import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
-import { sessions, users, type UserRow } from '../db/schema'
+import { sessions, userProfiles, users, type UserRow } from '../db/schema'
+import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
 
 // Renamed with the product on 2026-08-11. No legacy name is read: these cookies
 // are host-scoped with no `domain` attribute, so moving the canonical host to
@@ -51,7 +52,16 @@ export async function createSession(userId: number): Promise<string> {
   return token
 }
 
-export type SessionUser = { user: UserRow; sessionId: string }
+/**
+ * The signed-in rider, plus the two appearance values the shell needs.
+ *
+ * `theme` and `scheme` are widened onto the user rather than returned beside it
+ * because `page()` takes a user and nothing else that could carry them. They are
+ * DISPLAY values and belong to no table row on their own — `user_profiles` holds
+ * them, `users` does not — which is why this is a composed type rather than a
+ * change to UserRow.
+ */
+export type SessionUser = { user: UserRow & { theme: Theme; scheme: Scheme }; sessionId: string }
 
 // Returns the signed-in user, or undefined. Expired rows are deleted on sight
 // rather than left to accumulate.
@@ -59,10 +69,25 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
   if (!token) return undefined
   const id = await hashToken(token)
 
+  // The appearance columns ride along on the session query rather than being
+  // fetched per page, and the LEFT join is what makes that free: it is the same
+  // round trip, and `user_profiles` is keyed by user_id as its primary key.
+  //
+  // Carried on the user object because that is what reaches the renderer.
+  // page() in src/views/layout.tsx stamps `data-theme` and `data-scheme` on
+  // <html>, and it is called from 32 places across 16 files — threading two more
+  // arguments through all of them would work until somebody added the 33rd and
+  // forgot, and a missed call site is not a visible bug. It is a page that
+  // silently renders light for a rider who chose dark.
+  //
+  // LEFT, not inner: `user_profiles` rows are created lazily by the preferences
+  // upsert, so most riders have no row at all. An inner join here would sign
+  // them all out.
   const [row] = await db
-    .select({ session: sessions, user: users })
+    .select({ session: sessions, user: users, theme: userProfiles.theme, scheme: userProfiles.scheme })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
     .where(eq(sessions.id, id))
     .limit(1)
   if (!row) return undefined
@@ -79,7 +104,12 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       .where(eq(sessions.id, id))
   }
 
-  return { user: row.user, sessionId: id }
+  // Coerced here so no reader downstream has to interpret a null — a rider with
+  // no profile row gets the same values as one who chose the defaults.
+  return {
+    user: { ...row.user, theme: toTheme(row.theme), scheme: toScheme(row.scheme) },
+    sessionId: id,
+  }
 }
 
 export async function invalidateSession(sessionId: string): Promise<void> {

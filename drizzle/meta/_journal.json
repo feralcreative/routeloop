@@ -71,6 +71,13 @@
       "when": 1787627034828,
       "tag": "0009_careful_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787636984738,
+      "tag": "0010_wild_mandarin",
+      "breakpoints": true
     }
   ]
 }
