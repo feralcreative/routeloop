@@ -22,6 +22,7 @@ import { TWIST_BANDS } from '../src/maps/twist'
 import {
   ACTIVITY_MONTHS,
   fmtBytes,
+  fmtAvg,
   fmtHours,
   fmtMiles,
   monthSeries,
@@ -366,6 +367,80 @@ describe('shapeStats', () => {
       expect(s.saddle?.estimated).toBe(true)
       expect(s.saddle?.note).toMatch(/estimated/i)
     })
+  })
+})
+
+describe('the comparison columns', () => {
+  const global = {
+    rides: { avg: 6.666666666666667, top: 17 },
+    days: { avg: 13, top: 34 },
+    legs: { avg: 44.333333333333336, top: 95 },
+    points: { avg: 67.33333333333333, top: 154 },
+  }
+
+  const tilesFor = (g?: typeof global) =>
+    Object.fromEntries(
+      shapeStats(raw({ totals: totals({ rides: 3, days: 9, legs: 30, points: 50 }) }), 0, NOW, g).tiles.map((t) => [
+        t.label,
+        t,
+      ]),
+    )
+
+  it('gives all four counting tiles a spread', () => {
+    const t = tilesFor(global)
+    expect(t.rides.spread).toEqual({ avg: '6.7', top: '17' })
+    expect(t.days.spread).toEqual({ avg: '13', top: '34' })
+    expect(t.legs.spread).toEqual({ avg: '44.3', top: '95' })
+    expect(t.waypoints.spread).toEqual({ avg: '67.3', top: '154' })
+  })
+
+  // Legs was put in scope deliberately on 2026-08-16 rather than by omission,
+  // even though a leg is not a unit any rider thinks in. If it ever disappears
+  // as a cleanup, this says it was a decision.
+  it('includes legs, which is deliberate and not an oversight', () => {
+    expect(tilesFor(global).legs.spread).toBeDefined()
+  })
+
+  // A tile with no cohort figure must say nothing rather than claim a zero it
+  // never measured.
+  it('leaves a tile with no cohort figure without one', () => {
+    const s = shapeStats(raw({ totals: totals({ rides: 3, viaPoints: 4 }) }), 0, NOW, global)
+    const insisted = s.tiles.find((t) => t.label.includes('insisted'))
+    expect(insisted).toBeDefined()
+    expect(insisted?.spread).toBeUndefined()
+  })
+
+  it('renders without any cohort figures at all', () => {
+    const t = tilesFor(undefined)
+    expect(t.rides.spread).toBeUndefined()
+    expect(t.rides.value).toBe('3')
+  })
+
+  // The pool carries no names, and the shaped output is what reaches the page.
+  it('carries no rider identity anywhere in the shaped output', () => {
+    const text = JSON.stringify(shapeStats(raw({ totals: totals({ rides: 3 }) }), 0, NOW, global))
+    expect(text).not.toMatch(/owner|user_?id|username/i)
+  })
+})
+
+describe('fmtAvg', () => {
+  it('keeps one decimal when it says something', () => {
+    expect(fmtAvg(6.666666666666667)).toBe('6.7')
+    expect(fmtAvg(44.333333333333336)).toBe('44.3')
+  })
+
+  // "13.0 days" is 13 with a decorative zero on it.
+  it('drops a decimal that is only a zero', () => {
+    expect(fmtAvg(13)).toBe('13')
+    expect(fmtAvg(12.98)).toBe('13')
+  })
+
+  it('groups thousands, like every other count on the page', () => {
+    expect(fmtAvg(1234)).toBe('1,234')
+  })
+
+  it('is 0 for an empty cohort rather than NaN in a tile', () => {
+    expect(fmtAvg(0)).toBe('0')
   })
 })
 

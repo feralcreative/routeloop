@@ -80,6 +80,26 @@ export type RawRecords = {
   mostViewedSlug: string | null
 }
 
+/**
+ * Average and highest across every rider, for one metric.
+ *
+ * Both are per-RIDER figures: the average number of rides a rider has, and the
+ * most any one of them has — not an average over rides, which would be a
+ * different and far less interesting number.
+ *
+ * Declared here rather than in query.ts because query.ts already imports this
+ * file for ACTIVITY_MONTHS and the Raw* types, and the dependency has to run one
+ * way. Same reason RawTotals lives here.
+ */
+export type RawSpread = { avg: number; top: number }
+
+export type RawGlobal = {
+  rides: RawSpread
+  days: RawSpread
+  legs: RawSpread
+  points: RawSpread
+}
+
 export type RawStats = {
   totals: RawTotals
   twist: RawTwist[]
@@ -96,6 +116,23 @@ export const miles = (m: number): number => m / METERS_PER_MILE
 export const fmtMiles = (m: number): string => Math.round(miles(m)).toLocaleString('en-US')
 
 export const fmtCount = (n: number): string => n.toLocaleString('en-US')
+
+/**
+ * An average count, for the comparison column beside a rider's own figure.
+ *
+ * ONE DECIMAL, AND ONLY WHEN IT SAYS SOMETHING. "6.7 rides" is a real difference
+ * from 6; "13.0 days" is 13 with a decorative zero on it. Rounding everything to
+ * a whole number instead would be worse in the other direction — in a cohort this
+ * small the averages are single digits, and "7" against a rider's own "7" reads
+ * as a tie when they are actually ahead.
+ *
+ * Rounds before testing for a fraction, so 12.98 prints as 13 rather than as
+ * "13.0".
+ */
+export function fmtAvg(n: number): string {
+  const r = Math.round(n * 10) / 10
+  return Number.isInteger(r) ? fmtCount(r) : r.toFixed(1)
+}
 
 /**
  * A lifetime total of riding time, as hours.
@@ -242,7 +279,19 @@ export function monthSeries(rows: readonly RawMonth[], now: Date, count = ACTIVI
 
 // --- The whole page ----------------------------------------------------------
 
-export type Tile = { label: string; value: string; hint?: string }
+/**
+ * One KPI tile: the rider's own figure, and optionally what everyone else has.
+ *
+ * `spread` is absent rather than zeroed when there is nothing to compare against
+ * — the "roads you insisted on" tile has no global equivalent, and a tile
+ * claiming an average of 0 would be making a measurement it never took.
+ */
+export type Tile = {
+  label: string
+  value: string
+  hint?: string
+  spread?: { avg: string; top: string }
+}
 
 export type Meter = { usedBytes: number; quotaBytes: number; pct: number; used: string; quota: string } | null
 
@@ -280,20 +329,39 @@ export type DashboardStats = {
   storageDrift: boolean
 }
 
-export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): DashboardStats {
+/**
+ * `global` is optional so a caller with nothing to compare against still works.
+ * The comparison columns are decoration: a dashboard that renders without them
+ * is a worse page, not a broken one, and this signature says so rather than
+ * making every call site invent a zeroed spread.
+ */
+export function shapeStats(
+  raw: RawStats,
+  cachedUsedBytes: number,
+  now: Date,
+  global?: RawGlobal,
+): DashboardStats {
   const t = raw.totals
   const hasRides = t.rides > 0
 
+  // Absent rather than zeroed when there is no cohort figure — see the Tile type.
+  const spread = (s: RawSpread | undefined) => (s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top) } : undefined)
+
   const tiles: Tile[] = [
-    { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides) },
-    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days) },
-    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs) },
+    { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides), spread: spread(global?.rides) },
+    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days), spread: spread(global?.days) },
+    // LEGS IS ON THIS LIST KNOWINGLY. A leg is an internal artifact, one per pair
+    // of consecutive points, and it is not a unit any rider thinks in. It was put
+    // in the scope deliberately on 2026-08-16 rather than by omission, so it is
+    // not to be quietly dropped as a cleanup.
+    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs), spread: spread(global?.legs) },
     {
       label: t.points === 1 ? 'waypoint' : 'waypoints',
       value: fmtCount(t.points),
       // Named because rides.stop_count would give a different, smaller number and
       // someone will eventually wonder why the two disagree.
       hint: `${fmtCount(t.stops)} stops, ${fmtCount(t.pois)} points of interest`,
+      spread: spread(global?.points),
     },
   ]
 

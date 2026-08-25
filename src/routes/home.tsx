@@ -41,7 +41,7 @@ import { rides, days as daysTable, type RideRow } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
-import { cachedUsedBytes, loadStats } from '../stats/query'
+import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RoleBar, Tile } from '../stats/shape'
 
@@ -120,6 +120,33 @@ function StatTile({ tile }: { tile: Tile }) {
     <li class="stat-tile" title={tile.hint}>
       <span class="stat-value">{tile.value}</span>
       <span class="stat-label">{tile.label}</span>
+      {/*
+        The comparison columns (#137). A number alone says nothing about whether
+        it is a lot, so each tile carries what the average rider has and what the
+        highest anyone has.
+
+        A dl rather than two spans, because these ARE label/value pairs and the
+        markup should say so — "avg" beside "6.7" is not decoration, it is what
+        makes the figure mean anything. The pair is rendered only when the tile
+        carries one; the "roads you insisted on" tile has no cohort figure and
+        gets nothing rather than a zero it never measured.
+
+        No names anywhere, ever. The pool is every rider and every ride including
+        private ones, which is only acceptable because these are two anonymous
+        aggregates — see loadGlobalStats in src/stats/query.ts.
+      */}
+      {tile.spread && (
+        <dl class="stat-spread">
+          <div>
+            <dt>avg</dt>
+            <dd>{tile.spread.avg}</dd>
+          </div>
+          <div>
+            <dt>top</dt>
+            <dd>{tile.spread.top}</dd>
+          </div>
+        </dl>
+      )}
     </li>
   )
 }
@@ -243,7 +270,7 @@ homeRoutes.get('/', requireActive, async (c) => {
   // query, so this tests for the one string rather than for truthiness.
   const showAll = c.req.query('rides') === 'all'
 
-  const [stats, cached, owned] = await Promise.all([
+  const [stats, cached, owned, global] = await Promise.all([
     loadStats(user.id),
     cachedUsedBytes(user.id),
     db
@@ -264,12 +291,17 @@ homeRoutes.get('/', requireActive, async (c) => {
       // reintroduce it — a rider with ten thousand rides gets a bounded page and
       // a query that finishes.
       .limit(showAll ? RIDE_CEILING : RIDE_PAGE + 1),
+    // Cohort averages, shared by every viewer and cached for a minute — four
+    // aggregates per dashboard render becomes four per minute. In the same
+    // Promise.all as the rest because a cache hit resolves immediately and a
+    // miss should not be serialized behind the rider's own queries.
+    cachedGlobalStats(),
   ])
 
   const hasMore = !showAll && owned.length > RIDE_PAGE
   const visibleRides = hasMore ? owned.slice(0, RIDE_PAGE) : owned
 
-  const s = shapeStats(stats, cached, new Date())
+  const s = shapeStats(stats, cached, new Date(), global)
   const drawChart = s.months.some((m) => m.n > 0)
 
   if (s.storageDrift) {

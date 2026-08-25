@@ -101,6 +101,50 @@
   color: $neutral-50;
 }
 
+// The yours/average/top comparison, #137. Two label-value pairs under the tile's
+// own figure, so a number has something to be read against.
+//
+// Pushed to the bottom of the tile with margin-top:auto rather than sitting
+// directly under the label, because .stat-tile is a flex column and the tiles in
+// a row have different label lengths — "roads you insisted on" wraps to two lines
+// where "days" does not. Without this the comparison rows sit at different
+// heights across the row and the eye cannot scan them.
+//
+// Deliberately quiet. The rider's own figure is the headline at 1.6rem/800; these
+// are context and are sized and colored to lose against it. A comparison that
+// competes with the number it explains is a worse tile.
+.stat-spread {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.45rem 0 0;
+  padding: 0.4rem 0 0;
+  border-top: 1px solid $neutral-94;
+  margin-top: auto;
+
+  div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+
+  dt {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $neutral-63;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $neutral-36;
+    // Tabular, matching .stat-value — these are read down a row of tiles and
+    // proportional digits make the columns wander.
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 // --- Blocks ------------------------------------------------------------------
 
 .stat-block {
