@@ -59,7 +59,10 @@ export type NavKey =
   | 'home'
   | 'explore'
   | 'riders'
-  | 'rides'
+  // No 'rides' member. It was removed on 2026-08-24 when /rides folded into /,
+  // and removing it is the point rather than tidiness: a key no NavItem carries
+  // is an aria-current state that is wired and can never fire, which is exactly
+  // the bug 'home' sat in for months. See docs/main-menu.md.
   | 'builder'
   | 'import'
   | 'places'
@@ -141,8 +144,12 @@ export type PageOpts = {
 type NavItem = { key: NavKey; href: string; label: string }
 
 const RIDES_LINKS: NavItem[] = [
-  { key: 'home', href: '/', label: 'Home' },
-  { key: 'rides', href: '/rides', label: 'Your rides' },
+  // ONE ITEM, NOT TWO, since 2026-08-24: `/rides` folded into `/` and the list
+  // now sits under the stats on the same page. Labeled for the destination a
+  // rider actually wants — the group is already called Rides, and "Home" names
+  // a location rather than a purpose. The key stays `home` because the file and
+  // the route did not move; only the label did.
+  { key: 'home', href: '/', label: 'Your rides' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'explore', href: '/explore', label: 'Find a ride' },
   { key: 'import', href: '/import', label: 'Import / Export' },
@@ -233,14 +240,16 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               draws a logo, so there is one answer to "is this a map page" rather
               than two that can disagree.
 
-              Where it goes depends on who is reading: a rider has their own list
-              to go back to, and a visitor who followed a shared link has never
-              seen the site and gets the front page. That is the whole of what
-              `exitHref` used to carry per page, and it is a function of the user
-              alone — which is why the option is gone and this is computed here.
+              It used to branch on the user: a rider went back to `/rides` and a
+              visitor who followed a shared link got the front page. Since
+              /rides folded into / on 2026-08-24 both answers are the same URL,
+              and `/` already serves the right thing to each — the dashboard
+              behind `requireActive`, the splash to everyone else. The branch is
+              gone because there is nothing left for it to decide, not because
+              the distinction stopped mattering.
             */}
             {isMap && (
-              <a class="nav-exit-map" href={user ? '/rides' : '/'}>
+              <a class="nav-exit-map" href="/">
                 Exit map
               </a>
             )}

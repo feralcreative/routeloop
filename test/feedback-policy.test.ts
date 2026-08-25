@@ -210,10 +210,17 @@ describe('areaFromPath', () => {
     expect(areaFromPath('/rides/')).toBe('my_rides')
   })
 
+  // `/` used to return null. It holds the rider's ride list as of 2026-08-24 —
+  // /rides folded into it — so a report filed from the dashboard is about their
+  // rides far more often than not.
+  it('maps the dashboard to my_rides, because it is now the ride list too', () => {
+    expect(areaFromPath('/')).toBe('my_rides')
+    expect(areaFromPath('/?rides=all')).toBe('my_rides')
+  })
+
   // Inference, not truth. Null is always safe: the flow falls back to the cold
   // chip group and asks.
   it('returns null for a path it does not know', () => {
-    expect(areaFromPath('/')).toBe(null)
     expect(areaFromPath('/board')).toBe(null)
     expect(areaFromPath('/nonsense/deep/path')).toBe(null)
   })

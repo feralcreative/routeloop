@@ -1,105 +1,29 @@
-// The signed-in user's own rides, at /rides.
+// `/rides`, which is now a redirect and nothing else.
 //
-// This file was `dashboard.tsx` serving `/dashboard` until 2026-08-15, and the
-// name was actively misleading: the DASHBOARD is `/` (see home.tsx) and always
-// has been — hero miles, tiles, the storage meter, the chart. This page is a
-// flat list of rides and nothing else. Two things still carry the old name and
-// are correct to: `public/js/dashboard.js` and `style/_dashboard.scss` both
-// belong to `/`, not to this file.
+// The history is worth keeping because this URL has moved twice and the second
+// move undid the first. It was `dashboard.tsx` at `/dashboard` until 2026-08-15,
+// when it became `/rides` on the grounds that the old URL described the page as
+// a dashboard while the actual dashboard was `/`. That was true, and it fixed
+// the wrong half of the problem: the app still had two doors onto a rider's own
+// rides — `/` carrying a six-ride "Picking up where you left off" strip, and
+// this page carrying the full list.
+//
+// Folded into `/` on 2026-08-24, Ziad's call, answering the third of #103's four
+// open questions. `OwnRideRow` moved to home.tsx with its contract intact; see
+// the note there about why it is deliberately not `views/cards.tsx`.
+//
+// A 302 RATHER THAN A 301, and the difference is deliberate. `/dashboard` →
+// `/rides` was a 301 because that move was permanent and a cached redirect was
+// the desired outcome. This one is a layout decision about whether the stats and
+// the list belong on one page, and that decision has already been revisited once
+// in nine days. A 301 is close to irreversible in a browser that has seen it —
+// it would outlive any change of mind here, in a cache nobody can reach.
 import { Hono } from 'hono'
-import { and, desc, eq } from 'drizzle-orm'
-import { db } from '../db/index'
-import { rides, days as daysTable, type RideRow } from '../db/schema'
-import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
-import { page } from '../views/layout'
+import type { AuthEnv } from '../auth/middleware'
 
 export const ridesRoutes = new Hono<AuthEnv>()
 
-// Deliberately not views/cards.tsx: this row carries a visibility pill and an
-// edit link that the public card must never show. Same shape, different
-// contract — merging them would mean a flag that only ever means "am I the
-// owner", which is the thing the two separate components already say.
-function OwnRideRow({ ride, color }: { ride: RideRow; color: string | null }) {
-  return (
-    <li class="cardrow">
-      <a class="card" href={`/m/${ride.slug}`}>
-        {ride.thumbHash ? (
-          // The picture takes the swatch's slot when there is one; the color dot
-          // is what a ride falls back to before its first sweep, and for one with
-          // no geometry to draw. `?v=` is the request hash, which is what lets the
-          // route serve this immutable — a changed picture is a changed URL.
-          //
-          // Lazy, because /explore and a public profile are unbounded lists of
-          // images now, which they never were before. width/height are the CSS
-          // box, so the row does not reflow as each one lands.
-          <img
-            class="card-thumb"
-            src={`/api/public/maps/${ride.slug}/thumb.png?v=${ride.thumbHash}`}
-            alt=""
-            width="160"
-            height="100"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <span class="swatch" style={{ background: color ?? '#0000cc' }}></span>
-        )}
-        <span>{ride.title}</span>
-        <span class="pill">{ride.visibility}</span>
-        <span class="meta">
-          {ride.stopCount} stops · {Number(ride.totalMiles)} mi
-        </span>
-      </a>
-      {/* Every own ride is editable now, imported ones included — this used to
-          test `ride.source === 'native'` because the builder could not open an
-          import. It can; see canEditRide in ./maps. */}
-      <a class="editlink" href={`/builder/${ride.id}`}>
-        Edit
-      </a>
-    </li>
-  )
-}
-
-ridesRoutes.get('/rides', requireActive, async (c) => {
-  const user = currentUser(c)
-
-  const rows = await db
-    .select({ ride: rides, color: daysTable.color })
-    .from(rides)
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
-    .where(eq(rides.ownerId, user.id))
-    .orderBy(desc(rides.createdAt))
-
-  // Unlike the public listing, this shows every visibility — they are the
-  // owner's own rides.
-  const body = (
-    <>
-      <h1>Your rides</h1>
-      {/*
-        The storage figure moved to the home page, where it is a meter beside the
-        rest of the rider's numbers and is hidden entirely when nothing has been
-        imported. It read "0.0 MB of 250 MB" forever for anyone who only used the
-        builder, which is most people.
-      */}
-      <div class="sub">
-        {rows.length} {rows.length === 1 ? 'ride' : 'rides'}
-      </div>
-      <p>
-        <a class="btn btn-sign arrow-right arrow-s" href="/builder">
-          Plan a ride
-        </a>
-      </p>
-      {rows.length > 0 ? (
-        <ul class="cards">
-          {rows.map((r) => (
-            <OwnRideRow {...r} />
-          ))}
-        </ul>
-      ) : (
-        <p class="empty">No rides yet—plan your first one.</p>
-      )}
-    </>
-  ).toString()
-
-  return c.html(page({ title: 'Your rides', user, navKey: 'rides', body }))
-})
+// No `requireActive`. The gate belongs on the destination, which has it, and a
+// signed-out visitor following an old bookmark should land wherever `/` sends
+// them rather than at a login wall that then drops them somewhere else.
+ridesRoutes.get('/rides', (c) => c.redirect('/', 302))

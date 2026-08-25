@@ -56,16 +56,17 @@ export const requireActive: MiddlewareHandler<AuthEnv> = async (c, next) => {
 // the surface simply is not theirs, and the account is already known-good
 // (active), so this is authorization on top of authentication, not either alone.
 //
-// The target used to be /dashboard and the comment used to say "their own
-// dashboard", which was wrong on both counts even then: that URL was the ride
-// list, and the dashboard is /. Landing them on their rides is still the right
-// call — it is the surface a rider who mis-clicked into /riders wanted.
+// The target has moved twice and the destination never has. It was /dashboard,
+// then /rides, and it is now / — which since 2026-08-24 is both the dashboard and
+// the ride list, so "their own rides" and "the dashboard" finally name the same
+// page. Sent straight there rather than through /rides, which would redirect:
+// a gate that bounces you twice reads as a fault even when it is not.
 export const requireManageRiders: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const user = c.get('user')
   if (!user) return c.redirect('/login', 302)
   if (!user.username) return c.redirect('/choose-name', 302)
   if (user.status !== 'active') return c.redirect('/welcome', 302)
-  if (!user.canManageRiders) return c.redirect('/rides', 302)
+  if (!user.canManageRiders) return c.redirect('/', 302)
   await next()
 }
 

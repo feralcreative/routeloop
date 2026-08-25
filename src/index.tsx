@@ -148,14 +148,21 @@ if (IS_DEV) {
 app.use('*', withSession)
 
 // /dashboard was the rides list until 2026-08-15, when it became /rides — see
-// the header of src/routes/rides.tsx for why the old name was wrong. This keeps
-// a bookmark or a pasted link working.
+// the header of src/routes/rides.tsx for why the old name was wrong, and for
+// why /rides then folded into / on 2026-08-24. This keeps a bookmark or a pasted
+// link working.
 //
 // It sits ahead of every route module rather than inside one, next to the
 // LEGACY_HOSTS redirect it is the path-level twin of, so there is one place to
-// look for "why did this URL move". A 301 rather than a 302: the move is
-// permanent and a browser caching it is the desired outcome.
-app.get('/dashboard', (c) => c.redirect('/rides', 301))
+// look for "why did this URL move". A 301 rather than a 302: this URL is gone
+// for good and a browser caching that is the desired outcome, which is not true
+// of the /rides → / hop.
+//
+// POINTED STRAIGHT AT THE DESTINATION rather than at /rides, which would work
+// and would cost every one of these visitors a second round trip. A redirect
+// chain is also the shape that quietly becomes a loop the next time one of these
+// is edited.
+app.get('/dashboard', (c) => c.redirect('/', 301))
 
 app.route('/', authRoutes)
 app.route('/', adminRoutes)

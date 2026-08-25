@@ -62,9 +62,9 @@ Import specifics: several files posted at once become the days of one ride, and 
 | Route                              | Gate                                                               |
 | ---------------------------------- | ------------------------------------------------------------------ |
 | `GET /builder`, `GET /builder/:id` | `requireAuth`, owner-checked, native rides only. `routes/builder.ts` |
-| `GET /`                            | The dashboard—hero miles, tiles, storage meter, twelve-month chart, from `src/stats/`. `routes/home.tsx` |
-| `GET /rides`                       | Owner ride list. `routes/rides.tsx`                                |
-| `GET /dashboard`                   | **301 to `/rides`** since 2026-08-15. The name described the page as a dashboard when the dashboard is `/` |
+| `GET /`                            | The dashboard **and** the owner's ride list—hero miles, tiles, storage meter, twelve-month chart from `src/stats/`, then every ride they own. `routes/home.tsx`. The list is capped; `?rides=all` lifts it to a higher ceiling rather than removing it |
+| `GET /rides`                       | **302 to `/`** since 2026-08-24, when the list folded into the dashboard. A 302 rather than a 301 because this is a layout decision that has been revisited once already. `routes/rides.tsx` is now nothing but this redirect |
+| `GET /dashboard`                   | **301 to `/`**—301 to `/rides` from 2026-08-15, repointed at the destination on 2026-08-24 so it does not chain through a second redirect |
 | `GET`/`POST /profile`              | Profile form and username reservations                             |
 | `GET /import`                      | Import **and** export, one page under one `<h1>`: the multi-file upload form, and a per-format download row per owned ride |
 | `GET /settings`                    | The rider's preferences. Currently one setting, the stop-duration format, shipped 2026-08-15; **planned to move to `/prefs`**, see `docs/main-menu.md` |
