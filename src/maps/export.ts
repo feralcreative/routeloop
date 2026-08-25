@@ -18,6 +18,7 @@ import { points as pointsTable, days as daysTable, routeLegs } from '../db/schem
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
 import { activeDays } from './alts'
+import { relegDay } from './track-split'
 
 export type ExportPoint = {
   lat: number
@@ -434,10 +435,17 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 // schema — a point is created as a POI and promoted later, so the kind became a
 // flag on an element rather than a choice of which array to put it in.
 //
-// ALL THREE OLDER SHAPES STILL IMPORT — see nativeVersion and upgradeNativeRide
-// below, which is why the version is worth having at all. Riders have v2 and v3
-// files on disk and a backup that will not restore is not a backup.
-export const NATIVE_FORMAT_VERSION = 4
+// Version 5 (2026-08-24) is the first bump that is not a rename. A POI became
+// part of the route, so a day carries `points - 1` legs where every version
+// before it carried `stops - 1`. The shape of the file is unchanged; the
+// INVARIANT is not, which is exactly the kind of change a version key is for —
+// nothing about a v4 file looks wrong, it just has too few legs, and daySchema
+// would refuse the whole import with no way for a rider to tell why.
+//
+// ALL FOUR OLDER SHAPES STILL IMPORT — see nativeVersion and upgradeNativeRide
+// below, which is why the version is worth having at all. Riders have v2, v3 and
+// v4 files on disk and a backup that will not restore is not a backup.
+export const NATIVE_FORMAT_VERSION = 5
 
 export type NativeRide = {
   /** Written by this app. */
@@ -484,6 +492,13 @@ export const isNativeRide = (v: unknown): v is NativeRide =>
  * v3 also changed only the envelope's version key, which `nativeVersion` already
  * absorbs, so there is nothing else to do about it.
  *
+ * v4 and earlier carried `stops - 1` legs, because a POI anchored none. A day
+ * needs `points - 1` now, so every day's legs are re-cut from its own track at
+ * every point — see relegDay. Nothing is re-routed and no coordinate is invented;
+ * the concatenated geometry is unchanged. A day the file left with no legs at all
+ * (a CSV import, which has no line to cut) stays that way and the builder fills
+ * it with straight placeholders on load, exactly as it did before.
+ *
  * Returns the ride payload for `ridePayload` to validate. An unrecognized or
  * newer version is not this function's problem: the caller checks that first.
  */
@@ -509,6 +524,42 @@ export function upgradeNativeRide(file: NativeRide): object {
             ...stops.map((pt) => ({ ...(pt as object), kind: 'stop' })),
             ...pois.map((pt) => ({ ...(pt as object), kind: 'poi' })),
           ],
+        }
+      }),
+    }
+  }
+  if (nativeVersion(file) < 5 && Array.isArray(ride.days)) {
+    ride = {
+      ...ride,
+      days: ride.days.map((d) => {
+        if (typeof d !== 'object' || d === null) return d
+        const day = d as Record<string, unknown>
+        const points = Array.isArray(day.points) ? day.points : []
+        const legs = Array.isArray(day.legs) ? day.legs : []
+        // Nothing to cut, or nothing missing. A day already holding one leg per
+        // pair is left alone rather than re-cut — re-cutting would be a no-op on
+        // a well-formed day and a guess on a malformed one.
+        if (legs.length === Math.max(0, points.length - 1)) return day
+        const track = concatLegs(legs as Array<{ geometry: Track }>)
+        if (track.length < 2) return day
+        const cut = relegDay(track, points as Array<{ lat: number; lng: number }>)
+
+        // The recorded riding time is SPREAD ACROSS THE NEW LEGS by distance
+        // rather than zeroed. A v4 day's legs carried real durations the router
+        // had answered for, and dropping them would make the day silently
+        // shorter — legDurationS() would estimate each new leg from its distance
+        // at a nominal 45 mph, which is not what the rider planned around.
+        // Distributing keeps the day's total intact, which is the figure every
+        // surface actually shows.
+        const totalS = (legs as Array<{ durationS?: number }>).reduce((n, l) => n + (l.durationS ?? 0), 0)
+        const totalM = cut.reduce((n, l) => n + l.distanceM, 0)
+        return {
+          ...day,
+          legs: cut.map((l) => ({
+            ...l,
+            durationS: totalM > 0 ? Math.round((totalS * l.distanceM) / totalM) : 0,
+            viaPoints: [],
+          })),
         }
       }),
     }
@@ -576,12 +627,20 @@ export async function loadNativeRide(
       // position, which every point carries now, so the rider's own sequence is
       // what round-trips — the thing the two-array shape could not express.
       points: pts.map((p) => ({ kind: p.kind, ...point(p) })),
-      legs: legs.map((l) => ({
-        geometry: l.geometry,
-        distanceM: l.distanceM,
-        durationS: l.durationS,
-        viaPoints: l.viaPoints ?? [],
-      })),
+      // ONE LEG PER PAIR OF POINTS, repaired here rather than trusted.
+      //
+      // A day stored before 2026-08-24 carries stops−1 legs, and no schema change
+      // was needed for the rule to move — so those rows are still sitting there
+      // until utils/split-imported-legs.ts is run. Writing them into a v5 file
+      // would produce a backup that will not restore: the file declares the
+      // current version, so the importer's v<5 repair does not run on it, and
+      // daySchema rejects the whole ride.
+      //
+      // A backup that will not restore is not a backup, and this is the one
+      // format that promises to lose nothing, so the leg count is made right on
+      // the way out. Same helper the importer's repair uses, so a stored day and
+      // a re-imported one come out identical.
+      legs: relegNative(pts, legs),
     })
   }
 
@@ -596,6 +655,43 @@ export async function loadNativeRide(
       days: out,
     },
   }
+}
+
+/**
+ * A day's legs in the shape the current format requires, re-cutting only when
+ * the stored rows do not already have it.
+ *
+ * The untouched path is the normal one — a day saved by the builder since
+ * 2026-08-24 already carries points−1 legs, and this hands them straight back
+ * with their shaping points intact. Only a day left behind by the migration is
+ * re-cut, and it loses its `viaPoints`: a shaping point belongs to the pair of
+ * points its leg used to join, and every one of those pairs has just changed.
+ */
+function relegNative(
+  pts: Array<{ lat: number; lng: number }>,
+  legs: Array<{ geometry: Track; distanceM: number; durationS: number; viaPoints: Track | null }>,
+) {
+  const asIs = legs.map((l) => ({
+    geometry: l.geometry,
+    distanceM: l.distanceM,
+    durationS: l.durationS,
+    viaPoints: l.viaPoints ?? [],
+  }))
+  if (legs.length === Math.max(0, pts.length - 1)) return asIs
+  const track = concatLegs(legs)
+  if (track.length < 2) return asIs
+
+  const cut = relegDay(track, pts)
+  // The recorded riding time spread across the new legs by distance, so the
+  // day's total survives — see the same reasoning in upgradeNativeRide.
+  const totalS = legs.reduce((n, l) => n + l.durationS, 0)
+  const totalM = cut.reduce((n, l) => n + l.distanceM, 0)
+  return cut.map((l) => ({
+    geometry: l.geometry,
+    distanceM: l.distanceM,
+    durationS: totalM > 0 ? Math.round((totalS * l.distanceM) / totalM) : 0,
+    viaPoints: [] as Track,
+  }))
 }
 
 export const buildNativeJson = (r: NativeRide): string => JSON.stringify(r)

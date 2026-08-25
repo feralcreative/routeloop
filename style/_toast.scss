@@ -23,6 +23,9 @@
     background: $kml;
   }
 }
+// A page-top banner. Still fixed, because on the map page there is no flow to
+// sit in — see --banner-h in _map.scss, which the map and the drawer both offset
+// by so this pushes them down instead of covering them.
 .tb-banner {
   position: fixed;
   top: 0;

@@ -1,11 +1,52 @@
 # Status and handoff
 
-**Updated:** 2026-08-23
-**Branch:** `main`, with the POI-first work uncommitted in the tree. **1,167 tests across 49 files** (2 skipped, 1,169 total)
-**Closes, since the last update:** nothing on the tracker—the POI-first change was raised directly and has no issue. Before it, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
+**Updated:** 2026-08-24 (later still)
+**Branch:** `fix/map-mechanics`, seven commits ahead of `main` and **pushed**, plus the uncommitted wall-clock change below. **1,240 tests across 52 files** (2 skipped, 1,242 total)
+**Closes, since the last update:** nothing on the tracker—both POI changes were raised directly and neither has an issue. Before them, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
 
-**A point is a POI until it is promoted, and a day is one ordered list.** That landed 2026-08-23 and it is the largest change to the data model since the `routes`→`days` rename—read the next section before touching the builder, the ride payload or anything that counts stops.
+**A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the next two sections before touching the builder, the ride payload or anything that counts stops.
+
+## Switching machines—read this first
+
+**The seven commits below are pushed**; what is not is the wall-clock change described further down. Also merged since the last update: [#110](https://github.com/feralcreative/routeloop/pull/110), the thumbnails and alpha-modal docs. Seven commits sit on `fix/map-mechanics`:
+
+| Commit | What |
+| --- | --- |
+| `07f9820` | A POI is part of the route—`legs[i]` joins `points[i]` to `points[i+1]` |
+| `f72d045` | The dev seed resolves its KML before truncating, and honors `STORAGE_PATH` |
+| `28b9c51` | A leg that will not route says why instead of blaming the road |
+| `87e56c0` | Category search, insert-between-points, and a category promotes a point |
+| `4c51720` | The day's time fields fit one line; the insert `+` is quieter |
+| `19aea6c` | A rider can choose how dates and clocks read |
+
+**Three things do not travel with a `git push`:**
+
+1. **`drizzle/0009` has not run anywhere but this machine.** `npm run dev` applies it via `predev`, so switching is automatic—but stage and production have seen none of 0002 through 0009.
+2. **A GCP key change, which is not in the repo at all.** `GMAPS_SERVER_KEY` (uid `3a3d4f70…592e`, project `976935115789`) had **Places API (New)** added to its API restriction list on 2026-08-24, because category search 403s without it. If prod uses a different key, category search will 503 there with a message naming the fix. The IP restriction (`69.209.26.137`) is unchanged and must stay.
+3. **`storage/1/1.kml`** was copied in from `moto-rooter/moto-storage/1/1.kml`. It is gitignored, so a fresh clone falls back to `test/fixtures/coast-run.kml`—which now works rather than emptying the database, but gives a 4-point sample instead of the 26-point one.
+
+**Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
+
+## Open
+
+**The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
+
+**The roadmap was audited against the code on 2026-08-24 and was a phase behind.** Item 26 read "planned" for a week after rider feedback shipped ([#108](https://github.com/feralcreative/routeloop/pull/108), 2026-08-17), which means **phase 3 of the road to beta was already done and phase 2 is the only open one**—[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX is the next pickup. Corrected in `docs/ROADMAP.md`, along with the test count and "Where things stand". Three issues were edited on GitHub the same day: [#16](https://github.com/feralcreative/routeloop/issues/16) had its test-suite and CI boxes ticked (with the CI line rewritten to say SCSS is **not** built there), and [#49](https://github.com/feralcreative/routeloop/issues/49) and [#23](https://github.com/feralcreative/routeloop/issues/23) were retitled off the pre-rename vocabulary.
+
+**Both tracker gaps are closed. Twenty-three issues were filed on 2026-08-24, [#115](https://github.com/feralcreative/routeloop/issues/115) through [#137](https://github.com/feralcreative/routeloop/issues/137).** Fourteen were written against work that had already shipped and closed the same minute; nine are roadmap items 21 through 31 that had never been filed, and each now carries a P-label so the Priorities section can see it. The item-to-issue mapping is a table in the 2026-08-24 section of `docs/ROADMAP.md`.
+
+**Every issue now carries an `area:` label, open and closed, and the area is the unit of work.** Ziad's call 2026-08-24: pick an area, branch, clear what you can of it, one PR, move on—**group liberally, because a hyper-granular history of one-issue branches is not wanted.** Two new labels were added because nothing covered those pages (`area:account`, `area:chrome`) and two were created and then folded back the same day (`area:routing` into `area:builder`, `area:riders` into `area:schema`) for exactly that reason. The nine areas and their open counts are tabled in `AGENTS.md`; `area:builder` is the biggest at 15.
+
+**And the other working rule, Ziad's call 2026-08-24: an audible gets its issue written AFTER the fact and closed immediately.** The point is to work fluidly without losing the history—nobody stops to file a ticket before fixing something that was just described out loud, but the tracker should still be able to answer what happened and why. Recorded in `AGENTS.md` under the commit conventions.
+
+**Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
+
+**Still hardcoded `en-US`:** number grouping in `src/stats/shape.ts` (`fmtMiles`, `fmtCount`) and the dashboard's month label. Left alone on purpose—all three date-format members are English and produce identical output, so threading a format through ten call sites would change nothing visible. It starts mattering the day a `de-DE`-style member is added.
+
+**`_PLANS/BRAINSTORM.md` items 1–4 are all done** and in `87e56c0` / `4c51720`. That file is now stale.
+
+**THERE IS A MIGRATION OWED AND IT IS NOT A SQL FILE.** Every stored day written before 2026-08-24 that has a POI on it carries `stops - 1` legs where the app now requires `points - 1`. Nothing rejects those rows, and opening one in the builder fills the gap with straight placeholder legs drawn out to each POI and back—silently, on the first edit. `npx tsx utils/split-imported-legs.ts --dry-run` reports what is affected and running it without the flag re-cuts each day's legs from its own stored track. **Take a `db-backup` first**; it rewrites the largest column in the schema and refuses a non-local database. The native export repairs the count on the way out (`relegNative`), so a backup taken before the migration still restores—but that is a safety net, not the migration.
 
 **Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
@@ -18,6 +59,54 @@
 **0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## A time is a time is a time—2026-08-24
+
+**Reported as: the roadbook prints 4:00 PM for a day the builder shows as 9:00 AM.** Ziad's call, after three rounds of options were put and rejected: **a time is a time is a time at the departure point.** A rider who plans a 9am departure means 9am where the bike is, whether they planned it from home, from a hotel two states over, or from London a fortnight before flying out. Nothing in the app converts a day's clock into anyone's local time, ever.
+
+**The value is a WALL CLOCK, carried as UTC.** 9am rides in as `2026-08-24T09:00:00.000Z`, `days.start_at` stores `09:00+00`, and every surface reads it back with `timeZone: 'UTC'`. Three of those already did—the roadbook, the export filename, the import preview—as a workaround for this exact bug. They did not change; what they are handed did.
+
+**Two options were rejected on the way and the reasons are worth keeping.** A `days.tz` column storing the planned zone was chosen first and then reversed: it makes 9am correct but leaves the builder's own field showing a converted time, so the two surfaces still disagree for a traveling rider. Rendering in the viewer's zone was rejected outright—a shared California ride would print London times.
+
+**The columns stay `timestamptz` although the values are now naive, and that was measured rather than assumed.** node-postgres parses `timestamp without time zone` in the PROCESS's zone: a stored `09:00` read back on a Pacific machine comes out `16:00Z`, so a real `timestamp` would make the app's behavior depend on `TZ` being set, silently and differently in dev and in the container. `timestamptz` round-trips the exact digits with no type parser and no environment dependency. **The type is a carrier, not a claim about an instant**—that sentence is in the schema comment for the next person.
+
+**A second live bug fell out of the same change.** The stop-details editor wrote a check-in with the browser's offset and read it back by slicing the first 16 characters off the ISO string, so a 3pm check-in typed in California was stored as 22:00 and reloaded into the field as 10pm. Both ends go through the new module now.
+
+**What changed:** `public/js/day-clock.js` is new and is the only place the conversion happens—a ninth pure client helper, `eval`'d by `test/day-clock.test.ts` (22 assertions). `builder.js` delegates its three time functions to it, `ride-time.js` and `map-common.js` format in UTC, and the comments in `date-format.ts`, `roadbook.tsx`, `filename.ts` and `schema.ts` now state the rule instead of apologizing for it. No schema change and no migration file.
+
+**The test forces the process into `America/Los_Angeles` and asserts that it did.** CI runs at UTC, where the code this replaced passes every one of those assertions. If that guard ever fails, fix the zone rather than deleting the check.
+
+**OWED, AND IT IS THE SECOND SILENT DATA MIGRATION IN TWO DAYS.** Every `days.start_at` written before this holds an instant, not a wall clock, so existing rides print hours out and nothing rejects them. `npx tsx utils/shift-days-to-wall-clock.ts --zone America/Los_Angeles --dry-run` reports; without the flag it un-applies the offset across `days` and `point_details`. **It is not idempotent**—a shifted row is indistinguishable from an unshifted one—so it runs exactly once, after a `db-backup`. The local dry run reads two days, `2026-09-12 15:30+00` becoming `08:30+00`.
+
+**Owed: a browser pass**, on the day time fields, the timeline readout, the roadbook, and a stop's check-in and check-out.
+
+**Deliberately not changed:** the account page and the dashboard still render `created_at` and `purge_after` in UTC. Those are real instants rather than wall clocks, and nothing about this decision touches them.
+
+## A POI is on the route—2026-08-24
+
+**Reported as a bug: a new day with a start point and one POI drew two dots and no line.** It was not a bug under the old model—a POI was "near the route and does not affect routing", so there was nothing the router had been asked to join—but the definition was wrong. Ziad's call: **a POI is somewhere you at least ride BY.** An address, or a spot in the middle of nowhere. It is always part of the route; it just is not necessarily somewhere you stop.
+
+**So `legs[i]` joins `points[i]` to `points[i+1]` for both kinds, and `kind` means only "do I stop here".** The second index space—position in the day versus ordinal among the stops—is gone, along with `stopIdx()`, `stopOrdinalAt()`, the projection of POIs onto the day's track, `dayPoiDistances()` in `twist.js`, and the `poiDistsM` argument every schedule caller had to thread through. `stopsOf()` survives on both sides for the four surfaces that genuinely count stops: `rides.stop_count`, the roadbook's numbered rows, the Maps hand-off, and the at-least-one-stop rule.
+
+**What this bought, beyond the report:**
+
+| Before | Now |
+| --- | --- |
+| Promoting a point rebuilt the legs either side, spent two Routes calls, and threw away the rider's shaping points on both | A flag flip. No leg work, no request, exactly reversible |
+| A POI's `dist_from_start_m` was a nearest-vertex projection, null on a trackless import | The prefix sum of the legs before it—exact, and never null on a day with legs |
+| `daySchedule()` projected, sorted, and cut a leg at a fraction to place a pause | A plain walk: dwell at `points[i]`, ride `legs[i]`, dwell at `points[i+1]` |
+| `activeAt()` returned `stopIndex`/`poiIndex`, each into its own filtered array | One `pointIndex`, into the list the caller already holds |
+| The Maps hand-off dropped POIs, so it sent the rider down a different road than the builder drew | Both kinds, batched as before |
+
+**The costs, all accepted and none of them defects.** Adding a POI is a Routes request now, where it used to be free—it splits the leg it lands in. A day's leg count is bounded by `MAX_POINTS` (400) rather than `MAX_STOPS` (200), so up to 399 legs and 399 `route_legs` rows. And `ride.json` lost its deliberate two-array `stops`/`pois` split: the schedule walks points and legs together and two arrays cannot carry the order, so the viewer contract is one ordered `points` array with `kind` on each element. `viewer.js` reads it in one loop and every point now goes through `stopMileages`, which means a POI carrying a `gas` role resets the fuel range like any other point.
+
+**No schema change.** `route_legs` is keyed by `(day_id, position)` and never referenced a stop, so the leg count changing needed no migration—which is exactly why the data migration above is a script rather than a SQL file, and why nothing will fail loudly if it is skipped.
+
+**Native JSON went to 5**, the first bump that is not a rename. A v4 file holds `stops - 1` legs, so `upgradeNativeRide` re-cuts every day's legs from its own track at every point (`relegDay`) and spreads the recorded riding time across them by distance rather than zeroing it. The rider's ORDER is kept rather than re-derived: a v4 POI's place in the list was their own choice, so a point projecting behind its predecessor is clamped forward for a zero-length leg instead of being sorted past it.
+
+**Two latent runtime bugs surfaced and were fixed while in here**, both in `utils/split-imported-legs.ts`, which is not in `tsconfig.json`: it wrote `position: null` for every POI and supplied no `uid` at all. Both columns are `NOT NULL`, so the script would have thrown on the first day it touched. `src/db/seed.ts` and `utils/seed-demo-rides.ts` were also writing the old leg shape and now go through `splitDayTrack`.
+
+**Owed: a browser pass.** Nothing automated covers the map or the builder, and this touched the leg math on every mutation path—add, delete, duplicate, reorder, drag, bulk delete, bulk move, cross-day drag, reverse, and undo.
 
 ## POI first: one ordered list of points—2026-08-23
 

@@ -267,3 +267,153 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
     })!,
   )
 })
+
+// --- Place category search --------------------------------------------------
+
+// "Find me a gas station in Oakdale", which Autocomplete cannot answer.
+//
+// Autocomplete matches NAMES and ADDRESSES. Asked for a category it returns the
+// businesses literally called that — searching "gas station in oakdale ca"
+// returned exactly one result, a place named "76 Gas Station", while the ARCO,
+// the Shell and the other 76 in the same town went unmentioned. Enumerating a
+// kind of place is Text Search's job, which is a different endpoint on a
+// different SKU.
+//
+// THE PLACE IN THE QUERY IS NOT GEOCODED SEPARATELY. Text Search reads "X in Y"
+// itself — the API's own documented example is "Spicy Vegetarian Food in Sydney,
+// Australia" — so the whole phrase goes through as `textQuery` and the extra
+// Geocoding call that would otherwise be needed never happens. `near` is for the
+// case with no place in the text at all: a category chip, which anchors to the
+// day's last point or the map viewport.
+//
+// Here rather than in the browser for the cache. Text Search bills per call and
+// costs materially more than the Autocomplete session it sits beside, and a
+// rider tapping the same chip twice or retyping a query must not pay twice. Same
+// argument, and the same bounded-Map shape, as the leg cache above.
+const PLACES_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
+
+// The field mask is what Google prices this on, so every field is money.
+// `primaryType` is the one worth questioning: it is only used to tag a result
+// with a role (a `gas_station` becomes Gas), and it can put the call in a higher
+// SKU than the other three. Drop it first if the bill argues — roleForType()
+// already treats an unknown type as untagged rather than guessing.
+const PLACES_FIELD_MASK = 'places.displayName,places.formattedAddress,places.location,places.primaryType'
+
+// Eight is a dropdown, not a directory. Text Search will return twenty and the
+// rider will read four.
+const MAX_PLACE_RESULTS = 8
+
+// Used only when `near` is supplied and no radius is. Wide enough to cover a
+// town and its outskirts, narrow enough that "coffee" anchored to a stop does
+// not answer with the next county.
+const DEFAULT_BIAS_RADIUS_M = 25_000
+
+const placeSearchRequest = z.object({
+  // Bounded for the same reason the geocode query is: this endpoint spends our
+  // key, so it cannot be a pipe for arbitrary volume.
+  query: z.string().trim().min(2).max(200),
+  near: coord.optional(),
+  radiusM: z.number().int().min(500).max(50_000).optional(),
+})
+
+type PlaceHit = { name: string; address: string; lngLat: LngLat; type: string | null }
+
+const PLACES_CACHE_MAX = 300
+const placesCache = new Map<string, PlaceHit[]>()
+
+function rememberPlaces(key: string, hits: PlaceHit[]): PlaceHit[] {
+  if (placesCache.size >= PLACES_CACHE_MAX) {
+    const oldest = placesCache.keys().next().value
+    if (oldest !== undefined) placesCache.delete(oldest)
+  }
+  placesCache.set(key, hits)
+  return hits
+}
+
+routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
+  if (!GMAPS_SERVER_KEY) {
+    return c.json({ error: 'place search is not configured' }, 503)
+  }
+
+  const parsed = placeSearchRequest.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return c.json({ error: 'a search query is required' }, 400)
+  }
+
+  const { query, near, radiusM } = parsed.data
+  const key = [query.toLowerCase().replace(/\s+/g, ' '), near ? near.map(round6).join(',') : '', radiusM ?? '']
+    .join('|')
+  const cached = placesCache.get(key)
+  if (cached) return c.json({ places: cached })
+
+  const body: Record<string, unknown> = { textQuery: query, maxResultCount: MAX_PLACE_RESULTS }
+  if (near) {
+    body.locationBias = {
+      circle: {
+        center: { latitude: near[1], longitude: near[0] },
+        radius: radiusM ?? DEFAULT_BIAS_RADIUS_M,
+      },
+    }
+  }
+
+  let res: Response
+  try {
+    res = await fetch(PLACES_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GMAPS_SERVER_KEY,
+        'X-Goog-FieldMask': PLACES_FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch (err) {
+    console.error('[places] Text Search unreachable:', err instanceof Error ? err.stack : err)
+    return c.json({ error: 'place search is unavailable' }, 502)
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    // The body can echo the key back in an error, so only the status and a
+    // bounded slice are logged — same rule as the Routes proxy above.
+    console.error(`[places] Text Search ${res.status}: ${detail.slice(0, 300)}`)
+    // THE ONE FAILURE WORTH NAMING SEPARATELY. A server key restricted to Routes
+    // and Geocoding answers every Text Search with 403 API_KEY_SERVICE_BLOCKED,
+    // which is a console change and not a code problem — and reporting it as a
+    // generic outage would send whoever meets it looking in the wrong place.
+    if (res.status === 403 && detail.includes('API_KEY_SERVICE_BLOCKED')) {
+      return c.json({ error: 'category search is not enabled on the server key—add Places API (New) to it' }, 503)
+    }
+    return c.json({ error: 'place search rejected the request' }, 502)
+  }
+
+  const data = (await res.json().catch(() => null)) as {
+    places?: {
+      displayName?: { text?: string }
+      formattedAddress?: string
+      location?: { latitude?: number; longitude?: number }
+      primaryType?: string
+    }[]
+  } | null
+
+  // No match is a 200 with the array absent, not an error — the same way Routes
+  // reports "no path" and Geocoding reports ZERO_RESULTS. An empty list is a
+  // real answer and it is cached, because a query that found nothing gets
+  // retyped as often as one that found something.
+  const hits: PlaceHit[] = (data?.places ?? [])
+    .map((p) => {
+      const lat = p.location?.latitude
+      const lng = p.location?.longitude
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return {
+        name: p.displayName?.text ?? '',
+        address: p.formattedAddress ?? '',
+        lngLat: [round6(Number(lng)), round6(Number(lat))] as LngLat,
+        type: p.primaryType ?? null,
+      }
+    })
+    .filter((h): h is PlaceHit => h !== null)
+
+  return c.json({ places: rememberPlaces(key, hits) })
+})

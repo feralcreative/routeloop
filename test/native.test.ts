@@ -59,16 +59,30 @@ const ride = {
           durationMin: 45,
         },
       ],
+      // ONE LEG PER PAIR OF POINTS, the POI included — Ziad's call, 2026-08-24. A
+      // POI is somewhere the rider at least rides by, so the road runs through it
+      // and the day is two legs rather than one. A fixture with one leg is what a
+      // v4 file looks like, and upgradeNativeRide re-cuts those; this one is
+      // current, so it has to already be right.
       legs: [
         {
           geometry: [
             [-122.0308, 36.9741],
             [-122.2867, 37.105],
+            [-122.3878, 37.1819],
+          ] as [number, number][],
+          distanceM: 39363,
+          durationS: 2400,
+          viaPoints: [[-122.2867, 37.105]] as [number, number][],
+        },
+        {
+          geometry: [
+            [-122.3878, 37.1819],
             [-122.4286, 37.4636],
           ] as [number, number][],
-          distanceM: 61000,
-          durationS: 4200,
-          viaPoints: [[-122.2867, 37.105]] as [number, number][],
+          distanceM: 31531,
+          durationS: 1800,
+          viaPoints: [] as [number, number][],
         },
       ],
     },
@@ -157,9 +171,14 @@ describe('the exported shape is what the importer accepts', () => {
     expect(day.points[0].description).toBe('Meet at the wharf.')
     // The distinction KML and GPX cannot carry at all.
     expect(day.points[1]).toMatchObject({ name: 'Pigeon Point', durationMin: 20, roles: ['view'] })
-    // Legs, not a flattened track — the leg boundaries are where the stops are.
+    // Legs, not a flattened track — the leg boundaries are where the POINTS are,
+    // both kinds, so the POI in the middle is a boundary and the day has two.
+    expect(day.legs).toHaveLength(2)
     expect(day.legs[0].geometry).toHaveLength(3)
-    expect(day.legs[0].durationS).toBe(4200)
+    expect(day.legs[0].durationS).toBe(2400)
+    expect(day.legs[1].durationS).toBe(1800)
+    // A shaping point is not a point in the list and keeps its own place on the
+    // leg it belongs to.
     expect(day.legs[0].viaPoints).toEqual([[-122.2867, 37.105]])
     expect(out.external_url).toBe('https://example.com/thread')
   })

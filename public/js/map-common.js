@@ -205,6 +205,17 @@
     return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
+  // Where the map is looking, as [lng, lat], or null before it has settled.
+  //
+  // Here rather than in builder.js because this file is the only one that names
+  // a vendor API. The caller is the category search, which needs somewhere to
+  // anchor "coffee" when the rider has typed no place and the day has no points
+  // to work from.
+  function mapCenter(map) {
+    const c = map && map.getCenter && map.getCenter();
+    return c ? fromLatLng(c) : null;
+  }
+
   // --- Track + arrow layers -------------------------------------------------
 
   const TRACK_OPACITY = 0.8;
@@ -833,13 +844,19 @@
     );
   }
 
-  // The stored value is an instant; the rider wants the wall clock where the
-  // stop is. Rendered in the browser's zone, which is the same assumption the
-  // datetime-local control in the builder makes when it writes one.
+  // The stored value is the wall clock where the stop is, carried as UTC — see
+  // the header of public/js/day-clock.js. So UTC is what reads it back, and the
+  // rider sees the digits they typed wherever they are standing.
   function fmtStamp(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return d.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+    });
   }
 
   // Inline the tooltip's icon (same currentColor trick as the markers).
@@ -1008,6 +1025,7 @@
     removeMarker,
     onMarkerDragEnd,
     searchPlaces,
+    mapCenter,
     markerElement,
     popupHtml,
     attachPopup,

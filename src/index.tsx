@@ -284,6 +284,7 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     }
 
     const pointOut = (p: (typeof pts)[number]) => ({
+      kind: p.kind,
       lat: p.lat,
       lng: p.lng,
       name: p.name,
@@ -318,23 +319,20 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // builder — a client wanting a time for one of those estimates it from
       // distanceM rather than treating the day as that much shorter.
       legs: legsOut,
-      // Both kinds carry durationMin now. A POI is still not a routing anchor,
-      // but time spent at one is time spent, and the timeline has to account
-      // for it — see the schedule in ride-time.js.
-      // `details` is absent rather than null for a non-owner, so the public
-      // contract is unchanged for every viewer who was already using it.
+      // ONE ORDERED LIST, both kinds, `kind` on each element — the same shape
+      // the builder payload and the native JSON have carried since 2026-08-23.
       //
-      // STILL TWO ARRAYS, deliberately, where the builder payload and the native
-      // JSON became one ordered list on 2026-08-23. The viewer draws markers and
-      // a timeline and never renders the points as a sequence, so the interleaved
-      // order buys it nothing — and `ride-time.js` keys its schedule off
-      // `distFromStartMi`, which both kinds still carry. Splitting here costs
-      // nothing and keeps a shipped public contract stable.
+      // This used to be two arrays, `stops` and `pois`, and the reason was that
+      // the viewer draws markers and a timeline and never renders the points as a
+      // sequence, so the interleaved order bought it nothing. That reason went
+      // away on 2026-08-24, when a POI became part of the route: `legs[i]` joins
+      // `points[i]` to `points[i+1]`, so the schedule in ride-time.js walks the
+      // points and the legs together and two arrays cannot tell it the order.
       //
-      // The read is ordered by position, and filtering preserves relative order,
-      // so each array comes out in the rider's own order.
-      stops: pts.filter((p) => p.kind === 'stop').map((p) => withDetails(pointOut(p), p, details)),
-      pois: pts.filter((p) => p.kind === 'poi').map((p) => withDetails(pointOut(p), p, details)),
+      // Both kinds carry durationMin — time spent at a viewpoint is time spent.
+      // `details` is absent rather than null for a non-owner, so whether a stop
+      // has a gate code is not observable.
+      points: pts.map((p) => withDetails(pointOut(p), p, details)),
     })
   }
 

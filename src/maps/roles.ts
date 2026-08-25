@@ -49,7 +49,14 @@ export const ROLE_META: Record<Role, { title: string; icon: string; aliases: str
   drinks: { title: 'Drinks', icon: 'icon-drinks.svg', aliases: ['DRINKS', 'BAR', 'COCKTAILS', 'BEER', 'BEERS'] },
   grocery: { title: 'Groceries', icon: 'icon-grocery.svg', aliases: ['GROCERY', 'GROCERIES'] },
   view: { title: 'Scenic Viewpoint', icon: 'icon-view.svg', aliases: ['VIEW', 'SCENIC', 'LOOKOUT', 'VIEWPOINT'] },
-  poi: { title: 'Point of Interest', icon: 'icon-poi.svg', aliases: ['POI', 'STOP'] },
+  // 'Sight' on screen, `poi` in code. Ziad's call, 2026-08-24: `poi` names a ROLE
+  // here and a KIND on points.kind, and the two mean nearly opposite things — the
+  // role is somewhere you stop to see something, the kind is somewhere you ride
+  // past. The identifier keeps its name because renaming the enum value is a
+  // migration over every stored point; the label is what a rider reads, and it is
+  // free to fix. 'Sight' also pairs with 'Scenic Viewpoint' without repeating it:
+  // a viewpoint is something you look AT, a sight is something you go SEE.
+  poi: { title: 'Sight', icon: 'icon-poi.svg', aliases: ['POI', 'SIGHT', 'STOP'] },
   wtf: { title: 'Weird Random Shit', icon: 'icon-wtf.svg', aliases: ['WTF', 'WEIRD', 'RANDOM'] },
 }
 

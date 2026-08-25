@@ -23,9 +23,49 @@ If you are a new contributor, jump to [Working in this repo](#working-in-this-re
 
 When an entry here is edited, the GitHub issue it maps to usually says the same stale thing—the issue was written from the entry. This table is the running list of edits whose matching issue has **not** been made yet. Delete a row once the issue is updated.
 
+### 2026-08-24: an audit, and eight commits this file had never heard of
+
+**Read this before trusting any status line above.** The roadmap was audited against the code on 2026-08-24 and was behind by one whole phase plus a branch of work. Three things were corrected here and three issues were edited on GitHub the same day.
+
+| What changed | Where |
+| --- | --- |
+| **Corrected**: item 26 read "planned" for a week after rider feedback shipped ([#108](https://github.com/feralcreative/routeloop/pull/108), 2026-08-17) | item 26, and phase 3 of "The road to beta" |
+| **Corrected**: phase 3 is done, so **phase 2 is the only open phase** and [#13](https://github.com/feralcreative/routeloop/issues/13) is the next pickup | "The road to beta" |
+| **Corrected**: the test count, 869/37 → 1,240/52 | the 2026-08-10 table row for item 12, and "Where things stand" |
+| **Edited on GitHub**: [#16](https://github.com/feralcreative/routeloop/issues/16) test-suite and CI boxes ticked, with the CI line rewritten to say what actually runs—typecheck and tests on Node 22 and 24, **no SCSS build** | issue only |
+| **Edited on GitHub**: [#49](https://github.com/feralcreative/routeloop/issues/49) and [#23](https://github.com/feralcreative/routeloop/issues/23) retitled off the pre-rename vocabulary, the last two of the three flagged on 2026-08-15 | issue only |
+
+**EIGHT COMMITS ON `fix/map-mechanics` HAVE NO ROADMAP ITEM AND NO ISSUE.** They were raised directly in conversation and built the same day, which is a legitimate way to work here and is exactly why nothing on either tracking surface knows about them. Listed so the next reader does not go looking:
+
+- **A POI is part of the route** (`07f9820`)—`legs[i]` joins `points[i]` to `points[i+1]` whatever kind either end is. The largest change to the data model since the `routes`→`days` rename, together with the one below.
+- **A day is one ordered list of points** (`87e56c0` and before it), `kind` a flag on each rather than a choice of which list to put it in.
+- **A category is a reason to stop**—picking one promotes a point, clearing the last one demotes it—plus category search through Text Search and insert-between-points (`87e56c0`).
+- **A leg that will not route says why** instead of blaming the road (`28b9c51`).
+- **A rider chooses how dates and clocks read** (`19aea6c`), `src/views/date-format.ts`, three real locale tags rather than an abstract digit-order enum.
+- **A build's version comes from the commit, and release notes have a page and a modal** ([#114](https://github.com/feralcreative/routeloop/pull/114)).
+- **A day's clock is a wall clock at the departure point** (2026-08-24)—`public/js/day-clock.js`, and a data migration owed that is a script rather than a SQL file.
+
+**Every roadmap item now has an issue, and so does every commit above.** Twenty-three were filed on 2026-08-24—[#115](https://github.com/feralcreative/routeloop/issues/115) through [#137](https://github.com/feralcreative/routeloop/issues/137). Fourteen were filed against work that had already shipped and closed the same minute, which is the point: **an audible gets its issue written after the fact and closed, so the history is on the tracker rather than only in this file.** The nine still open are roadmap items 21, 22, 23, 24, 25, 27, 29, 30, and 31, each now carrying a P-label, so the Priorities section can finally see them.
+
+| Roadmap item | Issue | State |
+| --- | --- | --- |
+| 21. The import review table | [#129](https://github.com/feralcreative/routeloop/issues/129) | open |
+| 22. Content width on `/prefs` and `/import` | [#130](https://github.com/feralcreative/routeloop/issues/130) | open |
+| 23. Export by search and cart | [#131](https://github.com/feralcreative/routeloop/issues/131) | open |
+| 24. Turn Turnstile on | [#132](https://github.com/feralcreative/routeloop/issues/132) | open |
+| 25. Noob Mode | [#133](https://github.com/feralcreative/routeloop/issues/133) | open |
+| 26. Rider feedback | [#115](https://github.com/feralcreative/routeloop/issues/115) | closed—shipped 2026-08-17 |
+| 27. Compress stored originals | [#134](https://github.com/feralcreative/routeloop/issues/134) | open |
+| 28. Route thumbnails | [#116](https://github.com/feralcreative/routeloop/issues/116) | closed—shipped 2026-08-22 |
+| 29. Cards instead of rows | [#135](https://github.com/feralcreative/routeloop/issues/135) | open |
+| 30. Make "Your records" flashier | [#136](https://github.com/feralcreative/routeloop/issues/136) | open |
+| 31. Three columns on the dashboard tiles | [#137](https://github.com/feralcreative/routeloop/issues/137) | open |
+
+The eight commits listed above are [#117](https://github.com/feralcreative/routeloop/issues/117) through [#128](https://github.com/feralcreative/routeloop/issues/128), all closed.
+
 ### 2026-08-16: a planning day, and none of it has issues yet
 
-**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. **None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.
+**Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. ~~**None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.~~ **Resolved 2026-08-24**: all eleven were filed, and the mapping is in the 2026-08-24 section above.
 
 **The order changed, and the new section outranks the tiers.** "The road to beta" sits directly above Priorities and is the phase order; the tiers now say which issue to pick up *within* a phase. Read both, in that order.
 
@@ -64,7 +104,7 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 | 2. The ride timeline             | "a route's duration" → "a day's duration"                                               | [#7](https://github.com/feralcreative/routeloop/issues/7) (closed)—title still reads "**Trip** timeline" |
 | 5. One-tap Google Maps links     | batching described per route → **per day**, in three places                             | [#66](https://github.com/feralcreative/routeloop/issues/66) (closed)                                     |
 | 9. Import and export breadth     | "colours" → "colors"                                                                    | [#13](https://github.com/feralcreative/routeloop/issues/13)                                              |
-| 12. Quality and platform         | test count 424/20 files → **869/37** (was 777/34 when this row was written)             | [#16](https://github.com/feralcreative/routeloop/issues/16)                                              |
+| 12. Quality and platform         | test count 424/20 files → **1,240/52** (869/37 when this row was written)               | [#16](https://github.com/feralcreative/routeloop/issues/16)—boxes ticked 2026-08-24                      |
 | 13. Rider Subgroups              | "its own Route within the Ride" → **day**; "rides-hold-many-routes" → **-many-days**    | [#67](https://github.com/feralcreative/routeloop/issues/67)                                              |
 | 14. Alternate routes and voting  | "day/route-level" → **day-level**                                                       | [#68](https://github.com/feralcreative/routeloop/issues/68)                                              |
 | 15. On-the-road mobile interface | "a route's Google Maps legs" → "a day's"                                                | [#69](https://github.com/feralcreative/routeloop/issues/69)                                              |
@@ -75,11 +115,11 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 Cleared on 2026-08-15: every entry that read "needs a new issue" now has one. Items 16, 17, 18, 19 and 20 became [#88](https://github.com/feralcreative/routeloop/issues/88) (an epic with eleven children, one of which is the pre-existing [#39](https://github.com/feralcreative/routeloop/issues/39)), [#99](https://github.com/feralcreative/routeloop/issues/99), [#100](https://github.com/feralcreative/routeloop/issues/100), [#101](https://github.com/feralcreative/routeloop/issues/101) and [#102](https://github.com/feralcreative/routeloop/issues/102). The dashboard got its first issue ever, [#103](https://github.com/feralcreative/routeloop/issues/103), and its own `area:dashboard` label.
 
-Three issues carry the old vocabulary in their **titles**, which is a separate edit from their bodies:
+Three issues carried the old vocabulary in their **titles**, which is a separate edit from their bodies. **Two of the three were fixed on 2026-08-24:**
 
-- **[#49](https://github.com/feralcreative/routeloop/issues/49) "Split a long route into day routes"**—should be "into days". The only one of the three where the stale word is also the feature's name.
-- **[#23](https://github.com/feralcreative/routeloop/issues/23) "Elevation and grade profile per route"**—should be "per day", matching the row above.
-- **[#70](https://github.com/feralcreative/routeloop/issues/70) "Never drop tracks on import; land them all as routes"**—closed, but the title is the clearest surviving statement of the old model.
+- **[#49](https://github.com/feralcreative/routeloop/issues/49)**—now "Split a long route into days". It was the only one of the three where the stale word was also the feature's name.
+- **[#23](https://github.com/feralcreative/routeloop/issues/23)**—now "Elevation and grade profile per day", matching the row above.
+- **[#70](https://github.com/feralcreative/routeloop/issues/70) "Never drop tracks on import; land them all as routes"**—**left alone deliberately.** It is closed, and the title is the clearest surviving statement of the old model; retitling it would erase the only place that model is still legible.
 
 ## The road to beta
 
@@ -89,7 +129,9 @@ The goal is an MVP a handful of friends can actually test. **The cohort is the c
 
 1. **The builder panel and the mapping tools.** **Done as of 2026-08-22.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)) were the rest of the scope confirmed on 2026-08-16, and both merged as [#111](https://github.com/feralcreative/routeloop/pull/111). A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback. **What is owed is a browser pass on both**—nothing automated covers the builder. The remaining P1 issues are real builder work but none of them was ever part of this phase's bar.
 2. **Import, export and send-to-device.** A tester handed a blank canvas forms no useful opinion. Handed their own familiar routes, the beta becomes an exercise in _using_ the app rather than _learning_ it—which is the only way to find out whether the end-to-end experience actually works. Items 9, 21, 22 and 23, and note that **[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX flavors is literally the "send to device" half** and is the one unshipped piece of item 9. `docs/myrouteapp-formats.md` is the research behind it. **Noob Mode (item 25) rides along here**, decided 2026-08-16: the least technical end of the cohort is exactly who it is for, and first contact is when it pays off—shipping it afterwards means the riders who needed it most already formed their impression without it.
-3. **The feedback sprint, live before the first tester signs in.** Decided 2026-08-16, and the ordering is a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
+3. **The feedback sprint, live before the first tester signs in. Done—shipped 2026-08-17**, out of phase order and ahead of phase 2. Decided 2026-08-16, and the ordering was a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
+
+**So phase 2 is the only phase still open, and [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX is the next thing to pick up.**
 
 **Rate limiting ([#16](https://github.com/feralcreative/routeloop/issues/16)) is _not_ a beta blocker. Reversed 2026-08-16, hours after being made one, because the argument for it was factually wrong.**
 
@@ -200,7 +242,16 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Basemaps**—the map opens on Google's terrain layer, with roadmap, satellite and hybrid behind a switcher that remembers the choice per rider.
 - **Rich stop details**—a stop carries a confirmation number, check-in and check-out, phone, address, links and notes, kept in their own table and visible to the owner alone. They ride along in the native JSON and are stripped from every lossy export.
 - **Saved places**—a rider's reusable library of locations, optionally filed into groups, offered inside the builder's search field and copied into a ride rather than referenced from it.
-- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (887 tests across 38 files as of 2026-08-16; `npm test` is the authority, not this number.)
+- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (1,240 tests across 52 files as of 2026-08-24; `npm test` is the authority, not this number.) Note SCSS is **not** built in CI, which is why item 12's checklist calls that box partial.
+- **Alternates**—two or more days grouped as candidates for the same stretch, exactly one active, and only the active one counted by anything that sums a ride.
+- **Rider feedback**—reports, ideas and questions from a signed-in rider, a public board at `/board` and the owner's queue at `/admin/feedback`. A report is private to its author and the owner until it is published, and nothing publishes one by default.
+- **Route thumbnails**—a preview image per ride from Static Maps, built by a sweep that skips rides still being edited.
+- **A POI is part of the route**—a day is one ordered list of points and `kind` says only whether the rider means to stop, so `legs[i]` joins `points[i]` to `points[i+1]` whatever kind either end is. A category is what promotes a point.
+- **Date and clock preference**—a rider picks the digit order and the clock follows, because the stored values are real locale tags rather than an abstract enum.
+- **A day's clock is a wall clock at the departure point**—9am means 9am where the bike is, on the builder, the timeline and the printed roadbook alike, for every viewer.
+- **Build version and release notes**—the version is the minute of HEAD's committer date in Pacific, so redeploying the same tree reports the same version; release notes have a page and a modal.
+
+**Everything from 2026-08-17 onward in that list is built and NOT deployed.** The heading above says "deployed" and has meant "built" since then—see STATUS.md, which also carries the migrations that have reached no environment.
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
 
@@ -747,7 +798,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 
 **Touches.** `src/routes/import.tsx`, `public/js/import.js`, `src/routes/maps.ts` (`POST /api/maps` splits), `src/maps/filename.ts` (the invariant comment, and a new gleaner module beside it), `src/maps/ride-graph.ts` (`insertRideGraph` takes a manifest), `src/db/schema.ts` (staging only—the alternates link relation already exists as of 2026-08-16), `style/` (a new table pattern), `docs/api.md` (the endpoint split and where validation moved), `docs/main-menu.md`.
 
-**Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts.
+**Status.** planned—raised 2026-08-16. Sits downstream of item 9, which finished the _formats_; this is the interface none of that work ever got. Blocked on nothing, but the alts question above should be answered before it starts. **Issue: [#129](https://github.com/feralcreative/routeloop/issues/129)**, filed 2026-08-24.
 
 ### 22. Content width on `/prefs` and `/import`
 
@@ -780,7 +831,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 
 **Touches.** `style/_account.scss`, `style/_forms.scss`, `style/_chrome.scss` (only if the global cap moves), `src/routes/prefs.tsx` and `src/routes/import.tsx` (markup regrouped into a grid).
 
-**Status.** planned—raised 2026-08-16, alongside the Settings → Preferences rename recorded in `docs/main-menu.md`. Small on its own, and worth doing before items 20 and 21 rather than after.
+**Status.** planned—raised 2026-08-16, alongside the Settings → Preferences rename recorded in `docs/main-menu.md`. Small on its own, and worth doing before items 20 and 21 rather than after. **Issue: [#130](https://github.com/feralcreative/routeloop/issues/130)**, filed 2026-08-24.
 
 ### 23. Export by search and cart, not by list
 
@@ -812,7 +863,7 @@ The pitch in one line: **guess harder, then let the rider correct the guess.** T
 
 **Touches.** `src/routes/import.tsx` (the export half, replaced), a new search endpoint under `src/routes/`, `public/js/import.js`, `src/maps/zip.ts` (`buildZip` is already there), `src/maps/filename.ts` and `src/routes/maps.ts` (reading the ride field as a split point), `style/_forms.scss` (`.export-list` and `.export-row` go away), `docs/api.md`.
 
-**Status.** planned—raised 2026-08-16. **Shares a page with item 21 and should be drawn with it**, not after it: that page is one `<h1>` over two halves, and redesigning them separately is how they end up looking like two features that happen to share a URL. Item 22's width work is a prerequisite for both.
+**Status.** planned—raised 2026-08-16. **Shares a page with item 21 and should be drawn with it**, not after it: that page is one `<h1>` over two halves, and redesigning them separately is how they end up looking like two features that happen to share a URL. Item 22's width work is a prerequisite for both. **Issue: [#131](https://github.com/feralcreative/routeloop/issues/131)**, filed 2026-08-24.
 
 ### 24. Turn Turnstile on
 
@@ -834,7 +885,7 @@ Two ways out, and the second is probably right:
 
 **Touches.** `.env` and the deploy environment, `src/routes/builder.ts` (the gate), `public/js/builder.js` and `src/routes/builder.ts`'s page markup (only under option 1), `src/content/privacy.html`, `docs/api.md`.
 
-**Status.** planned—raised 2026-08-16, when the question "does Turnstile set a cookie" turned up a fully-built feature nobody had switched on. Blocked on nothing except the builder decision above.
+**Status.** planned—raised 2026-08-16, when the question "does Turnstile set a cookie" turned up a fully-built feature nobody had switched on. Blocked on nothing except the builder decision above. **Issue: [#132](https://github.com/feralcreative/routeloop/issues/132)**, filed 2026-08-24.
 
 ### 25. Noob Mode
 
@@ -861,7 +912,7 @@ Two ways out, and the second is probably right:
 
 **Touches.** `src/db/schema.ts` and a migration, `src/routes/prefs.tsx`, a new tooltip-copy module plus a client tooltip layer in `public/js/`, `public/js/builder.js` and `public/js/viewer.js` (where 19 of the 32 titles live), `src/views/layout.tsx`, `style/`, `docs/ops/copy-inventory.md`.
 
-**Status.** planned—raised 2026-08-16, and placed in **phase 2 of the road to beta** the same day: it ships with import/export, before testers arrive, because the least technical end of the cohort is who it exists for. Note `/prefs` is accumulating: the duration format shipped, item 20 adds two radio groups, and this adds a switch. Item 22's width and grouping pass should be drawn against all four rather than against what is on the page today.
+**Status.** planned—raised 2026-08-16, and placed in **phase 2 of the road to beta** the same day: it ships with import/export, before testers arrive, because the least technical end of the cohort is who it exists for. Note `/prefs` is accumulating: the duration format shipped, item 20 adds two radio groups, and this adds a switch. Item 22's width and grouping pass should be drawn against all four rather than against what is on the page today. **Issue: [#133](https://github.com/feralcreative/routeloop/issues/133)**, filed 2026-08-24.
 
 ### 26. Rider feedback: reports, ideas and the public board
 
@@ -880,7 +931,9 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 
 **Touches.** `src/db/schema.ts` and a migration, a new `src/feedback/`, new routes for `/board` and `/admin/feedback`, the mailer, `docs/api.md`.
 
-**Status.** planned—raised as a plan 2026-08-15, added to the roadmap 2026-08-16 when it turned out to exist only in an ignored directory. **Phase 3 of the road to beta, and it must be live before the first tester signs in**, confirmed 2026-08-16—being third in the order is not permission to arrive after the testers do.
+**Status.** **shipped 2026-08-17** on `feat/rider-feedback`, merged as [#108](https://github.com/feralcreative/routeloop/pull/108). `src/feedback/` is six modules on the house rule-from-query split—`policy.ts`, `service.ts`, `notify.ts`, `storage.ts`, `diagnostics.ts`, `faq.ts`—with `visibleTo()` in `policy.ts` as the whole of the private-bug rule and `state` versus `status` as two columns for that reason. Tests: `test/feedback-policy.test.ts`, `test/feedback-buffer.test.ts`, `test/feedback-diagnostics.test.ts`, `test/feedback-faq.test.ts`, `test/feedback-status-labels.test.ts`. **Issue: [#115](https://github.com/feralcreative/routeloop/issues/115)**, filed retroactively and closed on 2026-08-24.
+
+**Phase 3 of the road to beta is therefore done, and this entry read "planned" for a week after it shipped**—recorded rather than quietly corrected, because it is the failure mode this file warns about at the top: a document that disagrees with the code loses, and nobody noticed until the roadmap was audited on 2026-08-24. What is owed is the same thing owed everywhere else: a browser pass, and the four open calls at the end of `docs/rider-feedback.md` should be re-read against what was actually built.
 
 ### 27. Compress stored originals at rest
 
@@ -911,7 +964,7 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 
 **Touches.** `src/maps/storage.ts`, `src/index.tsx`, `src/account/export.ts`, `src/db/schema.ts` and a migration, a new `utils/` script. Not `src/maps/downloads.ts`—that table describes formats, not encodings.
 
-**Status.** planned—**folded into phase 2, the Import/Export sprint**, decided 2026-08-16. It opens the same three files that sprint opens anyway, and retrofitting it later means re-opening them plus migrating a larger `storage/` than the 5.8 MB it is now. Not urgent on its own: nobody has come near the quota.
+**Status.** planned—**folded into phase 2, the Import/Export sprint**, decided 2026-08-16. It opens the same three files that sprint opens anyway, and retrofitting it later means re-opening them plus migrating a larger `storage/` than the 5.8 MB it is now. Not urgent on its own: nobody has come near the quota. **Issue: [#134](https://github.com/feralcreative/routeloop/issues/134)**, filed 2026-08-24.
 
 ### 28. Route thumbnails: a preview image per ride
 
@@ -955,7 +1008,7 @@ One consequence worth knowing, and it was stated backwards here until 2026-08-21
 
 **Touches.** New `src/maps/thumbnail.ts`, `src/views/cards.tsx`, `src/db/schema.ts` and a migration, `style/_chrome.scss` for the card layout, and whatever runs the daily pass. Notably **not** `src/routes/builder.ts`—the autosave path is untouched, which is the point of putting the trigger on `updated_at` rather than in the save handler.
 
-**Status.** **shipped 2026-08-21** on `style/sign-buttons-and-misc`, built out of phase order at Ziad's call. 22 tests in `test/thumbnail.test.ts`; the whole dev corpus renders.
+**Status.** **shipped 2026-08-21** on `style/sign-buttons-and-misc`, built out of phase order at Ziad's call. 22 tests in `test/thumbnail.test.ts`; the whole dev corpus renders. **Issue: [#116](https://github.com/feralcreative/routeloop/issues/116)**, filed retroactively and closed on 2026-08-24.
 
 **It needed a Google Cloud change, and that reverses part of item 1.** The Maps Static API was one of the 23 APIs switched off on 2026-08-02, so every call 403'd with "This API is not activated on your API project"—which is a project-level message and not a key one, and worth knowing because the two read almost the same. Enabled on project `tankbag` 2026-08-21, and `static-maps-backend.googleapis.com` added to the server key's API restrictions, which now reads Routes + Geocoding + Static Maps. Item 1's line about "23 of 27 off, leaving only Maps JavaScript, Places (New), Routes and Geocoding" is therefore out of date. Restriction changes take a few minutes to propagate; a 403 straight after the change is not a failure.
 
@@ -998,7 +1051,7 @@ Three of the four move together because they are one component. That is a reason
 
 **Touches.** `src/views/cards.tsx`, `src/routes/rides.tsx`, `style/_chrome.scss`, and `style/_dashboard.scss` if the dashboard strip diverges. **Interacts with item 22**—a wider content column on desktop is what makes a three- or four-up grid worth having, so the two are better done in either order than half of each.
 
-**Status.** planned—**phase 2, after item 28**, decided 2026-08-16. Blocked on the thumbnails by design rather than by dependency; the code would build without them and should not.
+**Status.** planned—**phase 2, after item 28**, decided 2026-08-16. Blocked on the thumbnails by design rather than by dependency; the code would build without them and should not. **Issue: [#135](https://github.com/feralcreative/routeloop/issues/135)**, filed 2026-08-24.
 
 ### 30. Make "Your records" flashier
 
@@ -1025,7 +1078,7 @@ Three of the four move together because they are one component. That is a reason
 
 **Touches.** `style/_dashboard.scss` mainly, `src/routes/home.tsx` for the icons, `src/stats/shape.ts` only if value and unit get split server-side.
 
-**Status.** planned—small and self-contained, no schema and no queries. A good candidate to slot in beside phase 1 work when a break from the builder is wanted.
+**Status.** planned—small and self-contained, no schema and no queries. A good candidate to slot in beside phase 1 work when a break from the builder is wanted. **Issue: [#136](https://github.com/feralcreative/routeloop/issues/136)**, filed 2026-08-24.
 
 ### 31. Three columns on the dashboard tiles: yours, average, top
 
@@ -1062,7 +1115,7 @@ Three of the four move together because they are one component. That is a reason
 
 **Touches.** `src/stats/query.ts`, `src/stats/shape.ts`, `src/routes/home.tsx`, `style/_dashboard.scss`. No schema change.
 
-**Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page.
+**Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page. **Issue: [#137](https://github.com/feralcreative/routeloop/issues/137)**, filed 2026-08-24.
 
 ## Idea backlog (unscheduled)
 

@@ -662,12 +662,25 @@
   }
   .day-time {
     display: flex;
-    flex: 1 1 10em;
+    // `flex: 1 1 0` and `min-width: 0`, where this was `flex: 1 1 10em` with the
+    // default `min-width: auto`. Both halves of that were the bug.
+    //
+    // A flex item defaults to a floor of its MIN-CONTENT width, and a populated
+    // datetime-local's min-content is the whole "08/24/2026, 9:00 AM" string —
+    // wider than half the drawer. So the two fields refused to shrink, overflowed
+    // the row and wrapped onto separate lines the moment a date was typed. Empty
+    // they fitted, which is why it looked fine until it was used.
+    flex: 1 1 0;
+    min-width: 0;
     flex-direction: column;
     gap: 0.15em;
     font-size: 0.75em;
     opacity: 0.85;
     input {
+      // Its own box-sizing: there is no global border-box reset in style/, so
+      // `width: 100%` plus padding and a border measured 9px wider than the label
+      // it sits in. Same trap as .btn-stop and the chips row.
+      box-sizing: border-box;
       width: 100%;
       padding: 0.3em;
       border: 1px solid $grey;
@@ -873,12 +886,100 @@
   // the only thing marking it as an empty slot.
   .add-row {
     display: flex;
+    // WRAP, or the chips below are a flex item on the same line as the search
+    // field. .add-chips has a 100% flex basis so it takes its own row — on a
+    // nowrap line that basis instead crushed the input to zero visible width,
+    // which is how the chips were reported: no room to see a single character.
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.35em;
     padding: 0.25em 0.3em;
     border: 1px dashed color.adjust($grey, $lightness: -5%);
     border-radius: 6px;
     background: none;
+  }
+
+  // The gap between two rows: a hairline with a + in it, for wedging a point in
+  // between. Excel's "insert row here".
+  //
+  // VISIBLE AT REST. It was opacity 0 until hover, which is how it shipped and
+  // why it could not be found — a control nobody knows is there is not a control,
+  // and a 10px hover strip is not discoverable even once you do know. It is also
+  // the exact thing the note two lines down warns about: a hover-only affordance
+  // does not exist on a touch screen at all, and this drawer becomes a bottom
+  // sheet on a phone.
+  //
+  // Quiet is the goal, not hidden. A 1px rule at low contrast reads as a row
+  // separator, which is what it structurally is; hover and focus raise the
+  // contrast rather than summoning it from nothing.
+  //
+  // THE WHOLE STRIP IS THE TARGET, not just the glyph. 18px of full-width row
+  // beats an 18px square as something to hit with a thumb, and a mis-tap costs
+  // one Escape.
+  .insert-slot {
+    display: flex;
+    align-items: center;
+    // The gap either side of the glyph. The rule is two segments rather than one
+    // line with something sitting on top of it — no bubble, no opaque background
+    // faking a break.
+    gap: 6px;
+    // Short, and the negative margins pull the rows either side back together —
+    // a full row's height between every pair would double the length of a day.
+    height: 18px;
+    margin: -4px 0;
+    cursor: pointer;
+
+    // The two halves of the broken line. They grow to fill whatever the glyph in
+    // the middle does not take, so the break is centred at any panel width and
+    // nothing has to know how wide a "+" is.
+    &::before,
+    &::after {
+      content: "";
+      flex: 1 1 auto;
+      height: 1px;
+      background: $neutral-88;
+      transition: background 0.12s;
+    }
+
+    &:hover::before,
+    &:hover::after,
+    &:focus-within::before,
+    &:focus-within::after {
+      background: $interstate;
+    }
+  }
+
+  .insert-btn {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    // No border, no background — it sits IN the gap rather than over the line.
+    // The padding is horizontal only, so the glyph keeps a little air from the
+    // two rule ends without growing the row.
+    padding: 0 2px;
+    border: 0;
+    background: none;
+    color: color.adjust($text, $lightness: 30%);
+    // Plain weight, not bold. A bold glyph reads as a control demanding attention;
+    // this one is a quiet affordance sitting in a row separator. The size goes up
+    // 1px to hold its optical size, since a 400-weight plus looks smaller than a
+    // 700-weight one at the same px.
+    font: 400 14px/1 $font;
+    cursor: pointer;
+    transition: color 0.12s;
+
+    .insert-slot:hover &,
+    &:focus-visible {
+      color: $interstate;
+    }
+  }
+
+  // An add row standing in for a gap. Marked so it reads as belonging between
+  // the two rows either side rather than as the day's own trailing field, which
+  // is the one thing that could make a rider add to the wrong place.
+  .add-row.is-insert {
+    border-style: solid;
+    border-color: $interstate;
+    margin: 0.2em 0;
   }
 
   // Sits where .row-drag does on a real row, so the fields below line up with
@@ -1743,6 +1844,90 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     vertical-align: 0.1em;
+  }
+
+  // The divider above the category results, so the two kinds of answer do not
+  // read as one ranked list. Above are places matching what was typed; below are
+  // places OF the kind that was asked for.
+  li.hit-head {
+    padding: 0.3em 0.6em;
+    border-top: 1px solid $neutral-88;
+    background: rgba(0, 0, 0, 0.02);
+    color: color.adjust($text, $lightness: 30%);
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: default;
+
+    // It is a label, not a result.
+    &:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+  }
+
+  // "No matches", "Finding gas…", and every reason a search failed. Both states
+  // this covers used to be an empty box: a thrown search was a console warning
+  // and nothing else, and a search that matched nothing simply did not open. So
+  // "nothing there" and "it is broken" looked identical, which is exactly how a
+  // server key missing the Places API presented.
+  li.hit-note {
+    color: color.adjust($text, $lightness: 25%);
+    font-style: italic;
+    cursor: default;
+
+    &:hover {
+      background: none;
+    }
+  }
+}
+
+// Category chips on a day's add row: one tap for the four things a rider hunts
+// for mid-plan. Everything else reaches the same search by typing the word, so
+// this stays four wide and does not grow into a second role picker.
+.add-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  // Its own box-sizing, and the padding-left below is why. There is no global
+  // border-box reset in style/, so a 100% basis plus padding measured 9px wider
+  // than the row it sits in and overflowed it. The comment on .chip warns about
+  // exactly this and it still happened here.
+  box-sizing: border-box;
+  // Spans the full row under the field and the + button, which are laid out
+  // above it — hence the full-width basis rather than a grid column. Requires
+  // flex-wrap on .add-row; without it this basis eats the field's width.
+  flex: 0 0 100%;
+  // Indented to the field's left edge, past the + mark, so the chips read as
+  // belonging to the search rather than to the row.
+  padding-left: calc(14px + 0.35em);
+  margin-top: 0.15em;
+
+  .chip {
+    // Its own box-sizing: there is no global border-box reset in style/, so a
+    // fixed-size box that forgets has its padding sit outside its width. See the
+    // note in AGENTS.md — this cost a day on .btn-stop.
+    box-sizing: border-box;
+    padding: 0.1em 0.45em;
+    border: 1px solid $neutral-88;
+    border-radius: 999px;
+    background: $white;
+    color: color.adjust($text, $lightness: 15%);
+    // Small on purpose. These are a shortcut, not the primary way in — the
+    // search field above them is — so they sit under it and stay quiet.
+    font-size: 0.68em;
+    line-height: 1.5;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $interstate;
+      color: $interstate;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
   }
 }
 

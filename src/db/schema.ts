@@ -41,6 +41,16 @@ export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
 // public/js/duration.js; keep the three members here in step with the array
 // there, which test/duration.test.ts also pins.
 export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
+// How a DATE and a clock are written, per rider. Same arrangement as the enum
+// above: a display layer over storage that is untouched by it — days.start_at
+// stays a timestamp, ride.json stays ISO, every export is unaffected.
+//
+// The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
+// does the formatting and the clock and the number grouping follow the date order
+// instead of needing their own setting. Canonical metadata and the formatters
+// live in src/views/date-format.ts; keep these three in step with the array
+// there, which test/date-format.test.ts pins.
+export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -264,6 +274,11 @@ export const userProfiles = pgTable('user_profiles', {
   // reader would otherwise have to answer "null means what?" and they would not
   // all answer the same way.
   durationFormat: durationFormatEnum('duration_format').notNull().default('hours'),
+  // Defaulted rather than nullable for the same reason as durationFormat above:
+  // no third state for every reader to interpret differently. The signup path
+  // seeds it from Accept-Language, so the default is what a rider gets only when
+  // the header says nothing useful.
+  dateFormat: dateFormatEnum('date_format').notNull().default('en-US'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -583,6 +598,18 @@ export const days = pgTable(
     position: smallint('position').notNull(), // 0-based order within the ride
     title: varchar('title', { length: 150 }).notNull().default(''),
     color: varchar('color', { length: 7 }).notNull().default('#0000cc'),
+    // A WALL CLOCK AT THE DEPARTURE POINT, CARRIED AS UTC — not an instant.
+    // Ziad's call, 2026-08-24: a time is a time is a time at the departure
+    // point, so a 9am departure is 9am where the bike is and nothing converts it
+    // into anyone's local time. `public/js/day-clock.js` is the only place the
+    // conversion between this and an input field happens; read its header first.
+    //
+    // The type stays `timestamptz` even though the value is now naive, and that
+    // is measured rather than assumed: node-postgres parses `timestamp without
+    // time zone` in the PROCESS's zone, so a stored 09:00 read back on a Pacific
+    // machine comes out 16:00Z and the app's behavior depends on `TZ`.
+    // `timestamptz` round-trips the exact digits in both directions with no type
+    // parser and no environment dependency. The type is a carrier, not a claim.
     startAt: timestamp('start_at', { withTimezone: true }),
     endAt: timestamp('end_at', { withTimezone: true }),
     distanceM: integer('distance_m').notNull().default(0),
@@ -728,9 +755,9 @@ export const pointDetails = pgTable(
       .notNull()
       .references(() => rides.id, { onDelete: 'cascade' }),
     uid: varchar('uid', { length: 12 }).notNull(),
-    // Reservation and arrival. checkInAt/checkOutAt are timestamptz where
-    // days.start_at is too — a hotel check-in is a wall-clock moment in a place,
-    // and the roadbook already renders that column with an explicit timeZone.
+    // Reservation and arrival. checkInAt/checkOutAt follow days.start_at exactly
+    // — a hotel check-in is a wall-clock moment in a place, carried as UTC for
+    // the reasons stated on that column.
     confirmation: varchar('confirmation', { length: 120 }),
     checkInAt: timestamp('check_in_at', { withTimezone: true }),
     checkOutAt: timestamp('check_out_at', { withTimezone: true }),

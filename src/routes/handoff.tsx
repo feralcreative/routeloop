@@ -134,12 +134,6 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
                     ))}
                   </ol>
                 )}
-                {day.skippedPois > 0 && (
-                  <p class="ho-skipped">
-                    {day.skippedPois} {day.skippedPois === 1 ? 'point of interest is' : 'points of interest are'} not in
-                    these links. Routing through one would bend the road to reach it.
-                  </p>
-                )}
               </section>
             )
           })}

@@ -101,14 +101,14 @@ export function titleFromSlug(slug: string): string {
     .join(' ')
 }
 
-// `days.start_at` is `timestamptz`, and the roadbook renders it with
-// `timeZone: 'UTC'` (roadbook.tsx). Formatting a filename any other way would
-// let a roadbook and a filename disagree about which day a route is on, so
-// these two are UTC for the same reason and must stay matched to it.
+// `days.start_at` carries a WALL CLOCK at the departure point, as UTC — see the
+// header of public/js/day-clock.js — and the roadbook renders it with
+// `timeZone: 'UTC'` for that reason. Formatting a filename any other way would
+// let a roadbook and a filename disagree about which day a route is on, so these
+// two are UTC for the same reason and must stay matched to it.
 //
-// No zone in the filename itself: `datetime-local` carries none and the app
-// already stores what the rider typed in their own zone (docs/STATUS.md, the
-// ride-timeline section, decision 3). A filename claiming a zone would invent one.
+// No zone in the filename itself, and now none is missing: the digits ARE the
+// wall clock. A filename claiming a zone would invent one.
 function fmtDate(d: Date): string {
   const iso = d.toISOString()
   const date = iso.slice(0, 10)

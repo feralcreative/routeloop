@@ -21,6 +21,8 @@ import type { AuthEnv } from '../auth/middleware'
 import { loadRideForExport, type ExportPoint, type ExportDay } from '../maps/export'
 import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
+import { fmtClock, fmtDateLong } from '../views/date-format'
+import { dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
@@ -40,10 +42,13 @@ function fmtDuration(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-const fmtClock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
-
-const fmtDate = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+// fmtClock and fmtDate used to live here with a hardcoded 'en-US'. They are in
+// src/views/date-format.ts now and take the rider's format, because this is the
+// one page that gets PRINTED and carried — a rider who plans a day in 24/08 and
+// prints a sheet saying 08/24 is reading two different products. Both still read
+// in UTC, which is now the right answer rather than a workaround: a day's clock
+// is a wall clock at the departure point, carried as UTC. See that file, and the
+// header of public/js/day-clock.js.
 
 const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(' · ')
 
@@ -135,6 +140,10 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // every way including what it tells the asker.
   const user = c.get('user') ?? null
   const slug = c.req.param('slug')
+  // Signed in: their choice. Anonymous with the link: their browser's. See
+  // dateFormatFor — a shared ride is printable by anyone, so this route has to
+  // work with no user at all.
+  const dateFormat = await dateFormatFor(c)
 
   // The same visibility gate the viewer uses. A roadbook is the ride, rendered
   // differently — it must not be a way around who may see it.
@@ -185,7 +194,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                   {r.title || `Day ${i + 1}`}
                 </h2>
                 <p class="rb-day-meta">
-                  {r.startAt && <>{fmtDate(r.startAt)} · </>}
+                  {r.startAt && <>{fmtDateLong(r.startAt, dateFormat)} · </>}
                   {fmtMi(r.distanceM)} mi
                   {r.durationS > 0 && <> · {fmtDuration(r.durationS)} riding</>}
                   {r.twistinessDpm != null && <> · {r.twistinessDpm}°/mi</>}
@@ -220,7 +229,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                           {/* Blank until the first fuel stop: "miles since fuel" has no
                               answer before there has been any. */}
                           <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM)}</td>
-                          {r.startAt && <td class="rb-num">{row.arrive ? fmtClock(row.arrive) : '—'}</td>}
+                          {r.startAt && <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat) : '—'}</td>}
                           <td class="rb-num">
                             {row.point.durationMin ? fmtDuration(row.point.durationMin * 60) : '—'}
                           </td>
