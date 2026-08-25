@@ -319,8 +319,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color.adjust($url, $lightness: 46%);
-  color: color.adjust($url, $lightness: -8%);
+  background: $url-l46;
+  color: $url-d8;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.02em;

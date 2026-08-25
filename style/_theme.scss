@@ -1,0 +1,82 @@
+// Emits the six palettes as custom properties, and switches between them.
+//
+// Read _palette.scss first — it holds the values and the reasoning. This file is
+// only the plumbing.
+//
+// SIX BLOCKS, TWO INDEPENDENT ATTRIBUTES. `data-theme` carries default /
+// contrast / colorblind and `data-scheme` carries light / dark, both stamped on
+// <html> by the server from the rider's stored preference. They do not constrain
+// each other, which is the whole reason they are two attributes rather than one
+// list of six names.
+//
+// THE ASYMMETRY THAT SHAPES THIS FILE: theme and an EXPLICIT light or dark can be
+// rendered from the stored value, but **`system` cannot** — the server does not
+// know the reader's OS setting, and there is no request header that carries it.
+// So `system` is expressed as the ABSENCE of a data-scheme attribute, and a
+// `prefers-color-scheme` media query fills it in. That is why every dark rule
+// below is written twice: once for the explicit attribute, once inside the media
+// query for the un-stamped case.
+//
+// **Solved without JavaScript, deliberately.** The alternative — a script that
+// reads matchMedia and stamps the attribute — flashes the wrong theme on every
+// page load before it runs, and this app renders every page server-side
+// specifically so nothing depends on script arriving.
+@use "sass:map";
+@use "palette";
+
+// One block's worth of declarations.
+@mixin -emit($theme, $scheme) {
+  @each $name, $value in palette.build($theme, $scheme) {
+    --#{$name}: #{$value};
+  }
+}
+
+// The default, and the fallback for any attribute value the app does not know.
+// A hostile or stale `data-theme` therefore renders the default palette rather
+// than an unstyled page.
+:root {
+  @include -emit(default, light);
+}
+
+// --- The theme axis, light -------------------------------------------------
+
+:root[data-theme="contrast"] {
+  @include -emit(contrast, light);
+}
+
+:root[data-theme="colorblind"] {
+  @include -emit(colorblind, light);
+}
+
+// --- The scheme axis, chosen explicitly -------------------------------------
+
+:root[data-scheme="dark"] {
+  @include -emit(default, dark);
+}
+
+:root[data-scheme="dark"][data-theme="contrast"] {
+  @include -emit(contrast, dark);
+}
+
+:root[data-scheme="dark"][data-theme="colorblind"] {
+  @include -emit(colorblind, dark);
+}
+
+// --- The scheme axis, following the OS ---------------------------------------
+//
+// Only when no data-scheme is stamped at all. `:not([data-scheme])` is what makes
+// an explicit "light" beat a dark OS setting — without it a rider who chose light
+// would still get dark on a dark machine, and their choice would look broken.
+@media (prefers-color-scheme: dark) {
+  :root:not([data-scheme]) {
+    @include -emit(default, dark);
+  }
+
+  :root:not([data-scheme])[data-theme="contrast"] {
+    @include -emit(contrast, dark);
+  }
+
+  :root:not([data-scheme])[data-theme="colorblind"] {
+    @include -emit(colorblind, dark);
+  }
+}

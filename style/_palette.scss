@@ -1,0 +1,257 @@
+// WHERE COLOR VALUES ACTUALLY LIVE. Six palettes, computed at build time.
+//
+// `_tokens.scss` used to hold these literals directly and every rule compiled to
+// a hex. That cannot support a theme a rider switches at runtime: Sass runs once
+// at build time, so a value baked into a rule is the only value that rule will
+// ever have. The split is now:
+//
+//   _palette.scss  the numbers, per theme and per scheme          (this file)
+//   _theme.scss    emits them as custom properties, six blocks
+//   _tokens.scss   the public names, each one a `var(--x)` reference
+//
+// A rule still says `background: $stop` and does not care. That indirection is
+// what let ~950 existing token references stay untouched.
+//
+// THE TWO AXES ARE INDEPENDENT AND MEAN DIFFERENT THINGS. `$theme` is about which
+// signals a rider can distinguish — default, high-contrast, colorblind. `$scheme`
+// is about ambient light — light or dark. Every theme exists in both, which is
+// why there are six palettes rather than a flat list of six names: "follow the
+// OS" is a statement about the scheme axis only, and there is no OS signal for
+// colorblindness.
+//
+// **THE ROAD-SIGN PALETTE IS SCHEME-INVARIANT, and this is the finding the whole
+// job turns on.** A sign's colors do not change at night: $stop is the same red
+// on an unlit road, still carrying a white legend. So $interstate through $tarmac
+// and the ink each field takes do not move between light and dark. What inverts
+// is the page AROUND them — body text, surfaces, borders, panel fills. That is a
+// far smaller surface than "six palettes" suggests.
+//
+// The theme axis is the opposite: it moves the sign colors and leaves the neutral
+// ramp broadly alone, because that is what those themes are FOR.
+@use "sass:color";
+@use "sass:map";
+
+// --- The neutral ramp, which is the scheme axis ------------------------------
+//
+// **The number is CIE L\*, perceptual lightness**, and that is what makes a dark
+// ramp expressible rather than hand-picked: the dark counterpart of $neutral-N is
+// approximately $neutral-(100-N). Only approximately — light text on a dark
+// ground blooms, so a naive flip gives more contrast than the eye wants — but a
+// scale whose numbers MEAN something can be mapped and then checked, which a
+// 50-900 ordinal could not.
+//
+// The light ramp is unchanged from what the app has always used. See the header
+// of _tokens.scss for why these specific values and why the -76 to -88 gap is
+// real rather than an oversight.
+$-neutrals-light: (
+  21: #333333, 29: #444444, 36: #555555, 43: #666666, 50: #777777,
+  57: #888888, 63: #999999, 70: #aaaaaa, 76: #bbbbbb, 88: #dddddd,
+  94: #eeeeee, 96: #f4f4f4, 98: #fafafa,
+);
+
+// The dark ramp: each step takes the value its L*-complement holds in the light
+// ramp, so -21 (near-black text) becomes what -76 was and -98 (the page) becomes
+// a near-black. Two deliberate departures from a pure flip, both because the
+// complement is not a step that exists:
+//
+//   21 -> 79 has no step; -76 is the nearest and is the text color.
+//   98 -> 2 has no step either. $splash-ink (#0a0e11) is used instead, because
+//   the app ALREADY has a dark surface — it is the sign-in page's ground and
+//   src/emails/theme.ts mirrors it as DARK.cardBg. Inventing a second near-black
+//   would put two of them in one product.
+$-neutrals-dark: (
+  21: #bbbbbb, 29: #aaaaaa, 36: #999999, 43: #888888, 50: #888888,
+  57: #777777, 63: #666666, 70: #555555, 76: #444444, 88: #333333,
+  94: #262626, 96: #1a1a1a, 98: #0a0e11,
+);
+
+// --- The road-sign palette, which is the theme axis --------------------------
+//
+// Stylized rather than converted from the federal spec — see the long note in
+// _tokens.scss for why a faithful conversion lands almost black. Do not
+// "correct" one of these toward a published value.
+$-signs-default: (
+  "interstate": #266149, "speed": #efefef, "stop": #dd0000, "detour": #f56100,
+  "warning": #ffac00, "yield": #ffdd00, "go": #41ae4d, "disabled": #0a539c,
+  "recreation": #603d15, "tarmac": #291507,
+);
+
+// HIGH CONTRAST. Every field pushed away from the ink it carries, including the
+// pairs that only just clear 4.5:1 today. The white-legend fields darken, the
+// black-legend fields lighten — which is the ink-pairing table applied as
+// arithmetic rather than a general "more saturated".
+$-signs-contrast: (
+  "interstate": #14402f, "speed": #ffffff, "stop": #b00000, "detour": #a83c00,
+  "warning": #ffc94d, "yield": #ffe94d, "go": #1f7a2b, "disabled": #043a72,
+  "recreation": #3d2708, "tarmac": #1a0d04,
+);
+
+// COLORBLIND. Addresses the collisions this palette has BY CONSTRUCTION rather
+// than shifting every hue: $stop and $go are a red/green pair that converge under
+// deuteranopia and protanopia, and $yield and $detour are adjacent ambers.
+//
+// The move is the standard one for exactly this: pull the "go" signal toward blue
+// and the "stop" signal toward orange-red, so the pair separates on the
+// blue-yellow axis that both common forms of color blindness leave intact.
+//
+// **THIS IS NOT SUFFICIENT ON ITS OWN AND MUST NOT BE TREATED AS IF IT WERE.**
+// A theme that only shifts hues does not fix a signal that was carrying meaning
+// alone. The audit of where color is the ONLY cue — and giving each of those a
+// shape, an icon, a label or a weight — is a separate piece of work, and this
+// theme is a lie until it is done.
+$-signs-colorblind: (
+  "interstate": #1f5c7a, "speed": #efefef, "stop": #d55e00, "detour": #e69f00,
+  "warning": #cc8400, "yield": #f0e442, "go": #0072b2, "disabled": #004c99,
+  "recreation": #5c4033, "tarmac": #291507,
+);
+
+// A legibility derivation, signed by the scheme. Module scope rather than nested
+// inside build(): Sass has no nested functions.
+@function -adj($c, $amount, $dir) {
+  @return color.adjust($c, $lightness: $amount * $dir);
+}
+
+@function -signs($theme) {
+  @if $theme == contrast { @return $-signs-contrast; }
+  @if $theme == colorblind { @return $-signs-colorblind; }
+  @return $-signs-default;
+}
+
+/// Every color token, for one (theme, scheme) pair.
+///
+/// Returns a flat map of name to value. The names are exactly the token names
+/// `_tokens.scss` exposes, because _theme.scss emits `--#{$name}` straight from
+/// this and a mismatch would be a custom property nothing reads.
+@function build($theme: default, $scheme: light) {
+  $dark: $scheme == dark;
+  $s: -signs($theme);
+
+  // @if/@else rather than the if() function, which Sass deprecated — and the
+  // statement form rather than the new `if(sass($x): a; else: b)` expression,
+  // because this is the exact equivalent and does not depend on a syntax newer
+  // than the pinned compiler.
+  $n: $-neutrals-light;
+  $white: #ffffff;
+  $black: #000000;
+  $dir: 1;
+  $panel-bg: rgba(255, 255, 255, 0.9);
+  $panel-shadow: rgba(0, 0, 0, 0.18);
+  @if $dark {
+    $n: $-neutrals-dark;
+    $white: map.get($n, 98);
+    $black: map.get($n, 21);
+    // THE DERIVATION DIRECTION INVERTS. See the note below.
+    $dir: -1;
+    // Mixed rather than flipped: on a dark scheme a white scrim would glow, so
+    // the floating map panel takes the page's own near-black at the same opacity.
+    $panel-bg: rgba(10, 14, 17, 0.9);
+    $panel-shadow: rgba(0, 0, 0, 0.5);
+  }
+
+  // The semantic layer, unchanged in shape from what _tokens.scss always had.
+  $stop: map.get($s, "stop");
+  $go: map.get($s, "go");
+  $warning: map.get($s, "warning");
+  $disabled: map.get($s, "disabled");
+  $interstate: map.get($s, "interstate");
+  $url: $disabled;
+  $grey: map.get($n, 88);
+  $text: map.get($n, 21);
+
+  // THE DERIVATION DIRECTION INVERTS WITH THE SCHEME, and this is the mechanism
+  // the roadmap flagged as the expensive part. Every legibility derivation in the
+  // light palette DARKENS: $pending is -20% and $label is -22%, both making a
+  // yellow survive as text on white. On a dark ground the same tokens have to
+  // LIGHTEN or they vanish into it. Carrying a signed direction is what keeps the
+  // expressions written once.
+  //
+  // **The trap is assuming that makes the contrast symmetric. It does not.**
+  // +20% on a dark ground and -20% on a light one land on different ratios, so
+  // all six palettes need their figures measured rather than inferred from the
+  // light ones. That measurement is owed and is not done here.
+  @return (
+    // Neutrals, addressed by their L* number exactly as before.
+    "neutral-21": map.get($n, 21), "neutral-29": map.get($n, 29), "neutral-36": map.get($n, 36),
+    "neutral-43": map.get($n, 43), "neutral-50": map.get($n, 50), "neutral-57": map.get($n, 57),
+    "neutral-63": map.get($n, 63), "neutral-70": map.get($n, 70), "neutral-76": map.get($n, 76),
+    "neutral-88": map.get($n, 88), "neutral-94": map.get($n, 94), "neutral-96": map.get($n, 96),
+    "neutral-98": map.get($n, 98),
+
+    "interstate": $interstate, "speed": map.get($s, "speed"), "stop": $stop,
+    "detour": map.get($s, "detour"), "warning": $warning, "yield": map.get($s, "yield"),
+    "go": $go, "disabled": $disabled, "recreation": map.get($s, "recreation"),
+    "tarmac": map.get($s, "tarmac"), "concrete": map.get($n, 57),
+
+    // PAGE SURFACES, not legends. Under a dark scheme $white is the page's own
+    // near-black and $black is the light ink that sits on it — the names keep
+    // meaning "the page" and "the ink on the page" rather than meaning the two
+    // colors. Anything that wants a literal white or black on a SIGN field wants
+    // ink-light or ink-dark above.
+    "white": $white, "black": $black,
+
+    "url": $url, "gpx": $go, "kml": $stop, "grey": $grey, "text": $text,
+
+    // THE TWO LEGENDS DO NOT FOLLOW THE SCHEME, and this is the one place the
+    // "$white and $black flip" rule must not apply. They were aliases of $white
+    // and $black in the light-only palette, which was correct then and wrong the
+    // moment those two started moving.
+    //
+    // The reason is the same one that keeps the sign fields still: a legend
+    // belongs to its field, not to the page. $yield is the same yellow at night
+    // and still takes BLACK ink; $stop is the same red and still takes WHITE. A
+    // legend that inverted with the page would put white text on a yellow signal
+    // head, which is 1.4:1 and unreadable — the ink-pairing table in _tokens.scss
+    // measures exactly that failure.
+    //
+    // So these are literals in all six palettes, while $white and $black below
+    // are page surfaces and do flip.
+    "ink-light": #ffffff, "ink-dark": #000000,
+
+    // Text on a tint of itself. Named against $warning rather than $yield
+    // deliberately: the same expression against the brighter yellow lands on
+    // 3.7:1 and fails. See _tokens.scss.
+    "pending": -adj($warning, -20%, $dir),
+    "label": -adj($warning, -22%, $dir),
+
+    "panel-bg": $panel-bg,
+    "panel-shadow": $panel-shadow,
+
+    "brand": $url, "ride": $url, "day": $stop, "date": $interstate,
+
+    // The promoted derivations. All are legibility-derived and therefore signed.
+    "text-l15": -adj($text, 15%, $dir), "text-l20": -adj($text, 20%, $dir),
+    "text-l25": -adj($text, 25%, $dir), "text-l30": -adj($text, 30%, $dir),
+    "text-l35": -adj($text, 35%, $dir), "text-l40": -adj($text, 40%, $dir),
+
+    "grey-d3": -adj($grey, -3%, $dir), "grey-d5": -adj($grey, -5%, $dir),
+    "grey-d8": -adj($grey, -8%, $dir), "grey-l6": -adj($grey, 6%, $dir),
+    "grey-l8": -adj($grey, 8%, $dir),
+
+    "gpx-l8": -adj($go, 8%, $dir), "gpx-l45": -adj($go, 45%, $dir),
+    "gpx-d12": -adj($go, -12%, $dir), "gpx-d14": -adj($go, -14%, $dir),
+    "gpx-d20": -adj($go, -20%, $dir),
+
+    "kml-d6": -adj($stop, -6%, $dir), "kml-d8": -adj($stop, -8%, $dir),
+    "kml-d10": -adj($stop, -10%, $dir), "kml-d20": -adj($stop, -20%, $dir),
+
+    "url-l43": -adj($url, 43%, $dir), "url-l46": -adj($url, 46%, $dir),
+    "url-l52": -adj($url, 52%, $dir), "url-d8": -adj($url, -8%, $dir),
+    "url-d10": -adj($url, -10%, $dir), "url-d20": -adj($url, -20%, $dir),
+
+    "brand-d6": -adj($url, -6%, $dir),
+    "interstate-d6": -adj($interstate, -6%, $dir),
+    "stop-d8": -adj($stop, -8%, $dir),
+
+    // NOT OURS TO HARMONIZE, and therefore identical in all six. These sit under
+    // recognizable third-party logos, where an approximation reads as a knock-off.
+    "google-blue": #4285f4, "github": #181717, "signal": #3a76f0, "discord": #5865f2,
+    "accent": map.get($s, "yield")
+  );
+}
+
+/// The default light value of one token, for a surface that must NOT follow the
+/// theme. `.feedback-flow` is the only caller: the intake is used outdoors in
+/// bright sun and is pinned light regardless of scheme, decided 2026-08-16.
+@function light($name) {
+  @return map.get(build(default, light), $name);
+}

@@ -154,7 +154,7 @@
   background: $kml;
 
   &:hover {
-    background: color.adjust($kml, $lightness: -8%);
+    background: $kml-d8;
   }
 }
 

@@ -60,7 +60,7 @@ h1 {
   cursor: pointer;
 
   &:hover {
-    background: color.adjust($url, $lightness: -8%);
+    background: $url-d8;
   }
 
   &:disabled {
@@ -301,7 +301,7 @@ $sign-arrow-bearings: (
   // together — leaving the first at $interstate would show the old green as a
   // hairline outside the keyline.
   &:hover {
-    $lit: color.adjust($interstate, $lightness: -6%);
+    $lit: $interstate-d6;
 
     background: $lit;
     box-shadow:
@@ -419,7 +419,7 @@ $octagon: polygon(
   // carry the field have to move together, or the outer 3px stays bright and
   // shows as a rim.
   &:hover {
-    $lit: color.adjust($stop, $lightness: -8%);
+    $lit: $stop-d8;
 
     background: $lit;
     box-shadow: none;

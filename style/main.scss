@@ -5,7 +5,10 @@
 // Order matters: tokens first (everything @uses it), then base typography, then
 // components. Responsive last so its media queries win against equal-specificity
 // rules above.
+// tokens first (everything @uses it), then the theme blocks that give those
+// tokens their values, then base typography and components.
 @use "tokens";
+@use "theme";
 @use "fonts";
 @use "base";
 @use "chrome";

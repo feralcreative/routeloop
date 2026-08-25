@@ -544,7 +544,7 @@ body.splash-page {
       0 8px 24px rgba(0, 0, 0, 0.3);
 
     &:hover {
-      $lit: color.adjust($interstate, $lightness: -6%);
+      $lit: $interstate-d6;
 
       box-shadow:
         inset 0 0 0 3px $lit,

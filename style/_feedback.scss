@@ -23,18 +23,27 @@
 // **No thin or light font weights in this flow.** They smear in glare, which is
 // the exact condition it is designed for.
 
+@use "palette";
+
 $fb-tap: 60px;
 $fb-gap: 16px;
 $fb-radius: 12px;
 
-// Pinned rather than inherited, so the flow cannot be swept into a future dark
-// theme. See the header.
-$fb-bg: $white;
-$fb-ink: $neutral-21;
+// PINNED FOR REAL AS OF 2026-08-24, when the dark theme the header anticipated
+// actually arrived. These were `$white` and `$neutral-21`, which read as pinned
+// and were not: every token became a `var()` reference that afternoon, so an
+// alias would have followed the scheme into dark like everything else and this
+// flow would have gone dark in sunlight without a single line changing here.
+//
+// `palette.light()` reads the DEFAULT LIGHT value of a token directly out of the
+// palette, bypassing the custom property. It exists for this surface and has no
+// other caller.
+$fb-bg: palette.light("white");
+$fb-ink: palette.light("neutral-21");
 // $neutral-43 on white is about 6.4:1 — short of the 7:1 target, so helper text
 // uses the body ink at a smaller size instead of a lighter gray. That is the
 // "no gray-on-gray" rule in practice.
-$fb-line: $neutral-88;
+$fb-line: palette.light("neutral-88");
 
 .feedback-flow {
   background: $fb-bg;

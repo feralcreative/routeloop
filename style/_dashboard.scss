@@ -35,7 +35,7 @@
   --viz-cat-2: #{$detour};
   --viz-cat-3: #{$interstate};
   --viz-ink-muted: #{$neutral-50};
-  --viz-grid: #{color.adjust($grey, $lightness: 6%)};
+  --viz-grid: #{$grey-l6};
   --viz-track: #{$neutral-94};
 }
 

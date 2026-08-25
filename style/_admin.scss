@@ -85,7 +85,7 @@
   color: $ink-dark;
 
   &:hover {
-    background: color.adjust($gpx, $lightness: 8%);
+    background: $gpx-l8;
   }
 }
 
@@ -93,7 +93,7 @@
   background: $kml;
 
   &:hover {
-    background: color.adjust($kml, $lightness: -8%);
+    background: $kml-d8;
   }
 }
 
@@ -105,7 +105,7 @@
 // ink pairing does not apply — they need a darkened step either way.
 .pill.is-active {
   background: rgba($gpx, 0.15);
-  color: color.adjust($gpx, $lightness: -14%);
+  color: $gpx-d14;
 }
 
 .pill.is-pending {
@@ -115,12 +115,12 @@
 
 .pill.is-blocked {
   background: rgba($kml, 0.14);
-  color: color.adjust($kml, $lightness: -6%);
+  color: $kml-d6;
 }
 
 .pill.is-manager {
   background: rgba($brand, 0.14);
-  color: color.adjust($brand, $lightness: -6%);
+  color: $brand-d6;
 }
 
 // The admin overview. Four destinations, each with the one fact worth knowing

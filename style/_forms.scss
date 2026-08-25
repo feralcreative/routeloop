@@ -111,7 +111,7 @@
     // not carrying anything.
     &.is-over {
       border-color: $url;
-      background: color.adjust($url, $lightness: 52%);
+      background: $url-l52;
     }
   }
 
@@ -162,7 +162,7 @@
       padding: 0.2rem 0;
 
       + .plan-row {
-        border-top: 1px solid color.adjust($grey, $lightness: 6%);
+        border-top: 1px solid $grey-l6;
       }
     }
 
@@ -238,7 +238,7 @@
       overflow-x: auto;
       padding: 0.5rem 0.6rem;
       border-radius: 6px;
-      background: color.adjust($grey, $lightness: 6%);
+      background: $grey-l6;
 
       code {
         white-space: nowrap;
@@ -383,13 +383,13 @@
   border-radius: 8px;
   background: rgba($gpx, 0.12);
   border: 1px solid rgba($gpx, 0.35);
-  color: color.adjust($gpx, $lightness: -12%);
+  color: $gpx-d12;
   font-weight: 600;
 
   &.is-error {
     background: rgba($kml, 0.1);
     border-color: rgba($kml, 0.35);
-    color: color.adjust($kml, $lightness: -8%);
+    color: $kml-d8;
   }
 }
 
@@ -475,7 +475,7 @@ h1 + .transfer-head {
 
 .export-btn {
   padding: 0.15rem 0.45rem;
-  background: color.adjust($grey, $lightness: 8%);
+  background: $grey-l8;
   border-radius: 5px;
   color: $text;
   font-size: 0.78rem;
