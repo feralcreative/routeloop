@@ -45,8 +45,10 @@ function fmtDuration(seconds: number): string {
 // fmtClock and fmtDate used to live here with a hardcoded 'en-US'. They are in
 // src/views/date-format.ts now and take the rider's format, because this is the
 // one page that gets PRINTED and carried — a rider who plans a day in 24/08 and
-// prints a sheet saying 08/24 is reading two different products. UTC is still
-// what both read in, for the reason stated in that file.
+// prints a sheet saying 08/24 is reading two different products. Both still read
+// in UTC, which is now the right answer rather than a workaround: a day's clock
+// is a wall clock at the departure point, carried as UTC. See that file, and the
+// header of public/js/day-clock.js.
 
 const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(' · ')
 

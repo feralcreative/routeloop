@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-24 (later)
-**Branch:** `fix/map-mechanics`, six commits ahead of `main`, **clean tree, nothing pushed**. **1,218 tests across 51 files** (2 skipped, 1,220 total)
+**Updated:** 2026-08-24 (later still)
+**Branch:** `fix/map-mechanics`, seven commits ahead of `main` and **pushed**, plus the uncommitted wall-clock change below. **1,240 tests across 52 files** (2 skipped, 1,242 total)
 **Closes, since the last update:** nothing on the tracker—both POI changes were raised directly and neither has an issue. Before them, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
 
@@ -9,7 +9,7 @@
 
 ## Switching machines—read this first
 
-**Nothing is pushed.** Six commits sit on `fix/map-mechanics` locally:
+**The seven commits below are pushed**; what is not is the wall-clock change described further down. Also merged since the last update: [#110](https://github.com/feralcreative/routeloop/pull/110), the thumbnails and alpha-modal docs. Seven commits sit on `fix/map-mechanics`:
 
 | Commit | What |
 | --- | --- |
@@ -28,9 +28,9 @@
 
 **Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
 
-## Open, and the biggest one is a real bug
+## Open
 
-**The roadbook prints times shifted by the rider's UTC offset.** `days.start_at` is `timestamp with time zone`, so 9am Pacific is stored `16:00+00` correctly—and the roadbook renders it with `timeZone: 'UTC'` and prints **4:00 PM**, while the builder's timeline reads 9:00 AM from the viewer's zone. Same day, seven hours apart. Pre-existing, unchanged by any commit above, and deliberately not patched: UTC rendering is right for a naive `timestamp` and wrong for a `timestamptz`, and the actual gap is that nothing stores WHICH zone a day's 9am is in. Three ways out, all decisions rather than fixes—render in the viewer's zone, add a zone column, or move to naive wall-clock with a data migration.
+**The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
 
 **Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
 
@@ -51,6 +51,28 @@
 **0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## A time is a time is a time—2026-08-24
+
+**Reported as: the roadbook prints 4:00 PM for a day the builder shows as 9:00 AM.** Ziad's call, after three rounds of options were put and rejected: **a time is a time is a time at the departure point.** A rider who plans a 9am departure means 9am where the bike is, whether they planned it from home, from a hotel two states over, or from London a fortnight before flying out. Nothing in the app converts a day's clock into anyone's local time, ever.
+
+**The value is a WALL CLOCK, carried as UTC.** 9am rides in as `2026-08-24T09:00:00.000Z`, `days.start_at` stores `09:00+00`, and every surface reads it back with `timeZone: 'UTC'`. Three of those already did—the roadbook, the export filename, the import preview—as a workaround for this exact bug. They did not change; what they are handed did.
+
+**Two options were rejected on the way and the reasons are worth keeping.** A `days.tz` column storing the planned zone was chosen first and then reversed: it makes 9am correct but leaves the builder's own field showing a converted time, so the two surfaces still disagree for a traveling rider. Rendering in the viewer's zone was rejected outright—a shared California ride would print London times.
+
+**The columns stay `timestamptz` although the values are now naive, and that was measured rather than assumed.** node-postgres parses `timestamp without time zone` in the PROCESS's zone: a stored `09:00` read back on a Pacific machine comes out `16:00Z`, so a real `timestamp` would make the app's behavior depend on `TZ` being set, silently and differently in dev and in the container. `timestamptz` round-trips the exact digits with no type parser and no environment dependency. **The type is a carrier, not a claim about an instant**—that sentence is in the schema comment for the next person.
+
+**A second live bug fell out of the same change.** The stop-details editor wrote a check-in with the browser's offset and read it back by slicing the first 16 characters off the ISO string, so a 3pm check-in typed in California was stored as 22:00 and reloaded into the field as 10pm. Both ends go through the new module now.
+
+**What changed:** `public/js/day-clock.js` is new and is the only place the conversion happens—a ninth pure client helper, `eval`'d by `test/day-clock.test.ts` (22 assertions). `builder.js` delegates its three time functions to it, `ride-time.js` and `map-common.js` format in UTC, and the comments in `date-format.ts`, `roadbook.tsx`, `filename.ts` and `schema.ts` now state the rule instead of apologizing for it. No schema change and no migration file.
+
+**The test forces the process into `America/Los_Angeles` and asserts that it did.** CI runs at UTC, where the code this replaced passes every one of those assertions. If that guard ever fails, fix the zone rather than deleting the check.
+
+**OWED, AND IT IS THE SECOND SILENT DATA MIGRATION IN TWO DAYS.** Every `days.start_at` written before this holds an instant, not a wall clock, so existing rides print hours out and nothing rejects them. `npx tsx utils/shift-days-to-wall-clock.ts --zone America/Los_Angeles --dry-run` reports; without the flag it un-applies the offset across `days` and `point_details`. **It is not idempotent**—a shifted row is indistinguishable from an unshifted one—so it runs exactly once, after a `db-backup`. The local dry run reads two days, `2026-09-12 15:30+00` becoming `08:30+00`.
+
+**Owed: a browser pass**, on the day time fields, the timeline readout, the roadbook, and a stop's check-in and check-out.
+
+**Deliberately not changed:** the account page and the dashboard still render `created_at` and `purge_after` in UTC. Those are real instants rather than wall clocks, and nothing about this decision touches them.
 
 ## A POI is on the route—2026-08-24
 

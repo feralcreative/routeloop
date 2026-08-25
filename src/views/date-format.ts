@@ -65,14 +65,20 @@ export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: stri
   { id: 'en-CA', label: 'Year first (ISO)', example: '2026-08-24, 9:05 a.m.' },
 ]
 
-// UTC, EVERYWHERE IN THIS FILE, and it is not a shortcut.
+// UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a
+// workaround — which is what it used to be.
 //
-// `days.start_at` holds the wall-clock time the rider typed, and the roadbook has
-// always rendered it with `timeZone: 'UTC'` so that 9am stays 9am — see the note
-// in AGENTS.md about the export filename being parsed the same way. Reading it in
-// the SERVER's zone would shift every printed time by the offset between the
-// server and the rider, which on a NAS in one timezone and a rider in another is
-// a roadbook that is wrong by hours.
+// A DAY'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT. Ziad's call, 2026-08-24:
+// a time is a time is a time at the departure point. A rider who plans a 9am
+// departure means 9am where the bike is, whether they planned it from home or
+// from London two weeks before flying out — so nothing converts it into anyone's
+// local time, ever. The value rides in as though it were UTC (see the header of
+// public/js/day-clock.js, which is the only place that conversion happens), so
+// reading it back as UTC returns the digits the rider typed.
+//
+// Until that call this file rendered UTC over a value the builder had stored in
+// the BROWSER's zone, which is why 9am Pacific printed as 4:00 PM. The formatters
+// did not change; what they are handed did.
 const UTC = { timeZone: 'UTC' } as const
 
 /** 8/24/2026 · 24/08/2026 · 2026-08-24 */

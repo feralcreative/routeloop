@@ -598,6 +598,18 @@ export const days = pgTable(
     position: smallint('position').notNull(), // 0-based order within the ride
     title: varchar('title', { length: 150 }).notNull().default(''),
     color: varchar('color', { length: 7 }).notNull().default('#0000cc'),
+    // A WALL CLOCK AT THE DEPARTURE POINT, CARRIED AS UTC — not an instant.
+    // Ziad's call, 2026-08-24: a time is a time is a time at the departure
+    // point, so a 9am departure is 9am where the bike is and nothing converts it
+    // into anyone's local time. `public/js/day-clock.js` is the only place the
+    // conversion between this and an input field happens; read its header first.
+    //
+    // The type stays `timestamptz` even though the value is now naive, and that
+    // is measured rather than assumed: node-postgres parses `timestamp without
+    // time zone` in the PROCESS's zone, so a stored 09:00 read back on a Pacific
+    // machine comes out 16:00Z and the app's behavior depends on `TZ`.
+    // `timestamptz` round-trips the exact digits in both directions with no type
+    // parser and no environment dependency. The type is a carrier, not a claim.
     startAt: timestamp('start_at', { withTimezone: true }),
     endAt: timestamp('end_at', { withTimezone: true }),
     distanceM: integer('distance_m').notNull().default(0),
@@ -743,9 +755,9 @@ export const pointDetails = pgTable(
       .notNull()
       .references(() => rides.id, { onDelete: 'cascade' }),
     uid: varchar('uid', { length: 12 }).notNull(),
-    // Reservation and arrival. checkInAt/checkOutAt are timestamptz where
-    // days.start_at is too — a hotel check-in is a wall-clock moment in a place,
-    // and the roadbook already renders that column with an explicit timeZone.
+    // Reservation and arrival. checkInAt/checkOutAt follow days.start_at exactly
+    // — a hotel check-in is a wall-clock moment in a place, carried as UTC for
+    // the reasons stated on that column.
     confirmation: varchar('confirmation', { length: 120 }),
     checkInAt: timestamp('check_in_at', { withTimezone: true }),
     checkOutAt: timestamp('check_out_at', { withTimezone: true }),

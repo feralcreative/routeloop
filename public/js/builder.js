@@ -2125,28 +2125,12 @@
 
   // --- Times ----------------------------------------------------------------
 
-  // <input type="datetime-local"> has no timezone: it reads and writes wall
-  // clock, which the platform parses as the builder's own zone. That is the
-  // zone we store from, so a ride planned in California reads back in
-  // California time even for its Nevada legs. A per-ride timezone is the real
-  // fix and is deliberately out of scope here.
-  const pad = (n) => String(n).padStart(2, "0");
-
-  function isoToLocalInput(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return (
-      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
-      "T" + pad(d.getHours()) + ":" + pad(d.getMinutes())
-    );
-  }
-
-  function localInputToIso(value) {
-    if (!value) return null;
-    const d = new Date(value); // no offset in the string—parsed as local time
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
-  }
+  // A DAY'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT and nothing converts
+  // it into the browser's zone — see the header of public/js/day-clock.js for
+  // the rule and for how the value is carried. These three are that file, kept
+  // here as thin names because the call sites read better for it.
+  const isoToLocalInput = (iso) => window.TBDayClock.isoToInput(iso);
+  const localInputToIso = (value) => window.TBDayClock.inputToIso(value);
 
   // The hour a fresh day is assumed to start. Only ever a seed — the rider
   // edits it, and nothing derives from it beyond the first suggestion.
@@ -2154,19 +2138,8 @@
 
   // Where a new day's start comes from: the first DAY_START_HOUR o'clock
   // strictly after the previous day ends. For a day finishing in the evening
-  // that is simply the next morning. Anchoring on the end *instant* rather than
-  // on its calendar date also keeps a day that runs past midnight sane — "the
-  // morning after the end date" would skip a day for a ride that finishes at
-  // 2am, this does not.
-  function nextMorningAfter(iso) {
-    if (!iso) return null;
-    const end = new Date(iso);
-    if (Number.isNaN(end.getTime())) return null;
-    const start = new Date(end);
-    start.setHours(DAY_START_HOUR, 0, 0, 0);
-    if (start <= end) start.setDate(start.getDate() + 1);
-    return start.toISOString();
-  }
+  // that is simply the next morning.
+  const nextMorningAfter = (iso) => window.TBDayClock.nextMorningAfter(iso, DAY_START_HOUR);
 
   const derivedEndIso = (day) =>
     day.startAt ? new Date(new Date(day.startAt).getTime() + dayElapsedS(day) * 1000).toISOString() : null;
@@ -2511,9 +2484,12 @@
   // reformatting: the stored value already IS local wall-clock for the place the
   // stop is in, and round-tripping it through a Date would re-interpret it in
   // the browser's zone and shift it.
-  function toLocalInput(iso) {
-    return iso ? String(iso).slice(0, 16) : "";
-  }
+  // A check-in is a wall clock in a place, exactly like a day's start — see the
+  // header of public/js/day-clock.js. This used to slice the first 16 characters
+  // off the ISO string while the WRITE path below attached the browser's offset,
+  // so a 3pm check-in typed in California was stored as 22:00 and read back into
+  // the field as 10pm. Both ends go through the same module now.
+  const toLocalInput = (iso) => window.TBDayClock.isoToInput(iso);
 
   function detailsHtml(point, kind, i) {
     const d = point.details || blankDetails();
@@ -2878,12 +2854,10 @@
           const link = point.details.links[n];
           if (link) link[field === "linkLabel" ? "label" : "url"] = e.target.value;
         } else if (field === "checkInAt" || field === "checkOutAt") {
-          // datetime-local gives back "YYYY-MM-DDTHH:MM" with no zone. The
-          // column is timestamptz and the payload is validated as an ISO string
-          // WITH an offset, so a zone has to be attached — and it has to be the
-          // browser's, because that is the only one this control knows about. A
-          // bare "Z" would silently move a 3pm check-in by the rider's offset.
-          point.details[field] = e.target.value ? new Date(e.target.value).toISOString() : null;
+          // The digits the rider typed, carried as UTC. Attaching the BROWSER's
+          // offset here is what the old version did, and it is the thing that
+          // moved a 3pm check-in by seven hours.
+          point.details[field] = window.TBDayClock.inputToIso(e.target.value);
         } else {
           point.details[field] = e.target.value;
         }

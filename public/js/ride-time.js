@@ -182,6 +182,10 @@
     return { dayIndex: null, legIndex: null, pointIndex: null };
   }
 
+  // UTC, because a day's clock is a WALL CLOCK at the departure point and is
+  // carried as UTC — see the header of public/js/day-clock.js. Formatting in the
+  // browser's zone is what made the timeline and the printed roadbook disagree
+  // by the viewer's offset.
   const fmtMoment = (s) =>
     new Date(s * 1000).toLocaleString(undefined, {
       weekday: "short",
@@ -189,6 +193,7 @@
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      timeZone: "UTC",
     });
 
   window.TBTime = {

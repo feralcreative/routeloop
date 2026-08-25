@@ -844,13 +844,19 @@
     );
   }
 
-  // The stored value is an instant; the rider wants the wall clock where the
-  // stop is. Rendered in the browser's zone, which is the same assumption the
-  // datetime-local control in the builder makes when it writes one.
+  // The stored value is the wall clock where the stop is, carried as UTC — see
+  // the header of public/js/day-clock.js. So UTC is what reads it back, and the
+  // rider sees the digits they typed wherever they are standing.
   function fmtStamp(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return d.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+    });
   }
 
   // Inline the tooltip's icon (same currentColor trick as the markers).
