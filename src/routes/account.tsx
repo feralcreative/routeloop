@@ -14,6 +14,8 @@ import { ArchiveTooLargeError, buildAccountArchive } from '../account/export'
 import { checkCanDelete, cancelDeletion, requestDeletion } from '../account/service'
 import { confirmsDeletion, daysUntilPurge, DELETION_HOLD_DAYS, REFUSAL_MESSAGES } from '../account/policy'
 import { page } from '../views/layout'
+import { fmtDateFull } from '../views/date-format'
+import { dateFormatFor } from '../views/prefs'
 
 export const accountRoutes = new Hono<AuthEnv>()
 
@@ -23,8 +25,10 @@ export const accountRoutes = new Hono<AuthEnv>()
 // problem. Three an hour is well past any honest use.
 const DOWNLOAD_LIMIT = { max: 3 }
 
-const fmtDate = (d: Date): string =>
-  d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+// fmtDate lived here with a hardcoded 'en-US'. It is fmtDateFull in
+// src/views/date-format.ts now and takes the rider's format. This one sentence is
+// the deletion deadline, which is the last date in the app anybody should have to
+// read twice.
 
 // --- Download Me -----------------------------------------------------------
 
@@ -151,18 +155,19 @@ accountRoutes.post('/account/delete', requireActive, requireSameOrigin, async (c
 
 // Where requireActive sends a leaving rider. On requireAuth so that redirect
 // cannot loop back into itself.
-accountRoutes.get('/account/gone', requireAuth, (c) => {
+accountRoutes.get('/account/gone', requireAuth, async (c) => {
   const user = currentUser(c)
   if (!user.deletionRequestedAt) return c.redirect('/settings', 302)
 
   const days = daysUntilPurge(user, new Date())
+  const dateFormat = await dateFormatFor(c)
 
   const body = (
     <>
       <h1>Your account is scheduled for deletion</h1>
       <p class="lede">
         {user.purgeAfter
-          ? `Everything you have here will be destroyed on ${fmtDate(user.purgeAfter)} — ${days} ${
+          ? `Everything you have here will be destroyed on ${fmtDateFull(user.purgeAfter, dateFormat)} — ${days} ${
               days === 1 ? 'day' : 'days'
             } from now.`
           : 'Everything you have here is scheduled to be destroyed.'}

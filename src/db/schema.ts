@@ -41,6 +41,16 @@ export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
 // public/js/duration.js; keep the three members here in step with the array
 // there, which test/duration.test.ts also pins.
 export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
+// How a DATE and a clock are written, per rider. Same arrangement as the enum
+// above: a display layer over storage that is untouched by it — days.start_at
+// stays a timestamp, ride.json stays ISO, every export is unaffected.
+//
+// The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
+// does the formatting and the clock and the number grouping follow the date order
+// instead of needing their own setting. Canonical metadata and the formatters
+// live in src/views/date-format.ts; keep these three in step with the array
+// there, which test/date-format.test.ts pins.
+export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -264,6 +274,11 @@ export const userProfiles = pgTable('user_profiles', {
   // reader would otherwise have to answer "null means what?" and they would not
   // all answer the same way.
   durationFormat: durationFormatEnum('duration_format').notNull().default('hours'),
+  // Defaulted rather than nullable for the same reason as durationFormat above:
+  // no third state for every reader to interpret differently. The signup path
+  // seeds it from Accept-Language, so the default is what a rider gets only when
+  // the header says nothing useful.
+  dateFormat: dateFormatEnum('date_format').notNull().default('en-US'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

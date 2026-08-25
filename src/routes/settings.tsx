@@ -21,6 +21,8 @@ import { DELETION_HOLD_DAYS } from '../account/policy'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { DURATION_FORMAT_CHOICES, toDurationFormat } from '../maps/duration'
+import { DATE_FORMAT_CHOICES, fromAcceptLanguage, toDateFormat } from '../views/date-format'
+import { dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
 
 export const settingsRoutes = new Hono<AuthEnv>()
@@ -39,9 +41,11 @@ async function durationFormatFor(userId: number) {
 settingsRoutes.get('/settings', requireActive, async (c) => {
   const user = currentUser(c)
   const savedQuery = c.req.query('saved')
-  const saved = savedQuery !== undefined && savedQuery !== 'duration'
+  const saved = savedQuery !== undefined && savedQuery !== 'duration' && savedQuery !== 'dates'
   const savedDuration = savedQuery === 'duration'
+  const savedDates = savedQuery === 'dates'
   const durationFormat = await durationFormatFor(user.id)
+  const dateFormat = await dateFormatFor(c)
 
   const body = (
     <>
@@ -92,6 +96,43 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
         <p class="setting-note">
           Whichever you pick, the field understands the others: type <code>90m</code>, <code>1.5h</code>,{' '}
           <code>1h 30m</code> or <code>1:30</code> and it will take all four.
+        </p>
+      </section>
+
+      <section class="setting" id="dates">
+        <h2>Dates and times</h2>
+        <p>
+          Which way round a date reads, and whether a clock runs to twelve or twenty-four. This changes the writing and
+          not the times themselves — your days start when they always did, and every export is unaffected.
+        </p>
+
+        <form method="post" action="/settings/date-format" class="setting-form">
+          <fieldset class="choice-set">
+            <legend class="visually-hidden">Date format</legend>
+            {DATE_FORMAT_CHOICES.map((choice) => (
+              <label class="choice">
+                <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
+                <span class="choice-label">{choice.label}</span>
+                {/* The same instant in all three, which is the question being
+                    asked. The clock comes along with the date order — day-first
+                    locales run to twenty-four. */}
+                <span class="choice-example">
+                  reads <b>{choice.example}</b>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <div class="setting-actions">
+            <button type="submit" class="btn btn-sign arrow-right arrow-n">
+              Save
+            </button>
+            {savedDates ? <span class="form-ok">Saved</span> : null}
+          </div>
+        </form>
+
+        <p class="setting-note">
+          The builder's own date fields already follow your browser, whatever this says — that part is your operating
+          system's business and not ours. This is for the printed roadbook and the pages we render ourselves.
         </p>
       </section>
 
@@ -167,9 +208,22 @@ settingsRoutes.post('/settings/duration-format', requireActive, requireSameOrigi
   // to that is the same as the answer to a missing profile row.
   const durationFormat = toDurationFormat(body.durationFormat)
 
+  // dateFormat is seeded ON INSERT ONLY, and is absent from the update set.
+  //
+  // Profile rows are created lazily, right here, so a rider saving a DURATION
+  // preference is often the moment their first row appears — and the column's
+  // default would stamp 'en-US' over whatever Accept-Language had been giving
+  // them for free. Seeding from the header keeps what they were already seeing.
+  // Leaving it out of `set` is what stops this handler overwriting a date choice
+  // they made deliberately.
   await db
     .insert(userProfiles)
-    .values({ userId: user.id, durationFormat, updatedAt: new Date() })
+    .values({
+      userId: user.id,
+      durationFormat,
+      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      updatedAt: new Date(),
+    })
     .onConflictDoUpdate({
       target: userProfiles.userId,
       set: { durationFormat, updatedAt: new Date() },
@@ -177,4 +231,27 @@ settingsRoutes.post('/settings/duration-format', requireActive, requireSameOrigi
 
   // Redirect rather than re-render so a refresh cannot resubmit.
   return c.redirect('/settings?saved=duration#stop-durations', 303)
+})
+
+settingsRoutes.post('/settings/date-format', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  // Same contract as the duration handler: anything unrecognised lands on the
+  // default rather than 400ing, because the only way to send a bad value is to
+  // hand-craft the request.
+  const dateFormat = toDateFormat(body.dateFormat)
+
+  // durationFormat is NOT in the update set here, mirroring the handler above —
+  // each preference writes only itself, so saving one cannot revert the other.
+  // The insert has to supply it because the column is NOT NULL, and the value it
+  // supplies is that column's own default.
+  await db
+    .insert(userProfiles)
+    .values({ userId: user.id, dateFormat, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: userProfiles.userId,
+      set: { dateFormat, updatedAt: new Date() },
+    })
+
+  return c.redirect('/settings?saved=dates#dates', 303)
 })
