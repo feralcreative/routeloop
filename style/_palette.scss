@@ -30,6 +30,7 @@
 // ramp broadly alone, because that is what those themes are FOR.
 @use "sass:color";
 @use "sass:map";
+@use "sass:math";
 
 // --- The neutral ramp, which is the scheme axis ------------------------------
 //
@@ -80,9 +81,17 @@ $-signs-default: (
 // pairs that only just clear 4.5:1 today. The white-legend fields darken, the
 // black-legend fields lighten — which is the ink-pairing table applied as
 // arithmetic rather than a general "more saturated".
+//
+// **$detour AND $go WERE DARKENED HERE AND BOTH TAKE A BLACK LEGEND**, so the
+// "high contrast" theme shipped them at 3.31:1 and 3.88:1 where the DEFAULT
+// theme has them at 6.59:1 and 7.39:1 — the theme named for legibility was the
+// least legible of the three on those two fields. Corrected 2026-08-25 by the
+// measured audit (test/palette-contrast.test.ts), which is exactly the class of
+// mistake the values being "reasoned rather than measured" was hiding: the rule
+// two lines above was right and the arithmetic went the other way.
 $-signs-contrast: (
-  "interstate": #14402f, "speed": #ffffff, "stop": #b00000, "detour": #a83c00,
-  "warning": #ffc94d, "yield": #ffe94d, "go": #1f7a2b, "disabled": #043a72,
+  "interstate": #14402f, "speed": #ffffff, "stop": #b00000, "detour": #ff7e29,
+  "warning": #ffc94d, "yield": #ffe94d, "go": #57c063, "disabled": #043a72,
   "recreation": #3d2708, "tarmac": #1a0d04,
 );
 
@@ -99,16 +108,55 @@ $-signs-contrast: (
 // alone. The audit of where color is the ONLY cue — and giving each of those a
 // shape, an icon, a label or a weight — is a separate piece of work, and this
 // theme is a lie until it is done.
+//
+// **THE INK PAIRING IS INVARIANT AND THESE TWO BROKE IT.** The pair started as
+// the Okabe-Ito vermillion (#d55e00) and blue (#0072b2), which separate on
+// blue-yellow exactly as intended — and land on the WRONG SIDE of the legend
+// table: the vermillion is light enough that white ink on it measured 3.87:1,
+// and the blue is dark enough that black ink on it measured 4.05:1. Both are
+// backwards from every other palette.
+//
+// That could have been fixed by making the ink table theme-dependent, and must
+// not be: `$ink-light` and `$ink-dark` are referenced directly by dozens of
+// rules, so a field whose legend changes with the theme means every button
+// variant has to know which theme is active. The colors moved instead — the
+// vermillion darkened 6% and the blue lightened 7%, which keeps both on the
+// blue-yellow axis and puts each back under its own legend. Measured 2026-08-25.
 $-signs-colorblind: (
-  "interstate": #1f5c7a, "speed": #efefef, "stop": #d55e00, "detour": #e69f00,
-  "warning": #cc8400, "yield": #f0e442, "go": #0072b2, "disabled": #004c99,
+  "interstate": #1f5c7a, "speed": #efefef, "stop": #b65000, "detour": #e69f00,
+  "warning": #cc8400, "yield": #f0e442, "go": #0089d6, "disabled": #004c99,
   "recreation": #5c4033, "tarmac": #291507,
 );
 
 // A legibility derivation, signed by the scheme. Module scope rather than nested
 // inside build(): Sass has no nested functions.
+//
+// CLAMPED, because `color.adjust()` is not. Darkening the colorblind theme's blue
+// by 45% on a dark scheme took it to -3% lightness, and Sass emitted exactly that
+// — `hsl(201.6, 100%, -3.04%)`, which is out of range, which browsers clamp to
+// black. A token silently resolving to black is the failure mode this whole file
+// keeps producing, so the clamp happens here where it is visible.
 @function -adj($c, $amount, $dir) {
-  @return color.adjust($c, $lightness: $amount * $dir);
+  $l: color.channel($c, "lightness", $space: hsl) + $amount * $dir;
+  @return color.change($c, $lightness: math.clamp(0%, $l, 100%), $space: hsl);
+}
+
+/// The same hue and saturation, at an ABSOLUTE lightness.
+///
+/// For a derivation whose job is to be READ rather than to be a shade of its
+/// base. A relative step assumes the base sits where it did in the default
+/// palette, and the moment a theme moves that base the step lands somewhere else:
+/// the high-contrast theme lightened $warning, correctly, because it is a
+/// black-legend field — and $pending, which is `-20%` from it, came out at
+/// **2.24:1 on white**. Amber text was least legible in the theme named for
+/// legibility, and nothing said so.
+///
+/// A target does not have that failure mode: whatever the theme does to the
+/// field, the text derived from it lands on the same lightness and therefore near
+/// enough the same ratio. The default palette is unchanged by the switch — 30%
+/// and 28% are exactly where -20% and -22% already put it.
+@function -tone($c, $lightness) {
+  @return color.change($c, $lightness: $lightness, $space: hsl);
 }
 
 @function -signs($theme) {
@@ -136,6 +184,11 @@ $-signs-colorblind: (
   $dir: 1;
   $panel-bg: rgba(255, 255, 255, 0.9);
   $panel-shadow: rgba(0, 0, 0, 0.18);
+  // Where the two amber TEXT tokens land, as an absolute lightness — see -tone().
+  // $label is the more extreme of the two in both directions, which is what makes
+  // it the token for a label sitting on a $pending tint.
+  $pending-l: 30%;
+  $label-l: 28%;
   @if $dark {
     $n: $-neutrals-dark;
     $white: map.get($n, 98);
@@ -146,6 +199,8 @@ $-signs-colorblind: (
     // the floating map panel takes the page's own near-black at the same opacity.
     $panel-bg: rgba(10, 14, 17, 0.9);
     $panel-shadow: rgba(0, 0, 0, 0.5);
+    $pending-l: 70%;
+    $label-l: 72%;
   }
 
   // The semantic layer, unchanged in shape from what _tokens.scss always had.
@@ -154,7 +209,22 @@ $-signs-colorblind: (
   $warning: map.get($s, "warning");
   $disabled: map.get($s, "disabled");
   $interstate: map.get($s, "interstate");
+
+  // **THE LINK IS NOT THE SIGN FIELD, AND ON A DARK PAGE THEY CANNOT BE THE SAME
+  // VALUE.** $disabled is the blue of an accessible-parking sign: it is a FIELD,
+  // it carries a white legend, and it is dark by design. $url is TEXT on the
+  // page. Those two requirements agree on a white page and are opposites on a
+  // near-black one — the dark scheme shipped links at 2.52:1 on the default
+  // palette and 1.71:1 on high contrast, which is unreadable, and nothing said
+  // so because both were the same token.
+  //
+  // Lifting only the link keeps one authored blue per theme. $disabled itself
+  // does not move: a sign field is scheme-invariant, which is the finding this
+  // whole file turns on. Found by the measured audit, 2026-08-25.
   $url: $disabled;
+  @if $dark {
+    $url: color.adjust($disabled, $lightness: 30%);
+  }
   $grey: map.get($n, 88);
   $text: map.get($n, 21);
 
@@ -168,7 +238,16 @@ $-signs-colorblind: (
   // **The trap is assuming that makes the contrast symmetric. It does not.**
   // +20% on a dark ground and -20% on a light one land on different ratios, so
   // all six palettes need their figures measured rather than inferred from the
-  // light ones. That measurement is owed and is not done here.
+  // light ones.
+  //
+  // THAT MEASUREMENT IS NO LONGER OWED AND IS NO LONGER A COMMENT.
+  // `test/palette-contrast.test.ts` compiles this file and asserts every pair the
+  // app actually paints, in all six palettes: each sign field against its own
+  // legend, each field FAILING on the other one, body text and links against the
+  // page surface, and both signed derivations as text. It found four defects on
+  // the day it was written — see the notes on $-signs-contrast, $-signs-colorblind
+  // and $url. A figure written into a comment goes stale the first time somebody
+  // nudges a hue; a figure asserted there cannot.
   @return (
     // Neutrals, addressed by their L* number exactly as before.
     "neutral-21": map.get($n, 21), "neutral-29": map.get($n, 29), "neutral-36": map.get($n, 36),
@@ -210,8 +289,12 @@ $-signs-colorblind: (
     // Text on a tint of itself. Named against $warning rather than $yield
     // deliberately: the same expression against the brighter yellow lands on
     // 3.7:1 and fails. See _tokens.scss.
-    "pending": -adj($warning, -20%, $dir),
-    "label": -adj($warning, -22%, $dir),
+    //
+    // An absolute lightness rather than a step off the field, since 2026-08-25.
+    // The default palette's values are unchanged; the high-contrast theme's went
+    // from 2.24:1 to 4.71:1. See -tone() for why a step could not have worked.
+    "pending": -tone($warning, $pending-l),
+    "label": -tone($warning, $label-l),
 
     "panel-bg": $panel-bg,
     "panel-shadow": $panel-shadow,

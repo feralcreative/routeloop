@@ -108,6 +108,14 @@
       // place, and an <img> beside the field would have to be positioned over it
       // anyway. currentColor is not available inside a data URI, so the stroke is
       // the muted grey the hint is meant to be.
+      //
+      // THE BAKED GREY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND
+      // #888888 ON THE DARK ONE — one step apart, so the same literal reads as a
+      // muted glyph on either. That is luck rather than design, and luck that
+      // stops holding the moment somebody re-spaces the neutral ramp, so
+      // test/palette-contrast.test.ts measures this exact literal against the
+      // field it is drawn on in all six palettes. A data URI cannot carry a custom
+      // property; a test can carry the reason it does not need to.
       &:hover,
       &:focus {
         border-color: $grey;

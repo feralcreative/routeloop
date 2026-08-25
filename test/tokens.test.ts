@@ -3,7 +3,7 @@
 // page — it just quietly drops a token from the design system's only inventory,
 // which is the failure mode the page exists to prevent.
 import { describe, expect, it } from 'vitest'
-import { contrast, findLiterals, parseTokens } from '../src/views/tokens'
+import { contrast, findLiterals, luminance, parsePalette, parseTokens } from '../src/views/tokens'
 
 describe('parseTokens', () => {
   it('reads a plain declaration', () => {
@@ -90,5 +90,92 @@ describe('contrast', () => {
 
   it('returns null rather than a number for a value it cannot read', () => {
     expect(contrast('rgba(0, 0, 0, 0.18)', '#ffffff')).toBeNull()
+  })
+})
+
+// THE REGRESSION THAT SHIPPED SILENTLY, pinned. /brand parses _tokens.scss and
+// decides "is this a color" with a regex, and the theme engine turned every token
+// in that file into `var(--x)` — so the page went from every color the app
+// defines to none of them, on a branch whose whole subject was color, and nothing
+// failed. The values live in the compiled stylesheet now and these hold the two
+// halves together.
+describe('parsePalette', () => {
+  it('reads the default :root block', () => {
+    const p = parsePalette(':root{--stop:#dd0000;--go:#41ae4d}')
+    expect(p.get('stop')).toBe('#dd0000')
+    expect(p.get('go')).toBe('#41ae4d')
+  })
+
+  // The first block only. The other five palettes are `:root[data-theme=…]` and
+  // `:root[data-scheme=…]`, and merging them would give whichever one happened to
+  // be emitted last.
+  it('ignores the themed blocks', () => {
+    const p = parsePalette(':root{--stop:#dd0000}:root[data-theme=contrast]{--stop:#b00000}')
+    expect(p.get('stop')).toBe('#dd0000')
+    expect(p.size).toBe(1)
+  })
+
+  // A fresh clone has not run `npm run sass`, and main.min.css is gitignored.
+  // /brand renders names and comments with no swatches rather than failing.
+  it('is empty rather than throwing when there is no build', () => {
+    expect(parsePalette('').size).toBe(0)
+  })
+})
+
+describe('parseTokens against a palette', () => {
+  const palette = new Map([['stop', '#dd0000']])
+
+  it('resolves a var() reference to what a browser would paint', () => {
+    const [t] = parseTokens('$stop: var(--stop);', palette)
+    expect(t.value).toBe('#dd0000')
+    expect(t.isColor).toBe(true)
+  })
+
+  // `raw` is the honest answer to "what does the file say", and /brand shows it
+  // beside the value so the indirection is visible rather than hidden.
+  it('leaves raw exactly as written', () => {
+    const [t] = parseTokens('$stop: var(--stop);', palette)
+    expect(t.raw).toBe('var(--stop)')
+  })
+
+  it('leaves a reference alone when the palette has no such property', () => {
+    const [t] = parseTokens('$ghost: var(--ghost);', palette)
+    expect(t.value).toBe('var(--ghost)')
+    expect(t.isColor).toBe(false)
+  })
+
+  // Without a palette it behaves exactly as it did before, which is what every
+  // other test in this file relies on.
+  it('is unchanged with no palette supplied', () => {
+    const [t] = parseTokens('$stop: var(--stop);')
+    expect(t.value).toBe('var(--stop)')
+  })
+})
+
+// Sass emits `rgb(60%, 40.47%, 0%)` for anything color.adjust() produced, which
+// is every derived token in the palette. Reading only hex meant the two tokens
+// most likely to have a contrast problem were the two that could not be measured.
+describe('luminance beyond hex', () => {
+  it('reads percentage rgb the way Sass writes it', () => {
+    expect(luminance('rgb(100%, 100%, 100%)')).toBeCloseTo(1, 6)
+    expect(luminance('rgb(0%, 0%, 0%)')).toBeCloseTo(0, 6)
+  })
+
+  it('agrees with the hex form of the same color', () => {
+    expect(luminance('rgb(153, 103, 0)')).toBeCloseTo(luminance('#996700')!, 10)
+  })
+
+  // Sass writes the shortest form, so a derivation clamped to either end of the
+  // lightness scale arrives as a keyword.
+  it('reads the two keywords Sass shortens to', () => {
+    expect(luminance('black')).toBe(0)
+    expect(luminance('white')).toBeCloseTo(1, 6)
+  })
+
+  // A translucent color has no ratio without knowing what is behind it, and
+  // inventing a backdrop would put a confident wrong number on /brand.
+  it('still refuses anything with an alpha', () => {
+    expect(luminance('rgba(0, 0, 0, 0.18)')).toBeNull()
+    expect(luminance('rgb(0 0 0 / 50%)')).toBeNull()
   })
 })

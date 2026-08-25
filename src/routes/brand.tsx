@@ -18,11 +18,17 @@ import { DAY_COLORS } from '../maps/palette'
 export const brandRoutes = new Hono<AuthEnv>()
 
 // The two grounds the app actually paints text on. Measuring against anything
-// else would be theater: $white is every card, panel and input, and #f4f4f4 is
-// the chrome page ground under all of them.
-const GROUNDS = [
-  { label: 'on white', hex: '#ffffff' },
-  { label: 'on page', hex: '#f4f4f4' },
+// else would be theater: $white is every card, panel and input, and $neutral-96
+// is the chrome page ground under all of them.
+//
+// READ OUT OF THE PALETTE, not written as hexes. Under the dark scheme `--white`
+// is the page's own near-black — the token means "the page", not the color — so a
+// hardcoded #ffffff here would be measuring a surface the app does not have in
+// four of its six palettes. This page reports the DEFAULT LIGHT one; see
+// parsePalette() and the note in the body copy below.
+const GROUND_TOKENS = [
+  { label: 'on surface', token: 'white' },
+  { label: 'on page', token: 'neutral-96' },
 ]
 
 const AA = 4.5
@@ -37,9 +43,11 @@ const AA = 4.5
  * nobody reads. The number is shown either way; what it means depends on
  * whether the color is used as a foreground, which the SCSS cannot tell us.
  */
-function ratioChips(value: string): string {
-  const chips = GROUNDS.map((g) => {
-    const r = contrast(value, g.hex)
+function ratioChips(value: string, palette: ReadonlyMap<string, string>): string {
+  const chips = GROUND_TOKENS.map((g) => {
+    const ground = palette.get(g.token)
+    if (!ground) return ''
+    const r = contrast(value, ground)
     if (r === null) return ''
     const cls = r >= AA ? 'is-pass' : 'is-low'
     return `<span class="brand-chip ${cls}"><b>${r.toFixed(2)}:1</b> ${esc(g.label)}</span>`
@@ -47,7 +55,7 @@ function ratioChips(value: string): string {
   return chips.length ? `<span class="brand-chips">${chips.join('')}</span>` : ''
 }
 
-function swatch(t: Token): string {
+function swatch(t: Token, palette: ReadonlyMap<string, string>): string {
   // A value with alpha needs something behind it or it reads as opaque, so the
   // field carries a checkerboard and the color sits on top of it.
   const alpha = t.value.startsWith('rgba(')
@@ -61,7 +69,7 @@ function swatch(t: Token): string {
       <code class="brand-name">$${esc(t.name)}</code>
       <code class="brand-value">${esc(t.value)}${t.raw !== t.value ? ` <span class="brand-alias">${esc(t.raw)}</span>` : ''}</code>
       ${t.note ? `<span class="brand-note" title="${esc(t.note)}">${esc(t.note)}</span>` : ''}
-      ${ratioChips(t.value)}
+      ${ratioChips(t.value, palette)}
     </span>
   </li>`
 }
@@ -77,7 +85,7 @@ function literalRow(l: Literal): string {
 
 brandRoutes.get('/brand', requireActive, (c) => {
   const user = currentUser(c)
-  const { tokens, literals } = readTokens()
+  const { tokens, literals, palette } = readTokens()
 
   const colors = tokens.filter((t) => t.isColor)
   const others = tokens.filter((t) => !t.isColor)
@@ -95,6 +103,14 @@ brandRoutes.get('/brand', requireActive, (c) => {
       and reload — there is no copy of these values in the page itself.
     </p>
 
+    <p class="brand-sub">
+      Names and comments come from <code>style/_tokens.scss</code>; the values behind them come from the compiled
+      stylesheet, because each token there is now a <code>var()</code> reference and the numbers live in
+      <code>style/_palette.scss</code>. What you see below is the <strong>default light</strong> palette — one of six.
+      The other five are measured by <code>test/palette-contrast.test.ts</code>, which fails the build rather than
+      waiting for somebody to open this page.
+    </p>
+
     <p class="brand-summary">
       <strong>${colors.length}</strong> color tokens ·
       <strong>${DAY_COLORS.length}</strong> day colors ·
@@ -103,7 +119,7 @@ brandRoutes.get('/brand', requireActive, (c) => {
 
     <h2>Tokens</h2>
     <p class="brand-sub">In the order they appear in the file, each with the comment that explains why it exists.</p>
-    <ul class="brand-grid">${colors.map(swatch).join('')}</ul>
+    <ul class="brand-grid">${colors.map((t) => swatch(t, palette)).join('')}</ul>
 
     <h2>Day palette</h2>
     <p class="brand-sub">
