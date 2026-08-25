@@ -94,6 +94,12 @@ describe('the loader', () => {
     const supplied: Record<string, string[]> = {
       'faq.html': ['RIDING_YEARS', 'WEB_YEARS'],
       'privacy.html': ['EFFECTIVE'],
+      // No tokens, and it should stay that way: the version a rider is running
+      // is rendered by the dialog around this copy, not interpolated into it.
+      // The file is served twice — the page at /release-notes and the fragment
+      // the modal fetches — and a token would have to be supplied identically at
+      // both, which is exactly the drift this test exists to catch.
+      'release-notes.html': [],
       'terms.html': ['EFFECTIVE'],
     }
     for (const file of readdirSync('src/content')) {

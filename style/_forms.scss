@@ -487,3 +487,83 @@ h1 + .transfer-head {
     color: $white;
   }
 }
+
+// The saved-place manager on the profile. A region inside the profile form
+// rather than fields on it — every write goes through /api/places as JSON, so
+// none of these controls is part of the outer submit.
+.place-group {
+  margin-bottom: 1.25rem;
+}
+
+.place-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+  }
+}
+
+.place-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+// Name, group, address, delete. The address column is the one that collapses:
+// it is the only part a rider reads rather than edits, so it gives up its width
+// first and disappears entirely on a narrow screen.
+.place-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+
+  input,
+  select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.place-meta {
+  color: $neutral-57;
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-group-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+
+  input {
+    flex: 0 1 16rem;
+    min-width: 0;
+  }
+}
+
+//@ Narrow — the address is reference text, so it is the first thing to go.
+@media (max-width: 34rem) {
+  .place-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .place-meta {
+    display: none;
+  }
+
+  .place-row .place-group-pick {
+    grid-column: 1 / -1;
+  }
+}

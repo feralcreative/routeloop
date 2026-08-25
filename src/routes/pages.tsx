@@ -256,6 +256,14 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
 pageRoutes.get('/faq', (c) =>
   render(c, 'Questions', content('faq.html', { RIDING_YEARS, WEB_YEARS }), 'content-page faq-page'),
 )
+// The same copy in two places, from one file. The page is the no-JavaScript
+// path and the linkable URL; the fragment is what the modal fetches on first
+// open, so the notes are not on every HTML response for a dialog most riders
+// never open.
+pageRoutes.get('/release-notes', (c) =>
+  render(c, "What's new", content('release-notes.html'), 'content-page release-notes-page'),
+)
+pageRoutes.get('/api/release-notes', (c) => c.html(content('release-notes.html')))
 pageRoutes.get('/privacy', (c) =>
   render(c, 'Privacy', content('privacy.html', { EFFECTIVE: PRIVACY_EFFECTIVE }), 'content-page'),
 )

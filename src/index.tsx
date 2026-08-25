@@ -23,6 +23,8 @@ import { DOWNLOADS, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
 import { mapFilePath, thumbFilePath } from './maps/storage'
+import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
+import { placesRoutes } from './routes/places'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -168,6 +170,10 @@ app.route('/', surveyRoutes)
 // swallows them.
 app.route('/', feedbackRoutes)
 app.route('/', ridesRoutes)
+// All literal `/api/places` and `/api/place-groups` paths, so ordering against
+// the parameterized modules does not matter — mounted here to sit with the other
+// API modules rather than for any routing reason.
+app.route('/', placesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
 app.route('/', importRoutes)
@@ -199,24 +205,39 @@ app.get('/m/:slug', async (c) => {
 // The normalized public contract: everything the viewer needs, for both
 // sources, derived from structured rows only. One shape for imported and native
 // rides is what let the two shells collapse into one.
+// Attaches a stop's private details, and ONLY when the map holds any — which it
+// does only for the owner. A non-owner's stop object comes out with no `details`
+// key at all rather than `details: null`, so the public shape is exactly what it
+// was before this feature and nothing downstream has to learn a new field.
+function withDetails<T extends object>(
+  out: T,
+  p: { uid: string; durationMin: number | null },
+  details: Map<string, PointDetailsOut>,
+) {
+  const d = details.get(p.uid)
+  return d ? { ...out, durationMin: p.durationMin, details: d } : { ...out, durationMin: p.durationMin }
+}
+
 app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.json({ error: 'not found' }, 404)
 
-  const dayRows = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, m.id))
-    .orderBy(daysTable.position)
+  // Private stop details, and ONLY for the owner — detailsForViewer returns an
+  // empty map for everyone else, so a share-link viewer and a ride with nothing
+  // filled in produce byte-identical output. That is the point: whether a stop
+  // has a gate code must not itself be observable.
+  //
+  // Note this is a second query rather than a join. `point_details` is a
+  // separate table so that no `select()` over `points` can carry a confirmation
+  // number to a public viewer by accident, and joining here would give that back.
+  const details = await detailsForViewer(m.id, m.ownerId, c.get('user'))
+
+  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, m.id)).orderBy(daysTable.position)
   if (dayRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
 
   const daysOut = []
   for (const r of dayRows) {
-    const pts = await db
-      .select()
-      .from(pointsTable)
-      .where(eq(pointsTable.dayId, r.id))
-      .orderBy(pointsTable.position)
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db
       .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
@@ -300,8 +321,20 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // Both kinds carry durationMin now. A POI is still not a routing anchor,
       // but time spent at one is time spent, and the timeline has to account
       // for it — see the schedule in ride-time.js.
-      stops: pts.filter((p) => p.kind === 'stop').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
-      pois: pts.filter((p) => p.kind === 'poi').map((p) => ({ ...pointOut(p), durationMin: p.durationMin })),
+      // `details` is absent rather than null for a non-owner, so the public
+      // contract is unchanged for every viewer who was already using it.
+      //
+      // STILL TWO ARRAYS, deliberately, where the builder payload and the native
+      // JSON became one ordered list on 2026-08-23. The viewer draws markers and
+      // a timeline and never renders the points as a sequence, so the interleaved
+      // order buys it nothing — and `ride-time.js` keys its schedule off
+      // `distFromStartMi`, which both kinds still carry. Splitting here costs
+      // nothing and keeps a shipped public contract stable.
+      //
+      // The read is ordered by position, and filtering preserves relative order,
+      // so each array comes out in the rider's own order.
+      stops: pts.filter((p) => p.kind === 'stop').map((p) => withDetails(pointOut(p), p, details)),
+      pois: pts.filter((p) => p.kind === 'poi').map((p) => withDetails(pointOut(p), p, details)),
     })
   }
 
@@ -359,12 +392,18 @@ async function attachment(m: RideRow, ext: string): Promise<string> {
 app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/tankbag.json'], async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m) return c.text('Not found', 404)
-  const native = await loadNativeRide(m.id, {
-    title: m.title,
-    description: m.description,
-    visibility: m.visibility,
-    externalUrl: m.externalUrl,
-  })
+  const native = await loadNativeRide(
+    m.id,
+    {
+      title: m.title,
+      description: m.description,
+      visibility: m.visibility,
+      externalUrl: m.externalUrl,
+    },
+    // The owner's own backup carries their reservations; a stranger downloading
+    // a PUBLIC ride's native JSON gets the same file without them.
+    await detailsForViewer(m.id, m.ownerId, c.get('user')),
+  )
   if ((native.ride as { days: unknown[] }).days.length === 0) return c.text('Not found', 404)
 
   const headers: Record<string, string> = {
@@ -581,7 +620,6 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }
-
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`routeloop dev → http://127.0.0.1:${info.port}`)

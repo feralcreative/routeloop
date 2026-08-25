@@ -167,6 +167,32 @@ fi
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
+# The build's version, shown to riders in the footer and in the release-notes
+# modal. `YYYY-MM-DD-HHMMPT` — the minute HEAD's history was assembled, on the
+# clock Ziad keeps.
+#
+# Derived from the COMMIT rather than from the deploy, so redeploying the same
+# tree reports the same version — it is the same code, and a string that moved
+# would be a claim that something changed. Nothing is stored, so there is no
+# counter to get out of step with reality.
+#
+# Pacific, and the suffix says so ALOUD. A bare timestamp is read in whatever
+# zone the reader is sitting in, and a tester a few hours ahead would put the
+# build they are running in the future. `PT` rather than `PDT`/`PST` because the
+# zone database already swaps those for us and a rider does not care which half
+# of the year it is — they care that it is not their own clock.
+#
+# Committer date, not author date: a rebase rewrites the second and leaves the
+# first, and what this wants to say is when the build's history was actually
+# assembled. The zone belongs on the `git` call, because `format-local` reads TZ.
+BUILD_STAMP=$(TZ=America/Los_Angeles git show -s --format=%cd --date=format-local:%Y-%m-%d-%H%M HEAD 2>/dev/null || echo "")
+if [ -n "$BUILD_STAMP" ]; then
+  APP_VERSION="${BUILD_STAMP}PT"
+else
+  APP_VERSION="unknown"
+fi
+export APP_VERSION
+
 if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${FORCE:-}" ]; then
   if [ -n "$(git status --porcelain)" ]; then
     log_error "Working tree is dirty. Commit/stash, or pass --force."; exit 1
@@ -181,6 +207,7 @@ if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${DRY_RUN:-}" ]; then
   echo -e "${RED}${BOLD}⚠  You are about to deploy to PRODUCTION${NC}"
   echo -e "   URL    : ${BOLD}${TARGET_URL}${NC}"
   echo -e "   Commit : ${BOLD}${GIT_SHA}${NC} on ${BOLD}${GIT_BRANCH}${NC}"
+  echo -e "   Version: ${BOLD}${APP_VERSION}${NC}"
   read -r -p "Type 'yes' to continue: " CONFIRM
   [ "$CONFIRM" = "yes" ] || { log_error "Aborted."; exit 1; }
 fi
@@ -222,6 +249,8 @@ printf '%s\n' \
   "SMTP_USER=${SMTP_USER:-}" \
   "SMTP_PASS=${SMTP_PASS:-}" \
   "MAIL_FROM=${MAIL_FROM:-}" \
+  "APP_VERSION=${APP_VERSION}" \
+  "BUILD_SHA=${GIT_SHA}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,
@@ -350,6 +379,7 @@ echo ""
 echo -e "${CYAN}═══ ${PROJECT_NAME} — ${ENV_COLOR}${ENV_LABEL}${NC}${CYAN} deploy complete ═══${NC}"
 echo -e "  Target        : ${BOLD}${TARGET_URL}${NC}"
 echo -e "  Git           : ${BOLD}${GIT_SHA}${NC} (${GIT_BRANCH})"
+echo -e "  Version       : ${BOLD}${APP_VERSION}${NC}"
 echo -e "  Container     : ${CONTAINER_NAME} → 127.0.0.1:${HOST_PORT}"
 echo -e "  Build time    : $(format_time $BUILD_TIME)"
 echo -e "  Transfer time : $(format_time $TRANSFER_TIME)"

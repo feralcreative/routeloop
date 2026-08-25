@@ -16,6 +16,7 @@ import { z } from 'zod'
 import { db } from '../db/index'
 import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { newUid } from '../maps/uid'
 import {
   FORMAT_INFO,
   GPX_MAX_BYTES,
@@ -569,22 +570,20 @@ mapsRoutes.post(
             day.track.length > 0 ? distFromStartAlongTrack(day.track, ordered) : ordered.map(() => null)
 
           if (ordered.length > 0) {
-            // Stops carry a position and POIs carry null, matching what the
-            // builder writes — a POI is not a routing anchor and has no place
-            // in the stop order. So the counter advances only for stops.
-            //
-            // `ordered` puts the stops first and in ALONG-TRACK order, which is
-            // the order their legs connect them in. It is not necessarily the
-            // order they appeared in the file: GPX writes <wpt> elements at
-            // document level with nothing tying them to a track.
-            let stopPos = 0
+            // EVERY point carries a position now, both kinds, dense from 0 —
+            // matching what the builder writes. `ordered` puts the stops first
+            // and in ALONG-TRACK order, which is the order their legs connect
+            // them in, then the POIs; that concatenation IS the imported ride's
+            // order. It is not necessarily the order they appeared in the file:
+            // GPX writes <wpt> elements at document level with nothing tying
+            // them to a track.
             await tx.insert(points).values(
               ordered.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
                   dayId: dayRow.id,
                   kind: isPoi ? ('poi' as const) : ('stop' as const),
-                  position: isPoi ? null : stopPos++,
+                  position: n,
                   lat: p.lat,
                   lng: p.lng,
                   name: p.name,
@@ -592,6 +591,11 @@ mapsRoutes.post(
                   roles: p.roles,
                   durationMin: p.durationMin ?? null,
                   distFromStartM: stopDists[n],
+                  // A file from another app carries no uid, so one is minted
+                  // here. This is the second place points are inserted —
+                  // insertRideGraph is the other — and both have to mint them or
+                  // the NOT NULL fails at runtime with nothing to say why.
+                  uid: newUid(),
                 }
               }),
             )
@@ -660,10 +664,7 @@ mapsRoutes.post(
 // here: it records where the ride came from, which `source_format`, the byte
 // columns and the GTFO archive all depend on. It was never a statement about
 // what may be done with the ride.
-export function canEditRide(
-  ride: { ownerId: number },
-  viewer: { id: number; status: string } | null,
-): boolean {
+export function canEditRide(ride: { ownerId: number }, viewer: { id: number; status: string } | null): boolean {
   if (!viewer || viewer.status !== 'active') return false
   return ride.ownerId === viewer.id
 }

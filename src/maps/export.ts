@@ -13,6 +13,7 @@
 // survive a trip through KML or GPX. See the note on ExtractedPoint.kind.
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
+import type { PointDetailsOut } from './point-details'
 import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
@@ -92,11 +93,7 @@ export async function loadRideForExport(
   rideId: number,
   meta: { title: string; description: string | null },
 ): Promise<ExportRide> {
-  const allDays = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(daysTable.position)
+  const allDays = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
 
   const dayRows = activeDays(allDays)
   const hiddenAlts = allDays.length - dayRows.length
@@ -432,10 +429,15 @@ export function buildGpx(ride: ExportRide, firstDay = 1): string {
 //
 // Version 2 (2026-08-09) renamed the ride's `routes` array to `days`, following
 // the table. Version 3 (2026-08-11) renamed the version key itself from
-// `tankbag` to `routeloop` with the product. Both older shapes still import —
-// see nativeVersion and upgradeNativeRide below, which is why the version is
-// worth having at all.
-export const NATIVE_FORMAT_VERSION = 3
+// `tankbag` to `routeloop` with the product. Version 4 (2026-08-23) merged each
+// day's `stops` and `pois` into one ordered `points` array, following the
+// schema — a point is created as a POI and promoted later, so the kind became a
+// flag on an element rather than a choice of which array to put it in.
+//
+// ALL THREE OLDER SHAPES STILL IMPORT — see nativeVersion and upgradeNativeRide
+// below, which is why the version is worth having at all. Riders have v2 and v3
+// files on disk and a backup that will not restore is not a backup.
+export const NATIVE_FORMAT_VERSION = 4
 
 export type NativeRide = {
   /** Written by this app. */
@@ -464,23 +466,52 @@ export const isNativeRide = (v: unknown): v is NativeRide =>
  * Brings an older native file up to the current format, in place of the caller
  * having to know what changed between versions.
  *
- * Only one migration touches the ride payload: v1 called the array of days
- * `routes`. The rename is done here rather than by teaching `ridePayload` to
- * accept either key, because the schema also validates live builder saves — and
- * a builder that can still post `routes` is a second name kept alive forever by
- * accident, which is the thing that rename was undoing.
+ * Two migrations touch the ride payload.
  *
- * v3 changed only the envelope's version key, which `nativeVersion` already
- * absorbs, so there is nothing for this function to do about it.
+ * v1 called the array of days `routes`. The rename is done here rather than by
+ * teaching `ridePayload` to accept either key, because the schema also validates
+ * live builder saves — and a builder that can still post `routes` is a second
+ * name kept alive forever by accident, which is the thing that rename was
+ * undoing. Same reasoning for the stops/pois merge below.
+ *
+ * v3 and earlier carried each day's points as two arrays. They are concatenated
+ * STOPS FIRST, which is the order those files were written in and the order the
+ * builder displayed them in: a v3 file's POIs had no stored order at all, so
+ * there is no sequence to recover and appending them is the only honest reading.
+ * The kind is stamped explicitly rather than left to the schema default, because
+ * a v3 stop must not silently become a POI.
+ *
+ * v3 also changed only the envelope's version key, which `nativeVersion` already
+ * absorbs, so there is nothing else to do about it.
  *
  * Returns the ride payload for `ridePayload` to validate. An unrecognized or
  * newer version is not this function's problem: the caller checks that first.
  */
 export function upgradeNativeRide(file: NativeRide): object {
-  const ride = (file.ride ?? {}) as Record<string, unknown>
+  let ride = (file.ride ?? {}) as Record<string, unknown>
   if (nativeVersion(file) < 2 && Array.isArray(ride.routes) && ride.days === undefined) {
     const { routes, ...rest } = ride
-    return { ...rest, days: routes }
+    ride = { ...rest, days: routes }
+  }
+  if (nativeVersion(file) < 4 && Array.isArray(ride.days)) {
+    ride = {
+      ...ride,
+      days: ride.days.map((d) => {
+        if (typeof d !== 'object' || d === null) return d
+        const day = d as Record<string, unknown>
+        if (day.points !== undefined) return day
+        const stops = Array.isArray(day.stops) ? day.stops : []
+        const pois = Array.isArray(day.pois) ? day.pois : []
+        const { stops: _s, pois: _p, ...rest } = day
+        return {
+          ...rest,
+          points: [
+            ...stops.map((pt) => ({ ...(pt as object), kind: 'stop' })),
+            ...pois.map((pt) => ({ ...(pt as object), kind: 'poi' })),
+          ],
+        }
+      }),
+    }
   }
   return ride
 }
@@ -498,26 +529,41 @@ export function upgradeNativeRide(file: NativeRide): object {
 export async function loadNativeRide(
   rideId: number,
   meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
+  // Private stop details, already resolved for whoever is asking — an empty map
+  // for anyone but the owner.
+  //
+  // Passed in rather than looked up here, and that is the safety property: this
+  // function is reachable by a stranger, because a PUBLIC ride's native JSON is
+  // a public download. If it fetched details itself it would have to know who
+  // was asking, and the day someone forgot to tell it, every gate code in the
+  // ride would ship in the file. Defaulting to empty means forgetting fails
+  // CLOSED — the export is merely incomplete, not a leak.
+  details: Map<string, PointDetailsOut> = new Map(),
 ): Promise<NativeRide> {
-  const dayRows = await db
-    .select()
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(daysTable.position)
+  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
 
   const out = []
   for (const r of dayRows) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
 
-    const point = (p: (typeof pts)[number]) => ({
-      lat: p.lat,
-      lng: p.lng,
-      name: p.name,
-      description: p.description ?? '',
-      roles: p.roles,
-      durationMin: p.durationMin,
-    })
+    // uid rides along so a re-import reattaches details to the right stops. It
+    // is not sensitive on its own — nothing is authorized by knowing one — and
+    // without it a rider's own backup restores as a ride whose stops have all
+    // lost their reservations.
+    const point = (p: (typeof pts)[number]) => {
+      const d = details.get(p.uid)
+      return {
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        description: p.description ?? '',
+        roles: p.roles,
+        durationMin: p.durationMin,
+        uid: p.uid,
+        ...(d ? { details: d } : {}),
+      }
+    }
 
     out.push({
       title: r.title,
@@ -526,8 +572,10 @@ export async function loadNativeRide(
       endAt: r.endAt?.toISOString() ?? null,
       altGroup: r.altGroup,
       altActive: r.altActive,
-      stops: pts.filter((p) => p.kind === 'stop').map(point),
-      pois: pts.filter((p) => p.kind === 'poi').map(point),
+      // ONE ORDERED LIST as of format version 4. The read is ordered by
+      // position, which every point carries now, so the rider's own sequence is
+      // what round-trips — the thing the two-array shape could not express.
+      points: pts.map((p) => ({ kind: p.kind, ...point(p) })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,

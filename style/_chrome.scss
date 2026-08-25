@@ -43,6 +43,10 @@ h1 {
   text-decoration: underline;
 }
 
+// The flat treatment. It is no longer what a plain `.btn` looks like — see the
+// guide sign below, which claims every `.btn` that does not opt out — but it is
+// still the base every variant is built on, and it is what the opt-outs render
+// as on their own.
 .btn {
   display: inline-block;
   background: $url;
@@ -82,12 +86,29 @@ h1 {
 // and tighter on the arrow's side because its bounding box carries air the
 // glyphs of a word do not.
 //
+// **This is what a button looks like by default.** Ziad's call, 2026-08-22:
+// every `.btn` is a guide sign with an arrow at the right unless it opts out.
+// `.btn-sign` is kept as an explicit alias because it is in markup and reads as
+// intent, but it no longer turns anything on that was off.
+//
+// **What opts out, and why it is a list rather than a rule.** A variant that
+// brings its own field color or its own size is not a guide sign: a red field
+// with a white keyline is the stop treatment's job, and a compact table button
+// is mostly keyline once 3px and 5px are set inside 0.4rem of padding. Those
+// variants keep the flat `.btn` above.
+//
+// The list is spelled out instead of being inferred, so ADDING A VARIANT IS A
+// DECISION. A new `.btn-something` gets the sign until it is named here, which
+// is the failure worth having — a button that looks like the rest of the app by
+// accident is better than one that quietly leaves the house style behind.
+$btn-flat: ".btn-danger, .btn-approve, .btn-sm, .btn-quiet";
+
 // Two independent modifiers ride along:
 //
-//   .btn.btn-sign                      arrow at the left, pointing west
-//   .btn.btn-sign.arrow-right          arrow at the right, pointing east
-//   .btn.btn-sign.arrow-ne             arrow at the left, pointing northeast
-//   .btn.btn-sign.arrow-right.arrow-s  arrow at the right, pointing south
+//   .btn                      arrow at the right, pointing east
+//   .btn.arrow-left           arrow at the left, pointing west
+//   .btn.arrow-s              arrow at the right, pointing south
+//   .btn.arrow-left.arrow-ne  arrow at the left, pointing northeast
 //
 // Side and bearing are deliberately separate classes and not one .arrow-left-ne
 // per combination: there are 8 bearings on 2 sides, and a fused name means 16
@@ -122,11 +143,16 @@ $sign-arrow-bearings: (
     center / contain no-repeat;
 }
 
-.btn.btn-sign {
+.btn.btn-sign,
+.btn:not(#{$btn-flat}) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5em;
+  // The arrow sits at the RIGHT by default, by reversing the flex line rather
+  // than moving the drawing to ::after — see the note on `.arrow-left` below,
+  // which is the same mechanism run the other way.
+  flex-direction: row-reverse;
   background: $interstate;
   color: $white;
   border-radius: 10px;
@@ -151,7 +177,7 @@ $sign-arrow-bearings: (
   // node, and giving it a wrapper would cost this treatment the property worth
   // having, that adding the class is the whole job. So the padding moves the
   // whole flex line and the arrow is put back below.
-  padding: calc(0.75rem + 0.1em) 1.4rem calc(0.75rem - 0.1em) 1.05rem;
+  padding: calc(0.75rem + 0.1em) 1.05rem calc(0.75rem - 0.1em) 1.4rem;
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 0 0 3px $interstate,
@@ -193,7 +219,7 @@ $sign-arrow-bearings: (
   &::before {
     @include sign-arrow;
 
-    transform: rotate(map.get($sign-arrow-bearings, "w"));
+    transform: rotate(map.get($sign-arrow-bearings, "e"));
   }
 
   // Side, by reversing the flex line rather than moving the arrow to ::after.
@@ -204,14 +230,26 @@ $sign-arrow-bearings: (
   //
   // The horizontal padding swaps with it, so the tighter side stays the side the
   // arrow is on.
-  &.arrow-right {
-    flex-direction: row-reverse;
-    padding-right: 1.05rem;
-    padding-left: 1.4rem;
+  //
+  // This is the modifier that used to be the default, and the three buttons that
+  // relied on the old default carry it explicitly now: Download Me, Save Me, and
+  // the "Join the list" submit. They render exactly as they did.
+  &.arrow-left {
+    flex-direction: row;
+    padding-right: 1.4rem;
+    padding-left: 1.05rem;
 
     &::before {
-      transform: rotate(map.get($sign-arrow-bearings, "e"));
+      transform: rotate(map.get($sign-arrow-bearings, "w"));
     }
+  }
+
+  // A no-op alias: the arrow is already at the right. Declared rather than left
+  // to match nothing, because the class IS in markup and a class that styles
+  // nothing is indistinguishable from one whose rule was deleted by mistake —
+  // `is-quiet` on the roadbook is exactly that, and it went unnoticed.
+  &.arrow-right {
+    flex-direction: row-reverse;
   }
 
   // A pair, one at each end. This is the one case that cannot be done by
@@ -227,9 +265,18 @@ $sign-arrow-bearings: (
   //
   // Padding goes tight on both sides for the same reason it swaps above: the
   // arrow's bounding box carries air that a word's glyphs do not.
+  //
+  // It restores `flex-direction: row` explicitly, because the base now reverses
+  // the line: left alone, ::before would land on the RIGHT and ::after on the
+  // left, and the two outward bearings below would both be pointing inward.
   &.arrow-both {
+    flex-direction: row;
     padding-right: 1.05rem;
     padding-left: 1.05rem;
+
+    &::before {
+      transform: rotate(map.get($sign-arrow-bearings, "w"));
+    }
 
     &::after {
       @include sign-arrow;
@@ -239,8 +286,9 @@ $sign-arrow-bearings: (
   }
 
   // Explicit bearings, last so they beat every default above. Each is (0,3,1),
-  // the same as `.btn.btn-sign.arrow-right::before`, so it is source order and
-  // not specificity doing the work — these have to stay below it.
+  // the same as `.arrow-left::before` on either branch of the selector, so it is
+  // source order and not specificity doing the work — these have to stay below
+  // it.
   @each $name, $bearing in $sign-arrow-bearings {
     &.arrow-#{$name}::before,
     &.arrow-#{$name}::after {
@@ -519,6 +567,37 @@ a.card {
 .site-footer-note {
   margin: 0.5rem 0 0;
   color: $neutral-50;
+}
+
+// The build, on every page. A button rather than a link because it opens the
+// release-notes dialog on the page you are already on — but it is styled as the
+// running text it sits in, because a second visible control in the footer would
+// compete with the links above it for no reason. The dotted underline is the
+// only affordance it needs.
+.site-footer-version {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  // The version is hyphenated (`2026-08-23-1834PT`) and a browser will break
+  // after a hyphen given a narrow enough footer, splitting the one string a
+  // rider is meant to read off the page and quote back.
+  white-space: nowrap;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover {
+    color: $brand;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
 }
 
 .site-footer.is-splash {

@@ -639,10 +639,20 @@ export const days = pgTable(
   ],
 )
 
-// The dots (docs/ideas.md). Stops are the ordered routing anchors — not riding
-// for a while; durationMin null = no duration (ride ends). POIs are unordered
-// annotations near the day's route and never affect routing. The third dot kind
-// — ephemeral shaping waypoints — lives in route_legs.via_points, not here.
+// The dots (docs/ideas.md). EVERY point in a day is ordered — `position` is the
+// rider's own sequence and is set for both kinds. `kind` says only whether the
+// point anchors routing: a stop does and a POI does not, so legs connect
+// consecutive STOPS while POIs sit between them without bending the road.
+//
+// Ziad's call, 2026-08-23, and it replaced a model where only stops carried a
+// position and a POI's place in the list was DERIVED by projecting it onto the
+// day's track. That derivation had no answer before a route existed — every POI
+// on a trackless day reported distance 0 — and the new model needs one, because
+// a point now starts life as a POI and is promoted later. Promotion is a flag
+// flip that moves nothing.
+//
+// The third dot kind — ephemeral shaping waypoints — lives in
+// route_legs.via_points, not here.
 export const points = pgTable(
   'points',
   {
@@ -651,7 +661,8 @@ export const points = pgTable(
       .notNull()
       .references(() => days.id, { onDelete: 'cascade' }),
     kind: pointKindEnum('kind').notNull(),
-    position: smallint('position'), // stop order along the day; null for POIs
+    // The rider's order within the day, for BOTH kinds. Dense from 0.
+    position: smallint('position').notNull(),
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
@@ -662,14 +673,82 @@ export const points = pgTable(
       .default(sql`'{}'::waypoint_role[]`),
     durationMin: integer('duration_min'),
     distFromStartM: integer('dist_from_start_m'), // server-computed cumulative meters
+    // The point's DURABLE identity, and the thing `id` is not.
+    //
+    // `PUT /api/rides/:id` deletes and re-inserts every day and point on every
+    // save — a deliberate decision on 2026-08-15, and autosave makes it happen
+    // constantly. So `id` churns, and anything that referenced a point across a
+    // save would silently lose it. Rich stop details is the first feature that
+    // needs a point to keep its identity, and this is how it does: the client
+    // owns the uid, the save carries it through unchanged, and point_details is
+    // keyed by it rather than by the row id that keeps changing.
+    //
+    // Client-generated rather than server-assigned so the builder can attach
+    // details to a stop it has only just created, before any save has happened.
+    // A payload arriving without one — an old tab, a native JSON file written
+    // before this shipped, an import from another app — gets one server-side.
+    //
+    // Unique per DAY and not globally: it only ever has to disambiguate within
+    // the ride being saved, and a global unique index would make two riders
+    // importing the same file collide for no reason.
+    uid: varchar('uid', { length: 12 }).notNull(),
   },
   (t) => [
-    // Stops get distinct positions; POIs all carry null (NULLS DISTINCT).
+    // Now a real uniqueness constraint over every point in the day. It used to
+    // lean on NULLS DISTINCT so that any number of POIs could coexist carrying
+    // null; with position NOT NULL for both kinds there is nothing to except.
     uniqueIndex('uq_point_day_pos').on(t.dayId, t.position),
     index('idx_point_day').on(t.dayId),
+    uniqueIndex('uq_point_day_uid').on(t.dayId, t.uid),
     check('ck_point_roles_max4', sql`cardinality(roles) <= 4`),
-    check('ck_point_stop_pos', sql`kind <> 'stop' OR position IS NOT NULL`),
+    // ck_point_stop_pos is gone: it said "a stop must have a position", which
+    // the NOT NULL above now says about every point.
   ],
+)
+
+// The private half of a stop: reservations, confirmation numbers, gate codes,
+// check-in and check-out, phone, address, links, and freeform notes.
+//
+// A SEPARATE TABLE, and that is the load-bearing part of the whole feature.
+// `points` is what `ride.json` is built from and what every export serializes,
+// so a confirmation number stored as a column on `points` is one forgetful
+// `select()` away from a public share. Keeping it in its own table means the
+// public path cannot leak it by accident — it has to JOIN to leak it, and a
+// join is visible in review in a way an extra column in a `select *` is not.
+// Same reasoning that splits `user_profiles` from `users`.
+//
+// Keyed by (ride_id, uid) rather than by point_id, because point ids churn on
+// every save — see points.uid above. ride_id cascades, so deleting a ride takes
+// the details with it; a point deleted from a ride is cleaned up by uid at save
+// time, in src/maps/ride-graph.ts.
+export const pointDetails = pgTable(
+  'point_details',
+  {
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    uid: varchar('uid', { length: 12 }).notNull(),
+    // Reservation and arrival. checkInAt/checkOutAt are timestamptz where
+    // days.start_at is too — a hotel check-in is a wall-clock moment in a place,
+    // and the roadbook already renders that column with an explicit timeZone.
+    confirmation: varchar('confirmation', { length: 120 }),
+    checkInAt: timestamp('check_in_at', { withTimezone: true }),
+    checkOutAt: timestamp('check_out_at', { withTimezone: true }),
+    phone: varchar('phone', { length: 40 }),
+    address: varchar('address', { length: 300 }),
+    // Up to MAX_LINKS_PER_POINT {label, url} pairs — a booking link, a menu, a
+    // map. jsonb rather than three columns because which links a stop wants is
+    // a property of the stop, not of the schema, and rather than its own table
+    // because nothing ever queries across them.
+    links: jsonb('links')
+      .$type<Array<{ label: string; url: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    // "Gate code 4417, park behind the barn, ask for Dave."
+    notes: varchar('notes', { length: 2000 }),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.rideId, t.uid] }), index('idx_point_details_ride').on(t.rideId)],
 )
 
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
@@ -830,6 +909,84 @@ export const feedbackAttachments = pgTable(
   (t) => [index('idx_feedback_attachment').on(t.feedbackId)],
 )
 
+// A rider's reusable library of locations: home, the good fuel stop, the meet
+// point everyone knows. Dropped into any ride as a stop.
+//
+// **A place is COPIED into a ride, never referenced.** Ziad's call, 2026-08-21.
+// There is deliberately no `place_id` on `points`: a ride is a record of what
+// the rider planned, so renaming "Bob's Gas" or deleting it must not reach back
+// and rewrite a ride from last year. It also sidesteps the churn problem
+// entirely — points are deleted and re-inserted on every save, so a foreign key
+// from a point to a place would have to survive that, and there is no reason to
+// make it.
+//
+// The cost, stated plainly so nobody re-litigates it as a bug: fixing a badly
+// placed pin fixes it for FUTURE rides only. Rides that already copied it keep
+// the old coordinates.
+export const placeGroups = pgTable(
+  'place_groups',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ownerId: bigint('owner_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 80 }).notNull(),
+    // Rider-defined order, so a library can be arranged the way the rider
+    // thinks about it rather than alphabetically.
+    position: smallint('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uq_place_group_name').on(t.ownerId, t.name), index('idx_place_group_owner').on(t.ownerId)],
+)
+
+export const places = pgTable(
+  'places',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ownerId: bigint('owner_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // NULLABLE, and that is a usability decision rather than an omission.
+    // Requiring a group would mean inventing one before a rider can save their
+    // first place, which is friction in front of the very first use. Ungrouped
+    // is a real state and the UI shows it as its own section.
+    //
+    // `set null` on delete rather than cascade: deleting a group must not delete
+    // the places in it. Losing a rider's saved locations because they tidied up
+    // a folder name would be unforgivable and is exactly what cascade would do.
+    groupId: bigint('group_id', { mode: 'number' }).references(() => placeGroups.id, { onDelete: 'set null' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    // Same taxonomy as a point, so a saved hotel drops in already wearing the
+    // hotel icon. src/maps/roles.ts is the source of truth for both.
+    roles: waypointRoleEnum('roles')
+      .array()
+      .notNull()
+      .default(sql`'{}'::waypoint_role[]`),
+    // The DURABLE half of what rich stop details holds — a hotel's phone number
+    // is a fact about the hotel, and does not change between rides. Copied into
+    // a stop's point_details when the place is dropped in.
+    //
+    // Confirmation numbers and check-in times are deliberately NOT here: those
+    // belong to one trip, not to the place, and storing them would mean every
+    // ride using the place inherited last trip's reservation.
+    phone: varchar('phone', { length: 40 }),
+    address: varchar('address', { length: 300 }),
+    links: jsonb('links')
+      .$type<Array<{ label: string; url: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_place_owner').on(t.ownerId),
+    index('idx_place_group').on(t.groupId),
+    check('ck_place_roles_max4', sql`cardinality(roles) <= 4`),
+  ],
+)
+
 export type UserRow = typeof users.$inferSelect
 /** The authorization states, derived from the enum so the two cannot drift. */
 export type UserStatus = (typeof userStatusEnum.enumValues)[number]
@@ -843,6 +1000,8 @@ export type InviteRedemptionRow = typeof inviteRedemptions.$inferSelect
 export type SurveyResponseRow = typeof surveyResponses.$inferSelect
 /** The three ways an invite is handed out, derived from the enum so the two cannot drift. */
 export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
+export type PlaceGroupRow = typeof placeGroups.$inferSelect
+export type PlaceRow = typeof places.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type DayRow = typeof days.$inferSelect
 export type PointRow = typeof points.$inferSelect

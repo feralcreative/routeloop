@@ -105,6 +105,15 @@ Wants are deduplicated by Postgres rather than by application code. The composit
 
 Diagnostics are collected client-side, redacted server-side by `src/feedback/diagnostics.ts`, and **never stored unredacted**: query strings and fragments are stripped from every URL, coordinate pairs are dropped wherever they appear, and geolocation is recorded as a permission state and never a position.
 
+## Release notes
+
+| Route | Gate | Returns |
+| --- | --- | --- |
+| `GET /release-notes` | public | The full page, chrome and all—the no-JavaScript path and the linkable URL |
+| `GET /api/release-notes` | public | The same copy as a bare HTML fragment, fetched by the modal on first open |
+
+One source, `src/content/release-notes.html`. The fragment exists so the notes—which only get longer—are not on every HTML response for a dialog most riders never open. The modal hides the fragment's `<h1>` and lede in CSS rather than the server stripping them, because the standalone page wants both.
+
 ## The ride payload (save = load shape)
 
 Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native JSON import validates and inserts through exactly the code the builder's save does. A second path that agreed with it today would drift tomorrow.
@@ -123,18 +132,17 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native J
       "endAt": null,
       "altGroup": null,
       "altActive": true,
-      "stops": [
+      "points": [
         {
+          "kind": "stop",
           "lat": 0,
           "lng": 0,
           "name": "",
           "description": "",
           "roles": ["gas"],
           "durationMin": null
-        }
-      ],
-      "pois": [
-        { "lat": 0, "lng": 0, "name": "", "description": "", "roles": [] }
+        },
+        { "kind": "poi", "lat": 0, "lng": 0, "name": "", "description": "", "roles": [] }
       ],
       "legs": [
         {
@@ -150,6 +158,10 @@ Defined in `src/maps/ride-graph.ts`, not in `routes/builder.ts`, so the native J
 ```
 
 Geometry pairs are `[lng, lat]`.
+
+`points` is **one ordered list and the array order is the rider's order**, for both kinds. It replaced the `stops` and `pois` arrays on 2026-08-23, when a point became something created as a POI and promoted later—two arrays cannot express one order without a redundant position field on each. `kind` defaults to `"poi"`, which is the baseline type. Legs still connect consecutive **stops**, so `legs.length === max(0, stopCount - 1)` and a day of nothing but POIs is refused: at least one stop per day is still the rule, and the builder upholds it by promoting the first point of every day.
+
+**`ride.json` is the exception and still sends `stops` and `pois` as two arrays.** The viewer draws markers and a timeline and never renders points as a sequence, so it gains nothing from the interleaving; splitting an ordered read preserves each array's order, and a shipped public contract stays stable.
 
 `altGroup` and `altActive` mark alternate days—two or more candidates for the same stretch, of which exactly one counts. Both default, so a file written before they existed still validates and `NATIVE_FORMAT_VERSION` did not move. The server re-resolves them on every write: a group of one is dissolved, exactly one member is elected active, and group ids are renumbered densely from 0—so what comes back is not always what was sent, and that is the contract rather than a bug. `ride.json` sends every day including the losing alternates, because the viewer has to receive one in order to ghost it; the four lossy export formats send only the active days, because none of them can express "this is an option" and a re-import would silently promote every loser to a real day.
 

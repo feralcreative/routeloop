@@ -107,6 +107,18 @@
     });
   }
 
+  // TWO DIALOGS SHARE `body.modal-open`, so neither may clear it on its own —
+  // closing one while the other is up would unlock scrolling behind a modal
+  // that is still on screen. Barely reachable today (the alpha modal opens on
+  // load and its backdrop covers the openers behind it) but it costs one query
+  // to be correct, and the third dialog will not be so lucky.
+  function syncModalOpen() {
+    const open = Array.prototype.some.call(document.querySelectorAll(".modal-backdrop"), function (el) {
+      return !el.hidden;
+    });
+    document.body.classList.toggle("modal-open", open);
+  }
+
   // --- Alpha splash --------------------------------------------------------
   function initSplash() {
     const backdrop = document.getElementById("alpha-splash");
@@ -131,7 +143,7 @@
     function open() {
       lastFocus = document.activeElement;
       backdrop.hidden = false;
-      document.body.classList.add("modal-open");
+      syncModalOpen();
       // The dialog itself, not the first control in it. Focus has to move inside
       // for the trap below and for a screen reader to announce the dialog, but
       // focusing the first LINK drew a focus ring on the GitHub mark every time
@@ -146,7 +158,7 @@
       if (pinned) return;
       if (hideBox && hideBox.checked) writeStore(ALPHA_KEY, ALPHA_SPLASH_VERSION);
       backdrop.hidden = true;
-      document.body.classList.remove("modal-open");
+      syncModalOpen();
       if (lastFocus && lastFocus.focus) lastFocus.focus();
     }
 
@@ -300,9 +312,189 @@
     window.addEventListener("hashchange", openFromHash);
   }
 
+  // --- Release notes -------------------------------------------------------
+  //
+  // Its own function rather than a second copy of initSplash: the two dialogs
+  // share markup and keyboard behavior, but the alpha modal owns a dismissal
+  // key, a design pin and an auto-open on load, and none of that belongs here.
+  // What IS shared is the focus trap, and it is small enough that a second
+  // honest copy beats a shared abstraction with two callers pulling in different
+  // directions.
+  function initNotes() {
+    const backdrop = document.getElementById("release-notes");
+    if (!backdrop) return;
+    const dialog = backdrop.querySelector(".modal");
+    const body = document.getElementById("rn-body");
+    let lastFocus = null;
+    let loaded = false;
+
+    // FETCHED ON FIRST OPEN, then kept. The notes only ever get longer and this
+    // modal is on every page, so inlining them would put a growing file on every
+    // HTML response for a dialog most riders never open.
+    //
+    // A failure leaves the fallback link that shipped in the markup, which goes
+    // to the same content server-rendered. That is the whole error path: there
+    // is nothing useful to say about a fetch that failed, and a rider who wants
+    // the notes can still read them.
+    function load() {
+      if (loaded) return;
+      loaded = true;
+      const url = body && body.dataset.src;
+      if (!url) return;
+      fetch(url, { headers: { Accept: "text/html" } })
+        .then(function (r) {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.text();
+        })
+        .then(function (html) {
+          body.innerHTML = html;
+        })
+        .catch(function () {
+          // Left as it was — the fallback link is still in there.
+          loaded = false;
+        });
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      load();
+      backdrop.hidden = false;
+      syncModalOpen();
+      dialog.focus();
+    }
+
+    function close() {
+      backdrop.hidden = true;
+      syncModalOpen();
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    backdrop.addEventListener("click", function (e) {
+      if (e.target === backdrop || e.target.closest("[data-close-notes]")) close();
+    });
+
+    backdrop.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") return close();
+      if (e.key !== "Tab") return;
+      const items = Array.prototype.filter.call(dialog.querySelectorAll(FOCUSABLE), function (el) {
+        return el.offsetParent !== null;
+      });
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      // `|| dialog` for the same reason as the alpha modal: focus starts on the
+      // container, which is deliberately not in `items`.
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+
+    // Delegated, because the openers are in two places — the item inside the
+    // help launcher and the version string in every footer.
+    document.addEventListener("click", function (e) {
+      if (e.target.closest("[data-open-notes]")) {
+        e.preventDefault();
+        markNotesSeen();
+        open();
+      }
+    });
+  }
+
+  // What build this rider has already read the notes for.
+  //
+  // Per browser, deliberately: it answers "have I seen this" for the person
+  // looking at the screen, and the server has no business knowing which dialogs
+  // someone opened. Every access is guarded — a private window, cleared site
+  // data, or a browser set to block storage all THROW here rather than
+  // returning null, and an unread dot is not worth a broken page.
+  const NOTES_SEEN_KEY = "rl.notes.seen";
+
+  function currentBuild() {
+    return (window.TB && window.TB.version) || "";
+  }
+
+  function notesSeen() {
+    try {
+      return window.localStorage.getItem(NOTES_SEEN_KEY);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function markNotesSeen() {
+    const badge = document.querySelector("[data-fab-badge]");
+    if (badge) badge.hidden = true;
+    try {
+      window.localStorage.setItem(NOTES_SEEN_KEY, currentBuild());
+    } catch (_) {
+      /* Nothing to do. The dot comes back next load, which is the harmless half
+         of the failure—the alternative is not showing it to anyone. */
+    }
+  }
+
+  // The launcher: one control that opens a short menu, which is the shape every
+  // support widget a tester has met already uses.
+  function initFab() {
+    const dock = document.querySelector("[data-fab-dock]");
+    if (!dock) return;
+    const launcher = dock.querySelector(".fab-launcher");
+    const menu = dock.querySelector(".fab-menu");
+    const badge = dock.querySelector("[data-fab-badge]");
+
+    // UNREAD, not "new". The dot means "this build is one you have not opened
+    // the notes for", so a rider who has read them sees nothing until the next
+    // deploy. An empty stored value is a first visit, which counts as unread —
+    // it is how a tester finds the notes at all.
+    if (badge && currentBuild() && notesSeen() !== currentBuild()) badge.hidden = false;
+
+    function setOpen(on) {
+      menu.hidden = !on;
+      dock.classList.toggle("is-open", on);
+      launcher.setAttribute("aria-expanded", on ? "true" : "false");
+    }
+
+    launcher.addEventListener("click", function () {
+      const willOpen = menu.hidden;
+      setOpen(willOpen);
+      if (willOpen) {
+        const first = menu.querySelector(FOCUSABLE);
+        if (first) first.focus();
+      }
+    });
+
+    // Deliberately NOT a focus trap. This is a menu, not a dialog: tabbing out
+    // of it should land on the page behind, and trapping would strand a
+    // keyboard user in a two-item popover.
+    dock.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || menu.hidden) return;
+      setOpen(false);
+      launcher.focus();
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!menu.hidden && !dock.contains(e.target)) setOpen(false);
+    });
+
+    // Closes on the way to whatever the item does, so the menu is not still
+    // hanging open behind the notes dialog or over the page /feedback lands on.
+    menu.addEventListener("click", function () {
+      setOpen(false);
+    });
+
+    dock.addEventListener("focusout", function (e) {
+      if (!menu.hidden && !dock.contains(e.relatedTarget)) setOpen(false);
+    });
+  }
+
   function init() {
     initNav();
     initSplash();
+    initNotes();
+    initFab();
     initSplashVideo();
     initFaq();
   }

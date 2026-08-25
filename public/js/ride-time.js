@@ -7,9 +7,12 @@
 // each. Two copies of this walk would drift, and the drift would show up as a
 // map highlighting a different road than the one the planner saw.
 //
-// Everything here works on the shape both sides already use — a day with
-// `startAt` / `endAt`, `legs[{ durationS, distanceM }]` and
-// `stops[{ durationMin }]` — so neither side has to reshape its data first.
+// TWO DAY SHAPES REACH THIS MODULE, and it accepts both rather than making
+// either caller reshape first. The builder holds one ordered `points` array with
+// a `kind` on each element (2026-08-23); `ride.json` still sends `stops` and
+// `pois` as two arrays, deliberately, because the viewer never renders points as
+// a sequence. stopsOf/poisOf below are the only place that difference is known,
+// and every other line here reads through them.
 (function () {
   "use strict";
 
@@ -28,6 +31,11 @@
   const legDurationS = (leg) =>
     legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
 
+  // The shape bridge. A day either carries `points` with per-element kinds, or
+  // the older pair of arrays. Nothing below this line tests for which.
+  const stopsOf = (day) => (day.points ? day.points.filter((p) => p.kind === "stop") : day.stops || []);
+  const poisOf = (day) => (day.points ? day.points.filter((p) => p.kind === "poi") : day.pois || []);
+
   const dayRidingS = (day) => day.legs.reduce((n, l) => n + legDurationS(l), 0);
   // Stops AND POIs. A POI is not a routing anchor and never splits a leg, but a
   // rider who spends forty minutes at a viewpoint has spent forty minutes, and
@@ -35,7 +43,7 @@
   // rode past — and contribute nothing.
   const dwellS = (p) => (p.durationMin || 0) * 60;
   const dayStoppedS = (day) =>
-    day.stops.reduce((n, s) => n + dwellS(s), 0) + (day.pois || []).reduce((n, p) => n + dwellS(p), 0);
+    stopsOf(day).reduce((n, s) => n + dwellS(s), 0) + poisOf(day).reduce((n, p) => n + dwellS(p), 0);
   const dayIsEstimated = (day) => day.legs.some(legIsEstimated);
 
   // How long a day actually occupies: riding plus every planned stop. This is
@@ -109,7 +117,7 @@
     const prefix = [0];
     for (const l of day.legs) prefix.push(prefix[prefix.length - 1] + (l.distanceM || 0));
 
-    const stops = (day.pois || [])
+    const stops = poisOf(day)
       .map((p, i) => ({
         i,
         dur: dwellS(p),
@@ -124,8 +132,9 @@
 
     let t = 0;
     let poiIdx = 0;
-    for (let i = 0; i < day.stops.length; i++) {
-      const dwell = dwellS(day.stops[i]);
+    const dayStops = stopsOf(day);
+    for (let i = 0; i < dayStops.length; i++) {
+      const dwell = dwellS(dayStops[i]);
       if (dwell > 0) segs.push({ kind: "stop", index: i, start: t, end: t + dwell });
       t += dwell;
 
@@ -199,7 +208,7 @@
       }
     }
     // Past the end of the day: parked at the final stop.
-    return { ...none, stopIndex: day.stops.length ? day.stops.length - 1 : null };
+    return { ...none, stopIndex: stopsOf(day).length ? stopsOf(day).length - 1 : null };
   }
 
   // Which day and leg a moment falls in. A moment in the gap between two days —

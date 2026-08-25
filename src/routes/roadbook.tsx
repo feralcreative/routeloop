@@ -68,13 +68,16 @@ export type Row = {
 // worth printing: it tells you what the bike actually did on the last tank, and
 // the 0 says nothing you did not already know from the word "Gas" in the row.
 export function dayRows(route: ExportDay): Row[] {
-  // A point with no measured distance goes last and reports nothing. Sorting it
-  // to zero would put it at the start of the day and print "0.0" beside it,
-  // which is a claim about where it is rather than an admission that nobody
-  // measured. Imported rides and older seeded POIs both have these.
-  const ordered = [...route.points].sort(
-    (a, b) => (a.distFromStartM ?? Number.POSITIVE_INFINITY) - (b.distFromStartM ?? Number.POSITIVE_INFINITY),
-  )
+  // THE RIDER'S OWN ORDER, which is the order the rows arrive in — every point
+  // carries a position now and loadRideForExport reads by it.
+  //
+  // This used to sort by `distFromStartM`, because a POI had no stored order and
+  // its projection onto the track was the only thing that could place it. That
+  // is no longer true, and the projection is now the worse answer of the two: it
+  // is null on a trackless import and on any point nothing measured, and a null
+  // sorted to the end moved a point the rider had put in the middle. The printed
+  // sheet should say what the rider planned.
+  const ordered = route.points
 
   // Riding seconds are known per day, not per leg-between-stops, so they are
   // spread across the day's distance. That is an estimate and the header says

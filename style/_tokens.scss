@@ -243,6 +243,11 @@ $splash-ink: #0a0e11;
 $z-map-panel: 1000;
 $z-header: 1200;
 $z-nav: 1300;
+// The bug and notes dock. Above the nav because it is site chrome now rather
+// than a map control — it was on $z-map-panel, which was correct while it only
+// existed over a map and wrong the moment it appeared on a page with a sticky
+// header. Below the toast, which reports the result of what these start.
+$z-fab: 1400;
 $z-toast: 2000;
 $z-banner: 2100;
 $z-modal: 3000;

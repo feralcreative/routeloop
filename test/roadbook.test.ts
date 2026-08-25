@@ -47,7 +47,12 @@ describe('dayRows', () => {
     expect(rows.map((r) => r.n)).toEqual([1, null, 2])
   })
 
-  it('orders by distance along the route, not by the order given', () => {
+  // CHANGED 2026-08-23, and the old rule is worth stating because the sheet
+  // looks different: rows used to be re-sorted by distFromStartM, because a POI
+  // had no stored order and its projection onto the track was the only thing
+  // that could place it. Every point carries a position now, loadRideForExport
+  // reads by it, and the printed sheet says what the rider planned.
+  it('keeps the order the points arrive in, which is the rider\'s own', () => {
     const rows = dayRows(
       day([
         pt({ distFromStartM: 30 * MI, name: 'C' }),
@@ -55,7 +60,7 @@ describe('dayRows', () => {
         pt({ distFromStartM: 20 * MI, name: 'B' }),
       ]),
     )
-    expect(rows.map((r) => r.point.name)).toEqual(['A', 'B', 'C'])
+    expect(rows.map((r) => r.point.name)).toEqual(['C', 'A', 'B'])
   })
 
   it('measures each leg from the point before it', () => {
@@ -119,6 +124,11 @@ describe('dayRows', () => {
 
   // Imported rides and older seeded POIs have no measured position. Printing
   // "0.0" beside one is a claim about where it is.
+  //
+  // It no longer moves such a point to the end of the day — that was a
+  // consequence of sorting by distance, and the sort is gone. An unmeasured
+  // point stays where the rider put it and reports nothing, which is the honest
+  // pair: we know the order, we do not know the mileage.
   describe('a point with no measured distance', () => {
     const rows = dayRows(
       day([
@@ -128,19 +138,19 @@ describe('dayRows', () => {
       ]),
     )
 
-    it('sorts last rather than to the start of the day', () => {
-      expect(rows.map((r) => r.point.name)).toEqual(['A', 'B', 'Unknown'])
+    it('stays where the rider put it rather than being sorted to the end', () => {
+      expect(rows.map((r) => r.point.name)).toEqual(['A', 'Unknown', 'B'])
     })
 
     it('reports nothing rather than zero', () => {
-      const unknown = rows[2]
+      const unknown = rows[1]
       expect(unknown.atM).toBeNull()
       expect(unknown.fromPrevM).toBeNull()
       expect(unknown.sinceFuelM).toBeNull()
     })
 
     it('does not disturb the distances of the points that are known', () => {
-      expect(Math.round((rows[1].fromPrevM ?? 0) / MI)).toBe(50)
+      expect(Math.round((rows[2].atM ?? 0) / MI)).toBe(50)
     })
   })
 

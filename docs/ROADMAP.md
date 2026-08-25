@@ -87,7 +87,7 @@ Three issues carry the old vocabulary in their **titles**, which is a separate e
 
 The goal is an MVP a handful of friends can actually test. **The cohort is the constraint:** it runs from web developers through hobby coders to, in Ziad's words, "total luddites who just like to ride." That range is the reason for the order.
 
-1. **The builder panel and the mapping tools.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; what remains is the rest of P1—**including saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)), both confirmed in scope on 2026-08-16**. A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback.
+1. **The builder panel and the mapping tools.** **Done as of 2026-08-22.** If a rider cannot plan or edit a ride, none of the rest is worth testing. Item 16 landed the panel; saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)) were the rest of the scope confirmed on 2026-08-16, and both merged as [#111](https://github.com/feralcreative/routeloop/pull/111). A skeletal stop makes for a skeletal test ride, and thin test rides produce thin feedback. **What is owed is a browser pass on both**—nothing automated covers the builder. The remaining P1 issues are real builder work but none of them was ever part of this phase's bar.
 2. **Import, export and send-to-device.** A tester handed a blank canvas forms no useful opinion. Handed their own familiar routes, the beta becomes an exercise in _using_ the app rather than _learning_ it—which is the only way to find out whether the end-to-end experience actually works. Items 9, 21, 22 and 23, and note that **[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX flavors is literally the "send to device" half** and is the one unshipped piece of item 9. `docs/myrouteapp-formats.md` is the research behind it. **Noob Mode (item 25) rides along here**, decided 2026-08-16: the least technical end of the cohort is exactly who it is for, and first contact is when it pays off—shipping it afterwards means the riders who needed it most already formed their impression without it.
 3. **The feedback sprint, live before the first tester signs in.** Decided 2026-08-16, and the ordering is a sequence rather than a permission to be late: a tester who hits a bug with no way to report it stops using the app and you never learn why, and the first session is when the most obvious problems surface. See item 26.
 
@@ -105,7 +105,7 @@ So the work that matters here is **visibility, not throttling**. **Decided 2026-
 
 **Nothing was deferred past the beta, so this is a running order, not a filter.** Every phase above has to ship before testers arrive. Worth re-reading as the date approaches—if the beta needs to happen sooner than the list allows, something here moves, and it is better to choose which than to discover it.
 
-**Rich stop details drags a schema fix in with it, and that fix reaches beyond the builder.** Item 16's ID-churn note is the governing text: the `PUT` deletes and re-inserts every day and point, so identifiers change on every save, and that is safe today only because nothing references a point across one. **#15 is the first feature that would.** Fixing it means sending ids in the payload and diffing server-side, which rewrites `insertRideGraph`, `ridePayload` and `loadRidePayload`—and `insertRideGraph` is shared with the native JSON import path, so this lands on phase 2's territory as well. Read that note before starting #15, not after.
+~~**Rich stop details drags a schema fix in with it, and that fix reaches beyond the builder.**~~ **Settled 2026-08-21, and differently from what this paragraph predicted.** It argued that #15 forced ids into the payload and a server-side diff, rewriting `insertRideGraph`, `ridePayload` and `loadRidePayload`—and therefore reached into phase 2, since `insertRideGraph` is shared with the native JSON import. **None of that happened.** A client-minted `points.uid` keeps a point's identity across the delete-and-re-insert instead, `point_details` is keyed by `(ride_id, uid)`, and `insertRideGraph` barely changed. Row ids still churn, deliberately. Kept rather than deleted because the reasoning is a useful worked example: the constraint was real and the remedy this file assumed was not the cheapest one. See item 11.
 
 ## Priorities
 
@@ -142,9 +142,9 @@ P1 used to be _the group layer_. It is now _the builder_. The reasoning, recorde
 
 **P1—the builder. Item 16 was first within it and is now done**, shipped 2026-08-15 on `feat/builder-panel` and awaiting review; the panel's eleven decided changes all landed in one day, in five phases. Re-measured on the ride the numbers above came from, its content is **618px in a 617px window** where it was 807 in 620, and the seven-stop day no longer scrolls. Nothing about the tier changed—the reasoning that moved P1 here still holds, and the rest of the list below is what it now means.
 
-The rest of P1 is the issues that touch `public/js/builder.js` and the map engine. Drag-to-reorder ([#39](https://github.com/feralcreative/routeloop/issues/39)) came off this list with item 16, which adopted it. What is left: keyboard shortcuts ([#40](https://github.com/feralcreative/routeloop/issues/40)), splitting a long day ([#49](https://github.com/feralcreative/routeloop/issues/49)), lodging as a day boundary ([#54](https://github.com/feralcreative/routeloop/issues/54)), detour-radius discovery ([#50](https://github.com/feralcreative/routeloop/issues/50)), layer stacking ([#51](https://github.com/feralcreative/routeloop/issues/51)), saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)).
+The rest of P1 is the issues that touch `public/js/builder.js` and the map engine. Drag-to-reorder ([#39](https://github.com/feralcreative/routeloop/issues/39)) came off this list with item 16, which adopted it. Saved places ([#10](https://github.com/feralcreative/routeloop/issues/10)) and rich stop details ([#15](https://github.com/feralcreative/routeloop/issues/15)) came off it on 2026-08-22, closed by [#111](https://github.com/feralcreative/routeloop/pull/111). What is left: keyboard shortcuts ([#40](https://github.com/feralcreative/routeloop/issues/40)), splitting a long day ([#49](https://github.com/feralcreative/routeloop/issues/49)), lodging as a day boundary ([#54](https://github.com/feralcreative/routeloop/issues/54)), detour-radius discovery ([#50](https://github.com/feralcreative/routeloop/issues/50)) and layer stacking ([#51](https://github.com/feralcreative/routeloop/issues/51)).
 
-**Read #15 before starting it, and read item 16's ID-churn note first.** Autosave made `PUT /api/rides/:id` run constantly, and it deletes and re-inserts every day and point, so identifiers change on every save. That is safe today only because nothing references a point across one. Rich stop details is the first thing on this list that would.
+**The ID-churn warning that used to sit here is spent.** Autosave made `PUT /api/rides/:id` run constantly, and it still deletes and re-inserts every day and point, so row ids still change on every save. #15 was the first feature that needed a point to survive one, and it shipped with a client-minted `points.uid` for exactly that. **Anything else on this list that needs to reference a point across a save now has an answer**—use the uid, not the id—so this is no longer a thing to solve before starting.
 
 **They are no longer blocked on the panel being worth adding to**, which was the argument for doing item 16 ahead of all seven.
 
@@ -198,6 +198,8 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Autosave**—the builder has no Save button. A 3s idle debounce and a 20s ceiling, with the crash draft still underneath for the cases a server flush cannot cover.
 - **The builder panel, designed as one surface**—item 16 entire: the ride's name as the heading, an exit off the map, a drag handle and one menu per row, fixed footprints for everything that used to grow, the timeline moved out onto the map's bottom edge, and stop durations in whichever format the rider picks.
 - **Basemaps**—the map opens on Google's terrain layer, with roadmap, satellite and hybrid behind a switcher that remembers the choice per rider.
+- **Rich stop details**—a stop carries a confirmation number, check-in and check-out, phone, address, links and notes, kept in their own table and visible to the owner alone. They ride along in the native JSON and are stripped from every lossy export.
+- **Saved places**—a rider's reusable library of locations, optionally filed into groups, offered inside the builder's search field and copied into a ride rather than referenced from it.
 - **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (887 tests across 38 files as of 2026-08-16; `npm test` is the authority, not this number.)
 
 The two big migrations (auth and maps) are **done**, in the code and in the Google Cloud console. One thing remains: removing the redundant Cloudflare Access policy at the edge, which is gated on a verified prod deploy and tracked in #58.
@@ -307,13 +309,17 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [ ] Schema for places and place groups.
-- [ ] CRUD endpoints and a marker-group primitive in the map engine.
-- [ ] Builder integration: search or pick from saved places when adding a stop.
+- [x] Schema for places and place groups—`places` and `place_groups`, migration `drizzle/0007_glossy_charles_xavier.sql`.
+- [x] CRUD endpoints at `/api/places` and `/api/place-groups`. **No marker-group primitive was built**, and it turned out not to be needed: saved places surface through the builder's existing search field rather than as a layer on the map, so there is nothing extra to draw. Revisit only if a "show all my places" view is actually wanted.
+- [x] Builder integration—saved places appear IN the add-row search list, above the Google predictions, matched locally from one character with no network call and no billing. "Save to my places" on any stop's row menu is the creation path.
 
-**Touches.** `src/db/schema.ts`, new `src/routes/places.ts`, `public/js/map-common.js`, `public/js/builder.js`, `src/routes/profile.ts` (the profile already reserves a section for this).
+**Where places are created, and why not on the profile.** A place needs a pin, and the builder is where the map is. The profile screen manages what is already there—rename, refile, delete, and the groups themselves. A create-from-scratch flow there wants the address picker from item 19 rather than a pair of lat/lng boxes, and should wait for it.
 
-**Status.** planned—designed in `_PLANS/sprint-01-260725T2320Z.md` Phase B, cut from Sprint 2 for size.
+**Touches.** `src/db/schema.ts`, new `src/places/policy.ts` and `src/places/service.ts` (rule-from-query split), new `src/routes/places.ts`, new `public/js/places.js`, `public/js/builder.js`, `src/routes/profile.tsx`, `style/_builder.scss`, `style/_forms.scss`.
+
+**Status.** **shipped 2026-08-22** on `feat/saved-places`, merged as [#111](https://github.com/feralcreative/routeloop/pull/111) and closing [#10](https://github.com/feralcreative/routeloop/issues/10). `test/places.test.ts`. Stacked on `feat/rich-stop-details` rather than branched from `main`, because a place pre-fills a stop's details and those only exist there.
+
+**Three decisions, all Ziad's, 2026-08-21.** **Copy, not reference**—see the note in AGENTS.md and `placeToStop()`. **Groups from the start**, but a group is optional: requiring one would mean inventing a folder before saving a first place, so `group_id` is nullable and "Not in a group" is a real section. **Places carry phone, address and links**—the half of rich stop details that is a fact about the place rather than about one trip.
 
 ### 7. Bikes and range planning
 
@@ -395,15 +401,21 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] Structured detail fields on a stop: confirmation / reservation number, check-in and check-out date-time (feeds the timeline, item 2), phone, address, and one or more URLs (booking link, menu, map).
-- [ ] A freeform notes field for the unstructured stuff—"gate code 4417, park behind the barn, ask for Dave."
-- [ ] Surface fields **by role** rather than as one giant form: a HOTEL / CAMP stop wants check-in/out and a confirmation number; a FOOD stop wants a reservation time and a menu link. The role taxonomy already has hotel, camp, food, coffee, drinks, grocery to key off.
-- [ ] Builder UI to edit the details; viewer UI to show them in the stop's info window / panel.
-- [ ] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
+- [x] Structured detail fields on a stop: confirmation number, check-in and check-out date-time, phone, address, and up to five labelled URLs. In `point_details`, migration `drizzle/0006_wild_hammerhead.sql`.
+- [x] A freeform notes field.
+- [x] Surfaced **by role**—`detailFieldsFor()` in `public/js/builder.js`. Lodging gets check-in/out; a table role gets a reservation time; everything else gets phone, address, notes and links. **A stop with NO roles gets the full set**, not the minimum: an uncategorized stop is one the rider has not labelled yet, and hiding fields from it looks like a bug.
+- [x] Builder UI behind a row-menu item, with a badge on rows that carry details; viewer UI as a ruled-off block in the popup headed "Only you can see this".
+- [x] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 
-**Touches.** `src/db/schema.ts` (extend `points`, or a separate `point_details` table so private fields never ride along on the public viewer contract), `src/routes/builder.ts` (payload + sanitize—renamed from `rides.ts` in [#104](https://github.com/feralcreative/routeloop/pull/104)), `public/js/builder.js`, `public/js/viewer.js`, `src/index.tsx` (the `ride.json` contract), `src/maps/export.ts` (decide what is exportable).
+**Touches.** `src/db/schema.ts`, `src/maps/uid.ts` and `src/maps/point-details.ts` (both new), `src/maps/ride-graph.ts`, `src/maps/export.ts`, `src/routes/builder.ts`, `src/routes/maps.ts`, `src/index.tsx`, `src/account/export.ts`, `public/js/builder.js`, `public/js/builder-history.js`, `public/js/map-common.js`.
 
-**Status.** planned.
+**Status.** **shipped 2026-08-21** on `feat/rich-stop-details`, merged as [#111](https://github.com/feralcreative/routeloop/pull/111) and closing [#15](https://github.com/feralcreative/routeloop/issues/15). `test/point-details.test.ts`, plus additions to `test/builder-history.test.ts`.
+
+**The ID-churn prerequisite was solved differently from the plan, and that is the decision worth recording.** The governing text above and in item 16 assumed "send ids in the payload and diff server-side", which rewrites `insertRideGraph`, `ridePayload` and `loadRidePayload`—the path the native JSON import shares. **Ziad's call 2026-08-21: a client-minted `points.uid` instead.** The delete-and-re-insert model accepted on 2026-08-15 is untouched; `point_details` is keyed by `(ride_id, uid)` rather than by the row id that churns, and identity rides along in native JSON exports for free. `insertRideGraph` barely changed. **Row ids still churn**, so anything else that needs a point to keep its identity—a comment, a photo—uses the uid too and does not need this revisited.
+
+**Exports: native JSON only, decided 2026-08-21.** Details are in the lossless native JSON, because that is the rider's own backup and re-import path, and stripped from GPX, KML, GeoJSON and CSV—those get handed to devices and forwarded to riding buddies, and none of them can express "this field is private". `loadNativeRide` takes the details map as an argument rather than fetching it, so forgetting to pass it fails CLOSED: the export is merely incomplete rather than a leak.
+
+**Verified against a real public ride, not reasoned about.** A canary detail row was planted on a public ride and all seven anonymous surfaces (`ride.json`, both native names, and the four lossy formats) were fetched and checked; every one returned 200 and none carried it. A second signed-in rider who is not the owner also saw nothing. The owner sees them in the builder, in `ride.json` and in the popup.
 
 ### 12. Quality and platform
 

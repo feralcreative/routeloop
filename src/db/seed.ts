@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { readFile } from 'node:fs/promises'
+import { newUid } from '../maps/uid'
 import { sql } from 'drizzle-orm'
 import { db } from './index'
 import { users, rides, days, points, routeLegs } from './schema'
@@ -51,6 +52,7 @@ async function main() {
         dayId: route.id,
         kind: 'stop' as const,
         position: i,
+        uid: newUid(),
         lat: p.lat,
         lng: p.lng,
         name: p.name,

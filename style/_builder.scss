@@ -778,11 +778,6 @@
     }
   }
 
-  .mode-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
   // A "?" beside a control the FAQ defines. Sized and colored to sit under
   // everything around it: this is a thing you look for when you are stuck, not
   // a thing that should be competing with the controls in a 380px panel. It
@@ -832,12 +827,17 @@
       padding: 0.3em 0.4em;
     }
 
-    .add-mode {
+    // Pushed to the right end of the row, which is where the removed + Stop /
+    // + POI pair used to claim the free space. It is the only control on this
+    // row that acts rather than sets, so it gets the end to itself.
+    //
+    // Styled at all, which it was not: this shipped as a bare <button> with no
+    // rule anywhere in the stylesheet, so it rendered as the browser's native
+    // grey chrome beside two custom pills and read as broken. It always worked.
+    // Not a `.btn` — that is a highway sign now, and a sign at 0.85em in a
+    // 380px panel would be the loudest thing on the page.
+    .day-add {
       margin-left: auto;
-      display: flex;
-      gap: 0.25em;
-    }
-    .mode-btn {
       font: inherit;
       font-size: 0.85em;
       padding: 0.3em 0.55em;
@@ -846,10 +846,20 @@
       background: $white;
       color: $text;
       cursor: pointer;
-      &.active {
-        background: $url;
+
+      &:hover:not(:disabled) {
         border-color: $url;
-        color: $white;
+        color: $url;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $accent;
+        outline-offset: 1px;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
       }
     }
   }
@@ -907,31 +917,46 @@
     }
   }
 
-  // Stop or POI for THIS row, separate from the panel's + Stop / + POI pair,
-  // which decides what a map click adds. Hidden until the row is engaged: it is
-  // an answer to a question the rider has not asked until they start typing.
-  .add-kind {
-    display: none;
+  // Arms the next map click for this day. Quiet until it is armed, because a
+  // lit button per day would put 31 of them down the panel — the whole reason
+  // the day search box is borderless until it is used.
+  .add-place-btn {
     flex: 0 0 auto;
-    gap: 0.15em;
-    font-size: 0.7em;
+    font: inherit;
+    font-size: 0.8em;
+    white-space: nowrap;
+    padding: 0.25em 0.5em;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: color.adjust($text, $lightness: 25%);
+    cursor: pointer;
 
-    label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.2em;
-      cursor: pointer;
-      color: color.adjust($text, $lightness: 20%);
+    &:hover:not(:disabled) {
+      border-color: $grey;
+      background: $white;
+      color: $text;
     }
 
-    input {
-      margin: 0;
-      accent-color: var(--day-color, $url);
+    &:focus-visible {
+      outline: 2px solid $accent;
+      outline-offset: 1px;
     }
-  }
 
-  .add-row:focus-within .add-kind {
-    display: inline-flex;
+    // ARMED. It borrows the day's own color rather than one accent for all of
+    // them, so on a nine-day ride the lit button says WHICH day is waiting
+    // without being read.
+    &.is-armed {
+      border-color: currentColor;
+      background: $white;
+      color: var(--day-color, $url);
+      font-weight: 700;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
   }
 
   // Directly under the ride name now, outside .panel-contents-wrapper, so it
@@ -1059,7 +1084,6 @@
       }
     }
 
-
     // The drag handle, replacing the per-row up/down arrow pair. Dotted rather
     // than an icon file: it is the conventional grip texture, it costs no asset,
     // and it stays crisp at any size because it is a gradient.
@@ -1143,7 +1167,6 @@
       &:active {
         cursor: grabbing;
       }
-
     }
     .row-main {
       display: flex;
@@ -1252,9 +1275,21 @@
         background: $white;
         color: $neutral-43;
       }
-      // The empty state: no roles yet, so the button offers to add one.
+      // The empty state: no roles yet. A solid dot in the DAY'S color rather
+      // than a "+" glyph — Ziad's call, 2026-08-22. `currentColor` is what makes
+      // it the day color for free: `.row-roles-btn` sets `color: inherit` a few
+      // lines up specifically so the band's --day-color reaches in here, and the
+      // role icons already ride on the same value.
+      //
+      // 10px against the 16px role chip, so a categorized row and an
+      // uncategorized one are still told apart at a glance in a column of
+      // thirty.
       .role-add {
-        color: $neutral-50;
+        width: 10px;
+        height: 10px;
+        flex: none;
+        border-radius: 50%;
+        background: currentColor;
       }
     }
 
@@ -1336,6 +1371,123 @@
       width: 100%;
       margin: 0.35em 0 0.1em 0;
       resize: vertical;
+    }
+
+    // The reservation panel. Hidden until the row menu opens it, because a stop
+    // carrying a confirmation number is the exception — a panel of empty inputs
+    // under every row would bury the ride it belongs to.
+    .row-details {
+      margin: 0.4em 0 0.2em;
+      padding: 0.6em;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.04);
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    // auto-fit rather than a fixed column count: the panel is the full width of
+    // a 320px drawer on a phone and of a much wider one on a desktop, and the
+    // fields are short. minmax(0, 1fr) so a long value shrinks its column
+    // instead of pushing the grid wider than the row.
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+      gap: 0.4em 0.6em;
+    }
+
+    .detail-field {
+      display: grid;
+      gap: 0.15em;
+      font-size: 0.8em;
+      color: $neutral-43;
+
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 1.1em;
+      }
+
+      textarea {
+        min-height: 3.5em;
+        resize: vertical;
+      }
+    }
+
+    .detail-notes {
+      margin-top: 0.5em;
+    }
+
+    .detail-links {
+      margin-top: 0.5em;
+      display: grid;
+      gap: 0.3em;
+    }
+
+    // Label and URL side by side with the delete button pinned to the end. The
+    // URL gets the wider share because a label is a word and a URL is not.
+    .detail-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+      gap: 0.3em;
+      align-items: center;
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+      }
+    }
+
+    .detail-link-del {
+      border: 0;
+      background: none;
+      padding: 0 0.3em;
+      font-size: 1.1em;
+      line-height: 1;
+      color: $neutral-57;
+      cursor: pointer;
+
+      &:hover {
+        color: $stop;
+      }
+    }
+
+    .detail-link-add {
+      justify-self: start;
+      border: 0;
+      background: none;
+      padding: 0.2em 0;
+      font: inherit;
+      font-size: 0.85em;
+      color: $url;
+      cursor: pointer;
+      text-decoration: underline;
+
+      &:disabled {
+        color: $neutral-63;
+        cursor: default;
+        text-decoration: none;
+      }
+    }
+
+    // Says on the surface what canSeeDetails enforces in code. A rider deciding
+    // whether to type a door code into a web app is entitled to read where it
+    // goes without taking it on faith.
+    .detail-privacy {
+      margin: 0.6em 0 0;
+      font-size: 0.75em;
+      color: $neutral-50;
+    }
+
+    // Marks a row whose stop carries details, so they are findable without
+    // opening each one.
+    .row-detail-flag {
+      flex: none;
+      align-self: center;
+      font-size: 0.7em;
+      color: $url;
     }
   }
 
@@ -1563,6 +1715,34 @@
       color: color.adjust($text, $lightness: 35%);
       font-size: 0.85em;
     }
+  }
+
+  // A rider's own saved place, above the Google predictions. Marked rather than
+  // left to blend in: it costs nothing to pick, it arrives with roles and
+  // contact details attached, and it is the one row in the list the rider
+  // themselves put there.
+  li.hit-saved {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  // The rule sits under the LAST saved row, so it separates the library from the
+  // predictions without needing a wrapper element around either group.
+  li.hit-saved:last-of-type,
+  li.hit-saved:has(+ li.hit-google) {
+    border-bottom: 1px solid $neutral-88;
+  }
+
+  .hit-badge {
+    display: inline-block;
+    padding: 0 0.35em;
+    border-radius: 3px;
+    background: $interstate;
+    color: $white;
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: 0.1em;
   }
 }
 

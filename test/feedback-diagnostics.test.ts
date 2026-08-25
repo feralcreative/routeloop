@@ -65,10 +65,10 @@ describe('parseDiagnostics: lenience', () => {
   // recognized as one broken screen. Losing it costs more than losing the URL.
   it('keeps the route pattern alongside the referrer', () => {
     const out = parseDiagnostics({
-      app: { version: '2026.08.16', pattern: '/build/:slug', referrer: 'https://routeloop.app/rides' },
+      app: { version: '2026-08-23-1834PT', pattern: '/build/:slug', referrer: 'https://routeloop.app/rides' },
     })
     expect(out.app?.pattern).toBe('/build/:slug')
-    expect(out.app?.version).toBe('2026.08.16')
+    expect(out.app?.version).toBe('2026-08-23-1834PT')
   })
 })
 

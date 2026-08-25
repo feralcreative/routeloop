@@ -45,7 +45,7 @@ Admin ▾                                (only if canManageRiders)
   Sign out            POST /logout
 ```
 
-Plus one thing that is not in the tree: a floating **Something wrong?** button, on the builder and the viewer only. See the decision below.
+Plus one thing that is not in the tree: a floating dock holding a **bug** mark and a **what's new** mark, on every page a signed-in rider can reach. See the decision below.
 
 Signed out, the menu is `Find a ride`, `Riders`, `About ▾`, and `Join the beta`—plus `Exit map` ahead of them on a map page, pointing at `/`.
 
@@ -81,10 +81,19 @@ The label everywhere a rider reads it is **Preferences**. The URL is the short f
 Three candidates were put up: a persistent item in the account menu, a floating button on the builder and viewer only, or both. **Both** was chosen.
 
 - **The account menu** carries `Tell us something` → `/feedback` and `Idea board` → `/board`, above the sign-out rule. It is what a rider on any other screen has, and what someone looking to re-read their own reports goes to.
-- **The floating button** renders only on the builder and the viewer, and it exists for one reason: it carries `?area=`, which is what lets the intake offer a one-tap confirm instead of an eight-chip group. That is a real accuracy win on the one field riders are worst at answering. It is opt-in per page via `feedbackArea` on `PageOpts`, not derived from `navKey`—deriving it would silently put the button on every page sharing a key.
+- **The floating button** rendered only on the builder and the viewer, and it existed for one reason: it carries `?area=`, which is what lets the intake offer a one-tap confirm instead of an eight-chip group. That is a real accuracy win on the one field riders are worst at answering. **Superseded 2026-08-23—see below.**
 - It is a plain `<a>`, not a scripted overlay, because it has to work when the page around it is the thing that is broken.
 
 **Its position is measured, not chosen.** Google stacks fullscreen and zoom in a 40px column down the right edge of the map, running from roughly y=823 to the attribution strip—so the bottom-right corner is unusable, and lifting the button vertically only moves it onto the fullscreen control. It is inset from the right edge instead. Re-measure `.gmnoprint` and `.gm-control-active` if the map's control layout changes.
+
+**[decided 2026-08-23, shipped] The floating button becomes a dock, on every page.**
+
+It was on the builder and the viewer only, on the reasoning that those are where things break. Half right, and it cost the other half: a rider who hits something wrong on `/rides`, `/import` or their profile is exactly as stuck, and their only way in was an account-menu item they had to already know about. It now renders wherever a signed-in rider is, and carries a second mark for the release notes.
+
+- **`feedbackArea` on `PageOpts` no longer decides whether it appears**—only whether the report arrives with `?area=` pre-filled. It stays opt-in rather than inferred because `areaFromPath()` in `src/feedback/policy.ts` is the one inference mechanism and it is reached from the request; `page()` never sees a path, so anything worked out there would be a second mechanism free to disagree with the first. No area simply means no pre-fill, which the intake is built for.
+- **Signed out gets nothing**, on the splash or anywhere else. The intake requires an account.
+- **The feedback flow itself is the one exception**, in CSS rather than in a prop: the bug mark would open the page it is sitting on, and that flow is built around a sticky full-width control at the bottom edge, which is the only thing in the app the dock has to argue with.
+- **It is a dock, not two loose marks**—one translucent capsule holding both, on `$z-fab` above the nav. Two unattached discs in a corner read as something the page put there; one surface reads as chrome, which is what it now is. Over a map the capsule is the same `$panel-bg` as Google's own controls, so it joins that family instead of competing with it.
 
 **[decided] "About this app" stays in the menu.** It is the only trigger for the alpha modal. Privacy and Terms are deliberately *not* in the menu; the footer carries them on every chrome page, and the splash carries them signed out.
 

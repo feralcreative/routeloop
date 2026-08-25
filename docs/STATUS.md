@@ -1,49 +1,145 @@
 # Status and handoff
 
-**Updated:** 2026-08-21
-**Branch:** `style/sign-buttons-and-misc`, clean and **nine commits ahead of `main`**, PR about to open. **1,105 tests across 46 files** (2 skipped, 1,107 total)
-**Closes, since the last update:** nothing on the tracker, because none of it has an issue. The branch started as presentation work—the sign-button treatment, a widow policy, a spelling sweep—and grew two features: the alpha modal's contact marks, and **roadmap item 28, ride thumbnails**, built out of phase order at Ziad's call. It squash-merges, which is what makes the mixed history harmless. Before it, the `alt`/`alts` rename landed on `main`, along with `feat/fixed-day-slider` as [#107](https://github.com/feralcreative/routeloop/pull/107) and `feat/rider-feedback` as [#108](https://github.com/feralcreative/routeloop/pull/108).
+**Updated:** 2026-08-23
+**Branch:** `main`, with the POI-first work uncommitted in the tree. **1,167 tests across 49 files** (2 skipped, 1,169 total)
+**Closes, since the last update:** nothing on the tracker—the POI-first change was raised directly and has no issue. Before it, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
 
-**The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the next two sections.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
+**A point is a POI until it is promoted, and a day is one ordered list.** That landed 2026-08-23 and it is the largest change to the data model since the `routes`→`days` rename—read the next section before touching the builder, the ride payload or anything that counts stops.
 
-**FOUR schema changes are in play and all are local-dev only.** `drizzle/0005_classy_mattie_franklin.sql` is the newest—`rides.thumb_hash`, `rides.thumb_built_at` and a partial index—and like the three below it is additive, needs no backfill, and has been applied to the dev database only.
+**Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
 
-**The first three:** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums. All are additive, so none needs a backfill or rewrites a table—but stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does.
+**The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the sections below.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
+
+**Six schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums; `drizzle/0006_wild_hammerhead.sql` adds `point_details` and `points.uid`; `drizzle/0007_glossy_charles_xavier.sql` adds `places` and `place_groups`; `drizzle/0008_quick_fat_cobra.sql` makes `points.position` NOT NULL for both kinds. Stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does; deploy either of the newest three without 0006 and every save 500s on a NOT NULL that is not there yet.
+
+**0008 needs the same reading as 0006 and for the same reason.** Both are hand-rewritten, and both are hand-rewritten because the differ emitted a bare `SET NOT NULL` against a populated table with no backfill in front of it. See the POI-first section below for what 0008 actually does.
+
+**0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
 
-## Ride thumbnails—roadmap item 28, 2026-08-21
+## POI first: one ordered list of points—2026-08-23
 
-**Shipped, and it works against the real dev corpus**: every ride in the list now shows a picture of its own route, each day in its own color. 22 tests in `test/thumbnail.test.ts`.
+**Every point a rider creates is a POI until they promote it, and a day is ONE ordered array rather than two.** Ziad's call. It replaces a model where the kind was chosen at creation time, from a radio pair on each day's add row—a decision asked for at the moment the rider knows least about the place they just dropped.
 
-**It needed a Google Cloud change nobody had anticipated, and that is the part worth reading.** Maps Static was one of the 23 APIs switched off on 2026-08-02, so every call came back 403 with *"This API is not activated on your API project"*. That message is **project-level, not key-level**, and the key-level one reads almost identically—the giveaway was that the browser key and the server key returned *different* strings, which is what identified it. Fixed by enabling `static-maps-backend.googleapis.com` on project `tankbag` and adding it to the server key's API restrictions (now Routes + Geocoding + Static Maps). **Restriction changes take a few minutes to propagate**, so a 403 immediately afterwards is not a failure; it cleared on its own.
+**The five decisions, all Ziad's, all 2026-08-23:**
 
-**The key never enters anything that gets stored.** `thumbnailRequest()` returns the Static Maps path *without* the API key; that keyless string is what gets hashed into `rides.thumb_hash`, and `thumbnailUrl()` appends the key only at fetch time. Two things follow, and both were the reason: a key rotation does not silently invalidate every thumbnail in the database, and no row, log line or error message can carry an IP-restricted server key.
+| Decision | What it means |
+| --- | --- |
+| Creation is unchanged | Click the map, or search on a day's row. No radios, no checkboxes, no kind choice anywhere |
+| POI is the baseline type | Every path—map click, either search arm, a saved place—produces a POI |
+| The first point of a day is promoted automatically | It becomes a stop and is tagged `start`, which is what keeps "at least one stop per day" true without asking |
+| No route line until two stops | Legs connect stops, so three POIs draw three dots and no road. Stated rather than treated as a bug |
+| One ordered list, `kind` is a flag | Every point carries `position`, both kinds. Promotion moves nothing |
 
-**Simplification targets a point budget, not a tolerance**, because the 8192-character URL limit is a budget and no fixed tolerance maps onto one. Douglas-Peucker with the tolerance binary-searched to land on 330 points. Worst measured case—8 days × 8,473 points—is **2,927 characters, 36% of the limit**.
+**Promotion is a row-menu item, both directions**—"Make this a stop" and "Make this a POI". That one was chosen rather than specified: it is the only place that adds no new control, it is keyboard-reachable, and it is reversible, which matters because a mis-promotion would otherwise cost a delete and a re-add and take the point's notes and details with it. **Demoting a day's last stop is offered and disabled**, not hidden—it is a real action that is unavailable for a reason worth stating.
 
-**A design gap found during the work, and the roadmap said the opposite.** Item 28 claimed a restyle "regenerates every thumbnail by itself, with no migration and no backfill script". It does not. The sweep selects on `updated_at > thumb_built_at` and only compares hashes among rows it has *already* selected—so the hash can prevent work, never cause it, and a style change moves no ride's `updated_at`. `resetThumbnailStamps()` is the backfill, reached as `npx tsx utils/sweep-thumbnails.ts --all --until-done`. The roadmap entry has been corrected rather than left to mislead the next reader.
+### The migration, which is the part to read before deploying
 
-**This is the app's first scheduler.** An in-process interval, Ziad's call 2026-08-21; `src/auth/mailer.ts` and `src/invites/service.ts` both still say the app has no scheduler and should now be read as "there was none". It runs **once per replica**: at one that is right, at two the hash makes the second pass harmless but the overlap window can double-fetch. That is when it moves to a cron or takes an advisory lock, and the note is at `startThumbnailSweep()`.
+`drizzle/0008_quick_fat_cobra.sql` makes `points.position` NOT NULL for both kinds, drops `ck_point_stop_pos`, and leaves `uq_point_day_pos` as a real uniqueness constraint rather than one leaning on NULLS DISTINCT to let every POI in a day share a null.
 
-**Two sizing facts that look like styling bugs and are not.** Google's wordmark and "Map data ©" line are required by the Maps terms, cannot be styled off, and are drawn at a **fixed pixel size**—so at the original 64×40 display box they were most of the picture, which reads exactly like "the map style is not applying". The fix is the display box (now 160×100) and rendering larger than it (640×400) so the attribution scales down with everything else.
+**drizzle-kit generated two statements and both were wrong to run.** It emitted `DROP CONSTRAINT` then a bare `ALTER COLUMN "position" SET NOT NULL`, which fails outright against any populated table—every POI ever written carries null, and nothing in the generated file supplies a value. This is the second time the differ has done exactly this (see 0006) and the second time the rule in AGENTS.md was what caught it.
 
-**Still owed:** a quota alert on the Static Maps SKU, which item 28 asks for and which nothing has been set up for. The SKU is Essentials, 10,000 free calls a month, and is separate from the `maps-backend` 500/day cap—so thumbnails do not eat that ceiling.
+The hand-written version drops the unique index first, renumbers **both** kinds densely from 0 per day, sets NOT NULL, then rebuilds the index. Stops keep the order they already had; POIs follow them in along-the-route order, which is the order the builder was already displaying them in, so nothing a rider is looking at moves. The index comes out because the renumber deliberately does not trust stop positions to be dense, and a renumber that moves a stop could transiently collide with another—a unique index is checked per row and cannot be deferred.
 
-**Not built, on purpose:** roadmap item 29, cards instead of rows. The thumbnails landed in the existing row layout, which item 29 replaces with a grid across all four browsing surfaces. It is unblocked now.
+**Verified against the local database**: 39 days, every one dense from 0, no nulls, no duplicates, and every day still has a stop.
 
-## The alpha modal—2026-08-21
+### What changed shape, and the two places that deliberately did not
 
-The "This is an alpha" modal got its three contact links as brand-colored marks plus a fourth for Vampires MC, and its button became a guide sign with a flanking pair of up arrows.
+The payload, the client state and the native JSON all became one ordered `points` array with `kind` on each element. `day.stops`/`day.pois` are gone from `builder.js`; `stopsOf()` on both sides is the only bridge to the leg math, which still counts in stop ordinals because a leg joins stop *i* to stop *i+1*.
 
-**Two embed mechanisms, decided by the artwork rather than by taste.** GitHub, Signal and Discord are each a disc in `currentColor` with the glyph knocked out white, so they must be **inline** `<svg>`—an `<img>` has no inherited color and paints the disc black, and a CSS mask flattens the knockout into a silhouette. `src/views/icon.ts` inlines them. The Vampires MC mark carries its own colors and is **64 KB**, and this modal is injected into *every* page, so it is an `<img>`: inlining would put 64 KB on every HTML response to draw one 44px logo.
+**`ride.json` still sends `stops` and `pois` as two arrays, deliberately.** The viewer draws markers and a timeline and never renders points as a sequence, so it gains nothing from the interleaving—and filtering an ordered read preserves each array's order anyway. The payoff is that `viewer.js` was not touched at all. **`ride-time.js` and `twist.js` are shared by both surfaces and now accept EITHER shape**, with `stopsOf`/`poisOf` at the top of each as the only place that difference is known. That is the thing to keep intact: break it and the builder and the viewer disagree about a ride's schedule, silently.
 
-**`?alpha=1` pins the modal open** for design work—ignores a stored dismissal, reopens on every load so the SCSS watcher's live reload brings it back, and makes close a no-op. **Local hosts only**; ungated, a link carrying it would pin an undismissable modal on any rider who opened it.
+**Native JSON is format version 4, and 2 and 3 still import.** `upgradeNativeRide` merges an older file's two arrays into one list, stops first, stamping each kind explicitly—a v3 stop must not fall through to the `poi` default. Appending rather than interleaving is the honest reading: a v3 POI had no stored order, so there is no sequence to recover. Riders have those files on disk.
 
-**Even spacing is between the marks, not the boxes.** A flex row with a fixed gap spaces the item *boxes*, and each box is as wide as its own caption—so captions running from "Signal" to "Vampires MC" put the discs at four different distances. Equal-width grid tracks fix it; verified at an even 88px pitch, and 68px on a 360px phone where "Vampires MC" wraps inside its own track.
+### Two rules that had to be re-stated rather than inherited
 
-Focus is shown on the mark as a circular ring rather than a rectangle around the block, and initial focus now lands on the dialog container rather than the first link—so nothing is ringed when the modal opens.
+**"At least one stop per day" is now an explicit refine.** The old schema said it as `stops.min(1)`; `points.min(1)` is satisfied by a day of nothing but POIs, so the guarantee would have been dropped silently. Everything downstream still assumes it—a day with no anchors has no legs, no mileage, no roadbook rows and nothing to hand to Maps.
+
+**The roadbook prints the rider's order now, not the measured distance.** It used to re-sort every row by `distFromStartM`, because a POI had no stored order and its projection onto the track was the only thing that could place it. That projection is now the worse of the two answers: it is null on a trackless import, and a null sorted to the end moved a point the rider had put in the middle. Four tests pinned the old rule and were rewritten to pin the new one rather than patched to pass.
+
+### What a drag means now, and one bug class that went with it
+
+**Dragging is a reorder, for both kinds.** It used to be two different operations: a stop drag reordered, and a POI drag REPOSITIONED the pin to the road midway between the rows it was dropped between, because a POI had no order for a drag to change. That moved a place the rider had chosen, and dropping one back where it started relocated it to the midpoint of its neighbors. `movePoiToDistance()` and the whole midpoint branch are gone.
+
+The index mapping went with it. Every row's `data-i` indexes `day.points` whatever its kind, so Sortable's own indices finally mean something and `orderedRows()` collapsed from an interleave-and-sort to the array itself.
+
+### Verified by hand, not reasoned about
+
+Driven in a browser on a fresh ride and on `/builder/9`: the home seed lands as stop 1 carrying `{start, home}`; two map clicks land as dotted POIs; promoting one draws the route and numbers it 2; demoting works and the last stop's demote is disabled; reorder works for both kinds; save, reload, and the order and kinds come back. The database showed the two distance algorithms correctly split by kind—prefix sum for the stop, projection for the POI.
+
+**Both round trips were exercised against the running app**, not just unit-tested. The v4 native export re-imported to an identical ride: same order, same kinds, 10 legs and 15 points either side. A v3 file reconstructed from it imported correctly too. All four lossy formats still render, and the viewer and the roadbook were checked on the same ride.
+
+### One thing fixed in passing
+
+`utils/seed-demo-rides.ts` had been broken since 0006—it never supplied `uid`, which has been NOT NULL since then. `utils/` is not in `tsconfig.json`, so it fails at runtime with nothing useful to say. It now mints uids and gives POIs positions.
+
+## Saved places—`feat/saved-places`, 2026-08-22
+
+**A rider keeps a library of locations and drops one into any ride.** Home, the good fuel stop, the meet point everyone knows. Closes [#10](https://github.com/feralcreative/routeloop/issues/10). Stacked on `feat/rich-stop-details` rather than branched from `main`, because a place pre-fills a stop's details and those only exist there.
+
+**A place is COPIED into a ride, never referenced, and that is the decision the whole feature turns on.** There is deliberately no `place_id` on `points`. A ride is a record of what the rider planned, so renaming "Bob's Gas" or deleting it must not reach back and rewrite a ride from last year. It also sidesteps the churn problem entirely—points are deleted and re-inserted on every save, so a foreign key from a point to a place would have to survive that for no gain. `placeToStop()` in [src/places/policy.ts](../src/places/policy.ts) is that decision in code, mirrored client-side by `stopFromPlace()` in [public/js/builder.js](../public/js/builder.js).
+
+**The cost, stated plainly so nobody files it as a bug later: fixing a badly placed pin fixes FUTURE rides only.** Rides that already copied it keep the old coordinates. That is the trade, and it was taken knowingly.
+
+**A place carries the durable half of rich stop details and never the per-trip half.** Phone, address, and links are facts about the place. Confirmation numbers and check-in times are facts about one trip, so `placeToStop()` returns an empty confirmation for the rider to fill in—inheriting last September's reservation number would be worse than having none. It returns `details: null` outright when the place has nothing durable to give, so a bare pin does not create an empty `point_details` row in every ride it lands in.
+
+### Groups are optional, and deleting one does not delete its places
+
+`places.group_id` is nullable, because requiring a group would mean inventing a folder before a rider can save their first place—friction in front of the very first use. "Not in a group" is a real section rather than a missing value, and `groupPlaces()` renders it **last**: a rider who has organized their library should see the organization before the leftovers, and it is only drawn when it has something in it.
+
+**The FK is `set null`, not cascade.** Deleting a group keeps its places and makes them ungrouped. Losing a rider's saved locations because they tidied up a folder name would be unforgivable, and cascade is exactly how that would happen. The client says so before it asks.
+
+A duplicate group name answers **409, not 400**—`onConflictDoNothing` on the per-owner unique index, and the sensible answer is "you already have that one" rather than a validation error on a well-formed request.
+
+### Where places surface, and the primitive that was not built
+
+The roadmap asked for "a marker-group primitive in the map engine". **It was not built and it turned out not to be needed.** Saved places surface inside the builder's existing add-row search list, above the Google predictions, matched locally from one character with **no network call and no billing**. There is nothing extra to draw on the map, so there is nothing extra to draw it with. Revisit only if a "show all my places" view is actually wanted.
+
+**Creation happens in the builder, not on the profile**, and that is deliberate: a place needs a pin, and the builder is where the map is. "Save to my places" on any stop's row menu is the creation path. The profile screen manages what is already there—rename, refile, delete, and the groups themselves. A create-from-scratch flow there wants the address picker from item 19 rather than a pair of lat/lng boxes, and should wait for it.
+
+### The privacy shape, which is two layers on purpose
+
+A place library holds a rider's home address and the phone numbers of the places they stay. **There is no public surface here and there should never be one.** Every route is behind `requireActiveApi`, and separately every query in [src/places/service.ts](../src/places/service.ts) folds the owner id into its `WHERE` clause—so a route that lost its gate would return nothing rather than someone else's library. Both layers, deliberately. A group id arriving in a payload is honored only if the rider actually owns that group, or a crafted request could file a place into a stranger's library.
+
+"Not found" and "not yours" answer identically with a 404. A 403 would confirm the row exists.
+
+**Rule-from-query split**, the same one invites, survey, stats, and feedback already use: [policy.ts](../src/places/policy.ts) is pure and holds every rule, [service.ts](../src/places/service.ts) is queries and nothing else. That is what lets `test/places.test.ts` pin the limits, the grouping order, and `placeToStop()` with no Postgres.
+
+Caps are a backstop against a runaway client rather than a product limit: 500 places, 50 groups, 5 links each. A rider with 200 saved places is using the feature as intended; one with 300 has a script. The limits ride along in the list response so the client can disable its own add affordance rather than discovering the cap by being refused.
+
+## Rich stop details—`feat/rich-stop-details`, 2026-08-21
+
+**A stop can carry a confirmation number, check-in and check-out, phone, address, up to five labeled links, and freeform notes**—"gate code 4417, park behind the barn, ask for Dave." Closes [#15](https://github.com/feralcreative/routeloop/issues/15).
+
+**The separate table is the load-bearing part, not an implementation detail.** `points` is what `ride.json` is built from and what every export serializes, so a confirmation number stored as a column on `points` is one forgetful `select()` away from a public share. In its own table it has to be JOINed to leak, and a join is visible in review in a way an extra column inside a `select *` is not. Same reasoning that splits `user_profiles` from `users`.
+
+[src/maps/point-details.ts](../src/maps/point-details.ts) is the only module that reads `point_details`, which makes the boundary greppable: if a surface shows private detail, it imports from there. **`canSeeDetails()` is the entire rule—owner only, and deliberately blind to `visibility`.** A public ride's details are as private as a private ride's, because sharing a route is not sharing a reservation. `detailsForViewer()` returns an empty map rather than null or a throw for a non-owner, so a viewer with no details and a viewer forbidden from seeing them render identically and the presence of details is not itself a signal.
+
+**Details reach exactly three surfaces**: the builder's own load, `ride.json` for the owner, and the native JSON. They are stripped from GPX, KML, GeoJSON, and CSV—those get handed to devices and forwarded to riding buddies, and none of them can express "this field is private". A clone drops them, because a public ride is clonable by anyone. `loadNativeRide()` takes the details map as an argument rather than fetching it, so forgetting to pass it **fails closed**: the export is merely incomplete rather than a leak.
+
+**Verified against a real public ride rather than reasoned about.** A canary detail row was planted on a public ride and all seven anonymous surfaces were fetched and checked—`ride.json`, both native names, and the four lossy formats. Every one returned 200 and none carried it. A second signed-in rider who is not the owner also saw nothing.
+
+### The ID-churn prerequisite was solved differently from the plan
+
+The roadmap's governing text assumed this feature meant "send ids in the payload and diff server-side", which rewrites `insertRideGraph`, `ridePayload`, and `loadRidePayload`—the path the native JSON import shares. **Ziad's call, 2026-08-21: a client-minted `points.uid` instead.**
+
+The delete-and-re-insert model accepted on 2026-08-15 is untouched. `point_details` is keyed by `(ride_id, uid)` rather than by the row id that churns, identity rides along in native JSON exports for free, and `insertRideGraph` barely changed. **Row ids still churn**, so anything else that later needs a point to keep its identity—a comment, a photo—uses the uid too and does not need this revisited.
+
+[src/maps/uid.ts](../src/maps/uid.ts) is the server half: lowercase base36, twelve characters, `randomBytes` with rejection sampling because 256 % 36 = 4 would bias the first four symbols. No uppercase, deliberately—the uid ends up in URLs and hand-typed fixtures, and a case-sensitive identifier that looks case-insensitive is a bug waiting to happen. `uid()` in `public/js/builder.js` mirrors it and **both must agree on the alphabet and the length or the save 400s**.
+
+**`ensureUids()` repairs rather than rejects**, for the same reason `normalize()` repairs alternate groups: the payload arrives from an autosave the rider did not press, so a 400 is a save they silently lost. Three things arrive without usable uids and all three are ordinary—a tab opened before this shipped, a native JSON file written before it, and a ride imported from another app. A duplicate is just as ordinary, since duplicating a stop copies its row wholesale. Uids are settled for a day's stops and POIs **together**, because the unique index is per day across both kinds and settling the lists separately could hand a POI the same uid as a stop.
+
+**`point_details` cascades from `rides`, not from `days`**, which is what makes a confirmation number survive the `delete(days)` at the top of every save. The flip side is that nothing else cleans it up, so `writePointDetails` deletes rows whose uid left the payload. Skip that and a deleted stop's gate code lives forever.
+
+### Fields are shown by role, and a stop with no roles gets all of them
+
+`detailFieldsFor()` in `builder.js` keys off the existing role taxonomy: lodging gets check-in and check-out, a table role gets a reservation time, and everything else gets phone, address, notes, and links. **A stop with no roles at all gets the full set rather than the minimum**—an uncategorized stop is one the rider has not labeled yet, and hiding fields from it looks like a bug.
+
+The builder edits them behind a row-menu item and badges the rows that carry any. The viewer shows them as a ruled-off block headed "Only you can see this".
+
+**One snapshot note that generalizes.** `point.details` had to join `point.roles` in the copied-not-shared half of the builder's undo snapshot, because the field editor assigns into that object one field at a time and `details.links` is an array it pushes to. That set changes every time an edit-in-place feature ships, and nothing fails loudly when it is missed.
 
 ## Sign buttons, widows, and a spelling sweep—`style/sign-buttons-and-misc`, 2026-08-19
 
