@@ -26,6 +26,7 @@ import { mapFilePath, thumbFilePath } from './maps/storage'
 import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
 import { placesRoutes } from './routes/places'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
+import { startQuotaSweep } from './account/quota-sweep'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -634,3 +635,8 @@ serve({ fetch: app.fetch, port: PORT }, (info) => {
 // container's healthcheck is what the deploy waits on. The timer is unref'd, so
 // this never holds the process open.
 startThumbnailSweep()
+// Repairs users.used_bytes from the authoritative sum, on the same cadence. Not
+// part of the sweep above and not gated on a Maps key: it touches no external
+// service, and what it protects is a rider's ability to upload at all. See the
+// header of src/account/quota-sweep.ts.
+startQuotaSweep()

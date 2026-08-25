@@ -22,6 +22,7 @@ import { TWIST_BANDS } from '../src/maps/twist'
 import {
   ACTIVITY_MONTHS,
   fmtBytes,
+  fmtHours,
   fmtMiles,
   monthSeries,
   roleBars,
@@ -43,6 +44,8 @@ const totals = (over: Partial<RawTotals> = {}): RawTotals => ({
   pois: 0,
   distanceM: 0,
   viaPoints: 0,
+  durationS: 0,
+  estimatedLegs: 0,
   publicRides: 0,
   unlistedRides: 0,
   privateRides: 0,
@@ -327,11 +330,55 @@ describe('shapeStats', () => {
     expect(s.records.some((x) => x.label === 'Twistiest 20 miles')).toBe(false)
   })
 
-  // The import path never writes duration, so no figure derived from it may
-  // appear anywhere. If someone adds one later, this fails and says why.
-  it('reports no duration anywhere, because the import path never records it', () => {
-    const s = shapeStats(raw({ totals: totals({ rides: 5, distanceM: 1000 * MI }) }), 0, NOW)
-    const text = JSON.stringify(s)
-    expect(text).not.toMatch(/riding|saddle|\bhours\b|\bh \d+m\b/i)
+  // SADDLE TIME. This block replaced a test asserting that no duration figure
+  // appeared anywhere — that rule held from the day the dashboard was built until
+  // 2026-08-24, on the grounds that the import path writes no leg duration and a
+  // total would therefore undercount. The undercount was fixed instead of the
+  // figure being withheld (query.ts estimates an unrouted leg from distance), so
+  // the old assertion pinned a rule that no longer exists and was rewritten
+  // rather than patched to pass.
+  describe('saddle time', () => {
+    it('is null when nothing has any riding time, rather than a confident zero', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 5, distanceM: 1000 * MI }) }), 0, NOW)
+      expect(s.saddle).toBe(null)
+    })
+
+    it('reports whole hours', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 3600 * 12 }) }), 0, NOW)
+      expect(s.saddle?.hours).toBe('12')
+    })
+
+    it('groups thousands, because a long-standing library gets there', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 3600 * 1234 }) }), 0, NOW)
+      expect(s.saddle?.hours).toBe('1,234')
+    })
+
+    // The whole point of carrying the flag: the same number means different
+    // things depending on whether a router measured it or distance implied it.
+    it('says the figure is measured when no leg was estimated', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 0 }) }), 0, NOW)
+      expect(s.saddle?.estimated).toBe(false)
+      expect(s.saddle?.note).toMatch(/measured/i)
+    })
+
+    it('admits the figure is part estimated when any leg was', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 1 }) }), 0, NOW)
+      expect(s.saddle?.estimated).toBe(true)
+      expect(s.saddle?.note).toMatch(/estimated/i)
+    })
+  })
+})
+
+describe('fmtHours', () => {
+  it('rounds to the nearest hour rather than truncating', () => {
+    expect(fmtHours(3600 * 2 + 1800)).toBe('3')
+    expect(fmtHours(3600 * 2 + 1799)).toBe('2')
+  })
+
+  // Hours and nothing smaller, unlike the roadbook's fmtDuration. A minute is
+  // information about one day and noise across a hundred, and some unknown share
+  // of this figure is estimated anyway.
+  it('never prints minutes', () => {
+    expect(fmtHours(3600 * 4 + 1200)).toBe('4')
   })
 })

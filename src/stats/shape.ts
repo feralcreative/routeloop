@@ -10,10 +10,18 @@
 //
 //   - Twistiness rolls up DISTANCE-WEIGHTED, never as an average of averages.
 //   - A null twistiness is "not measured", never "Straight".
-//   - Duration is not reported at all, because the import path never writes it.
+//   - Saddle time is reported, and part of it is an estimate that says so.
 //
-// The last one is the reason there is no "hours in the saddle" figure on the
-// dashboard even though `rides.total_duration_s` exists and looks inviting.
+// THE LAST ONE REVERSED ON 2026-08-24 and the old reasoning is worth keeping,
+// because it was right about the danger and wrong about the remedy. There was no
+// "hours in the saddle" figure at all, on the grounds that the import path never
+// writes a leg duration — so a lifetime total would undercount by however much
+// of the library was imported, silently, and in the FLATTERING direction, which
+// is the kind of wrong nobody reports. The remedy taken was to estimate the
+// missing legs from distance at a nominal speed (src/maps/ride-time.ts), which
+// is what both clients already do, rather than to keep the figure off the page.
+// `SaddleTime.estimated` is the part that keeps it honest: the total covers
+// everything, and the page says when some of it was figured rather than measured.
 import { ROLE_META, type Role } from '../maps/roles'
 import { twistLabel } from '../maps/twist'
 
@@ -37,6 +45,12 @@ export type RawTotals = {
   distanceM: number
   /** Shaping points dragged onto the line, summed across every leg. */
   viaPoints: number
+  /** Seconds in the saddle, summed across every leg, with a leg the router never
+   *  answered for estimated from its distance — see src/maps/ride-time.ts. */
+  durationS: number
+  /** How many of those legs were estimated rather than measured. Zero means the
+   *  whole figure came from the router; anything else is why the page hedges. */
+  estimatedLegs: number
   publicRides: number
   unlistedRides: number
   privateRides: number
@@ -82,6 +96,20 @@ export const miles = (m: number): number => m / METERS_PER_MILE
 export const fmtMiles = (m: number): string => Math.round(miles(m)).toLocaleString('en-US')
 
 export const fmtCount = (n: number): string => n.toLocaleString('en-US')
+
+/**
+ * A lifetime total of riding time, as hours.
+ *
+ * HOURS AND NOTHING SMALLER, unlike the roadbook's `fmtDuration`, which prints
+ * "4h 20m" for a single day. A minute is real information about one day and
+ * noise across a hundred — "312h 47m" invites a precision the underlying figure
+ * does not have, since some unknown share of it is estimated from distance.
+ *
+ * Deliberately not routed through src/maps/duration.ts either. That module
+ * formats a rider's own typed dwell in whichever of three formats they picked,
+ * and this is a derived aggregate rather than a value they entered.
+ */
+export const fmtHours = (seconds: number): string => fmtCount(Math.round(seconds / 3600))
 
 /**
  * Bytes as something a person reads.
@@ -220,9 +248,23 @@ export type Meter = { usedBytes: number; quotaBytes: number; pct: number; used: 
 
 export type VisibilitySplit = { key: 'public' | 'unlisted' | 'private'; label: string; n: number; pct: number }[]
 
+/**
+ * Time in the saddle, and how much of it is a guess.
+ *
+ * `estimated` is not decoration: a rider whose library is all imports has a
+ * figure derived entirely from distance at a nominal speed, and one who plans
+ * everything in the builder has a figure the router measured. The same number
+ * means different things and the page has to say which.
+ *
+ * Null when there is no riding time at all, so a rider with rides but no legs
+ * gets nothing rather than a confident zero.
+ */
+export type SaddleTime = { hours: string; estimated: boolean; note: string } | null
+
 export type DashboardStats = {
   hasRides: boolean
   heroMiles: string
+  saddle: SaddleTime
   tiles: Tile[]
   meter: Meter
   twist: TwistRollup
@@ -231,8 +273,10 @@ export type DashboardStats = {
   months: MonthPoint[]
   visibility: VisibilitySplit
   records: Tile[]
-  /** True when used_bytes disagrees with the authoritative sum. Surfaced quietly;
-   *  the cache has no reconciler and this is the first thing able to notice. */
+  /** True when used_bytes disagrees with the authoritative sum. Surfaced quietly.
+   *  src/account/quota-sweep.ts repairs the tally on a timer as of 2026-08-24, so
+   *  this is no longer the only thing that can notice — it is the one that can say
+   *  which rider and which page. */
   storageDrift: boolean
 }
 
@@ -308,9 +352,32 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): D
     })
   }
 
+  // WITHHELD UNTIL 2026-08-24, and the reason it is here now is that the
+  // undercount was fixed rather than accepted. The objection was real: the
+  // import path never writes a leg duration, so summing duration_s alone
+  // reported the builder's rides and counted every imported one as zero —
+  // silently, and in the flattering direction, which is the failure mode nobody
+  // catches. query.ts now applies the same distance-based estimate both clients
+  // apply, so the total covers the whole library.
+  //
+  // What it costs is that some of the figure is a guess, and `estimated` is how
+  // the page admits that rather than hiding it.
+  const saddle: SaddleTime =
+    t.durationS > 0
+      ? {
+          hours: fmtHours(t.durationS),
+          estimated: t.estimatedLegs > 0,
+          note:
+            t.estimatedLegs > 0
+              ? 'Part estimated: an imported ride carries no timings, so those legs are figured from distance.'
+              : 'Measured by the router, leg by leg.',
+        }
+      : null
+
   return {
     hasRides,
     heroMiles: fmtMiles(t.distanceM),
+    saddle,
     tiles,
     meter,
     twist: rollUpTwist(raw.twist),

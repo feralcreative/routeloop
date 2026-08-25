@@ -17,6 +17,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { points, rides, routeLegs, days, users } from '../db/schema'
+import { NOMINAL_SPEED_MS } from '../maps/ride-time'
 import { ACTIVITY_MONTHS } from './shape'
 import type { RawMonth, RawRecords, RawRole, RawStats, RawTotals, RawTwist } from './shape'
 
@@ -85,6 +86,26 @@ export async function loadStats(userId: number): Promise<RawStats> {
       // How many times the rider dragged the line onto a road the router did not
       // pick. jsonb array, so its length is the count.
       viaPoints: int(sql`sum(jsonb_array_length(${routeLegs.viaPoints}))`),
+      // SADDLE TIME, with the same estimate the two clients apply — see
+      // src/maps/ride-time.ts. A leg with distance and no duration never came
+      // back from the router, which is every leg of every imported ride, so
+      // summing duration_s alone would report the builder's rides and count the
+      // rest as zero. That is the undercount this figure was withheld over until
+      // 2026-08-24.
+      //
+      // NOMINAL_SPEED_MS is BOUND rather than written into the string, so there
+      // is one number and it lives in the TypeScript module the clients are
+      // pinned against. A literal here would be a fourth copy nothing checks.
+      durationS: big(
+        sql`sum(case
+              when ${routeLegs.durationS} <= 0 and ${routeLegs.distanceM} > 0
+                then round(${routeLegs.distanceM}::numeric / ${NOMINAL_SPEED_MS})
+              else ${routeLegs.durationS}
+            end)`,
+      ),
+      // How much of that figure is a guess rather than a measurement, so the
+      // page can say so instead of implying the whole total was measured.
+      estimatedLegs: int(sql`count(*) filter (where ${routeLegs.durationS} <= 0 and ${routeLegs.distanceM} > 0)`),
     })
     .from(routeLegs)
     .innerJoin(days, eq(days.id, routeLegs.dayId))
@@ -179,6 +200,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
     pois: pointRow?.pois ?? 0,
     distanceM: Number(legRow?.distanceM ?? 0),
     viaPoints: legRow?.viaPoints ?? 0,
+    durationS: Number(legRow?.durationS ?? 0),
+    estimatedLegs: legRow?.estimatedLegs ?? 0,
     publicRides: rideRow?.publicRides ?? 0,
     unlistedRides: rideRow?.unlistedRides ?? 0,
     privateRides: rideRow?.privateRides ?? 0,

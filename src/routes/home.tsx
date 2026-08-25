@@ -27,10 +27,13 @@
 // the hand-off pages set that precedent deliberately, and a stats page that goes
 // blank without script would be the first thing in the app to do so.
 //
-// What is deliberately absent: any figure derived from riding time. The import
-// path never writes routes.duration_s or rides.total_duration_s, so a lifetime
-// "hours in the saddle" would undercount by however much of the library was
-// imported — silently, and in the flattering direction. See src/stats/shape.ts.
+// Saddle time IS reported here as of 2026-08-24, and it used to be the one thing
+// this page deliberately withheld: the import path writes no leg duration, so a
+// lifetime "hours in the saddle" undercounted by however much of the library was
+// imported — silently, and in the flattering direction. It is estimated from
+// distance now, the same way both clients estimate an unrouted leg, and the hero
+// says when part of the figure was figured rather than measured. See
+// src/maps/ride-time.ts and src/stats/shape.ts.
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -270,9 +273,15 @@ homeRoutes.get('/', requireActive, async (c) => {
   const drawChart = s.months.some((m) => m.n > 0)
 
   if (s.storageDrift) {
-    // Not shown to the rider — the number they see is the authoritative sum
-    // either way. Logged because used_bytes has no reconciler and this is the
-    // only place in the app that can notice it has drifted.
+    // Still not shown to the rider — the number they see is the authoritative
+    // sum either way, and the drift is a bug in our bookkeeping rather than
+    // anything they can act on.
+    //
+    // It IS repaired now: src/account/quota-sweep.ts rewrites the tally from the
+    // authoritative sum every five minutes, so a wrong quota check has a bounded
+    // life instead of an unbounded one. This log survives that on purpose — the
+    // sweep says a drift was corrected, and this says which page saw it and for
+    // whom, which is what makes the increment/decrement path findable.
     console.warn(`[stats] used_bytes drift for user ${user.id}: cache ${cached} vs actual ${stats.totals.storedBytes}`)
   }
 
@@ -286,6 +295,23 @@ homeRoutes.get('/', requireActive, async (c) => {
             <span class="hero-value">{s.heroMiles}</span>
             <span class="hero-label">
               miles planned
+              {/*
+                Saddle time rides in the hero rather than as a fifth tile: the
+                four tiles are counts of things, this is a duration, and #137 is
+                about to give each of those four a yours/average/top row that a
+                lifetime total has no equivalent of.
+
+                `title` carries the estimated-or-measured note. It is the same
+                affordance StatTile uses for its hint, and it is the one place
+                the page can admit that part of the figure is a guess without
+                putting a caveat in the middle of a headline.
+              */}
+              {s.saddle && (
+                <span title={s.saddle.note}>
+                  {' · '}
+                  {s.saddle.hours} hours riding{s.saddle.estimated && '*'}
+                </span>
+              )}
               {s.twist && <> · {s.twist.label} overall</>}
             </span>
           </section>
