@@ -192,6 +192,7 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
 
 ## Commit and PR conventions
 
+- **An audible gets its issue written AFTER the fact, and closed immediately.** Ziad's call, 2026-08-24. Work here is often raised out loud and built the same day, and stopping to file a ticket first is exactly the friction that makes it not happen—so the issue is written when the work is done, describing what was decided and why, and closed in the same breath. **It is not optional bookkeeping**: the tracker is what answers "why is it like this" a year from now, and twenty-three issues had to be reconstructed on 2026-08-24 because nobody had been doing it. One issue per coherent unit of work, labeled as if it had been filed up front.
 - Conventional Commits: `type(scope): subject`, imperative mood. Types in use: `feat`, `fix`, `refactor`, `docs`, `chore`, `style`, `test`. Scope optional, welcome when it clarifies.
 - Branch as `type/kebab-subject`—`feat/trip-timeline-slider`, `fix/multi-track-import`.
 - Hand over a single chained one-liner (`git add -A && git commit -m "…"`) and let Ziad run it. Do not commit unasked.

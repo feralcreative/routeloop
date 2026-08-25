@@ -32,6 +32,12 @@
 
 **The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
 
+**The roadmap was audited against the code on 2026-08-24 and was a phase behind.** Item 26 read "planned" for a week after rider feedback shipped ([#108](https://github.com/feralcreative/routeloop/pull/108), 2026-08-17), which means **phase 3 of the road to beta was already done and phase 2 is the only open one**—[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX is the next pickup. Corrected in `docs/ROADMAP.md`, along with the test count and "Where things stand". Three issues were edited on GitHub the same day: [#16](https://github.com/feralcreative/routeloop/issues/16) had its test-suite and CI boxes ticked (with the CI line rewritten to say SCSS is **not** built there), and [#49](https://github.com/feralcreative/routeloop/issues/49) and [#23](https://github.com/feralcreative/routeloop/issues/23) were retitled off the pre-rename vocabulary.
+
+**Both tracker gaps are closed. Twenty-three issues were filed on 2026-08-24, [#115](https://github.com/feralcreative/routeloop/issues/115) through [#137](https://github.com/feralcreative/routeloop/issues/137).** Fourteen were written against work that had already shipped and closed the same minute; nine are roadmap items 21 through 31 that had never been filed, and each now carries a P-label so the Priorities section can see it. The item-to-issue mapping is a table in the 2026-08-24 section of `docs/ROADMAP.md`.
+
+**That is now the working rule, Ziad's call 2026-08-24: an audible gets its issue written AFTER the fact and closed immediately.** The point is to work fluidly without losing the history—nobody stops to file a ticket before fixing something that was just described out loud, but the tracker should still be able to answer what happened and why. Recorded in `AGENTS.md` under the commit conventions.
+
 **Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
 
 **Still hardcoded `en-US`:** number grouping in `src/stats/shape.ts` (`fmtMiles`, `fmtCount`) and the dashboard's month label. Left alone on purpose—all three date-format members are English and produce identical output, so threading a format through ten call sites would change nothing visible. It starts mattering the day a `de-DE`-style member is added.
