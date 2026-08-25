@@ -63,6 +63,8 @@ When an entry here is edited, the GitHub issue it maps to usually says the same 
 
 The eight commits listed above are [#117](https://github.com/feralcreative/routeloop/issues/117) through [#128](https://github.com/feralcreative/routeloop/issues/128), all closed.
 
+**Item 32 was recovered from a dead branch on 2026-08-24 and is [#139](https://github.com/feralcreative/routeloop/issues/139).** It had been written on 2026-08-16 onto `feat/rider-feedback`, which was never merged and was about to be deleted. Two other things came back off the same sweep: the answered open calls in `docs/rider-feedback.md`, which on `main` was still the pre-ship plan, and the whole thumbnails record in `docs/STATUS.md`, which [#110](https://github.com/feralcreative/routeloop/pull/110) was supposed to carry and lost in a merge. **The lesson is the one this section already makes: work that only exists on an unmerged branch is work nobody can find.**
+
 ### 2026-08-16: a planning day, and none of it has issues yet
 
 **Read this before picking up work.** A long planning session changed the order of the whole roadmap and added six items. ~~**None of items 21 through 31 has a GitHub issue**, which matters because the Priorities section below says the P0–P3 labels are the authority on what to do next—so anything relying on labels alone will not see them.~~ **Resolved 2026-08-24**: all eleven were filed, and the mapping is in the 2026-08-24 section above.
@@ -749,6 +751,8 @@ The alternative was a second Map ID switched at runtime, and it fails on its own
 
 **Touches.** `src/routes/prefs.tsx` (renamed from `settings.tsx`—see `docs/main-menu.md`), `src/db/schema.ts` (both preferences), `src/views/layout.tsx` (applying both at render, plus the `-dk` lockup swap), `style/_tokens.scss` and every partial that reads a token, `style/_dashboard.scss` (the stale comment), `docs/main-menu.md`. **Not** `public/js/map-common.js` and not a second Map ID—the map question resolved against touching either. The two radio groups this adds are item 22's motivating pair, so land the width work first or draw them knowing it is coming.
 
+**A dependency the feedback sprint created, and it is easy to miss.** `style/_feedback.scss` is pinned to LIGHT values with no `prefers-color-scheme` block, deliberately: the intake flow is used outdoors in bright sun, so `.feedback-flow` is light-mode-first regardless of the system theme. **The scheme axis must skip that surface** rather than inverting it along with everything else.
+
 **Status.** planned—raised 2026-08-15, widened to light and dark 2026-08-16. Overlaps the accessibility pass in item 12; this is the color half of it, and item 12's line should be read as the keyboard/focus/ARIA half once this exists.
 
 <!--| PAGE-BREAK -->
@@ -933,7 +937,11 @@ What that plan settles, in brief, so this entry stands alone if the file is ever
 
 **Status.** **shipped 2026-08-17** on `feat/rider-feedback`, merged as [#108](https://github.com/feralcreative/routeloop/pull/108). `src/feedback/` is six modules on the house rule-from-query split—`policy.ts`, `service.ts`, `notify.ts`, `storage.ts`, `diagnostics.ts`, `faq.ts`—with `visibleTo()` in `policy.ts` as the whole of the private-bug rule and `state` versus `status` as two columns for that reason. Tests: `test/feedback-policy.test.ts`, `test/feedback-buffer.test.ts`, `test/feedback-diagnostics.test.ts`, `test/feedback-faq.test.ts`, `test/feedback-status-labels.test.ts`. **Issue: [#115](https://github.com/feralcreative/routeloop/issues/115)**, filed retroactively and closed on 2026-08-24.
 
-**Phase 3 of the road to beta is therefore done, and this entry read "planned" for a week after it shipped**—recorded rather than quietly corrected, because it is the failure mode this file warns about at the top: a document that disagrees with the code loses, and nobody noticed until the roadmap was audited on 2026-08-24. What is owed is the same thing owed everywhere else: a browser pass, and the four open calls at the end of `docs/rider-feedback.md` should be re-read against what was actually built.
+**Phase 3 of the road to beta is therefore done, and this entry read "planned" for a week after it shipped**—recorded rather than quietly corrected, because it is the failure mode this file warns about at the top: a document that disagrees with the code loses, and nobody noticed until the roadmap was audited on 2026-08-24. What is owed is a browser pass, and two things that are not code.
+
+**No email has ever actually been delivered.** Local has no SMTP, so every send logs "skipped: mail is not configured" and returns. The call paths are wired and do not break the flows they hang off, but nothing has confirmed a message arrives. **And the flow has only been driven in a desktop browser**, when its entire audience is riders on phones—mobile file inputs and the iOS keyboard shoving the submit button off-screen only surface on hardware. Both want doing before a tester sees the app.
+
+**The four open calls at the end of `docs/rider-feedback.md` were all answered on 2026-08-16**, plus a fifth on automatic screenshots: `getDisplayMedia()` would capture the map correctly where a DOM-capture library cannot, but it is unsupported on every mobile browser, so a file input is the whole answer. That document is a record of a built feature now, not a plan.
 
 ### 27. Compress stored originals at rest
 
@@ -1116,6 +1124,36 @@ Three of the four move together because they are one component. That is a reason
 **Touches.** `src/stats/query.ts`, `src/stats/shape.ts`, `src/routes/home.tsx`, `style/_dashboard.scss`. No schema change.
 
 **Status.** planned—not blocked on anything, but the pool decision above is load-bearing and should not be revisited quietly: widening or narrowing it later changes every number on the page. **Issue: [#137](https://github.com/feralcreative/routeloop/issues/137)**, filed 2026-08-24.
+
+### 32. Icons and per-role color on "What you stop for"
+
+**Goal.** The role chart on the dashboard is seventeen identical bars in one hue, distinguished only by their text labels. Give each role its icon and its own color so the block can be read at a glance instead of word by word.
+
+**Most of this is already built.** `src/stats/shape.ts:168` already puts `icon` on every `RoleBar`, taken from `ROLE_META` in `src/maps/roles.ts`, and all seventeen SVGs are on disk at `public/img/icons/`. `RoleChart` in `src/routes/home.tsx:68` simply does not render the field it is handed. This is a view change—no query, no shape change, no new assets.
+
+**The icons are already colorable, by construction.** Each is a disc filled `currentColor` with a white glyph over it, so setting CSS `color` produces a colored badge with a white symbol and nothing needs editing. Verified across the set 2026-08-16.
+
+**But `<img src>` will not work, and this is the trap.** `currentColor` inside an externally-referenced SVG resolves against that document's own context, not the host page's, so an `<img>` renders black regardless of the CSS around it. The icons have to be **inlined into the HTML**. `public/js/map-common.js:664` already solves the same problem client-side by fetching and caching them; the server needs the equivalent—read once, cache at module level, embed. Seventeen file reads per dashboard render is the failure mode to avoid.
+
+**Colors are fixed per role, not random per render.** Decided 2026-08-16. Stable assignment means the eye learns the chart—gas is the same color every visit—and it lets the palette be tuned once for contrast instead of gambling on each roll. "Random" here means unordered, which these categories genuinely are; it does not mean reshuffled.
+
+**A new palette, not `DAY_COLORS`.** `src/maps/palette.ts` holds twelve colors and this needs seventeen, so five roles would wrap onto a duplicate—but the real objection is semantic: the same color would mean "day 3" in a ride legend and "coffee" here, in an app where colored lines already carry meaning. Roles get their own table, beside the day palette and following its conventions: defined server-side, shipped to the client through the page shell the way `ROLE_META` and `DAY_COLORS` already are, so no second copy can drift.
+
+**Rewrite the comment in `RoleChart`, do not just overrule it.** It currently argues that "a ramp across seventeen rows would imply an ordering the categories do not have," and **that reasoning is correct**—it just does not apply here. A sequential ramp implies rank; a categorical palette implies category, which is exactly what a role is. The replacement comment should say why categorical color is right and why a ramp would still be wrong, or the next reader will assume the original point was missed.
+
+**Build the palette for contrast across both schemes.** Seventeen hues at fixed lightness and chroma, evenly spaced, rather than seventeen hand-picked values—the constraint is that each stays legible as a bar fill and as a badge on white today and on a dark surface once item 20 lands. Getting it right once here is cheaper than retuning seventeen literals later.
+
+**Work.**
+
+- [ ] `src/maps/role-colors.ts`—seventeen colors keyed by `Role`, exported like `DAY_COLORS` and injected through the page shell.
+- [ ] Server-side inline-SVG helper with a module-level cache, so the icons are read from disk once per process rather than once per render.
+- [ ] `src/routes/home.tsx`—`RoleChart` renders the badge and applies the role color to it and to `.role-fill`; the comment gets rewritten as above.
+- [ ] `style/_dashboard.scss`—badge sizing in the `.role-bar` grid, which currently has no icon column.
+- [ ] A test pinning `ROLES`, `ROLE_META` and the color table to the same seventeen keys. The taxonomy already has to stay in sync with `waypointRoleEnum` and `src/maps/roles.ts`; this adds a fourth list, and the existing sync requirements are documented precisely because they have drifted before.
+
+**Touches.** `src/routes/home.tsx`, `style/_dashboard.scss`, new `src/maps/role-colors.ts`, a small inline-SVG helper in `src/views/`. No schema, no queries, no new assets.
+
+**Status.** planned—small and self-contained. **Issue: [#139](https://github.com/feralcreative/routeloop/issues/139)**, filed 2026-08-24. Related to item 30 ([#136](https://github.com/feralcreative/routeloop/issues/136)), the other "make the dashboard less flat" item; the two touch the same file and are worth doing in one pass.
 
 ## Idea backlog (unscheduled)
 
