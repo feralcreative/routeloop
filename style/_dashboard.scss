@@ -21,13 +21,17 @@
 // white card surface: all five checks pass, worst adjacent pair is teal-orange
 // at OKLab ΔE 11.6 under protanopia. Do not swap one by eye — re-run the script.
 //
-// There is no dark mode here on purpose: this app has none. Only the emails do.
-// A single dark-aware page in a light-only app is a worse outcome than a
-// consistent one, so when the site gets a theme this block joins it.
+// The app HAS a theme now — six palettes on two axes, since 2026-08-25 — and this
+// block joined it in the only way it needed to: every value below is a token,
+// so the viz slots follow whichever palette is active without a second table.
+// The role ring is the one color set on this page that deliberately does NOT
+// follow the theme; src/maps/role-colors.ts says why.
 .home {
-  // Sequential slot. One hue, because these bars compare magnitude and length
-  // already carries it — a ramp across seventeen unordered categories would
-  // imply a rank the data does not have.
+  // Sequential slot: the activity line and the storage meter, both of which are
+  // one quantity over one axis. The role bars used to take it too, on the
+  // argument that a ramp across seventeen unordered categories would imply a
+  // rank — that argument is sound and is exactly why they now take a fixed
+  // CATEGORICAL ring instead of a ramp. See src/maps/role-colors.ts.
   --viz-series-1: #{$brand};
   // Categorical slots, validated as a set. Order is fixed: public, unlisted,
   // private. Color follows the meaning, never the size of the group.
@@ -189,13 +193,35 @@
 
 .role-bar {
   display: grid;
-  // Label, then the track takes the slack, then the count. Fixed label column so
-  // every bar starts at the same x — bars that start at different places are not
-  // comparable, which is the entire job of this chart.
-  grid-template-columns: 9.5rem 1fr 2.5rem;
+  // Mark, label, then the track takes the slack, then the count. Fixed mark and
+  // label columns so every bar starts at the same x — bars that start at
+  // different places are not comparable, which is the entire job of this chart.
+  grid-template-columns: 22px 9.5rem 1fr 2.5rem;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   font-size: 0.9rem;
+
+  // The role's own hue, set inline per row by RoleChart. The fallback is a plain
+  // grey rather than the chart's usual blue: a color reaching this rule as null
+  // means the seventeen-key taxonomy has drifted, and a row that looks wrong is
+  // one somebody reports. See roleColor() in src/maps/role-colors.ts.
+  --role-color: #{$concrete};
+}
+
+// The categorical mark. Its disc is `currentColor`, so setting `color` is the
+// whole coloring mechanism — the glyph inside is a white knockout and needs
+// nothing. Inlined into the page by icon(); an <img> would paint it black.
+.role-mark {
+  display: block;
+  width: 22px;
+  height: 22px;
+  color: var(--role-color);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .role-label {
@@ -215,7 +241,7 @@
 .role-fill {
   display: block;
   height: 100%;
-  background: var(--viz-series-1);
+  background: var(--role-color);
   // 4px rounded data-end, anchored to the baseline: the bar is square where it
   // starts and rounded where the value is, so the rounding never reads as part
   // of the magnitude.
@@ -228,15 +254,19 @@
   color: $neutral-36;
 }
 
-//@ XS <560px — the fixed label column stops fitting, so the label goes above
-// its own bar. Bars still share a left edge, which is the property that matters.
+//@ XS <560px — the fixed label column stops fitting, so the mark and the label
+// go above the bar. Bars still share a left edge, which is the property that
+// matters, and the track spans back under the mark to keep that edge at zero.
 @media (max-width: 559px) {
   .role-bar {
-    grid-template-columns: 1fr 2.5rem;
-    grid-template-areas: "label label" "track n";
-    gap: 0.15rem 0.6rem;
+    grid-template-columns: 22px 1fr 2.5rem;
+    grid-template-areas: "mark label label" "track track n";
+    gap: 0.15rem 0.55rem;
   }
 
+  .role-mark {
+    grid-area: mark;
+  }
   .role-label {
     grid-area: label;
   }
@@ -301,8 +331,27 @@
   flex: none;
 }
 
-// --- Records -----------------------------------------------------------------
-
+// --- Records (#136) ----------------------------------------------------------
+//
+// These are achievement cards and used to be styled like the storage meter: a
+// flat $grey hairline around a 1.15rem figure, which is the size this app gives
+// a form label. The block is the most celebratory thing on the page and read as
+// the least.
+//
+// Four moves, cheapest first, all of them here except the count-up:
+//
+//   1. The numeral is set large — clearly above body text, clearly below the
+//      hero, which is the one figure allowed to be biggest.
+//   2. The unit is split off it. "482 mi" as one string spends the emphasis on
+//      "mi"; the numeral takes the size and the unit sits beside it small.
+//   3. Each record carries its own mark, in its own accent color.
+//   4. The card gets an accent edge and a hover lift instead of a hairline.
+//
+// THE ACCENT IS DECORATION AND CARRIES NO MEANING. Every record already says
+// what it is in words directly above the figure, so these four colors are there
+// to stop four identical boxes reading as a table — nothing is distinguished by
+// them alone. That is also why they are ordinary sign tokens and follow the
+// theme, rather than being pinned like the role ring.
 .record-list {
   list-style: none;
   margin: 0;
@@ -310,15 +359,81 @@
   display: grid;
   gap: 0.6rem;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
 
-  li {
-    padding: 0.8rem 1rem;
-    background: $white;
-    border: 1px solid $grey;
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
+.record {
+  // The accent, one per kind. Overridden by the four modifiers below; the
+  // fallback is the page's own accent, so a fifth record added without a color
+  // is styled rather than transparent.
+  --record-accent: #{$brand};
+
+  position: relative;
+  padding: 0.85rem 1rem 0.9rem;
+  background: $white;
+  border: 1px solid $grey;
+  // The accent edge. A left border rather than a full tinted card: the figure
+  // needs the plain surface behind it, and a tint under large type is the thing
+  // that made the tiles and these boxes look alike in the first place.
+  border-left: 4px solid var(--record-accent);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  // The lift. Transform and shadow only — nothing that changes the box's size,
+  // or the grid reflows on hover.
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px color-mix(in srgb, $tarmac 14%, transparent);
+  }
+}
+
+//@ Reduced motion — the lift is motion too, not just the count-up. The shadow
+// stays, so the card still answers the pointer.
+@media (prefers-reduced-motion: reduce) {
+  .record {
+    transition: box-shadow 120ms ease;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.record--distance {
+  --record-accent: #{$interstate};
+}
+.record--ride {
+  --record-accent: #{$disabled};
+}
+.record--twist {
+  --record-accent: #{$detour};
+}
+// Brown rather than a second amber: $detour and $warning are adjacent under the
+// colorblind palette, and two cards running the same accent is exactly the
+// sameness this block was trying to lose.
+.record--views {
+  --record-accent: #{$recreation};
+}
+
+// Top right, out of the text's way. Absolutely positioned rather than a grid
+// column because the label, figure and hint want the full width of the card and
+// a mark column would narrow all three to buy nothing.
+.record-mark {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.9rem;
+  width: 26px;
+  height: 26px;
+  color: var(--record-accent);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -327,16 +442,156 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: $neutral-57;
+  // The mark's own box plus its offset, so a long label wraps before it reaches
+  // the glyph instead of running under it.
+  padding-right: 2.4rem;
 }
 
 .record-value {
-  font-size: 1.15rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  line-height: 1.1;
+}
+
+// A figure. Sits between .stat-value (1.6rem) and .hero-value (up to 4rem) —
+// louder than a tile, never louder than the one number the page leads with.
+.is-figure .record-figure {
+  font-size: clamp(1.9rem, 5.5vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  // Tabular so the count-up does not jitter the card's width on every frame,
+  // and so a row of records lines up at rest.
+  font-variant-numeric: tabular-nums;
+}
+
+// A word — a twistiness label, or a ride's title. Emphasized, but nowhere near
+// the numeral's size: "Fantastically Twisty Coast Run" at 2.4rem is a headline
+// running off its own card.
+.is-text .record-figure {
+  font-size: 1.25rem;
+  font-weight: 700;
+  // Two lines, then ellipsis. A rider's ride titles are not length-limited.
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.record-unit {
+  font-size: 0.95rem;
   font-weight: 600;
+  color: $neutral-50;
 }
 
 .record-hint {
   font-size: 0.85rem;
   color: $neutral-57;
+}
+
+// --- The first run (#103) ----------------------------------------------------
+//
+// The whole page, for a rider who has planned nothing. Every other block here is
+// a section in a stack; this one is alone on the screen, so it is a panel with
+// an edge rather than a bare paragraph — a lone unbordered block reads as a page
+// that failed to load its content.
+//
+// Sign green, because this is the one screen in the app whose job is to point at
+// a route. It is a guide sign.
+.first-run {
+  box-sizing: border-box;
+  margin: 0 0 2.25rem;
+  padding: 1.5rem 1.5rem 1.6rem;
+  background: $white;
+  border: 1px solid $grey;
+  border-top: 4px solid $interstate;
+  border-radius: 12px;
+  // Reading measure. The panel is the only thing on the page, so without this it
+  // runs the full width of the shell and the lede becomes a 130-character line.
+  max-width: 46rem;
+
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.35rem;
+  }
+
+  .lede {
+    margin: 0;
+    color: $neutral-36;
+  }
+}
+
+// Numbered by the browser, from the <ol>. The markers are drawn rather than
+// listed: a counter in a disc reads as a step in a sequence where a bare "1."
+// reads as a bullet that happens to be a digit.
+.first-run-steps {
+  list-style: none;
+  margin: 1.4rem 0;
+  padding: 0;
+  counter-reset: step;
+  display: grid;
+  gap: 1rem;
+
+  li {
+    counter-increment: step;
+    display: grid;
+    // The disc, then the text. Fixed first column so all three steps align
+    // whatever the numeral is.
+    grid-template-columns: 1.9rem 1fr;
+    gap: 0.15rem 0.85rem;
+    align-items: baseline;
+
+    &::before {
+      content: counter(step);
+      grid-row: span 2;
+      box-sizing: border-box;
+      width: 1.9rem;
+      height: 1.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: $interstate;
+      // The legend on a green field, which is scheme-invariant — see the note in
+      // _palette.scss. NOT $white, which is the page under a dark scheme.
+      color: $ink-light;
+      font-size: 0.9rem;
+      font-weight: 700;
+      // Pulls the disc up onto the strong line beside it, which baseline
+      // alignment puts at the text's baseline rather than its box.
+      align-self: start;
+      position: relative;
+      top: 0.1rem;
+    }
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  span {
+    color: $neutral-43;
+    font-size: 0.95rem;
+    text-wrap: pretty;
+  }
+}
+
+.first-run-actions {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.75rem;
+}
+
+// The third door, quieter than the other two. /explore is a real way to start,
+// but browsing is not what this app is for and equal weight would say it was.
+.first-run-aside {
+  margin: 1.1rem 0 0;
+  padding: 0.9rem 0 0;
+  border-top: 1px solid $neutral-94;
+  font-size: 0.9rem;
+  color: $neutral-50;
 }
 
 // --- The chart, and the table that is its accessible twin --------------------

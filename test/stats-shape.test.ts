@@ -321,9 +321,60 @@ describe('shapeStats', () => {
     )
     const labels = s.records.map((x) => x.label)
     expect(labels).toContain('Longest single day')
-    expect(s.records.find((x) => x.label === 'Longest single day')?.value).toBe('420 mi')
     expect(s.records.find((x) => x.label === 'Twistiest 20 miles')?.value).toBe('Very twisty')
     expect(labels.some((l) => l.includes('12 times'))).toBe(true)
+  })
+
+  // #136 split the unit off the figure so the numeral can be set large and "mi"
+  // small. The whole point is that `value` is now the number ALONE — a record
+  // that re-joins them puts the emphasis back on the unit.
+  it('hands the figure and its unit over separately', () => {
+    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect(rec?.value).toBe('420')
+    expect(rec?.unit).toBe('mi')
+    expect(rec?.numeric).toBe(true)
+  })
+
+  // The two word-valued records. `numeric` picks the type size and gates the
+  // count-up, and a word marked numeric would be set at the numeral's size and
+  // then animated from zero — neither of which a ride title survives.
+  it('marks the word-valued records as text and gives them no unit', () => {
+    const s = shapeStats(
+      raw({
+        records: { ...raw().records, bestTwistDpm: 260, mostViewed: 12, mostViewedTitle: 'Coast Run' },
+      }),
+      0,
+      NOW,
+    )
+    for (const label of ['Twistiest 20 miles', 'Most opened, 12 times']) {
+      const rec = s.records.find((x) => x.label === label)
+      expect(rec, label).toBeDefined()
+      expect(rec?.numeric, label).toBe(false)
+      expect(rec?.unit, label).toBeUndefined()
+    }
+  })
+
+  // One field drives the mark and the accent together, so a record cannot reach
+  // the page with a drawing and no color, or the reverse.
+  it('gives every record a kind', () => {
+    const s = shapeStats(
+      raw({
+        records: {
+          longestDayM: 420 * MI,
+          biggestRideM: 2100 * MI,
+          biggestRideTitle: 'Sierras',
+          biggestRideSlug: 'abc',
+          bestTwistDpm: 260,
+          mostViewed: 12,
+          mostViewedTitle: 'Coast Run',
+          mostViewedSlug: 'xyz',
+        },
+      }),
+      0,
+      NOW,
+    )
+    expect(s.records.map((x) => x.kind)).toEqual(['distance', 'ride', 'twist', 'views'])
   })
 
   it('does not claim a twistiest stretch when none was measured', () => {

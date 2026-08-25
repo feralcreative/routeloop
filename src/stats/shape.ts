@@ -23,6 +23,7 @@
 // `SaddleTime.estimated` is the part that keeps it honest: the total covers
 // everything, and the page says when some of it was figured rather than measured.
 import { ROLE_META, type Role } from '../maps/roles'
+import { roleColor } from '../maps/role-colors'
 import { twistLabel } from '../maps/twist'
 
 const METERS_PER_MILE = 1609.344
@@ -196,7 +197,17 @@ export function rollUpTwist(rows: readonly RawTwist[]): TwistRollup {
 
 // --- The stop histogram ------------------------------------------------------
 
-export type RoleBar = { role: string; label: string; icon: string; n: number; share: number }
+export type RoleBar = {
+  role: string
+  label: string
+  icon: string
+  /** The categorical hue, from src/maps/role-colors.ts. Null for a role that is
+   *  in ROLE_META but has no color, which is a taxonomy bug rather than a state
+   *  the page should paper over — see roleColor(). */
+  color: string | null
+  n: number
+  share: number
+}
 
 /**
  * Roles that describe the shape of a route rather than a choice the rider made.
@@ -231,6 +242,7 @@ export function roleBars(rows: readonly RawRole[]): RoleBar[] {
       role: r.role,
       label: ROLE_META[r.role as Role].title,
       icon: ROLE_META[r.role as Role].icon,
+      color: roleColor(r.role),
       n: r.n,
       share: max === 0 ? 0 : r.n / max,
     }))
@@ -295,6 +307,41 @@ export type Tile = {
 
 export type Meter = { usedBytes: number; quotaBytes: number; pct: number; used: string; quota: string } | null
 
+/**
+ * One entry in "Your records" — the most celebratory block on the page, which
+ * for a long time looked like the least (#136).
+ *
+ * NOT `Tile`, and the split is what the treatment needed. A tile is a count with
+ * a cohort comparison under it; a record is a single figure that should be read
+ * from across the room, and the two want opposite type sizes. Sharing the type
+ * meant sharing `value: string` — one pre-formatted "482 mi" — which is exactly
+ * what stopped the numeral being set large and the unit small.
+ *
+ * `numeric` is the field doing the work. Two of the four records are figures and
+ * two are words: "Twistiest 20 miles" is a label like "Serpentine" and "Most
+ * opened" is a ride's title, and either one set at the numeral's size would be a
+ * headline running off the card. It also gates the count-up in dashboard.js,
+ * which has nothing to count on a word.
+ *
+ * `kind` is the one identifier the view needs and it drives two things — which
+ * mark is drawn (`icon-record-<kind>.svg`) and which accent the card takes. One
+ * field rather than an icon name beside a color name, so a fifth record cannot
+ * arrive with a mark and no accent. Four fixed kinds, no logic; the records are
+ * a closed set.
+ */
+export type RecordKind = 'distance' | 'ride' | 'twist' | 'views'
+
+export type RecordTile = {
+  label: string
+  value: string
+  /** Set apart from `value` so the numeral takes the large size and the unit does
+   *  not. Absent when the value is a word, which has no unit to split off. */
+  unit?: string
+  hint?: string
+  kind: RecordKind
+  numeric: boolean
+}
+
 export type VisibilitySplit = { key: 'public' | 'unlisted' | 'private'; label: string; n: number; pct: number }[]
 
 /**
@@ -321,7 +368,7 @@ export type DashboardStats = {
   rolesExceedPoints: boolean
   months: MonthPoint[]
   visibility: VisibilitySplit
-  records: Tile[]
+  records: RecordTile[]
   /** True when used_bytes disagrees with the authoritative sum. Surfaced quietly.
    *  src/account/quota-sweep.ts repairs the tally on a timer as of 2026-08-24, so
    *  this is no longer the only thing that can notice — it is the one that can say
@@ -396,27 +443,47 @@ export function shapeStats(
   ).map((v) => ({ ...v, pct: visTotal === 0 ? 0 : (v.n / visTotal) * 100 }))
 
   const r = raw.records
-  const records: Tile[] = []
+  const records: RecordTile[] = []
   if (r.longestDayM != null && r.longestDayM > 0) {
-    records.push({ label: 'Longest single day', value: `${fmtMiles(r.longestDayM)} mi` })
+    records.push({ label: 'Longest single day', value: fmtMiles(r.longestDayM), unit: 'mi', kind: 'distance', numeric: true })
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
       label: 'Biggest ride',
-      value: `${fmtMiles(r.biggestRideM)} mi`,
+      value: fmtMiles(r.biggestRideM),
+      unit: 'mi',
       hint: r.biggestRideTitle ?? undefined,
+      kind: 'ride',
+      numeric: true,
     })
   }
   // bestTwistDpm is the best 20-mile stretch any route has, not a sum: "somewhere
   // in your library there are twenty miles like that".
+  //
+  // The value is a WORD — twistLabel returns "Serpentine", not a number — so this
+  // one takes the text treatment and the degrees-per-mile figure stays in the
+  // hint, where it already was. Putting the number in `value` instead would read
+  // as a better record than the label it replaced, and it is the same fact.
   const bestLabel = twistLabel(r.bestTwistDpm)
   if (r.bestTwistDpm != null && bestLabel) {
-    records.push({ label: 'Twistiest 20 miles', value: bestLabel, hint: `${r.bestTwistDpm}°/mi of heading change` })
+    records.push({
+      label: 'Twistiest 20 miles',
+      value: bestLabel,
+      hint: `${r.bestTwistDpm}°/mi of heading change`,
+      kind: 'twist',
+      numeric: false,
+    })
   }
+  // The count lives in the LABEL here and the ride's title is the value, which is
+  // backwards from the other three and is deliberate: the record is which ride,
+  // and the number is how the record was won. #136 was explicitly a visual pass
+  // with no copy changes, so this stayed as it reads today.
   if (r.mostViewed != null && r.mostViewed > 0) {
     records.push({
       label: r.mostViewed === 1 ? 'Most opened, once' : `Most opened, ${fmtCount(r.mostViewed)} times`,
       value: r.mostViewedTitle ?? 'a ride',
+      kind: 'views',
+      numeric: false,
     })
   }
 
