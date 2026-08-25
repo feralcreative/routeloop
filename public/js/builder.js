@@ -3806,7 +3806,10 @@
     // about the ride, and putting it on the undo stack would make Ctrl-Z close a
     // text box instead of undoing the last real change.
     host.addEventListener("click", (e) => {
-      const btn = e.target.closest(".insert-btn");
+      // The whole strip, not only the glyph — an 18px full-width row is something
+      // a thumb can hit, an 18px square is not. .insert-btn is still inside it and
+      // carries the accessible label, so the keyboard path is unchanged.
+      const btn = e.target.closest(".insert-slot");
       if (!btn) return;
       const r = Number(btn.dataset.day);
       const at = Number(btn.dataset.at);
@@ -3889,7 +3892,36 @@
     });
 
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".add-row") && !e.target.closest("#search-results")) hideSearchResults();
+      if (e.target.closest(".add-row") || e.target.closest("#search-results")) return;
+      hideSearchResults();
+
+      // THE + THAT OPENS A SLOT IS AN OUTSIDE CLICK BY THIS TEST. Both handlers
+      // see the same event — the delegated one on #day-list opens the row, then
+      // this one bubbles and would close it again, so clicking + did nothing at
+      // all. Observed, not theorized.
+      if (e.target.closest(".insert-slot")) return;
+
+      // AN UNUSED INSERT ROW CLOSES ITSELF. It is an affordance, not a form: the
+      // rider asked for a field between two points, did not use it, and looked
+      // somewhere else. Leaving it open puts a stray search box in the middle of a
+      // day that nothing will ever clear, and the rider has to find the Escape key
+      // or the same + again to be rid of it.
+      //
+      // The bottom add-row is untouched — that one is permanent and belongs to the
+      // day.
+      //
+      // NOT WHEN SOMETHING IS ARMED, and this is the case that makes the guard
+      // necessary rather than defensive: arming "+ Point" and then clicking the
+      // map is the whole point of the button, and that map click is an outside
+      // click. Closing on it would take the row and the armed slot away a
+      // moment before the point landed in it. The insert itself clears
+      // state.insertAt when it completes, so the row still goes away — just
+      // after doing its job rather than instead of it.
+      if (state.insertAt && state.arm == null) {
+        const r = state.insertAt.day;
+        state.insertAt = null;
+        renderDayList(r);
+      }
     });
   }
 

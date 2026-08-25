@@ -662,12 +662,25 @@
   }
   .day-time {
     display: flex;
-    flex: 1 1 10em;
+    // `flex: 1 1 0` and `min-width: 0`, where this was `flex: 1 1 10em` with the
+    // default `min-width: auto`. Both halves of that were the bug.
+    //
+    // A flex item defaults to a floor of its MIN-CONTENT width, and a populated
+    // datetime-local's min-content is the whole "08/24/2026, 9:00 AM" string —
+    // wider than half the drawer. So the two fields refused to shrink, overflowed
+    // the row and wrapped onto separate lines the moment a date was typed. Empty
+    // they fitted, which is why it looked fine until it was used.
+    flex: 1 1 0;
+    min-width: 0;
     flex-direction: column;
     gap: 0.15em;
     font-size: 0.75em;
     opacity: 0.85;
     input {
+      // Its own box-sizing: there is no global border-box reset in style/, so
+      // `width: 100%` plus padding and a border measured 9px wider than the label
+      // it sits in. Same trap as .btn-stop and the chips row.
+      box-sizing: border-box;
       width: 100%;
       padding: 0.3em;
       border: 1px solid $grey;
@@ -889,63 +902,72 @@
   // The gap between two rows: a hairline with a + in it, for wedging a point in
   // between. Excel's "insert row here".
   //
-  // Always present rather than revealed on hover, because a hover-only control
-  // does not exist on a touch screen — and this drawer becomes a bottom sheet on
-  // a phone. It stays quiet enough at rest that thirty of them read as row
-  // separators: a 1px rule, and a glyph that only gains contrast on approach.
+  // VISIBLE AT REST. It was opacity 0 until hover, which is how it shipped and
+  // why it could not be found — a control nobody knows is there is not a control,
+  // and a 10px hover strip is not discoverable even once you do know. It is also
+  // the exact thing the note two lines down warns about: a hover-only affordance
+  // does not exist on a touch screen at all, and this drawer becomes a bottom
+  // sheet on a phone.
+  //
+  // Quiet is the goal, not hidden. A 1px rule at low contrast reads as a row
+  // separator, which is what it structurally is; hover and focus raise the
+  // contrast rather than summoning it from nothing.
+  //
+  // THE WHOLE STRIP IS THE TARGET, not just the glyph. 18px of full-width row
+  // beats an 18px square as something to hit with a thumb, and a mis-tap costs
+  // one Escape.
   .insert-slot {
     display: flex;
     align-items: center;
-    justify-content: center;
+    // The gap either side of the glyph. The rule is two segments rather than one
+    // line with something sitting on top of it — no bubble, no opaque background
+    // faking a break.
+    gap: 6px;
     // Short, and the negative margins pull the rows either side back together —
-    // a full row's height between every pair would double the length of the day.
-    height: 10px;
-    margin: -3px 0;
-    // Above the rule, so the glyph sits ON the line rather than beside it.
-    position: relative;
-    cursor: default;
+    // a full row's height between every pair would double the length of a day.
+    height: 18px;
+    margin: -4px 0;
+    cursor: pointer;
 
-    &::before {
+    // The two halves of the broken line. They grow to fill whatever the glyph in
+    // the middle does not take, so the break is centred at any panel width and
+    // nothing has to know how wide a "+" is.
+    &::before,
+    &::after {
       content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 50%;
+      flex: 1 1 auto;
       height: 1px;
       background: $neutral-88;
-      // Invisible until the row is approached. At rest the day reads as a list
-      // of stops, not as a grid.
-      opacity: 0;
-      transition: opacity 0.12s;
+      transition: background 0.12s;
     }
 
     &:hover::before,
-    &:focus-within::before {
-      opacity: 1;
+    &:hover::after,
+    &:focus-within::before,
+    &:focus-within::after {
+      background: $interstate;
     }
   }
 
   .insert-btn {
-    position: relative;
+    flex: 0 0 auto;
     box-sizing: border-box;
-    width: 18px;
-    height: 14px;
-    padding: 0;
+    // No border, no background — it sits IN the gap rather than over the line.
+    // The padding is horizontal only, so the glyph keeps a little air from the
+    // two rule ends without growing the row.
+    padding: 0 2px;
     border: 0;
-    border-radius: 3px;
-    background: $white;
-    color: color.adjust($text, $lightness: 45%);
-    font: 700 12px/1 $font;
+    background: none;
+    color: color.adjust($text, $lightness: 30%);
+    // Plain weight, not bold. A bold glyph reads as a control demanding attention;
+    // this one is a quiet affordance sitting in a row separator. The size goes up
+    // 1px to hold its optical size, since a 400-weight plus looks smaller than a
+    // 700-weight one at the same px.
+    font: 400 14px/1 $font;
     cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.12s, color 0.12s;
+    transition: color 0.12s;
 
     .insert-slot:hover &,
-    &:focus-visible {
-      opacity: 1;
-    }
-
-    &:hover,
     &:focus-visible {
       color: $interstate;
     }
