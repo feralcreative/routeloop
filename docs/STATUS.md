@@ -1,11 +1,42 @@
 # Status and handoff
 
-**Updated:** 2026-08-24
-**Branch:** `fix/map-mechanics`, with the POI-on-route work uncommitted in the tree. **1,172 tests across 49 files** (2 skipped, 1,174 total)
+**Updated:** 2026-08-24 (later)
+**Branch:** `fix/map-mechanics`, six commits ahead of `main`, **clean tree, nothing pushed**. **1,218 tests across 51 files** (2 skipped, 1,220 total)
 **Closes, since the last update:** nothing on the tracker—both POI changes were raised directly and neither has an issue. Before them, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
 **For:** the next agent, or the owner returning cold
 
 **A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the next two sections before touching the builder, the ride payload or anything that counts stops.
+
+## Switching machines—read this first
+
+**Nothing is pushed.** Six commits sit on `fix/map-mechanics` locally:
+
+| Commit | What |
+| --- | --- |
+| `07f9820` | A POI is part of the route—`legs[i]` joins `points[i]` to `points[i+1]` |
+| `f72d045` | The dev seed resolves its KML before truncating, and honors `STORAGE_PATH` |
+| `28b9c51` | A leg that will not route says why instead of blaming the road |
+| `87e56c0` | Category search, insert-between-points, and a category promotes a point |
+| `4c51720` | The day's time fields fit one line; the insert `+` is quieter |
+| `19aea6c` | A rider can choose how dates and clocks read |
+
+**Three things do not travel with a `git push`:**
+
+1. **`drizzle/0009` has not run anywhere but this machine.** `npm run dev` applies it via `predev`, so switching is automatic—but stage and production have seen none of 0002 through 0009.
+2. **A GCP key change, which is not in the repo at all.** `GMAPS_SERVER_KEY` (uid `3a3d4f70…592e`, project `976935115789`) had **Places API (New)** added to its API restriction list on 2026-08-24, because category search 403s without it. If prod uses a different key, category search will 503 there with a message naming the fix. The IP restriction (`69.209.26.137`) is unchanged and must stay.
+3. **`storage/1/1.kml`** was copied in from `moto-rooter/moto-storage/1/1.kml`. It is gitignored, so a fresh clone falls back to `test/fixtures/coast-run.kml`—which now works rather than emptying the database, but gives a 4-point sample instead of the 26-point one.
+
+**Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
+
+## Open, and the biggest one is a real bug
+
+**The roadbook prints times shifted by the rider's UTC offset.** `days.start_at` is `timestamp with time zone`, so 9am Pacific is stored `16:00+00` correctly—and the roadbook renders it with `timeZone: 'UTC'` and prints **4:00 PM**, while the builder's timeline reads 9:00 AM from the viewer's zone. Same day, seven hours apart. Pre-existing, unchanged by any commit above, and deliberately not patched: UTC rendering is right for a naive `timestamp` and wrong for a `timestamptz`, and the actual gap is that nothing stores WHICH zone a day's 9am is in. Three ways out, all decisions rather than fixes—render in the viewer's zone, add a zone column, or move to naive wall-clock with a data migration.
+
+**Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
+
+**Still hardcoded `en-US`:** number grouping in `src/stats/shape.ts` (`fmtMiles`, `fmtCount`) and the dashboard's month label. Left alone on purpose—all three date-format members are English and produce identical output, so threading a format through ten call sites would change nothing visible. It starts mattering the day a `de-DE`-style member is added.
+
+**`_PLANS/BRAINSTORM.md` items 1–4 are all done** and in `87e56c0` / `4c51720`. That file is now stale.
 
 **THERE IS A MIGRATION OWED AND IT IS NOT A SQL FILE.** Every stored day written before 2026-08-24 that has a POI on it carries `stops - 1` legs where the app now requires `points - 1`. Nothing rejects those rows, and opening one in the builder fills the gap with straight placeholder legs drawn out to each POI and back—silently, on the first edit. `npx tsx utils/split-imported-legs.ts --dry-run` reports what is affected and running it without the flag re-cuts each day's legs from its own stored track. **Take a `db-backup` first**; it rewrites the largest column in the schema and refuses a non-local database. The native export repairs the count on the way out (`relegNative`), so a backup taken before the migration still restores—but that is a safety net, not the migration.
 
