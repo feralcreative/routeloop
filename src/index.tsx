@@ -25,6 +25,7 @@ import { buildZip } from './maps/zip'
 import { readMapFile, thumbFilePath } from './maps/storage'
 import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
 import { placesRoutes } from './routes/places'
+import { bikesRoutes } from './routes/bikes'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { startQuotaSweep } from './account/quota-sweep'
 import { startAccountPurge } from './account/purge'
@@ -191,6 +192,7 @@ app.route('/', ridesRoutes)
 // the parameterized modules does not matter — mounted here to sit with the other
 // API modules rather than for any routing reason.
 app.route('/', placesRoutes)
+app.route('/', bikesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
 app.route('/', importRoutes)

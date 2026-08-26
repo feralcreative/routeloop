@@ -585,3 +585,132 @@ h1 + .transfer-head {
     grid-column: 1 / -1;
   }
 }
+
+// --- Paddock -----------------------------------------------------------------
+//
+// A rider's bikes. Built alongside the place manager above and sharing its
+// idiom — a list of editable rows inside the profile form, not part of its
+// submit — but a bike row carries a photo and seven fields where a place row
+// carries three, so it gets its own grid rather than a modifier on that one.
+.bike-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+// Photo, fields, actions. The photo is a fixed track so a paddock of bikes
+// lines up down the page whatever shape each picture is; the fields take the
+// rest and wrap internally.
+.bike {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem;
+  background: $white;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bike-photo {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+}
+
+// THE FRAME IS THE FILE INPUT'S LABEL, so clicking anywhere on the picture opens
+// the picker. `box-sizing` set here rather than inherited — there is no global
+// border-box reset in this stylesheet, so a fixed-size box that forgets it
+// renders wider than it declares.
+.bike-photo-frame {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 10rem;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px dashed $grey;
+  border-radius: 8px;
+  cursor: pointer;
+  background: $neutral-94;
+}
+
+.bike-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bike-photo-empty {
+  color: $neutral-57;
+  font-size: 0.8em;
+}
+
+.bike-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.4rem;
+}
+
+.bike-name {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-weight: 600;
+}
+
+.bike-field {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  span {
+    color: $neutral-50;
+    font-size: 0.75em;
+  }
+
+  input,
+  select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.bike-actions {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: end;
+}
+
+.bike-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+
+  input {
+    flex: 0 1 20rem;
+    min-width: 0;
+  }
+}
+
+//@ Narrow — the photo stops being a column and sits above the fields, and the
+//@ actions move under them rather than being squeezed into a third track.
+@media (max-width: 40rem) {
+  .bike {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bike-photo {
+    justify-items: start;
+  }
+
+  .bike-actions {
+    justify-items: start;
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 0.75rem;
+  }
+}
