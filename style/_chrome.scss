@@ -1021,6 +1021,11 @@ ul.cards {
   }
 }
 
+// THE ROW IS THE CARD, NOT THE LINK. It was the anchor until the friend
+// buttons arrived, and a button inside an anchor is not a thing a browser will
+// render sensibly — the click target of the outer link swallows it. So the
+// white field, the radius and the padding moved out to the <li> and the anchor
+// kept only the text.
 .rider-list {
   list-style: none;
   margin: 0;
@@ -1028,20 +1033,83 @@ ul.cards {
   display: grid;
   gap: 0.4rem;
 
-  a {
+  li {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.6rem;
-    padding: 0.65em 0.8em;
+    padding: 0.5em 0.6em 0.5em 0.8em;
     background: $white;
     border-radius: 8px;
-    text-decoration: none;
-    color: $text;
-
-    &:hover {
-      background: $neutral-94;
-    }
   }
+}
+
+.friend-who {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: $text;
+
+  &:hover .rider-display {
+    text-decoration: underline;
+  }
+}
+
+// The buttons wrap rather than shrink: two of them beside a long display name
+// on a phone is the common case, and a squeezed Accept is worse than a second
+// line. `flex-shrink: 0` on the group is what keeps the name column giving way
+// first.
+.friend-acts {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+
+  form {
+    margin: 0;
+  }
+}
+
+// Not a button. There is nothing to press when you are already friends — the
+// way out is Unfriend, on the friends page, where a rider goes deliberately
+// rather than by brushing past it on the roster.
+.friend-state {
+  color: $neutral-50;
+  font-size: 0.85em;
+  padding: 0.4rem 0;
+}
+
+.friend-section {
+  margin-bottom: 2rem;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lede {
+    margin-top: -0.5rem;
+  }
+}
+
+.friend-count {
+  font-size: 0.7em;
+  font-weight: 600;
+  color: $neutral-50;
+  background: $neutral-94;
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
+}
+
+// The one on a public profile sits under the handle rather than in a row of
+// its own, so it is left-aligned where the roster's are right-aligned.
+.profile-acts {
+  justify-content: flex-start;
+  margin: 0 0 1.5rem;
 }
 
 .rider-display {

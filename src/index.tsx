@@ -3,17 +3,9 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
-import {
-  rides,
-  days as daysTable,
-  points as pointsTable,
-  routeLegs,
-  users,
-  type RideRow,
-  type UserRow,
-} from './db/schema'
+import { rides, days as daysTable, points as pointsTable, routeLegs, type RideRow, type UserRow } from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
 import { DAY_COLORS } from './maps/palette'
@@ -39,6 +31,7 @@ import { feedbackRoutes } from './routes/feedback'
 import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
+import { friendRoutes } from './routes/friends'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
@@ -54,42 +47,21 @@ import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
-import { LIVE_RIDE } from './trash/service'
+import { canClone, isSharedCacheable } from './access/policy'
+import { grantsFor, viewableRide } from './access/query'
 
-// Visibility gate: public/unlisted are viewable by anyone with the link;
-// private only by its owner. Anything else (private to a non-owner, unknown
-// slug) is treated as not-found so we never confirm it exists.
+// The visibility gate now lives in src/access/query.ts, as viewableRide().
+// This is a name kept rather than a function: six call sites below read
+// getViewable and it says what it does, but the RULE it applies is in one place
+// shared with handoff.tsx and roadbook.tsx, which each carried their own copy
+// of it until 2026-08-26.
 //
-// The owner join is what makes "Delete Me" darken a rider's links immediately.
-// It has to be asked here rather than inferred from anything on the ride: this
-// function reads only the rides row, so no owner state has ever reached it, and
-// a blocked owner's public rides are still served today for exactly that reason.
-//
-// Answering not-found rather than gone, deliberately — the same answer an
-// unknown slug gets, so a link cannot be used to learn that an account existed
-// and is on its way out. Nothing about the ride changes, which is what makes
-// Save Me free: clearing the flag brings every link back.
-async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRow | undefined> {
-  if (!slug) return undefined
-  const [row] = await db
-    .select({ ride: rides, ownerLeavingAt: users.deletionRequestedAt })
-    .from(rides)
-    .innerJoin(users, eq(users.id, rides.ownerId))
-    // LIVE_RIDE is what makes trashing a ride kill its share link on the spot.
-    // Not-found rather than gone, for the same reason the owner check above
-    // answers that way: a link must not be a way to learn that a ride existed.
-    // It is also what makes a restore free — the row never moved, so clearing
-    // deleted_at brings the same slug back.
-    .where(and(eq(rides.slug, slug), LIVE_RIDE))
-    .limit(1)
-  if (!row) return undefined
-  if (row.ownerLeavingAt) return undefined
-
-  const r = row.ride
-  if (r.visibility === 'public' || r.visibility === 'unlisted') return r
-  if (viewer && viewer.id === r.ownerId) return r
-  return undefined
-}
+// Everything the old comment here argued for is still true and is now argued
+// for in that file: not-found rather than forbidden at every refusal, so a link
+// cannot be used to learn that a ride or an account exists; the owner join, so
+// Delete Me darkens a rider's links immediately and Save Me brings them back;
+// and LIVE_RIDE, so trashing a ride kills its share link on the spot.
+const getViewable = (slug: string, viewer: UserRow | null): Promise<RideRow | undefined> => viewableRide(slug, viewer)
 
 const app = new Hono<AuthEnv>()
 
@@ -202,6 +174,7 @@ app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
+app.route('/', friendRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
@@ -216,10 +189,16 @@ app.get('/m/:slug', async (c) => {
     .update(rides)
     .set({ viewCount: sql`${rides.viewCount} + 1` })
     .where(eq(rides.id, m.id))
+  // Whether to offer Clone is asked here rather than inside viewHtml because
+  // the answer can need the database — a friends-visible ride is clonable by a
+  // friend, and being a friend is a lookup. grantsFor short-circuits to nothing
+  // on a public ride, which is every ride this button has ever appeared on, so
+  // the common path costs no query.
+  const clonable = canClone(m, viewer, await grantsFor(m, viewer))
   // One shell for both sources. ride.json has served them identically since the
   // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
-  return c.html(viewHtml(m, viewer))
+  return c.html(viewHtml(m, viewer, clonable))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -478,8 +457,9 @@ app.get('/api/public/maps/:slug/thumb.png', async (c) => {
       // URL and this can be immutable. `private` for anything not public: the
       // slug is unguessable, but an unlisted or private ride's picture has no
       // business in a shared cache at the edge.
-      'Cache-Control':
-        m.visibility === 'public' ? 'public, max-age=31536000, immutable' : 'private, max-age=31536000, immutable',
+      'Cache-Control': isSharedCacheable(m.visibility)
+        ? 'public, max-age=31536000, immutable'
+        : 'private, max-age=31536000, immutable',
     },
   })
 })
@@ -611,7 +591,7 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
 // The viewer shell, for every ride regardless of source.
-function viewHtml(m: RideRow, user: UserRow | null): string {
+function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean): string {
   return page({
     title: m.title,
     user,
@@ -622,7 +602,7 @@ function viewHtml(m: RideRow, user: UserRow | null): string {
     body: `  <div id="map"></div>\n\n  ${viewerPanel(
       m,
       canEditRide(m, user) ? `/builder/${m.id}` : null,
-      Boolean(user && user.status === 'active' && user.id !== m.ownerId && m.visibility === 'public'),
+      clonable,
       Boolean(user),
     )}\n\n  ${rideTimeline()}`,
     tb: {

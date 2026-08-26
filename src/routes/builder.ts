@@ -31,6 +31,8 @@ import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
+import { canClone } from '../access/policy'
+import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
 import {
@@ -127,12 +129,17 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     .from(rides)
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
-  // Public only. The `source !== 'native'` half of this test is gone: it was
-  // there because an imported ride's graph could not be rebuilt into something
-  // the builder would open, which stopped being true when the import started
-  // splitting its track into real legs. An imported public ride clones like any
-  // other now.
-  if (!src || src.visibility !== 'public') {
+  // canClone, not `visibility === 'public'` written out. Two levels are
+  // clonable now — public, and friends by a friend — and which they are is
+  // src/access/policy.ts's call, shared with the button on the viewer page that
+  // offers this endpoint. A button and a gate that disagree is a Clone that
+  // 404s, or worse.
+  //
+  // The `source !== 'native'` half of the old test is gone and stays gone: it
+  // was there because an imported ride's graph could not be rebuilt into
+  // something the builder would open, which stopped being true when the import
+  // started splitting its track into real legs.
+  if (!src || !canClone(src, user, await grantsFor(src, user))) {
     return c.json({ error: 'not found' }, 404)
   }
 
@@ -451,9 +458,10 @@ function builderHtml(
           <div class="meta-row">
             <select id="ride-visibility" name="visibility" title="Visibility">
               <option value="private" selected>Private</option>
+              <option value="friends">Friends</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
-            </select>${faqLink('visibility', 'private, unlisted and public')}
+            </select>${faqLink('visibility', 'private, friends, unlisted and public')}
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
             <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
@@ -492,6 +500,47 @@ function builderHtml(
         <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
 
         <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
+${
+  // THE ROSTER, STUBBED. Ziad's call, 2026-08-26: ride membership ships as
+  // schema and nothing else this round — `ride_members` exists and canView()
+  // already honours it, but no code path creates a row, so the controls that
+  // would are here as disabled markup announcing themselves.
+  //
+  // A DEAD CONTROL RATHER THAN NO CONTROL, deliberately, and it is the opposite
+  // of what viewerPanel does two files over — that one renders nothing where
+  // there is no action, on the argument that a disabled button offers something
+  // it cannot give. The difference is what the absence would say. Edit is
+  // missing there because the viewer genuinely may not edit, and telling them
+  // so is the answer. Here the feature is coming for everyone, and an empty
+  // space says the app has no idea who is on a ride rather than "not yet".
+  //
+  // Closed by default, so it costs a rider who does not care nothing but a line.
+  // Everything inside is inert: no form action, no name attributes, and
+  // `disabled` on every control, so nothing here can be submitted even by hand.
+  //
+  // WHEN MEMBERSHIP LANDS this whole block is replaced, not un-disabled. The
+  // shapes below are a sketch of the intent and not a contract.
+  rideId
+    ? `        <details class="roster-stub">
+          <summary>Riders <span class="soon-tag">Coming soon</span></summary>
+          <p class="roster-note">Invite the people you are actually riding with, see who is in, and share the plan with them whatever its visibility is set to. Not yet—this is what it will&nbsp;look&nbsp;like.</p>
+          <div class="roster-row">
+            <select disabled aria-label="Invite a friend">
+              <option>Invite a friend…</option>
+            </select>
+            <button type="button" class="btn btn-sm" disabled>Invite</button>
+          </div>
+          <ul class="roster-list">
+            <li>
+              <span class="roster-who">You<span class="roster-role">Owner</span></span>
+              <select disabled aria-label="Your RSVP">
+                <option>Going</option>
+              </select>
+            </li>
+          </ul>
+        </details>`
+    : ''
+}
 ${
   // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
   // delete — closing the tab already discards it — and a Delete button on a

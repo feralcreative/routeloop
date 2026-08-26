@@ -14,9 +14,6 @@
 //
 // No JavaScript. It is a page you print.
 import { Hono } from 'hono'
-import { and, eq } from 'drizzle-orm'
-import { db } from '../db/index'
-import { rides } from '../db/schema'
 import type { AuthEnv } from '../auth/middleware'
 import { loadRideForExport, type ExportPoint, type ExportDay } from '../maps/export'
 import { METERS_PER_MILE } from '../maps/kml'
@@ -24,7 +21,7 @@ import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
-import { LIVE_RIDE } from '../trash/service'
+import { viewableRide } from '../access/query'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
 
@@ -146,15 +143,14 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // work with no user at all.
   const dateFormat = await dateFormatFor(c)
 
-  // The same visibility gate the viewer uses. A roadbook is the ride, rendered
-  // differently — it must not be a way around who may see it.
-  const [m] = await db
-    .select()
-    .from(rides)
-    .where(and(eq(rides.slug, slug), LIVE_RIDE))
-    .limit(1)
-  const viewable = m && (m.visibility === 'public' || m.visibility === 'unlisted' || (user && user.id === m.ownerId))
-  if (!m || !viewable) return c.text('Not found', 404)
+  // The same visibility gate the viewer uses — literally the same function now.
+  // A roadbook is the ride, rendered differently; it must not be a way around
+  // who may see it, and it was a way around two narrower things until this call
+  // replaced the copy that used to live here. It now also goes dark for a
+  // leaving owner and for a trashed ride, neither of which the local copy knew
+  // about.
+  const m = await viewableRide(slug, user)
+  if (!m) return c.text('Not found', 404)
 
   // ACTIVE DAYS ONLY — loadRideForExport has already dropped the losing
   // alternates, so every reduce and every section below is over the ride as it

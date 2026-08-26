@@ -32,6 +32,7 @@ import {
   shapeStats,
 } from '../src/stats/shape'
 import type { RawStats, RawTotals } from '../src/stats/shape'
+import { visibilityEnum } from '../src/db/schema'
 
 const MI = 1609.344
 const NOW = new Date('2026-08-08T12:00:00Z')
@@ -49,6 +50,7 @@ const totals = (over: Partial<RawTotals> = {}): RawTotals => ({
   estimatedLegs: 0,
   publicRides: 0,
   unlistedRides: 0,
+  friendsRides: 0,
   privateRides: 0,
   views: 0,
   storedBytes: 0,
@@ -97,7 +99,12 @@ describe('rollUpTwist', () => {
   })
 
   it('agrees with the plain mean when the distances are equal', () => {
-    expect(rollUpTwist([{ dpm: 100, distanceM: MI }, { dpm: 200, distanceM: MI }])?.dpm).toBe(150)
+    expect(
+      rollUpTwist([
+        { dpm: 100, distanceM: MI },
+        { dpm: 200, distanceM: MI },
+      ])?.dpm,
+    ).toBe(150)
   })
 
   // Null is not zero. days.twistiness_dpm is nullable and query.ts filters
@@ -115,7 +122,12 @@ describe('rollUpTwist', () => {
   // A route with no distance carries no weight and must not divide by zero.
   it('ignores zero-length days', () => {
     expect(rollUpTwist([{ dpm: 999, distanceM: 0 }])).toBeNull()
-    expect(rollUpTwist([{ dpm: 999, distanceM: 0 }, { dpm: 100, distanceM: MI }])?.dpm).toBe(100)
+    expect(
+      rollUpTwist([
+        { dpm: 999, distanceM: 0 },
+        { dpm: 100, distanceM: MI },
+      ])?.dpm,
+    ).toBe(100)
   })
 
   it('carries the band label, not just the number', () => {
@@ -143,7 +155,12 @@ describe('roleBars', () => {
 
   // Seventeen rows of which four have data is a chart about the taxonomy.
   it('drops roles nobody used', () => {
-    expect(roleBars([{ role: 'gas', n: 0 }, { role: 'camp', n: 3 }]).map((b) => b.role)).toEqual(['camp'])
+    expect(
+      roleBars([
+        { role: 'gas', n: 0 },
+        { role: 'camp', n: 3 },
+      ]).map((b) => b.role),
+    ).toEqual(['camp'])
   })
 
   // A role removed from ROLE_META but still on old rows must not crash the page.
@@ -181,12 +198,18 @@ describe('roleTotalExceedsPoints', () => {
   // roles is an array of up to 4 per point, so one stop can appear in four bars.
   // The page has to admit that or the bars look like they were counted wrong.
   it('is true when points carry more than one role', () => {
-    const bars = roleBars([{ role: 'gas', n: 10 }, { role: 'food', n: 8 }])
+    const bars = roleBars([
+      { role: 'gas', n: 10 },
+      { role: 'food', n: 8 },
+    ])
     expect(roleTotalExceedsPoints(bars, 12)).toBe(true)
   })
 
   it('is false when every point carries at most one role', () => {
-    const bars = roleBars([{ role: 'gas', n: 5 }, { role: 'food', n: 5 }])
+    const bars = roleBars([
+      { role: 'gas', n: 5 },
+      { role: 'food', n: 5 },
+    ])
     expect(roleTotalExceedsPoints(bars, 10)).toBe(false)
   })
 })
@@ -204,7 +227,13 @@ describe('monthSeries', () => {
   // January and a June would otherwise draw one straight segment across five
   // silent months — a line claiming steady activity that never happened.
   it('fills a gap with zeroes instead of joining across it', () => {
-    const s = monthSeries([{ month: '2026-01', n: 3 }, { month: '2026-06', n: 2 }], NOW)
+    const s = monthSeries(
+      [
+        { month: '2026-01', n: 3 },
+        { month: '2026-06', n: 2 },
+      ],
+      NOW,
+    )
     expect(s.find((p) => p.month === '2026-01')?.n).toBe(3)
     expect(s.find((p) => p.month === '2026-03')?.n).toBe(0)
     expect(s.find((p) => p.month === '2026-06')?.n).toBe(2)
@@ -297,10 +326,20 @@ describe('shapeStats', () => {
   })
 
   it('splits visibility into percentages that sum to 100', () => {
-    const t = totals({ rides: 4, publicRides: 1, unlistedRides: 1, privateRides: 2 })
+    const t = totals({ rides: 8, publicRides: 1, unlistedRides: 1, friendsRides: 2, privateRides: 4 })
     const s = shapeStats(raw({ totals: t }), 0, NOW)
     expect(s.visibility.reduce((n, v) => n + v.pct, 0)).toBeCloseTo(100)
     expect(s.visibility.find((v) => v.key === 'private')?.pct).toBe(50)
+    expect(s.visibility.find((v) => v.key === 'friends')?.pct).toBe(25)
+  })
+
+  // A level missing from the split would make the bars add up to less than the
+  // library with nothing to say so, which is the failure this guards. It is
+  // written against the enum rather than a list of four so a fifth level fails
+  // here rather than going uncounted.
+  it('accounts for every visibility level the schema allows', () => {
+    const s = shapeStats(raw({ totals: totals({ rides: 1, privateRides: 1 }) }), 0, NOW)
+    expect(s.visibility.map((v) => v.key).sort()).toEqual([...visibilityEnum.enumValues].sort())
   })
 
   // Records are omitted rather than shown as zero or an em dash: a record nobody

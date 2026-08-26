@@ -16,15 +16,12 @@
 // No JavaScript beyond the density links, which are plain hrefs — a page that
 // has to work on a phone at a fuel stop with one bar should not need a bundle.
 import { Hono } from 'hono'
-import { and, eq } from 'drizzle-orm'
-import { db } from '../db/index'
-import { rides } from '../db/schema'
 import type { AuthEnv } from '../auth/middleware'
 import { loadRideForExport } from '../maps/export'
 import { linkLabel, routeLinks, type GmapsRouteLinks } from '../maps/gmaps-links'
 import { METERS_PER_MILE } from '../maps/kml'
 import { page } from '../views/layout'
-import { LIVE_RIDE } from '../trash/service'
+import { viewableRide } from '../access/query'
 
 export const handoffRoutes = new Hono<AuthEnv>()
 
@@ -49,16 +46,14 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
   const user = c.get('user') ?? null
   const slug = c.req.param('slug')
 
-  // The same visibility gate the viewer and the roadbook use. A hand-off page
-  // is the ride, rendered differently — it must not be a way around who may
-  // see it.
-  const [m] = await db
-    .select()
-    .from(rides)
-    .where(and(eq(rides.slug, slug), LIVE_RIDE))
-    .limit(1)
-  const viewable = m && (m.visibility === 'public' || m.visibility === 'unlisted' || (user && user.id === m.ownerId))
-  if (!m || !viewable) return c.text('Not found', 404)
+  // The same visibility gate the viewer and the roadbook use — literally the
+  // same function now. A hand-off page is the ride, rendered differently; it
+  // must not be a way around who may see it, and it was a way around two
+  // narrower things until this call replaced the copy that used to live here.
+  // It now also goes dark for a leaving owner and for a trashed ride, neither
+  // of which the local copy knew about.
+  const m = await viewableRide(slug, user)
+  if (!m) return c.text('Not found', 404)
 
   // ACTIVE DAYS ONLY, via loadRideForExport. Nothing below needs to know about
   // alternates as a result: the link count, the worst-gap figure, the "across N

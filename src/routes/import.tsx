@@ -218,6 +218,7 @@ importRoutes.get('/import', requireActive, async (c) => {
                   <option value="private" selected>
                     Private—only you
                   </option>
+                  <option value="friends">Friends—riders you have added</option>
                   <option value="unlisted">Unlisted—anyone with the link</option>
                   <option value="public">Public—listed in Explore</option>
                 </select>

@@ -33,11 +33,24 @@
   // rank — that argument is sound and is exactly why they now take a fixed
   // CATEGORICAL ring instead of a ramp. See src/maps/role-colors.ts.
   --viz-series-1: #{$brand};
-  // Categorical slots, validated as a set. Order is fixed: public, unlisted,
-  // private. Color follows the meaning, never the size of the group.
+  // Categorical slots, validated as a set by test/viz-categories.test.ts —
+  // which is the validator this comment used to refer to and the repo did not
+  // contain. Do not swap one by eye; the test will tell you what it costs.
+  //
+  // FOUR SINCE 2026-08-26, when visibility gained `friends`. Color follows the
+  // meaning, never the size of the group, and the assignment is made in the
+  // .split-* rules below rather than here — a slot is a slot.
+  //
+  // The new one is $concrete, the sign post and gantry, picked by measurement:
+  // its closest approach to the other three is ΔE 11.0 where the existing
+  // blue-green pair manages 7.7, and it is the only candidate that stays clear
+  // of both the card and the empty track in all six palettes. The test carries
+  // the numbers; the known tritanopia weakness in the blue-green pair is
+  // documented there too and predates this slot.
   --viz-cat-1: #{$disabled};
   --viz-cat-2: #{$detour};
   --viz-cat-3: #{$interstate};
+  --viz-cat-4: #{$concrete};
   --viz-ink-muted: #{$neutral-50};
   --viz-grid: #{$grey-l6};
   --viz-track: #{$neutral-94};
@@ -296,14 +309,22 @@
   min-width: 0;
 }
 
+// The assignment, by meaning. Grey is private because grey is what "nobody"
+// looks like, and the sign green goes to friends — a named circle rather than
+// an absence. Both classes are written out rather than derived: a level whose
+// class is missing renders a segment with no fill at all, which reads as a gap
+// in the bar rather than as an error.
 .split-public {
   background: var(--viz-cat-1);
 }
 .split-unlisted {
   background: var(--viz-cat-2);
 }
-.split-private {
+.split-friends {
   background: var(--viz-cat-3);
+}
+.split-private {
+  background: var(--viz-cat-4);
 }
 
 .split-key {

@@ -22,6 +22,7 @@
 // is what both clients already do, rather than to keep the figure off the page.
 // `SaddleTime.estimated` is the part that keeps it honest: the total covers
 // everything, and the page says when some of it was figured rather than measured.
+import type { RideVisibility } from '../db/schema'
 import { ROLE_META, type Role } from '../maps/roles'
 import { roleColor } from '../maps/role-colors'
 import { twistLabel } from '../maps/twist'
@@ -54,6 +55,7 @@ export type RawTotals = {
   estimatedLegs: number
   publicRides: number
   unlistedRides: number
+  friendsRides: number
   privateRides: number
   views: number
   /** Authoritative: sum(rides.size_bytes), a generated column. Not users.used_bytes. */
@@ -371,7 +373,7 @@ export type RecordTile = {
   thumbHash?: string
 }
 
-export type VisibilitySplit = { key: 'public' | 'unlisted' | 'private'; label: string; n: number; pct: number }[]
+export type VisibilitySplit = { key: RideVisibility; label: string; n: number; pct: number }[]
 
 /**
  * Time in the saddle, and how much of it is a guess.
@@ -411,12 +413,7 @@ export type DashboardStats = {
  * is a worse page, not a broken one, and this signature says so rather than
  * making every call site invent a zeroed spread.
  */
-export function shapeStats(
-  raw: RawStats,
-  cachedUsedBytes: number,
-  now: Date,
-  global?: RawGlobal,
-): DashboardStats {
+export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, global?: RawGlobal): DashboardStats {
   const t = raw.totals
   const hasRides = t.rides > 0
 
@@ -462,11 +459,15 @@ export function shapeStats(
         }
       : null
 
-  const visTotal = t.publicRides + t.unlistedRides + t.privateRides
+  // Ordered most open to least, which is the order the stacked bar reads in and
+  // is deliberately NOT the enum's order — the enum has `friends` on the end
+  // because that is where ALTER TYPE ADD VALUE puts it.
+  const visTotal = t.publicRides + t.unlistedRides + t.friendsRides + t.privateRides
   const visibility: VisibilitySplit = (
     [
       { key: 'public', label: 'Public', n: t.publicRides },
       { key: 'unlisted', label: 'Unlisted', n: t.unlistedRides },
+      { key: 'friends', label: 'Friends', n: t.friendsRides },
       { key: 'private', label: 'Private', n: t.privateRides },
     ] as const
   ).map((v) => ({ ...v, pct: visTotal === 0 ? 0 : (v.n / visTotal) * 100 }))

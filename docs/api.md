@@ -31,13 +31,21 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 | `GET /api/public/maps/:slug/zip/:format{kml\|gpx\|geojson\|csv}` | One conforming file per day. **Registered ahead of the generic `:format` route on purpose**—after it, the generic route swallows `/zip/gpx` and answers with a plain GPX                    |
 | `GET /explore`, `/faq`, `/privacy`, `/terms`                     | `routes/pages.tsx`                                                                                                                                                                          |
 | `GET /@username`                                                 | Public profile (`/:handle{@…}` in `routes/pages.tsx`)                                                                                                                                       |
-| `GET /riders`                                                    | Signed-in only—an anonymous list of every account is a scraping target with no upside                                                                                                       |
+| `GET /riders`                                                    | Signed-in only—an anonymous list of every account is a scraping target with no upside. Both halves of every blocked pair drop out of it, symmetrically                                     |
 
 ## Auth (`routes/auth.tsx`)
 
 `GET /login`, `GET /auth/google`, `GET /auth/google/callback`, `POST /auth/magic`, `GET /auth/magic/:token`, `GET`/`POST /choose-name`, `GET /welcome`, `POST /logout`.
 
 `GET /dev/login` registers **only** when `DEV_LOGIN_EMAIL` names an existing account, `DATABASE_URL` is local, `APP_ORIGIN` is not HTTPS, and the request Host is `127.0.0.1` or `localhost`. When off it is a plain 404, not a refusal. It is not on the deploy's env allow-list, so it cannot reach a server.
+
+## Friendships (`routes/friends.tsx`)
+
+`GET /friends` is the page. The five verbs are one route, `POST /friends/:verb{request|accept|remove|block|unblock}`, behind `requireActive` and `requireSameOrigin`, taking a `handle` and a `back` path as a form post and answering 303 to `back` in every case.
+
+**Every answer is identical whether it worked or not.** No verb reports which refusal it hit, and an unknown handle is indistinguishable from one that has blocked you. That is what makes a block work: a distinguishable refusal is a notification. `back` is validated as an allow-shape (one leading slash, no second one, no backslash) rather than sanitized, and anything failing it lands on `/friends`.
+
+The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per pair under a canonical ordering—`rider_a < rider_b`, enforced by `ck_friendship_order`—so `requested_by` and `blocked_by` carry the direction the columns cannot.
 
 ## Owner API
 

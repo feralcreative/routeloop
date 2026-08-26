@@ -99,6 +99,13 @@
       "when": 1787782409282,
       "tag": "0013_low_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787786389930,
+      "tag": "0014_curious_electro",
+      "breakpoints": true
     }
   ]
 }

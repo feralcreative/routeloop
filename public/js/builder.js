@@ -4303,7 +4303,12 @@
   // Offered rather than applied: the rider may well have meant to share it, and
   // silently redrawing a day they already planned is worse than asking.
   function offerPublicStart() {
-    const shared = state.meta.visibility === "public" || state.meta.visibility === "unlisted";
+    // ANY LEVEL BUT PRIVATE, stated as the exclusion rather than as a list of
+    // the open ones — `friends` joined the enum on 2026-08-26 and a list would
+    // have silently kept the prompt from firing for it, which is a pin on
+    // somebody's house shown to everyone they ride with. The one level that
+    // shows a ride to nobody is the only one that is safe here.
+    const shared = state.meta.visibility !== "private";
     const start = window.TB.publicStart;
     // points[0], not the first STOP. The first point of every day is promoted on
     // the spot, so they are the same element — reading the ordered list directly

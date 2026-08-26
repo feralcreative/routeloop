@@ -1,13 +1,44 @@
 # Status and handoff
 
-**Updated:** 2026-08-26 (end of day)
-**Branch:** `feat/dashboard-and-themes`, **ten commits ahead of `main`**—nine pushed and one (`e4a444d`, the #130 width work) NOT yet pushed, plus the two uncommitted deploy-utility files below. **1,551 tests across 56 files** (2 skipped, 1,553 total)
-**Closes, since the last update:** nothing yet—the branch is open. It will close [#102](https://github.com/feralcreative/routeloop/issues/102), [#103](https://github.com/feralcreative/routeloop/issues/103), [#130](https://github.com/feralcreative/routeloop/issues/130), [#135](https://github.com/feralcreative/routeloop/issues/135), [#136](https://github.com/feralcreative/routeloop/issues/136), [#137](https://github.com/feralcreative/routeloop/issues/137) and [#139](https://github.com/feralcreative/routeloop/issues/139)—the whole of `area:dashboard`, plus **all** of `area:chrome` now that #130 is done. [#141](https://github.com/feralcreative/routeloop/issues/141) and [#142](https://github.com/feralcreative/routeloop/issues/142) were written against work already done here and closed the same minute, per the after-the-fact rule. Before it, `fix/map-mechanics` merged as [#138](https://github.com/feralcreative/routeloop/pull/138) and the branch salvage as [#140](https://github.com/feralcreative/routeloop/pull/140).
+**Updated:** 2026-08-26
+**Branch:** `feat/rider-access`, **five commits ahead of `main`**, nothing pushed. **1,657 tests across 62 files** (2 skipped, 1,659 total)
+**Closes, when it merges:** [#71](https://github.com/feralcreative/routeloop/issues/71), [#72](https://github.com/feralcreative/routeloop/issues/72), [#73](https://github.com/feralcreative/routeloop/issues/73) and part of [#12](https://github.com/feralcreative/routeloop/issues/12). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149) (which also took #134 and #148), the dashboard and themes work, and the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151).
 **For:** the next agent, or the owner returning cold
 
-## FIRST THING TOMORROW—rewrite #67, then close #143
+## The rider and access layer—read before touching visibility
 
-Ziad's call, 2026-08-26, and it is the first task of the next session before anything else is picked up.
+Five commits on `feat/rider-access`, nothing pushed. `drizzle/0014` has run on **this machine only**.
+
+- **`src/access/policy.ts` is now the only place the visibility table is written down.** Three hand-rolled copies of the same four-clause gate—`getViewable` in `index.tsx`, and one each in `handoff.tsx` and `roadbook.tsx`—collapsed into `viewableRide()` in `src/access/query.ts`. Every route that serves a ride by slug goes through it.
+- **Two behaviors folded in that only the `index.tsx` copy had:** the roadbook and the hand-off page now go dark for a leaving owner and for a trashed ride. That is what they should always have done; both pages ARE the ride, rendered differently.
+- **`visibility` has a fourth member, `friends`,** and it is on: the builder select, the import form and the API all take it. `public` and `unlisted` kept their exact meanings; `private` gained "and members", over a table with no rows.
+- **Friendships ship working.** `/friends`, plus buttons on `/riders` and on a public profile. One row per pair under `rider_a < rider_b`. A block removes both halves of the pair from the roster, symmetrically.
+- **`ride_members` ships as SCHEMA ONLY.** Ziad's call: the invite path is cut, so nothing inserts a row. `canView()` already honors the grant, and the controls that would use it are inert markup in the builder panel (`.roster-stub`). Do not wire them up as a cleanup.
+- **`test/viz-categories.test.ts` is new**—the data-viz validator `style/_dashboard.scss` claimed to have and the repo did not contain. It measures the four categorical slots across all six palettes and **records a real failure it did not introduce**: `$disabled` and `$interstate` collapse to ΔE 2.05 under tritanopia.
+
+### What was verified by hand, and what was not
+
+There is no database-backed suite, so the grant paths were checked against the local database directly rather than in Vitest:
+
+- Every combination of the four levels against anonymous, owner, friend and stranger, plus the membership grant, both through `viewableRide()` directly and over HTTP on `/m/:slug`, the roadbook, the hand-off page and `ride.json`.
+- All five friendship verbs end to end, including that a block empties the roster and that an accepted friendship opens a `friends` ride and its clone.
+- `/explore` does not list a `friends` ride.
+
+**Not verified:** anything in a real browser. The builder's visibility select, the roster stub's rendering and the friends page on a phone have had no browser pass.
+
+### Still outstanding from this work
+
+- **Nothing writes a friend request to email.** A rider learns about one by visiting `/friends`. `src/auth/notify.ts` is the precedent for where such a thing would live.
+- **The account archive does not include friendships.** `src/account/export.ts` covers rides and profile; a friends list is rider data and arguably belongs there.
+- **The release-notes entry for this work carries no build stamp.** `src/content/release-notes.html` wants the exact string the deploy prints (`2026-08-26-HHMMPT`) in the `<code>`, and that is not knowable before the deploy runs. Fill it in then. The recycle bin and the Paddock have no entry at all yet.
+- **A friends-only ride is one extra indexed lookup per view.** `grantsFor()` short-circuits for public, unlisted, the owner and anonymous visitors, so the common path costs nothing—but the query is not cached.
+
+**#67 is still unwritten.** The rewrite described in the next section was scheduled as the first task of 2026-08-26 and did not happen; the Paddock and this branch went first. It is still owed, and #71 is now built enough for it—`ride_members` exists.
+
+
+## Owed: rewrite #67, then close #143
+
+Ziad's call, 2026-08-26. It was the first task of that session and was not done—the Paddock and the rider/access branch went first. Still owed.
 
 [#143](https://github.com/feralcreative/routeloop/issues/143), a feature request from `@epim`, turned out to describe [#67](https://github.com/feralcreative/routeloop/issues/67) *Rider Subgroups: converging and splitting group rides*—same converge/diverge shape, same Bay Area contingents. It is not a plain duplicate: it adds two things #67 never had, and the conversation on it settled a third. **Rewrite #67 to carry all of it, credit `@epim` in the body for the meeting-point idea, confirm the detail is actually there, and only then close #143 pointing at #67.** That order matters—closing first leaves a window where the new material lives in neither issue.
 
@@ -51,7 +82,7 @@ Unchanged by any of this: **#67 is still blocked on [#71](https://github.com/fer
 
 ## Open
 
-**THREE RIDERS ARE NOW ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. `AGENTS.md` still says "nobody has been let into the beta and nobody will be for a long time, so downtime, a broken deploy and overwritten code all cost approximately nothing"—**the first half of that is now false.** The database was always precious; the uptime is what changed. That sentence in `AGENTS.md` needs rewriting, and it has not been touched yet.
+**THREE RIDERS ARE NOW ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. The database was always precious; the uptime is what changed. `AGENTS.md` has since been rewritten to say so—it no longer claims nobody is in the beta.
 
 **There is a written plan to make deploys zero-downtime and NOTHING HAS BEEN BUILT.** [docs/zero-downtime-deploy.md](zero-downtime-deploy.md), written 2026-08-25. It is a proposal, not a record: the six open calls at the end of it are unanswered, and it names three approvals that have not been given—Caddy as a new prod dependency, anything touching prod or stage, and a migration-authoring rule that is effectively a schema-policy change. **Do not start building it without those answers.** The shape it proposes, in one line each:
 
