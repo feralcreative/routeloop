@@ -57,8 +57,13 @@ export async function loadStats(userId: number): Promise<RawStats> {
       // rides.total_miles is a cache and route_legs is the authority, so mileage
       // is not read from here — only the counts and the bytes that only exist
       // at ride level.
+      // FOUR COUNTS, NOT THREE. A level missing from this list is a ride
+      // missing from the split entirely — the chart's total is the sum of these
+      // and nothing checks it against `rides`, so the bars would quietly add up
+      // to less than the library and no page would say so.
       publicRides: int(sql`count(*) filter (where ${rides.visibility} = 'public')`),
       unlistedRides: int(sql`count(*) filter (where ${rides.visibility} = 'unlisted')`),
+      friendsRides: int(sql`count(*) filter (where ${rides.visibility} = 'friends')`),
       privateRides: int(sql`count(*) filter (where ${rides.visibility} = 'private')`),
       views: int(sql`sum(${rides.viewCount})`),
       // A generated column: kml_bytes + gpx_bytes + source_bytes, computed by
@@ -151,7 +156,12 @@ export async function loadStats(userId: number): Promise<RawStats> {
       n: int(sql`count(*)`),
     })
     .from(rides)
-    .where(and(owned, sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`))
+    .where(
+      and(
+        owned,
+        sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`,
+      ),
+    )
     .groupBy(sql`1`)
 
   // ALL FOUR records, each one row. Ordered rather than aggregated so the title,
@@ -240,6 +250,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
     estimatedLegs: legRow?.estimatedLegs ?? 0,
     publicRides: rideRow?.publicRides ?? 0,
     unlistedRides: rideRow?.unlistedRides ?? 0,
+    friendsRides: rideRow?.friendsRides ?? 0,
     privateRides: rideRow?.privateRides ?? 0,
     views: rideRow?.views ?? 0,
     storedBytes: Number(rideRow?.storedBytes ?? 0),

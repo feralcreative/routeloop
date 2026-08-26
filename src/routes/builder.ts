@@ -458,9 +458,10 @@ function builderHtml(
           <div class="meta-row">
             <select id="ride-visibility" name="visibility" title="Visibility">
               <option value="private" selected>Private</option>
+              <option value="friends">Friends</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
-            </select>${faqLink('visibility', 'private, unlisted and public')}
+            </select>${faqLink('visibility', 'private, friends, unlisted and public')}
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
             <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
