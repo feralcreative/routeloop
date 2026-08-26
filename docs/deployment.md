@@ -29,6 +29,17 @@ Both wrappers set `DEPLOY_ENV` and exec `utils/deploy/deploy.sh`, which gates on
 
 `utils/deploy/deploy-utils.sh` carries the operational subcommands: `status`, `logs`, `db-logs`, `restart`, `stop`, `start`, `shell`, `psql`, `migrate`, `db-baseline`, `db-backup`, `backup`, `db-clone <src> <dst>`, `db-restore`. `db-clone`'s dump-and-load path has never actually been exercised end to end.
 
+`utils/deploy/pull-db.sh` is the one-command form of the case that comes up most, refreshing local from production:
+
+```bash
+utils/deploy/pull-db.sh                 # prod → dev, database + storage
+utils/deploy/pull-db.sh --from stage    # stage → dev
+utils/deploy/pull-db.sh --no-storage    # database only
+utils/deploy/pull-db.sh --no-migrate    # keep the remote schema as it actually is
+```
+
+It is a wrapper: `db-clone <src> dev` does everything destructive, including the safety dump of the local database and the typed confirmation. What the wrapper adds is the step on each side that was easy to forget—bringing the local Postgres container up first, and running `npm run db:migrate` afterwards. That second one is not cosmetic: prod and stage are **behind** local on migrations, so the dump restores an older schema over a newer one and the app 500s on save until they are reapplied.
+
 ## Schema on deploy
 
 `utils/deploy/hooks/post-deploy.sh` runs `npx drizzle-kit migrate` inside the container and is **fatal on failure**. A non-fatal schema step is how production once drifted three sprints behind and started serving 500s while the deploy reported success. Do not reintroduce that, and do not reintroduce `--force`.
