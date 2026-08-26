@@ -2010,3 +2010,34 @@
     display: none;
   }
 }
+
+// --- Delete this ride --------------------------------------------------------
+//
+// At the END of the panel contents, below the last day, and that placement is
+// the whole design. The meta-row and the action bar are both rows a rider's
+// pointer lives in while building — a destructive control belongs where someone
+// arrives on purpose, not where they click by reflex.
+//
+// Muted rather than red. It moves the ride to the recycle bin, where it sits for
+// thirty days with a button to undo, so styling it as a danger would overstate
+// what pressing it does. Same reasoning as the dashboard card's Delete.
+.builder-danger {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid $grey;
+
+  .linkbtn {
+    color: $neutral-50;
+    font-size: 0.85em;
+    text-decoration: underline;
+  }
+}
+
+.builder-danger-note {
+  color: $neutral-57;
+  font-size: 0.75em;
+}

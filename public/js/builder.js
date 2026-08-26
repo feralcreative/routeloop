@@ -174,9 +174,7 @@
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     return savedPlaces
-      .filter((pl) =>
-        (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle),
-      )
+      .filter((pl) => (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle))
       .slice(0, 5);
   }
 
@@ -667,6 +665,34 @@
       return;
     }
     await save();
+  }
+
+  /**
+   * Moves this ride to the recycle bin and leaves.
+   *
+   * NO CONFIRMATION, deliberately, and the same argument as the dashboard's
+   * Delete: the bin holds it for thirty days with a button to put it back, so
+   * the bin IS the confirmation. Asking twice for something reversible is how a
+   * rider learns to click through the dialog that is not.
+   *
+   * CLEARING dirty AND saving IS THE LOAD-BEARING PART. Both the beforeunload
+   * guard and the visibilitychange flush key off exactly those two flags, so
+   * leaving them set means the rider gets a browser "leave site?" prompt on the
+   * way out and the tab fires one last PUT at a ride that is now in the bin.
+   * That PUT 404s — ownRide() excludes trashed rides — so nothing is corrupted,
+   * but the panel would flash a save error at someone who has already left.
+   */
+  async function deleteRide() {
+    if (!state.rideId) return;
+    const res = await fetch("/api/maps/" + state.rideId, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setSaveStatus("error", (data && data.error) || "Could not delete this ride.");
+      return;
+    }
+    state.dirty = false;
+    state.saving = false;
+    window.location.href = "/";
   }
 
   // --- Save status ----------------------------------------------------------
@@ -1258,11 +1284,7 @@
       day.legs.splice(from, i === 0 || i === pts.length ? 1 : 2);
       state.legSeq[r] = [];
       if (i > 0 && i < pts.length) {
-        day.legs.splice(
-          from,
-          0,
-          straightLeg([pts[i - 1].lng, pts[i - 1].lat], [pts[i].lng, pts[i].lat]),
-        );
+        day.legs.splice(from, 0, straightLeg([pts[i - 1].lng, pts[i - 1].lat], [pts[i].lng, pts[i].lat]));
         computeLeg(r, from);
       }
     }
@@ -1494,7 +1516,8 @@
     const legCount = Math.max(0, day.points.length - 1);
     // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
     // routes→days rename caught this string, which a rider reads in a dialog.
-    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?"))
+      return;
 
     // Every guard and the confirm are behind us, so this is the first point at
     // which the day is certainly going to change.
@@ -1519,7 +1542,10 @@
     renderTrack(r);
     renderMarkers();
     renderList();
-    computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    computeLegsAround(
+      r,
+      Array.from({ length: legCount }, (_, i) => i),
+    );
     refreshDerived();
     markDirty();
     toast(dayLabel(r) + " reversed");
@@ -1586,8 +1612,12 @@
     // shape the moment it opens as it is once something is ticked.
     const off = n === 0 ? " disabled" : "";
     const dayBtns =
-      '<button type="button" data-sel="group"' + (sel.days.size < 2 ? " disabled" : "") + ">Group as alternatives</button>" +
-      '<button type="button" data-sel="duplicate"' + off + ">Duplicate</button>";
+      '<button type="button" data-sel="group"' +
+      (sel.days.size < 2 ? " disabled" : "") +
+      ">Group as alternatives</button>" +
+      '<button type="button" data-sel="duplicate"' +
+      off +
+      ">Duplicate</button>";
     const pointBtns =
       '<label class="sel-move">Move to <select data-sel="move-to">' +
       '<option value="">day…</option>' +
@@ -1595,11 +1625,19 @@
       "</select></label>";
     bar.hidden = false;
     bar.innerHTML =
-      '<span class="sel-count">' + n + " " + noun + " selected</span>" +
+      '<span class="sel-count">' +
+      n +
+      " " +
+      noun +
+      " selected</span>" +
       '<button type="button" data-sel="all">All</button>' +
-      '<button type="button" data-sel="none"' + off + ">None</button>" +
+      '<button type="button" data-sel="none"' +
+      off +
+      ">None</button>" +
       (isDay ? dayBtns : pointBtns) +
-      '<button type="button" class="is-danger" data-sel="delete"' + off + ">Delete</button>" +
+      '<button type="button" class="is-danger" data-sel="delete"' +
+      off +
+      ">Delete</button>" +
       '<button type="button" data-sel="done">Done</button>';
   }
 
@@ -1664,8 +1702,7 @@
     const rad = Math.PI / 180;
     const dLat = (b.lat - a.lat) * rad;
     const dLng = (b.lng - a.lng) * rad;
-    const h =
-      Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
@@ -1758,7 +1795,10 @@
       const nPts = day ? day.points.length : 0;
       if (day && nPts >= 2 && day.legs.length === 0) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
+        computeLegsAround(
+          r,
+          Array.from({ length: nPts - 1 }, (_, k) => k),
+        );
       }
     });
     refreshDerived();
@@ -1803,7 +1843,10 @@
       const nPts = day ? day.points.length : 0;
       if (day && nPts >= 2) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
+        computeLegsAround(
+          r,
+          Array.from({ length: nPts - 1 }, (_, k) => k),
+        );
       }
     });
     refreshDerived();
@@ -2007,22 +2050,37 @@
     // leaves "an alternative to what?" unanswered.
     const altBadge = !grouped
       ? ""
-      : '<span class="day-alt' + (ghost ? "" : " is-on") + '" title="' +
+      : '<span class="day-alt' +
+        (ghost ? "" : " is-on") +
+        '" title="' +
         (ghost
           ? "Not counted in the ride total. Use the day menu to ride this one instead."
           : "This is the route counted in the ride total.") +
-        '">' + (ghost ? "alternative" : "riding this") + "</span>";
+        '">' +
+        (ghost ? "alternative" : "riding this") +
+        "</span>";
     return (
-      '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
-      ' style="--day-color:' + esc(day.color) + '">' +
+      '<section class="day-section' +
+      (shut ? " is-shut" : "") +
+      altClass +
+      '" data-day="' +
+      r +
+      '"' +
+      ' style="--day-color:' +
+      esc(day.color) +
+      '">' +
       '<div class="day-head">' +
       // AFTER the grip, never before it: .day-drag's negative margins depend on
       // being the first thing in the header, and anything ahead of it breaks the
       // tab that reaches the section's padding edge.
       (state.select?.scope === "day"
-        ? '<input type="checkbox" class="day-pick" data-day="' + r + '"' +
+        ? '<input type="checkbox" class="day-pick" data-day="' +
+          r +
+          '"' +
           (state.select.days.has(r) ? " checked" : "") +
-          ' aria-label="Select ' + esc(dayLabel(r)) + '">'
+          ' aria-label="Select ' +
+          esc(dayLabel(r)) +
+          '">'
         : "") +
       // The day's own drag handle. A separate grip rather than dragging by the
       // header itself: the header holds a color input, a text field and buttons,
@@ -2036,18 +2094,31 @@
       // the grip focusable and giving it arrow keys covers both without spending
       // two more buttons of a 380px header.
       '<button type="button" class="day-drag" title="Drag to reorder, or focus and use the arrow keys"' +
-      ' aria-label="Reorder day ' + dayNumber(r) + ', use the up and down arrow keys"></button>' +
-      '<button type="button" class="day-twirl" aria-expanded="' + (shut ? "false" : "true") +
+      ' aria-label="Reorder day ' +
+      dayNumber(r) +
+      ', use the up and down arrow keys"></button>' +
+      '<button type="button" class="day-twirl" aria-expanded="' +
+      (shut ? "false" : "true") +
       '" title="Show or hide this day\'s stops"><span class="day-twirl-mark" aria-hidden="true"></span></button>' +
       // The ordinal, rendered rather than stored. Reordering re-renders, so it is
       // always the day's real position and there is nothing to keep in sync.
-      '<span class="day-num" aria-hidden="true">' + dayNumber(r) + "</span>" +
-      '<input class="day-color" type="color" value="' + esc(day.color) + '" title="Day color" aria-label="Color for ' + esc(dayLabel(r)) + '">' +
+      '<span class="day-num" aria-hidden="true">' +
+      dayNumber(r) +
+      "</span>" +
+      '<input class="day-color" type="color" value="' +
+      esc(day.color) +
+      '" title="Day color" aria-label="Color for ' +
+      esc(dayLabel(r)) +
+      '">' +
       // The placeholder no longer says "Day N". It used to, which made an empty
       // field look like it already held the name — so the number and the name
       // were indistinguishable until you clicked in.
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
-      ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
+      ' autocomplete="off" aria-label="Name for day ' +
+      dayNumber(r) +
+      '" value="' +
+      esc(day.title) +
+      '">' +
       altBadge +
       '<span class="day-actions">' +
       // Empty for the same reason .day-del is: icon-reverse.svg comes in through
@@ -2055,7 +2126,8 @@
       // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
       // "rightwards arrow over leftwards arrow" — hence the aria-label.
       '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg" aria-label="Reverse ' +
-      esc(dayLabel(r)) + '"></button>' +
+      esc(dayLabel(r)) +
+      '"></button>' +
       // DELETE MOVED INTO THE MENU, and ⇄ did not. The two were side by side and
       // one of them re-routes every leg while the other throws a day away — both
       // one mis-click from the title field. Reverse is the one a rider reaches
@@ -2066,7 +2138,8 @@
       // U+22EE, the same glyph the row menu uses, so the two read as the same
       // control at two levels.
       '<button type="button" class="day-menu-btn" title="More" aria-label="More actions for ' +
-      esc(dayLabel(r)) + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
+      esc(dayLabel(r)) +
+      '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span>" +
       "</div>" +
       '<div class="day-body">' +
@@ -2082,7 +2155,11 @@
       // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
       // the list itself, so putting it only on the ancestor silently stopped it
       // matching and clipped the field.
-      '<ol class="point-list" data-day="' + r + '" data-duration-format="' + esc(durFormat) + '"></ol>' +
+      '<ol class="point-list" data-day="' +
+      r +
+      '" data-duration-format="' +
+      esc(durFormat) +
+      '"></ol>' +
       "</div>" +
       "</section>"
     );
@@ -2115,10 +2192,18 @@
     wrap.innerHTML = state.days
       .map(
         (day, r) =>
-          '<button type="button" class="rail-day" data-day="' + r + '"' +
+          '<button type="button" class="rail-day" data-day="' +
+          r +
+          '"' +
           (r === a ? ' aria-current="true"' : "") +
-          ' style="--rail-color:' + esc(day.color) + '"' +
-          ' title="' + esc(dayLabel(r)) + '">' + String(r + 1) + "</button>",
+          ' style="--rail-color:' +
+          esc(day.color) +
+          '"' +
+          ' title="' +
+          esc(dayLabel(r)) +
+          '">' +
+          String(r + 1) +
+          "</button>",
       )
       .join("");
   }
@@ -2332,7 +2417,9 @@
     const meta = window.TB.roles[roles[0]];
     const extra = roles.length - 1;
     return (
-      '<span class="role-chip tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span>' +
+      '<span class="role-chip tb-inline-icon" data-icon="' +
+      esc(meta.icon) +
+      '"></span>' +
       (extra > 0 ? '<span class="role-more">+' + extra + "</span>" : "")
     );
   }
@@ -2355,8 +2442,14 @@
   // seventeen options in words. The dot-kinds link at the top of the panel
   // covers the question that actually needs answering.
   const faqLink = (anchor, what) =>
-    '<a class="faq-link" href="/faq#' + anchor + '" target="_blank" rel="noopener"' +
-    ' title="What is ' + esc(what) + '?" aria-label="What is ' + esc(what) + '? Opens the questions page in a new tab">?</a>';
+    '<a class="faq-link" href="/faq#' +
+    anchor +
+    '" target="_blank" rel="noopener"' +
+    ' title="What is ' +
+    esc(what) +
+    '?" aria-label="What is ' +
+    esc(what) +
+    '? Opens the questions page in a new tab">?</a>';
 
   const rolesAreOpen = (r, i) => !!state.rolesOpen && state.rolesOpen.day === r && state.rolesOpen.i === i;
 
@@ -2366,8 +2459,18 @@
         const meta = window.TB.roles[r];
         const on = (point.roles || []).includes(r);
         return (
-          '<button type="button" class="role-opt' + (on ? " on" : "") + '" data-role="' + r + '" aria-pressed="' + on + '">' +
-          '<span class="tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span><span>' + esc(meta.title) + '</span></button>'
+          '<button type="button" class="role-opt' +
+          (on ? " on" : "") +
+          '" data-role="' +
+          r +
+          '" aria-pressed="' +
+          on +
+          '">' +
+          '<span class="tb-inline-icon" data-icon="' +
+          esc(meta.icon) +
+          '"></span><span>' +
+          esc(meta.title) +
+          "</span></button>"
         );
       })
       .join("");
@@ -2401,7 +2504,13 @@
   function pointRowHtml(kind, point, i, dayIndex, n) {
     const isStop = kind === "stop";
     return (
-      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
+      '<li class="point-row" data-kind="' +
+      kind +
+      '" data-i="' +
+      i +
+      '" data-day="' +
+      dayIndex +
+      '">' +
       '<div class="row-main">' +
       // Both kinds reorder now — a POI has a place in the list of its own, so
       // there is one gesture with one meaning rather than a drag that reordered
@@ -2413,13 +2522,29 @@
       // because ticking is what you are doing rather than reading an order. It
       // comes straight back when select mode ends.
       (state.select?.scope === "point"
-        ? '<input type="checkbox" class="row-pick" data-day="' + dayIndex + '" data-kind="' + kind + '" data-i="' + i + '"' +
+        ? '<input type="checkbox" class="row-pick" data-day="' +
+          dayIndex +
+          '" data-kind="' +
+          kind +
+          '" data-i="' +
+          i +
+          '"' +
           (state.select.points.has(pointKey(dayIndex, kind, i)) ? " checked" : "") +
-          ' aria-label="Select ' + (isStop ? "stop " + n : "POI") + '">'
+          ' aria-label="Select ' +
+          (isStop ? "stop " + n : "POI") +
+          '">'
         : isStop
           ? '<span class="row-num">' + n + "</span>"
           : '<span class="row-num poi-dot"></span>') +
-      '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
+      '<input class="row-name" name="' +
+      kind +
+      "-name-" +
+      i +
+      '" type="text" maxlength="255" autocomplete="off" placeholder="' +
+      (isStop ? "Stop name" : "POI name") +
+      '" value="' +
+      esc(point.name) +
+      '">' +
       // POIs get the same dwell field. Blank means "rode past without stopping",
       // which is the common case and why it stays a placeholder rather than a
       // zero.
@@ -2430,15 +2555,29 @@
       // field. One text input with `inputmode` set from the format gets the
       // phone keyboard right without any of that. The stored value is still an
       // integer count of minutes — TBDuration is only how it is written down.
-      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="text" autocomplete="off" inputmode="' +
-      DUR.inputMode(durFormat) + '" placeholder="' + esc(DUR.placeholder(durFormat)) + '" title="' +
-      (isStop ? "Stop duration" : "How long you stop here, if you stop") + " (" + esc(DUR.unitName(durFormat)) +
-      ')" value="' + esc(DUR.format(point.durationMin, durFormat)) + '">' +
-      '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
+      '<input class="row-dur" name="' +
+      kind +
+      "-duration-" +
+      i +
+      '" type="text" autocomplete="off" inputmode="' +
+      DUR.inputMode(durFormat) +
+      '" placeholder="' +
+      esc(DUR.placeholder(durFormat)) +
+      '" title="' +
+      (isStop ? "Stop duration" : "How long you stop here, if you stop") +
+      " (" +
+      esc(DUR.unitName(durFormat)) +
+      ')" value="' +
+      esc(DUR.format(point.durationMin, durFormat)) +
+      '">' +
+      '<button type="button" class="row-roles-btn" title="' +
+      esc(roleTitle(point)) +
+      '" aria-label="Categories">' +
       // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn
       // in CSS, so there is nothing to read here. aria-hidden because the button
       // already carries its own label.
-      (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') + "</button>" +
+      (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') +
+      "</button>" +
       '<span class="row-actions">' +
       // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
       // roughly a third of the width, which on a 320px row is width the name
@@ -2451,12 +2590,26 @@
         ? '<span class="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
         : "") +
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
-      (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
+      (isStop ? "stop" : "POI") +
+      '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
-      '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
-      '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
-      (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
-      '<div class="row-details" hidden>' + detailsHtml(point, kind, i) + "</div>" +
+      '<div class="row-roles"' +
+      (rolesAreOpen(dayIndex, i) ? "" : " hidden") +
+      ">" +
+      rolePickerHtml(point) +
+      "</div>" +
+      '<textarea class="row-desc" name="' +
+      kind +
+      "-notes-" +
+      i +
+      '" maxlength="2000" placeholder="Notes (optional)"' +
+      (point.description ? "" : " hidden") +
+      ">" +
+      esc(point.description) +
+      "</textarea>" +
+      '<div class="row-details" hidden>' +
+      detailsHtml(point, kind, i) +
+      "</div>" +
       "</li>"
     );
   }
@@ -2499,21 +2652,41 @@
       if (f === "notes" || f === "links") continue;
       const isTime = f === "checkInAt" || f === "checkOutAt";
       out +=
-        '<label class="detail-field"><span>' + esc(DETAIL_LABELS[f]) + "</span>" +
-        '<input type="' + (isTime ? "datetime-local" : f === "phone" ? "tel" : "text") + '"' +
-        ' data-field="' + f + '"' +
-        ' name="' + kind + "-" + f + "-" + i + '"' +
+        '<label class="detail-field"><span>' +
+        esc(DETAIL_LABELS[f]) +
+        "</span>" +
+        '<input type="' +
+        (isTime ? "datetime-local" : f === "phone" ? "tel" : "text") +
+        '"' +
+        ' data-field="' +
+        f +
+        '"' +
+        ' name="' +
+        kind +
+        "-" +
+        f +
+        "-" +
+        i +
+        '"' +
         (isTime ? "" : ' maxlength="' + (f === "confirmation" ? 120 : f === "phone" ? 40 : 300) + '"') +
-        ' autocomplete="off" value="' + esc(isTime ? toLocalInput(d[f]) : d[f] || "") + '"></label>';
+        ' autocomplete="off" value="' +
+        esc(isTime ? toLocalInput(d[f]) : d[f] || "") +
+        '"></label>';
     }
     out += "</div>";
 
     out += '<div class="detail-links">';
     (d.links || []).forEach((l, n) => {
       out +=
-        '<div class="detail-link" data-link="' + n + '">' +
-        '<input type="text" data-field="linkLabel" maxlength="60" placeholder="Label" value="' + esc(l.label || "") + '">' +
-        '<input type="url" data-field="linkUrl" maxlength="500" placeholder="https://" value="' + esc(l.url || "") + '">' +
+        '<div class="detail-link" data-link="' +
+        n +
+        '">' +
+        '<input type="text" data-field="linkLabel" maxlength="60" placeholder="Label" value="' +
+        esc(l.label || "") +
+        '">' +
+        '<input type="url" data-field="linkUrl" maxlength="500" placeholder="https://" value="' +
+        esc(l.url || "") +
+        '">' +
         '<button type="button" class="detail-link-del" aria-label="Remove link">\u00d7</button>' +
         "</div>";
     });
@@ -2525,13 +2698,15 @@
     out +=
       '<label class="detail-field detail-notes"><span>Private notes</span>' +
       '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, where to park, who to ask for">' +
-      esc(d.notes || "") + "</textarea></label>";
+      esc(d.notes || "") +
+      "</textarea></label>";
 
     // Stated on the surface rather than only in the code, because a rider
     // deciding whether to type a door code into a web app is entitled to know
     // where it goes. It is also true — see canSeeDetails in
     // src/maps/point-details.ts.
-    out += '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
+    out +=
+      '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
     return out;
   }
 
@@ -2620,9 +2795,19 @@
   // separators rather than as 30 buttons.
   function insertSlotHtml(r, at) {
     return (
-      '<li class="insert-slot" data-day="' + r + '" data-at="' + at + '">' +
-      '<button type="button" class="insert-btn" data-day="' + r + '" data-at="' + at + '"' +
-      ' title="Add a point here" aria-label="Add a point above point ' + (at + 1) + '">+</button>' +
+      '<li class="insert-slot" data-day="' +
+      r +
+      '" data-at="' +
+      at +
+      '">' +
+      '<button type="button" class="insert-btn" data-day="' +
+      r +
+      '" data-at="' +
+      at +
+      '"' +
+      ' title="Add a point here" aria-label="Add a point above point ' +
+      (at + 1) +
+      '">+</button>' +
       "</li>"
     );
   }
@@ -2635,20 +2820,40 @@
     const full = day.points.length >= MAX_POINTS;
     const slot = at == null ? "" : ' data-at="' + at + '"';
     return (
-      '<li class="add-row' + (at == null ? "" : " is-insert") + '" data-day="' + r + '"' + slot + '>' +
+      '<li class="add-row' +
+      (at == null ? "" : " is-insert") +
+      '" data-day="' +
+      r +
+      '"' +
+      slot +
+      ">" +
       '<span class="add-row-mark" aria-hidden="true">+</span>' +
       '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
-      ' placeholder="' + (full ? "Point limit reached" : "Search, or click the map") + '"' +
+      ' placeholder="' +
+      (full ? "Point limit reached" : "Search, or click the map") +
+      '"' +
       (full ? " disabled" : "") +
-      ' aria-label="Add a place to ' + esc(dayLabel(r)) + '">' +
+      ' aria-label="Add a place to ' +
+      esc(dayLabel(r)) +
+      '">' +
       // Arms the next map click for THIS day — see armPlace(). The armed state
       // is derived from state.arm rather than left on the element, because this
       // row is rebuilt on every structural change and a class living only in the
       // DOM would be lost by the next render.
-      '<button type="button" class="add-place-btn' + (isArmed(r, at) ? " is-armed" : "") + '"' +
-      ' data-day="' + r + '"' + slot + (full ? " disabled" : "") +
-      ' aria-pressed="' + (isArmed(r, at) ? "true" : "false") + '"' +
-      ' title="' + (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
+      '<button type="button" class="add-place-btn' +
+      (isArmed(r, at) ? " is-armed" : "") +
+      '"' +
+      ' data-day="' +
+      r +
+      '"' +
+      slot +
+      (full ? " disabled" : "") +
+      ' aria-pressed="' +
+      (isArmed(r, at) ? "true" : "false") +
+      '"' +
+      ' title="' +
+      (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") +
+      '">' +
       "+ Point</button>" +
       chipsHtml(r, full, at) +
       "</li>"
@@ -2680,9 +2885,17 @@
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
-          '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="Find ' + esc(c.label.toLowerCase()) + ' near this day\'s last point">' +
-          esc(c.label) + "</button>",
+          '<button type="button" class="chip" data-day="' +
+          r +
+          '" data-chip="' +
+          c.role +
+          '"' +
+          slot +
+          ' title="Find ' +
+          esc(c.label.toLowerCase()) +
+          " near this day's last point\">" +
+          esc(c.label) +
+          "</button>",
       ).join("") +
       "</div>"
     );
@@ -2756,7 +2969,11 @@
     // dwell figures still drive the end times and the timeline, they are just not
     // worth a slot in a 380px panel.
     const line = (t, withLink) =>
-      (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
+      (t.meters / MILE).toFixed(1) +
+      " mi · " +
+      (t.estimated ? "~" : "") +
+      hm(t.riding) +
+      " riding" +
       (t.twist ? " · " + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
 
     // The label alone on the line; the numbers behind it on hover. "252°/mi"
@@ -2805,11 +3022,16 @@
     const dayT = r == null ? null : routeTotals(state.days[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
-      '<span class="totals-ride" title="' + esc(twistTitle(ride)) + '">' +
+      '<span class="totals-ride" title="' +
+      esc(twistTitle(ride)) +
+      '">' +
       // The count of days that COUNT, not of sections on screen. A ride with
       // three days and two alternates is a three-day ride, and saying "5 days"
       // beside a mileage that only covers three would make both look wrong.
-      counted.length + " days · " + line(ride, true) + "</span>" +
+      counted.length +
+      " days · " +
+      line(ride, true) +
+      "</span>" +
       // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
       // its own line, so the block is the same height whichever way the scrubber
       // is set and the controls below it never move. Dropping the span when
@@ -2819,10 +3041,16 @@
       // the name and never the figures — see .totals-day in _builder.scss. A day
       // title runs to 150 characters and an import hands over 31 by default,
       // which would otherwise push the mileage off the line.
-      '<span class="totals-day"' + (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") + ">" +
+      '<span class="totals-day"' +
+      (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") +
+      ">" +
       (dayT
-        ? '<span class="totals-day-name">' + esc(dayLabel(r)) + ":</span>" +
-          '<span class="totals-day-figs">' + line(dayT, false) + "</span>"
+        ? '<span class="totals-day-name">' +
+          esc(dayLabel(r)) +
+          ":</span>" +
+          '<span class="totals-day-figs">' +
+          line(dayT, false) +
+          "</span>"
         : "") +
       "</span>";
   }
@@ -2836,7 +3064,10 @@
       if (!point) return;
       // Keyed by the row and the field, so a run of keystrokes folds into one
       // step and moving to another field starts a new one.
-      beginEdit("edit stop", "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className);
+      beginEdit(
+        "edit stop",
+        "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className,
+      );
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       // The detail fields, all of them, through one branch. `data-field` is what
@@ -3109,8 +3340,16 @@
     menu.innerHTML = items
       .map(
         (m) =>
-          '<button type="button" role="menuitem" class="row-menu-item' + (m.danger ? " is-danger" : "") + '"' +
-          ' data-act="' + m.act + '"' + (m.off ? " disabled" : "") + ">" + esc(m.label) + "</button>",
+          '<button type="button" role="menuitem" class="row-menu-item' +
+          (m.danger ? " is-danger" : "") +
+          '"' +
+          ' data-act="' +
+          m.act +
+          '"' +
+          (m.off ? " disabled" : "") +
+          ">" +
+          esc(m.label) +
+          "</button>",
       )
       .join("");
     host.appendChild(menu);
@@ -3406,7 +3645,10 @@
       const day = state.days[r];
       if (!day) return;
       fillMissingLegs(day);
-      computeLegsAround(r, Array.from({ length: Math.max(0, day.points.length - 1) }, (_, k) => k));
+      computeLegsAround(
+        r,
+        Array.from({ length: Math.max(0, day.points.length - 1) }, (_, k) => k),
+      );
     });
     setActive(toDay);
     refreshDerived();
@@ -3535,8 +3777,14 @@
         hits
           .map(
             (h, i) =>
-              '<li class="hit-nearby" data-nearby="' + i + '"><strong>' + esc(h.name) + "</strong> " +
-              '<span class="hit-ctx">' + esc(h.address) + "</span></li>",
+              '<li class="hit-nearby" data-nearby="' +
+              i +
+              '"><strong>' +
+              esc(h.name) +
+              "</strong> " +
+              '<span class="hit-ctx">' +
+              esc(h.address) +
+              "</span></li>",
           )
           .join("")
       );
@@ -3591,9 +3839,15 @@
       return list
         .map(
           (pl, i) =>
-            '<li class="hit-saved" data-saved="' + i + '">' +
-            '<span class="hit-badge">Saved</span> <strong>' + esc(pl.name) + "</strong> " +
-            '<span class="hit-ctx">' + esc(pl.groupName || pl.address || "") + "</span></li>",
+            '<li class="hit-saved" data-saved="' +
+            i +
+            '">' +
+            '<span class="hit-badge">Saved</span> <strong>' +
+            esc(pl.name) +
+            "</strong> " +
+            '<span class="hit-ctx">' +
+            esc(pl.groupName || pl.address || "") +
+            "</span></li>",
         )
         .join("");
     }
@@ -3689,7 +3943,7 @@
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
           results.dataset.day = String(day);
-        results.dataset.at = at == null ? "" : String(at);
+          results.dataset.at = at == null ? "" : String(at);
           // Saved matches keep their place at the top; the predictions are
           // appended under them. Re-derived rather than read off the DOM so a
           // response that arrives after the query changed cannot pair the new
@@ -3701,8 +3955,14 @@
             hits
               .map(
                 (h, i) =>
-                  '<li class="hit-google" data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
-                  '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
+                  '<li class="hit-google" data-i="' +
+                  i +
+                  '"><strong>' +
+                  esc(h.name) +
+                  "</strong> " +
+                  '<span class="hit-ctx">' +
+                  esc(h.context) +
+                  "</span></li>",
               )
               .join("") +
             nearbyResultsHtml(nearby) +
@@ -3755,7 +4015,7 @@
           // referrer-restricted key, a pending account or a Places API that was
           // never enabled all presented as an empty dropdown and no explanation.
           results.dataset.day = String(day);
-        results.dataset.at = at == null ? "" : String(at);
+          results.dataset.at = at == null ? "" : String(at);
           results.innerHTML = noticeHtml(searchErrorText(e));
           results.hidden = false;
           placeResults(input, results);
@@ -3831,8 +4091,7 @@
         const nearby = await nearbySearch(spec.query, anchorFor(r));
         if (mine !== searchSeq) return;
         results.innerHTML =
-          nearbyResultsHtml(nearby) ||
-          noticeHtml("No " + spec.label.toLowerCase() + " found near this day");
+          nearbyResultsHtml(nearby) || noticeHtml("No " + spec.label.toLowerCase() + " found near this day");
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);
@@ -4146,6 +4405,10 @@
     });
     $("day-add").addEventListener("click", addDay);
 
+    // Only present on a saved ride — see the markup in src/routes/builder.ts.
+    const del = $("ride-delete");
+    if (del) del.addEventListener("click", deleteRide);
+
     const host = $("day-list");
 
     // Pointerdown rather than click: it fires before focus moves, so tabbing or
@@ -4284,7 +4547,9 @@
 
     const ok = window.confirm(
       "This ride starts at your home address, and a shared map would show a pin on it.\n\n" +
-        "Replace the start with your public starting point (" + start.label + ")?",
+        "Replace the start with your public starting point (" +
+        start.label +
+        ")?",
     );
     if (!ok) {
       // Asked once per session. Nagging on every visibility change would train

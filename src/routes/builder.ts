@@ -25,6 +25,7 @@ import { detailsForOwner } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
+import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -491,6 +492,23 @@ function builderHtml(
         <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
 
         <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
+${
+  // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
+  // delete — closing the tab already discards it — and a Delete button on a
+  // blank builder is an offer to destroy something that does not exist.
+  //
+  // AT THE BOTTOM OF THE PANEL, not in the meta-row beside the visibility select
+  // and + Day, and not in the action bar beside undo/redo. Both of those are
+  // rows a rider's pointer lives in while building, and a destructive control
+  // wants distance from the ones pressed by reflex. The end of the day list is
+  // where a rider goes deliberately.
+  rideId
+    ? `        <div class="builder-danger">
+          <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
+          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
+        </div>`
+    : ''
+}
 
         <span id="save-announce" class="visually-hidden" role="status" aria-live="polite"></span>
         <div id="recover-bar" class="tb-banner is-recover" hidden>
