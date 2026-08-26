@@ -65,16 +65,10 @@ export async function loadStats(userId: number): Promise<RawStats> {
   const [dayRow] = await db
     .select({
       days: int(sql`count(*)`),
-      // distanceM here is the per-day cache; the leg sum below is the one used
-      // for the hero figure. Kept for the longest-day record, where it is the
-      // natural grain.
-      longestDayM: int(sql`max(${days.distanceM})`),
     })
     .from(days)
     .innerJoin(rides, eq(rides.id, days.rideId))
-    // Both figures: a ride of three days plus two alternates is a three-day
-    // ride, and a losing alternate that happens to be the longest would claim
-    // the record for a road nobody rides.
+    // A ride of three days plus two alternates is a three-day ride.
     .where(counts)
 
   const [legRow] = await db
@@ -154,24 +148,50 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .where(and(owned, sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`))
     .groupBy(sql`1`)
 
-  // The two "best ride" records, each one row. Ordered rather than aggregated so
-  // the title and slug come along without a second lookup.
+  // ALL FOUR records, each one row. Ordered rather than aggregated so the title,
+  // the slug and the thumbnail hash come along without a second lookup.
+  //
+  // Two of these were `max()` until 2026-08-26 and gave a figure with no way
+  // back to the road it was set on. Now that every record shows the map of the
+  // ride that holds it, an aggregate cannot answer the question — so the longest
+  // day and the twistiest stretch moved to the shape the two "best ride" records
+  // always had. The figures are identical: `order by x desc limit 1` reads the
+  // same row `max(x)` measures.
+  const [longestDay] = await db
+    .select({
+      // The per-day cache, which is the natural grain for this record; the leg
+      // sum further up is the one behind the hero figure.
+      m: days.distanceM,
+      title: rides.title,
+      slug: rides.slug,
+      thumbHash: rides.thumbHash,
+    })
+    .from(days)
+    .innerJoin(rides, eq(rides.id, days.rideId))
+    // Both figures: a ride of three days plus two alternates is a three-day
+    // ride, and a losing alternate that happens to be the longest would claim
+    // the record for a road nobody rides.
+    .where(counts)
+    .orderBy(sql`${days.distanceM} desc`)
+    .limit(1)
+
   const [biggest] = await db
     .select({
       m: sql<number>`coalesce(sum(${routeLegs.distanceM}), 0)::bigint`,
       title: rides.title,
       slug: rides.slug,
+      thumbHash: rides.thumbHash,
     })
     .from(rides)
     .innerJoin(days, eq(days.rideId, rides.id))
     .innerJoin(routeLegs, eq(routeLegs.dayId, days.id))
     .where(counts)
-    .groupBy(rides.id, rides.title, rides.slug)
+    .groupBy(rides.id, rides.title, rides.slug, rides.thumbHash)
     .orderBy(sql`1 desc`)
     .limit(1)
 
   const [mostViewed] = await db
-    .select({ n: rides.viewCount, title: rides.title, slug: rides.slug })
+    .select({ n: rides.viewCount, title: rides.title, slug: rides.slug, thumbHash: rides.thumbHash })
     .from(rides)
     .where(owned)
     .orderBy(sql`${rides.viewCount} desc`)
@@ -179,11 +199,21 @@ export async function loadStats(userId: number): Promise<RawStats> {
 
   // "The best twenty miles you have planned" should not be a road the rider
   // looked at and rejected.
+  //
+  // `is not null` in the predicate rather than `nulls last` alone: this row is
+  // read for its slug as well as its figure, so a library with nothing measured
+  // has to come back as no row rather than as a ride with a null dpm.
   const [bestTwist] = await db
-    .select({ dpm: sql<number>`max(${days.twistinessBestDpm})::int` })
+    .select({
+      dpm: sql<number>`${days.twistinessBestDpm}::int`,
+      slug: rides.slug,
+      thumbHash: rides.thumbHash,
+    })
     .from(days)
     .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(counts)
+    .where(and(counts, sql`${days.twistinessBestDpm} is not null`))
+    .orderBy(sql`${days.twistinessBestDpm} desc`)
+    .limit(1)
 
   const [me] = await db
     .select({ quotaBytes: users.quotaBytes, usedBytes: users.usedBytes })
@@ -211,14 +241,24 @@ export async function loadStats(userId: number): Promise<RawStats> {
   }
 
   const records: RawRecords = {
-    longestDayM: dayRow?.longestDayM || null,
+    // `|| null` and not `?? null`: distance_m is NOT NULL and defaults to 0, so
+    // the longest day of a library with no legs is a real row reading zero, and
+    // shape.ts treats a zero record as one nobody has set.
+    longestDayM: longestDay?.m || null,
+    longestDayTitle: longestDay?.title ?? null,
+    longestDaySlug: longestDay?.slug ?? null,
+    longestDayThumb: longestDay?.thumbHash ?? null,
     biggestRideM: biggest ? Number(biggest.m) : null,
     biggestRideTitle: biggest?.title ?? null,
     biggestRideSlug: biggest?.slug ?? null,
+    biggestRideThumb: biggest?.thumbHash ?? null,
     bestTwistDpm: bestTwist?.dpm ?? null,
+    bestTwistSlug: bestTwist?.slug ?? null,
+    bestTwistThumb: bestTwist?.thumbHash ?? null,
     mostViewed: mostViewed?.n ?? null,
     mostViewedTitle: mostViewed?.title ?? null,
     mostViewedSlug: mostViewed?.slug ?? null,
+    mostViewedThumb: mostViewed?.thumbHash ?? null,
   }
 
   return {

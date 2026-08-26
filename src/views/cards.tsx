@@ -26,11 +26,17 @@ import type { RideRow } from '../db/schema'
 export type CardRow = { ride: RideRow; color: string | null }
 
 /**
- * The picture, or the day color standing in for one.
+ * The picture, or a color block standing in for one.
  *
- * Shared by this file and home.tsx's owner card, which is the ONE thing those
- * two genuinely have in common — the rest of the owner card is a visibility pill
- * and an edit link that a public card must never show.
+ * Shared by this file, home.tsx's owner card, and home.tsx's "Your records" —
+ * which is the ONE thing those three genuinely have in common. The rest of the
+ * owner card is a visibility pill and an edit link a public card must never
+ * show, and a record is a figure rather than a title.
+ *
+ * TAKES THE TWO FIELDS RATHER THAN A RIDE ROW, since 2026-08-26. A record knows
+ * a slug and a hash and has no RideRow to hand over, and the alternative was a
+ * third copy of the markup below — which is the copy this function was extracted
+ * to prevent. `block` names the CSS block so each caller keeps its own class.
  *
  * `?v=` is the request hash, which is what lets the route serve the image
  * immutable: a changed picture is a changed URL. Lazy, because /explore and a
@@ -38,11 +44,21 @@ export type CardRow = { ride: RideRow; color: string | null }
  * SOURCE's dimensions, so the browser reserves the right shape before the bytes
  * land and the grid does not reflow as each one arrives.
  */
-export function CardFace({ ride, color }: CardRow) {
-  return ride.thumbHash ? (
+export function CardFace({
+  slug,
+  thumbHash,
+  color,
+  block = 'ride-card',
+}: {
+  slug: string
+  thumbHash: string | null
+  color: string | null
+  block?: string
+}) {
+  return thumbHash ? (
     <img
-      class="ride-card-face"
-      src={`/api/public/maps/${ride.slug}/thumb.png?v=${ride.thumbHash}`}
+      class={`${block}-face`}
+      src={`/api/public/maps/${slug}/thumb.png?v=${thumbHash}`}
       alt=""
       width="640"
       height="400"
@@ -54,7 +70,13 @@ export function CardFace({ ride, color }: CardRow) {
     // no geometry to draw, still has to occupy a card of the same shape as the
     // ones beside it — a grid where some cells are short is a grid that reads as
     // broken rather than as incomplete.
-    <span class="ride-card-face is-blank" style={{ background: color ?? '#0000cc' }}></span>
+    //
+    // NO INLINE STYLE WHEN THERE IS NO COLOR. The fallback used to be a `#0000cc`
+    // literal written into the markup, which a themed app has no business doing
+    // and which a record card cannot use — its blank face takes the record's own
+    // accent. The same blue is now the stylesheet's default for `.ride-card-face`,
+    // so a ride card looks exactly as it did.
+    <span class={`${block}-face is-blank`} style={color ? { background: color } : undefined}></span>
   )
 }
 
@@ -62,7 +84,7 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
-        <CardFace ride={ride} color={color} />
+        <CardFace slug={ride.slug} thumbHash={ride.thumbHash} color={color} />
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           {/*

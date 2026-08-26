@@ -70,15 +70,36 @@ export type RawRole = { role: string; n: number }
 /** One row per month that had at least one ride created. */
 export type RawMonth = { month: string; n: number }
 
+/**
+ * The four records, each with the ride that holds it.
+ *
+ * EVERY record names a ride, which two of them did not until 2026-08-26. The
+ * longest day and the twistiest stretch were `max()` aggregates, so the figure
+ * arrived with no way back to the road it was set on — fine while a record was
+ * four words and a numeral, and not fine once each one shows its map. query.ts
+ * resolves both with an ordered `limit 1` now, the same shape the two "best
+ * ride" records always used.
+ *
+ * `*Thumb` is `rides.thumb_hash`, and null is a NORMAL value rather than an
+ * error: the sweep may not have reached a new ride yet, and a ride with no
+ * geometry never gets a picture at all. The card draws its own accent instead.
+ */
 export type RawRecords = {
   longestDayM: number | null
+  longestDayTitle: string | null
+  longestDaySlug: string | null
+  longestDayThumb: string | null
   biggestRideM: number | null
   biggestRideTitle: string | null
   biggestRideSlug: string | null
+  biggestRideThumb: string | null
   bestTwistDpm: number | null
+  bestTwistSlug: string | null
+  bestTwistThumb: string | null
   mostViewed: number | null
   mostViewedTitle: string | null
   mostViewedSlug: string | null
+  mostViewedThumb: string | null
 }
 
 /**
@@ -340,6 +361,14 @@ export type RecordTile = {
   hint?: string
   kind: RecordKind
   numeric: boolean
+  /** The ride the record was set on, so the card can show its map and link to
+   *  it. Absent only when the record has no ride at all, which no longer
+   *  happens for any of the four — kept optional so a fifth record can arrive
+   *  without one rather than being forced to invent a slug. */
+  slug?: string
+  /** `rides.thumb_hash`, which is both the picture's cache key and whether there
+   *  is a picture. Absent means draw the accent, not an error — see RawRecords. */
+  thumbHash?: string
 }
 
 export type VisibilitySplit = { key: 'public' | 'unlisted' | 'private'; label: string; n: number; pct: number }[]
@@ -444,8 +473,28 @@ export function shapeStats(
 
   const r = raw.records
   const records: RecordTile[] = []
+  // `ride()` is what puts the map on the card: a slug and a hash, or neither.
+  // Spread rather than assigned so an absent slug leaves the key off entirely —
+  // `slug: undefined` would satisfy the type and then serialize into the payload
+  // as a key that exists and means nothing.
+  const ride = (slug: string | null, thumb: string | null) => ({
+    ...(slug ? { slug } : {}),
+    ...(slug && thumb ? { thumbHash: thumb } : {}),
+  })
+
   if (r.longestDayM != null && r.longestDayM > 0) {
-    records.push({ label: 'Longest single day', value: fmtMiles(r.longestDayM), unit: 'mi', kind: 'distance', numeric: true })
+    records.push({
+      label: 'Longest single day',
+      value: fmtMiles(r.longestDayM),
+      unit: 'mi',
+      // The ride's title, which this record did not carry before it had a
+      // picture. A map with no name, on a card that links somewhere, asks the
+      // rider to recognize their own route from 320 pixels of road.
+      hint: r.longestDayTitle ?? undefined,
+      kind: 'distance',
+      numeric: true,
+      ...ride(r.longestDaySlug, r.longestDayThumb),
+    })
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
@@ -455,6 +504,7 @@ export function shapeStats(
       hint: r.biggestRideTitle ?? undefined,
       kind: 'ride',
       numeric: true,
+      ...ride(r.biggestRideSlug, r.biggestRideThumb),
     })
   }
   // bestTwistDpm is the best 20-mile stretch any route has, not a sum: "somewhere
@@ -472,6 +522,7 @@ export function shapeStats(
       hint: `${r.bestTwistDpm}°/mi of heading change`,
       kind: 'twist',
       numeric: false,
+      ...ride(r.bestTwistSlug, r.bestTwistThumb),
     })
   }
   // The count lives in the LABEL here and the ride's title is the value, which is
@@ -484,6 +535,7 @@ export function shapeStats(
       value: r.mostViewedTitle ?? 'a ride',
       kind: 'views',
       numeric: false,
+      ...ride(r.mostViewedSlug, r.mostViewedThumb),
     })
   }
 

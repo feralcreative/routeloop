@@ -613,8 +613,17 @@ ul.cards {
 // The fallback, when a ride has not been swept yet or has no geometry to draw.
 // A flat field of the day color at the same size as a picture — a card that is
 // short where its neighbors have a face reads as broken rather than as pending.
+// The color block standing in for a picture. The day color arrives inline; this
+// is the fallback for a ride that has no color either.
+//
+// A LITERAL AND NOT A TOKEN, deliberately: `#0000cc` is the schema default for
+// `days.color` and it is not a design decision this stylesheet gets to make — a
+// themed token here would draw a blank card in a color no day in the database
+// has. It moved out of cards.tsx on 2026-08-26 so a record card, which has no day
+// color to inherit, could fall back to its own accent instead.
 .ride-card-face.is-blank {
   aspect-ratio: 16 / 10;
+  background: #0000cc;
 }
 
 .ride-card-body {

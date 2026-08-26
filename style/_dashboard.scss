@@ -368,7 +368,6 @@
   --record-accent: #{$brand};
 
   position: relative;
-  padding: 0.85rem 1rem 0.9rem;
   background: $white;
   border: 1px solid $grey;
   // The accent edge. A left border rather than a full tinted card: the figure
@@ -376,9 +375,13 @@
   // that made the tiles and these boxes look alike in the first place.
   border-left: 4px solid var(--record-accent);
   border-radius: 10px;
+  // NO PADDING HERE, and the picture is why: a face flush to the top and side
+  // edges needs the card to have none, so the padding moved to .record-body.
+  // overflow clips the image to the radius — without it the picture's square
+  // corners sit outside the card's rounded ones.
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
   // The lift. Transform and shadow only — nothing that changes the box's size,
   // or the grid reflows on hover.
   transition:
@@ -389,6 +392,72 @@
     transform: translateY(-2px);
     box-shadow: 0 4px 14px color-mix(in srgb, $tarmac 14%, transparent);
   }
+
+  // Focus lands on the inner <a>, so the ring is drawn out here or the overflow
+  // above clips it away. Same arrangement as .ride-card.
+  &:focus-within {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+// THE WHOLE CARD IS A LINK, to the ride that holds the record. Inherits its
+// color and drops the underline: the label, figure and hint are each already
+// styled, and an underlined blue numeral reads as a broken link rather than as a
+// record. The ring is on the card, above.
+//
+// `is-static` is the no-ride case — a <span> wearing the same class, so the
+// layout does not depend on which element rendered.
+.record-link {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+// The map of the ride that set the record.
+//
+// SHALLOWER THAN A RIDE CARD'S 16/10. Here the picture is evidence for a figure
+// rather than the subject of the card, and the figure is what has to be read
+// first — a face as tall as a ride card's pushes the numeral below the fold of a
+// 13rem grid cell.
+//
+// box-sizing explicitly, because there is no global border-box reset in style/
+// and this box declares both a width and an aspect-ratio.
+.record-face {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 7;
+  object-fit: cover;
+  // Behind a PNG that has not arrived yet, so the reserved box is not a white
+  // hole in the card while it loads.
+  background: $neutral-96;
+}
+
+// A ride the sweep has not reached yet, or one with no geometry to draw. Takes
+// the record's own accent rather than a color from the ride: a record card has no
+// day color to fall back on, and a flat band of the accent it already carries
+// reads as part of the card instead of as a failure.
+.record-face.is-blank {
+  background: var(--record-accent);
+}
+
+// Everything below the picture. Also the positioning context for .record-mark,
+// which is why the mark lands at the top right of the TEXT rather than on top of
+// the map.
+.record-body {
+  position: relative;
+  padding: 0.85rem 1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 //@ Reduced motion — the lift is motion too, not just the count-up. The shadow

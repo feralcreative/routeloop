@@ -63,13 +63,20 @@ const raw = (over: Partial<RawStats> = {}): RawStats => ({
   months: [],
   records: {
     longestDayM: null,
+    longestDayTitle: null,
+    longestDaySlug: null,
+    longestDayThumb: null,
     biggestRideM: null,
     biggestRideTitle: null,
     biggestRideSlug: null,
+    biggestRideThumb: null,
     bestTwistDpm: null,
+    bestTwistSlug: null,
+    bestTwistThumb: null,
     mostViewed: null,
     mostViewedTitle: null,
     mostViewedSlug: null,
+    mostViewedThumb: null,
   },
   ...over,
 })
@@ -307,13 +314,20 @@ describe('shapeStats', () => {
       raw({
         records: {
           longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
           bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
           mostViewed: 12,
           mostViewedTitle: 'Coast Run',
           mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
         },
       }),
       0,
@@ -362,19 +376,97 @@ describe('shapeStats', () => {
       raw({
         records: {
           longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
           bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
           mostViewed: 12,
           mostViewedTitle: 'Coast Run',
           mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
         },
       }),
       0,
       NOW,
     )
     expect(s.records.map((x) => x.kind)).toEqual(['distance', 'ride', 'twist', 'views'])
+  })
+
+  // EVERY record names a ride, so every card can show its map and link to it.
+  // Two of the four did not until 2026-08-26: the longest day and the twistiest
+  // stretch were max() aggregates, and a figure with no slug is a card with no
+  // picture next to three that have one.
+  it('carries the ride and its thumbnail on all four records', () => {
+    const s = shapeStats(
+      raw({
+        records: {
+          longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
+          biggestRideM: 2100 * MI,
+          biggestRideTitle: 'Sierras',
+          biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
+          bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
+          mostViewed: 12,
+          mostViewedTitle: 'Coast Run',
+          mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
+        },
+      }),
+      0,
+      NOW,
+    )
+    expect(s.records).toHaveLength(4)
+    expect(s.records.map((x) => x.slug)).toEqual(['abc', 'abc', 'def', 'xyz'])
+    expect(s.records.map((x) => x.thumbHash)).toEqual(['h1', 'h1', 'h2', 'h3'])
+  })
+
+  // The longest day gained a hint it never had, for the same reason: a map with
+  // no name, on a card that links somewhere, asks the rider to recognize their
+  // own route from a thumbnail.
+  it('names the ride the longest day was set on', () => {
+    const s = shapeStats(
+      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDayTitle: 'Sierras', longestDaySlug: 'abc' } }),
+      0,
+      NOW,
+    )
+    expect(s.records.find((x) => x.label === 'Longest single day')?.hint).toBe('Sierras')
+  })
+
+  // A ride the thumbnail sweep has not reached, or one with no geometry to draw.
+  // The card falls back to its own accent, so the slug still has to arrive — it
+  // is what the link needs — and thumbHash must be ABSENT rather than null, or
+  // the view builds `?v=null` and asks the route for a picture by that name.
+  it('gives a record its slug without a thumbnail when the sweep has not run', () => {
+    const s = shapeStats(
+      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDaySlug: 'abc', longestDayThumb: null } }),
+      0,
+      NOW,
+    )
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect(rec?.slug).toBe('abc')
+    expect(rec?.thumbHash).toBeUndefined()
+    expect('thumbHash' in (rec ?? {})).toBe(false)
+  })
+
+  // A record with no ride at all. No branch produces one today; the view renders
+  // a span instead of an anchor when it happens, so neither key may be present
+  // and defined.
+  it('leaves the ride keys off a record that has none', () => {
+    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect('slug' in (rec ?? {})).toBe(false)
+    expect('thumbHash' in (rec ?? {})).toBe(false)
   })
 
   it('does not claim a twistiest stretch when none was measured', () => {

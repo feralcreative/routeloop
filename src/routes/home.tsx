@@ -92,7 +92,7 @@ function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
-        <CardFace ride={ride} color={color} />
+        <CardFace slug={ride.slug} thumbHash={ride.thumbHash} color={color} />
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
@@ -237,6 +237,20 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
 //
 // `kind` also picks the accent, in _dashboard.scss. One field drives the mark and
 // the color together, so a fifth record cannot arrive with one and not the other.
+//
+// EACH RECORD SHOWS THE MAP OF THE RIDE THAT HOLDS IT, and links to it, since
+// 2026-08-26. Two of the four had no ride to name before that — the longest day
+// and the twistiest stretch were `max()` aggregates — so shape.ts and query.ts
+// both changed to carry a slug for all four.
+//
+// The picture goes ABOVE the content rather than behind the figure. A numeral
+// over a dimmed map is the more celebratory of the two and it puts text on an
+// image in six palettes and two schemes, which test/palette-contrast.test.ts
+// cannot measure — every scrim that holds one palette's text color is guesswork
+// against the other five.
+//
+// `record-body` exists because the padding moved off the card: a face flush to
+// the top edge needs the card to have none, and the text below it still does.
 function Records({ records }: { records: RecordTile[] }) {
   return (
     <section class="stat-block">
@@ -244,9 +258,33 @@ function Records({ records }: { records: RecordTile[] }) {
       <ul class="record-list">
         {records.map((r) => (
           <li class={`record record--${r.kind}`}>
-            <span class="record-mark">{raw(icon(`record-${r.kind}`))}</span>
-            <span class="record-label">{r.label}</span>
-            {/*
+            <RecordCard r={r} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// One record's contents, wrapped in a link when there is a ride to link to.
+//
+// A SPAN WHEN THERE IS NO SLUG, rather than an anchor with no href. All four
+// records carry one today, so this is the branch that never runs — and it runs
+// the day a fifth record is a figure about the rider rather than about a ride,
+// which is exactly when nobody will be looking at this file.
+function RecordCard({ r }: { r: RecordTile }) {
+  const inner = (
+    <>
+      {/* No picture at all when there is no ride, rather than a blank face: a
+          record with nothing to show is the card exactly as it looked before,
+          and a grid of four is short enough that one card of a different height
+          reads as deliberate rather than broken. The ride-card grid cannot do
+          that, which is why CardFace still draws a blank face for one. */}
+      {r.slug && <CardFace slug={r.slug} thumbHash={r.thumbHash ?? null} color={null} block="record" />}
+      <span class="record-body">
+        <span class="record-mark">{raw(icon(`record-${r.kind}`))}</span>
+        <span class="record-label">{r.label}</span>
+        {/*
               `numeric` picks the size, and it is not decoration. Two of these
               four are words — a twistiness label, a ride's title — and either one
               set at the numeral's size is a headline running off its own card.
@@ -256,17 +294,23 @@ function Records({ records }: { records: RecordTile[] }) {
               rider with script off, or one who asked for reduced motion, reads
               the number rather than a zero waiting to be animated.
             */}
-            <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
-              <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
-                {r.value}
-              </span>
-              {r.unit && <span class="record-unit">{r.unit}</span>}
-            </span>
-            {r.hint && <span class="record-hint">{r.hint}</span>}
-          </li>
-        ))}
-      </ul>
-    </section>
+        <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
+          <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
+            {r.value}
+          </span>
+          {r.unit && <span class="record-unit">{r.unit}</span>}
+        </span>
+        {r.hint && <span class="record-hint">{r.hint}</span>}
+      </span>
+    </>
+  )
+
+  return r.slug ? (
+    <a class="record-link" href={`/m/${r.slug}`}>
+      {inner}
+    </a>
+  ) : (
+    <span class="record-link is-static">{inner}</span>
   )
 }
 
