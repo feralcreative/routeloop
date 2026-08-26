@@ -308,6 +308,95 @@ export const userProfiles = pgTable('user_profiles', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// What a bike runs on. `gas`, not `petrol`: American English everywhere in code,
+// comments and copy, the same rule that keeps `color` spelled that way. It
+// shares a word with the `gas` waypoint role and that is not a collision — one
+// is a reason to stop, the other is what a machine drinks.
+export const fuelTypeEnum = pgEnum('fuel_type', ['gas', 'electric'])
+
+// THE PADDOCK — a rider's bikes.
+//
+// Owned by the rider and not by any ride. A ride will eventually record WHICH
+// bike someone brought, but that is ride membership's problem (#71) and it is
+// deliberately not modeled here: a bike is a fact about a person that outlives
+// any trip, and the fuel-stop math in #11 only needs to know a range.
+//
+// RANGE IS STORED IN METERS, although the rider types miles.
+//
+// Both spellings exist in this schema already — `route_legs.distance_m` and
+// `days.distance_m` are meters, `rides.total_miles` is miles as a cache — so
+// this is a choice rather than a convention to follow. Meters, because #150 will
+// let a rider switch the whole site to metric, and a value stored in the unit
+// somebody happened to type drifts on every round trip: a rider entering 300 km
+// against a mile column gets 186 mi stored and 299.3 km read back. Storing the
+// unit-free quantity means neither reader sees the other's rounding.
+//
+// NULLABLE, and null is not zero — the rule this app states everywhere. Null
+// means nobody has measured this bike's range, which is the state every bike
+// starts in and a perfectly reasonable one to leave it in; zero would mean a
+// machine that cannot leave the driveway. Range features must skip a null rather
+// than treating it as a very thirsty bike.
+export const bikes = pgTable(
+  'bikes',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ownerId: bigint('owner_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // All four nullable, and the label falls back through them — see
+    // bikeLabel() in src/bikes/policy.ts. A rider who types "the orange one" and
+    // nothing else has described their bike well enough for every surface here.
+    nickname: varchar('nickname', { length: 80 }),
+    make: varchar('make', { length: 60 }),
+    model: varchar('model', { length: 80 }),
+    year: smallint('year'),
+    fuelType: fuelTypeEnum('fuel_type').notNull().default('gas'),
+    usableRangeM: integer('usable_range_m'),
+    // How far this rider is good for on THIS bike before they want off it.
+    // On the bike rather than on the rider, deliberately: a tourer and a
+    // supermoto are not the same day, and the number a rider would give changes
+    // with which one is in the garage.
+    comfortRangeM: integer('comfort_range_m'),
+    // The photo's bookkeeping, mirroring rides.thumb_hash: the hash is a
+    // fingerprint that lets the route serve the image immutable, because a
+    // changed picture is a changed URL.
+    //
+    // `photo_bytes` IS COUNTED HERE AND NOWHERE ELSE. It must stay out of
+    // rides.size_bytes and out of users.used_bytes — a bike photo is not ride
+    // data, must not eat a quota that exists to bound route uploads, and a
+    // fourth byte column in that generated expression would corrupt quota
+    // accounting on every ride delete. Exactly the arrangement
+    // feedback_attachments already has, for exactly the same reason.
+    photoHash: varchar('photo_hash', { length: 32 }),
+    photoBytes: integer('photo_bytes').notNull().default(0),
+    // Which bike the rider is assumed to be on. Enforced as AT MOST ONE by the
+    // partial unique index below rather than by app code, so two defaults cannot
+    // exist however the rows were written.
+    isDefault: boolean('is_default').notNull().default(false),
+    // Rider-defined order, so a paddock reads the way its owner thinks about it
+    // rather than alphabetically. Same as place_groups.position.
+    position: smallint('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_bike_owner').on(t.ownerId),
+    // At most one default per rider, in the database rather than in a service
+    // that has to remember to clear the old one first.
+    uniqueIndex('uq_bike_default')
+      .on(t.ownerId)
+      .where(sql`${t.isDefault}`),
+    // A range is a distance, not a fantasy. The ceiling is 2,000,000 m — about
+    // 1,240 miles, comfortably past any production motorcycle — and exists so a
+    // fat-fingered entry cannot poison a fuel-stop calculation downstream.
+    check('ck_bike_range', sql`${t.usableRangeM} is null or (${t.usableRangeM} > 0 and ${t.usableRangeM} <= 2000000)`),
+    check(
+      'ck_bike_comfort',
+      sql`${t.comfortRangeM} is null or (${t.comfortRangeM} > 0 and ${t.comfortRangeM} <= 2000000)`,
+    ),
+  ],
+)
+
 // Every username a rider has held, current one included. Two jobs: showing them
 // their own history, and keeping a released name out of anyone else's hands for
 // a cooling-off period so a change of mind is recoverable.
@@ -1118,6 +1207,7 @@ export type SurveyResponseRow = typeof surveyResponses.$inferSelect
 export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
 export type PlaceRow = typeof places.$inferSelect
+export type BikeRow = typeof bikes.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type DayRow = typeof days.$inferSelect
 export type PointRow = typeof points.$inferSelect
