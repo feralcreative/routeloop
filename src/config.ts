@@ -88,11 +88,13 @@ export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? 
  *     to show you which database you just pointed at.
  */
 export function redactDatabaseUrl(url: string): string {
-  return url
-    // Userinfo only: stop at the first `/` so the path can never be consumed.
-    .replace(/:\/\/[^@/]*@/, '://***@')
-    // Credentials that travel as query parameters.
-    .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
+  return (
+    url
+      // Userinfo only: stop at the first `/` so the path can never be consumed.
+      .replace(/:\/\/[^@/]*@/, '://***@')
+      // Credentials that travel as query parameters.
+      .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
+  )
 }
 
 // --- Dev sign-in -------------------------------------------------------------
@@ -116,6 +118,18 @@ export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 
 export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
 
+// Whether the account purge actually destroys accounts, OFF unless set.
+//
+// Every other background job in this app is safe to run unattended. That one
+// deletes a person's account and everything they own, and it ships into a
+// database where riders have been sitting past their promised deletion date for
+// as long as the runner was missing — so its first unattended pass would take
+// all of them at once. The flag is the pause between "the code exists" and "it
+// is running", and `utils/purge-accounts.ts --dry-run` is what fills it.
+//
+// Opt-in by exact value rather than truthiness: PURGE_ACCOUNTS=false must not
+// enable it, which is what a bare Boolean() on the string would do.
+export const PURGE_ACCOUNTS = env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
 
 // Two Google Maps keys, and they are not interchangeable — the restriction types
 // are mutually exclusive. A referrer-restricted key cannot be used server-side
@@ -182,8 +196,7 @@ export const MAGIC_LINK_ENABLED = MAIL_ENABLED
 // dead one, so collapsing '' to the default would remove the only way to turn
 // one off. They are also never written by the deploy, so the empty-string
 // hazard env() exists for cannot reach them.
-export const ALPHA_GITHUB_URL =
-  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
+export const ALPHA_GITHUB_URL = process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'
 export const ALPHA_VMC_URL = process.env.ALPHA_VMC_URL ?? 'https://vampiresmc.com'

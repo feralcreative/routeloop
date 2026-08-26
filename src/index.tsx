@@ -27,6 +27,8 @@ import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
 import { placesRoutes } from './routes/places'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { startQuotaSweep } from './account/quota-sweep'
+import { startAccountPurge } from './account/purge'
+import { startTrashPurge } from './trash/purge'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -646,3 +648,10 @@ startThumbnailSweep()
 // service, and what it protects is a rider's ability to upload at all. See the
 // header of src/account/quota-sweep.ts.
 startQuotaSweep()
+// The bin, hourly rather than every five minutes: this enforces a thirty-day
+// deadline, so an hour of slack is invisible. See src/trash/purge.ts.
+startTrashPurge()
+// The account purge, which does nothing unless PURGE_ACCOUNTS is set. It is the
+// only job here that destroys a person's account, and it had no runner at all
+// until now — /account/delete promised a date and nothing kept it.
+startAccountPurge()

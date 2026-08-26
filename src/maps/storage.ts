@@ -2,7 +2,7 @@
 // ids ({STORAGE}/{ownerId}/{mapId}.{ext}) and containment-checked against the
 // root — path traversal is structurally impossible, the check is belt and
 // braces.
-import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 
 export const STORAGE = resolve(process.env.STORAGE_PATH ?? './storage')
@@ -103,6 +103,25 @@ export function ownerDirPath(ownerId: number): string | undefined {
   const path = resolve(STORAGE, String(ownerId))
   if (path === STORAGE || !path.startsWith(STORAGE + sep)) return undefined
   return path
+}
+
+/**
+ * Removes a rider's whole storage directory — originals, thumbnails and all.
+ *
+ * The account purge's file half, and the reason ownerDirPath() says a purge
+ * "has to remove the directory itself rather than the files it can name": after
+ * the users row is gone there is nothing left to enumerate rides by, so a
+ * per-file sweep would have to run first and would miss anything the rows had
+ * already lost track of.
+ *
+ * `force` so a rider who only ever used the builder — and therefore has no
+ * directory at all — is not an error. Containment-checked like every other path
+ * here, which is what stops a bad ownerId from pointing this at the root.
+ */
+export async function deleteOwnerDir(ownerId: number): Promise<void> {
+  const dir = ownerDirPath(ownerId)
+  if (!dir) throw new Error(`refusing to remove outside storage root (owner ${ownerId})`)
+  await rm(dir, { recursive: true, force: true })
 }
 
 export type StoredFile = { rideId: number; index: number; ext: StoredExt }
