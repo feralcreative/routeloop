@@ -20,6 +20,7 @@ import { rideCards } from '../views/cards'
 import { requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
 import { LIVE_RIDE } from '../trash/service'
+import { LISTED_RIDE } from '../access/query'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -77,7 +78,12 @@ pageRoutes.get('/explore', async (c) => {
     .from(rides)
     .innerJoin(users, eq(users.id, rides.ownerId))
     .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
-    .where(and(eq(rides.visibility, 'public'), isNull(users.deletionRequestedAt), LIVE_RIDE))
+    // LISTED_RIDE, not `visibility = 'public'` written out: /explore is a list
+    // nobody asked for by name, and which levels belong in one is isListed()'s
+    // call in src/access/policy.ts, not this query's. `friends` is deliberately
+    // NOT among them — a friend may view such a ride, but surfacing it here
+    // would publish it on the owner's behalf.
+    .where(and(LISTED_RIDE, isNull(users.deletionRequestedAt), LIVE_RIDE))
     .orderBy(...order)
     .limit(PER_PAGE + 1)
     .offset(offset)
@@ -234,7 +240,9 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     .select({ ride: rides, color: daysTable.color })
     .from(rides)
     .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
-    .where(and(eq(rides.ownerId, row.id), eq(rides.visibility, 'public'), LIVE_RIDE))
+    // LISTED_RIDE for the same reason /explore uses it: a public profile is a
+    // list, and an unlisted or friends-only ride has no business in one.
+    .where(and(eq(rides.ownerId, row.id), LISTED_RIDE, LIVE_RIDE))
     .orderBy(desc(rides.viewCount), desc(rides.createdAt))
     .limit(50)
 

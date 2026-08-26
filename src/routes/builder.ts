@@ -31,6 +31,8 @@ import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
+import { canClone } from '../access/policy'
+import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
 import {
@@ -127,12 +129,17 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     .from(rides)
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
-  // Public only. The `source !== 'native'` half of this test is gone: it was
-  // there because an imported ride's graph could not be rebuilt into something
-  // the builder would open, which stopped being true when the import started
-  // splitting its track into real legs. An imported public ride clones like any
-  // other now.
-  if (!src || src.visibility !== 'public') {
+  // canClone, not `visibility === 'public'` written out. Two levels are
+  // clonable now — public, and friends by a friend — and which they are is
+  // src/access/policy.ts's call, shared with the button on the viewer page that
+  // offers this endpoint. A button and a gate that disagree is a Clone that
+  // 404s, or worse.
+  //
+  // The `source !== 'native'` half of the old test is gone and stays gone: it
+  // was there because an imported ride's graph could not be rebuilt into
+  // something the builder would open, which stopped being true when the import
+  // started splitting its track into real legs.
+  if (!src || !canClone(src, user, await grantsFor(src, user))) {
     return c.json({ error: 'not found' }, 404)
   }
 

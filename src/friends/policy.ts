@@ -58,6 +58,10 @@ export type FriendView = 'none' | 'sent' | 'incoming' | 'friends' | 'blocked' | 
 /** Only the fields the rules read, so a test does not have to build a whole row. */
 export type FriendshipFields = Pick<FriendshipRow, 'riderA' | 'riderB' | 'status' | 'requestedBy' | 'blockedBy'>
 
+/** Narrower still, for the two rules that only ask WHETHER — a grant lookup
+ *  selects one column and should not have to fetch four more to be read. */
+export type FriendStatusOnly = Pick<FriendshipRow, 'status'>
+
 export function friendView(row: FriendshipFields | null | undefined, viewerId: number): FriendView {
   if (!row) return 'none'
   switch (row.status) {
@@ -121,7 +125,7 @@ export const canUnblock = (view: FriendView): boolean => view === 'blocked'
  * did, "add friend" would be a way to read a stranger's friends-only rides
  * while they had not yet answered.
  */
-export const areFriends = (row: FriendshipFields | null | undefined): boolean => row?.status === 'accepted'
+export const areFriends = (row: FriendStatusOnly | null | undefined): boolean => row?.status === 'accepted'
 
 /**
  * Whether the two riders may interact at all: appear in each other's roster
@@ -129,4 +133,4 @@ export const areFriends = (row: FriendshipFields | null | undefined): boolean =>
  *
  * A block is symmetric for this purpose even though only one of them chose it.
  */
-export const isBlocked = (row: FriendshipFields | null | undefined): boolean => row?.status === 'blocked'
+export const isBlocked = (row: FriendStatusOnly | null | undefined): boolean => row?.status === 'blocked'
