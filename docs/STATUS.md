@@ -1,7 +1,7 @@
 # Status and handoff
 
-**Updated:** 2026-08-25 (later)
-**Branch:** `feat/dashboard-and-themes`, five commits ahead of `main` plus the uncommitted sprint-closing work below, **NOT PUSHED**—no remote branch exists yet. **1,551 tests across 56 files** (2 skipped, 1,553 total)
+**Updated:** 2026-08-25 (end of day)
+**Branch:** `feat/dashboard-and-themes`, **eight commits ahead of `main`, clean tree, and PUSHED**—`origin/feat/dashboard-and-themes` exists and is in sync. (The line here said "NOT PUSHED—no remote branch exists yet" until 2026-08-25; that was stale.) **1,551 tests across 56 files** (2 skipped, 1,553 total)
 **Closes, since the last update:** nothing yet—the branch is open. It will close [#102](https://github.com/feralcreative/routeloop/issues/102), [#103](https://github.com/feralcreative/routeloop/issues/103), [#135](https://github.com/feralcreative/routeloop/issues/135), [#136](https://github.com/feralcreative/routeloop/issues/136), [#137](https://github.com/feralcreative/routeloop/issues/137) and [#139](https://github.com/feralcreative/routeloop/issues/139)—the whole of `area:dashboard`, plus the color half of `area:chrome`. [#141](https://github.com/feralcreative/routeloop/issues/141) and [#142](https://github.com/feralcreative/routeloop/issues/142) were written against work already done here and closed the same minute, per the after-the-fact rule. Before it, `fix/map-mechanics` merged as [#138](https://github.com/feralcreative/routeloop/pull/138) and the branch salvage as [#140](https://github.com/feralcreative/routeloop/pull/140).
 **For:** the next agent, or the owner returning cold
 
@@ -31,6 +31,19 @@
 **Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
 
 ## Open
+
+**THREE RIDERS ARE NOW ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. `AGENTS.md` still says "nobody has been let into the beta and nobody will be for a long time, so downtime, a broken deploy and overwritten code all cost approximately nothing"—**the first half of that is now false.** The database was always precious; the uptime is what changed. That sentence in `AGENTS.md` needs rewriting, and it has not been touched yet.
+
+**There is a written plan to make deploys zero-downtime and NOTHING HAS BEEN BUILT.** [docs/zero-downtime-deploy.md](zero-downtime-deploy.md), written 2026-08-25. It is a proposal, not a record: the six open calls at the end of it are unanswered, and it names three approvals that have not been given—Caddy as a new prod dependency, anything touching prod or stage, and a migration-authoring rule that is effectively a schema-policy change. **Do not start building it without those answers.** The shape it proposes, in one line each:
+
+- **Phase 1**, no new dependency and no data risk: a real `/healthz`, a SIGTERM handler, migrations moved to a one-shot container that runs *before* the app is recreated, and `up -d --no-deps app` instead of `down`/`up -d` so Postgres stops being torn down. Takes ~60–90s of downtime to ~10–20s.
+- **Phase 2**, a Caddy reverse proxy owning the two host ports with two app colors behind it. Takes it to ~0s, at the cost of a one-time NAS cutover and a permanent expand/contract rule on migrations.
+
+Three things that plan turned up which are **true today, independent of whether any of it gets built**:
+
+1. **`utils/deploy/hooks/post-deploy.sh` runs migrations AFTER the container is already serving traffic**, so every deploy has a window of new code against the old schema. This file already describes that window further down; it is a live bug, not a theoretical one.
+2. **A SIGTERM handler added today would be dead code.** The `Dockerfile` ends `CMD ["npm", "run", "start"]`, which makes **npm** PID 1, and npm does not reliably forward SIGTERM to its child. Nothing would log a failure—the handler simply never runs. The fix is `CMD ["node", "--import", "tsx", "src/index.tsx"]`, and it must be hand-verified rather than assumed.
+3. **Every migration in `drizzle/` so far is additive**—eleven files, not one `DROP` and not one `RENAME`. Nine are purely additive and two tighten a column to `NOT NULL` (`0006` on `points.uid`, `0008` on `points.position`). So the expand/contract rule Phase 2 would impose costs close to nothing in practice.
 
 **The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
 
