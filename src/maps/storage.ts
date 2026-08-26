@@ -2,8 +2,9 @@
 // ids ({STORAGE}/{ownerId}/{mapId}.{ext}) and containment-checked against the
 // root — path traversal is structurally impossible, the check is belt and
 // braces.
-import { mkdir, readdir, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
+import { BR_EXT, compressStored, decompressStored } from './compress'
 
 export const STORAGE = resolve(process.env.STORAGE_PATH ?? './storage')
 
@@ -27,10 +28,20 @@ const MAX_SOURCE_FILES = 30
 // Returns the absolute path for a map file, or undefined if it would somehow
 // escape the storage root. Both components are integers and the extension comes
 // from a closed list, so there is nothing here for a caller to inject.
-export function mapFilePath(ownerId: number, mapId: number, ext: StoredExt, index = 0): string | undefined {
+export function mapFilePath(
+  ownerId: number,
+  mapId: number,
+  ext: StoredExt,
+  index = 0,
+  // Whether to name the COMPRESSED form. Both spellings are real on disk: files
+  // written before compression shipped keep their bare names and are read as-is,
+  // and the migration in utils/compress-originals.ts is what converts them.
+  // Nothing rewrites a file lazily on read — a mixed directory is a valid state.
+  compressed = false,
+): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= MAX_SOURCE_FILES) return undefined
-  const name = index === 0 ? `${mapId}.${ext}` : `${mapId}-${index}.${ext}`
-  const path = resolve(STORAGE, String(ownerId), name)
+  const base = index === 0 ? `${mapId}.${ext}` : `${mapId}-${index}.${ext}`
+  const path = resolve(STORAGE, String(ownerId), compressed ? base + BR_EXT : base)
   if (path !== STORAGE && !path.startsWith(STORAGE + sep)) return undefined
   return path
 }
@@ -59,6 +70,12 @@ export async function writeThumbFile(ownerId: number, rideId: number, data: Buff
 }
 
 // 0640: readable by the app and its group, nobody else.
+//
+// ALWAYS WRITES THE COMPRESSED FORM. There is no flag and no threshold: a
+// "compress only if it helps" rule would put both spellings in play for reasons
+// nothing records, and every format stored here is text that brotli halves at
+// worst. The bare name is a legacy state that the migration clears, not
+// something new writes can produce.
 export async function writeMapFile(
   ownerId: number,
   mapId: number,
@@ -66,10 +83,35 @@ export async function writeMapFile(
   data: string | Buffer,
   index = 0,
 ): Promise<void> {
-  const path = mapFilePath(ownerId, mapId, ext, index)
+  const path = mapFilePath(ownerId, mapId, ext, index, true)
   if (!path) throw new Error(`refusing to write outside storage root (owner ${ownerId}, map ${mapId})`)
   await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, data, { mode: 0o640 })
+  await writeFile(path, await compressStored(Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8')), { mode: 0o640 })
+}
+
+/**
+ * Reads a stored original back, whichever spelling it is under.
+ *
+ * THE ONLY WAY ANYTHING SHOULD READ ONE. Callers used to build a path with
+ * mapFilePath() and readFile() it themselves, which was fine while there was one
+ * possible name; with two there would be two places to remember the fallback,
+ * and the failure of forgetting is a rider handed a `.gpx` full of brotli bytes.
+ *
+ * Compressed first, because after the migration that is every file — the bare
+ * name costs one extra stat on a set that shrinks to nothing. Returns null
+ * rather than throwing when neither exists: a row that says a file is there and
+ * a filesystem that disagrees is a real state after a restore, and every caller
+ * already has a fallback for it.
+ */
+export async function readMapFile(ownerId: number, mapId: number, ext: StoredExt, index = 0): Promise<Buffer | null> {
+  const brPath = mapFilePath(ownerId, mapId, ext, index, true)
+  if (brPath) {
+    const buf = await readFile(brPath).catch(() => null)
+    if (buf) return decompressStored(buf).catch(() => null)
+  }
+  const rawPath = mapFilePath(ownerId, mapId, ext, index)
+  if (!rawPath) return null
+  return readFile(rawPath).catch(() => null)
 }
 
 // Best-effort cleanup — callers use this after a rollback or a row delete, when
@@ -77,11 +119,19 @@ export async function writeMapFile(
 // ride is believed to have: a rollback happens precisely when the rows that
 // would say which files exist are gone.
 export async function deleteMapFiles(ownerId: number, mapId: number): Promise<void> {
-  for (const ext of STORED_EXTS) {
-    for (let i = 0; i < MAX_SOURCE_FILES; i++) {
-      const path = mapFilePath(ownerId, mapId, ext, i)
-      if (!path) continue
-      await unlink(path).catch(() => {})
+  // ONE READDIR, not the 150 probes this used to do — which would have become
+  // 300 the moment a second spelling existed. Reading the directory answers the
+  // question directly and is immune to any future naming change, which is the
+  // property that matters here: this runs precisely when the rows that would say
+  // which files exist are already gone.
+  const dir = ownerDirPath(ownerId)
+  if (dir) {
+    const names = await readdir(dir).catch(() => [] as string[])
+    for (const name of names) {
+      const parsed = parseStoredName(name)
+      if (!parsed || parsed.rideId !== mapId) continue
+      const path = mapFilePath(ownerId, mapId, parsed.ext, parsed.index, parsed.compressed)
+      if (path) await unlink(path).catch(() => {})
     }
   }
   // The generated thumbnail too. It is not in STORED_EXTS, so this line is the
@@ -124,7 +174,14 @@ export async function deleteOwnerDir(ownerId: number): Promise<void> {
   await rm(dir, { recursive: true, force: true })
 }
 
-export type StoredFile = { rideId: number; index: number; ext: StoredExt }
+export type StoredFile = {
+  rideId: number
+  index: number
+  ext: StoredExt
+  /** Whether the file on disk carries the `.br` suffix. `ext` is always the
+   *  ORIGINAL format either way — a compressed GPX is still a GPX. */
+  compressed: boolean
+}
 
 /**
  * The inverse of the naming rule in mapFilePath: `19.kml` and `19-2.gpx` back
@@ -135,7 +192,11 @@ export type StoredFile = { rideId: number; index: number; ext: StoredExt }
  * stray file be attributed to a ride it does not belong to.
  */
 export function parseStoredName(fileName: string): StoredFile | null {
-  const m = /^(\d+)(?:-(\d+))?\.([a-z]+)$/.exec(fileName)
+  // The trailing `.br` is OPTIONAL and captured, which is what makes this a true
+  // inverse of mapFilePath() in both spellings. `.br` is not in STORED_EXTS and
+  // must never be: that list is the closed set of rider-supplied extensions the
+  // containment check leans on, and the suffix is ours rather than theirs.
+  const m = /^(\d+)(?:-(\d+))?\.([a-z]+)(\.br)?$/.exec(fileName)
   if (!m) return null
 
   const ext = m[3] as StoredExt
@@ -143,12 +204,13 @@ export function parseStoredName(fileName: string): StoredFile | null {
 
   const rideId = Number(m[1])
   if (!Number.isSafeInteger(rideId) || rideId <= 0 || String(rideId) !== m[1]) return null
+  const compressed = m[4] !== undefined
 
   // Absent means day 0. Present means it must not be 0, and must not be padded.
-  if (m[2] === undefined) return { rideId, index: 0, ext }
+  if (m[2] === undefined) return { rideId, index: 0, ext, compressed }
   const index = Number(m[2])
   if (index <= 0 || index >= MAX_SOURCE_FILES || String(index) !== m[2]) return null
-  return { rideId, index, ext }
+  return { rideId, index, ext, compressed }
 }
 
 /**

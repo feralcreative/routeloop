@@ -22,7 +22,7 @@ import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } fro
 import { DOWNLOADS, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
-import { mapFilePath, thumbFilePath } from './maps/storage'
+import { readMapFile, thumbFilePath } from './maps/storage'
 import { detailsForViewer, type PointDetailsOut } from './maps/point-details'
 import { placesRoutes } from './routes/places'
 import { startThumbnailSweep } from './maps/thumbnail-sweep'
@@ -536,11 +536,13 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   // be lossy for no reason: the file carries styling, folders and per-point
   // detail this app does not model and therefore cannot reproduce.
   if (spec.hasStored(m)) {
-    const path = mapFilePath(m.ownerId, m.id, storedExtFor(spec, m))
-    if (path) {
-      const buf = await readFile(path).catch(() => null)
-      if (buf) return new Response(buf, { headers })
-    }
+    // readMapFile, not mapFilePath + readFile: the file may be under either
+    // spelling and this is the only thing that knows both. Serving the brotli
+    // bytes straight through with `Content-Encoding: br` was considered and
+    // rejected — it interacts badly with Content-Disposition: attachment, and
+    // decompressing costs milliseconds on files this size.
+    const buf = await readMapFile(m.ownerId, m.id, storedExtFor(spec, m))
+    if (buf) return new Response(buf, { headers })
     // Falls through to generation rather than 404ing. A row that says the file
     // exists and a filesystem that disagrees is a real failure mode after a
     // restore, and the rows are still enough to build a usable file.

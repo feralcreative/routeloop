@@ -169,8 +169,8 @@ describe('buildAccountJson', () => {
             ride: ride(),
             startDate: AT,
             originals: [
-              { rideId: 19, index: 0, ext: 'kml' },
-              { rideId: 19, index: 2, ext: 'gpx' },
+              { rideId: 19, index: 0, ext: 'kml', compressed: true },
+              { rideId: 19, index: 2, ext: 'gpx', compressed: true },
             ],
           },
         ],

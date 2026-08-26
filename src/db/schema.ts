@@ -164,7 +164,14 @@ export const users = pgTable(
     // Nullable with no default, for the reason approved_email_at documents.
     surveyInvitedAt: timestamp('survey_invited_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
-    // 25 MB, lowered from 250 for the beta.
+    // 100 MB, raised from 25 when stored originals started being compressed.
+    //
+    // The rise is the POINT of that change rather than a side effect: brotli
+    // takes a real 8-day GPX import from 834 kB to 60 kB, so the same disk now
+    // holds an order of magnitude more ride. Quota accounting deliberately still
+    // counts the UNCOMPRESSED size — an allowance must not depend on how well a
+    // rider's file happened to zip — so the way that saving reaches them is a
+    // bigger number here.
     //
     // Only IMPORTED files count against this — a ride built in the builder writes
     // nothing to disk — and one import is stored three times over: the original
@@ -182,7 +189,7 @@ export const users = pgTable(
     // to new inserts only. That is the mirror image of the hazard the status and
     // approved_email_at comments describe above, and it is why
     // utils/deploy/sql/2026-08-08-quota-25mb.sql carries an explicit UPDATE.
-    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(26214400), // 25 MB
+    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(104857600), // 100 MB
     // Denormalized cache of sum(rides.size_bytes), incremented on import and
     // decremented on delete, with no reconciler — so it drifts, and has. The
     // dashboard computes the authoritative sum alongside it and reports the

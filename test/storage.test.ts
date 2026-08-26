@@ -71,15 +71,29 @@ describe('ownerDirPath', () => {
 
 describe('parseStoredName', () => {
   // The property that matters: it is the exact inverse of the name mapFilePath
-  // builds, for every extension and every index a ride can have.
-  it('round-trips every name mapFilePath can write', () => {
+  // builds, for every extension and every index a ride can have — and now in
+  // BOTH SPELLINGS. A compressed original carries a `.br` suffix, and a parser
+  // that lost track of which form it read would either hand a caller brotli
+  // bytes as text or fail to find a file that is sitting right there.
+  it('round-trips every name mapFilePath can write, compressed or not', () => {
     for (const ext of STORED_EXTS) {
       for (const index of [0, 1, 2, 9, 10, MAX_SOURCE_FILES - 1]) {
-        const path = mapFilePath(2, 19, ext, index)
-        expect(path, `${ext}/${index}`).toBeDefined()
-        const base = path!.slice(path!.lastIndexOf('/') + 1)
-        expect(parseStoredName(base), base).toEqual({ rideId: 19, index, ext })
+        for (const compressed of [false, true]) {
+          const path = mapFilePath(2, 19, ext, index, compressed)
+          expect(path, `${ext}/${index}/${compressed}`).toBeDefined()
+          const base = path!.slice(path!.lastIndexOf('/') + 1)
+          expect(parseStoredName(base), base).toEqual({ rideId: 19, index, ext, compressed })
+        }
       }
+    }
+  })
+
+  // `.br` is OURS, not a rider's. It must never join STORED_EXTS — that list is
+  // the closed set the containment check leans on — so a file whose only
+  // extension is `.br` names no format and is not one of ours.
+  it('does not treat .br as a format of its own', () => {
+    for (const name of ['19.br', '19-2.br', '19.kml.br.br', '19.gpx.gz']) {
+      expect(parseStoredName(name), name).toBeNull()
     }
   })
 
