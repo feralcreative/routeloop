@@ -501,6 +501,47 @@ function builderHtml(
 
         <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
 ${
+  // THE ROSTER, STUBBED. Ziad's call, 2026-08-26: ride membership ships as
+  // schema and nothing else this round — `ride_members` exists and canView()
+  // already honours it, but no code path creates a row, so the controls that
+  // would are here as disabled markup announcing themselves.
+  //
+  // A DEAD CONTROL RATHER THAN NO CONTROL, deliberately, and it is the opposite
+  // of what viewerPanel does two files over — that one renders nothing where
+  // there is no action, on the argument that a disabled button offers something
+  // it cannot give. The difference is what the absence would say. Edit is
+  // missing there because the viewer genuinely may not edit, and telling them
+  // so is the answer. Here the feature is coming for everyone, and an empty
+  // space says the app has no idea who is on a ride rather than "not yet".
+  //
+  // Closed by default, so it costs a rider who does not care nothing but a line.
+  // Everything inside is inert: no form action, no name attributes, and
+  // `disabled` on every control, so nothing here can be submitted even by hand.
+  //
+  // WHEN MEMBERSHIP LANDS this whole block is replaced, not un-disabled. The
+  // shapes below are a sketch of the intent and not a contract.
+  rideId
+    ? `        <details class="roster-stub">
+          <summary>Riders <span class="soon-tag">Coming soon</span></summary>
+          <p class="roster-note">Invite the people you are actually riding with, see who is in, and share the plan with them whatever its visibility is set to. Not yet—this is what it will&nbsp;look&nbsp;like.</p>
+          <div class="roster-row">
+            <select disabled aria-label="Invite a friend">
+              <option>Invite a friend…</option>
+            </select>
+            <button type="button" class="btn btn-sm" disabled>Invite</button>
+          </div>
+          <ul class="roster-list">
+            <li>
+              <span class="roster-who">You<span class="roster-role">Owner</span></span>
+              <select disabled aria-label="Your RSVP">
+                <option>Going</option>
+              </select>
+            </li>
+          </ul>
+        </details>`
+    : ''
+}
+${
   // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
   // delete — closing the tab already discards it — and a Delete button on a
   // blank builder is an offer to destroy something that does not exist.
