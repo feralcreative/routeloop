@@ -88,13 +88,11 @@ export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? 
  *     to show you which database you just pointed at.
  */
 export function redactDatabaseUrl(url: string): string {
-  return (
-    url
-      // Userinfo only: stop at the first `/` so the path can never be consumed.
-      .replace(/:\/\/[^@/]*@/, '://***@')
-      // Credentials that travel as query parameters.
-      .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
-  )
+  return url
+    // Userinfo only: stop at the first `/` so the path can never be consumed.
+    .replace(/:\/\/[^@/]*@/, '://***@')
+    // Credentials that travel as query parameters.
+    .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
 }
 
 // --- Dev sign-in -------------------------------------------------------------
@@ -117,6 +115,7 @@ export function redactDatabaseUrl(url: string): string {
 export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 
 export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
+
 
 // Whether the account purge actually destroys accounts, OFF unless set.
 //
@@ -196,7 +195,8 @@ export const MAGIC_LINK_ENABLED = MAIL_ENABLED
 // dead one, so collapsing '' to the default would remove the only way to turn
 // one off. They are also never written by the deploy, so the empty-string
 // hazard env() exists for cannot reach them.
-export const ALPHA_GITHUB_URL = process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
+export const ALPHA_GITHUB_URL =
+  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'
 export const ALPHA_VMC_URL = process.env.ALPHA_VMC_URL ?? 'https://vampiresmc.com'

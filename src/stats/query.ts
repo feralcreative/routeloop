@@ -151,12 +151,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
       n: int(sql`count(*)`),
     })
     .from(rides)
-    .where(
-      and(
-        owned,
-        sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`,
-      ),
-    )
+    .where(and(owned, sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`))
     .groupBy(sql`1`)
 
   // ALL FOUR records, each one row. Ordered rather than aggregated so the title,

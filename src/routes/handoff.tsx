@@ -34,15 +34,11 @@ const fmtMi = (m: number) => (m / METERS_PER_MILE).toFixed(1)
 // the nav app has, against how many times they have to stop and tap. The labels
 // say that; the numbers behind them are an implementation detail.
 const DENSITIES = [
-  {
-    key: 'off',
-    label: 'Stops only',
-    points: 0,
-    note: 'Hands over your stops and lets Maps pick the roads between them',
-  },
+  { key: 'off', label: 'Stops only', points: 0, note: 'Hands over your stops and lets Maps pick the roads between them' },
   { key: 'light', label: 'Light', points: 25, note: 'Holds the shape of the route with a few extra links' },
   { key: 'tight', label: 'Tight', points: 60, note: 'Pins it down closely, at the cost of more links' },
 ] as const
+
 
 const densityOf = (raw: string | undefined): (typeof DENSITIES)[number] =>
   DENSITIES.find((d) => d.key === raw) ?? DENSITIES[1]
@@ -159,8 +155,8 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
                 it recognises.
               </li>
               <li>
-                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of what
-                is in the link.
+                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of
+                what is in the link.
               </li>
             </ul>
           </section>

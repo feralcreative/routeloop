@@ -93,7 +93,9 @@ describe('accountArchiveName', () => {
   // slugField owns every field in a filename and a name is not a place for case
   // to be significant.
   it('never comes out nameless', () => {
-    expect(accountArchiveName(user({ username: null }), AT)).toBe('routeloop-account_ziad-260801t2220z_2026-08-14.zip')
+    expect(accountArchiveName(user({ username: null }), AT)).toBe(
+      'routeloop-account_ziad-260801t2220z_2026-08-14.zip',
+    )
     expect(accountArchiveName(user({ username: null, publicId: null }), AT)).toContain('rider-2')
   })
 })

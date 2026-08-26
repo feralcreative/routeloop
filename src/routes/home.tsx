@@ -357,16 +357,16 @@ function FirstRun() {
     <section class="first-run">
       <h2>Nothing planned yet</h2>
       <p class="lede">
-        Plan a multi-day ride on one map, then take it with you. Once you have one, this page fills up with what you
-        have covered — miles, days, the stops you keep making, and the twistiest roads you have picked.
+        Plan a multi-day ride on one map, then take it with you. Once you have one, this page fills up with what
+        you have covered — miles, days, the stops you keep making, and the twistiest roads you have picked.
       </p>
 
       <ol class="first-run-steps">
         <li>
           <strong>Build the route</strong>
           <span>
-            Drop stops day by day, drag the line onto the road you actually want, and mark the places you will ride past
-            without stopping.
+            Drop stops day by day, drag the line onto the road you actually want, and mark the places you will ride
+            past without stopping.
           </span>
         </li>
         <li>
@@ -379,8 +379,8 @@ function FirstRun() {
         <li>
           <strong>Share it, or don't</strong>
           <span>
-            Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until you
-            change it.
+            Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until
+            you change it.
           </span>
         </li>
       </ol>
@@ -395,8 +395,8 @@ function FirstRun() {
       </p>
 
       <p class="first-run-aside">
-        Not sure where to start? <a href="/explore">See what other people have planned</a> and clone one as a starting
-        point.
+        Not sure where to start? <a href="/explore">See what other people have planned</a> and clone one as a
+        starting point.
       </p>
     </section>
   )
