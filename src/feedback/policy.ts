@@ -145,7 +145,11 @@ export function areaFromPath(path: string): AreaId | null {
   const p = path.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
   if (p === '/build' || p.startsWith('/build/')) return 'planning'
   if (p === '/m' || p.startsWith('/m/')) return 'map'
-  if (p === '/rides' || p.startsWith('/rides/')) return 'my_rides'
+  // `/` IS the rider's ride list as of 2026-08-24, not just the stats page —
+  // /rides folded into it, so a rider reporting something from the dashboard is
+  // almost always talking about their rides. `/rides` is kept alongside it
+  // because the old URL is bookmarked and a stale client may still send it.
+  if (p === '/' || p === '/rides' || p.startsWith('/rides/')) return 'my_rides'
   if (p === '/import' || p.startsWith('/import/')) return 'saving'
   if (p === '/account' || p.startsWith('/account/') || p.startsWith('/login')) return 'account'
   return null

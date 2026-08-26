@@ -6,7 +6,14 @@
 // fieldset, label or validation styling to inherit.
 
 .profile-form {
-  max-width: 560px;
+  // No max-width. The 560px that used to be here was a LAYOUT cap and it left
+  // ~340px of a desktop viewport unused (#130). The form carries `.two-col` in
+  // the markup instead, so its fieldsets sit two-up and each one is ~430px —
+  // about what the old cap gave a single column, but two of them.
+  //
+  // `.invite-form` shares this class and does NOT get the grid: it is one
+  // fieldset, and a single-cell grid is just a narrower form. It keeps its own
+  // 34rem cap in _survey.scss, which lands after this file.
 
   fieldset {
     margin: 0 0 2rem;
@@ -36,7 +43,11 @@
 // The import form. Same field styling as the profile, but no fieldsets — it is
 // four controls, and boxing them would imply groupings that are not there.
 .import-form {
-  max-width: 560px;
+  // Also uncapped per #130, but NOT a two-column grid: import is a sequence —
+  // drop the files, name it, choose who sees it — and columns would break the
+  // order. The width goes to the parts that can use it (the drop zone, the
+  // format table) while the two short fields pair up in their own `.two-col`
+  // and the prose keeps a measure cap of its own.
 
   // A file input is the one control browsers style entirely their own way, so
   // this only sets the box around it and leaves the button alone.
@@ -111,7 +122,7 @@
     // not carrying anything.
     &.is-over {
       border-color: $url;
-      background: color.adjust($url, $lightness: 52%);
+      background: $url-l52;
     }
   }
 
@@ -162,7 +173,7 @@
       padding: 0.2rem 0;
 
       + .plan-row {
-        border-top: 1px solid color.adjust($grey, $lightness: 6%);
+        border-top: 1px solid $grey-l6;
       }
     }
 
@@ -222,6 +233,11 @@
     // thing and the body reads as belonging to it.
     .naming-help-body {
       margin-top: 0.6rem;
+      // A MEASURE cap, and it is new with #130: the form used to be capped at
+      // 560px, which held this prose at a readable width by accident. With the
+      // form uncapped it would run the full 896px, so the constraint it was
+      // relying on has to be stated where it actually belongs.
+      max-width: 60ch;
       padding-left: 1.1rem;
       border-left: 2px solid $grey;
       color: $neutral-36;
@@ -238,7 +254,7 @@
       overflow-x: auto;
       padding: 0.5rem 0.6rem;
       border-radius: 6px;
-      background: color.adjust($grey, $lightness: 6%);
+      background: $grey-l6;
 
       code {
         white-space: nowrap;
@@ -302,7 +318,7 @@
   // catch a radio or a checkbox placed inside a .field, and stretch it across the
   // row. Those belong in .check and .opt-list, which is why the type exclusions
   // are here rather than left to whoever writes the next form.
-  input:not([type='checkbox']):not([type='radio']),
+  input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
     box-sizing: border-box;
@@ -381,15 +397,15 @@
 .notice {
   padding: 0.7rem 0.9rem;
   border-radius: 8px;
-  background: rgba($gpx, 0.12);
-  border: 1px solid rgba($gpx, 0.35);
-  color: color.adjust($gpx, $lightness: -12%);
+  background: color-mix(in srgb, $gpx 12%, transparent);
+  border: 1px solid color-mix(in srgb, $gpx 35%, transparent);
+  color: $gpx-d12;
   font-weight: 600;
 
   &.is-error {
-    background: rgba($kml, 0.1);
-    border-color: rgba($kml, 0.35);
-    color: color.adjust($kml, $lightness: -8%);
+    background: color-mix(in srgb, $kml 10%, transparent);
+    border-color: color-mix(in srgb, $kml 35%, transparent);
+    color: $kml-d8;
   }
 }
 
@@ -437,7 +453,9 @@ h1 + .transfer-head {
 }
 
 .export-list {
-  max-width: 560px;
+  // Uncapped per #130. These rows are the one thing on the page that reads
+  // BETTER wide: a ride title on the left, five format buttons on the right, and
+  // at 560px the title was the part that wrapped.
   margin: 0 0 2rem;
   padding: 0;
   list-style: none;
@@ -475,7 +493,7 @@ h1 + .transfer-head {
 
 .export-btn {
   padding: 0.15rem 0.45rem;
-  background: color.adjust($grey, $lightness: 8%);
+  background: $grey-l8;
   border-radius: 5px;
   color: $text;
   font-size: 0.78rem;

@@ -190,7 +190,12 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
       {saved && <p class="notice">Profile saved.</p>}
       {errors && Object.keys(errors).length > 0 && <p class="notice is-error">Some fields need attention.</p>}
 
-      <form class="profile-form" method="post" action="/profile">
+      {/*
+        `two-col` puts the fieldsets two-up at >=992px — see _chrome.scss. Every
+        direct child is a grid cell, which is why the submit row below carries
+        `full-span`: it belongs to the whole form, not to the left column.
+      */}
+      <form class="profile-form two-col" method="post" action="/profile">
         <fieldset>
           <legend>Who you are</legend>
           <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
@@ -290,7 +295,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           </div>
         </fieldset>
 
-        <p>
+        <p class="full-span">
           <button class="btn" type="submit">
             Save profile
           </button>

@@ -109,3 +109,69 @@
     }).observe(el);
   }
 })();
+
+// The count-up on "Your records" (#136).
+//
+// A SECOND IIFE, not a branch of the one above. The chart exits early when it
+// has nothing to draw, and folding this into it would mean a rider with records
+// but no rides in the last twelve months — an old library, or one imported in a
+// batch — gets no animation for a reason that has nothing to do with records.
+//
+// THE RENDERED TEXT IS ALREADY THE FINAL VALUE. This reads it, counts from zero
+// up to it, and lands back on exactly the string the server wrote. Nothing here
+// is the source of the number: script off, `prefers-reduced-motion`, an old
+// browser without requestAnimationFrame — every one of those shows the real
+// figure immediately, which is the same bargain the chart makes with its table.
+(() => {
+  "use strict";
+
+  const els = document.querySelectorAll("[data-count]");
+  if (!els.length) return;
+
+  // Asked for, not guessed at. A rider who has turned motion down is telling us
+  // this specifically, and a number ticking up is exactly the kind of motion the
+  // setting exists to stop.
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const DURATION = 900;
+
+  // Only the digits move. The value arrives formatted — "1,204" — so the commas
+  // have to be put back on every frame or the card's width jumps at each
+  // thousand. Anything that is not a plain grouped integer is left alone rather
+  // than guessed at.
+  const parse = (text) => {
+    if (!/^\d{1,3}(,\d{3})*$/.test(text)) return null;
+    return Number(text.replace(/,/g, ""));
+  };
+
+  // Fast at the start, settling at the end — the shape that reads as a figure
+  // arriving rather than as a progress bar.
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+  els.forEach((el) => {
+    const final = el.getAttribute("data-count");
+    const target = parse(final);
+    if (target === null || target === 0) return;
+
+    // Reserve the width the final value needs before the first frame. The digits
+    // are tabular, but "0" and "1,204" are still different widths, and without
+    // this the card resizes for the whole animation.
+    el.style.minWidth = `${el.getBoundingClientRect().width}px`;
+    el.textContent = "0";
+
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / DURATION);
+      if (t >= 1) {
+        // The server's own string, not a reformatted one. Whatever this element
+        // said before the animation is what it says after it.
+        el.textContent = final;
+        el.style.minWidth = "";
+        return;
+      }
+      el.textContent = Math.round(target * ease(t)).toLocaleString("en-US");
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+})();

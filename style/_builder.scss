@@ -108,6 +108,14 @@
       // place, and an <img> beside the field would have to be positioned over it
       // anyway. currentColor is not available inside a data URI, so the stroke is
       // the muted grey the hint is meant to be.
+      //
+      // THE BAKED GREY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND
+      // #888888 ON THE DARK ONE — one step apart, so the same literal reads as a
+      // muted glyph on either. That is luck rather than design, and luck that
+      // stops holding the moment somebody re-spaces the neutral ramp, so
+      // test/palette-contrast.test.ts measures this exact literal against the
+      // field it is drawn on in all six palettes. A data URI cannot carry a custom
+      // property; a test can carry the reason it does not need to.
       &:hover,
       &:focus {
         border-color: $grey;
@@ -583,7 +591,7 @@
 
     &:hover:not(:disabled),
     &:focus-visible {
-      background: rgba($brand, 0.1);
+      background: color-mix(in srgb, $brand 10%, transparent);
     }
 
     // Shown rather than dropped, so the first stop's menu is the same shape as
@@ -598,7 +606,7 @@
       color: $kml;
       &:hover:not(:disabled),
       &:focus-visible {
-        background: rgba($kml, 0.1);
+        background: color-mix(in srgb, $kml 10%, transparent);
       }
     }
   }
@@ -612,7 +620,7 @@
     padding: 0.05em 0.45em;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.07);
-    color: color.adjust($text, $lightness: 20%);
+    color: $text-l20;
     font-size: 0.7em;
     font-weight: 600;
     white-space: nowrap;
@@ -894,7 +902,7 @@
     align-items: center;
     gap: 0.35em;
     padding: 0.25em 0.3em;
-    border: 1px dashed color.adjust($grey, $lightness: -5%);
+    border: 1px dashed $grey-d5;
     border-radius: 6px;
     background: none;
   }
@@ -958,7 +966,7 @@
     padding: 0 2px;
     border: 0;
     background: none;
-    color: color.adjust($text, $lightness: 30%);
+    color: $text-l30;
     // Plain weight, not bold. A bold glyph reads as a control demanding attention;
     // this one is a quiet affordance sitting in a row separator. The size goes up
     // 1px to hold its optical size, since a 400-weight plus looks smaller than a
@@ -988,7 +996,7 @@
     flex: 0 0 auto;
     width: 14px;
     text-align: center;
-    color: color.adjust($text, $lightness: 40%);
+    color: $text-l40;
     font-weight: 700;
     line-height: 1;
   }
@@ -1030,7 +1038,7 @@
     border: 1px solid transparent;
     border-radius: 4px;
     background: none;
-    color: color.adjust($text, $lightness: 25%);
+    color: $text-l25;
     cursor: pointer;
 
     &:hover:not(:disabled) {
@@ -1176,12 +1184,12 @@
       }
 
       &.flash {
-        background: rgba($brand, 0.12);
+        background: color-mix(in srgb, $brand 12%, transparent);
       }
       // Sortable's ghost, the placeholder left where the row will land.
       &.is-dragging {
         opacity: 0.35;
-        background: rgba($brand, 0.1);
+        background: color-mix(in srgb, $brand 10%, transparent);
       }
     }
 
@@ -1813,7 +1821,7 @@
     }
 
     .hit-ctx {
-      color: color.adjust($text, $lightness: 35%);
+      color: $text-l35;
       font-size: 0.85em;
     }
   }
@@ -1853,7 +1861,7 @@
     padding: 0.3em 0.6em;
     border-top: 1px solid $neutral-88;
     background: rgba(0, 0, 0, 0.02);
-    color: color.adjust($text, $lightness: 30%);
+    color: $text-l30;
     font-size: 0.7em;
     font-weight: 700;
     text-transform: uppercase;
@@ -1872,7 +1880,7 @@
   // "nothing there" and "it is broken" looked identical, which is exactly how a
   // server key missing the Places API presented.
   li.hit-note {
-    color: color.adjust($text, $lightness: 25%);
+    color: $text-l25;
     font-style: italic;
     cursor: default;
 
@@ -1912,7 +1920,7 @@
     border: 1px solid $neutral-88;
     border-radius: 999px;
     background: $white;
-    color: color.adjust($text, $lightness: 15%);
+    color: $text-l15;
     // Small on purpose. These are a shortcut, not the primary way in — the
     // search field above them is — so they sit under it and stay quiet.
     font-size: 0.68em;

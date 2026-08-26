@@ -51,6 +51,12 @@ export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'min
 // live in src/views/date-format.ts; keep these three in step with the array
 // there, which test/date-format.test.ts pins.
 export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
+// The two appearance axes. Deliberately two enums rather than one of six members:
+// theme is about which signals a rider can distinguish and scheme is about
+// ambient light, and only the scheme axis can follow the operating system. See
+// src/views/appearance.ts.
+export const themeEnum = pgEnum('theme', ['default', 'contrast', 'colorblind'])
+export const schemeEnum = pgEnum('scheme', ['system', 'light', 'dark'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -279,6 +285,18 @@ export const userProfiles = pgTable('user_profiles', {
   // seeds it from Accept-Language, so the default is what a rider gets only when
   // the header says nothing useful.
   dateFormat: dateFormatEnum('date_format').notNull().default('en-US'),
+  // The palette and the light/dark scheme, defaulted for the same reason as the
+  // two above: no third state for a reader to interpret.
+  //
+  // UNLIKE dateFormat, NEITHER IS SEEDED FROM A HEADER, and that is what makes
+  // them safe to add. `date_format` has to be seeded from Accept-Language on
+  // INSERT — see the handlers in settings.tsx — because a German browser should
+  // get day-first without anyone choosing. There is no header for a palette, and
+  // 'system' already means "ask the browser" on the one axis where the browser
+  // has an opinion, so the column defaults are the whole answer and no existing
+  // upsert has to learn about these.
+  theme: themeEnum('theme').notNull().default('default'),
+  scheme: schemeEnum('scheme').notNull().default('system'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

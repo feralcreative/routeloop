@@ -56,7 +56,7 @@
 // and inventing new ones to build it would put its own styling at the top of
 // its own trim list.
 .brand-field.is-alpha {
-  $check: color.adjust($grey, $lightness: -3%);
+  $check: $grey-d3;
 
   position: relative;
   background-color: $white;
@@ -138,14 +138,14 @@
   // that the palette already has too many — and a pale tint beside a saturated
   // swatch is not hard to tell apart.
   &.is-pass {
-    background: color.adjust($gpx, $lightness: 45%);
-    color: color.adjust($gpx, $lightness: -14%);
+    background: $gpx-l45;
+    color: $gpx-d14;
   }
 
   // Deliberately not red. Below 4.5:1 only matters if the color is text, and
   // most of these are grounds and hairlines working exactly as intended.
   &.is-low {
-    background: color.adjust($grey, $lightness: 6%);
+    background: $grey-l6;
     color: $neutral-43;
   }
 }
@@ -243,7 +243,7 @@
   height: 13px;
   margin-right: 0.45rem;
   vertical-align: -2px;
-  border: 1px solid color.adjust($grey, $lightness: -8%);
+  border: 1px solid $grey-d8;
   border-radius: 3px;
 }
 

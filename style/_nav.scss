@@ -182,7 +182,7 @@
 
   a[aria-current="page"] {
     color: $url;
-    background: rgba($brand, 0.08);
+    background: color-mix(in srgb, $brand 8%, transparent);
   }
 
   // EXIT MAP IS A BUTTON, and red. It is the only item in this menu that leaves
@@ -319,8 +319,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color.adjust($url, $lightness: 46%);
-  color: color.adjust($url, $lightness: -8%);
+  background: $url-l46;
+  color: $url-d8;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.02em;

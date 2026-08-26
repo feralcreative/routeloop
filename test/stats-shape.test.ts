@@ -22,6 +22,8 @@ import { TWIST_BANDS } from '../src/maps/twist'
 import {
   ACTIVITY_MONTHS,
   fmtBytes,
+  fmtAvg,
+  fmtHours,
   fmtMiles,
   monthSeries,
   roleBars,
@@ -43,6 +45,8 @@ const totals = (over: Partial<RawTotals> = {}): RawTotals => ({
   pois: 0,
   distanceM: 0,
   viaPoints: 0,
+  durationS: 0,
+  estimatedLegs: 0,
   publicRides: 0,
   unlistedRides: 0,
   privateRides: 0,
@@ -59,13 +63,20 @@ const raw = (over: Partial<RawStats> = {}): RawStats => ({
   months: [],
   records: {
     longestDayM: null,
+    longestDayTitle: null,
+    longestDaySlug: null,
+    longestDayThumb: null,
     biggestRideM: null,
     biggestRideTitle: null,
     biggestRideSlug: null,
+    biggestRideThumb: null,
     bestTwistDpm: null,
+    bestTwistSlug: null,
+    bestTwistThumb: null,
     mostViewed: null,
     mostViewedTitle: null,
     mostViewedSlug: null,
+    mostViewedThumb: null,
   },
   ...over,
 })
@@ -303,13 +314,20 @@ describe('shapeStats', () => {
       raw({
         records: {
           longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
           bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
           mostViewed: 12,
           mostViewedTitle: 'Coast Run',
           mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
         },
       }),
       0,
@@ -317,9 +335,138 @@ describe('shapeStats', () => {
     )
     const labels = s.records.map((x) => x.label)
     expect(labels).toContain('Longest single day')
-    expect(s.records.find((x) => x.label === 'Longest single day')?.value).toBe('420 mi')
     expect(s.records.find((x) => x.label === 'Twistiest 20 miles')?.value).toBe('Very twisty')
     expect(labels.some((l) => l.includes('12 times'))).toBe(true)
+  })
+
+  // #136 split the unit off the figure so the numeral can be set large and "mi"
+  // small. The whole point is that `value` is now the number ALONE — a record
+  // that re-joins them puts the emphasis back on the unit.
+  it('hands the figure and its unit over separately', () => {
+    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect(rec?.value).toBe('420')
+    expect(rec?.unit).toBe('mi')
+    expect(rec?.numeric).toBe(true)
+  })
+
+  // The two word-valued records. `numeric` picks the type size and gates the
+  // count-up, and a word marked numeric would be set at the numeral's size and
+  // then animated from zero — neither of which a ride title survives.
+  it('marks the word-valued records as text and gives them no unit', () => {
+    const s = shapeStats(
+      raw({
+        records: { ...raw().records, bestTwistDpm: 260, mostViewed: 12, mostViewedTitle: 'Coast Run' },
+      }),
+      0,
+      NOW,
+    )
+    for (const label of ['Twistiest 20 miles', 'Most opened, 12 times']) {
+      const rec = s.records.find((x) => x.label === label)
+      expect(rec, label).toBeDefined()
+      expect(rec?.numeric, label).toBe(false)
+      expect(rec?.unit, label).toBeUndefined()
+    }
+  })
+
+  // One field drives the mark and the accent together, so a record cannot reach
+  // the page with a drawing and no color, or the reverse.
+  it('gives every record a kind', () => {
+    const s = shapeStats(
+      raw({
+        records: {
+          longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
+          biggestRideM: 2100 * MI,
+          biggestRideTitle: 'Sierras',
+          biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
+          bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
+          mostViewed: 12,
+          mostViewedTitle: 'Coast Run',
+          mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
+        },
+      }),
+      0,
+      NOW,
+    )
+    expect(s.records.map((x) => x.kind)).toEqual(['distance', 'ride', 'twist', 'views'])
+  })
+
+  // EVERY record names a ride, so every card can show its map and link to it.
+  // Two of the four did not until 2026-08-26: the longest day and the twistiest
+  // stretch were max() aggregates, and a figure with no slug is a card with no
+  // picture next to three that have one.
+  it('carries the ride and its thumbnail on all four records', () => {
+    const s = shapeStats(
+      raw({
+        records: {
+          longestDayM: 420 * MI,
+          longestDayTitle: 'Sierras',
+          longestDaySlug: 'abc',
+          longestDayThumb: 'h1',
+          biggestRideM: 2100 * MI,
+          biggestRideTitle: 'Sierras',
+          biggestRideSlug: 'abc',
+          biggestRideThumb: 'h1',
+          bestTwistDpm: 260,
+          bestTwistSlug: 'def',
+          bestTwistThumb: 'h2',
+          mostViewed: 12,
+          mostViewedTitle: 'Coast Run',
+          mostViewedSlug: 'xyz',
+          mostViewedThumb: 'h3',
+        },
+      }),
+      0,
+      NOW,
+    )
+    expect(s.records).toHaveLength(4)
+    expect(s.records.map((x) => x.slug)).toEqual(['abc', 'abc', 'def', 'xyz'])
+    expect(s.records.map((x) => x.thumbHash)).toEqual(['h1', 'h1', 'h2', 'h3'])
+  })
+
+  // The longest day gained a hint it never had, for the same reason: a map with
+  // no name, on a card that links somewhere, asks the rider to recognize their
+  // own route from a thumbnail.
+  it('names the ride the longest day was set on', () => {
+    const s = shapeStats(
+      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDayTitle: 'Sierras', longestDaySlug: 'abc' } }),
+      0,
+      NOW,
+    )
+    expect(s.records.find((x) => x.label === 'Longest single day')?.hint).toBe('Sierras')
+  })
+
+  // A ride the thumbnail sweep has not reached, or one with no geometry to draw.
+  // The card falls back to its own accent, so the slug still has to arrive — it
+  // is what the link needs — and thumbHash must be ABSENT rather than null, or
+  // the view builds `?v=null` and asks the route for a picture by that name.
+  it('gives a record its slug without a thumbnail when the sweep has not run', () => {
+    const s = shapeStats(
+      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDaySlug: 'abc', longestDayThumb: null } }),
+      0,
+      NOW,
+    )
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect(rec?.slug).toBe('abc')
+    expect(rec?.thumbHash).toBeUndefined()
+    expect('thumbHash' in (rec ?? {})).toBe(false)
+  })
+
+  // A record with no ride at all. No branch produces one today; the view renders
+  // a span instead of an anchor when it happens, so neither key may be present
+  // and defined.
+  it('leaves the ride keys off a record that has none', () => {
+    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const rec = s.records.find((x) => x.label === 'Longest single day')
+    expect('slug' in (rec ?? {})).toBe(false)
+    expect('thumbHash' in (rec ?? {})).toBe(false)
   })
 
   it('does not claim a twistiest stretch when none was measured', () => {
@@ -327,11 +474,129 @@ describe('shapeStats', () => {
     expect(s.records.some((x) => x.label === 'Twistiest 20 miles')).toBe(false)
   })
 
-  // The import path never writes duration, so no figure derived from it may
-  // appear anywhere. If someone adds one later, this fails and says why.
-  it('reports no duration anywhere, because the import path never records it', () => {
-    const s = shapeStats(raw({ totals: totals({ rides: 5, distanceM: 1000 * MI }) }), 0, NOW)
-    const text = JSON.stringify(s)
-    expect(text).not.toMatch(/riding|saddle|\bhours\b|\bh \d+m\b/i)
+  // SADDLE TIME. This block replaced a test asserting that no duration figure
+  // appeared anywhere — that rule held from the day the dashboard was built until
+  // 2026-08-24, on the grounds that the import path writes no leg duration and a
+  // total would therefore undercount. The undercount was fixed instead of the
+  // figure being withheld (query.ts estimates an unrouted leg from distance), so
+  // the old assertion pinned a rule that no longer exists and was rewritten
+  // rather than patched to pass.
+  describe('saddle time', () => {
+    it('is null when nothing has any riding time, rather than a confident zero', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 5, distanceM: 1000 * MI }) }), 0, NOW)
+      expect(s.saddle).toBe(null)
+    })
+
+    it('reports whole hours', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 3600 * 12 }) }), 0, NOW)
+      expect(s.saddle?.hours).toBe('12')
+    })
+
+    it('groups thousands, because a long-standing library gets there', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 3600 * 1234 }) }), 0, NOW)
+      expect(s.saddle?.hours).toBe('1,234')
+    })
+
+    // The whole point of carrying the flag: the same number means different
+    // things depending on whether a router measured it or distance implied it.
+    it('says the figure is measured when no leg was estimated', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 0 }) }), 0, NOW)
+      expect(s.saddle?.estimated).toBe(false)
+      expect(s.saddle?.note).toMatch(/measured/i)
+    })
+
+    it('admits the figure is part estimated when any leg was', () => {
+      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 1 }) }), 0, NOW)
+      expect(s.saddle?.estimated).toBe(true)
+      expect(s.saddle?.note).toMatch(/estimated/i)
+    })
+  })
+})
+
+describe('the comparison columns', () => {
+  const global = {
+    rides: { avg: 6.666666666666667, top: 17 },
+    days: { avg: 13, top: 34 },
+    legs: { avg: 44.333333333333336, top: 95 },
+    points: { avg: 67.33333333333333, top: 154 },
+  }
+
+  const tilesFor = (g?: typeof global) =>
+    Object.fromEntries(
+      shapeStats(raw({ totals: totals({ rides: 3, days: 9, legs: 30, points: 50 }) }), 0, NOW, g).tiles.map((t) => [
+        t.label,
+        t,
+      ]),
+    )
+
+  it('gives all four counting tiles a spread', () => {
+    const t = tilesFor(global)
+    expect(t.rides.spread).toEqual({ avg: '6.7', top: '17' })
+    expect(t.days.spread).toEqual({ avg: '13', top: '34' })
+    expect(t.legs.spread).toEqual({ avg: '44.3', top: '95' })
+    expect(t.waypoints.spread).toEqual({ avg: '67.3', top: '154' })
+  })
+
+  // Legs was put in scope deliberately on 2026-08-16 rather than by omission,
+  // even though a leg is not a unit any rider thinks in. If it ever disappears
+  // as a cleanup, this says it was a decision.
+  it('includes legs, which is deliberate and not an oversight', () => {
+    expect(tilesFor(global).legs.spread).toBeDefined()
+  })
+
+  // A tile with no cohort figure must say nothing rather than claim a zero it
+  // never measured.
+  it('leaves a tile with no cohort figure without one', () => {
+    const s = shapeStats(raw({ totals: totals({ rides: 3, viaPoints: 4 }) }), 0, NOW, global)
+    const insisted = s.tiles.find((t) => t.label.includes('insisted'))
+    expect(insisted).toBeDefined()
+    expect(insisted?.spread).toBeUndefined()
+  })
+
+  it('renders without any cohort figures at all', () => {
+    const t = tilesFor(undefined)
+    expect(t.rides.spread).toBeUndefined()
+    expect(t.rides.value).toBe('3')
+  })
+
+  // The pool carries no names, and the shaped output is what reaches the page.
+  it('carries no rider identity anywhere in the shaped output', () => {
+    const text = JSON.stringify(shapeStats(raw({ totals: totals({ rides: 3 }) }), 0, NOW, global))
+    expect(text).not.toMatch(/owner|user_?id|username/i)
+  })
+})
+
+describe('fmtAvg', () => {
+  it('keeps one decimal when it says something', () => {
+    expect(fmtAvg(6.666666666666667)).toBe('6.7')
+    expect(fmtAvg(44.333333333333336)).toBe('44.3')
+  })
+
+  // "13.0 days" is 13 with a decorative zero on it.
+  it('drops a decimal that is only a zero', () => {
+    expect(fmtAvg(13)).toBe('13')
+    expect(fmtAvg(12.98)).toBe('13')
+  })
+
+  it('groups thousands, like every other count on the page', () => {
+    expect(fmtAvg(1234)).toBe('1,234')
+  })
+
+  it('is 0 for an empty cohort rather than NaN in a tile', () => {
+    expect(fmtAvg(0)).toBe('0')
+  })
+})
+
+describe('fmtHours', () => {
+  it('rounds to the nearest hour rather than truncating', () => {
+    expect(fmtHours(3600 * 2 + 1800)).toBe('3')
+    expect(fmtHours(3600 * 2 + 1799)).toBe('2')
+  })
+
+  // Hours and nothing smaller, unlike the roadbook's fmtDuration. A minute is
+  // information about one day and noise across a hundred, and some unknown share
+  // of this figure is estimated anyway.
+  it('never prints minutes', () => {
+    expect(fmtHours(3600 * 4 + 1200)).toBe('4')
   })
 })

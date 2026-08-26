@@ -663,7 +663,7 @@ table.day-table {
   // Ensure hover/focus effect always applies to div.day-row-label
   .day-row-label:hover,
   .day-row-label:focus {
-    background: var(--day-color-bg, color.adjust($url, $lightness: 43%));
+    background: var(--day-color-bg, $url-l43);
   }
 
   // Route table line icon
@@ -724,11 +724,11 @@ table.day-table {
       // that reads as an edge.
       &.btn.gpx-btn {
         background: $gpx;
-        border-color: color.adjust($gpx, $lightness: -20%);
+        border-color: $gpx-d20;
         color: $ink-dark;
         &:hover {
-          background: color.adjust($gpx, $lightness: 8%);
-          border-color: color.adjust($gpx, $lightness: -20%);
+          background: $gpx-l8;
+          border-color: $gpx-d20;
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
@@ -736,11 +736,11 @@ table.day-table {
       }
       &.btn.kml-btn {
         background-color: $kml;
-        border-color: color.adjust($kml, $lightness: -20%);
+        border-color: $kml-d20;
         color: $white;
         &:hover {
-          background: color.adjust($kml, $lightness: -10%);
-          border-color: color.adjust($kml, $lightness: -20%);
+          background: $kml-d10;
+          border-color: $kml-d20;
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
@@ -748,11 +748,11 @@ table.day-table {
       }
       &.btn.url-btn {
         background-color: $url;
-        border-color: color.adjust($url, $lightness: -20%);
+        border-color: $url-d20;
         color: $white;
         &:hover {
-          background: color.adjust($url, $lightness: -10%);
-          border-color: color.adjust($url, $lightness: -20%);
+          background: $url-d10;
+          border-color: $url-d20;
         }
         &::before {
           content: "";
@@ -1126,7 +1126,7 @@ table.day-table {
   // Not opacity on the whole row: that would take the checkbox with it and make
   // a working control look disabled.
   .day-row.is-alt .day-name {
-    color: color.adjust($text, $lightness: 30%);
+    color: $text-l30;
   }
 
   // Both members of a group get one of these, which is what makes them read as
@@ -1138,7 +1138,7 @@ table.day-table {
     padding: 0.05em 0.45em;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.06);
-    color: color.adjust($text, $lightness: 20%);
+    color: $text-l20;
     font-size: 0.7em;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -1160,7 +1160,7 @@ table.day-table {
   .day-total td {
     padding: 0.5em 0.25em 0.35em;
     border-top: 1px solid rgba(0, 0, 0, 0.12);
-    color: color.adjust($text, $lightness: 15%);
+    color: $text-l15;
     font-size: 0.85em;
     font-weight: 600;
   }
@@ -1176,7 +1176,7 @@ table.day-table {
     font-size: 0.8em;
     // No muted token exists; lightening $text is the idiom the rest of this
     // file already uses for a secondary line.
-    color: color.adjust($text, $lightness: 25%);
+    color: $text-l25;
   }
 }
 // Links to the FAQ answer rather than carrying its own explanation — the panel
@@ -1215,7 +1215,7 @@ table.day-table {
   font-weight: 600;
   font-size: 0.85em;
   &:hover {
-    background: color.adjust($grey, $lightness: -8%);
+    background: $grey-d8;
   }
 }
 

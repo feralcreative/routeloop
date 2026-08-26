@@ -23,6 +23,7 @@ import { userProfiles } from '../db/schema'
 import { DURATION_FORMAT_CHOICES, toDurationFormat } from '../maps/duration'
 import { DATE_FORMAT_CHOICES, fromAcceptLanguage, toDateFormat } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
+import { SCHEME_CHOICES, THEME_CHOICES, toScheme, toTheme } from '../views/appearance'
 import { page } from '../views/layout'
 
 export const settingsRoutes = new Hono<AuthEnv>()
@@ -41,11 +42,18 @@ async function durationFormatFor(userId: number) {
 settingsRoutes.get('/settings', requireActive, async (c) => {
   const user = currentUser(c)
   const savedQuery = c.req.query('saved')
-  const saved = savedQuery !== undefined && savedQuery !== 'duration' && savedQuery !== 'dates'
+  const saved =
+    savedQuery !== undefined && savedQuery !== 'duration' && savedQuery !== 'dates' && savedQuery !== 'appearance'
   const savedDuration = savedQuery === 'duration'
   const savedDates = savedQuery === 'dates'
+  const savedAppearance = savedQuery === 'appearance'
   const durationFormat = await durationFormatFor(user.id)
   const dateFormat = await dateFormatFor(c)
+  // Straight off the session rather than a second query — validateSessionToken
+  // already left-joins user_profiles for exactly this, and the values are
+  // coerced there so there is no null to interpret here.
+  const theme = user.theme
+  const scheme = user.scheme
 
   const body = (
     <>
@@ -58,90 +66,141 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
         </p>
       ) : null}
 
-      <section class="setting" id="stop-durations">
-        <h2>Stop durations</h2>
-        <p>
-          How long you stop somewhere, as it reads in the builder. This changes the writing and not the number —
-          your rides, the roadbook and every export are unaffected, and you can switch back whenever you like.
-        </p>
+      {/*
+        The four preference sections sit two-up at >=992px (`.two-col` in
+        _chrome.scss). GTFO stays OUTSIDE the grid deliberately: it is a
+        boxed-off danger area and half a page is not where it belongs.
+      */}
+      <div class="two-col">
+        <section class="setting" id="stop-durations">
+          <h2>Stop durations</h2>
+          <p>
+            How long you stop somewhere, as it reads in the builder. This changes the writing and not the number — your
+            rides, the roadbook and every export are unaffected, and you can switch back whenever you like.
+          </p>
 
-        <form method="post" action="/settings/duration-format" class="setting-form">
-          <fieldset class="choice-set">
-            <legend class="visually-hidden">Duration format</legend>
-            {DURATION_FORMAT_CHOICES.map((choice) => (
-              <label class="choice">
-                <input
-                  type="radio"
-                  name="durationFormat"
-                  value={choice.id}
-                  checked={choice.id === durationFormat}
-                />
-                <span class="choice-label">{choice.label}</span>
-                {/* An hour and a half in each format. It is the value that looks
+          <form method="post" action="/settings/duration-format" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="visually-hidden">Duration format</legend>
+              {DURATION_FORMAT_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="durationFormat" value={choice.id} checked={choice.id === durationFormat} />
+                  <span class="choice-label">{choice.label}</span>
+                  {/* An hour and a half in each format. It is the value that looks
                     different in all three, which is the question being asked. */}
-                <span class="choice-example">
-                  an hour and a half reads <b>{choice.example}</b>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <div class="setting-actions">
-            <button type="submit" class="btn btn-sign arrow-right arrow-n">
-              Save
-            </button>
-            {savedDuration ? <span class="form-ok">Saved</span> : null}
-          </div>
-        </form>
+                  <span class="choice-example">
+                    an hour and a half reads <b>{choice.example}</b>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedDuration ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
 
-        <p class="setting-note">
-          Whichever you pick, the field understands the others: type <code>90m</code>, <code>1.5h</code>,{' '}
-          <code>1h 30m</code> or <code>1:30</code> and it will take all four.
-        </p>
-      </section>
+          <p class="setting-note">
+            Whichever you pick, the field understands the others: type <code>90m</code>, <code>1.5h</code>,{' '}
+            <code>1h 30m</code> or <code>1:30</code> and it will take all four.
+          </p>
+        </section>
 
-      <section class="setting" id="dates">
-        <h2>Dates and times</h2>
-        <p>
-          Which way round a date reads, and whether a clock runs to twelve or twenty-four. This changes the writing and
-          not the times themselves — your days start when they always did, and every export is unaffected.
-        </p>
+        {/*
+        APPEARANCE. Two independent controls rather than one list of six, because
+        the questions are unrelated: which colors a rider can tell apart, and how
+        bright the room is. See src/views/appearance.ts.
 
-        <form method="post" action="/settings/date-format" class="setting-form">
-          <fieldset class="choice-set">
-            <legend class="visually-hidden">Date format</legend>
-            {DATE_FORMAT_CHOICES.map((choice) => (
-              <label class="choice">
-                <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
-                <span class="choice-label">{choice.label}</span>
-                {/* The same instant in all three, which is the question being
+        The page renders in the rider's CURRENT palette while they choose. There
+        is no live preview and deliberately so — a preview would need script on a
+        page that has none, and the choice applies on save, which is one click
+        away and unambiguous.
+      */}
+        <section class="setting" id="appearance">
+          <h2>Appearance</h2>
+          <p>
+            Two separate choices. The palette decides which colors the app uses; light or dark decides how bright it is.
+            Every palette comes in both.
+          </p>
+
+          <form method="post" action="/settings/appearance" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="choice-legend">Palette</legend>
+              {THEME_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="theme" value={choice.id} checked={choice.id === theme} />
+                  <span class="choice-label">{choice.label}</span>
+                  <span class="choice-example">{choice.hint}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <fieldset class="choice-set">
+              <legend class="choice-legend">Light or dark</legend>
+              {SCHEME_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="scheme" value={choice.id} checked={choice.id === scheme} />
+                  <span class="choice-label">{choice.label}</span>
+                  <span class="choice-example">{choice.hint}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedAppearance ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
+        </section>
+
+        <section class="setting" id="dates">
+          <h2>Dates and times</h2>
+          <p>
+            Which way round a date reads, and whether a clock runs to twelve or twenty-four. This changes the writing
+            and not the times themselves — your days start when they always did, and every export is unaffected.
+          </p>
+
+          <form method="post" action="/settings/date-format" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="visually-hidden">Date format</legend>
+              {DATE_FORMAT_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
+                  <span class="choice-label">{choice.label}</span>
+                  {/* The same instant in all three, which is the question being
                     asked. The clock comes along with the date order — day-first
                     locales run to twenty-four. */}
-                <span class="choice-example">
-                  reads <b>{choice.example}</b>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <div class="setting-actions">
-            <button type="submit" class="btn btn-sign arrow-right arrow-n">
-              Save
-            </button>
-            {savedDates ? <span class="form-ok">Saved</span> : null}
-          </div>
-        </form>
+                  <span class="choice-example">
+                    reads <b>{choice.example}</b>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedDates ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
 
-        <p class="setting-note">
-          The builder's own date fields already follow your browser, whatever this says — that part is your operating
-          system's business and not ours. This is for the printed roadbook and the pages we render ourselves.
-        </p>
-      </section>
+          <p class="setting-note">
+            The builder's own date fields already follow your browser, whatever this says — that part is your operating
+            system's business and not ours. This is for the printed roadbook and the pages we render ourselves.
+          </p>
+        </section>
 
-      <section class="setting">
-        <h2>Your profile</h2>
-        <p>
-          <a href="/profile">Your profile</a> holds your name, username, home address and what of it is shared.
-        </p>
-      </section>
+        <section class="setting">
+          <h2>Your profile</h2>
+          <p>
+            <a href="/profile">Your profile</a> holds your name, username, home address and what of it is shared.
+          </p>
+        </section>
+      </div>
 
       <section class="gtfo">
         <h2>GTFO</h2>
@@ -254,4 +313,33 @@ settingsRoutes.post('/settings/date-format', requireActive, requireSameOrigin, a
     })
 
   return c.redirect('/settings?saved=dates#dates', 303)
+})
+
+settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  // Same contract as the two handlers above: anything unrecognized lands on the
+  // default rather than 400ing, because the only way to send a bad value is to
+  // hand-craft the request.
+  const theme = toTheme(body.theme)
+  const scheme = toScheme(body.scheme)
+
+  // ONE HANDLER FOR BOTH AXES, unlike the date and duration preferences which
+  // each write themselves alone. They are two questions but one answer: a rider
+  // has one appearance, sees both controls at once, and would be surprised if
+  // saving the palette silently reverted the light/dark choice they made in the
+  // same breath. Both are in the update set for exactly that reason.
+  //
+  // Neither is seeded from a header on INSERT, unlike dateFormat in the handler
+  // above. There is no header for a palette, and `system` already delegates the
+  // one axis a browser has an opinion about — see src/db/schema.ts.
+  await db
+    .insert(userProfiles)
+    .values({ userId: user.id, theme, scheme, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: userProfiles.userId,
+      set: { theme, scheme, updatedAt: new Date() },
+    })
+
+  return c.redirect('/settings?saved=appearance#appearance', 303)
 })

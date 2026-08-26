@@ -1,11 +1,32 @@
 # Status and handoff
 
-**Updated:** 2026-08-24 (later still)
-**Branch:** `fix/map-mechanics`, seven commits ahead of `main` and **pushed**, plus the uncommitted wall-clock change below. **1,240 tests across 52 files** (2 skipped, 1,242 total)
-**Closes, since the last update:** nothing on the tracker—both POI changes were raised directly and neither has an issue. Before them, the sign-button default and three builder fixes landed as [#112](https://github.com/feralcreative/routeloop/pull/112), and saved places plus rich stop details as [#111](https://github.com/feralcreative/routeloop/pull/111).
+**Updated:** 2026-08-26 (end of day)
+**Branch:** `feat/dashboard-and-themes`, **ten commits ahead of `main`**—nine pushed and one (`e4a444d`, the #130 width work) NOT yet pushed, plus the two uncommitted deploy-utility files below. **1,551 tests across 56 files** (2 skipped, 1,553 total)
+**Closes, since the last update:** nothing yet—the branch is open. It will close [#102](https://github.com/feralcreative/routeloop/issues/102), [#103](https://github.com/feralcreative/routeloop/issues/103), [#130](https://github.com/feralcreative/routeloop/issues/130), [#135](https://github.com/feralcreative/routeloop/issues/135), [#136](https://github.com/feralcreative/routeloop/issues/136), [#137](https://github.com/feralcreative/routeloop/issues/137) and [#139](https://github.com/feralcreative/routeloop/issues/139)—the whole of `area:dashboard`, plus **all** of `area:chrome` now that #130 is done. [#141](https://github.com/feralcreative/routeloop/issues/141) and [#142](https://github.com/feralcreative/routeloop/issues/142) were written against work already done here and closed the same minute, per the after-the-fact rule. Before it, `fix/map-mechanics` merged as [#138](https://github.com/feralcreative/routeloop/pull/138) and the branch salvage as [#140](https://github.com/feralcreative/routeloop/pull/140).
 **For:** the next agent, or the owner returning cold
 
-**A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the next two sections before touching the builder, the ride payload or anything that counts stops.
+## FIRST THING TOMORROW—rewrite #67, then close #143
+
+Ziad's call, 2026-08-26, and it is the first task of the next session before anything else is picked up.
+
+[#143](https://github.com/feralcreative/routeloop/issues/143), a feature request from `@epim`, turned out to describe [#67](https://github.com/feralcreative/routeloop/issues/67) *Rider Subgroups: converging and splitting group rides*—same converge/diverge shape, same Bay Area contingents. It is not a plain duplicate: it adds two things #67 never had, and the conversation on it settled a third. **Rewrite #67 to carry all of it, credit `@epim` in the body for the meeting-point idea, confirm the detail is actually there, and only then close #143 pointing at #67.** That order matters—closing first leaves a window where the new material lives in neither issue.
+
+What has to reach #67:
+
+1. **Routeloop PROPOSES the meeting point; it does not just route to one the planner already picked.** This is `@epim`'s idea and the reason #67 got better. Constraint: neither group backtracks or significantly diverts, and ideally they share some road before the meet. Prefer stops carrying the existing `gas` category—that costs nothing.
+2. **Timing is derived across subgroups, and dwell at a meet is real rather than token.** #67's Timing bullet covers only an arrival window and a mismatch warning. A meet needs enough dwell to absorb a group socializing, and the open question is whether it also wants slack that absorbs one group running late without dragging the whole day back.
+3. **A PRIMARY GROUP, chosen by the planner.** Ziad's call. Whose clock is fixed is a decision the app cannot make fairly on its own—3 miles versus 60 to a 6am meet is unfair, the same two distances to a 10am meet heading the other way is not, and only the planner knows which they are looking at. Three findings from working it through, all of which belong in the issue:
+   - **"Primary group" names *whose* clock, not *which event*.** A planner will want to fix a group's DEPARTURE, a MEETING TIME, or ARRIVAL at the destination on different days—`@epim`'s own example fixes a meet, which is none of the other two. Primary picks the group; the anchored event is a second axis. **This is what dissolves the contradiction in #143's original text**, where the group farthest from the destination sets departure but the main group is also pinned at 9am.
+   - **Clock-primary and trunk-primary come apart.** Whose clock is fixed, and whose route is the trunk others join, are the same group in the Oakland/Sacramento case and not the same thing at all in the strangers case `@epim` raised—Seattle and San Francisco meeting in eastern Oregon have no trunk, and the ride starts at the meet. Keep them separate in the model even if the UI only asks once.
+   - **The default primary must NOT be the planner's own group.** It is the one most likely to be nearest the meet, so it reproduces the unfair-6am case every time and the planner will not notice, being the one riding three miles. Whatever the default is, show the consequence beside the choice: each group's departure time and total distance, side by side.
+4. **Deriving which subgroup the planner is in, which is worth doing regardless of the default above**—it is what makes "highlight my path" and #67's per-rider hand-off work without asking. Two sources: subgroup membership once [#71](https://github.com/feralcreative/routeloop/issues/71) exists, and failing that the nearest subgroup `start` point to the planner's home lat/lng, which `user_profiles` already stores and `addHomeToRides` already uses. **Both can come back empty and that has to be representable**—a club secretary planning a rally is not in any group.
+5. **`area:schema` on #143** before closing it. It is currently carrying `enhancement` and nothing else, the only issue in the tracker with no `area:` label.
+
+Unchanged by any of this: **#67 is still blocked on [#71](https://github.com/feralcreative/routeloop/issues/71)**, which builds the `ride_members` record. Nothing today says a rider is on a ride, so subgroups have nothing to hang off. Build order is #71 → #67. #67's own load-bearing open question—feeder-routes-within-a-ride versus subgroup-membership-on-legs—gets heavier with auto-selection, because the app cannot propose a join point it has no way to express; decide it at the same time.
+
+**THE APP HAS A THEME ENGINE AND `/` HAS ABSORBED THE RIDE LIST.** Read the 2026-08-24/25 dashboard section below before touching any stylesheet—every color token is now a `var()` reference and the literals moved to `style/_palette.scss`. A `color.adjust()` or an `rgba()` written against a token compiles to something invalid and fails **silently**.
+
+**A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the two sections further down before touching the builder, the ride payload or anything that counts stops.
 
 ## Switching machines—read this first
 
@@ -29,6 +50,19 @@
 **Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
 
 ## Open
+
+**THREE RIDERS ARE NOW ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. `AGENTS.md` still says "nobody has been let into the beta and nobody will be for a long time, so downtime, a broken deploy and overwritten code all cost approximately nothing"—**the first half of that is now false.** The database was always precious; the uptime is what changed. That sentence in `AGENTS.md` needs rewriting, and it has not been touched yet.
+
+**There is a written plan to make deploys zero-downtime and NOTHING HAS BEEN BUILT.** [docs/zero-downtime-deploy.md](zero-downtime-deploy.md), written 2026-08-25. It is a proposal, not a record: the six open calls at the end of it are unanswered, and it names three approvals that have not been given—Caddy as a new prod dependency, anything touching prod or stage, and a migration-authoring rule that is effectively a schema-policy change. **Do not start building it without those answers.** The shape it proposes, in one line each:
+
+- **Phase 1**, no new dependency and no data risk: a real `/healthz`, a SIGTERM handler, migrations moved to a one-shot container that runs *before* the app is recreated, and `up -d --no-deps app` instead of `down`/`up -d` so Postgres stops being torn down. Takes ~60–90s of downtime to ~10–20s.
+- **Phase 2**, a Caddy reverse proxy owning the two host ports with two app colors behind it. Takes it to ~0s, at the cost of a one-time NAS cutover and a permanent expand/contract rule on migrations.
+
+Three things that plan turned up which are **true today, independent of whether any of it gets built**:
+
+1. **`utils/deploy/hooks/post-deploy.sh` runs migrations AFTER the container is already serving traffic**, so every deploy has a window of new code against the old schema. This file already describes that window further down; it is a live bug, not a theoretical one.
+2. **A SIGTERM handler added today would be dead code.** The `Dockerfile` ends `CMD ["npm", "run", "start"]`, which makes **npm** PID 1, and npm does not reliably forward SIGTERM to its child. Nothing would log a failure—the handler simply never runs. The fix is `CMD ["node", "--import", "tsx", "src/index.tsx"]`, and it must be hand-verified rather than assumed.
+3. **Every migration in `drizzle/` so far is additive**—eleven files, not one `DROP` and not one `RENAME`. Nine are purely additive and two tighten a column to `NOT NULL` (`0006` on `points.uid`, `0008` on `points.position`). So the expand/contract rule Phase 2 would impose costs close to nothing in practice.
 
 **The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
 
@@ -61,6 +95,82 @@
 **0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
 
 Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
+
+## The dashboard branch and the theme engine—2026-08-24/25
+
+**`feat/dashboard-and-themes`, five commits, unpushed.** Clearing `area:dashboard` under the branch-by-area rule. Four of the six issues are done; [#102](https://github.com/feralcreative/routeloop/issues/102) is half done and is the reason the branch is still open.
+
+### Four calls settled on #103, all Ziad's
+
+| Call | Decision |
+| --- | --- |
+| `used_bytes` drift | **Recompute it on a timer.** The tally repairs itself instead of drifting forever |
+| Empty state | A real first-run panel—**not built yet**, see below |
+| `/rides` vs the dashboard | **Fold `/rides` into `/`.** One door onto a rider's own rides |
+| Ride time | **Estimate the missing duration** from distance, so the total covers imports |
+
+### What landed
+
+- **`/rides` folded into `/`** (`d79b9d1`). `rides.tsx` is now a 302 and nothing else; `OwnRideRow` moved to `home.tsx` with its visibility pill and edit link intact. The list is capped at 24 with `?rides=all` lifting it to a ceiling of 500—the page it absorbed was unpaginated. `NavKey` lost `'rides'` entirely, because a key no item carries is a dead `aria-current` state, which is the exact bug `'home'` sat in for months. `/dashboard` now points straight at `/` rather than chaining.
+- **Saddle time, reported honestly** (`be7c823`). `src/maps/ride-time.ts` mirrors the client's estimation rule and `test/ride-time-server.test.ts` pins the two together; `query.ts` BINDS `NOMINAL_SPEED_MS` into the SQL rather than writing `20` into the string. `SaddleTime.estimated` is how the hero admits part of the figure was figured rather than measured.
+- **The quota reconciler** (`be7c823`), `src/account/quota-sweep.ts`, one `UPDATE … FROM` on the thumbnail sweep's five-minute cadence. Driven against the local database rather than reasoned about: drifted one rider high and one low, it repaired exactly those two and reported 0 on a second pass.
+- **The comparison columns** (`576b441`). **The probe caught a real defect here and it is worth knowing about**: grouping each metric by `owner_id` independently looks equivalent to one shared cohort and is not. Marking a single day a losing alternate moved the days average from 13 to **19—upward**, because the rider it belonged to fell out of that metric's denominator instead of counting as the zero they had. Four metrics on four denominators cannot be compared across a row of tiles. The cohort is defined once now and each metric LEFT JOINs onto it.
+- **Every inline color derivation promoted to a named token** (`a00b5c1`, first half). 49 `color.adjust()` calls across 11 stylesheets became 29 tokens, and **the compiled CSS came out byte-identical at 100,198 bytes**—Ziad's call, choosing a provable refactor over a tidier one.
+- **The theme engine** (`a00b5c1`). Six palettes on two independent axes, emitted as custom properties across nine blocks. Every token is a `var(--x)` reference, which is what let ~950 existing references switch without being edited.
+- **The preference, end to end** (`86d54d1`). `drizzle/0010` adds `user_profiles.theme` and `.scheme`, purely additive with defaults. The palette rides on the SESSION query—`validateSessionToken` already joins, so it costs no extra round trip—and `page()` reads it off `user`, which is what reaches all 32 call sites without touching one.
+
+### Three traps this branch set, all silent
+
+1. **`rgba($token, 0.06)` compiles to `rgba(var(--x), 0.06)`, which is invalid CSS and drops the declaration.** Seventeen tints were broken this way and the build succeeded throughout. All are `color-mix(in srgb, $token N%, transparent)` now. The rule is written into `_tokens.scss`: **if Sass has to compute it, it needs a real color.**
+2. **`$ink-dark` must not follow the scheme.** It is the legend on a black-legend sign field, and sign fields are scheme-invariant—a yellow signal head takes black ink at night too. Inverting it put white on yellow at 1.4:1. The two legends are literals in all six palettes; `$white`/`$black` as page SURFACES do flip.
+3. **`.feedback-flow` was only pretending to be pinned.** It aliased `$white` and `$neutral-21`, which read as pinned and were not—the moment tokens became `var()` it would have gone dark in direct sunlight with nothing in that file changing. It reads `palette.light()` now.
+
+**A note on searching for these:** the tint bug survived two searches because `"rgba(\$"` in double quotes reaches grep as `rgba($`, where `$` is an end-of-line anchor. Use `grep -E` with a single-quoted pattern when hunting build-time color functions.
+
+### What is owed before #102 can close
+
+- **Six contrast audits, MEASURED.** The high-contrast and colorblind hex values in `_palette.scss` are reasoned, not measured, and the file says so. +20% on a dark ground and −20% on a light one land on different ratios, so the five non-default palettes cannot be inferred from the light one.
+- **The second-cue audit.** A theme that only shifts hues does not fix a signal carrying meaning alone. **The colorblind theme is a claim the app does not yet honor**, and the palette comment says so outright. Do not offer it to a rider before this is done.
+- Two data URIs hardcode hex (`%23fff` in `_chrome.scss`, `%23777777` in `_builder.scss`) and cannot theme—a data URI cannot carry a custom property. Known, not yet decided.
+
+### Phase 4, and what the contrast audit found—2026-08-25
+
+**Everything above was the branch as of the morning. The rest of it is built.** #135, #136, #139 and the first-run panel are done, and #102's two owed audits are done and enforced. Uncommitted.
+
+**#139, the role chart.** `src/maps/role-colors.ts` is seventeen hues at ONE fixed lightness and ONE fixed chroma, generated by `utils/build-role-colors.mjs` rather than picked. Equal lightness is what makes it categorical—seventeen roles have no rank, and a ring whose members differ in lightness implies one. The hues are walked with a **stride of 7, coprime with 17**, so consecutive roles land ~148° apart and two roles adjacent in the chart are never adjacent in hue. `RoleChart` inlines each mark through `icon()`; an `<img>` would have painted a black disc, because `currentColor` inside an externally-referenced SVG resolves against that file's context. **One ring serves both schemes**, Ziad's call: every entry clears 3:1 against the light page, the dark page and the white glyph, and those pull against each other. It does NOT follow the colorblind theme, deliberately—seventeen categories cannot be told apart by hue under dichromacy at all, so the icon and the label carry identity and the color is redundant with both.
+
+**#136, the records.** The numeral is set large and the unit split off it, so "482 mi" stops spending its emphasis on "mi"; each card takes an accent edge, a mark and a hover lift; the figures count up on load, gated on `prefers-reduced-motion` and landing on the string the server already rendered. `RecordTile` replaced the shared `Tile` type—a record's `value` is now the number alone, and `numeric` picks the type size because two of the four records are words. **The four marks are PLACEHOLDERS**, simple geometry in the house shape, standing in until Ziad draws them; replacing `public/img/icons/icon-record-*.svg` is the whole job.
+
+**#135, cards everywhere.** `.ride-cards` is a new class and `ul.cards` is untouched—that one is the generic white-row list `/admin`'s roster and the survey summary are built on, and repurposing it would have given the roster a column of empty frames. One card, two densities: `/explore` and a public profile are pages whose whole job is the list, and the dashboard's own list takes `--dense` and packs five across. `CardFace` is shared between the public card and the owner's; the pill and the Edit link sit OUTSIDE the anchor, because an `<a>` inside an `<a>` closes the outer one early and drops half the card out of the link. `a.card`, `.swatch` and `.cardrow` are gone.
+
+**The first-run panel (#103).** Three steps and two doors rather than one line and two links. On a first visit this is not an empty section—it is the entire page, so it says what the app is for.
+
+### The audit found four defects, and that is the point of it
+
+**`test/palette-contrast.test.ts` compiles the SCSS and asserts every pair the app actually paints, in all six palettes.** Not a report—an enforcement. The thing that made the audit owed is that nothing failed when a value was wrong, which is the same reason seventeen tints shipped broken earlier on this branch. It found:
+
+1. **High contrast darkened two black-legend fields.** `$detour` and `$go` came out at **3.31:1** and **3.88:1** where the DEFAULT theme has them at 6.59 and 7.39—the theme named for legibility was the least legible of the three on those two. The rule written in the file was right and the arithmetic went the other way.
+2. **The colorblind palette broke the ink pairing.** The Okabe-Ito vermillion and blue separate on blue-yellow exactly as intended and land on the wrong side of the legend table: white ink on the vermillion measured 3.87:1 and black ink on the blue 4.05:1. Fixed by moving the colors, not the table—`$ink-light`/`$ink-dark` are referenced directly by dozens of rules, so a legend that changed with the theme means every button variant has to know which theme is active.
+3. **Links were illegible on every dark palette**: **2.52:1** default, **1.71:1** high contrast, 2.30:1 colorblind. `$url` was an alias of `$disabled`, and those agree on a white page and are opposites on a near-black one—one is a sign FIELD carrying a white legend, the other is TEXT on the page. `$url` now lifts 30% on the dark scheme; `$disabled` does not move, because a sign field is scheme-invariant.
+4. **`$pending` and `$label` were 2.24:1 and 2.44:1 on high contrast.** A relative step off a field that the theme had lightened. They take an absolute lightness now (`-tone()`), which leaves the default palette **byte-identical** and puts high contrast at 4.71:1.
+
+Two more things the audit surfaced on the way: `color.adjust()` does not clamp at zero, so the colorblind dark palette was emitting `hsl(…, -3.04%)` for `--gpx-l45` and a browser was silently painting it black; and `contrast()` could not read `rgb(60%, …)`, which is how Sass writes anything `color.adjust()` produced—so the two tokens most likely to have a contrast problem were the two it could not measure.
+
+**The two data URIs are answered rather than open.** The sign arrow's baked `%23fff` is a LEGEND, and a legend is scheme-invariant—`$ink-light` is a literal `#ffffff` in all six palettes and the test keeps it that way. The builder pencil's `%23777777` is luck, not design: it is `$neutral-50` on the light ramp and the dark ramp puts that one step away, so the same literal reads on both. The test measures that exact literal in all six, so re-spacing the ramp flags it.
+
+### /brand had gone to zero color tokens and nobody noticed
+
+**A regression this branch shipped.** `/brand` parses `_tokens.scss` and decides "is this a color" with a regex; the theme engine turned every token there into `var(--x)`, so the page rendered **0 color tokens** on a branch whose entire subject was color. It reads the compiled stylesheet's `:root` block for the values now and shows 76 again. Reading the build rather than re-deriving the palette in TypeScript is deliberate—a second implementation of the color math would disagree eventually, and the disagreement would look like a design decision. `test/tokens.test.ts` pins it.
+
+### Still open on the branch
+
+- **The four record marks are placeholders** awaiting Ziad's drawings. Everything else about #136 is done.
+- **The colorblind theme is still not a claim the app fully honors**, and the palette still says so. The role chart is now a worked example of the fix—icon and label carrying identity, color redundant—but the second-cue audit across the rest of the app has not been run.
+- **Nothing is committed and nothing is pushed.**
+
+### Browser pass, run 2026-08-25
+
+Driven by hand at 1280px and 390px, light and dark, signed in against the local corpus of 17 rides. Role marks, per-role fills, record cards, the count-up, the card grid and the first-run panel all render; no console errors. Two things seen and left: a ride whose thumbnail file is absent locally leaves a grey box of the right shape (a data state on this machine, not a code path), and a long unbroken title like "Davenport/Pescadero" breaks mid-word in the dense track—which is the deliberate trade, since the alternative is a clipped title with no ellipsis reading as a different, shorter place.
 
 ## A time is a time is a time—2026-08-24
 

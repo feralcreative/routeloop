@@ -59,7 +59,10 @@ export type NavKey =
   | 'home'
   | 'explore'
   | 'riders'
-  | 'rides'
+  // No 'rides' member. It was removed on 2026-08-24 when /rides folded into /,
+  // and removing it is the point rather than tidiness: a key no NavItem carries
+  // is an aria-current state that is wired and can never fire, which is exactly
+  // the bug 'home' sat in for months. See docs/main-menu.md.
   | 'builder'
   | 'import'
   | 'places'
@@ -93,6 +96,16 @@ export type PageOpts = {
   head?: string
   /** Extra <script> tags, emitted last. */
   scripts?: string
+  /**
+   * The rider's palette. **Almost nothing passes these** — they come off `user`,
+   * which the session already carries, so every page is themed without its route
+   * knowing. They exist as an override for the one case that needs it: the
+   * preferences page previewing a choice before it is saved.
+   *
+   * Absent on a signed-out request, which renders the default light palette.
+   */
+  theme?: string
+  scheme?: string
   /**
    * Serialized to window.TB via jsonScript.
    *
@@ -141,8 +154,12 @@ export type PageOpts = {
 type NavItem = { key: NavKey; href: string; label: string }
 
 const RIDES_LINKS: NavItem[] = [
-  { key: 'home', href: '/', label: 'Home' },
-  { key: 'rides', href: '/rides', label: 'Your rides' },
+  // ONE ITEM, NOT TWO, since 2026-08-24: `/rides` folded into `/` and the list
+  // now sits under the stats on the same page. Labeled for the destination a
+  // rider actually wants — the group is already called Rides, and "Home" names
+  // a location rather than a purpose. The key stays `home` because the file and
+  // the route did not move; only the label did.
+  { key: 'home', href: '/', label: 'Your rides' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'explore', href: '/explore', label: 'Find a ride' },
   { key: 'import', href: '/import', label: 'Import / Export' },
@@ -233,14 +250,16 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               draws a logo, so there is one answer to "is this a map page" rather
               than two that can disagree.
 
-              Where it goes depends on who is reading: a rider has their own list
-              to go back to, and a visitor who followed a shared link has never
-              seen the site and gets the front page. That is the whole of what
-              `exitHref` used to carry per page, and it is a function of the user
-              alone — which is why the option is gone and this is computed here.
+              It used to branch on the user: a rider went back to `/rides` and a
+              visitor who followed a shared link got the front page. Since
+              /rides folded into / on 2026-08-24 both answers are the same URL,
+              and `/` already serves the right thing to each — the dashboard
+              behind `requireActive`, the splash to everyone else. The branch is
+              gone because there is nothing left for it to decide, not because
+              the distinction stopped mattering.
             */}
             {isMap && (
-              <a class="nav-exit-map" href={user ? '/rides' : '/'}>
+              <a class="nav-exit-map" href="/">
                 Exit map
               </a>
             )}
@@ -707,6 +726,29 @@ export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
   const htmlClass = isMap ? ' class="map-page"' : ''
+
+  // THE TWO APPEARANCE ATTRIBUTES, read by style/_theme.scss.
+  //
+  // Stamped on <html> rather than <body> because the palettes are emitted on
+  // `:root`, and because a custom property has to be defined above everything
+  // that reads one — including the page background, which paints from <html>.
+  //
+  // EACH IS OMITTED WHEN IT WOULD SAY NOTHING, and the two reasons differ. The
+  // default theme is the bare `:root` block, so an attribute would be redundant.
+  // `system` is different and load-bearing: there is no `data-scheme="system"`
+  // rule and there cannot be one, because the server does not know the reader's
+  // OS setting. Absence is what lets `prefers-color-scheme` answer instead — see
+  // schemeAttr() in src/views/appearance.ts and the media block in _theme.scss.
+  //
+  // Server-rendered rather than set by script, so there is no flash of the wrong
+  // palette before the first paint.
+  // Read off the user rather than passed in, so all 32 call sites get it without
+  // being touched — see the note in src/auth/session.ts about why.
+  const u = opts.user as (UserRow & { theme?: string; scheme?: string }) | null
+  const theme = opts.theme ?? u?.theme
+  const scheme = opts.scheme ?? u?.scheme
+  const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
+  const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -717,7 +759,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

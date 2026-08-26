@@ -544,7 +544,7 @@ body.splash-page {
       0 8px 24px rgba(0, 0, 0, 0.3);
 
     &:hover {
-      $lit: color.adjust($interstate, $lightness: -6%);
+      $lit: $interstate-d6;
 
       box-shadow:
         inset 0 0 0 3px $lit,
@@ -595,7 +595,7 @@ body.splash-page {
     }
   }
 
-  // .notice is a SOFT TINT, not a solid block — rgba($gpx, 0.12) behind text
+  // .notice is a SOFT TINT, not a solid block — color-mix(in srgb, $gpx 12%, transparent) behind text
   // colored a darkened $gpx. That is right on the white pages it was built for
   // and wrong here: 12% of anything over moving footage is transparent, and dark
   // green on a bright frame is close to invisible. The comment that used to sit

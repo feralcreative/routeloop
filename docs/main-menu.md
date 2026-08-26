@@ -11,11 +11,10 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 ## The tree
 
 ```text
-Exit map              /rides           (map pages only; / when signed out)
+Exit map              /                (map pages only)
 
 Rides ▾
-  Home                /
-  Your rides          /rides
+  Your rides          /
   Plan a ride         /builder
   Find a ride         /explore
   Import / Export     /import
@@ -70,7 +69,7 @@ The drawer header carried an X beside the collapse button, and Ziad's call is th
 The label everywhere a rider reads it is **Preferences**. The URL is the short form on purpose—it is typed and shared more than it is read, and `/preferences` earns nothing for its extra six characters.
 
 - `/prefs` is canonical and the only URL the app links to or renders.
-- `/settings` and `/preferences` both **301** to it, matching the `/dashboard` → `/rides` precedent at `src/index.tsx:154`.
+- `/settings` and `/preferences` both **301** to it, matching the `/dashboard` precedent in `src/index.tsx`, which now points at `/` since `/rides` folded into it on 2026-08-24.
 - **The POST endpoint is the trap.** `/settings/duration-format` is a form action, and a 301 does not preserve the method—a browser turns the redirected POST into a GET and the save silently does nothing. The form action moves to `/prefs/duration-format`, and the old path either stays mounted as a real alias or redirects **308**, never 301. A rider sitting on a page rendered before the deploy is the case this protects.
 - `settings.tsx` and `settingsRoutes` rename with it, and `NavKey`'s `'settings'` becomes `'prefs'`. `account.tsx` sets that key on three pages and links "Back to settings" twice—that copy becomes "Back to preferences".
 - **Reserve the new names as usernames.** `RESERVED_USERNAMES` in `src/auth/username.ts` holds `dashboard`, `profile`, `builder` and the rest, but **not `settings`**—a live route that was simply missed. Add `prefs`, `preferences` and `settings` while the list is open. Nothing is broken today because no root-level `/:username` route exists yet, which is exactly the window that list says it exists to protect.
@@ -102,6 +101,10 @@ It was on the builder and the viewer only, on the reasoning that those are where
 **[decided, then reversed 2026-08-15] A Home item, first in the Rides group.** The original decision was that the logo links to `/` and that is the convention, so a Home entry would be duplication. That reasoning held only while `/` was a landing page. It is not: `/` is the **dashboard**—hero miles, tiles, the storage meter, the twelve-month chart—and the only way to reach it was a logo nobody reads as "my stats". The tell was in the code: `NavKey` has carried `'home'` since the menu was built and `home.tsx` sets `navKey: 'home'`, but no item ever carried the key, so the `aria-current` state was wired and permanently unreachable.
 
 **[decided 2026-08-15] "Your rides" moved from `/dashboard` to `/rides`.** The old URL described the page as a dashboard when the dashboard is `/`. See the header of `src/routes/rides.tsx`. `/dashboard` 301s to `/rides`.
+
+**[superseded 2026-08-24] `/rides` is folded into `/`, and the two entries above collapse into one.** Ziad's call, answering the third of [#103](https://github.com/feralcreative/routeloop/issues/103)'s four open questions. `/` was the numbers page carrying a six-ride "Picking up where you left off" strip while `/rides` held the full list—two doors onto the same room, which is exactly the thing the 2026-08-15 split was meant to end and only moved. One page now: the stats, then every ride you own. `/rides` 302s to `/`, and `/dashboard` points straight at `/` rather than chaining through it.
+
+**The menu item is labeled "Your rides" and points at `/`.** It keeps the key `home`, because `home.tsx` is still the file and `/` is still the route—only the label changed. "Home" was the wrong word for it once the page absorbed the list: the group is already called Rides, and a menu names destinations by what you want from them rather than by where they sit. The stats are the page's furniture; the rides are the reason to go. **`NavKey` loses `'rides'` entirely** rather than keeping a member no item carries—that is the precise shape of the dead `aria-current` state recorded in the entry above, and leaving it would rebuild the trap the same week it was documented.
 
 **[superseded] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open. **No longer true**—see the two entries below: the page gained its first real setting on 2026-08-15 and is being renamed on 2026-08-16. Kept because it records why the link existed before the page did.
 

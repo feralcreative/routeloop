@@ -10,11 +10,20 @@
 //
 //   - Twistiness rolls up DISTANCE-WEIGHTED, never as an average of averages.
 //   - A null twistiness is "not measured", never "Straight".
-//   - Duration is not reported at all, because the import path never writes it.
+//   - Saddle time is reported, and part of it is an estimate that says so.
 //
-// The last one is the reason there is no "hours in the saddle" figure on the
-// dashboard even though `rides.total_duration_s` exists and looks inviting.
+// THE LAST ONE REVERSED ON 2026-08-24 and the old reasoning is worth keeping,
+// because it was right about the danger and wrong about the remedy. There was no
+// "hours in the saddle" figure at all, on the grounds that the import path never
+// writes a leg duration — so a lifetime total would undercount by however much
+// of the library was imported, silently, and in the FLATTERING direction, which
+// is the kind of wrong nobody reports. The remedy taken was to estimate the
+// missing legs from distance at a nominal speed (src/maps/ride-time.ts), which
+// is what both clients already do, rather than to keep the figure off the page.
+// `SaddleTime.estimated` is the part that keeps it honest: the total covers
+// everything, and the page says when some of it was figured rather than measured.
 import { ROLE_META, type Role } from '../maps/roles'
+import { roleColor } from '../maps/role-colors'
 import { twistLabel } from '../maps/twist'
 
 const METERS_PER_MILE = 1609.344
@@ -37,6 +46,12 @@ export type RawTotals = {
   distanceM: number
   /** Shaping points dragged onto the line, summed across every leg. */
   viaPoints: number
+  /** Seconds in the saddle, summed across every leg, with a leg the router never
+   *  answered for estimated from its distance — see src/maps/ride-time.ts. */
+  durationS: number
+  /** How many of those legs were estimated rather than measured. Zero means the
+   *  whole figure came from the router; anything else is why the page hedges. */
+  estimatedLegs: number
   publicRides: number
   unlistedRides: number
   privateRides: number
@@ -55,15 +70,56 @@ export type RawRole = { role: string; n: number }
 /** One row per month that had at least one ride created. */
 export type RawMonth = { month: string; n: number }
 
+/**
+ * The four records, each with the ride that holds it.
+ *
+ * EVERY record names a ride, which two of them did not until 2026-08-26. The
+ * longest day and the twistiest stretch were `max()` aggregates, so the figure
+ * arrived with no way back to the road it was set on — fine while a record was
+ * four words and a numeral, and not fine once each one shows its map. query.ts
+ * resolves both with an ordered `limit 1` now, the same shape the two "best
+ * ride" records always used.
+ *
+ * `*Thumb` is `rides.thumb_hash`, and null is a NORMAL value rather than an
+ * error: the sweep may not have reached a new ride yet, and a ride with no
+ * geometry never gets a picture at all. The card draws its own accent instead.
+ */
 export type RawRecords = {
   longestDayM: number | null
+  longestDayTitle: string | null
+  longestDaySlug: string | null
+  longestDayThumb: string | null
   biggestRideM: number | null
   biggestRideTitle: string | null
   biggestRideSlug: string | null
+  biggestRideThumb: string | null
   bestTwistDpm: number | null
+  bestTwistSlug: string | null
+  bestTwistThumb: string | null
   mostViewed: number | null
   mostViewedTitle: string | null
   mostViewedSlug: string | null
+  mostViewedThumb: string | null
+}
+
+/**
+ * Average and highest across every rider, for one metric.
+ *
+ * Both are per-RIDER figures: the average number of rides a rider has, and the
+ * most any one of them has — not an average over rides, which would be a
+ * different and far less interesting number.
+ *
+ * Declared here rather than in query.ts because query.ts already imports this
+ * file for ACTIVITY_MONTHS and the Raw* types, and the dependency has to run one
+ * way. Same reason RawTotals lives here.
+ */
+export type RawSpread = { avg: number; top: number }
+
+export type RawGlobal = {
+  rides: RawSpread
+  days: RawSpread
+  legs: RawSpread
+  points: RawSpread
 }
 
 export type RawStats = {
@@ -82,6 +138,37 @@ export const miles = (m: number): number => m / METERS_PER_MILE
 export const fmtMiles = (m: number): string => Math.round(miles(m)).toLocaleString('en-US')
 
 export const fmtCount = (n: number): string => n.toLocaleString('en-US')
+
+/**
+ * An average count, for the comparison column beside a rider's own figure.
+ *
+ * ONE DECIMAL, AND ONLY WHEN IT SAYS SOMETHING. "6.7 rides" is a real difference
+ * from 6; "13.0 days" is 13 with a decorative zero on it. Rounding everything to
+ * a whole number instead would be worse in the other direction — in a cohort this
+ * small the averages are single digits, and "7" against a rider's own "7" reads
+ * as a tie when they are actually ahead.
+ *
+ * Rounds before testing for a fraction, so 12.98 prints as 13 rather than as
+ * "13.0".
+ */
+export function fmtAvg(n: number): string {
+  const r = Math.round(n * 10) / 10
+  return Number.isInteger(r) ? fmtCount(r) : r.toFixed(1)
+}
+
+/**
+ * A lifetime total of riding time, as hours.
+ *
+ * HOURS AND NOTHING SMALLER, unlike the roadbook's `fmtDuration`, which prints
+ * "4h 20m" for a single day. A minute is real information about one day and
+ * noise across a hundred — "312h 47m" invites a precision the underlying figure
+ * does not have, since some unknown share of it is estimated from distance.
+ *
+ * Deliberately not routed through src/maps/duration.ts either. That module
+ * formats a rider's own typed dwell in whichever of three formats they picked,
+ * and this is a derived aggregate rather than a value they entered.
+ */
+export const fmtHours = (seconds: number): string => fmtCount(Math.round(seconds / 3600))
 
 /**
  * Bytes as something a person reads.
@@ -131,7 +218,17 @@ export function rollUpTwist(rows: readonly RawTwist[]): TwistRollup {
 
 // --- The stop histogram ------------------------------------------------------
 
-export type RoleBar = { role: string; label: string; icon: string; n: number; share: number }
+export type RoleBar = {
+  role: string
+  label: string
+  icon: string
+  /** The categorical hue, from src/maps/role-colors.ts. Null for a role that is
+   *  in ROLE_META but has no color, which is a taxonomy bug rather than a state
+   *  the page should paper over — see roleColor(). */
+  color: string | null
+  n: number
+  share: number
+}
 
 /**
  * Roles that describe the shape of a route rather than a choice the rider made.
@@ -166,6 +263,7 @@ export function roleBars(rows: readonly RawRole[]): RoleBar[] {
       role: r.role,
       label: ROLE_META[r.role as Role].title,
       icon: ROLE_META[r.role as Role].icon,
+      color: roleColor(r.role),
       n: r.n,
       share: max === 0 ? 0 : r.n / max,
     }))
@@ -214,15 +312,84 @@ export function monthSeries(rows: readonly RawMonth[], now: Date, count = ACTIVI
 
 // --- The whole page ----------------------------------------------------------
 
-export type Tile = { label: string; value: string; hint?: string }
+/**
+ * One KPI tile: the rider's own figure, and optionally what everyone else has.
+ *
+ * `spread` is absent rather than zeroed when there is nothing to compare against
+ * — the "roads you insisted on" tile has no global equivalent, and a tile
+ * claiming an average of 0 would be making a measurement it never took.
+ */
+export type Tile = {
+  label: string
+  value: string
+  hint?: string
+  spread?: { avg: string; top: string }
+}
 
 export type Meter = { usedBytes: number; quotaBytes: number; pct: number; used: string; quota: string } | null
 
+/**
+ * One entry in "Your records" — the most celebratory block on the page, which
+ * for a long time looked like the least (#136).
+ *
+ * NOT `Tile`, and the split is what the treatment needed. A tile is a count with
+ * a cohort comparison under it; a record is a single figure that should be read
+ * from across the room, and the two want opposite type sizes. Sharing the type
+ * meant sharing `value: string` — one pre-formatted "482 mi" — which is exactly
+ * what stopped the numeral being set large and the unit small.
+ *
+ * `numeric` is the field doing the work. Two of the four records are figures and
+ * two are words: "Twistiest 20 miles" is a label like "Serpentine" and "Most
+ * opened" is a ride's title, and either one set at the numeral's size would be a
+ * headline running off the card. It also gates the count-up in dashboard.js,
+ * which has nothing to count on a word.
+ *
+ * `kind` is the one identifier the view needs and it drives two things — which
+ * mark is drawn (`icon-record-<kind>.svg`) and which accent the card takes. One
+ * field rather than an icon name beside a color name, so a fifth record cannot
+ * arrive with a mark and no accent. Four fixed kinds, no logic; the records are
+ * a closed set.
+ */
+export type RecordKind = 'distance' | 'ride' | 'twist' | 'views'
+
+export type RecordTile = {
+  label: string
+  value: string
+  /** Set apart from `value` so the numeral takes the large size and the unit does
+   *  not. Absent when the value is a word, which has no unit to split off. */
+  unit?: string
+  hint?: string
+  kind: RecordKind
+  numeric: boolean
+  /** The ride the record was set on, so the card can show its map and link to
+   *  it. Absent only when the record has no ride at all, which no longer
+   *  happens for any of the four — kept optional so a fifth record can arrive
+   *  without one rather than being forced to invent a slug. */
+  slug?: string
+  /** `rides.thumb_hash`, which is both the picture's cache key and whether there
+   *  is a picture. Absent means draw the accent, not an error — see RawRecords. */
+  thumbHash?: string
+}
+
 export type VisibilitySplit = { key: 'public' | 'unlisted' | 'private'; label: string; n: number; pct: number }[]
+
+/**
+ * Time in the saddle, and how much of it is a guess.
+ *
+ * `estimated` is not decoration: a rider whose library is all imports has a
+ * figure derived entirely from distance at a nominal speed, and one who plans
+ * everything in the builder has a figure the router measured. The same number
+ * means different things and the page has to say which.
+ *
+ * Null when there is no riding time at all, so a rider with rides but no legs
+ * gets nothing rather than a confident zero.
+ */
+export type SaddleTime = { hours: string; estimated: boolean; note: string } | null
 
 export type DashboardStats = {
   hasRides: boolean
   heroMiles: string
+  saddle: SaddleTime
   tiles: Tile[]
   meter: Meter
   twist: TwistRollup
@@ -230,26 +397,47 @@ export type DashboardStats = {
   rolesExceedPoints: boolean
   months: MonthPoint[]
   visibility: VisibilitySplit
-  records: Tile[]
-  /** True when used_bytes disagrees with the authoritative sum. Surfaced quietly;
-   *  the cache has no reconciler and this is the first thing able to notice. */
+  records: RecordTile[]
+  /** True when used_bytes disagrees with the authoritative sum. Surfaced quietly.
+   *  src/account/quota-sweep.ts repairs the tally on a timer as of 2026-08-24, so
+   *  this is no longer the only thing that can notice — it is the one that can say
+   *  which rider and which page. */
   storageDrift: boolean
 }
 
-export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): DashboardStats {
+/**
+ * `global` is optional so a caller with nothing to compare against still works.
+ * The comparison columns are decoration: a dashboard that renders without them
+ * is a worse page, not a broken one, and this signature says so rather than
+ * making every call site invent a zeroed spread.
+ */
+export function shapeStats(
+  raw: RawStats,
+  cachedUsedBytes: number,
+  now: Date,
+  global?: RawGlobal,
+): DashboardStats {
   const t = raw.totals
   const hasRides = t.rides > 0
 
+  // Absent rather than zeroed when there is no cohort figure — see the Tile type.
+  const spread = (s: RawSpread | undefined) => (s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top) } : undefined)
+
   const tiles: Tile[] = [
-    { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides) },
-    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days) },
-    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs) },
+    { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides), spread: spread(global?.rides) },
+    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days), spread: spread(global?.days) },
+    // LEGS IS ON THIS LIST KNOWINGLY. A leg is an internal artifact, one per pair
+    // of consecutive points, and it is not a unit any rider thinks in. It was put
+    // in the scope deliberately on 2026-08-16 rather than by omission, so it is
+    // not to be quietly dropped as a cleanup.
+    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs), spread: spread(global?.legs) },
     {
       label: t.points === 1 ? 'waypoint' : 'waypoints',
       value: fmtCount(t.points),
       // Named because rides.stop_count would give a different, smaller number and
       // someone will eventually wonder why the two disagree.
       hint: `${fmtCount(t.stops)} stops, ${fmtCount(t.pois)} points of interest`,
+      spread: spread(global?.points),
     },
   ]
 
@@ -284,33 +472,99 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date): D
   ).map((v) => ({ ...v, pct: visTotal === 0 ? 0 : (v.n / visTotal) * 100 }))
 
   const r = raw.records
-  const records: Tile[] = []
+  const records: RecordTile[] = []
+  // `ride()` is what puts the map on the card: a slug and a hash, or neither.
+  // Spread rather than assigned so an absent slug leaves the key off entirely —
+  // `slug: undefined` would satisfy the type and then serialize into the payload
+  // as a key that exists and means nothing.
+  const ride = (slug: string | null, thumb: string | null) => ({
+    ...(slug ? { slug } : {}),
+    ...(slug && thumb ? { thumbHash: thumb } : {}),
+  })
+
   if (r.longestDayM != null && r.longestDayM > 0) {
-    records.push({ label: 'Longest single day', value: `${fmtMiles(r.longestDayM)} mi` })
+    records.push({
+      label: 'Longest single day',
+      value: fmtMiles(r.longestDayM),
+      unit: 'mi',
+      // The ride's title, which this record did not carry before it had a
+      // picture. A map with no name, on a card that links somewhere, asks the
+      // rider to recognize their own route from 320 pixels of road.
+      hint: r.longestDayTitle ?? undefined,
+      kind: 'distance',
+      numeric: true,
+      ...ride(r.longestDaySlug, r.longestDayThumb),
+    })
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
       label: 'Biggest ride',
-      value: `${fmtMiles(r.biggestRideM)} mi`,
+      value: fmtMiles(r.biggestRideM),
+      unit: 'mi',
       hint: r.biggestRideTitle ?? undefined,
+      kind: 'ride',
+      numeric: true,
+      ...ride(r.biggestRideSlug, r.biggestRideThumb),
     })
   }
   // bestTwistDpm is the best 20-mile stretch any route has, not a sum: "somewhere
   // in your library there are twenty miles like that".
+  //
+  // The value is a WORD — twistLabel returns "Serpentine", not a number — so this
+  // one takes the text treatment and the degrees-per-mile figure stays in the
+  // hint, where it already was. Putting the number in `value` instead would read
+  // as a better record than the label it replaced, and it is the same fact.
   const bestLabel = twistLabel(r.bestTwistDpm)
   if (r.bestTwistDpm != null && bestLabel) {
-    records.push({ label: 'Twistiest 20 miles', value: bestLabel, hint: `${r.bestTwistDpm}°/mi of heading change` })
+    records.push({
+      label: 'Twistiest 20 miles',
+      value: bestLabel,
+      hint: `${r.bestTwistDpm}°/mi of heading change`,
+      kind: 'twist',
+      numeric: false,
+      ...ride(r.bestTwistSlug, r.bestTwistThumb),
+    })
   }
+  // The count lives in the LABEL here and the ride's title is the value, which is
+  // backwards from the other three and is deliberate: the record is which ride,
+  // and the number is how the record was won. #136 was explicitly a visual pass
+  // with no copy changes, so this stayed as it reads today.
   if (r.mostViewed != null && r.mostViewed > 0) {
     records.push({
       label: r.mostViewed === 1 ? 'Most opened, once' : `Most opened, ${fmtCount(r.mostViewed)} times`,
       value: r.mostViewedTitle ?? 'a ride',
+      kind: 'views',
+      numeric: false,
+      ...ride(r.mostViewedSlug, r.mostViewedThumb),
     })
   }
+
+  // WITHHELD UNTIL 2026-08-24, and the reason it is here now is that the
+  // undercount was fixed rather than accepted. The objection was real: the
+  // import path never writes a leg duration, so summing duration_s alone
+  // reported the builder's rides and counted every imported one as zero —
+  // silently, and in the flattering direction, which is the failure mode nobody
+  // catches. query.ts now applies the same distance-based estimate both clients
+  // apply, so the total covers the whole library.
+  //
+  // What it costs is that some of the figure is a guess, and `estimated` is how
+  // the page admits that rather than hiding it.
+  const saddle: SaddleTime =
+    t.durationS > 0
+      ? {
+          hours: fmtHours(t.durationS),
+          estimated: t.estimatedLegs > 0,
+          note:
+            t.estimatedLegs > 0
+              ? 'Part estimated: an imported ride carries no timings, so those legs are figured from distance.'
+              : 'Measured by the router, leg by leg.',
+        }
+      : null
 
   return {
     hasRides,
     heroMiles: fmtMiles(t.distanceM),
+    saddle,
     tiles,
     meter,
     twist: rollUpTwist(raw.twist),

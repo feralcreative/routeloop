@@ -85,7 +85,7 @@
   color: $ink-dark;
 
   &:hover {
-    background: color.adjust($gpx, $lightness: 8%);
+    background: $gpx-l8;
   }
 }
 
@@ -93,7 +93,7 @@
   background: $kml;
 
   &:hover {
-    background: color.adjust($kml, $lightness: -8%);
+    background: $kml-d8;
   }
 }
 
@@ -104,23 +104,23 @@
 // 4.6:1. The pills are text on a tint rather than a legend on a field, so the
 // ink pairing does not apply — they need a darkened step either way.
 .pill.is-active {
-  background: rgba($gpx, 0.15);
-  color: color.adjust($gpx, $lightness: -14%);
+  background: color-mix(in srgb, $gpx 15%, transparent);
+  color: $gpx-d14;
 }
 
 .pill.is-pending {
-  background: rgba($pending, 0.16);
+  background: color-mix(in srgb, $pending 16%, transparent);
   color: $pending;
 }
 
 .pill.is-blocked {
-  background: rgba($kml, 0.14);
-  color: color.adjust($kml, $lightness: -6%);
+  background: color-mix(in srgb, $kml 14.000000000000002%, transparent);
+  color: $kml-d6;
 }
 
 .pill.is-manager {
-  background: rgba($brand, 0.14);
-  color: color.adjust($brand, $lightness: -6%);
+  background: color-mix(in srgb, $brand 14.000000000000002%, transparent);
+  color: $brand-d6;
 }
 
 // The admin overview. Four destinations, each with the one fact worth knowing

@@ -1,7 +1,24 @@
 @use "sass:color";
 
-// Design tokens. Every name that existed before the partial split is preserved
-// verbatim so no rule had to be rewritten when it moved.
+// Design tokens: the PUBLIC NAMES. Every value lives in _palette.scss.
+//
+// Each token below is a `var(--x)` reference rather than a color, which is the
+// single trick that made a runtime theme possible without touching the ~950
+// places that use one. A rule still says `background: $stop`; it now compiles to
+// `background: var(--stop)` and picks up whichever of the six palettes is active.
+//
+// WHAT THIS FILE IS NOW: names, and the reasoning about what each name is FOR.
+// The long comments below are the valuable part and were left exactly where they
+// were — they explain the ink-pairing table, why $warning and $yield are two
+// different yellows, why $concrete comes off the neutral scale. Read them here;
+// read _palette.scss for what the numbers actually are in each theme.
+//
+// THE ONE RULE WHEN ADDING A TOKEN: it has to exist in _palette.scss too, or this
+// emits a `var()` that resolves to nothing and the property silently drops. There
+// is no build error for that — the name is a string on both sides.
+//
+// Non-color tokens ($font, the $z-* stack) stay real Sass values. They do not
+// vary by theme and a custom property would buy nothing.
 
 // Color Variables
 
@@ -25,19 +42,19 @@
 // The step from -76 to -88 is 12, double the rest. That gap is real: the app has
 // text greys and surface greys and nothing that wants to live between them. Fill
 // it if something ever does, rather than pretending the ramp is even up there.
-$neutral-21: #333333;
-$neutral-29: #444444;
-$neutral-36: #555555;
-$neutral-43: #666666;
-$neutral-50: #777777;
-$neutral-57: #888888;
-$neutral-63: #999999;
-$neutral-70: #aaaaaa;
-$neutral-76: #bbbbbb;
-$neutral-88: #dddddd;
-$neutral-94: #eeeeee;
-$neutral-96: #f4f4f4;
-$neutral-98: #fafafa;
+$neutral-21: var(--neutral-21);
+$neutral-29: var(--neutral-29);
+$neutral-36: var(--neutral-36);
+$neutral-43: var(--neutral-43);
+$neutral-50: var(--neutral-50);
+$neutral-57: var(--neutral-57);
+$neutral-63: var(--neutral-63);
+$neutral-70: var(--neutral-70);
+$neutral-76: var(--neutral-76);
+$neutral-88: var(--neutral-88);
+$neutral-94: var(--neutral-94);
+$neutral-96: var(--neutral-96);
+$neutral-98: var(--neutral-98);
 
 // The road-sign palette. Named for what each color is on a road rather than for
 // where it is used in the app, so a name stays true when a component moves.
@@ -67,19 +84,19 @@ $neutral-98: #fafafa;
 // as. $neutral-57 is the nearest step (dE 3.4, against 5.1 for -50) and the
 // better one on the other axis too: its black legend measures 5.9:1 where the
 // sampled value managed 5.5:1.
-$interstate: #266149;
-$speed: #efefef;
-$stop: #dd0000;
-$detour: #f56100;
-$warning: #ffac00;
-$yield: #ffdd00;
-$go: #41ae4d;
-$disabled: #0a539c;
-$recreation: #603d15;
-$tarmac: #291507;
-$concrete: $neutral-57;
-$white: #ffffff;
-$black: #000000;
+$interstate: var(--interstate);
+$speed: var(--speed);
+$stop: var(--stop);
+$detour: var(--detour);
+$warning: var(--warning);
+$yield: var(--yield);
+$go: var(--go);
+$disabled: var(--disabled);
+$recreation: var(--recreation);
+$tarmac: var(--tarmac);
+$concrete: var(--concrete);
+$white: var(--white);
+$black: var(--black);
 
 // WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
 // from the contrast numbers — it is copied off the signs the palette was sampled
@@ -111,23 +128,23 @@ $black: #000000;
 //
 // The two ink tokens are declared below, beside the rest of the semantic set.
 
-$url: $disabled;
+$url: var(--url);
 // The semantic tokens below now take their value from the road-sign palette
 // instead of holding one of their own. Where a token is only ever a fill, it
 // points straight at a palette entry. Where it is TEXT, it points at a darkened
 // palette entry instead, because several of these colors cannot carry or sit
 // under type at 4.5:1 as drawn — that is a property of the palette, not a
 // disagreement with it, and deriving keeps one source per hue.
-$gpx: $go;
-$kml: $stop;
+$gpx: var(--gpx);
+$kml: var(--kml);
 // Both were literals that happened to sit exactly on the neutral scale — #ddd
 // is $neutral-88 and #333 is $neutral-21, to the byte. Pointing at the step
 // rather than repeating the hex costs nothing and means the scale is the only
 // place a grey is written down. They keep their own names because those names
 // say what they are FOR, which a number never will: $text is body copy, $grey is
 // a border.
-$grey: $neutral-88;
-$text: $neutral-21;
+$grey: var(--grey);
+$text: var(--text);
 
 // The two legends, named for the job rather than the color, so a rule reads as
 // "this field takes the dark ink" rather than as a color choice someone is free
@@ -141,8 +158,8 @@ $text: $neutral-21;
 // are 1.2:1 apart and indistinguishable as ink; $black is simply the honest
 // name for the job now that it exists. $tarmac stays what it always was, a
 // FIELD — the black sign panel, which takes the white legend.
-$ink-light: $white;
-$ink-dark: $black;
+$ink-light: var(--ink-light);
+$ink-dark: var(--ink-dark);
 // Rider-approval "waiting" state on the admin panel. Amber reads as attention-
 // needed without the alarm of $kml, and stays legible as dark-on-tint.
 //
@@ -155,9 +172,9 @@ $ink-dark: $black;
 // amber, so this value did not move, while the same expression against the new
 // brighter $yield lands on 3.7:1 and fails. Whenever a token here is text, it
 // derives from the amber.
-$pending: color.adjust($warning, $lightness: -20%);
-$panel-bg: rgba(255, 255, 255, 0.9);
-$panel-shadow: rgba(0, 0, 0, 0.18);
+$pending: var(--pending);
+$panel-bg: var(--panel-bg);
+$panel-shadow: var(--panel-shadow);
 // Unquoted to match every other token here; CSS family names are case-
 // insensitive identifiers, so this matches the "Overpass" the @font-face in
 // _fonts.scss declares.
@@ -178,7 +195,7 @@ $font: overpass;
 
 // Forward-looking alias. `$url` is historical — it is the generic accent, not a
 // link color — so new work should reach for `$brand`.
-$brand: $url;
+$brand: var(--brand);
 
 // The four variable parts of a structured route filename, on /import: each one
 // carries its color from the example line down to the definition that explains
@@ -201,24 +218,118 @@ $brand: $url;
 // All four still clear 4.5:1 on that tint. The definitions stay in the order of
 // the example and still name their field in words, because color cannot be the
 // only cue — red and amber converge under protanopia.
-$ride: $url;
-$day: $stop;
-$date: $interstate;
-$label: color.adjust($warning, $lightness: -22%);
+$ride: var(--ride);
+$day: var(--day);
+$date: var(--date);
+$label: var(--label);
+
+// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` used to appear
+// in eighteen places and every one of them broke silently the moment tokens
+// became `var()` references: Sass passes the call through untouched, so it
+// compiled to `rgba(var(--brand), 0.06)`, which is not valid CSS and drops the
+// declaration. Nothing warns — the build succeeds and the tint is simply gone.
+//
+// A tint is written `color-mix(in srgb, $brand 6%, transparent)` instead, which
+// takes a custom property and themes with it. The same rule covers any future
+// mix, fade or adjust: if Sass has to compute it, it needs a real color, and the
+// only real colors left are in _palette.scss.
+
+// --- THE DERIVED SET --------------------------------------------------------
+//
+// Every color the stylesheets used to compute inline with `color.adjust()`, now
+// named. There were about fifty such expressions across thirteen files before
+// 2026-08-24, and they were promoted for one reason: **a color that is computed
+// at build time cannot be re-computed when a theme changes at runtime.** Sass
+// runs once; a custom property switches on an attribute. Anything that has to
+// differ between the six palettes therefore has to exist as its own token, and
+// this is that list.
+//
+// NAMED FOR WHERE THEY LAND, NOT FOR WHAT THEY DO: `$gpx-d14` is $gpx darkened
+// 14%. That is a deliberate retreat from how the rest of this file names things,
+// and it is worth saying why, because the header above rightly criticizes scales
+// numbered by arithmetic. Thirty semantic names would have to be invented at
+// once, for roles that overlap — $gpx carried muted text at both -12% and -14%,
+// and body text was muted at six different lightnesses. Inventing thirty names
+// for distinctions nobody had articulated is how you get names that lie. These
+// say exactly what they are and nothing more.
+//
+// **THE VALUES ARE UNCHANGED AND THAT WAS THE POINT.** This promotion compiled
+// byte-for-byte identical CSS — Ziad's call on 2026-08-24, choosing a provable
+// refactor over a tidier one. Collapsing the near-duplicates (six muted greys
+// into three, four tints into two) is a real improvement and a separate decision,
+// because it moves pixels and wants a browser pass of its own.
+//
+// WHEN THE SCHEME AXIS LANDS, EACH OF THESE HAS TO BE CLASSIFIED. A token that
+// exists for legibility — muted text, a hover state that must keep its contrast
+// — flips direction on a dark ground, because a derivation that darkens to stay
+// readable on white has to lighten to stay readable on near-black. A token that
+// is decorative may not flip. That classification is the real work of the theme
+// axis and it is not done here; this file only makes it possible.
+
+// Body text, muted. Six steps, which is what the app actually used rather than a
+// designed ramp. All are `$text` lightened, so all six flip to darkening under a
+// dark scheme.
+$text-l15: var(--text-l15);
+$text-l20: var(--text-l20);
+$text-l25: var(--text-l25);
+$text-l30: var(--text-l30);
+$text-l35: var(--text-l35);
+$text-l40: var(--text-l40);
+
+// Borders and surface fills either side of $grey.
+$grey-d3: var(--grey-d3);
+$grey-d5: var(--grey-d5);
+$grey-d8: var(--grey-d8);
+$grey-l6: var(--grey-l6);
+$grey-l8: var(--grey-l8);
+
+// The GPX green: a hover fill, a pale tint, two text shades and an edge.
+$gpx-l8: var(--gpx-l8);
+$gpx-l45: var(--gpx-l45);
+$gpx-d12: var(--gpx-d12);
+$gpx-d14: var(--gpx-d14);
+$gpx-d20: var(--gpx-d20);
+
+// The KML red, same shape.
+$kml-d6: var(--kml-d6);
+$kml-d8: var(--kml-d8);
+$kml-d10: var(--kml-d10);
+$kml-d20: var(--kml-d20);
+
+// The accent blue. The three tints are within 9% of each other and are three
+// different surfaces that were each tuned alone — a candidate for collapsing
+// later, recorded here rather than fixed now.
+$url-l43: var(--url-l43);
+$url-l46: var(--url-l46);
+$url-l52: var(--url-l52);
+$url-d8: var(--url-d8);
+$url-d10: var(--url-d10);
+$url-d20: var(--url-d20);
+
+// $brand is an alias of $url, so this is the same hue as the three above. It
+// keeps its own name because the rule that uses it reaches for $brand, and a
+// rule saying $url-d6 would read as a link color.
+$brand-d6: var(--brand-d6);
+
+// Two hover states on sign-green and sign-red fields. Both DARKEN, which is
+// correct for a white-legend field and is the trap the ink-pairing note above
+// describes: a black-legend field must lighten on hover instead.
+$interstate-d6: var(--interstate-d6);
+$stop-d8: var(--stop-d8);
 
 // Google Blue, for the sign-in button's hover and focus edge. Sourced from
 // Google's own brand palette rather than picked by eye, because it sits beside
 // their mark and an approximation reads as a knock-off.
-$google-blue: #4285f4;
+$google-blue: var(--google-blue);
 
 // The three contact marks on the alpha modal, in each service's own brand
 // color. Literals rather than anything derived from the palette for the same
 // reason $google-blue is one: they sit under recognizable logos and are not
 // ours to harmonize. Nothing else in the app should reach for these — a
 // Routeloop surface that wants blue wants $url.
-$github: #181717;
-$signal: #3a76f0;
-$discord: #5865f2;
+$github: var(--github);
+$signal: var(--signal);
+$discord: var(--discord);
 
 // Chosen as the only accent legible over the sign-in clip. It was originally
 // lifted from the Routeloop wordmark's dashed center line, became a standalone
@@ -231,10 +342,22 @@ $discord: #5865f2;
 // keeping a second copy means the two cannot drift apart silently; if the
 // wordmark is ever redrawn in a different yellow, THAT is when this gets its own
 // value back, and the comment above says why it would deserve one.
-$accent: $yield;
+$accent: var(--accent);
 
 // Base for the dark, full-bleed sign-in page: what shows under the video before
 // a frame decodes, and the color every scrim over it is mixed from.
+// A REAL COLOR, not a var(), and the only token here that stays one.
+//
+// The sign-in page is dark in every theme and every scheme by design — it is a
+// full-bleed video with a scrim over it, not a themed surface — so this never
+// varies and has nothing to gain from the indirection. It also cannot have it:
+// _splash.scss mixes three scrims from this value with `color.change($x, $alpha:
+// 0.78)`, which is a BUILD-TIME operation and cannot be applied to a `var()`.
+//
+// That is the general rule this one token illustrates: anything still computed
+// by Sass must hold a real color, and anything that varies at runtime must not
+// be computed by Sass. See _palette.scss, which is where the ~50 derivations that
+// had to move ended up.
 $splash-ink: #0a0e11;
 
 // The stacking order used to be magic numbers spread across three files. The

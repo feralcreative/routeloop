@@ -16,6 +16,38 @@
   padding: 2rem;
 }
 
+// A page laid out as two columns of independent blocks—settings sections on
+// /prefs, fieldsets on /profile. Each cell keeps its own height, so the shorter
+// column simply ends early instead of stretching to match its neighbor.
+//
+// THE COLUMN COUNT IS DECIDED BY THE VIEWPORT AND NOTHING ELSE. An `auto-fit` /
+// `minmax()` track list would let the CONTENT decide it, which is the
+// jumping-layout failure #130 names: a block must not change size as its value
+// changes. A media query cannot do that—every viewport has exactly one answer.
+//
+// Two columns start at 992px because that is where `.page-wrap` has reached its
+// 960px cap and stopped growing, which puts ~430px in each column. Below it the
+// wrap is still shrinking and a radio row carrying a worked example reads
+// cramped at half of it.
+.two-col {
+  display: grid;
+  gap: 2.5rem 2rem;
+  align-items: start;
+}
+
+//@ LG ≥992px — .page-wrap is at its cap, so there is room for a second column.
+@media (min-width: 992px) {
+  .two-col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+// A child that spans whatever the column count is: a submit row, or a note
+// belonging to the whole form rather than to one column of it.
+.two-col > .full-span {
+  grid-column: 1 / -1;
+}
+
 body {
   background: $neutral-96;
 }
@@ -60,7 +92,7 @@ h1 {
   cursor: pointer;
 
   &:hover {
-    background: color.adjust($url, $lightness: -8%);
+    background: $url-d8;
   }
 
   &:disabled {
@@ -211,6 +243,15 @@ $sign-arrow-bearings: (
   // ever changes the legend color. `%23` is a literal `#` — unencoded, the
   // browser reads the rest of the data URI as a fragment and the arrow vanishes.
   //
+  // AND IT SURVIVES THE THEME UNCHANGED, which was an open question when the six
+  // palettes landed and is now answered rather than left pending: a data URI
+  // cannot carry a custom property, so a baked color there can only be right if
+  // the color it bakes is scheme-invariant. This one is. The arrow is a LEGEND on
+  // a sign field, and a legend does not follow the page — $ink-light is a literal
+  // #ffffff in all six palettes, for the same reason a yield sign still takes
+  // black ink at night. See the note on the two legends in _palette.scss, and the
+  // assertion in test/palette-contrast.test.ts that keeps them literal.
+  //
   // `top` undoes the padding nudge for the arrow alone, so the legend moves and
   // the arrow stays centered — its drawn shape is symmetric about its box, so
   // centered is already right for it. Relative offset rather than a negative
@@ -301,7 +342,7 @@ $sign-arrow-bearings: (
   // together — leaving the first at $interstate would show the old green as a
   // hairline outside the keyline.
   &:hover {
-    $lit: color.adjust($interstate, $lightness: -6%);
+    $lit: $interstate-d6;
 
     background: $lit;
     box-shadow:
@@ -419,7 +460,7 @@ $octagon: polygon(
   // carry the field have to move together, or the outer 3px stays bright and
   // shows as a rim.
   &:hover {
-    $lit: color.adjust($stop, $lightness: -8%);
+    $lit: $stop-d8;
 
     background: $lit;
     box-shadow: none;
@@ -461,43 +502,173 @@ ul.cards {
   }
 }
 
-a.card {
-  display: flex;
-  align-items: center;
+// --- Ride cards (#135) -------------------------------------------------------
+//
+// A ride in a list shows its ROUTE, not just its title. The thumbnail was an
+// interim 160x100 chip at the head of a row from the day it shipped (#116) —
+// this is what it was always going to become.
+//
+// A SEPARATE CLASS FROM `ul.cards`, which stays exactly as it was. That one is
+// the generic white-row list and /admin's rider roster and the survey summary
+// both build on it; turning it into a picture grid would have given the roster
+// a column of empty frames.
+//
+// One card, two densities. /explore and a public profile are pages whose whole
+// job is the list, so the card can be large there; the dashboard's own list
+// hangs under eight blocks of stats and takes the dense modifier. Ziad's call,
+// 2026-08-25: one component and a modifier, never two card designs.
+.ride-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  // auto-fill, NOT auto-fit. auto-fit collapses the empty tracks, so a rider
+  // with one ride gets a single card stretched the full width of the page — a
+  // 900px-wide thumbnail of one route. auto-fill keeps the tracks and the card
+  // stays card-sized.
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.ride-cards--dense {
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: 0.75rem;
-  padding: 1rem;
+}
+
+.ride-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: $white;
+  border-radius: 10px;
+  // Clips the face's top corners to the card's radius without a second radius
+  // on the image that would have to be kept in step with this one.
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px color-mix(in srgb, $tarmac 16%, transparent);
+  }
+
+  // Focus lands on the inner <a>, so the ring has to be drawn out here or it
+  // is clipped away by the overflow above.
+  &:focus-within {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+//@ Reduced motion — the lift goes, the shadow stays, so the card still answers
+// the pointer.
+@media (prefers-reduced-motion: reduce) {
+  .ride-card {
+    transition: box-shadow 120ms ease;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.ride-card-link {
+  display: flex;
+  flex-direction: column;
+  // Takes the slack so every card in a row is the same height and the foot of
+  // each one sits on the same line, whatever the title does.
+  flex: 1;
   text-decoration: none;
   color: inherit;
+
+  &:focus-visible {
+    outline: none;
+  }
 }
 
-.swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-}
-
-// The generated route thumbnail, in the swatch's slot. Interim treatment: item
-// 29 turns these rows into a card grid with the picture as the card face, and
-// this is what it looks like until then.
+// The picture, and the card's whole width.
 //
 // `object-fit: cover` matters even though Static Maps renders exactly this
-// aspect: the image is 640x400 for retina and any future change to the render
+// aspect: the source is 640x400 for retina and any future change to the render
 // size would otherwise stretch rather than crop. `box-sizing` because there is
 // no global border-box reset in this stylesheet — see AGENTS.md.
-// 160x100 has a floor under it rather than being a taste value: Google's
+//
+// THE SIZE HAS A FLOOR UNDER IT rather than being a taste value: Google's
 // required attribution is drawn at a fixed pixel size, so the smaller this box
 // is the more of the picture the wordmark and the "Map data ©" line occupy. At
-// 64px they were most of it. The source is 640x400, so this is still a 4x
-// downscale and sharp on any display.
-.card-thumb {
+// 64px they were most of it. The dense track is 11rem, so the narrowest face
+// this renders is ~176px — wider than the 160px chip it replaced.
+.ride-card-face {
   box-sizing: border-box;
-  width: 160px;
-  height: 100px;
-  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
   object-fit: cover;
-  border-radius: 6px;
   background: $neutral-96;
+}
+
+// The fallback, when a ride has not been swept yet or has no geometry to draw.
+// A flat field of the day color at the same size as a picture — a card that is
+// short where its neighbors have a face reads as broken rather than as pending.
+// The color block standing in for a picture. The day color arrives inline; this
+// is the fallback for a ride that has no color either.
+//
+// A LITERAL AND NOT A TOKEN, deliberately: `#0000cc` is the schema default for
+// `days.color` and it is not a design decision this stylesheet gets to make — a
+// themed token here would draw a blank card in a color no day in the database
+// has. It moved out of cards.tsx on 2026-08-26 so a record card, which has no day
+// color to inherit, could fall back to its own accent instead.
+.ride-card-face.is-blank {
+  aspect-ratio: 16 / 10;
+  background: #0000cc;
+}
+
+.ride-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  flex: 1;
+}
+
+.ride-card-title {
+  font-weight: 600;
+  line-height: 1.25;
+  // Two lines, then ellipsis. Titles are not length-limited, and one long one
+  // must not make its whole row taller than the rest.
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  // Breaks mid-word rather than running past the card's edge. The case is a long
+  // token with no space in it — "Davenport/Pescadero overnighter" is one
+  // 19-character word in an 11rem track — and ride titles are a rider's own text,
+  // which routinely slashes two place names together.
+  //
+  // IT IS AN UGLY BREAK AND IT IS THE BETTER ONE. Without this the word overflows
+  // and is clipped by the line clamp with no ellipsis, so the title reads as a
+  // different, shorter place. A visible break says the name continues; silent
+  // truncation says it does not.
+  overflow-wrap: anywhere;
+}
+
+.ride-card-meta {
+  font-size: 0.85em;
+  color: $neutral-57;
+}
+
+// Owner-only: the visibility pill and the edit link. OUTSIDE the card's anchor,
+// because an <a> inside an <a> is invalid and browsers recover by closing the
+// outer one early — see the comment on OwnRideCard.
+.ride-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.8rem 0.7rem;
 }
 
 .meta {
@@ -520,17 +691,13 @@ a.card {
   color: $neutral-63;
 }
 
-.cardrow {
-  display: flex;
-  align-items: center;
-
-  .card {
-    flex: 1;
-  }
-}
+// `a.card`, `.swatch` and `.cardrow` were removed on 2026-08-25 with #135. They
+// were the row treatment — a 14px color dot or a 160px thumbnail at the head of
+// a flex row — and every one of their callers is a `.ride-card` now. `ul.cards`
+// itself stays: it is the generic white-row list that /admin's roster and the
+// survey summary are built on, and it was never about rides.
 
 .editlink {
-  padding: 0 1rem;
   font-size: 0.85em;
 }
 
