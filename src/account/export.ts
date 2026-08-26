@@ -7,7 +7,7 @@ import { rides, userIdentities, userProfiles, usernameHistory, type UserRow } fr
 import { DOWNLOADS, DOWNLOAD_FORMATS } from '../maps/downloads'
 import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from '../maps/export'
 import { detailsForOwner } from '../maps/point-details'
-import { listOwnerFiles, mapFilePath } from '../maps/storage'
+import { listOwnerFiles, readMapFile } from '../maps/storage'
 import { buildZip, type ZipFile } from '../maps/zip'
 import {
   ACCOUNT_JSON,
@@ -138,12 +138,13 @@ export async function buildAccountArchive(user: UserRow, exportedAt: Date): Prom
     }
 
     for (const original of entry.originals) {
-      const path = mapFilePath(ride.ownerId, ride.id, original.ext, original.index)
-      if (!path) continue
-      // listOwnerFiles read the directory, but a file can go between then and
-      // now. A missing original is not worth failing an export over — the rows
-      // are the ride, and the four generated formats above carry them.
-      const buf = await readFile(path).catch(() => null)
+      // DECOMPRESSED ON THE WAY IN, which is the sharp edge of the whole
+      // compression change: the archive entry is named `.gpx`, so putting brotli
+      // bytes under that name hands the rider a backup that silently will not
+      // open. listOwnerFiles read the directory, but a file can go between then
+      // and now — a missing original is not worth failing an export over, since
+      // the rows are the ride and the four generated formats above carry them.
+      const buf = await readMapFile(ride.ownerId, ride.id, original.ext, original.index)
       if (buf) add(original.path, buf)
     }
   }

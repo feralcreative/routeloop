@@ -117,6 +117,19 @@ export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
 
 
+// Whether the account purge actually destroys accounts, OFF unless set.
+//
+// Every other background job in this app is safe to run unattended. That one
+// deletes a person's account and everything they own, and it ships into a
+// database where riders have been sitting past their promised deletion date for
+// as long as the runner was missing — so its first unattended pass would take
+// all of them at once. The flag is the pause between "the code exists" and "it
+// is running", and `utils/purge-accounts.ts --dry-run` is what fills it.
+//
+// Opt-in by exact value rather than truthiness: PURGE_ACCOUNTS=false must not
+// enable it, which is what a bare Boolean() on the string would do.
+export const PURGE_ACCOUNTS = env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
+
 // Two Google Maps keys, and they are not interchangeable — the restriction types
 // are mutually exclusive. A referrer-restricted key cannot be used server-side
 // because a server sends no Referer header for Google to check, and an

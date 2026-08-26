@@ -25,12 +25,14 @@ import { detailsForOwner } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
+import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
 import { fields, firstIssue } from '../maps/fields'
+import { LIVE_RIDE } from '../trash/service'
 import {
   MAX_DAYS,
   MAX_STOPS,
@@ -120,7 +122,11 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
 
-  const [src] = await db.select().from(rides).where(eq(rides.id, id)).limit(1)
+  const [src] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.id, id), LIVE_RIDE))
+    .limit(1)
   // Public only. The `source !== 'native'` half of this test is gone: it was
   // there because an imported ride's graph could not be rebuilt into something
   // the builder would open, which stopped being true when the import started
@@ -486,6 +492,23 @@ function builderHtml(
         <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
 
         <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
+${
+  // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
+  // delete — closing the tab already discards it — and a Delete button on a
+  // blank builder is an offer to destroy something that does not exist.
+  //
+  // AT THE BOTTOM OF THE PANEL, not in the meta-row beside the visibility select
+  // and + Day, and not in the action bar beside undo/redo. Both of those are
+  // rows a rider's pointer lives in while building, and a destructive control
+  // wants distance from the ones pressed by reflex. The end of the day list is
+  // where a rider goes deliberately.
+  rideId
+    ? `        <div class="builder-danger">
+          <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
+          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
+        </div>`
+    : ''
+}
 
         <span id="save-announce" class="visually-hidden" role="status" aria-live="polite"></span>
         <div id="recover-bar" class="tb-banner is-recover" hidden>

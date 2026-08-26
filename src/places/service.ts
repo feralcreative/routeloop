@@ -10,12 +10,21 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { placeGroups, places, type PlaceGroupRow, type PlaceRow } from '../db/schema'
+import { LIVE_PLACE, LIVE_PLACE_GROUP } from '../trash/service'
 import type { GroupInput, PlaceInput } from './policy'
 
 export async function listPlaces(ownerId: number): Promise<{ groups: PlaceGroupRow[]; places: PlaceRow[] }> {
   const [groupRows, placeRows] = await Promise.all([
-    db.select().from(placeGroups).where(eq(placeGroups.ownerId, ownerId)).orderBy(asc(placeGroups.position)),
-    db.select().from(places).where(eq(places.ownerId, ownerId)).orderBy(asc(places.name)),
+    db
+      .select()
+      .from(placeGroups)
+      .where(and(eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
+      .orderBy(asc(placeGroups.position)),
+    db
+      .select()
+      .from(places)
+      .where(and(eq(places.ownerId, ownerId), LIVE_PLACE))
+      .orderBy(asc(places.name)),
   ])
   return { groups: groupRows, places: placeRows }
 }
@@ -24,7 +33,7 @@ export async function countPlaces(ownerId: number): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(places)
-    .where(eq(places.ownerId, ownerId))
+    .where(and(eq(places.ownerId, ownerId), LIVE_PLACE))
   return row?.n ?? 0
 }
 
@@ -32,7 +41,7 @@ export async function countGroups(ownerId: number): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(placeGroups)
-    .where(eq(placeGroups.ownerId, ownerId))
+    .where(and(eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
   return row?.n ?? 0
 }
 
@@ -41,7 +50,7 @@ export async function getPlace(ownerId: number, id: number): Promise<PlaceRow | 
   const [row] = await db
     .select()
     .from(places)
-    .where(and(eq(places.id, id), eq(places.ownerId, ownerId)))
+    .where(and(eq(places.id, id), eq(places.ownerId, ownerId), LIVE_PLACE))
     .limit(1)
   return row
 }
@@ -60,7 +69,9 @@ async function ownedGroupId(ownerId: number, groupId: number | null): Promise<nu
   const [row] = await db
     .select({ id: placeGroups.id })
     .from(placeGroups)
-    .where(and(eq(placeGroups.id, groupId), eq(placeGroups.ownerId, ownerId)))
+    // LIVE_PLACE_GROUP as well as the owner check: filing a place into a group
+    // the rider has binned would make the place vanish from the library with it.
+    .where(and(eq(placeGroups.id, groupId), eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
     .limit(1)
   return row ? row.id : null
 }
@@ -97,17 +108,9 @@ export async function updatePlace(ownerId: number, id: number, input: PlaceInput
       links: input.links.filter((l) => l.url),
       updatedAt: new Date(),
     })
-    .where(and(eq(places.id, id), eq(places.ownerId, ownerId)))
+    .where(and(eq(places.id, id), eq(places.ownerId, ownerId), LIVE_PLACE))
     .returning()
   return row
-}
-
-export async function deletePlace(ownerId: number, id: number): Promise<boolean> {
-  const rows = await db
-    .delete(places)
-    .where(and(eq(places.id, id), eq(places.ownerId, ownerId)))
-    .returning({ id: places.id })
-  return rows.length > 0
 }
 
 export async function createGroup(ownerId: number, input: GroupInput): Promise<PlaceGroupRow | undefined> {
@@ -121,7 +124,14 @@ export async function createGroup(ownerId: number, input: GroupInput): Promise<P
     // A duplicate name is a rider typing one they already have, not an error
     // worth a 400 — the unique index is per owner, and the sensible answer is
     // "you already have that one".
-    .onConflictDoNothing({ target: [placeGroups.ownerId, placeGroups.name] })
+    //
+    // `where` IS REQUIRED, not decoration. uq_place_group_name is a PARTIAL
+    // unique index now (`where deleted_at is null`, so a binned group stops
+    // holding its name), and Postgres cannot infer a partial index from a bare
+    // column list — ON CONFLICT has to restate the predicate or the insert fails
+    // outright with "no unique or exclusion constraint matching". Drizzle emits
+    // this in the index-predicate position, which is the one that does that job.
+    .onConflictDoNothing({ target: [placeGroups.ownerId, placeGroups.name], where: LIVE_PLACE_GROUP })
     .returning()
   return row
 }
@@ -130,24 +140,7 @@ export async function renameGroup(ownerId: number, id: number, input: GroupInput
   const [row] = await db
     .update(placeGroups)
     .set({ name: input.name })
-    .where(and(eq(placeGroups.id, id), eq(placeGroups.ownerId, ownerId)))
+    .where(and(eq(placeGroups.id, id), eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
     .returning()
   return row
-}
-
-/**
- * Deletes a group. **The places in it survive** and become ungrouped — the FK is
- * `set null`, not cascade.
- *
- * That is deliberate and worth not "fixing": a rider tidying up a folder name
- * must not lose the locations filed under it, and cascade is exactly how that
- * would happen. groupPlaces() in policy.ts renders the survivors in their own
- * section.
- */
-export async function deleteGroup(ownerId: number, id: number): Promise<boolean> {
-  const rows = await db
-    .delete(placeGroups)
-    .where(and(eq(placeGroups.id, id), eq(placeGroups.ownerId, ownerId)))
-    .returning({ id: placeGroups.id })
-  return rows.length > 0
 }

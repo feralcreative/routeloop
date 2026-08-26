@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { db } from './index'
 import { users, rides, days, points, routeLegs } from './schema'
 import { METERS_PER_MILE, processKml } from '../maps/kml'
-import { mapFilePath } from '../maps/storage'
+import { mapFilePath, readMapFile } from '../maps/storage'
 import { splitDayTrack } from '../maps/track-split'
 
 // Dev seed: one user + the sample ride, structured rows extracted from a real
@@ -38,11 +38,19 @@ const exists = async (p: string) =>
     () => false,
   )
 
-async function seedKmlPath(): Promise<string> {
-  if (SEED_KML && (await exists(SEED_KML))) return SEED_KML
+/**
+ * The seed KML, read through the storage layer so it works under either
+ * spelling. Before compression this built a path and read it directly, which
+ * would hand processKml() a buffer of brotli the moment the migration ran over
+ * `storage/1/1.kml` — parsed as text, failing with something about malformed
+ * XML rather than about compression.
+ */
+async function seedKml(): Promise<{ text: string; from: string }> {
+  const stored = await readMapFile(1, 1, 'kml')
+  if (stored) return { text: stored.toString('utf8'), from: SEED_KML ?? 'storage' }
   if (await exists(FIXTURE_KML)) {
     console.log(`  ! ${SEED_KML ?? 'storage'} not found — falling back to ${FIXTURE_KML} (a much smaller ride)`)
-    return FIXTURE_KML
+    return { text: await readFile(FIXTURE_KML, 'utf8'), from: FIXTURE_KML }
   }
   throw new Error(`no seed KML: looked for ${SEED_KML ?? '<storage>'} and ${FIXTURE_KML}`)
 }
@@ -51,8 +59,7 @@ async function main() {
   // RESOLVED AND READ BEFORE THE TRUNCATE, which is the whole point. Every way
   // this can fail — no file, unreadable file, KML that does not parse — has to
   // fail while the database is still intact.
-  const kmlPath = await seedKmlPath()
-  const kmlText = await readFile(kmlPath, 'utf8')
+  const { text: kmlText, from: kmlPath } = await seedKml()
   const kml = processKml(kmlText)
   if (kml.track.length < 2) throw new Error(`${kmlPath} has no usable track`)
 

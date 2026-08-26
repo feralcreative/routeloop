@@ -669,6 +669,34 @@
     await save();
   }
 
+  /**
+   * Moves this ride to the recycle bin and leaves.
+   *
+   * NO CONFIRMATION, deliberately, and the same argument as the dashboard's
+   * Delete: the bin holds it for thirty days with a button to put it back, so
+   * the bin IS the confirmation. Asking twice for something reversible is how a
+   * rider learns to click through the dialog that is not.
+   *
+   * CLEARING dirty AND saving IS THE LOAD-BEARING PART. Both the beforeunload
+   * guard and the visibilitychange flush key off exactly those two flags, so
+   * leaving them set means the rider gets a browser "leave site?" prompt on the
+   * way out and the tab fires one last PUT at a ride that is now in the bin.
+   * That PUT 404s — ownRide() excludes trashed rides — so nothing is corrupted,
+   * but the panel would flash a save error at someone who has already left.
+   */
+  async function deleteRide() {
+    if (!state.rideId) return;
+    const res = await fetch("/api/maps/" + state.rideId, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setSaveStatus("error", (data && data.error) || "Could not delete this ride.");
+      return;
+    }
+    state.dirty = false;
+    state.saving = false;
+    window.location.href = "/";
+  }
+
   // --- Save status ----------------------------------------------------------
 
   // One state name in, one fixed-footprint readout out. The width is reserved in
@@ -4145,6 +4173,10 @@
       if (sec) sec.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
     $("day-add").addEventListener("click", addDay);
+
+    // Only present on a saved ride — see the markup in src/routes/builder.ts.
+    const del = $("ride-delete");
+    if (del) del.addEventListener("click", deleteRide);
 
     const host = $("day-list");
 

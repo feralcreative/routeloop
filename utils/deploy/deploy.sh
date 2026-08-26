@@ -251,6 +251,7 @@ printf '%s\n' \
   "MAIL_FROM=${MAIL_FROM:-}" \
   "APP_VERSION=${APP_VERSION}" \
   "BUILD_SHA=${GIT_SHA}" \
+  "PURGE_ACCOUNTS=${PURGE_ACCOUNTS:-}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,

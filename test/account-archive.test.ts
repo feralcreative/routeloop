@@ -114,6 +114,27 @@ describe('buildAccountJson', () => {
     for (const path of Object.values(a.exports)) expect(path.startsWith(`${dir}/`)).toBe(true)
   })
 
+  // The archive is the "you can always get your data out" path, so a ride in the
+  // recycle bin has to be in it — it is the one about to be destroyed. Marked
+  // rather than hidden, so the file never presents a binned ride as live.
+  it('includes a trashed ride and says when it will be destroyed', () => {
+    const purgeAfter = new Date('2026-09-25T12:00:00.000Z')
+    const a = buildAccountJson(
+      input({ rides: [{ ride: ride({ deletedAt: AT, purgeAfter }), startDate: AT, originals: [] }] }),
+    ).rides[0]
+
+    expect(a.trashed).toBe(true)
+    expect(a.purgeAfter).toBe(purgeAfter.toISOString())
+    expect(a.native.startsWith(`${rideDirFor('aB3xY7kLmN9pQrS2tUvWxY')}/`)).toBe(true)
+  })
+
+  it('marks a live ride as neither trashed nor scheduled', () => {
+    const a = buildAccountJson(input({ rides: [{ ride: ride(), startDate: AT, originals: [] }] })).rides[0]
+
+    expect(a.trashed).toBe(false)
+    expect(a.purgeAfter).toBe(null)
+  })
+
   it('carries the four generated formats plus the lossless one', () => {
     const a = buildAccountJson(input({ rides: [{ ride: ride(), startDate: AT, originals: [] }] })).rides[0]
 
@@ -150,8 +171,8 @@ describe('buildAccountJson', () => {
             ride: ride(),
             startDate: AT,
             originals: [
-              { rideId: 19, index: 0, ext: 'kml' },
-              { rideId: 19, index: 2, ext: 'gpx' },
+              { rideId: 19, index: 0, ext: 'kml', compressed: true },
+              { rideId: 19, index: 2, ext: 'gpx', compressed: true },
             ],
           },
         ],

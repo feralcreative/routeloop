@@ -68,6 +68,7 @@ export type NavKey =
   | 'places'
   | 'profile'
   | 'settings'
+  | 'trash'
   | 'admin'
   | 'approvals'
   | 'invites'
@@ -536,6 +537,11 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
       <div class="nav-sub-items">
         <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
         <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
+        {/* Under the account rather than under Rides: the bin holds saved places
+            and groups as well, so it belongs to the rider rather than to their
+            rides. Nothing here is urgent — a rider only comes looking after they
+            have deleted something they wanted. */}
+        <NavLink item={{ key: 'trash', href: '/trash', label: 'Recycle bin' }} navKey={navKey} />
         <hr />
         {/* The always-available way in. The floating button on the builder and
             viewer is the other one and pre-fills ?area=; this is what a rider on

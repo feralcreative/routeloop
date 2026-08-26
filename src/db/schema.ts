@@ -164,7 +164,14 @@ export const users = pgTable(
     // Nullable with no default, for the reason approved_email_at documents.
     surveyInvitedAt: timestamp('survey_invited_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
-    // 25 MB, lowered from 250 for the beta.
+    // 100 MB, raised from 25 when stored originals started being compressed.
+    //
+    // The rise is the POINT of that change rather than a side effect: brotli
+    // takes a real 8-day GPX import from 834 kB to 60 kB, so the same disk now
+    // holds an order of magnitude more ride. Quota accounting deliberately still
+    // counts the UNCOMPRESSED size — an allowance must not depend on how well a
+    // rider's file happened to zip — so the way that saving reaches them is a
+    // bigger number here.
     //
     // Only IMPORTED files count against this — a ride built in the builder writes
     // nothing to disk — and one import is stored three times over: the original
@@ -182,7 +189,7 @@ export const users = pgTable(
     // to new inserts only. That is the mirror image of the hazard the status and
     // approved_email_at comments describe above, and it is why
     // utils/deploy/sql/2026-08-08-quota-25mb.sql carries an explicit UPDATE.
-    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(26214400), // 25 MB
+    quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(104857600), // 100 MB
     // Denormalized cache of sum(rides.size_bytes), incremented on import and
     // decremented on delete, with no reconciler — so it drifts, and has. The
     // dashboard computes the authoritative sum alongside it and reports the
@@ -575,6 +582,31 @@ export const rides = pgTable(
     // table for exactly this reason.
     thumbHash: varchar('thumb_hash', { length: 32 }),
     thumbBuiltAt: timestamp('thumb_built_at'),
+
+    // The recycle bin. Same three-column shape as the GTFO hold on `users`, and
+    // deliberately so: that is a 30-day reversible hold that ends in a purge,
+    // and so is this. See src/trash/policy.ts for the rules and
+    // src/account/policy.ts for the original argument behind each column.
+    //
+    // Nullable with no default, for the reason approved_email_at documents
+    // above: a schema push stamps a default onto every existing row. Null here
+    // means "not in the bin", which is true of every row today, so there is no
+    // backfill to get wrong.
+    deletedAt: timestamp('deleted_at'),
+    // The deadline, stored rather than derived from deleted_at + the constant.
+    // It is a promise made to a person on a date, so changing TRASH_HOLD_DAYS
+    // later must not retroactively move a purge date a rider was already shown.
+    //
+    // Recomputed on every trash, which is ALSO what makes the reset work: taking
+    // a ride out of the bin and putting it back sets a fresh 30 days with no
+    // separate mechanism.
+    purgeAfter: timestamp('purge_after'),
+    // Claimed by the purge before it starts, so a crash cannot wedge the row and
+    // two triggers cannot both run it. Rides carry this and places/groups do not
+    // because a ride purge also removes files from disk and can therefore
+    // half-finish; a place purge is one statement.
+    purgeStartedAt: timestamp('purge_started_at'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -591,6 +623,12 @@ export const rides = pgTable(
     index('idx_thumb_stale')
       .on(t.updatedAt)
       .where(sql`${t.thumbBuiltAt} is null or ${t.updatedAt} > ${t.thumbBuiltAt}`),
+    // What the purge sweep selects on. Partial for the same reason
+    // idx_thumb_stale is: a ride in the bin is a rounding error against every
+    // ride that is not, and the index only has to hold the work queue.
+    index('idx_rides_purge_due')
+      .on(t.purgeAfter)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 )
 
@@ -979,9 +1017,34 @@ export const placeGroups = pgTable(
     // Rider-defined order, so a library can be arranged the way the rider
     // thinks about it rather than alphabetically.
     position: smallint('position').notNull().default(0),
+    // The recycle bin. Two columns, as on `places` and for the same reason.
+    //
+    // Trashing a group still ungroups its places on the spot — that is the
+    // `set null` on places.group_id below, and it is not changed here. Restoring
+    // the group therefore brings back an EMPTY group, which is exactly what
+    // deleting one does today, so no rider expectation moves.
+    deletedAt: timestamp('deleted_at'),
+    purgeAfter: timestamp('purge_after'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('uq_place_group_name').on(t.ownerId, t.name), index('idx_place_group_owner').on(t.ownerId)],
+  (t) => [
+    // PARTIAL, and that is what stops the bin blocking a name. Unique on
+    // (owner, name) across every row would mean a rider who trashed "Oregon"
+    // could not create a new "Oregon" — refused on the strength of a row they
+    // cannot see and were told was gone. Excluding trashed rows frees the name
+    // immediately.
+    //
+    // The flip side, and it has to be handled in the restore path rather than
+    // here: restoring a group whose name has since been reused collides. Refuse
+    // that restore and say which name is taken.
+    uniqueIndex('uq_place_group_name')
+      .on(t.ownerId, t.name)
+      .where(sql`${t.deletedAt} is null`),
+    index('idx_place_group_owner').on(t.ownerId),
+    index('idx_place_groups_purge_due')
+      .on(t.purgeAfter)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
 )
 
 export const places = pgTable(
@@ -1022,6 +1085,11 @@ export const places = pgTable(
       .$type<Array<{ label: string; url: string }>>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    // The recycle bin. Two columns rather than the three on `rides`: a place
+    // stores no file, so its purge is a single statement and there is nothing
+    // for a claim column to protect against half-finishing.
+    deletedAt: timestamp('deleted_at'),
+    purgeAfter: timestamp('purge_after'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1029,6 +1097,9 @@ export const places = pgTable(
     index('idx_place_owner').on(t.ownerId),
     index('idx_place_group').on(t.groupId),
     check('ck_place_roles_max4', sql`cardinality(roles) <= 4`),
+    index('idx_places_purge_due')
+      .on(t.purgeAfter)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 )
 

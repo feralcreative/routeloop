@@ -18,12 +18,12 @@ import {
   countPlaces,
   createGroup,
   createPlace,
-  deleteGroup,
-  deletePlace,
   listPlaces,
   renameGroup,
   updatePlace,
 } from '../places/service'
+import { RESTORE_REFUSAL_MESSAGES } from '../trash/policy'
+import { restoreGroup, restorePlace, trashGroup, trashPlace } from '../trash/service'
 
 export const placesRoutes = new Hono<AuthEnv>()
 
@@ -64,11 +64,24 @@ placesRoutes.put('/api/places/:id', requireActiveApi, requireSameOrigin, async (
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 
+// Deleting a place MOVES IT TO THE RECYCLE BIN, same as a ride. The verb and
+// the path are unchanged so every existing caller gets the reversible behavior.
 placesRoutes.delete('/api/places/:id', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
-  return (await deletePlace(user.id, id)) ? c.json({ ok: true }) : c.json({ error: 'not found' }, 404)
+  const trashed = await trashPlace(user.id, id)
+  return trashed
+    ? c.json({ ok: true, purgeAfter: trashed.purgeAfter.toISOString() })
+    : c.json({ error: 'not found' }, 404)
+})
+
+// A place costs no quota, so the only way this fails is that it is not there.
+placesRoutes.post('/api/places/:id/restore', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
+  return (await restorePlace(user.id, id)) ? c.json({ ok: true }) : c.json({ error: 'not found' }, 404)
 })
 
 placesRoutes.post('/api/place-groups', requireActiveApi, requireSameOrigin, async (c) => {
@@ -93,11 +106,28 @@ placesRoutes.put('/api/place-groups/:id', requireActiveApi, requireSameOrigin, a
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 
-// Deleting a group keeps its places and makes them ungrouped — see the note on
-// deleteGroup in service.ts. The client says so before it asks.
+// Binning a group keeps its places and makes them ungrouped — see the note on
+// trashGroup in trash/service.ts. The client says so before it asks. Restoring
+// therefore brings back an EMPTY group, which the client should say too.
 placesRoutes.delete('/api/place-groups/:id', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
-  return (await deleteGroup(user.id, id)) ? c.json({ ok: true }) : c.json({ error: 'not found' }, 404)
+  const trashed = await trashGroup(user.id, id)
+  return trashed
+    ? c.json({ ok: true, purgeAfter: trashed.purgeAfter.toISOString() })
+    : c.json({ error: 'not found' }, 404)
+})
+
+// Refuses with 409 when the rider has since made another group by that name —
+// the partial unique index frees a binned group's name on the spot, which is the
+// behavior they want and the reason this collision exists at all.
+placesRoutes.post('/api/place-groups/:id/restore', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
+  const result = await restoreGroup(user.id, id)
+  if (result.ok) return c.json({ ok: true })
+  if (result.reason === 'not-found') return c.json({ error: 'not found' }, 404)
+  return c.json({ error: RESTORE_REFUSAL_MESSAGES[result.reason] ?? 'cannot restore' }, 409)
 })
