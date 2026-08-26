@@ -10,17 +10,19 @@
 // should go back to that file.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, days as daysTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
 import { rideCards } from '../views/cards'
-import { requireActive, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
 import { LIVE_RIDE } from '../trash/service'
 import { LISTED_RIDE } from '../access/query'
+import { notBlockedWith, viewOf, viewsOf } from '../friends/service'
+import { FriendActions } from '../views/friend-actions'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -140,22 +142,41 @@ pageRoutes.get('/riders', requireActive, async (c) => {
 
   const q = (c.req.query('q') ?? '').trim().slice(0, 30)
 
+  const me = currentUser(c)
+
   const rows = await db
-    .select({ displayName: users.displayName, username: users.username })
+    .select({ id: users.id, displayName: users.displayName, username: users.username })
     .from(users)
     .where(
-      // deletion_requested_at is null keeps a leaving rider off the roster from
-      // the moment they ask, the same as it keeps their rides off /explore.
-      q
-        ? sql`${users.status} = 'active' and ${users.username} is not null
-              and ${users.deletionRequestedAt} is null
-              and (lower(${users.username}) like lower(${'%' + q + '%'})
-                   or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
-        : sql`${users.status} = 'active' and ${users.username} is not null
-              and ${users.deletionRequestedAt} is null`,
+      and(
+        // deletion_requested_at is null keeps a leaving rider off the roster
+        // from the moment they ask, the same as it keeps their rides off
+        // /explore.
+        q
+          ? sql`${users.status} = 'active' and ${users.username} is not null
+                and ${users.deletionRequestedAt} is null
+                and (lower(${users.username}) like lower(${'%' + q + '%'})
+                     or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
+          : sql`${users.status} = 'active' and ${users.username} is not null
+                and ${users.deletionRequestedAt} is null`,
+        // Both halves of every blocked pair drop out, symmetrically. This is
+        // what makes a block mean anything: without it the roster is a way
+        // around one, and the search box is a way around it by name.
+        notBlockedWith(me.id),
+        // The rider themselves. They are on the roster today and it reads as an
+        // oddity; with a friend button beside every name it reads as a bug.
+        ne(users.id, me.id),
+      ),
     )
     .orderBy(users.displayName)
     .limit(200)
+
+  // One query for up to 200 riders rather than one per row. Ids missing from
+  // the map have no row at all, which is 'none' — the overwhelming majority.
+  const views = await viewsOf(
+    me.id,
+    rows.map((r) => r.id),
+  )
 
   const body = (
     <>
@@ -177,10 +198,13 @@ pageRoutes.get('/riders', requireActive, async (c) => {
         <ul class="rider-list">
           {rows.map((r) => (
             <li>
-              <a href={`/@${r.username!}`}>
+              <a class="friend-who" href={`/@${r.username!}`}>
                 <span class="rider-display">{r.displayName}</span>
                 <span class="rider-handle">@{r.username!}</span>
               </a>
+              <div class="friend-acts">
+                <FriendActions handle={r.username!} view={views.get(r.id) ?? 'none'} back="/riders" />
+              </div>
             </li>
           ))}
         </ul>
@@ -247,6 +271,15 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     .limit(50)
 
   const surname = row.shareLastName && row.lastName ? ` ${row.lastName}` : ''
+
+  // Signed-in visitors only, and never on your own profile. This page is
+  // readable signed out — see the route's own note — so `viewer` is genuinely
+  // often null here, and an Add friend button for someone with no account is an
+  // invitation to a form that would refuse them.
+  const viewer = c.get('user') ?? null
+  const canAsk = viewer !== null && viewer.status === 'active' && viewer.id !== row.id
+  const view = canAsk ? await viewOf(viewer.id, row.id) : 'none'
+
   const body = (
     <>
       <h1 class="profile-name">
@@ -254,6 +287,11 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
         {surname}
       </h1>
       <p class="profile-handle">@{row.username}</p>
+      {canAsk && (
+        <div class="profile-acts friend-acts">
+          <FriendActions handle={row.username} view={view} back={`/@${row.username}`} />
+        </div>
+      )}
       <h2>Public rides</h2>
       {raw(rideCards(cards))}
     </>

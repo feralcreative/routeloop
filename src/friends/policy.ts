@@ -55,6 +55,11 @@ export function pairOf(one: number, other: number): { riderA: number; riderB: nu
  */
 export type FriendView = 'none' | 'sent' | 'incoming' | 'friends' | 'blocked' | 'blocked-by'
 
+/** The five verbs, named once. The route matches on this list and the button
+ *  component is typed by it, so a sixth verb cannot be half-wired. */
+export const FRIEND_VERBS = ['request', 'accept', 'remove', 'block', 'unblock'] as const
+export type FriendVerb = (typeof FRIEND_VERBS)[number]
+
 /** Only the fields the rules read, so a test does not have to build a whole row. */
 export type FriendshipFields = Pick<FriendshipRow, 'riderA' | 'riderB' | 'status' | 'requestedBy' | 'blockedBy'>
 

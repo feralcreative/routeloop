@@ -31,6 +31,7 @@ import { feedbackRoutes } from './routes/feedback'
 import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
+import { friendRoutes } from './routes/friends'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
@@ -173,6 +174,7 @@ app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
+app.route('/', friendRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
