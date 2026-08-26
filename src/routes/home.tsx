@@ -109,6 +109,15 @@ function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
         <a class="editlink" href={`/builder/${ride.id}`}>
           Edit
         </a>
+        {/* NO "are you sure?". This moves the ride to the recycle bin, where it
+            sits for thirty days with a button to undo — the bin is the
+            confirmation. A dialog in front of a reversible action is how riders
+            learn to click through the one that is not. */}
+        <form method="post" action={`/trash/rides/${ride.id}/bin`} class="ride-card-del">
+          <button class="linkbtn" type="submit">
+            Delete
+          </button>
+        </form>
       </div>
     </li>
   )

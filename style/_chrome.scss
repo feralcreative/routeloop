@@ -502,6 +502,36 @@ ul.cards {
   }
 }
 
+// --- Recycle bin -------------------------------------------------------------
+//
+// BUILT ON `ul.cards`, NOT `.ride-cards`, and deliberately. The bin is a utility
+// list where the only question is "what is about to go, and do I want it back" —
+// a grid of route thumbnails would make it look like somewhere to browse, which
+// is the opposite of what it is for. Same reasoning that keeps the two card
+// classes apart in the first place.
+.trash-list {
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+}
+
+// $neutral-50, the same step `.sub` takes for muted copy — NOT $grey, which is
+// the border grey and is named for that job.
+.trash-when {
+  display: block;
+  color: $neutral-50;
+  font-size: 0.875rem;
+}
+
+.trash-restore {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
 // --- Ride cards (#135) -------------------------------------------------------
 //
 // A ride in a list shows its ROUTE, not just its title. The thumbnail was an
@@ -699,6 +729,27 @@ ul.cards {
 
 .editlink {
   font-size: 0.85em;
+}
+
+// Edit and Delete group at the RIGHT, with the visibility pill alone on the
+// left. Without this the foot's `space-between` spreads all three evenly and
+// Edit floats in the middle of the card, reading as unrelated to the button
+// beside it. Scoped to the foot because `.pill` is also /admin's status chip.
+.ride-card-foot .pill {
+  margin-right: auto;
+}
+
+// NOT $stop, and not red at all. Delete here moves the ride to the recycle bin,
+// which is reversible for thirty days — a destructive color would claim
+// otherwise. It sits at the same weight as Edit because it carries the same
+// amount of consequence, and keeping it off the red also keeps a new pair out
+// of the contrast audit for nothing.
+.ride-card-del {
+  margin: 0;
+
+  .linkbtn {
+    font-size: 0.85em;
+  }
 }
 
 // The sign-in splash used to live here. It moved to _splash.scss when the page

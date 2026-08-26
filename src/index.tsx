@@ -41,6 +41,7 @@ import { pageRoutes } from './routes/pages'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
+import { trashRoutes } from './routes/trash'
 import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
@@ -193,6 +194,7 @@ app.route('/', placesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
 app.route('/', importRoutes)
+app.route('/', trashRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
