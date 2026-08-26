@@ -48,10 +48,7 @@ const checkbox = z.preprocess((v) => v === 'on' || v === 'true' || v === '1', z.
 // null coordinates — never a validation failure, because a bad geocode must not
 // block someone from saving their address as text.
 const coord = (min: number, max: number) =>
-  z.preprocess(
-    (v) => (v === '' || v == null ? null : Number(v)),
-    z.number().min(min).max(max).nullable().catch(null),
-  )
+  z.preprocess((v) => (v === '' || v == null ? null : Number(v)), z.number().min(min).max(max).nullable().catch(null))
 
 const profileSchema = z.object({
   ...profileFields,
@@ -160,8 +157,8 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   return (
     <div class="handle-history">
       <p class="field-hint">
-        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take
-        it while you think it over.
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take it
+        while you think it over.
       </p>
       <ul>
         {released.map((r) => {
@@ -228,8 +225,8 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Public starting point</legend>
           <p class="field-hint">
             Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you
-            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket car
-            park. Somewhere you can actually meet people is ideal.
+            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket car park.
+            Somewhere you can actually meet people is ideal.
           </p>
           <p class="field-hint">
             Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on
@@ -284,6 +281,25 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           A create-from-scratch flow here wants the address picker from roadmap
           item 19 and should wait for it rather than ship a lat/lng text box.
         */}
+        {/*
+          THE PADDOCK. Same arrangement as Your places below: a region inside
+          this form that is not part of its submit, driven by paddock.js against
+          /api/bikes. A nested <form> would be invalid markup and the outer
+          submit would swallow its controls.
+
+          Full-span rather than sharing the two-up grid, because a bike row is a
+          photo plus seven fields and half a column is not enough for it.
+        */}
+        <fieldset class="full-span">
+          <legend>Paddock</legend>
+          <p class="field-hint">
+            The bikes you ride. A range here is what the app will plan fuel stops around&nbsp;later.
+          </p>
+          <div id="paddock" data-paddock>
+            <p class="field-hint">Loading&hellip;</p>
+          </div>
+        </fieldset>
+
         <fieldset>
           <legend>Your places</legend>
           <p class="field-hint">
@@ -312,7 +328,8 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
     // Only the token: profile.js geocodes the address so the builder can read
     // coordinates straight off the profile instead of looking them up per ride.
     scripts: `<script src="${asset('/js/profile.js')}" defer></script>
-  <script src="${asset('/js/places.js')}" defer></script>`,
+  <script src="${asset('/js/places.js')}" defer></script>
+  <script src="${asset('/js/paddock.js')}" defer></script>`,
   })
 }
 
@@ -417,10 +434,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     // The unique index is the last line of defense on a concurrent claim.
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('uq_username_lower')) {
-      return c.html(
-        renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }),
-        409,
-      )
+      return c.html(renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }), 409)
     }
     throw err
   }
