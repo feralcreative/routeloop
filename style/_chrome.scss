@@ -16,6 +16,38 @@
   padding: 2rem;
 }
 
+// A page laid out as two columns of independent blocks—settings sections on
+// /prefs, fieldsets on /profile. Each cell keeps its own height, so the shorter
+// column simply ends early instead of stretching to match its neighbor.
+//
+// THE COLUMN COUNT IS DECIDED BY THE VIEWPORT AND NOTHING ELSE. An `auto-fit` /
+// `minmax()` track list would let the CONTENT decide it, which is the
+// jumping-layout failure #130 names: a block must not change size as its value
+// changes. A media query cannot do that—every viewport has exactly one answer.
+//
+// Two columns start at 992px because that is where `.page-wrap` has reached its
+// 960px cap and stopped growing, which puts ~430px in each column. Below it the
+// wrap is still shrinking and a radio row carrying a worked example reads
+// cramped at half of it.
+.two-col {
+  display: grid;
+  gap: 2.5rem 2rem;
+  align-items: start;
+}
+
+//@ LG ≥992px — .page-wrap is at its cap, so there is room for a second column.
+@media (min-width: 992px) {
+  .two-col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+// A child that spans whatever the column count is: a submit row, or a note
+// belonging to the whole form rather than to one column of it.
+.two-col > .full-span {
+  grid-column: 1 / -1;
+}
+
 body {
   background: $neutral-96;
 }

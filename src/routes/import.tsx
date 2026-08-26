@@ -198,22 +198,30 @@ importRoutes.get('/import', requireActive, async (c) => {
               ))}
             </p>
 
-            <p class="field">
-              <label for="f-title">Name it</label>
-              <input id="f-title" name="title" type="text" maxlength={150} required autocomplete="off" />
-              <span class="field-hint">What it shows up as in your rides.</span>
-            </p>
+            {/*
+              The two short fields pair up at >=992px rather than each running
+              the width of an uncapped form (#130). The form itself is NOT a
+              grid: import is a sequence — drop the files, name it, choose who
+              sees it — and columns would break that order.
+            */}
+            <div class="two-col">
+              <p class="field">
+                <label for="f-title">Name it</label>
+                <input id="f-title" name="title" type="text" maxlength={150} required autocomplete="off" />
+                <span class="field-hint">What it shows up as in your rides.</span>
+              </p>
 
-            <p class="field">
-              <label for="f-visibility">Who can see it</label>
-              <select id="f-visibility" name="visibility">
-                <option value="private" selected>
-                  Private—only you
-                </option>
-                <option value="unlisted">Unlisted—anyone with the link</option>
-                <option value="public">Public—listed in Explore</option>
-              </select>
-            </p>
+              <p class="field">
+                <label for="f-visibility">Who can see it</label>
+                <select id="f-visibility" name="visibility">
+                  <option value="private" selected>
+                    Private—only you
+                  </option>
+                  <option value="unlisted">Unlisted—anyone with the link</option>
+                  <option value="public">Public—listed in Explore</option>
+                </select>
+              </p>
+            </div>
 
             {turnstileEnabled() && TURNSTILE_SITE_KEY && (
               <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY}></div>

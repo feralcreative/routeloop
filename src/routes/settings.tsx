@@ -66,48 +66,49 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
         </p>
       ) : null}
 
-      <section class="setting" id="stop-durations">
-        <h2>Stop durations</h2>
-        <p>
-          How long you stop somewhere, as it reads in the builder. This changes the writing and not the number —
-          your rides, the roadbook and every export are unaffected, and you can switch back whenever you like.
-        </p>
-
-        <form method="post" action="/settings/duration-format" class="setting-form">
-          <fieldset class="choice-set">
-            <legend class="visually-hidden">Duration format</legend>
-            {DURATION_FORMAT_CHOICES.map((choice) => (
-              <label class="choice">
-                <input
-                  type="radio"
-                  name="durationFormat"
-                  value={choice.id}
-                  checked={choice.id === durationFormat}
-                />
-                <span class="choice-label">{choice.label}</span>
-                {/* An hour and a half in each format. It is the value that looks
-                    different in all three, which is the question being asked. */}
-                <span class="choice-example">
-                  an hour and a half reads <b>{choice.example}</b>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <div class="setting-actions">
-            <button type="submit" class="btn btn-sign arrow-right arrow-n">
-              Save
-            </button>
-            {savedDuration ? <span class="form-ok">Saved</span> : null}
-          </div>
-        </form>
-
-        <p class="setting-note">
-          Whichever you pick, the field understands the others: type <code>90m</code>, <code>1.5h</code>,{' '}
-          <code>1h 30m</code> or <code>1:30</code> and it will take all four.
-        </p>
-      </section>
-
       {/*
+        The four preference sections sit two-up at >=992px (`.two-col` in
+        _chrome.scss). GTFO stays OUTSIDE the grid deliberately: it is a
+        boxed-off danger area and half a page is not where it belongs.
+      */}
+      <div class="two-col">
+        <section class="setting" id="stop-durations">
+          <h2>Stop durations</h2>
+          <p>
+            How long you stop somewhere, as it reads in the builder. This changes the writing and not the number — your
+            rides, the roadbook and every export are unaffected, and you can switch back whenever you like.
+          </p>
+
+          <form method="post" action="/settings/duration-format" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="visually-hidden">Duration format</legend>
+              {DURATION_FORMAT_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="durationFormat" value={choice.id} checked={choice.id === durationFormat} />
+                  <span class="choice-label">{choice.label}</span>
+                  {/* An hour and a half in each format. It is the value that looks
+                    different in all three, which is the question being asked. */}
+                  <span class="choice-example">
+                    an hour and a half reads <b>{choice.example}</b>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedDuration ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
+
+          <p class="setting-note">
+            Whichever you pick, the field understands the others: type <code>90m</code>, <code>1.5h</code>,{' '}
+            <code>1h 30m</code> or <code>1:30</code> and it will take all four.
+          </p>
+        </section>
+
+        {/*
         APPEARANCE. Two independent controls rather than one list of six, because
         the questions are unrelated: which colors a rider can tell apart, and how
         bright the room is. See src/views/appearance.ts.
@@ -117,88 +118,89 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
         page that has none, and the choice applies on save, which is one click
         away and unambiguous.
       */}
-      <section class="setting" id="appearance">
-        <h2>Appearance</h2>
-        <p>
-          Two separate choices. The palette decides which colors the app uses; light or dark decides how bright it is.
-          Every palette comes in both.
-        </p>
+        <section class="setting" id="appearance">
+          <h2>Appearance</h2>
+          <p>
+            Two separate choices. The palette decides which colors the app uses; light or dark decides how bright it is.
+            Every palette comes in both.
+          </p>
 
-        <form method="post" action="/settings/appearance" class="setting-form">
-          <fieldset class="choice-set">
-            <legend class="choice-legend">Palette</legend>
-            {THEME_CHOICES.map((choice) => (
-              <label class="choice">
-                <input type="radio" name="theme" value={choice.id} checked={choice.id === theme} />
-                <span class="choice-label">{choice.label}</span>
-                <span class="choice-example">{choice.hint}</span>
-              </label>
-            ))}
-          </fieldset>
+          <form method="post" action="/settings/appearance" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="choice-legend">Palette</legend>
+              {THEME_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="theme" value={choice.id} checked={choice.id === theme} />
+                  <span class="choice-label">{choice.label}</span>
+                  <span class="choice-example">{choice.hint}</span>
+                </label>
+              ))}
+            </fieldset>
 
-          <fieldset class="choice-set">
-            <legend class="choice-legend">Light or dark</legend>
-            {SCHEME_CHOICES.map((choice) => (
-              <label class="choice">
-                <input type="radio" name="scheme" value={choice.id} checked={choice.id === scheme} />
-                <span class="choice-label">{choice.label}</span>
-                <span class="choice-example">{choice.hint}</span>
-              </label>
-            ))}
-          </fieldset>
+            <fieldset class="choice-set">
+              <legend class="choice-legend">Light or dark</legend>
+              {SCHEME_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="scheme" value={choice.id} checked={choice.id === scheme} />
+                  <span class="choice-label">{choice.label}</span>
+                  <span class="choice-example">{choice.hint}</span>
+                </label>
+              ))}
+            </fieldset>
 
-          <div class="setting-actions">
-            <button type="submit" class="btn btn-sign arrow-right arrow-n">
-              Save
-            </button>
-            {savedAppearance ? <span class="form-ok">Saved</span> : null}
-          </div>
-        </form>
-      </section>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedAppearance ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
+        </section>
 
-      <section class="setting" id="dates">
-        <h2>Dates and times</h2>
-        <p>
-          Which way round a date reads, and whether a clock runs to twelve or twenty-four. This changes the writing and
-          not the times themselves — your days start when they always did, and every export is unaffected.
-        </p>
+        <section class="setting" id="dates">
+          <h2>Dates and times</h2>
+          <p>
+            Which way round a date reads, and whether a clock runs to twelve or twenty-four. This changes the writing
+            and not the times themselves — your days start when they always did, and every export is unaffected.
+          </p>
 
-        <form method="post" action="/settings/date-format" class="setting-form">
-          <fieldset class="choice-set">
-            <legend class="visually-hidden">Date format</legend>
-            {DATE_FORMAT_CHOICES.map((choice) => (
-              <label class="choice">
-                <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
-                <span class="choice-label">{choice.label}</span>
-                {/* The same instant in all three, which is the question being
+          <form method="post" action="/settings/date-format" class="setting-form">
+            <fieldset class="choice-set">
+              <legend class="visually-hidden">Date format</legend>
+              {DATE_FORMAT_CHOICES.map((choice) => (
+                <label class="choice">
+                  <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
+                  <span class="choice-label">{choice.label}</span>
+                  {/* The same instant in all three, which is the question being
                     asked. The clock comes along with the date order — day-first
                     locales run to twenty-four. */}
-                <span class="choice-example">
-                  reads <b>{choice.example}</b>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <div class="setting-actions">
-            <button type="submit" class="btn btn-sign arrow-right arrow-n">
-              Save
-            </button>
-            {savedDates ? <span class="form-ok">Saved</span> : null}
-          </div>
-        </form>
+                  <span class="choice-example">
+                    reads <b>{choice.example}</b>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                Save
+              </button>
+              {savedDates ? <span class="form-ok">Saved</span> : null}
+            </div>
+          </form>
 
-        <p class="setting-note">
-          The builder's own date fields already follow your browser, whatever this says — that part is your operating
-          system's business and not ours. This is for the printed roadbook and the pages we render ourselves.
-        </p>
-      </section>
+          <p class="setting-note">
+            The builder's own date fields already follow your browser, whatever this says — that part is your operating
+            system's business and not ours. This is for the printed roadbook and the pages we render ourselves.
+          </p>
+        </section>
 
-      <section class="setting">
-        <h2>Your profile</h2>
-        <p>
-          <a href="/profile">Your profile</a> holds your name, username, home address and what of it is shared.
-        </p>
-      </section>
+        <section class="setting">
+          <h2>Your profile</h2>
+          <p>
+            <a href="/profile">Your profile</a> holds your name, username, home address and what of it is shared.
+          </p>
+        </section>
+      </div>
 
       <section class="gtfo">
         <h2>GTFO</h2>

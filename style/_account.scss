@@ -6,11 +6,22 @@
 // every section would make the page read as a run of warnings.
 .setting {
   margin-top: 2.5rem;
+  // A MEASURE cap, not a layout width—it stops the explanation under each <h2>
+  // running to 120 characters. It stays at 60ch after #130 for exactly that
+  // reason; what was wrong there was the 560px on the FORMS, and raising this
+  // to 90ch would have widened the prose to fix a layout problem.
   max-width: 60ch;
 
   h2 {
     margin-bottom: 0.5rem;
   }
+}
+
+// In the two-column grid the gap does the spacing. The stacked margin would add
+// to it, and only on the cells that are not in the first row, so the two columns
+// would start at different heights.
+.two-col > .setting {
+  margin-top: 0;
 }
 
 // A radio group drawn as a stack of rows rather than as a form: each choice
@@ -179,7 +190,7 @@
     margin-bottom: 0.5rem;
   }
 
-  input[type='text'] {
+  input[type="text"] {
     width: 100%;
     padding: 0.6rem 0.75rem;
     border: 1px solid $grey;
