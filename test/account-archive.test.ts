@@ -93,9 +93,7 @@ describe('accountArchiveName', () => {
   // slugField owns every field in a filename and a name is not a place for case
   // to be significant.
   it('never comes out nameless', () => {
-    expect(accountArchiveName(user({ username: null }), AT)).toBe(
-      'routeloop-account_ziad-260801t2220z_2026-08-14.zip',
-    )
+    expect(accountArchiveName(user({ username: null }), AT)).toBe('routeloop-account_ziad-260801t2220z_2026-08-14.zip')
     expect(accountArchiveName(user({ username: null, publicId: null }), AT)).toContain('rider-2')
   })
 })
@@ -112,6 +110,27 @@ describe('buildAccountJson', () => {
     expect(a.dir).toBe(dir)
     expect(a.native.startsWith(`${dir}/`)).toBe(true)
     for (const path of Object.values(a.exports)) expect(path.startsWith(`${dir}/`)).toBe(true)
+  })
+
+  // The archive is the "you can always get your data out" path, so a ride in the
+  // recycle bin has to be in it — it is the one about to be destroyed. Marked
+  // rather than hidden, so the file never presents a binned ride as live.
+  it('includes a trashed ride and says when it will be destroyed', () => {
+    const purgeAfter = new Date('2026-09-25T12:00:00.000Z')
+    const a = buildAccountJson(
+      input({ rides: [{ ride: ride({ deletedAt: AT, purgeAfter }), startDate: AT, originals: [] }] }),
+    ).rides[0]
+
+    expect(a.trashed).toBe(true)
+    expect(a.purgeAfter).toBe(purgeAfter.toISOString())
+    expect(a.native.startsWith(`${rideDirFor('aB3xY7kLmN9pQrS2tUvWxY')}/`)).toBe(true)
+  })
+
+  it('marks a live ride as neither trashed nor scheduled', () => {
+    const a = buildAccountJson(input({ rides: [{ ride: ride(), startDate: AT, originals: [] }] })).rides[0]
+
+    expect(a.trashed).toBe(false)
+    expect(a.purgeAfter).toBe(null)
   })
 
   it('carries the four generated formats plus the lossless one', () => {

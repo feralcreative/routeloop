@@ -10,7 +10,7 @@
 // The form posts to the existing /api/maps and sets `redirect=1`, which makes
 // that handler answer with a redirect instead of JSON. See the note there.
 import { Hono } from 'hono'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
@@ -18,6 +18,7 @@ import { page } from '../views/layout'
 import { asset } from '../views/assets'
 import { TURNSTILE_SITE_KEY, turnstileEnabled } from '../maps/turnstile'
 import { FORMAT_INFO, SUPPORTED_FORMATS } from '../maps/kml'
+import { LIVE_RIDE } from '../trash/service'
 
 export const importRoutes = new Hono<AuthEnv>()
 
@@ -48,7 +49,7 @@ importRoutes.get('/import', requireActive, async (c) => {
   const owned = await db
     .select({ slug: rides.slug, title: rides.title })
     .from(rides)
-    .where(eq(rides.ownerId, user.id))
+    .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
     .orderBy(desc(rides.createdAt))
 
   return c.html(

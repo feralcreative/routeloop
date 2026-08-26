@@ -49,6 +49,7 @@ import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
+import { LIVE_RIDE } from '../trash/service'
 
 // Re-exported: rides.ts has imported these from here since before they had
 // a module of their own.
@@ -673,13 +674,23 @@ export function canEditRide(ride: { ownerId: number }, viewer: { id: number; sta
   return ride.ownerId === viewer.id
 }
 
-export async function ownRide(userId: number, idParam: string) {
+/**
+ * The rider's own ride, or undefined.
+ *
+ * EXCLUDES THE RECYCLE BIN BY DEFAULT, and that default is doing most of the
+ * work in this feature: the builder, the PATCH, the delete, the exports, the
+ * roadbook and the hand-off all resolve a ride through here, so a trashed ride
+ * stops being editable, exportable and printable in one place rather than
+ * fifteen. `includeTrashed` is for the bin's own restore path, which is the only
+ * caller that has any business finding one.
+ */
+export async function ownRide(userId: number, idParam: string, opts: { includeTrashed?: boolean } = {}) {
   const id = Number(idParam)
   if (!Number.isInteger(id) || id <= 0) return undefined
   const [r] = await db
     .select()
     .from(rides)
-    .where(and(eq(rides.id, id), eq(rides.ownerId, userId)))
+    .where(and(eq(rides.id, id), eq(rides.ownerId, userId), ...(opts.includeTrashed ? [] : [LIVE_RIDE])))
     .limit(1)
   return r
 }

@@ -14,7 +14,7 @@
 //
 // No JavaScript. It is a page you print.
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides } from '../db/schema'
 import type { AuthEnv } from '../auth/middleware'
@@ -24,6 +24,7 @@ import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
+import { LIVE_RIDE } from '../trash/service'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
 
@@ -147,7 +148,11 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
 
   // The same visibility gate the viewer uses. A roadbook is the ride, rendered
   // differently — it must not be a way around who may see it.
-  const [m] = await db.select().from(rides).where(eq(rides.slug, slug)).limit(1)
+  const [m] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.slug, slug), LIVE_RIDE))
+    .limit(1)
   const viewable = m && (m.visibility === 'public' || m.visibility === 'unlisted' || (user && user.id === m.ownerId))
   if (!m || !viewable) return c.text('Not found', 404)
 

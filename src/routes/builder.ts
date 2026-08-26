@@ -31,6 +31,7 @@ import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
 import { fields, firstIssue } from '../maps/fields'
+import { LIVE_RIDE } from '../trash/service'
 import {
   MAX_DAYS,
   MAX_STOPS,
@@ -120,7 +121,11 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'not found' }, 404)
 
-  const [src] = await db.select().from(rides).where(eq(rides.id, id)).limit(1)
+  const [src] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.id, id), LIVE_RIDE))
+    .limit(1)
   // Public only. The `source !== 'native'` half of this test is gone: it was
   // there because an imported ride's graph could not be rebuilt into something
   // the builder would open, which stopped being true when the import started

@@ -5,7 +5,14 @@
 //
 //   - `users.used_bytes` — one integer per rider, a running tally the app
 //     maintains by hand: added to on import (src/routes/maps.ts), subtracted
-//     from on delete.
+//     from on delete, and subtracted from again when a ride goes in the recycle
+//     bin (src/trash/).
+//
+// THE `deleted_at is null` IN THE SUM BELOW IS LOAD-BEARING. Trashing a ride
+// frees its quota on the spot, while the row and its files stay put for thirty
+// days. Drop that predicate and this sweep adds those bytes straight back within
+// five minutes — the rider watches their meter fall, then silently rise again,
+// and every trash is undone as far as the allowance is concerned.
 //   - `sum(rides.size_bytes)` — the actual total. `size_bytes` is a GENERATED
 //     column, computed by Postgres from the three byte columns, so it cannot
 //     disagree with the files.
@@ -60,7 +67,7 @@ export async function reconcileUsedBytes(): Promise<number> {
            updated_at = now()
       from (
              select ${users.id} as id,
-                    coalesce((select sum(r.size_bytes) from rides r where r.owner_id = ${users.id}), 0) as total
+                    coalesce((select sum(r.size_bytes) from rides r where r.owner_id = ${users.id} and r.deleted_at is null), 0) as total
                from ${users}
            ) t
      where u.id = t.id

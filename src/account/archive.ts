@@ -90,6 +90,10 @@ export type ArchiveRide = {
   totalMiles: string
   totalDurationS: number
   stopCount: number
+  /** In the recycle bin. The files and the ride are still here — see below. */
+  trashed: boolean
+  /** When the bin will destroy it, ISO, or null when it is not in the bin. */
+  purgeAfter: string | null
   native: string
   exports: Record<DownloadFormat, string>
   originals: ArchiveOriginal[]
@@ -217,6 +221,13 @@ function archiveRide({ ride, startDate, originals }: ArchiveRideInput): ArchiveR
     totalMiles: ride.totalMiles,
     totalDurationS: ride.totalDurationS,
     stopCount: ride.stopCount,
+    // TRASHED RIDES ARE IN THE ARCHIVE, deliberately. This is the "you can
+    // always get your data out" path, and a ride in the bin is still a ride
+    // this app is holding — it is also about to be destroyed, which makes it the
+    // one a rider most needs a copy of. Marked rather than hidden, so the file
+    // says what state it was in rather than quietly presenting it as live.
+    trashed: ride.deletedAt != null,
+    purgeAfter: iso(ride.purgeAfter),
     native: nameFor(NATIVE_EXT),
     exports,
     // Kept under their on-disk names. The index is what says which day of a
@@ -261,8 +272,8 @@ export function readmeText(archive: AccountArchive): string {
     'originals/     Inside each ride, the file you originally uploaded, where the',
     '               ride was imported rather than built.',
     '',
-    'Two things worth knowing',
-    '------------------------',
+    'Three things worth knowing',
+    '--------------------------',
     '',
     '1. A stored KML is the sanitized version, not byte-for-byte what you',
     '   uploaded. Imported KML is stripped of scripts and network links before it',
@@ -270,6 +281,10 @@ export function readmeText(archive: AccountArchive): string {
     '',
     '2. Builder undo history and unsaved drafts are not in here. They live in your',
     '   own browser, not on the server, so no export can reach them.',
+    '',
+    '3. Rides you have moved to the recycle bin ARE in here, marked "trashed" in',
+    '   account.json with the date they will be destroyed. They are included',
+    '   precisely because they are the ones about to go.',
     '',
     'Coordinates are [longitude, latitude] everywhere, which is what GeoJSON says',
     'and the opposite of what Google Maps says. If you feed these to something',

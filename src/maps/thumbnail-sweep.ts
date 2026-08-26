@@ -15,6 +15,7 @@ import { db } from '../db/index'
 import { days as daysTable, rides, routeLegs } from '../db/schema'
 import { thumbnailHash, thumbnailRequest, thumbnailUrl, type ThumbDay } from './thumbnail'
 import { writeThumbFile } from './storage'
+import { LIVE_RIDE } from '../trash/service'
 
 // The two intervals, together and named, because they bound different things and
 // confusing them later is easy.
@@ -98,6 +99,10 @@ async function loadThumbDays(rideId: number): Promise<ThumbDay[]> {
  * The hash still earns its keep: after this runs, a ride whose picture genuinely
  * did not change costs a query and a hash rather than a Google call.
  */
+// DELIBERATELY NOT narrowed by LIVE_RIDE, unlike the sweep below. This clears
+// the stamp so a restyle gets picked up; a trashed ride is skipped by the sweep
+// anyway, so including it here costs one UPDATE and means a ride RESTORED after
+// a restyle redraws instead of keeping a picture in the old design forever.
 export async function resetThumbnailStamps(): Promise<number> {
   const rows = await db.update(rides).set({ thumbBuiltAt: null }).returning({ id: rides.id })
   return rows.length
@@ -122,6 +127,7 @@ export async function sweepThumbnails(): Promise<{ checked: number; built: numbe
     .from(rides)
     .where(
       and(
+        LIVE_RIDE,
         lt(rides.updatedAt, quietBefore),
         or(isNull(rides.thumbBuiltAt), sql`${rides.updatedAt} > ${rides.thumbBuiltAt}`),
       ),

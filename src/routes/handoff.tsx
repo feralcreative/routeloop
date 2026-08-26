@@ -16,7 +16,7 @@
 // No JavaScript beyond the density links, which are plain hrefs — a page that
 // has to work on a phone at a fuel stop with one bar should not need a bundle.
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides } from '../db/schema'
 import type { AuthEnv } from '../auth/middleware'
@@ -24,6 +24,7 @@ import { loadRideForExport } from '../maps/export'
 import { linkLabel, routeLinks, type GmapsRouteLinks } from '../maps/gmaps-links'
 import { METERS_PER_MILE } from '../maps/kml'
 import { page } from '../views/layout'
+import { LIVE_RIDE } from '../trash/service'
 
 export const handoffRoutes = new Hono<AuthEnv>()
 
@@ -33,11 +34,15 @@ const fmtMi = (m: number) => (m / METERS_PER_MILE).toFixed(1)
 // the nav app has, against how many times they have to stop and tap. The labels
 // say that; the numbers behind them are an implementation detail.
 const DENSITIES = [
-  { key: 'off', label: 'Stops only', points: 0, note: 'Hands over your stops and lets Maps pick the roads between them' },
+  {
+    key: 'off',
+    label: 'Stops only',
+    points: 0,
+    note: 'Hands over your stops and lets Maps pick the roads between them',
+  },
   { key: 'light', label: 'Light', points: 25, note: 'Holds the shape of the route with a few extra links' },
   { key: 'tight', label: 'Tight', points: 60, note: 'Pins it down closely, at the cost of more links' },
 ] as const
-
 
 const densityOf = (raw: string | undefined): (typeof DENSITIES)[number] =>
   DENSITIES.find((d) => d.key === raw) ?? DENSITIES[1]
@@ -51,7 +56,11 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
   // The same visibility gate the viewer and the roadbook use. A hand-off page
   // is the ride, rendered differently — it must not be a way around who may
   // see it.
-  const [m] = await db.select().from(rides).where(eq(rides.slug, slug)).limit(1)
+  const [m] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.slug, slug), LIVE_RIDE))
+    .limit(1)
   const viewable = m && (m.visibility === 'public' || m.visibility === 'unlisted' || (user && user.id === m.ownerId))
   if (!m || !viewable) return c.text('Not found', 404)
 
@@ -150,8 +159,8 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
                 it recognises.
               </li>
               <li>
-                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of
-                what is in the link.
+                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of what
+                is in the link.
               </li>
             </ul>
           </section>

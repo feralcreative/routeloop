@@ -20,13 +20,19 @@ import { points, rides, routeLegs, days, users } from '../db/schema'
 import { NOMINAL_SPEED_MS } from '../maps/ride-time'
 import { ACTIVITY_MONTHS } from './shape'
 import type { RawGlobal, RawMonth, RawRecords, RawRole, RawStats, RawTotals, RawTwist } from './shape'
+import { LIVE_RIDE } from '../trash/service'
 
 /** `count(*)::int` and friends, per the house style in invites/service.ts. */
 const int = (frag: ReturnType<typeof sql>) => sql<number>`coalesce(${frag}, 0)::int`
 const big = (frag: ReturnType<typeof sql>) => sql<number>`coalesce(${frag}, 0)::bigint`
 
 export async function loadStats(userId: number): Promise<RawStats> {
-  const owned = eq(rides.ownerId, userId)
+  // LIVE_RIDE folded in here rather than at the sixteen call sites below, for
+  // the same reason `counts` exists: every aggregate on this page already
+  // narrows by owner, so narrowing by owner AND not-in-the-bin is one predicate
+  // and cannot be half-applied. A trashed ride is not a ride the rider has
+  // planned, so it belongs in no total, no record and no month on this page.
+  const owned = and(eq(rides.ownerId, userId), LIVE_RIDE)
 
   // ALTERNATES. A day that lost is a road the rider decided against, so it must
   // not add to a distance, a duration or a record — this dashboard is a claim
@@ -145,7 +151,12 @@ export async function loadStats(userId: number): Promise<RawStats> {
       n: int(sql`count(*)`),
     })
     .from(rides)
-    .where(and(owned, sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`))
+    .where(
+      and(
+        owned,
+        sql`${rides.createdAt} >= date_trunc('month', now()) - interval '${sql.raw(String(ACTIVITY_MONTHS - 1))} months'`,
+      ),
+    )
     .groupBy(sql`1`)
 
   // ALL FOUR records, each one row. Ordered rather than aggregated so the title,

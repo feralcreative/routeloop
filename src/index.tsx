@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
 import {
   rides,
@@ -50,6 +50,7 @@ import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
+import { LIVE_RIDE } from './trash/service'
 
 // Visibility gate: public/unlisted are viewable by anyone with the link;
 // private only by its owner. Anything else (private to a non-owner, unknown
@@ -70,7 +71,12 @@ async function getViewable(slug: string, viewer: UserRow | null): Promise<RideRo
     .select({ ride: rides, ownerLeavingAt: users.deletionRequestedAt })
     .from(rides)
     .innerJoin(users, eq(users.id, rides.ownerId))
-    .where(eq(rides.slug, slug))
+    // LIVE_RIDE is what makes trashing a ride kill its share link on the spot.
+    // Not-found rather than gone, for the same reason the owner check above
+    // answers that way: a link must not be a way to learn that a ride existed.
+    // It is also what makes a restore free — the row never moved, so clearing
+    // deleted_at brings the same slug back.
+    .where(and(eq(rides.slug, slug), LIVE_RIDE))
     .limit(1)
   if (!row) return undefined
   if (row.ownerLeavingAt) return undefined
