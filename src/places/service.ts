@@ -113,14 +113,6 @@ export async function updatePlace(ownerId: number, id: number, input: PlaceInput
   return row
 }
 
-export async function deletePlace(ownerId: number, id: number): Promise<boolean> {
-  const rows = await db
-    .delete(places)
-    .where(and(eq(places.id, id), eq(places.ownerId, ownerId), LIVE_PLACE))
-    .returning({ id: places.id })
-  return rows.length > 0
-}
-
 export async function createGroup(ownerId: number, input: GroupInput): Promise<PlaceGroupRow | undefined> {
   const [last] = await db
     .select({ p: sql<number>`coalesce(max(${placeGroups.position}), -1)::int` })
@@ -151,21 +143,4 @@ export async function renameGroup(ownerId: number, id: number, input: GroupInput
     .where(and(eq(placeGroups.id, id), eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
     .returning()
   return row
-}
-
-/**
- * Deletes a group. **The places in it survive** and become ungrouped — the FK is
- * `set null`, not cascade.
- *
- * That is deliberate and worth not "fixing": a rider tidying up a folder name
- * must not lose the locations filed under it, and cascade is exactly how that
- * would happen. groupPlaces() in policy.ts renders the survivors in their own
- * section.
- */
-export async function deleteGroup(ownerId: number, id: number): Promise<boolean> {
-  const rows = await db
-    .delete(placeGroups)
-    .where(and(eq(placeGroups.id, id), eq(placeGroups.ownerId, ownerId), LIVE_PLACE_GROUP))
-    .returning({ id: placeGroups.id })
-  return rows.length > 0
 }

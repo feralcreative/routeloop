@@ -77,7 +77,14 @@ export function daysUntilPurge(row: TrashFields, now: Date): number {
   return ms <= 0 ? 0 : Math.ceil(ms / DAY_MS)
 }
 
-export type RestoreRefusal = 'not-trashed' | 'over-quota'
+/**
+ * Every reason a restore can be refused.
+ *
+ * `name-taken` is decided in service.ts rather than here — it needs a query, not
+ * arithmetic — but its MESSAGE belongs with the others, so a route can render
+ * any refusal without knowing which layer produced it.
+ */
+export type RestoreRefusal = 'not-trashed' | 'over-quota' | 'name-taken'
 export type RestoreCheck = { ok: true } | { ok: false; reason: RestoreRefusal; shortfallBytes: number }
 
 export type RestoreContext = {
@@ -122,4 +129,5 @@ export function canRestore(ctx: RestoreContext): RestoreCheck {
 export const RESTORE_REFUSAL_MESSAGES: Record<RestoreRefusal, string> = {
   'not-trashed': 'That is not in the bin.',
   'over-quota': 'Restoring this would put you over your storage limit.',
+  'name-taken': 'You already have a group with that name. Rename it first, then restore this one.',
 }

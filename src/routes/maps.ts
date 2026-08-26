@@ -49,7 +49,8 @@ import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
-import { LIVE_RIDE } from '../trash/service'
+import { LIVE_RIDE, restoreRide, trashRide } from '../trash/service'
+import { RESTORE_REFUSAL_MESSAGES } from '../trash/policy'
 
 // Re-exported: rides.ts has imported these from here since before they had
 // a module of their own.
@@ -729,24 +730,44 @@ mapsRoutes.patch('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c)
   return c.json({ id: updated.id, slug: updated.slug, title: updated.title, visibility: updated.visibility })
 })
 
+/**
+ * "Delete" a ride, which now means MOVE IT TO THE RECYCLE BIN.
+ *
+ * The route keeps its verb and its path deliberately. A rider pressing Delete
+ * means "get this out of my way", not "destroy this irrecoverably", and every
+ * caller — including any that predates the bin — gets the safer behavior with no
+ * change. Nothing here destroys anything any more: the row stays, the files stay
+ * on disk, and only the purge removes either.
+ *
+ * The quota still frees immediately. That half is unchanged from the hard
+ * delete, and it is why trashRide() is a transaction rather than one UPDATE.
+ */
 mapsRoutes.delete('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  await db.transaction(async (tx) => {
-    await tx.delete(rides).where(eq(rides.id, ride.id)) // days/points/legs cascade
-    // Clamped at zero: a drifted cache must never wedge the account negative.
-    await tx
-      .update(usersTable)
-      .set({
-        usedBytes: sql`GREATEST(0, ${usersTable.usedBytes} - ${ride.sizeBytes ?? 0})`,
-        updatedAt: new Date(),
-      })
-      .where(eq(usersTable.id, user.id))
-  })
-  // Row is gone; file removal is best-effort cleanup.
-  await deleteMapFiles(user.id, ride.id)
-  console.log(`[rides] user ${user.id} deleted ride ${ride.id} (freed ${ride.sizeBytes ?? 0} bytes)`)
-  return c.json({ ok: true })
+  const trashed = await trashRide(user.id, ride.id)
+  if (!trashed) return c.json({ error: 'not found' }, 404)
+  return c.json({ ok: true, purgeAfter: trashed.purgeAfter.toISOString() })
+})
+
+/**
+ * Out of the bin again. Refuses when the restore would put the rider over their
+ * quota — trashing freed the allowance, and they may have spent it since.
+ *
+ * `includeTrashed` is the ONLY place that flag is passed, which is what keeps
+ * ownRide()'s default honest everywhere else.
+ */
+mapsRoutes.post('/api/maps/:id/restore', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'), { includeTrashed: true })
+  if (!ride) return c.json({ error: 'not found' }, 404)
+
+  const result = await restoreRide(user.id, ride.id)
+  if (result.ok) return c.json({ ok: true })
+  if (result.reason === 'not-found') return c.json({ error: 'not found' }, 404)
+  // 409 rather than 400: the request was well-formed and the answer is about
+  // the account's state, not the request's shape.
+  return c.json({ error: RESTORE_REFUSAL_MESSAGES[result.reason] ?? 'cannot restore' }, 409)
 })
