@@ -6,9 +6,6 @@
 // units, default ride visibility and email preferences remain the obvious
 // untaken candidates.
 //
-// It is deliberately not a fake: no disabled controls, no "coming soon" toggles
-// that imply the setting exists and is off. Everything on it works.
-//
 // TWO `saved` STATES, and they are not the same thing — `?saved` with no value
 // is Save Me confirming an account is no longer scheduled for deletion, and
 // `?saved=duration` is this page's own form. The first was here before the

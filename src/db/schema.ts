@@ -26,7 +26,16 @@ export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare'
 // Cloudflare Access authenticates; this authorizes. Access admits any Google
 // account, so a new rider lands 'pending' and waits for approval.
 export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
-export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private'])
+// FOUR LEVELS as of 2026-08-26, and the order here is not the order of
+// openness — a pgEnum's member order is fixed once created and adding `friends`
+// at the end is what keeps the migration a plain ALTER TYPE ADD VALUE rather
+// than a rebuild of every column using it.
+//
+// `public` and `unlisted` keep their exact previous meanings. `private` gains
+// "and invited riders", which is a SUPERSET — and no ride has invitees, so no
+// existing row changed meaning. See canView() in src/access/policy.ts for the
+// whole rule; nothing should read this enum and decide for itself.
+export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private', 'friends'])
 // Three ways to hand out access, and the difference is not only max_uses. An
 // 'email' invite is bound to an address and mailed; a 'link' is one URL handed
 // to one person; a 'group' is pasted into a channel and read by everyone in it.
@@ -1205,8 +1214,99 @@ export type InviteRedemptionRow = typeof inviteRedemptions.$inferSelect
 export type SurveyResponseRow = typeof surveyResponses.$inferSelect
 /** The three ways an invite is handed out, derived from the enum so the two cannot drift. */
 export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
+/** The four levels a ride can be shared at, derived from the enum so the two
+ *  cannot drift. What each one MEANS is canView() in src/access/policy.ts —
+ *  nothing else should read this union and decide for itself. */
+export type RideVisibility = (typeof visibilityEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
+// --- The rider layer --------------------------------------------------------
+
+// Minimal on purpose. Editor rights are #32's problem; this leaves room for the
+// value without pretending to answer it.
+export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
+
+// Distinct from role, because a rider who declined is still on the roster —
+// that is the whole reason the two are separate columns.
+export const rsvpEnum = pgEnum('rsvp', ['invited', 'going', 'maybe', 'declined'])
+
+export const friendshipStatusEnum = pgEnum('friendship_status', ['pending', 'accepted', 'blocked'])
+
+// A rider's relationship to a ride: the primitive several planned features
+// assume and none of them owns.
+//
+// SCHEMA ONLY FOR NOW. Ziad's call, 2026-08-26: the invite path that would
+// create rows here is cut, so nothing in the app inserts one yet. The table
+// exists because canView() already reads it — the membership grant is wired and
+// correct the day membership is switched on, rather than being a second change
+// to the access rule later.
+export const rideMembers = pgTable(
+  'ride_members',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    riderId: bigint('rider_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: rideRoleEnum('role').notNull().default('rider'),
+    rsvp: rsvpEnum('rsvp').notNull().default('invited'),
+    // `set null` rather than cascade: the rider who did the inviting may leave,
+    // and losing their account must not evict everyone they brought.
+    invitedBy: bigint('invited_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_ride_member').on(t.rideId, t.riderId),
+    // What canView's EXISTS subquery probes, and it reads rider-first because
+    // the question is always "is THIS viewer on this ride".
+    index('idx_ride_member_rider').on(t.riderId, t.rideId),
+  ],
+)
+
+// A standing relationship between two riders, separate from any one ride.
+//
+// ONE ROW PER PAIR, under a canonical ordering enforced by the check constraint:
+// the lower id is always rider_a. Two mirrored rows would mean "are these two
+// friends" is two lookups that can disagree, and every write has to remember to
+// update both. The cost is that direction is not implied by the columns, which
+// is what `requested_by` and `blocked_by` are for.
+export const friendships = pgTable(
+  'friendships',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    riderA: bigint('rider_a', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    riderB: bigint('rider_b', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: friendshipStatusEnum('status').notNull().default('pending'),
+    // Who asked. Without it the canonical ordering loses which of the two is
+    // waiting on the other, and a pending row cannot be rendered.
+    requestedBy: bigint('requested_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Who blocked, when status is 'blocked'. Load-bearing rather than
+    // informational: the blocker may unblock and the blocked rider may not, and
+    // without this column the row cannot tell them apart.
+    blockedBy: bigint('blocked_by', { mode: 'number' }).references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_friendship_pair').on(t.riderA, t.riderB),
+    index('idx_friendship_b').on(t.riderB),
+    // The canonical ordering, in the database rather than in a service that has
+    // to remember. It also rules out a rider befriending themselves.
+    check('ck_friendship_order', sql`${t.riderA} < ${t.riderB}`),
+  ],
+)
+
 export type PlaceRow = typeof places.$inferSelect
+export type RideMemberRow = typeof rideMembers.$inferSelect
+export type FriendshipRow = typeof friendships.$inferSelect
 export type BikeRow = typeof bikes.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type DayRow = typeof days.$inferSelect
