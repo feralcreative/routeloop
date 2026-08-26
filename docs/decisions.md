@@ -36,6 +36,26 @@ So `legs[i]` joins `points[i]` to `points[i+1]` for both kinds, and `kind` means
 
 **Consequences accepted, not to be filed as defects.** Adding a POI is a Routes request now, where it used to be free. A day's leg count is bounded by `MAX_POINTS` (400) rather than `MAX_STOPS` (200), so up to 399 legs and 399 `route_legs` rows. `ride.json` lost the deliberate two-array `stops`/`pois` split, because the schedule walks points and legs together and two arrays cannot carry the order. The Google Maps hand-off now sends both kinds—excluding POIs would send the rider down a different road than the builder drew. And the native format went to 5, the first bump that is not a rename: a v4 file's `stops - 1` legs are re-cut from its own track at every point.
 
+## The access layer ships without invites, 2026-08-26
+
+Four issues (#71, #72, #73, #12) covered ride membership, friendships, a `friends` visibility level, and ride invites. Ziad's call after the scope was written: **invites are cut and membership ships as schema only.** `ride_invites`, the token path, and account-creation-on-invite are not built, and `ride_members` exists with `canView()` already honoring it but nothing that can insert a row.
+
+What that avoids is the sign-off the invite path needed. Signups land `pending` and see only `/welcome` until an owner approves them, so an invite link for someone with no account either bypasses that gate—meaning any rider can create active accounts—or lands them somewhere they cannot see the ride they were invited to, via a special case inside `requireActive`, which is the one gate in the app whose job is to be unsubtle. Neither was worth taking to reach a feature nobody had asked for yet. Sharing a ride with anyone already works through unlisted and public links.
+
+Friendships and the `friends` level ship working, because they need neither.
+
+## Two forms of the access rule, and why there is only one, 2026-08-26
+
+The plan called for `canView()` as a pure boolean plus `visibleToViewer(id)` as a drizzle predicate with `EXISTS` subqueries, pinned together by an agreement test—on the argument that the `deleted_at` sweep was easy only because its predicate was a constant every path could share, and a membership or friendship grant depends on the viewer.
+
+It turned out nothing needs the second form. The only two list queries in the app are `/explore` and the ride grid on a public profile, both of which show LISTED rides, and `friends` is deliberately not a listed level: surfacing a friends-only ride would publish it on the owner's behalf, and it would make `/explore`'s result depend on who is asking, which is a much more expensive page. So the list form is a constant predicate after all—`LISTED_RIDE`, derived from the same `isListed()` the boolean uses. One rule with two readings beats two implementations and a test to keep them honest.
+
+## Clone follows publishing, not viewing, 2026-08-26
+
+`friends` made "who may clone" a real question rather than an inherited `visibility === 'public'`. Clone follows the two levels where the owner named an audience: `public`, which is publishing, and `friends`. It does **not** follow `unlisted`, whose entire meaning is "I gave this to one person"—a copy that outlives the link is not what handing over a link says. It does not follow `private` either, even for a member who can see the ride.
+
+The asymmetry is the point and worth stating: viewable is not clonable.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
