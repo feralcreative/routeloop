@@ -98,6 +98,16 @@
         name: p.fileName,
         ext: p.ext || "",
         title: p.title ? TBF.titleFromSlug(p.title) : "",
+        // WHETHER THE NAME IN THE BOX IS OURS OR THE RIDER'S, and it is the same
+        // distinction titleAuto draws for the ride name above. The box is
+        // pre-filled from the filename, so without this every row would post a
+        // title as though it had been typed — and a typed title outranks the
+        // file's own <trk><name>, which the browser cannot read. Importing one
+        // file with JavaScript on and off would then give it two different day
+        // names. Measured, not theorized: a GPX whose track is named
+        // "Oakland to Mt Shasta" came in as "Oakland To Mt Shasta", capitalised
+        // by titleFromSlug out of the filename.
+        titleAuto: true,
         date: dateValue(p.date),
         time: timeValue(p.date, p.hasTime),
         zip: false,
@@ -315,8 +325,10 @@
     // NO RE-RENDER ON A KEYSTROKE. The model is updated in place and the DOM is
     // already showing what the rider typed — re-rendering here would rebuild the
     // input under the cursor and lose the caret position on every character.
-    if (el.classList.contains("plan-title")) r.title = el.value;
-    else if (el.classList.contains("plan-date")) r.date = el.value;
+    if (el.classList.contains("plan-title")) {
+      r.title = el.value;
+      r.titleAuto = false;
+    } else if (el.classList.contains("plan-date")) r.date = el.value;
     else if (el.classList.contains("plan-time")) r.time = el.value;
   });
 
@@ -398,7 +410,10 @@
         }) || null;
       return {
         fileName: f.name,
-        title: r && !r.zip ? r.title.trim() : "",
+        // Only a name the rider actually typed. An untouched box is an
+        // unanswered question, so the server falls back to what the FILE says
+        // its day is called — see the note in build() above.
+        title: r && !r.zip && !r.titleAuto ? r.title.trim() : "",
         // A time with no date is not a start, so it is dropped rather than being
         // stamped onto a date the rider never gave.
         startAt: r && !r.zip && r.date ? (r.time ? r.date + "T" + r.time : r.date) : "",

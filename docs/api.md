@@ -99,7 +99,7 @@ Import specifics: several files posted at once become the days of one ride, and 
 - **A manifest suppresses the day-number sort.** The posted order IS the reviewed order, because the page rebuilds its own file input to match what the rider dragged. The name-and-position check is what proves the two agree; a mismatch is a 400 rather than a ride whose second day carries the third day's date.
 - **`startAt` is a wall clock**, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`, parsed as UTC like every other day clock in this app. An unparseable one names itself in the error.
 - **A zip gets an entry that carries nothing.** Nothing unzips in the browser, so an archive's days are still read on the way in; its row exists to keep the positions lining up.
-- **A typed name outranks the file's own.** Precedence is typed → the file's internal name (`<trk><name>`) → the filename's title field → the mangled filename. An empty box is "I did not answer" rather than "no name", because the table only ever shows what the FILENAME said.
+- **A typed name outranks the file's own.** Precedence is typed → the file's internal name (`<trk><name>`) → the filename's title field → the mangled filename. An empty box is "I did not answer" rather than "no name", because the table only ever shows what the FILENAME said—and so is an **untouched** box: the review pre-fills it from the filename, so `import.js` sends a title only where the rider actually edited one. Without that, importing a file with JavaScript on and off gives its day two different names.
 
 ### Export search and the cart
 
