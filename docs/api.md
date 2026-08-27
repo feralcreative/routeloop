@@ -91,6 +91,25 @@ All of these carry `requireAuthApi` (or `requireActiveApi`) plus `requireSameOri
 
 Import specifics: several files posted at once become the days of one ride, and all are validated before any is parsed so a bad tenth file names itself rather than leaving nine days half-imported. A zip is expanded before anything asks what format a file is, so nothing downstream ever sees one. Day order comes from the `dNN` filename field when every file carries one, and from upload order otherwise—partial sets keep upload order, because interleaving numbered and unnumbered files needs a rule nobody asked for. The form is `routes/import.tsx`, enhanced by `public/js/import.js` into a drop box that fills it from the filenames.
 
+### The import review manifest
+
+`POST /api/maps` takes one optional extra field, `manifest`: a JSON array of `{fileName, title, startAt}`, one entry per posted file, **in the same order and with names that match**. It is what the review table (#129) posts when a rider corrects the guess, and `src/maps/manifest.ts` is the whole rule.
+
+- **No manifest means what it always meant.** Absent, empty, or posted by an API client: the server derives day order, dates and names from the filenames exactly as before. That is what keeps the form working with JavaScript off.
+- **A manifest suppresses the day-number sort.** The posted order IS the reviewed order, because the page rebuilds its own file input to match what the rider dragged. The name-and-position check is what proves the two agree; a mismatch is a 400 rather than a ride whose second day carries the third day's date.
+- **`startAt` is a wall clock**, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`, parsed as UTC like every other day clock in this app. An unparseable one names itself in the error.
+- **A zip gets an entry that carries nothing.** Nothing unzips in the browser, so an archive's days are still read on the way in; its row exists to keep the positions lining up.
+- **A typed name outranks the file's own.** Precedence is typed → the file's internal name (`<trk><name>`) → the filename's title field → the mangled filename. An empty box is "I did not answer" rather than "no name", because the table only ever shows what the FILENAME said.
+
+### Export search and the cart
+
+| Route | Notes |
+| --- | --- |
+| `GET /api/export/search?q=` | Owner-scoped ride search for the export cart, capped at 12. Name **and the days' dates**—never `rides.created_at`, because a rider searching "August" means when they rode. `src/maps/ride-search.ts` reads the box; a bare month name ORs against the title so "August Loop" is still findable |
+| `POST /export/zip` | One zip of the cart: `cart` is a JSON array of `{slug, format}`, at most 20. A plain form post rather than fetch, so the browser handles the attachment. Ownership is re-checked per slug and a slug that is not the rider's own is skipped rather than refused, so a stale cart still exports the rest |
+
+**`/api/export/search` and not `/api/rides/search`**: `GET /api/rides/:id` is registered ahead of it and matches that path with `id = "search"`, so the endpoint answered `{"error":"not found"}` with nothing to say why. Ordering the mounts around it would work and would break again the next time somebody moved a line in `index.tsx`.
+
 ## Pages
 
 | Route                              | Gate                                                               |
@@ -100,7 +119,7 @@ Import specifics: several files posted at once become the days of one ride, and 
 | `GET /rides`                       | **302 to `/`** since 2026-08-24, when the list folded into the dashboard. A 302 rather than a 301 because this is a layout decision that has been revisited once already. `routes/rides.tsx` is now nothing but this redirect |
 | `GET /dashboard`                   | **301 to `/`**—301 to `/rides` from 2026-08-15, repointed at the destination on 2026-08-24 so it does not chain through a second redirect |
 | `GET`/`POST /profile`              | Profile form and username reservations                             |
-| `GET /import`                      | Import **and** export, one page under one `<h1>`: the multi-file upload form, and a per-format download row per owned ride |
+| `GET /import`                      | Import **and** export, one page under one `<h1>`: the multi-file upload form with its editable review table, and the export search box and cart. Asks the database one question about the rider's rides—"do you have any"—since the rides themselves arrive through `/api/export/search` |
 | `GET /settings`                    | The rider's preferences. Currently one setting, the stop-duration format, shipped 2026-08-15; **planned to move to `/prefs`**, see `docs/main-menu.md` |
 | `GET /brand`                       | Signed-in palette audit read live from the SCSS                    |
 

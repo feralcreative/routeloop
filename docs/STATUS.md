@@ -1,9 +1,20 @@
 # Status and handoff
 
 **Updated:** 2026-08-26
-**Branch:** `feat/rider-subgroups`, **eight commits ahead of `main`**, nothing pushed. **1,728 tests across 67 files** (2 skipped, 1,730 total)
+**Branch:** `feat/import-review-and-export-cart`, uncommitted. **1,822 tests across 71 files** (2 skipped, 1,824 total)
+**Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129) and [#131](https://github.com/feralcreative/routeloop/issues/131). [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## The import review table and the export cart—2026-08-26
+
+`/import` is both halves rewritten. **The import half stages in the browser**: `planImport()` still guesses the ride name, day order, dates and per-day names off the filenames, but the preview is now an editable table—drag or arrow the rows, retype a name or a date, drop a row—and the corrections post beside the files as a `manifest`. There is no stage id, no temp directory and no expiry sweep, which was the deliberate choice: the page holds the files until Import is pressed. Two consequences are by design rather than unfinished—**a zip cannot be reviewed** (nothing unzips in the browser), and **a dropped row never uploads**, because the page rebuilds its own file input through a `DataTransfer` first.
+
+**No manifest means the old behavior exactly.** That is what keeps the plain form working with JavaScript off and leaves every API client alone, and it is worth not breaking: `src/maps/manifest.ts` is a deliberate hole in the invariant `filename.ts` states, and the absent case is the one that still honors it.
+
+**The export half is a search box, a cart and one zip.** It used to select every ride the owner had, unpaginated, and render one row per ride times one button per format. `/api/export/search` is capped at 12 and searches names **and the days' dates**—not `rides.created_at`, because a rider searching "August" means when they rode. `POST /export/zip` takes at most 20 rides, re-checks ownership per slug, and names the archive for the export rather than for any ride in it.
+
+**Two traps this branch walked into, both now written down in AGENTS.md.** `GET /api/rides/:id` silently swallows any `/api/rides/<word>` added later—the search endpoint answered `{"error":"not found"}` as a lookup for a ride called "search"—hence `/api/export/search`. And a typed day name has to outrank the file's own `<trk><name>`, or a correction does nothing at all; the first pass had the precedence backwards and the ride imported with the GPX's name.
 
 ## Switching machines—read this first
 

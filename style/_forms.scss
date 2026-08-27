@@ -139,10 +139,17 @@
     font-size: 0.85rem;
   }
 
-  // What the filenames were read as. Deliberately a plain list rather than a
-  // set of editable fields: the day order and dates are read from the files and
-  // the place to change them is the files or the builder, so this reports and
-  // does not pretend to be a form.
+  // THE IMPORT REVIEW TABLE (#129). It used to be a plain list, and the comment
+  // here used to argue that it should stay one — that the place to change a day
+  // order was the files or the builder. That was wrong in the way a shipped
+  // guess is always wrong: a rider who saw a misread date had to rename files on
+  // disk and drop them again. It reports AND corrects now.
+  //
+  // A grid rather than a flex line, because the columns have to line up DOWN the
+  // list: the day numbers, the name fields and the dates each form a column, and
+  // a flex row per <li> lines up nothing with its neighbors. `subgrid` is what
+  // lets each row keep its own hover and border while inheriting the parent's
+  // tracks.
   .import-plan {
     margin: 0 0 1.1rem;
     padding: 0.8rem 1rem;
@@ -152,7 +159,12 @@
     font-size: 0.9rem;
 
     .plan-head {
-      margin: 0 0 0.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 0.6rem;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 0 0.6rem;
       color: $neutral-36;
     }
 
@@ -160,60 +172,222 @@
       color: $text;
     }
 
+    .plan-hint {
+      color: $neutral-50;
+      font-size: 0.85em;
+    }
+
     .plan-list {
+      display: grid;
+      // grip | day | name | date | time | ext | actions. The name track takes
+      // the slack; every other one is sized by its content so the columns hold
+      // still as rows are added, dropped and dragged.
+      grid-template-columns: auto auto minmax(6rem, 1fr) auto auto auto auto;
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
     .plan-row {
-      display: flex;
-      gap: 0.6rem;
-      align-items: baseline;
-      padding: 0.2rem 0;
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.35rem 0;
 
       + .plan-row {
         border-top: 1px solid $grey-l6;
       }
     }
 
+    // The drag handle. `cursor: grab` and nothing else — it is not a button,
+    // because it cannot be operated from a keyboard and must not be in the tab
+    // order pretending otherwise. The two arrows beside it are that path.
+    .plan-grip {
+      color: $neutral-70;
+      font-size: 1.1em;
+      line-height: 1;
+      cursor: grab;
+      user-select: none;
+    }
+
     // A file that carried no structured name. Dimmed rather than flagged: it
     // still imports, it just brought less with it.
-    .plan-row.is-plain {
+    .plan-row.is-plain .plan-day {
       color: $neutral-57;
     }
 
-    .plan-day {
-      min-width: 2.6em;
-      color: $url;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
+    // Two files with the same name. A warning tone and not an error one: it is
+    // usually the same file added twice, and occasionally two genuinely
+    // different days a rider named badly. Either way it is theirs to decide.
+    .plan-row.is-dupe {
+      background: color-mix(in oklab, $warning 12%, transparent);
     }
 
-    .plan-when {
-      min-width: 8.5em;
-      white-space: nowrap;
+    // An archive. Its contents cannot be read in the browser, so the row has
+    // nothing to edit and says so by being the one row that is all text.
+    .plan-row.is-zip {
+      color: $neutral-57;
     }
 
-    // Takes the slack so the extension stays pinned right and the names form a
-    // readable column between the two fixed edges.
-    .plan-name {
-      flex: 1;
+    .plan-zip-name {
+      grid-column: 3 / 6;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .plan-day {
+      color: $url;
+      font-weight: 600;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    // The label wraps the input only to carry a hidden name for it. It must not
+    // take part in the grid's sizing itself, or a long placeholder would widen
+    // the column it sits in.
+    .plan-field {
+      display: block;
+      min-width: 0;
+
+      input {
+        width: 100%;
+        min-width: 0;
+        padding: 0.3rem 0.4rem;
+        border: 1px solid $grey;
+        border-radius: 6px;
+        background: $white;
+        color: $text;
+        font: inherit;
+        font-size: 0.95em;
+      }
+
+      input:focus-visible {
+        outline: 2px solid $accent;
+        outline-offset: 1px;
+      }
+    }
+
+    // Sized to their content rather than to the grid, since a date input has a
+    // natural width the browser draws and stretching one looks like a bug.
+    .plan-field--date input {
+      width: auto;
+    }
+
+    .plan-field--time input {
+      width: auto;
+    }
+
     .plan-ext {
       color: $neutral-57;
       font-size: 0.85em;
+      white-space: nowrap;
+    }
+
+    .plan-actions {
+      display: flex;
+      gap: 0.15rem;
+    }
+
+    .plan-btn {
+      padding: 0.2rem 0.35rem;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: none;
+      color: $neutral-50;
+      font: inherit;
+      line-height: 1;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        border-color: $grey;
+        color: $text;
+      }
+
+      &:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+    }
+
+    .plan-drop:hover {
+      border-color: $stop;
+      color: $stop;
     }
 
     .plan-notes {
-      margin: 0.6rem 0 0;
+      margin: 0.7rem 0 0;
       padding-left: 1.1rem;
       color: $neutral-50;
       font-size: 0.85em;
+    }
+
+    // The row under the cursor while a drag is in flight, and the copy that
+    // follows the pointer. Named to match the builder's, which uses the same
+    // forceFallback path for the same reason: one code path on a phone and a
+    // laptop, and the only one a synthetic event can drive.
+    .plan-row.is-dragging {
+      opacity: 0.4;
+    }
+  }
+
+  //@ Narrow: the table becomes one block per file
+  //
+  // Below 640px there is no room for seven columns, and a horizontal scroller
+  // inside a form is worse than a stack. Each row becomes its own small grid:
+  // the day number and the controls on one line, the fields under them.
+  @media (max-width: 640px) {
+    .import-plan {
+      .plan-list {
+        display: block;
+      }
+
+      .plan-row {
+        display: grid;
+        grid-template-columns: auto auto 1fr auto;
+        grid-template-areas:
+          "grip day ext actions"
+          "name name name name"
+          "date date time time";
+        padding: 0.6rem 0;
+      }
+
+      .plan-grip {
+        grid-area: grip;
+      }
+
+      .plan-day {
+        grid-area: day;
+      }
+
+      .plan-ext {
+        grid-area: ext;
+        justify-self: end;
+      }
+
+      .plan-actions {
+        grid-area: actions;
+      }
+
+      .plan-zip-name,
+      .plan-field:not(.plan-field--date):not(.plan-field--time) {
+        grid-area: name;
+      }
+
+      .plan-field--date {
+        grid-area: date;
+      }
+
+      .plan-field--time {
+        grid-area: time;
+      }
+
+      .plan-field--date input,
+      .plan-field--time input {
+        width: 100%;
+      }
     }
   }
 
@@ -452,57 +626,146 @@ h1 + .transfer-head {
   border-top: 0;
 }
 
-.export-list {
-  // Uncapped per #130. These rows are the one thing on the page that reads
-  // BETTER wide: a ride title on the left, five format buttons on the right, and
-  // at 560px the title was the part that wrapped.
+// --- The export cart (#131) ---------------------------------------------------
+//
+// What used to be here was `.export-list`: one row per ride, one button per
+// format, every ride the rider owned. It read fine at three rides and was a wall
+// at thirty. The classes are gone with it — nothing else used them.
+
+.export-cart {
+  // Uncapped per #130. The cart rows read BETTER wide: a title on the left, a
+  // date and a format picker on the right, and at 560px the title wrapped.
   margin: 0 0 2rem;
+}
+
+// The field the results hang off. `position: relative` is load-bearing: the list
+// is absolutely positioned against it so it overlays what follows instead of
+// pushing the cart down the page on every keystroke.
+.ex-search-field {
+  position: relative;
+}
+
+.ex-results {
+  position: absolute;
+  z-index: 5;
+  // Under the input, not under the whole field — the field also holds a label
+  // above and a hint below, and anchoring to the bottom would put the list under
+  // the hint with a gap through which the page shows.
+  top: calc(100% - 1.5rem);
+  left: 0;
+  width: 100%;
+  max-height: 17rem;
+  overflow-y: auto;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  background: $white;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+}
+
+.ex-hits {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.export-row {
+.ex-hit {
+  display: flex;
+  gap: 0.8rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+
+  + .ex-hit {
+    border-top: 1px solid $grey-l6;
+  }
+
+  // One highlight for both paths. The arrow keys move `.is-active` and the
+  // pointer paints the same state, so a rider who reaches for the row under the
+  // cursor gets the row they are looking at — two different highlights on screen
+  // at once is the failure this avoids.
+  &.is-active,
+  &:hover {
+    background: $grey-l8;
+  }
+}
+
+.ex-hit-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-hit-date {
+  color: $neutral-50;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.ex-empty {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  color: $neutral-50;
+  font-size: 0.9rem;
+}
+
+.ex-cart {
+  margin: 0.4rem 0 1.2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.ex-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 0.8rem;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0.55rem 0;
+  align-items: center;
+  padding: 0.5rem 0;
 
-  + .export-row {
+  + .ex-row {
     border-top: 1px solid $grey;
   }
 }
 
-.export-title {
+.ex-row-title {
   flex: 1 1 12rem;
+  min-width: 0;
   font-weight: 600;
-  color: $text;
-  text-decoration: none;
-
-  &:hover {
-    color: $url;
-  }
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.export-formats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+.ex-row-date {
+  color: $neutral-50;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
-.export-btn {
-  padding: 0.15rem 0.45rem;
-  background: $grey-l8;
-  border-radius: 5px;
+.ex-row-format select {
+  padding: 0.25rem 0.4rem;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  background: $white;
   color: $text;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-decoration: none;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.ex-remove {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: $neutral-50;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
 
   &:hover {
-    background: $url;
-    color: $white;
+    border-color: $stop;
+    color: $stop;
   }
 }
 

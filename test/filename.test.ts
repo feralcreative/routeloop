@@ -9,7 +9,15 @@
 // fails silently — the files still import, just stripped of day order and dates,
 // which is precisely the information the convention exists to carry.
 import { describe, expect, it } from 'vitest'
-import { buildExportName, parseExportName, planImport, slugField, splitExt, titleFromSlug } from '../src/maps/filename'
+import {
+  buildExportName,
+  parseExportName,
+  planImport,
+  slugField,
+  splitExt,
+  titleFromSlug,
+  uniqueName,
+} from '../src/maps/filename'
 
 describe('slugField', () => {
   it('lowercases and hyphenates', () => {
@@ -295,5 +303,41 @@ describe('planImport', () => {
   it('ties break on supplied order rather than unpredictably', () => {
     const plan = planImport(['routeloop_r_d02_b.gpx', 'routeloop_r_d02_a.gpx'])
     expect(plan.files.map((f) => f.title)).toEqual(['b', 'a'])
+  })
+})
+
+describe('uniqueName', () => {
+  it('hands back a name nobody has used', () => {
+    const used = new Set<string>()
+    expect(uniqueName(used, 'routeloop_coast_2026-08-14.gpx')).toBe('routeloop_coast_2026-08-14.gpx')
+  })
+
+  it('claims the name it hands back, so a caller cannot forget to', () => {
+    const used = new Set<string>()
+    uniqueName(used, 'a.gpx')
+    expect(used.has('a.gpx')).toBe(true)
+  })
+
+  it('numbers a collision', () => {
+    const used = new Set<string>()
+    uniqueName(used, 'a.gpx')
+    expect(uniqueName(used, 'a.gpx')).toBe('a-2.gpx')
+    expect(uniqueName(used, 'a.gpx')).toBe('a-3.gpx')
+  })
+
+  it('numbers before the extension, and the compound extension is one extension', () => {
+    // `ride.routeloop.json-2` is not a JSON file to anything that reads names.
+    const used = new Set(['routeloop_coast.routeloop.json'])
+    expect(uniqueName(used, 'routeloop_coast.routeloop.json')).toBe('routeloop_coast-2.routeloop.json')
+  })
+
+  it('handles a name with no extension at all', () => {
+    const used = new Set(['coast'])
+    expect(uniqueName(used, 'coast')).toBe('coast-2')
+  })
+
+  it('skips a numbered name that is itself already taken', () => {
+    const used = new Set(['a.gpx', 'a-2.gpx'])
+    expect(uniqueName(used, 'a.gpx')).toBe('a-3.gpx')
   })
 })

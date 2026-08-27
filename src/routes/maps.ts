@@ -47,6 +47,7 @@ import { fields, firstIssue } from '../maps/fields'
 import { dayColor } from '../maps/palette'
 import { generateSlug } from '../maps/slug'
 import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
+import { readManifest, type ReviewEntry } from '../maps/manifest'
 import { twistiness } from '../maps/twist'
 import { deleteMapFiles, writeMapFile } from '../maps/storage'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
@@ -184,11 +185,25 @@ mapsRoutes.post(
     // anything is. This is the other half of the per-day zip download: an
     // archive this app wrote drags straight back in and comes out as the ride
     // it left as.
-    const uploads: File[] = []
+    // The rider's corrections, when the review table sent any. Absent for a
+    // plain form post, for an API client, and for anyone with JavaScript off —
+    // all three still get exactly the derived import they always got, which is
+    // what keeps this endpoint working without the page. See maps/manifest.ts.
+    let review: ReviewEntry[] | null = null
+    if (typeof body.manifest === 'string' && body.manifest.length > 0) {
+      const read = readManifest(
+        body.manifest,
+        posted.map((f) => f.name),
+      )
+      if (!read.ok) return fail(read.error, 400)
+      review = read.entries
+    }
+
+    const uploads: Array<{ file: File; review: ReviewEntry | null }> = []
     try {
-      for (const f of posted) {
+      for (const [i, f] of posted.entries()) {
         if (!/\.zip$/i.test(f.name)) {
-          uploads.push(f)
+          uploads.push({ file: f, review: review?.[i] ?? null })
           continue
         }
         const entries = readZipEntries(Buffer.from(await f.arrayBuffer()), zipReadOptions)
@@ -196,7 +211,12 @@ mapsRoutes.post(
         // The entry name is used for its extension and its day fields and for
         // nothing else — it never becomes a path. readZipEntries has already
         // reduced it to a basename.
-        for (const e of entries) uploads.push(new File([e.data], e.name))
+        //
+        // No review: the browser cannot read inside an archive, so these are the
+        // one kind of file the rider was never shown. They keep everything
+        // planImport() derives, and the archive's own manifest row carries
+        // nothing — see maps/manifest.ts.
+        for (const e of entries) uploads.push({ file: new File([e.data], e.name), review: null })
       }
     } catch (e) {
       if (e instanceof RouteFileError) return fail(e.message, 400)
@@ -209,15 +229,16 @@ mapsRoutes.post(
 
     // Validate every file before parsing any, so a bad tenth file fails the
     // upload rather than leaving nine days half-imported.
-    const sources: Array<{ file: File; ext: SupportedFormat; planned: ParsedName | null }> = []
-    for (const file of uploads) {
+    const sources: Array<{ file: File; ext: SupportedFormat; planned: ParsedName | null; review: ReviewEntry | null }> =
+      []
+    for (const { file, review: entry } of uploads) {
       const e = (file.name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
       if (!isSupportedFormat(e)) {
         return fail(`unsupported file type "${e || file.name}" — accepted: ${SUPPORTED_FORMATS.join(', ')}`, 400)
       }
       const cap = FORMAT_INFO[e].maxBytes
       if (file.size > cap) return fail(`${file.name}: ${e.toUpperCase()} exceeds ${cap / MB} MB`, 413)
-      sources.push({ file, ext: e, planned: parseExportName(file.name) })
+      sources.push({ file, ext: e, planned: parseExportName(file.name), review: entry })
     }
 
     // Day order comes from the filenames when every one of them carries a day,
@@ -228,7 +249,13 @@ mapsRoutes.post(
     // This matters most for a zip, where entry order is whatever the archive
     // happened to store, and for a folder selection on a browser that does not
     // sort. A d01/d02/d03 set comes out right either way.
-    if (sources.length > 1 && sources.every((s) => s.planned?.day != null)) {
+    //
+    // A REVIEWED IMPORT IS NEVER RE-SORTED. The rider dragged the rows into the
+    // order they meant, the page rebuilt its file input to match, and re-deriving
+    // an order from the day fields here would silently undo exactly the
+    // correction they came to make. The manifest check in maps/manifest.ts is
+    // what proves the posted order IS the reviewed order.
+    if (!review && sources.length > 1 && sources.every((s) => s.planned?.day != null)) {
       sources.sort((a, b) => a.planned!.day! - b.planned!.day!)
     }
 
@@ -343,6 +370,10 @@ mapsRoutes.post(
       // only: one filename cannot date three days, and stamping them all with
       // the same start would be an invention rather than a recovery.
       fileTitle: string | null
+      // What the rider TYPED in the review table, which outranks every derived
+      // name including the file's own. Null when they typed nothing, which is
+      // not the same as an empty name — see the note in addDays.
+      typedTitle: string | null
       startAt: Date | null
     }
     const days: Day[] = []
@@ -358,8 +389,25 @@ mapsRoutes.post(
       name: string,
       fileIndex: number,
       planned: ParsedName | null,
+      entry: ReviewEntry | null,
     ) => {
-      const fileTitle = planned?.title ? titleFromSlug(planned.title) : null
+      // THE TWO FIELDS ANSWER TO DIFFERENT RULES, and the difference is what the
+      // review table actually SHOWS.
+      //
+      // The date is on the table in full, so clearing it means undated and the
+      // review wins including its null. Going back to the filename's date there
+      // would make clearing the box impossible.
+      //
+      // The NAME is only ever shown as what the FILENAME said — nothing in the
+      // browser opens a GPX, so a file whose <trk><name> is "Lost Coast" shows
+      // an empty box with the filename as its placeholder. So an empty name is
+      // "I did not answer", not "this day has no name": what the rider typed
+      // outranks everything, and typing nothing leaves the file's own name to
+      // win as it always did. Clearing a name the table DID show still works —
+      // that value was the filename's, and it is dropped with the box.
+      const typedTitle = entry ? entry.title : null
+      const fileTitle = entry ? null : planned?.title ? titleFromSlug(planned.title) : null
+      const startAt = entry ? entry.startAt : (planned?.date ?? null)
       if (route.tracks.length <= 1) {
         days.push({
           points: route.points,
@@ -371,7 +419,8 @@ mapsRoutes.post(
           fileIndex,
           name,
           fileTitle,
-          startAt: planned?.date ?? null,
+          typedTitle,
+          startAt,
         })
         return
       }
@@ -391,25 +440,26 @@ mapsRoutes.post(
           // A file naming one day cannot name three, so the tracks' own names
           // stand and only the first inherits the filename's date.
           fileTitle: i === 0 ? fileTitle : null,
-          startAt: i === 0 ? (planned?.date ?? null) : null,
+          typedTitle: i === 0 ? typedTitle : null,
+          startAt: i === 0 ? startAt : null,
         })
       })
     }
 
     let gpxBuf: Buffer | undefined
     try {
-      for (const [fileIndex, { file, ext: e, planned }] of sources.entries()) {
+      for (const [fileIndex, { file, ext: e, planned, review: entry }] of sources.entries()) {
         if (e === 'geojson' || e === 'json') {
           const text = await file.text()
-          addDays(processGeoJson(text), e, Buffer.from(text, 'utf8'), file.name, fileIndex, planned)
+          addDays(processGeoJson(text), e, Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
         } else if (e === 'csv') {
           // Stops and nothing else — no track, so no legs, no mileage and no
           // twistiness. The ride gets its line when it is routed in the builder.
           const text = await file.text()
-          addDays(processCsv(text), 'csv', Buffer.from(text, 'utf8'), file.name, fileIndex, planned)
+          addDays(processCsv(text), 'csv', Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
         } else if (e === 'gpx') {
           const buf = Buffer.from(await file.arrayBuffer())
-          addDays(processGpx(await file.text()), 'gpx', buf, file.name, fileIndex, planned)
+          addDays(processGpx(await file.text()), 'gpx', buf, file.name, fileIndex, planned, entry)
           if (single) gpxBuf = buf
         } else {
           // Unzipping first means the KMZ path converges on processKml before
@@ -419,7 +469,7 @@ mapsRoutes.post(
           // remembers it arrived zipped.
           const text = e === 'kmz' ? extractKmlFromKmz(Buffer.from(await file.arrayBuffer())) : await file.text()
           const kml = processKml(text)
-          addDays(kml, 'kml', Buffer.from(kml.storedKml, 'utf8'), file.name, fileIndex, planned)
+          addDays(kml, 'kml', Buffer.from(kml.storedKml, 'utf8'), file.name, fileIndex, planned, entry)
         }
       }
       if (companionGpx) {
@@ -531,13 +581,17 @@ mapsRoutes.post(
               // '' is this column's no-title value (notNull, default ''),
               // and the viewer already falls back to "Day N" when it is empty.
               //
-              // Precedence, and the reason for it: the file's own name for the
-              // day wins — a GPX <trk><name>Day 2</name> is what the rider
-              // typed, where a filename title survived a trip through slugField
-              // and comes back capitalised by guess. A conforming filename is
-              // next, since it at least meant to say something. Mangling the
-              // raw filename is last and only for a multi-day import.
-              title: day.title ?? day.fileTitle ?? (days.length > 1 ? dayTitle(day.name, i) : ''),
+              // Precedence, and the reason for it: WHAT THE RIDER TYPED IN THE
+              // REVIEW TABLE WINS, because it is the only one of these they
+              // actually chose — and a correction that loses to a value the
+              // table never showed them is #129 not working. Then the file's own
+              // name for the day — a GPX <trk><name>Day 2</name> is also
+              // something a rider typed, where a filename title survived a trip
+              // through slugField and comes back capitalised by guess. A
+              // conforming filename is next, since it at least meant to say
+              // something. Mangling the raw filename is last and only for a
+              // multi-day import.
+              title: day.typedTitle ?? day.title ?? day.fileTitle ?? (days.length > 1 ? dayTitle(day.name, i) : ''),
               // The one field a filename is authoritative for. Neither GPX nor
               // KML can carry a date at all, so for those formats this is the
               // only way a planned schedule survives a round trip.

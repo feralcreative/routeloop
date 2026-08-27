@@ -261,6 +261,13 @@ export type ImportPlan = {
  * ask a rider to type. This is the function the drop box previews and the
  * import endpoint acts on, so the two cannot disagree about what a folder means.
  *
+ * **THAT LAST CLAUSE STOPPED BEING THE WHOLE STORY ON 2026-08-26.** It held while
+ * the preview was read-only. The review table (#129) makes it editable, and the
+ * moment a rider can retype a date the server cannot re-derive it — so the
+ * corrections travel with the upload as a manifest, and this stays the GUESS both
+ * sides start from rather than the last word either of them has. See
+ * maps/manifest.ts, which is the rider's answer to what this returns.
+ *
  * Ordering is the part worth stating: files are sorted by their day field only
  * when **every** file has one. A partial set has no defensible order — sorting
  * it would interleave numbered and unnumbered days by an invented rule — so the
@@ -300,4 +307,35 @@ export function planImport(fileNames: string[]): ImportPlan {
     reordered: everyDay && files.some((f, n) => f.index !== n),
     rideConflict,
   }
+}
+
+/**
+ * Make a name unique against the ones already used, by numbering it.
+ *
+ * TWO FILES IN A ZIP CANNOT SHARE A NAME, and this convention hands out the same
+ * one to two rides with the same title, the same start date and the same format
+ * — which the export cart (#131) made reachable, since it puts several rides in
+ * one archive. It is rare and it is SILENT: most extractors keep the last entry
+ * and drop the rest, so a rider gets four files out of five and no message.
+ *
+ * The suffix goes before the extension, and the extension here is everything
+ * from the FIRST dot — `routeloop.json` is one extension, not `.json` after a
+ * name ending in `routeloop`. Numbering after it would produce
+ * `ride.routeloop.json-2`, which is not a JSON file to anything that looks at
+ * names.
+ *
+ * Mutates `used`, because every caller wants exactly that: the set is the record
+ * of what has been handed out, and a caller that had to add the result itself is
+ * a caller that can forget to.
+ */
+export function uniqueName(used: Set<string>, name: string): string {
+  const claim = (n: string) => (used.add(n), n)
+  if (!used.has(name)) return claim(name)
+
+  const dot = name.indexOf('.')
+  const base = dot < 0 ? name : name.slice(0, dot)
+  const ext = dot < 0 ? '' : name.slice(dot)
+  let n = 2
+  while (used.has(`${base}-${n}${ext}`)) n++
+  return claim(`${base}-${n}${ext}`)
 }
