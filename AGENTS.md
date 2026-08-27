@@ -39,9 +39,16 @@ This section outranks everything else in this file and everything in the codebas
 | Regenerate the favicon set | `node utils/build-favicons.mjs` (needs `rsvg-convert`; writes all eight files in `public/img/favicon/`) |
 | Report who the account purge would destroy | `npx tsx utils/purge-accounts.ts --dry-run` |
 | Compress stored originals already on disk | `npx tsx utils/compress-originals.ts` (`--dry-run` first) |
+| Back up a database before anything destructive | `utils/deploy/deploy-utils.sh db-backup` |
+| Re-cut legs on days stored before 2026-08-24 | `npx tsx utils/split-imported-legs.ts` (`--dry-run` first) |
+| Un-apply the offset on instant-valued `start_at` | `npx tsx utils/shift-days-to-wall-clock.ts --zone <IANA>`—**runs once, not idempotent** |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath .githooks` |
 
+The last two are **data migrations that are not SQL files and have run nowhere**. Nothing rejects a row that still needs them; see the gotchas below and `docs/STATUS.md` under "Switching machines".
+
 `npm run dev` runs `db:migrate` first via `predev`. Port 6686 belongs to this project: if it is bound, kill what holds it and reuse the port—never start on another one.
+
+**Five timers start with the server**, all in `src/index.tsx` and all `unref()`d so none holds the process open: the thumbnail sweep, the quota sweep (`src/account/quota-sweep.ts`, five-minutely), the trash purge (`src/trash/purge.ts`, hourly), the alternate-vote resolver (`src/votes/resolve.ts`, ten-minutely, and it selects nothing unless a ride has a deadline set), and the account purge—which is **gated behind `PURGE_ACCOUNTS` and off by default because it destroys rider data**. Leave that one off on a development machine.
 
 **Node 24**, pinned in `.node-version` so fnm and nvm switch to it on `cd`. It is the same major the Dockerfile ships and the upper half of the CI matrix; `engines` in `package.json` is a floor of 22 and only warns, so the pin is what actually gets you on the right runtime. There is no `.nvmrc`—both tools read `.node-version`, and a second file is a second thing to forget to bump.
 
@@ -241,19 +248,21 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
 - **An audible gets its issue written AFTER the fact, and closed immediately.** Ziad's call, 2026-08-24. Work here is often raised out loud and built the same day, and stopping to file a ticket first is exactly the friction that makes it not happen—so the issue is written when the work is done, describing what was decided and why, and closed in the same breath. **It is not optional bookkeeping**: the tracker is what answers "why is it like this" a year from now, and twenty-three issues had to be reconstructed on 2026-08-24 because nobody had been doing it. One issue per coherent unit of work, labeled as if it had been filed up front.
 - Conventional Commits: `type(scope): subject`, imperative mood. Types in use: `feat`, `fix`, `refactor`, `docs`, `chore`, `style`, `test`. Scope optional, welcome when it clarifies.
 - Branch as `type/kebab-subject`—`feat/trip-timeline-slider`, `fix/multi-track-import`.
-- **BRANCH BY AREA, NOT BY ISSUE, AND PREFER FEWER LARGER PRs.** Ziad's call, 2026-08-24. Every issue carries exactly one `area:` label (a few carry two where the work genuinely straddles), and an area is the unit of work: pick one, branch, clear what you can of `gh issue list --label area:<name>`, open one PR, move on. **Group liberally**—a hyper-granular history of one-issue branches is explicitly not wanted. The nine areas, and the open count as of 2026-08-24:
+- **BRANCH BY AREA, NOT BY ISSUE, AND PREFER FEWER LARGER PRs.** Ziad's call, 2026-08-24. Every issue carries exactly one `area:` label (a few carry two where the work genuinely straddles), and an area is the unit of work: pick one, branch, clear what you can of `gh issue list --label area:<name>`, open one PR, move on. **Group liberally**—a hyper-granular history of one-issue branches is explicitly not wanted. The nine areas, and the open count as of 2026-08-26:
 
   | Area | Open | What it covers |
   | --- | --- | --- |
-  | `area:builder` | 15 | The builder page, its panel, stop and point handling, and routing preferences |
-  | `area:schema` | 11 | `src/db/schema.ts` and the rider/group layer—friendships, membership, subgroups, voting |
-  | `area:ops` | 5 | Config, deploy, CI, infra, and the feedback subsystem |
-  | `area:dashboard` | 5 | The dashboard at `/`—`home.tsx`, `dashboard.js`, `_dashboard.scss` |
+  | `area:builder` | 14 | The builder page, its panel, stop and point handling, and routing preferences |
+  | `area:schema` | 5 | `src/db/schema.ts` and the rider/group layer—friendships, membership, subgroups, voting |
+  | `area:ops` | 4 | Config, deploy, CI, infra, and the feedback subsystem |
   | `area:import-export` | 4 | `kml.ts`, `export.ts`, `maps.ts`, and the `/import` page's format work |
+  | `area:account` | 4 | Profile, preferences, and the account pages—`account.tsx`, `settings.tsx`, `/prefs` |
   | `area:viewer` | 3 | `viewer.js`, the timeline, the navigate page, and the roadbook |
-  | `area:account` | 3 | Profile, preferences, and the account pages—`account.tsx`, `settings.tsx`, `/prefs` |
-  | `area:chrome` | 2 | Site-wide layout, styling, and shared components—`_chrome.scss`, `layout.tsx`, themes |
   | `area:map-engine` | 1 | `map-common.js`, `expand.ts`, `gmaps-links.ts`—the load-bearing `google.maps` boundary |
+  | `area:dashboard` | 0 | **Cleared.** The dashboard at `/`—`home.tsx`, `dashboard.js`, `_dashboard.scss` |
+  | `area:chrome` | 0 | **Cleared.** Site-wide layout, styling, and shared components—`_chrome.scss`, `layout.tsx`, themes |
+
+  Counts move; run the command rather than trusting the table. `area:schema` fell from eleven to five over four branches in August 2026—the recycle bin, the Paddock, the rider and access layer, membership and voting, and rider subgroups.
 
   **Two folds were deliberate and are not gaps to fill later:** routing options live in `area:builder` rather than an `area:routing` of their own, and the whole rider/group layer lives in `area:schema` rather than an `area:riders`. Both were split out and then folded back the same day, because fewer branches beat a truer taxonomy.
 - Hand over a single chained one-liner (`git add -A && git commit -m "…"`) and let Ziad run it. Do not commit unasked.

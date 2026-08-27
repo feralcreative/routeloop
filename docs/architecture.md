@@ -12,7 +12,7 @@ How the app is put together, and which boundaries are load-bearing. Operating in
 
 ## Server modules
 
-`src/` is organized by subject, not by layer.
+`src/` is organized by subject, not by layer. **The pattern most of it follows is rule-split-from-query**: a pure `policy.ts` that is testable with no database, beside a `service.ts` that holds the SQL. Twelve directories carry a `policy.ts` now (plus `survey/` and `stats/`, which spell the pure half `score.ts` and `shape.ts`), and it is what keeps `test/` free of a database while still covering the rules.
 
 | Path                                                      | What it owns                                                                                                                           |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,11 +35,22 @@ How the app is put together, and which boundaries are load-bearing. Operating in
 | `maps/gmaps-links.ts`                                     | A day as batched Google Maps directions URLs                                                                                           |
 | `maps/twist.ts`                                           | Twistiness: degrees of heading change per mile                                                                                         |
 | `maps/slug.ts`, `palette.ts`, `fields.ts`, `turnstile.ts` | Share ids, day colors, shared scalar field rules, siteverify                                                                           |
+| `maps/uid.ts`                                             | The 12-character durable identity minted for points, days and subgroups                                                                |
+| `maps/alts.ts`                                            | What an alternate day means—mirrored by `public/js/alts.js`                                                                            |
+| `maps/track-split.ts`                                     | Cutting a track into one leg per pair of points                                                                                        |
+| `maps/point-details.ts`                                   | The private-stop-details boundary—the ONLY module that reads `point_details`                                                           |
+| `maps/compress.ts`                                        | The only place brotli is spoken                                                                                                        |
 | `routes/`                                                 | One module per surface; see [api.md](api.md)                                                                                           |
+| `access/`                                                 | Who may see a ride. `policy.ts` is the ONLY place the visibility table is written down                                                 |
+| `friends/`, `members/`, `votes/`, `subgroups/`            | The rider layer: friendships, a ride's roster, voting on alternates, and converge-and-split groups                                     |
+| `bikes/`                                                  | The paddock, plus `group-range.ts`—the smallest tank on a ride                                                                         |
+| `trash/`                                                  | The recycle bin. `service.ts` holds the predicates that keep it invisible; `purge.ts` is the only code that destroys a ride            |
+| `account/`                                                | Deletion holds, the archive export, the quota sweep, the account purge                                                                 |
+| `places/`, `images/`, `feedback/`                         | Saved places, the re-encoding upload path, rider reports                                                                               |
 | `invites/`, `survey/`, `stats/`                           | Rule split from query—`policy.ts`/`score.ts`/`shape.ts` are pure and tested, `service.ts`/`questions.ts`/`query.ts` touch the database |
 | `emails/`                                                 | JSX email templates plus `rules.ts` (what may be sent) and `theme.ts`                                                                  |
 | `views/`                                                  | `layout.tsx` shell, `splash.tsx`, `cards.tsx`, `esc.ts`, `assets.ts` cache-busting                                                     |
-| `content/`                                                | Static prose as HTML—faq, privacy, terms                                                                                               |
+| `content/`                                                | Static prose as HTML—faq, privacy, terms, release notes                                                                                |
 | `dev/livereload.ts`                                       | SSE reload endpoint, gated on `IS_DEV`                                                                                                 |
 
 ## One map engine

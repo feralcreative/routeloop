@@ -5,6 +5,48 @@
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
 
+## Switching machines—read this first
+
+Rewritten 2026-08-26. The version this replaced still described `fix/map-mechanics` and `drizzle/0009`, both months gone.
+
+**Everything in the repo travels with `git pull`.** What does not is below, and it is the whole list.
+
+### 1. The database
+
+**Migrations 0002 through 0017 have run on the development machine ONLY.** Stage and production have seen none of them. `npm run dev` applies whatever is outstanding through `predev`, so a second development machine catches up by itself the first time it starts the server—but take a `db-backup` before pointing anything at a database you care about.
+
+Four of those carry more than a schema change, and none of the four is repeatable by re-running the migration:
+
+| Migration | The part a differ could not write |
+| --- | --- |
+| `0012` | A hand-added `UPDATE` raising the quota only for rows still on the OLD default. Without it the `SET DEFAULT` reaches new rows alone. |
+| `0015` | `INSERT ... SELECT` putting every existing ride's owner on its own roster, and a three-statement backfill for `days.uid` (the differ emitted a bare `NOT NULL`, which fails on a populated table). |
+| `0016`, `0017` | Fully additive, no backfill. Read them anyway for the six `set null` foreign keys, which are the deliberate half. |
+
+**Two data migrations are scripts, not SQL, and neither has run anywhere.** Nothing rejects a row that still needs them, which is why they are here rather than in a changelog:
+
+- `utils/split-imported-legs.ts`—days stored before 2026-08-24 carry `stops - 1` legs where a day now needs `points - 1`. Opening one in the builder fills the gap with straight placeholder legs on the first edit, silently. `--dry-run` first.
+- `utils/shift-days-to-wall-clock.ts --zone <IANA>`—days whose `start_at` still holds an instant rather than a wall clock. **NOT idempotent**: a shifted row is indistinguishable from an unshifted one, so it runs once, after a backup.
+
+### 2. Things that are not in the repo at all
+
+- **A GCP key change.** `GMAPS_SERVER_KEY` (project `976935115789`) had **Places API (New)** added to its API restriction list on 2026-08-24, because category search 403s without it. If production uses a different key, category search will 503 there with a message naming the fix. The IP restriction is unchanged and must stay.
+- **`.env`.** `.env.example` is the annotated list of every key; copy and fill. `PURGE_ACCOUNTS` is off by default and destructive—leave it off on a development machine.
+- **`storage/`.** Gitignored. A fresh clone falls back to `test/fixtures/coast-run.kml` for the seed, which works but gives a 4-point sample rather than the 26-point one.
+- **`gcloud config`** defaults to a Visa work project on the primary machine. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
+
+### 3. First run on a new machine
+
+```bash
+fnm use                       # or nvm — .node-version pins Node 24
+npm install
+docker compose up -d --wait db
+npm run dev                   # predev applies every outstanding migration
+```
+
+Then `git config core.hooksPath .githooks` once per clone, or the em-dash tightener does not run on commit.
+
+
 ## Rider subgroups—read before touching days, the roadbook, or the exports
 
 Eight commits on `feat/rider-subgroups`, nothing pushed. `drizzle/0016` and `0017` have run on **this machine only**; both are fully additive and neither needs a backfill.
@@ -96,100 +138,39 @@ There is no database-backed suite, so the grant paths were checked against the l
 **#67 is still unwritten.** The rewrite described in the next section was scheduled as the first task of 2026-08-26 and did not happen; the Paddock and this branch went first. It is still owed, and #71 is now built enough for it—`ride_members` exists.
 
 
-## Owed: rewrite #67, then close #143
-
-Ziad's call, 2026-08-26. It was the first task of that session and was not done—the Paddock and the rider/access branch went first. Still owed.
-
-[#143](https://github.com/feralcreative/routeloop/issues/143), a feature request from `@epim`, turned out to describe [#67](https://github.com/feralcreative/routeloop/issues/67) *Rider Subgroups: converging and splitting group rides*—same converge/diverge shape, same Bay Area contingents. It is not a plain duplicate: it adds two things #67 never had, and the conversation on it settled a third. **Rewrite #67 to carry all of it, credit `@epim` in the body for the meeting-point idea, confirm the detail is actually there, and only then close #143 pointing at #67.** That order matters—closing first leaves a window where the new material lives in neither issue.
-
-What has to reach #67:
-
-1. **Routeloop PROPOSES the meeting point; it does not just route to one the planner already picked.** This is `@epim`'s idea and the reason #67 got better. Constraint: neither group backtracks or significantly diverts, and ideally they share some road before the meet. Prefer stops carrying the existing `gas` category—that costs nothing.
-2. **Timing is derived across subgroups, and dwell at a meet is real rather than token.** #67's Timing bullet covers only an arrival window and a mismatch warning. A meet needs enough dwell to absorb a group socializing, and the open question is whether it also wants slack that absorbs one group running late without dragging the whole day back.
-3. **A PRIMARY GROUP, chosen by the planner.** Ziad's call. Whose clock is fixed is a decision the app cannot make fairly on its own—3 miles versus 60 to a 6am meet is unfair, the same two distances to a 10am meet heading the other way is not, and only the planner knows which they are looking at. Three findings from working it through, all of which belong in the issue:
-   - **"Primary group" names *whose* clock, not *which event*.** A planner will want to fix a group's DEPARTURE, a MEETING TIME, or ARRIVAL at the destination on different days—`@epim`'s own example fixes a meet, which is none of the other two. Primary picks the group; the anchored event is a second axis. **This is what dissolves the contradiction in #143's original text**, where the group farthest from the destination sets departure but the main group is also pinned at 9am.
-   - **Clock-primary and trunk-primary come apart.** Whose clock is fixed, and whose route is the trunk others join, are the same group in the Oakland/Sacramento case and not the same thing at all in the strangers case `@epim` raised—Seattle and San Francisco meeting in eastern Oregon have no trunk, and the ride starts at the meet. Keep them separate in the model even if the UI only asks once.
-   - **The default primary must NOT be the planner's own group.** It is the one most likely to be nearest the meet, so it reproduces the unfair-6am case every time and the planner will not notice, being the one riding three miles. Whatever the default is, show the consequence beside the choice: each group's departure time and total distance, side by side.
-4. **Deriving which subgroup the planner is in, which is worth doing regardless of the default above**—it is what makes "highlight my path" and #67's per-rider hand-off work without asking. Two sources: subgroup membership once [#71](https://github.com/feralcreative/routeloop/issues/71) exists, and failing that the nearest subgroup `start` point to the planner's home lat/lng, which `user_profiles` already stores and `addHomeToRides` already uses. **Both can come back empty and that has to be representable**—a club secretary planning a rally is not in any group.
-5. **`area:schema` on #143** before closing it. It is currently carrying `enhancement` and nothing else, the only issue in the tracker with no `area:` label.
-
-Unchanged by any of this: **#67 is still blocked on [#71](https://github.com/feralcreative/routeloop/issues/71)**, which builds the `ride_members` record. Nothing today says a rider is on a ride, so subgroups have nothing to hang off. Build order is #71 → #67. #67's own load-bearing open question—feeder-routes-within-a-ride versus subgroup-membership-on-legs—gets heavier with auto-selection, because the app cannot propose a join point it has no way to express; decide it at the same time.
-
-**THE APP HAS A THEME ENGINE AND `/` HAS ABSORBED THE RIDE LIST.** Read the 2026-08-24/25 dashboard section below before touching any stylesheet—every color token is now a `var()` reference and the literals moved to `style/_palette.scss`. A `color.adjust()` or an `rgba()` written against a token compiles to something invalid and fails **silently**.
-
-**A POI is part of the route, and a day is one ordered list of points.** Two changes on consecutive days, and together they are the largest change to the data model since the `routes`→`days` rename—read the two sections further down before touching the builder, the ride payload or anything that counts stops.
-
-## Switching machines—read this first
-
-**The seven commits below are pushed**; what is not is the wall-clock change described further down. Also merged since the last update: [#110](https://github.com/feralcreative/routeloop/pull/110), the thumbnails and alpha-modal docs. Seven commits sit on `fix/map-mechanics`:
-
-| Commit | What |
-| --- | --- |
-| `07f9820` | A POI is part of the route—`legs[i]` joins `points[i]` to `points[i+1]` |
-| `f72d045` | The dev seed resolves its KML before truncating, and honors `STORAGE_PATH` |
-| `28b9c51` | A leg that will not route says why instead of blaming the road |
-| `87e56c0` | Category search, insert-between-points, and a category promotes a point |
-| `4c51720` | The day's time fields fit one line; the insert `+` is quieter |
-| `19aea6c` | A rider can choose how dates and clocks read |
-
-**Three things do not travel with a `git push`:**
-
-1. **`drizzle/0009` has not run anywhere but this machine.** `npm run dev` applies it via `predev`, so switching is automatic—but stage and production have seen none of 0002 through 0009.
-2. **A GCP key change, which is not in the repo at all.** `GMAPS_SERVER_KEY` (uid `3a3d4f70…592e`, project `976935115789`) had **Places API (New)** added to its API restriction list on 2026-08-24, because category search 403s without it. If prod uses a different key, category search will 503 there with a message naming the fix. The IP restriction (`69.209.26.137`) is unchanged and must stay.
-3. **`storage/1/1.kml`** was copied in from `moto-rooter/moto-storage/1/1.kml`. It is gitignored, so a fresh clone falls back to `test/fixtures/coast-run.kml`—which now works rather than emptying the database, but gives a 4-point sample instead of the 26-point one.
-
-**Also local-only:** `gcloud config` defaults to `vs0400b-ai-hub-revamp-stage`, a Visa work project. Every `gcloud` call touching this app must pass `--project=976935115789` explicitly.
-
 ## Open
 
-**THREE RIDERS ARE NOW ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. The database was always precious; the uptime is what changed. `AGENTS.md` has since been rewritten to say so—it no longer claims nobody is in the beta.
+Pruned 2026-08-26. Everything below is believed true today; anything that had been overtaken by later work was deleted rather than left to be reconciled. The migration inventory that used to live here is in **Switching machines** above, which is now the single place that says what has and has not run.
 
-**There is a written plan to make deploys zero-downtime and NOTHING HAS BEEN BUILT.** [docs/zero-downtime-deploy.md](zero-downtime-deploy.md), written 2026-08-25. It is a proposal, not a record: the six open calls at the end of it are unanswered, and it names three approvals that have not been given—Caddy as a new prod dependency, anything touching prod or stage, and a migration-authoring rule that is effectively a schema-policy change. **Do not start building it without those answers.** The shape it proposes, in one line each:
+**THREE RIDERS ARE ON PRODUCTION, AND THAT CHANGES THE DEPLOY CALCULUS.** Ziad let them in on or before 2026-08-25. The database was always precious; the uptime is what changed.
 
-- **Phase 1**, no new dependency and no data risk: a real `/healthz`, a SIGTERM handler, migrations moved to a one-shot container that runs *before* the app is recreated, and `up -d --no-deps app` instead of `down`/`up -d` so Postgres stops being torn down. Takes ~60–90s of downtime to ~10–20s.
-- **Phase 2**, a Caddy reverse proxy owning the two host ports with two app colors behind it. Takes it to ~0s, at the cost of a one-time NAS cutover and a permanent expand/contract rule on migrations.
+**There is a written plan to make deploys zero-downtime and NOTHING HAS BEEN BUILT.** [docs/zero-downtime-deploy.md](zero-downtime-deploy.md), written 2026-08-25. It is a proposal, not a record: the six open calls at the end are unanswered and it names three approvals that have not been given—Caddy as a new production dependency, anything touching prod or stage, and a migration-authoring rule that is effectively a schema-policy change. **Do not start building it without those answers.**
 
 Three things that plan turned up which are **true today, independent of whether any of it gets built**:
 
-1. **`utils/deploy/hooks/post-deploy.sh` runs migrations AFTER the container is already serving traffic**, so every deploy has a window of new code against the old schema. This file already describes that window further down; it is a live bug, not a theoretical one.
-2. **A SIGTERM handler added today would be dead code.** The `Dockerfile` ends `CMD ["npm", "run", "start"]`, which makes **npm** PID 1, and npm does not reliably forward SIGTERM to its child. Nothing would log a failure—the handler simply never runs. The fix is `CMD ["node", "--import", "tsx", "src/index.tsx"]`, and it must be hand-verified rather than assumed.
-3. **Every migration in `drizzle/` so far is additive**—eleven files, not one `DROP` and not one `RENAME`. Nine are purely additive and two tighten a column to `NOT NULL` (`0006` on `points.uid`, `0008` on `points.position`). So the expand/contract rule Phase 2 would impose costs close to nothing in practice.
+1. **`utils/deploy/hooks/post-deploy.sh` runs migrations AFTER the container is already serving traffic**, so every deploy has a window of new code against the old schema. A live bug, not a theoretical one, and it gets worse with every migration that has not reached production.
+2. **A SIGTERM handler added today would be dead code.** The `Dockerfile` ends `CMD ["npm", "run", "start"]`, which makes **npm** PID 1, and npm does not reliably forward SIGTERM to its child. Nothing would log a failure—the handler simply never runs. The fix is `CMD ["node", "--import", "tsx", "src/index.tsx"]` and it must be hand-verified rather than assumed.
+3. **Every migration in `drizzle/` is additive.** Eighteen files, not one `DROP` and not one `RENAME`. Three tighten a column to `NOT NULL` (`0006` on `points.uid`, `0008` on `points.position`, `0015` on `days.uid`) and each is hand-rewritten with a backfill in front of it. So the expand/contract rule Phase 2 would impose costs close to nothing in practice.
 
-**The roadbook's seven-hour shift is fixed**—see the wall-clock section below. It is the one open item from the last update that closed.
+**OWED BROWSER PASSES, and this is now a rule rather than a note.** Nothing automated covers the map, the builder or the viewer, and `public/js` is neither typechecked nor reachable by Vitest. The subgroups branch was the first to get a real browser pass and it found a bug that typecheck and 1,728 tests both missed—three functions silently deleted by a rewrite. **Drive client work by hand before calling it done.** Still unexercised: the printed roadbook, and the `<noscript>` fallbacks on the submit-on-change selects in the roster.
 
-**The roadmap was audited against the code on 2026-08-24 and was a phase behind.** Item 26 read "planned" for a week after rider feedback shipped ([#108](https://github.com/feralcreative/routeloop/pull/108), 2026-08-17), which means **phase 3 of the road to beta was already done and phase 2 is the only open one**—[#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX is the next pickup. Corrected in `docs/ROADMAP.md`, along with the test count and "Where things stand". Three issues were edited on GitHub the same day: [#16](https://github.com/feralcreative/routeloop/issues/16) had its test-suite and CI boxes ticked (with the CI line rewritten to say SCSS is **not** built there), and [#49](https://github.com/feralcreative/routeloop/issues/49) and [#23](https://github.com/feralcreative/routeloop/issues/23) were retitled off the pre-rename vocabulary.
+**Nobody is told anything.** Three consecutive branches have shipped a thing a rider only discovers by looking at a page: a friend request, being added to a ride, and a vote closing. `src/auth/notify.ts` and `src/feedback/notify.ts` are the precedent for where such a thing lives—outside `src/emails/`, which is pure and must stay that way.
 
-**Both tracker gaps are closed. Twenty-three issues were filed on 2026-08-24, [#115](https://github.com/feralcreative/routeloop/issues/115) through [#137](https://github.com/feralcreative/routeloop/issues/137).** Fourteen were written against work that had already shipped and closed the same minute; nine are roadmap items 21 through 31 that had never been filed, and each now carries a P-label so the Priorities section can see it. The item-to-issue mapping is a table in the 2026-08-24 section of `docs/ROADMAP.md`.
+**`solveStrands` is built, tested and called by nothing.** The cross-subgroup timing solve in `src/subgroups/schedule.ts` works and is the one piece of #67 that is finished and invisible. The roadbook is the obvious surface.
 
-**Six stale branches were cleared on 2026-08-24, and three things had to be rescued off two of them first.** `feat/rider-feedback` and `style/sign-buttons-and-misc` were never merged, and between them they held: roadmap **item 32** (icons and per-role color on the dashboard's role chart, a complete entry written 2026-08-16, now [#139](https://github.com/feralcreative/routeloop/issues/139)); the corrected `docs/rider-feedback.md`, where `main` still carried the pre-ship plan with four "open calls" that had been answered a week earlier; and the **entire thumbnails record** in this file—the Static Maps 403 that was project-level rather than key-level, why the hash is computed from a keyless URL, the 8192-character point budget, and the note that the sweep is the app's first scheduler. [#110](https://github.com/feralcreative/routeloop/pull/110) was meant to carry that last one and lost it in a merge; nothing noticed, because the code shipped fine. **Work that exists only on an unmerged branch is work nobody can find.**
-
-**Every issue now carries an `area:` label, open and closed, and the area is the unit of work.** Ziad's call 2026-08-24: pick an area, branch, clear what you can of it, one PR, move on—**group liberally, because a hyper-granular history of one-issue branches is not wanted.** Two new labels were added because nothing covered those pages (`area:account`, `area:chrome`) and two were created and then folded back the same day (`area:routing` into `area:builder`, `area:riders` into `area:schema`) for exactly that reason. The nine areas and their open counts are tabled in `AGENTS.md`; `area:builder` is the biggest at 15.
-
-**And the other working rule, Ziad's call 2026-08-24: an audible gets its issue written AFTER the fact and closed immediately.** The point is to work fluidly without losing the history—nobody stops to file a ticket before fixing something that was just described out loud, but the tracker should still be able to answer what happened and why. Recorded in `AGENTS.md` under the commit conventions.
-
-**Owed browser passes.** Nothing automated covers the map or the builder, and the last four commits all touch them.
+**An export filename does not name the subgroup.** Two riders downloading the same day of the same ride get files with the same name and different contents. `AGENTS.md` says a filename carries four fields and to resist adding more, so this was left alone deliberately—it needs a decision, not a patch.
 
 **Still hardcoded `en-US`:** number grouping in `src/stats/shape.ts` (`fmtMiles`, `fmtCount`) and the dashboard's month label. Left alone on purpose—all three date-format members are English and produce identical output, so threading a format through ten call sites would change nothing visible. It starts mattering the day a `de-DE`-style member is added.
 
-**`_PLANS/BRAINSTORM.md` items 1–4 are all done** and in `87e56c0` / `4c51720`. That file is now stale.
+**`_PLANS/` is gitignored and its contents do not travel.** Each branch this month wrote a scope document there. They are working notes, not a record; anything worth keeping was moved into `docs/decisions.md` at the end of each branch.
 
-**THERE IS A MIGRATION OWED AND IT IS NOT A SQL FILE.** Every stored day written before 2026-08-24 that has a POI on it carries `stops - 1` legs where the app now requires `points - 1`. Nothing rejects those rows, and opening one in the builder fills the gap with straight placeholder legs drawn out to each POI and back—silently, on the first edit. `npx tsx utils/split-imported-legs.ts --dry-run` reports what is affected and running it without the flag re-cuts each day's legs from its own stored track. **Take a `db-backup` first**; it rewrites the largest column in the schema and refuses a non-local database. The native export repairs the count on the way out (`relegNative`), so a backup taken before the migration still restores—but that is a safety net, not the migration.
+**The working rules, both Ziad's call 2026-08-24 and both still in force.** An audible gets its issue written AFTER the fact and closed immediately—the tracker is what answers "why is it like this" a year from now. And branch by AREA rather than by issue: pick one, clear what you can, one PR, move on. Group liberally; a hyper-granular history of one-issue branches is explicitly not wanted.
 
-**Phase 1 of the road to beta is finished.** Saved places and rich stop details were the last two P1 items in it, and both are on `main`. What is owed on them is a browser pass: nothing automated covers the builder, and neither feature has been driven by hand end to end since the merge. Phase 2—import, export, and send-to-device—is next, starting with [#13](https://github.com/feralcreative/routeloop/issues/13) device-aware GPX.
+Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document goes stale fastest; if it disagrees with the code, the code is right.
 
-**The naming cleanup is done, and the mobile pass has been run as far as it can be without hardware—see the sections below.** The vocabulary Ziad settled on 2026-08-16 now holds everywhere in code: **`alt` and `alts`** in identifiers, filenames, columns, and types, with rider-facing copy deliberately unconstrained. The emulated pass found three defects in the feedback surfaces and **all three are fixed**, in CSS only. **A device pass is still owed** and nothing below substitutes for it.
+## The dashboard branch and the theme engine (merged)—2026-08-24/25
 
-**Six schema changes are in play and all are local-dev only.** `drizzle/0002_keen_sasquatch.sql` adds `user_profiles.duration_format`; `drizzle/0003_sticky_firebird.sql` adds `days.alt_group`, `days.alt_active` and the partial index `uq_day_alt_active`; `drizzle/0004_complex_zodiak.sql` adds the four feedback tables and their three enums; `drizzle/0006_wild_hammerhead.sql` adds `point_details` and `points.uid`; `drizzle/0007_glossy_charles_xavier.sql` adds `places` and `place_groups`; `drizzle/0008_quick_fat_cobra.sql` makes `points.position` NOT NULL for both kinds. Stage and production have seen none of them, and **the deploy is the thing that applies them**, via the `post-deploy.sh` hook that runs `drizzle-kit migrate` inside the container. That hook runs *after* the new container passes its healthcheck, so there is a window where the new code is serving against the old schema: deploy the alternates code without 0003 and every save 500s; deploy the feedback code without 0004 and every feedback route does; deploy either of the newest three without 0006 and every save 500s on a NOT NULL that is not there yet.
-
-**0008 needs the same reading as 0006 and for the same reason.** Both are hand-rewritten, and both are hand-rewritten because the differ emitted a bare `SET NOT NULL` against a populated table with no backfill in front of it. See the POI-first section below for what 0008 actually does.
-
-**0006 is the one to read before running it**, and it is the only migration here that is not purely additive. `points.uid` is `NOT NULL` on a table that already holds rows, and the differ emitted it as a single `ADD COLUMN … NOT NULL` that fails outright against any populated database. It is hand-rewritten into three statements—add the column nullable, backfill, then set `NOT NULL`—with the unique index last. The backfill derives each uid from the row's own id (`lpad(to_hex(id), 12, '0')`) rather than from `random()`, so re-running it against a half-migrated database produces the same values and cannot collide.
-
-Read [AGENTS.md](../AGENTS.md) for the operating rules, then this for where things actually stand. This document is the one that gets stale fastest; if it disagrees with the code, the code is right.
-
-## The dashboard branch and the theme engine—2026-08-24/25
-
-**`feat/dashboard-and-themes`, five commits, unpushed.** Clearing `area:dashboard` under the branch-by-area rule. Four of the six issues are done; [#102](https://github.com/feralcreative/routeloop/issues/102) is half done and is the reason the branch is still open.
+**`feat/dashboard-and-themes`, merged.** Clearing `area:dashboard` under the branch-by-area rule. Four of the six issues are done; [#102](https://github.com/feralcreative/routeloop/issues/102) is half done and is the reason the branch is still open.
 
 ### Four calls settled on #103, all Ziad's
 

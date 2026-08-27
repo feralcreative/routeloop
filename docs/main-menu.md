@@ -36,13 +36,22 @@ Admin ▾                                (only if canManageRiders)
 
 {displayName} {avatar} ▾
   Your profile        /profile
-  Preferences         /prefs
+  Friends             /friends
+  Settings            /settings
+  Recycle bin         /trash
   ───
   Tell us something   /feedback
   Idea board          /board
   ───
   Sign out            POST /logout
 ```
+
+Two of those sit under the account rather than where a reader might first look, and both for the same reason—they belong to the RIDER rather than to their rides:
+
+- **`Friends` is not beside `Riders`.** `/riders` is the roster, everyone; `/friends` is this rider's own list. A different question about a different set of people.
+- **`Recycle bin` is not under `Rides`.** The bin holds saved places and place groups as well.
+
+Neither is urgent enough for the top level: a rider only goes looking for the bin after they have deleted something they wanted.
 
 Plus one thing that is not in the tree: a floating dock holding a **bug** mark and a **what's new** mark, on every page a signed-in rider can reach. See the decision below.
 
