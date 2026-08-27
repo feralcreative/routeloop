@@ -57,6 +57,16 @@ The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per 
 
 `bike` is yours only and owner-scoped over the bikes as well as the membership, so a forged id cannot pull somebody else's machine into the group's range calculation. `group`—which approach a rider is on—is OWNER-only, and that is the difference from the RSVP beside it: being on the Oakland run is a fact about the plan rather than a statement by the rider. It is scoped to this ride's own subgroups, because the foreign key alone would accept an id from somebody else's.
 
+### The builder's Riders tab, over JSON
+
+`GET /api/rides/:id/riders` reads the roster for the builder's Riders tab: every rider with their role, RSVP, bike label and `subgroup_id`, plus the ride's subgroups by **both id and uid**, the group's binding fuel range, and how many are coming. Its two verbs are `POST /api/rides/:id/riders/{group,remove}`, behind `requireActiveApi` and `requireSameOrigin`.
+
+**Owner-gated and keyed by ride id**, not membership and not by slug—the same gate and the same key as `/api/rides/:id/rendezvous`, because only an owner reaches the builder. A rider who is on a ride but does not own it has the page.
+
+**Three verbs, not a second roster.** RSVP, bike, invite, the vote and its deadline stay on the page: those are statements by a rider rather than decisions by the planner. What is here is the read plus the two that are about the plan. Both call the same service functions the form handlers do—`assignRider` behind the same ride-scoping check, `removeMember` behind `canRemove`—so no gate is decided twice.
+
+**The subgroups come back by uid as well as by id** because that is the one place the two identifier spaces meet: the builder mints uids client-side and `reconcileSubgroups` matches on them, while `ride_members.subgroup_id` is a numeric id that does not exist until the ride has been saved. A group added since the last save is in neither list, and the tab says so rather than leaving it silently unpickable.
+
 `POST /api/rides/:id/rendezvous` proposes meeting points for one subgroup, owner-only. The whole computation is pure geometry and calls no router—ranking candidates through the Routes API would be a Routes bill per keystroke, and the proposal is a suggestion the planner accepts, at which point the ordinary routing path draws the real road. An empty `candidates` with a `reason` is a real answer: `no-trunk`, `no-days`, or `none-viable`.
 
 **Every per-rider surface takes `?group`.** The roadbook, the hand-off page, all four file formats and the per-day zip narrow to one subgroup's strand—their own approach plus every shared day. Derived from membership when not given, `?group=all` for the whole ride. `ride.json` deliberately does the OPPOSITE and tags every day rather than filtering, because the viewer draws the whole converge-and-split shape and dims what the reader is not on.

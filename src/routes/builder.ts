@@ -502,6 +502,117 @@ function builderHtml(
   //   save, using visibility rather than the hidden attribute. An element that
   //   appeared would shove the status beside it, which is the exact jump this
   //   whole epic is about.
+  // THREE TABS, and the ride's own fields above them. Adding riders and groups
+  // to a panel that was already the densest surface in the app turned it into a
+  // scroll: the day list, the subgroup editor and a link to the roster all
+  // stacked in one column, with the day you were editing pushed below the fold
+  // by a feature about people. Splitting it means only one of the three is ever
+  // paying for vertical space.
+  //
+  // WHAT IS ABOVE THE STRIP BELONGS TO THE RIDE, not to any tab: the description
+  // and the visibility select. Putting them inside Routes would have said they
+  // were about the route, which visibility in particular is not — it is the
+  // single most consequential control in the panel and it governs the whole
+  // package. They cost every tab a couple of lines, which is the trade.
+  //
+  // DELETE IS BELOW THE PANELS, not above the strip with the other two ride-level
+  // controls and not in any tab. Same reasoning it has always had: a destructive
+  // control wants distance from the rows a pointer lives in, and directly under
+  // the ride's name is the least distance available.
+  //
+  // The strip is buttons with role="tab", not links and not a <details> each.
+  // Links would need a URL per tab and the builder has one page with unsaved
+  // state in it; three disclosures would let a rider open all three and be back
+  // where they started. Roving tabindex, arrow keys and aria-selected are wired
+  // by initTabs() in builder.js — nothing here is decorative.
+  const tabs = `        <div class="panel-tabs" role="tablist" aria-label="Builder sections">
+          <button type="button" class="panel-tab is-active" role="tab" id="tab-routes"
+                  aria-controls="panel-routes" aria-selected="true">Routes</button>
+          <button type="button" class="panel-tab" role="tab" id="tab-groups"
+                  aria-controls="panel-groups" aria-selected="false" tabindex="-1">Groups <span class="tab-count" id="sg-count"></span></button>
+          <button type="button" class="panel-tab" role="tab" id="tab-riders"
+                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">Riders <span class="tab-count" id="riders-count"></span></button>
+        </div>`
+
+  // ROUTES. Everything that was in the panel about the road: the day list, the
+  // select-mode action bar, and + Day.
+  //
+  // THE SEARCH BOX THAT WAS ONCE HERE IS GONE, and its absence is the point.
+  // One field above the day list had to guess which day a searched address
+  // belonged to, and it guessed "whichever you touched last" — invisible until
+  // it is wrong, which is the moment you scroll to day 4, type an address and
+  // watch it land on day 2.
+  //
+  // Every day now ends in its own search row, built by addRowHtml() in
+  // builder.js, which knows its day and says so. The results dropdown is created
+  // once on demand and moved to whichever row is asking; it is not in this
+  // markup because no row owns it.
+  //
+  // EVERY DAY, ALL THE TIME. This was one #day-band showing whichever day a
+  // slider at the bottom of the drawer had selected; the slider is gone and
+  // renderDays() in builder.js fills #day-list with one .day-section per day
+  // instead. A fixed-height drawer has room to show the whole ride, so hiding
+  // all but one of its days was a constraint of the old floating panel rather
+  // than a decision.
+  //
+  // The per-day controls are CLASSES, not ids—there are N of each—and every
+  // section and row carries data-day. wireDays() delegates on the container and
+  // reads that attribute, which is also what keeps the existing edit handlers
+  // correct: touching anything inside a section makes that day active first, so
+  // editIndex() resolves to it.
+  const routesTab = `        <div class="panel-tabpanel is-active" role="tabpanel" id="panel-routes" aria-labelledby="tab-routes" tabindex="0">
+          <div class="tab-actions">
+            ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
+            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
+          </div>
+
+          <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
+               and hidden whenever state.select is null. It sits above the day
+               list rather than floating over it so it cannot cover the very rows
+               being ticked. -->
+          <div class="select-bar" id="select-bar" hidden></div>
+
+          <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
+          <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
+        </div>`
+
+  // GROUPS (#67). A named set of riders sharing an approach; a day belongs to
+  // one or to nobody, and nobody means everyone rides it.
+  //
+  // THIS WAS A COLLAPSED <details> AND IS NOW A TAB BODY. The disclosure existed
+  // so a solo ride would not pay a line of panel for a feature about groups —
+  // a tab costs that line whatever is inside it, so the argument has moved: what
+  // renderSubgroups() writes when there are none is a sentence explaining what a
+  // group is for, which is a better use of a tab nobody opened than an empty
+  // box. The count in the strip is what a solo rider reads instead, and it is
+  // empty until there is something to count.
+  const groupsTab = `        <div class="panel-tabpanel" role="tabpanel" id="panel-groups" aria-labelledby="tab-groups" tabindex="0" hidden>
+          <div id="sg-body"></div>
+          <div class="tab-actions">
+            <button type="button" class="btn btn-sm btn-quiet" id="sg-add">Add a group</button>
+          </div>
+        </div>`
+
+  // RIDERS. Who is coming, what they are bringing, and which approach they are
+  // on — filled by renderRiders() in builder.js from /api/rides/:id/riders.
+  //
+  // NOT A SECOND ROSTER PAGE. The two verbs that work in here are the two that
+  // are about the PLAN: assigning a rider to a subgroup, and taking somebody off
+  // the ride. RSVP, bike, invite and the vote are statements by a rider rather
+  // than decisions by the planner, and they stay on /m/:slug/riders, which is
+  // also the only rider surface a non-owner can reach at all. See the header of
+  // src/routes/roster.tsx.
+  //
+  // EMPTY UNTIL THE RIDE HAS BEEN SAVED ONCE, because until then there is no
+  // ride row and so no roster — seedOwner() runs inside the transaction that
+  // inserts the ride, so the moment there IS one it has the owner on it and this
+  // is never empty again. The autosave makes that a few seconds on a new ride,
+  // which is why the placeholder says "once it saves" rather than asking the
+  // rider to do something.
+  const ridersTab = `        <div class="panel-tabpanel" role="tabpanel" id="panel-riders" aria-labelledby="tab-riders" tabindex="0" hidden>
+          <div id="riders-body"></div>
+        </div>`
+
   const contents = `        <div class="panel-band panel-band--ride">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
           <div class="meta-row">
@@ -511,79 +622,26 @@ function builderHtml(
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, friends, unlisted and public')}
-            ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
-            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
-          <!-- RIDER SUBGROUPS (#67). Collapsed, and empty until a rider adds
-               one—a solo ride should not pay a line of panel for a feature
-               about groups. renderSubgroups() in builder.js fills it; the
-               <details> is closed on first paint and its open state is the
-               browser's, not state's, because nothing re-renders the element
-               itself. -->
-          <details class="subgroups" id="subgroups">
-            <summary>Groups <span class="sg-count" id="sg-count"></span></summary>
-            <div id="sg-body"></div>
-            <button type="button" class="btn btn-sm btn-quiet" id="sg-add">Add a group</button>
-          </details>
         </div>
 
-        <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
-             and hidden whenever state.select is null. It sits above the day list
-             rather than floating over it so it cannot cover the very rows being
-             ticked, and it is outside the scroller so it stays put while the
-             rider scrolls down to reach day 9. -->
-        <div class="select-bar" id="select-bar" hidden></div>
+${tabs}
 
-        <!-- THE SEARCH BOX THAT WAS HERE IS GONE, and its absence is the point.
-             One field above the day list had to guess which day a searched
-             address belonged to, and it guessed "whichever you touched last" —
-             invisible until it is wrong, which is the moment you scroll to day
-             4, type an address and watch it land on day 2.
+${routesTab}
 
-             Every day now ends in its own search row, built by addRowHtml() in
-             builder.js, which knows its day and says so. The results dropdown
-             is created once on demand and moved to whichever row is asking; it
-             is not in this markup because no row owns it. -->
+${groupsTab}
 
-        <!-- EVERY DAY, ALL THE TIME. This was one #day-band showing whichever day
-             a slider at the bottom of the drawer had selected; the slider is gone
-             and renderDays() in builder.js fills this with one .day-section per
-             day instead. A fixed-height drawer has room to show the whole ride, so
-             hiding all but one of its days was a constraint of the old floating
-             panel rather than a decision.
-
-             The per-day controls are CLASSES now, not ids—there are N of each —
-             and every section and row carries data-day. wireDays() delegates on
-             this container and reads that attribute, which is also what keeps the
-             existing edit handlers correct: touching anything inside a section
-             makes that day active first, so editIndex() resolves to it. -->
-        <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
-
-        <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
-${
-  // THE ROSTER IS A PAGE NOW, not a panel and not a stub. It replaced the inert
-  // markup that stood here for one branch — see src/routes/roster.tsx for why it
-  // is its own page rather than living in here: a rider who is not the owner has
-  // no builder to open and still has to RSVP and vote somewhere.
-  //
-  // Owner-only in this panel because only the owner reaches the builder at all.
-  // Everyone else arrives at the same page from the viewer.
-  rideId && slug
-    ? `        <div class="panel-roster">
-          <a class="btn btn-sm btn-quiet" href="/m/${slug}/riders">Riders and the vote</a>
-        </div>`
-    : ''
-}
+${ridersTab}
 ${
   // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
   // delete — closing the tab already discards it — and a Delete button on a
   // blank builder is an offer to destroy something that does not exist.
   //
-  // AT THE BOTTOM OF THE PANEL, not in the meta-row beside the visibility select
-  // and + Day, and not in the action bar beside undo/redo. Both of those are
-  // rows a rider's pointer lives in while building, and a destructive control
-  // wants distance from the ones pressed by reflex. The end of the day list is
-  // where a rider goes deliberately.
+  // BELOW ALL THREE PANELS. It is ride-level like the description and the
+  // visibility select, but unlike those two it does not go above the tab strip:
+  // both of those rows are ones a rider's pointer lives in while building, and a
+  // destructive control wants distance from anything pressed by reflex. The end
+  // of the panel is where a rider goes deliberately.
   rideId
     ? `        <div class="builder-danger">
           <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
@@ -692,6 +750,10 @@ ${
       roles: ROLE_META,
       dayColors: DAY_COLORS,
       rideId,
+      // For the Riders tab's link to the roster page. Null on a new ride, which
+      // has no slug yet — showViewLink() in builder.js fills it in on the first
+      // successful save, the same moment the View link is revealed.
+      slug,
       home,
       publicStart: prefs.publicStart,
       durationFormat: prefs.durationFormat,

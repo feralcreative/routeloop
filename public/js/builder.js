@@ -364,6 +364,10 @@
     // day.points.length would be the bottom row, which is always there anyway.
     insertAt: null,
     rideId: window.TB.rideId || null,
+    // The public slug, for the Riders tab's link out to the roster page. Null
+    // until the first save mints one — showViewLink() is where it lands, because
+    // that is already the one place a slug reaches this file.
+    slug: window.TB.slug || null,
     meta: {
       title: "",
       description: "",
@@ -2047,6 +2051,319 @@
     renderSubgroups();
   }
 
+  // --- The panel's three tabs -----------------------------------------------
+  //
+  // Routes, Groups and Riders. Adding the rider and group layers to a panel that
+  // was already the densest surface in the app turned it into one long scroll,
+  // with the day being edited pushed below the fold by a feature about people.
+  //
+  // A ROVING TABINDEX, which is what the tab pattern actually is: exactly one
+  // tab is in the page's tab order at a time and the arrow keys move between
+  // them. Three buttons all reachable by Tab would put the day list three
+  // presses further away for a keyboard rider, on every visit.
+  //
+  // `hidden` on the inactive panels rather than `display: none` in CSS, because
+  // it is the attribute assistive tech and find-in-page both read — and because
+  // a panel hidden only by a class is still focusable, so Tab walks into a day
+  // list nobody can see.
+
+  const TABS = ["routes", "groups", "riders"];
+
+  function selectTab(name) {
+    if (!TABS.includes(name)) return;
+    for (const t of TABS) {
+      const btn = $("tab-" + t);
+      const panel = $("panel-" + t);
+      if (!btn || !panel) continue;
+      const on = t === name;
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.classList.toggle("is-active", on);
+      // The roving half: only the selected tab is tabbable.
+      if (on) btn.removeAttribute("tabindex");
+      else btn.setAttribute("tabindex", "-1");
+      panel.hidden = !on;
+      panel.classList.toggle("is-active", on);
+    }
+    // The Riders tab is the only one whose contents come from the server, and it
+    // is fetched on open rather than on load: most sessions never open it, and
+    // the roster can change while the builder is sitting there. See loadRiders.
+    if (name === "riders") loadRiders();
+  }
+
+  function initTabs() {
+    const strip = document.querySelector(".panel-tabs");
+    if (!strip) return;
+
+    strip.addEventListener("click", (e) => {
+      const btn = e.target.closest(".panel-tab");
+      if (!btn) return;
+      selectTab(btn.id.replace(/^tab-/, ""));
+    });
+
+    // Left/Right move, Home/End jump. Moving FOCUS and selection together is the
+    // "automatic activation" half of the pattern, which is right here because
+    // showing a panel costs nothing — the only fetch it triggers is the Riders
+    // one, which is cached for a few seconds by loadRiders itself.
+    strip.addEventListener("keydown", (e) => {
+      const btn = e.target.closest(".panel-tab");
+      if (!btn) return;
+      const i = TABS.indexOf(btn.id.replace(/^tab-/, ""));
+      if (i < 0) return;
+      let next = null;
+      if (e.key === "ArrowRight") next = TABS[(i + 1) % TABS.length];
+      else if (e.key === "ArrowLeft") next = TABS[(i - 1 + TABS.length) % TABS.length];
+      else if (e.key === "Home") next = TABS[0];
+      else if (e.key === "End") next = TABS[TABS.length - 1];
+      if (!next) return;
+      e.preventDefault();
+      selectTab(next);
+      $("tab-" + next).focus();
+    });
+  }
+
+  // --- The Riders tab --------------------------------------------------------
+  //
+  // Who is coming, what they are bringing, and which approach they are on. The
+  // read is /api/rides/:id/riders and the two writes are its siblings — see the
+  // block at the foot of src/routes/roster.tsx for why only two verbs are here.
+  //
+  // NOT A SECOND ROSTER. RSVP, bike, invite and the vote are statements BY a
+  // rider rather than decisions by the planner, and they stay on the roster
+  // page, which is also the only rider surface a non-owner can reach. What is in
+  // this tab is the part that is about the plan: assigning somebody to a group,
+  // and taking somebody off the ride.
+  //
+  // THE GROUP PICKER IS THE ONE PLACE ids AND uids MEET. Everything else in this
+  // file holds a subgroup by uid, because the client mints those and the server
+  // reconciles on them; `ride_members.subgroup_id` is a numeric id, which does
+  // not exist until the ride has been saved. So the picker's options come from
+  // the SERVER's list, not from state.meta.subgroups, and a group the rider just
+  // added is missing from it until the autosave lands — which is what
+  // `unsavedGroups` says out loud rather than leaving as a group that silently
+  // cannot be picked.
+
+  // The last response, so flipping between tabs does not re-fetch on every press.
+  //
+  // IT EXPIRES RATHER THAN LIVING FOR THE SESSION. Everything this tab can change
+  // it invalidates itself, but the roster is also editable from /m/:slug/riders
+  // in another window — a rider RSVPs, the owner invites somebody — and a cache
+  // with no clock would show that session's opening snapshot an hour later. A few
+  // seconds is long enough for the tab-flipping it exists for and short enough
+  // that nothing sits visibly wrong.
+  const RIDERS_TTL_MS = 15000;
+  let ridersCache = null;
+  let ridersAt = 0;
+  let ridersLoading = false;
+
+  const RSVP_LABELS = { going: "coming", maybe: "maybe", declined: "not coming" };
+
+  /** The roster may have changed underneath us—drop the cache so the next open
+   *  re-reads, and re-read now if the tab is on screen. */
+  function ridersStale() {
+    ridersCache = null;
+    ridersAt = 0;
+    if ($("panel-riders") && !$("panel-riders").hidden) loadRiders();
+  }
+
+  async function loadRiders() {
+    const host = $("riders-body");
+    if (!host) return;
+    // NOTHING TO READ UNTIL THE FIRST SAVE. A ride that has never been saved has
+    // no row and therefore no roster; seedOwner() puts the owner on it inside the
+    // same transaction that inserts the ride, so the moment there is one this is
+    // never empty again. The autosave makes that a few seconds, which is why this
+    // says "once it saves" rather than asking the rider to do anything.
+    if (!state.rideId) {
+      host.innerHTML =
+        '<p class="riders-empty">Riders appear here once the ride saves. You are on it already—' +
+        "every ride has its planner on the roster.</p>";
+      return;
+    }
+    if (ridersCache && Date.now() - ridersAt < RIDERS_TTL_MS) return renderRiders(ridersCache);
+    if (ridersLoading) return;
+    ridersLoading = true;
+    if (!host.innerHTML) host.innerHTML = '<p class="riders-empty">Loading…</p>';
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/riders");
+      if (!res.ok) throw new Error("could not load the roster");
+      ridersCache = await res.json();
+      ridersAt = Date.now();
+      renderRiders(ridersCache);
+    } catch (e) {
+      host.innerHTML = '<p class="riders-empty is-error">' + esc(e.message) + "</p>";
+    } finally {
+      ridersLoading = false;
+    }
+  }
+
+  function renderRiders(data) {
+    const host = $("riders-body");
+    if (!host) return;
+
+    const count = $("riders-count");
+    if (count) count.textContent = data.riders.length ? String(data.riders.length) : "";
+
+    // Groups the rider has added since the last save. They have no id yet, so
+    // they cannot be assigned to anybody — said out loud, because a picker
+    // quietly missing the group you just made reads as a bug.
+    const savedUids = new Set(data.groups.map((g) => g.uid));
+    const unsaved = state.meta.subgroups.filter((g) => !savedUids.has(g.uid));
+
+    host.innerHTML =
+      '<p class="riders-summary">' +
+      data.coming +
+      " of " +
+      data.riders.length +
+      (data.riders.length === 1 ? " rider is" : " riders are") +
+      " coming.</p>" +
+      fuelHtml(data.range) +
+      '<ul class="riders-list">' +
+      data.riders.map((r) => riderRowHtml(r, data.groups)).join("") +
+      "</ul>" +
+      (unsaved.length
+        ? '<p class="riders-note">' +
+          esc(unsaved.map((g) => g.name).join(", ")) +
+          (unsaved.length === 1 ? " is" : " are") +
+          " not saved yet, so nobody can be put on " +
+          (unsaved.length === 1 ? "it" : "them") +
+          " until the ride saves.</p>"
+        : "") +
+      '<div class="tab-actions">' +
+      (state.slug
+        ? '<a class="btn btn-sm btn-quiet" href="/m/' +
+          encodeURIComponent(state.slug) +
+          '/riders">Invite, RSVP and the vote</a>'
+        : "") +
+      "</div>";
+  }
+
+  // The same claim the roster page makes, in one line. `null` miles means nobody
+  // coming has a range on file — a real answer and not a failure, and the reason
+  // this never invents a number: a fuel plan built on a guess is worse than none
+  // because it looks like one.
+  function fuelHtml(range) {
+    if (!range || range.riders === 0) return "";
+    if (range.miles === null) {
+      return '<p class="riders-fuel is-quiet">No ranges on file, so there is nothing to plan fuel stops around.</p>';
+    }
+    return (
+      '<p class="riders-fuel">Plan fuel around <strong>' +
+      range.miles +
+      " miles</strong>—" +
+      esc(range.riderName || "") +
+      "'s " +
+      esc(range.bikeLabel || "") +
+      "." +
+      (range.unknown > 0
+        ? '<span class="riders-fuel-gap"> ' +
+          range.unknown +
+          (range.unknown === 1 ? " rider has" : " riders have") +
+          " no range on file, so this could still be optimistic.</span>"
+        : "") +
+      "</p>"
+    );
+  }
+
+  function riderRowHtml(r, groups) {
+    return (
+      '<li class="rider-row" data-rider="' +
+      r.riderId +
+      '">' +
+      '<span class="rider-name">' +
+      esc(r.displayName) +
+      (r.role === "owner" ? '<span class="rider-tag">owner</span>' : "") +
+      "</span>" +
+      '<span class="rider-rsvp is-' +
+      r.rsvp +
+      '">' +
+      (RSVP_LABELS[r.rsvp] || r.rsvp) +
+      "</span>" +
+      (r.bike ? '<span class="rider-bike">' + esc(r.bike) + "</span>" : "") +
+      // NO PICKER WHEN THE RIDE HAS NO GROUPS. A select whose only option is
+      // "Everyone" is a control that cannot do anything, on every row.
+      (groups.length
+        ? '<select class="rider-group" aria-label="Group for ' +
+          esc(r.displayName) +
+          '">' +
+          '<option value=""' +
+          (r.subgroupId === null ? " selected" : "") +
+          ">Everyone</option>" +
+          groups
+            .map(
+              (g) =>
+                '<option value="' +
+                g.id +
+                '"' +
+                (r.subgroupId === g.id ? " selected" : "") +
+                ">" +
+                esc(g.name) +
+                "</option>",
+            )
+            .join("") +
+          "</select>"
+        : "") +
+      (r.canRemove
+        ? '<button type="button" class="rider-del" title="Take ' +
+          esc(r.displayName) +
+          ' off this ride" aria-label="Remove ' +
+          esc(r.displayName) +
+          '">×</button>'
+        : "") +
+      "</li>"
+    );
+  }
+
+  function wireRiders() {
+    const host = $("riders-body");
+    if (!host) return;
+
+    // Delegated, because renderRiders replaces every row.
+    host.addEventListener("change", async (e) => {
+      if (!e.target.classList.contains("rider-group")) return;
+      const row = e.target.closest(".rider-row");
+      if (!row) return;
+      const raw = e.target.value;
+      const ok = await riderPost("group", {
+        rider: Number(row.dataset.rider),
+        // JSON null rather than "", so the server does not have to guess whether
+        // an empty string meant "no group" or a missing field.
+        group: raw === "" ? null : Number(raw),
+      });
+      // Re-read rather than patching the cache: the answer is the server's, and
+      // a row left showing an assignment that was refused is the worst outcome
+      // available here.
+      ridersStale();
+      if (!ok) toast("That group could not be set.", true);
+    });
+
+    host.addEventListener("click", async (e) => {
+      if (!e.target.classList.contains("rider-del")) return;
+      const row = e.target.closest(".rider-row");
+      if (!row) return;
+      const name = row.querySelector(".rider-name").textContent;
+      // A confirm rather than an undo, because this one is not in the builder's
+      // history at all: it is a write to the roster that lands immediately, and
+      // beginEdit() covers the ride payload only.
+      if (!window.confirm("Take " + name + " off this ride?")) return;
+      const ok = await riderPost("remove", { rider: Number(row.dataset.rider) });
+      ridersStale();
+      if (!ok) toast("They could not be removed.", true);
+    });
+  }
+
+  async function riderPost(verb, body) {
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/riders/" + verb, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   // --- Rider subgroups (#67) ------------------------------------------------
   //
   // A named set of riders sharing an approach. A DAY belongs to one, or to
@@ -2156,7 +2473,12 @@
       // else to be. The moment there are two, renderAnchorNote says whether
       // that is the fair answer — see #67 on why the app must not pick.
       if (!state.meta.primarySubgroup) state.meta.primarySubgroup = g.uid;
-      $("subgroups").open = true;
+      // The panel used to be one column with a collapsed <details> for groups,
+      // and this opened it. The Groups tab is already open — pressing Add a
+      // group is only reachable from inside it — so there is nothing to reveal;
+      // what does need saying is that the new group cannot be assigned to
+      // anybody until the ride saves, which the Riders tab says itself.
+      ridersStale();
       renderDays();
       markDirty();
     });
@@ -4449,6 +4771,12 @@
         // The draft was filed under "new"; move it before it becomes an orphan
         // that offers itself to the next new ride.
         HIST.Draft.adopt(state.rideId);
+        // THE FIRST SAVE IS WHEN A NEW RIDE GETS A ROSTER, and the prefetch in
+        // init() ran before there was one to read — it returns immediately on a
+        // ride with no id. Without this the Riders tab's count stays blank on
+        // every newly planned ride until the rider happens to open it, which is
+        // exactly the ride where they are least likely to think to look.
+        loadRiders();
       }
       if (data.slug) showViewLink(data.slug);
 
@@ -4469,6 +4797,13 @@
       HIST.Draft.clear(state.rideId);
       draftFailed = false;
       setSaveStatus("saved");
+      // A SAVE IS WHAT GIVES A NEW SUBGROUP AN id, and an id is what the Riders
+      // tab's picker assigns by — so the tab is stale the moment the set of uids
+      // changes. Compared against the cache rather than invalidated on every
+      // save: autosave fires on idle throughout a session and re-reading the
+      // roster after each one would be a request per edit burst for an answer
+      // that did not change.
+      if (ridersCache && !sameGroupUids(ridersCache.groups, state.meta.subgroups)) ridersStale();
     } catch (e) {
       // The message goes to the status line, not to a toast: an autosave that
       // fails once tends to fail again, and one toast per attempt would bury the
@@ -4483,10 +4818,17 @@
     }
   }
 
+  function sameGroupUids(a, b) {
+    if (a.length !== b.length) return false;
+    const seen = new Set(a.map((g) => g.uid));
+    return b.every((g) => seen.has(g.uid));
+  }
+
   // The link to the public page, revealed once and never hidden again. It is
   // rendered from the start and only made visible here — see the markup comment
   // in src/routes/builder.ts for why it is `visibility` and not `hidden`.
   function showViewLink(slug) {
+    state.slug = slug;
     const a = $("view-link");
     if (!a) return;
     a.href = "/m/" + encodeURIComponent(slug);
@@ -4949,6 +5291,8 @@
       return;
     }
     wireMeta();
+    initTabs();
+    wireRiders();
     wireDays();
     // Delegated on the container rather than on each list, so the handlers
     // survive renderDays() replacing every list. Sortable cannot work that way —
@@ -4999,6 +5343,13 @@
     // init on it would put a network round trip in front of a builder that works
     // perfectly without one.
     loadSavedPlaces();
+    // Also not awaited, and for the same reason. It fills the count in the
+    // Riders tab's label, which is the whole affordance for opening a tab whose
+    // contents nothing else hints at — a strip that says "Riders 5" is a reason
+    // to look and one that says "Riders" is not. It also warms the cache, so the
+    // first open paints with no round trip. On a ride with no id yet it returns
+    // immediately without asking the server anything.
+    loadRiders();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {
