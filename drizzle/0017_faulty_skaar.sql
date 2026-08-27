@@ -1,0 +1,2 @@
+ALTER TABLE "ride_members" ADD COLUMN "bike_id" bigint;--> statement-breakpoint
+ALTER TABLE "ride_members" ADD CONSTRAINT "ride_members_bike_id_bikes_id_fk" FOREIGN KEY ("bike_id") REFERENCES "public"."bikes"("id") ON DELETE set null ON UPDATE no action;

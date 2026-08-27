@@ -1164,6 +1164,29 @@ ul.cards {
   border-top: 1px solid $grey;
 }
 
+// #52's answer, and the reason it needed the Paddock and the roster both.
+.roster-fuel {
+  margin: 0 0 1.5rem;
+  padding: 0.6em 0.8em;
+  background: $neutral-94;
+  border-radius: 8px;
+  font-size: 0.9em;
+}
+
+// Nothing known. Quieter, because "we cannot tell you" should not sit on the
+// page with the same weight as an answer.
+.roster-fuel.is-quiet {
+  background: none;
+  padding: 0;
+  color: $neutral-57;
+  font-size: 0.85em;
+}
+
+// The honesty half: how many riders the figure could not account for.
+.roster-fuel-gap {
+  color: $neutral-50;
+}
+
 // --- The ballot --------------------------------------------------------------
 
 .ballot {

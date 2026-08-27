@@ -51,6 +51,13 @@ export type RosterEntry = MemberFields & {
   displayName: string
   username: string | null
   invitedBy: number | null
+  /** Which approach they are on, or null. Null is a real state and not an
+   *  error: #67 is explicit that a club secretary planning a joint rally is not
+   *  in any of the groups. */
+  subgroupId: number | null
+  /** Which bike they are bringing, or null for their default — see
+   *  bikesOnRide() in src/bikes/group-range.ts. */
+  bikeId: number | null
 }
 
 /** The roster, owner first and then by name. Owner-first is not a sort key on
@@ -63,6 +70,8 @@ export async function roster(rideId: number): Promise<RosterEntry[]> {
       role: rideMembers.role,
       rsvp: rideMembers.rsvp,
       invitedBy: rideMembers.invitedBy,
+      subgroupId: rideMembers.subgroupId,
+      bikeId: rideMembers.bikeId,
       displayName: users.displayName,
       username: users.username,
     })

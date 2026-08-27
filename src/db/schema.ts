@@ -1372,6 +1372,15 @@ export const rideMembers = pgTable(
     // subgroup un-groups its riders instead of throwing them off the ride —
     // the same call place_groups made about its places.
     subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
+    // WHICH BIKE THEY ARE BRINGING, which #52 needs and which a rider's default
+    // bike cannot answer on its own: the whole point of owning two is that you
+    // pick one per ride. Null falls back to their default — see bikesOnRide()
+    // in src/bikes/service.ts — so a rider who has never said still counts
+    // toward the group's range.
+    //
+    // `set null` rather than cascade: selling a bike must not throw its owner
+    // off every ride they were on.
+    bikeId: bigint('bike_id', { mode: 'number' }).references((): AnyPgColumn => bikes.id, { onDelete: 'set null' }),
     // `set null` rather than cascade: the rider who did the inviting may leave,
     // and losing their account must not evict everyone they brought.
     invitedBy: bigint('invited_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),

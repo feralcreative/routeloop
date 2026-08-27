@@ -20,6 +20,11 @@ import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../
 import { canInvite, canRemove, canRsvp, isComing, RSVP_LABELS, type MemberFields } from '../members/policy'
 import { invitableFriends, invite, removeMember, roleOf, roster, setRsvp, type RosterEntry } from '../members/service'
 import { applyTallies, castVote, voteGroups, type VoteGroup } from '../votes/service'
+import { groupRange, setBikeOnRide, type GroupRange } from '../bikes/group-range'
+import { listBikes } from '../bikes/service'
+import { bikeLabel } from '../bikes/policy'
+import { assignRider, subgroupsOf } from '../subgroups/service'
+import type { RideSubgroupRow } from '../db/schema'
 import { hasVotes, votingOpen } from '../votes/policy'
 import { LIVE_RIDE } from '../trash/service'
 import { fmtDateFull } from '../views/date-format'
@@ -107,11 +112,15 @@ function MemberRow({
   slug,
   viewerId,
   viewerRole,
+  subgroups,
+  canAssign,
 }: {
   m: RosterEntry
   slug: string
   viewerId: number
   viewerRole: 'owner' | 'rider'
+  subgroups: RideSubgroupRow[]
+  canAssign: boolean
 }) {
   const fields: MemberFields = { riderId: m.riderId, role: m.role, rsvp: m.rsvp }
   const isMe = m.riderId === viewerId
@@ -131,6 +140,34 @@ function MemberRow({
           thing and this is it rendered — an owner who could edit a rider's
           answer would turn the roster from what people said into what the
           organizer wishes they had said. */}
+      {/* WHICH APPROACH THEY ARE ON, and this one IS the owner's to set —
+          unlike the RSVP beside it. Being on the Oakland run is a fact about
+          the plan rather than a statement by the rider, and the planner is the
+          one who knows it. Renders nothing on a ride with no subgroups. */}
+      {subgroups.length > 0 &&
+        (canAssign ? (
+          <form method="post" action={`/m/${slug}/riders/group`} class="roster-rsvp">
+            <input type="hidden" name="rider" value={String(m.riderId)} />
+            <label class="visually-hidden" for={`sg-${m.riderId}`}>
+              Which group {m.displayName} rides with
+            </label>
+            <select id={`sg-${m.riderId}`} name="group" onchange="this.form.submit()">
+              <option value="">No group</option>
+              {subgroups.map((g) => (
+                <option value={String(g.id)} selected={m.subgroupId === g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <noscript>
+              <button class="btn btn-sm" type="submit">
+                Save
+              </button>
+            </noscript>
+          </form>
+        ) : (
+          <span class="roster-said">{subgroups.find((g) => g.id === m.subgroupId)?.name ?? 'No group'}</span>
+        ))}
       {isMe ? <RsvpForm slug={slug} current={m.rsvp} /> : <span class="roster-said">{RSVP_LABELS[m.rsvp]}</span>}
       {canRemove(viewerId, viewerRole, fields) && (
         <Verb
@@ -211,13 +248,48 @@ function Deadline({ closeAt, dateFormat, open }: { closeAt: Date | null; dateFor
   )
 }
 
+/**
+ * #52, and the reason it needed both #11 and #12 to land first: a group is
+ * limited by its SMALLEST tank, and the rider with a 120-mile range is the one
+ * who ends up pushing.
+ *
+ * Says nothing when it knows nothing, rather than guessing — a fuel plan built
+ * on an invented range is worse than no fuel plan because it looks like one.
+ * And it says how many riders it could not account for, because a binding range
+ * over two of five bikes is a different claim from one over all five.
+ */
+function Fuel({ range }: { range: GroupRange }) {
+  if (range.riders === 0) return <></>
+  if (range.miles === null) {
+    return (
+      <p class="roster-fuel is-quiet">
+        Nobody coming has a range on file, so there is nothing to plan fuel stops around. Ranges live in the{' '}
+        <a href="/profile">paddock</a>.
+      </p>
+    )
+  }
+  return (
+    <p class="roster-fuel">
+      Plan fuel stops around <strong>{range.miles} miles</strong> — {range.riderName}'s {range.bikeLabel} has the
+      shortest range of anyone&nbsp;coming.
+      {range.unknown > 0 && (
+        <span class="roster-fuel-gap">
+          {' '}
+          {range.unknown} {range.unknown === 1 ? 'rider has' : 'riders have'} no range on file, so this could still be
+          optimistic.
+        </span>
+      )}
+    </p>
+  )
+}
+
 rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   const user = currentUser(c)
   const found = await memberRide(c.req.param('slug'), user.id)
   if (!found) return c.text('Not found', 404)
   const { ride, role } = found
 
-  const [members, groups, dayRows, friends, dateFormat] = await Promise.all([
+  const [members, groups, dayRows, friends, dateFormat, range, myGarage, subgroups] = await Promise.all([
     roster(ride.id),
     voteGroups(ride.id, user.id),
     db
@@ -226,8 +298,15 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
       .where(eq(daysTable.rideId, ride.id)),
     canInvite(role) ? invitableFriends(ride.id, user.id) : Promise.resolve([]),
     dateFormatFor(c),
+    groupRange(ride.id),
+    listBikes(user.id),
+    subgroupsOf(ride.id),
   ])
   const dayTitles = new Map(dayRows.map((d) => [d.uid, d.title || `Day ${d.position + 1}`]))
+  // From the roster rather than a second query: the row is already loaded and
+  // `null` there means "my default", which the select renders as its first
+  // option.
+  const myBikeId = members.find((m) => m.riderId === user.id)?.bikeId ?? null
   const open = votingOpen(ride.altVotesCloseAt, new Date())
   const coming = members.filter(isComing).length
   const error = c.req.query('error')
@@ -245,11 +324,45 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
 
       {error && <p class="form-error">{ERRORS[error] ?? 'That did not work.'}</p>}
 
+      <Fuel range={range} />
+
       <ul class="rider-list roster-list">
         {members.map((m) => (
-          <MemberRow m={m} slug={ride.slug} viewerId={user.id} viewerRole={role} />
+          <MemberRow
+            m={m}
+            slug={ride.slug}
+            viewerId={user.id}
+            viewerRole={role}
+            subgroups={subgroups}
+            canAssign={role === 'owner'}
+          />
         ))}
       </ul>
+
+      {/* YOURS ONLY, the same rule the RSVP follows: which bike you are bringing
+          is a statement about you. It is also what the fuel line above is
+          computed from, so a rider changing it watches the number move — which
+          is the whole feedback loop #52 wanted. */}
+      {myGarage.length > 0 && (
+        <form method="post" action={`/m/${ride.slug}/riders/bike`} class="roster-row">
+          <label for="bike">Bringing</label>
+          <select id="bike" name="bike" onchange="this.form.submit()">
+            {/* "" is the default-bike fallback, and it is first because it is
+                what every rider is until they say otherwise. */}
+            <option value="">My default bike</option>
+            {myGarage.map((b) => (
+              <option value={String(b.id)} selected={myBikeId === b.id}>
+                {bikeLabel(b)}
+              </option>
+            ))}
+          </select>
+          <noscript>
+            <button class="btn btn-sm" type="submit">
+              Save
+            </button>
+          </noscript>
+        </form>
+      )}
 
       {canInvite(role) && (
         <section class="roster-invite">
@@ -366,6 +479,47 @@ rosterRoutes.post('/m/:slug/riders/rsvp', requireActive, requireSameOrigin, asyn
   const form = await c.req.parseBody()
   const ok = isRsvp(form.rsvp) && (await setRsvp(found.ride.id, user.id, form.rsvp))
   return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
+})
+
+// WHICH BIKE I AM BRINGING. Mine only — setBikeOnRide is owner-scoped over the
+// bikes as well as over the membership, so a forged id cannot pull somebody
+// else's machine into the group's range calculation or onto this page.
+rosterRoutes.post('/m/:slug/riders/bike', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const found = await memberRide(c.req.param('slug'), user.id)
+  if (!found) return c.text('Not found', 404)
+  const form = await c.req.parseBody()
+  const raw = typeof form.bike === 'string' ? form.bike.trim() : ''
+  // '' is the default-bike fallback and is a real answer, not a missing one.
+  const bikeId = raw === '' ? null : Number(raw)
+  if (bikeId !== null && !Number.isInteger(bikeId)) return c.redirect(back(found.ride.slug, 'refused'), 303)
+  const ok = await setBikeOnRide(found.ride.id, user.id, bikeId)
+  return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
+})
+
+// WHICH APPROACH A RIDER IS ON. Owner-only, and that is the difference from the
+// RSVP: being on the Oakland run is a fact about the plan rather than a
+// statement by the rider, and the planner is the one who knows it.
+rosterRoutes.post('/m/:slug/riders/group', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const found = await memberRide(c.req.param('slug'), user.id)
+  if (!found) return c.text('Not found', 404)
+  if (found.role !== 'owner') return c.redirect(back(found.ride.slug, 'not-owner'), 303)
+  const form = await c.req.parseBody()
+  const rider = Number(form.rider)
+  const raw = typeof form.group === 'string' ? form.group.trim() : ''
+  const groupId = raw === '' ? null : Number(raw)
+  if (!Number.isInteger(rider) || (groupId !== null && !Number.isInteger(groupId))) {
+    return c.redirect(back(found.ride.slug, 'refused'), 303)
+  }
+  // Scoped to this ride's own subgroups, so an id from another ride cannot be
+  // written onto a member row here. The FK would accept it — it points at
+  // ride_subgroups and not at these ride's rows — and every reader downstream
+  // would then see a rider on an approach that is not part of their ride.
+  const mine = (await subgroupsOf(found.ride.id)).some((g) => g.id === groupId)
+  if (groupId !== null && !mine) return c.redirect(back(found.ride.slug, 'refused'), 303)
+  await assignRider(found.ride.id, rider, groupId)
+  return c.redirect(back(found.ride.slug), 303)
 })
 
 rosterRoutes.post('/m/:slug/riders/vote', requireActive, requireSameOrigin, async (c) => {
