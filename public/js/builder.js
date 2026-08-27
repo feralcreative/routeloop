@@ -2208,6 +2208,99 @@
     });
   }
 
+  // DELETING A GROUP UN-TAGS ITS DAYS RATHER THAN DESTROYING THEM — the same
+  // thing `set null` does server-side, done here so undo and the map agree with
+  // what the save will do. A rider tidying up a group name must not lose the
+  // road they planned.
+  function removeSubgroup(g) {
+    beginEdit("remove a group");
+    state.meta.subgroups = state.meta.subgroups.filter((x) => x.uid !== g.uid);
+    state.days.forEach((d) => {
+      if (d.subgroupUid === g.uid) d.subgroupUid = null;
+    });
+    if (state.meta.primarySubgroup === g.uid) state.meta.primarySubgroup = state.meta.subgroups[0]?.uid || null;
+    if (state.meta.trunkSubgroup === g.uid) state.meta.trunkSubgroup = null;
+    renderDays();
+    rebuildLayers();
+    markDirty();
+  }
+
+  // Asks the server for somewhere this group could join the others. The whole
+  // computation is pure geometry and calls no router — see
+  // src/subgroups/rendezvous.ts — so this is cheap enough to press repeatedly.
+  //
+  // IT NEEDS A SAVED RIDE, because the proposal is made against the STORED
+  // trunk. Proposing against unsaved edits would mean shipping the whole ride
+  // up to ask, and the answer would be about a route that does not exist yet.
+  async function findMeet(g) {
+    const out = $("sg-meet-out");
+    if (!state.rideId) {
+      out.innerHTML =
+        '<p class="sg-note">Save the ride first—a meeting point is worked out from the roads you have already planned.</p>';
+      return;
+    }
+    out.innerHTML = '<p class="sg-note">Looking…</p>';
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/rendezvous", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group: g.uid }),
+      });
+      const data = await res.json();
+      // A REFUSAL IS NOT A FAILURE AND MUST NOT READ AS ONE. The catch below
+      // used to swallow this, which cost a browser pass: the server answered
+      // 400 "unknown group" — the ride had been saved without it — and the
+      // panel said "could not work one out just now", which is what it also
+      // says when the network is down.
+      if (!res.ok) {
+        out.innerHTML =
+          '<p class="sg-note">' +
+          (data && data.error === "unknown group"
+            ? "This group is not saved yet. Give it a moment and try again."
+            : "Could not work one out just now.") +
+          "</p>";
+        return;
+      }
+      out.innerHTML = meetResultHtml(g, data);
+    } catch (err) {
+      out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
+    }
+  }
+
+  const MEET_REASONS = {
+    "no-trunk": "There are no shared days yet. Leave at least one day on Everyone and try again.",
+    "no-days": "Give this group a day of its own first, starting where they start.",
+    // A REAL ANSWER, not a failure. Two groups on opposite sides of a route
+    // running away from both of them have nowhere sensible to meet, and
+    // offering the least bad option would be worse than saying so.
+    "none-viable": "Nowhere on the shared route works without sending them a long way round or backwards.",
+  };
+
+  function meetResultHtml(g, data) {
+    if (!data.candidates.length) {
+      return '<p class="sg-note">' + (MEET_REASONS[data.reason] || MEET_REASONS["none-viable"]) + "</p>";
+    }
+    return (
+      '<p class="sg-note">Where ' + esc(g.name) + " could join:</p>" +
+      '<ul class="sg-meets">' +
+      data.candidates
+        .map(
+          (c) =>
+            "<li>" +
+            '<button type="button" class="sg-take" data-lat="' + c.lat + '" data-lng="' + c.lng + '"' +
+            ' data-sg="' + esc(g.uid) + '">Use this</button>' +
+            '<span class="sg-meet-fact">' +
+            (c.isFuel ? "a fuel stop · " : "") +
+            "+" + c.divertMi + " mi out of their way · " +
+            c.sharedPct + "% of the shared route still ahead" +
+            "</span>" +
+            "</li>",
+        )
+        .join("") +
+      "</ul>"
+    );
+  }
+
   // ACCEPTING A PROPOSAL IS TWO EDITS, NOT ONE, and that is the whole structure
   // of a meet: the joining group's last day ENDS there and the first shared day
   // BEGINS there. One place, two points, which is what gives each group a route
