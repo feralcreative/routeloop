@@ -71,14 +71,48 @@ services:
       # same way, so every feedback report named no commit.
       APP_VERSION: ${APP_VERSION}
       BUILD_SHA: ${BUILD_SHA}
+      # How long a container told to stop waits for its in-flight requests. Must
+      # stay comfortably under stop_grace_period below, or the runtime SIGKILLs
+      # mid-drain and this number reads as though it did something.
+      DRAIN_GRACE_MS: ${DRAIN_GRACE_MS}
     ports:
       - "127.0.0.1:${HOST_PORT}:6686"
       - "127.0.0.1:${ALIAS_HOST_PORT}:6686"
     volumes:
       - ./data/storage:/app/storage
+    # Docker's default is 10s, which is exactly DRAIN_GRACE_MS — so the forced
+    # close and the SIGKILL would race and the drain would sometimes be cut off
+    # at the moment it was giving up anyway. 30s leaves the app's own deadline
+    # the one that decides, and a healthy drain still exits in well under a
+    # second (measured: 265ms locally).
+    stop_grace_period: 30s
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - routeloop
+
+  # ONE-SHOT. It has no container_name because `docker-compose run` generates
+  # its own, and no restart policy that could bring it back — it applies the
+  # migrations, exits, and is removed by `--rm`.
+  #
+  # WHY THIS IS NOT `docker exec` INTO THE APP ANYMORE. It used to be, in
+  # utils/deploy/hooks/post-deploy.sh, and it ran AFTER the new container was
+  # already serving traffic — so every deploy carrying a migration had a window
+  # where new code was answering requests against the old schema. docs/STATUS.md
+  # named the consequence out loud: deploy the alternates code without 0003 and
+  # every save 500s. Running it as its own container BEFORE the app is recreated
+  # closes that window, and costs nothing, because it is the same image.
+  #
+  # It reaches Postgres over the same bridge network and needs nothing else from
+  # the app's environment — drizzle.config.ts reads DATABASE_URL and nothing more.
+  migrate:
+    image: ${IMAGE_NAME}
+    restart: "no"
+    user: "${APP_UID}:${APP_GID}"
+    environment:
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+    command: ["npx", "drizzle-kit", "migrate"]
     networks:
       - routeloop
 

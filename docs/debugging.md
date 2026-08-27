@@ -42,7 +42,7 @@ npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.cre
 
 ## A 500 on sign-in saying `column users.<something> does not exist`
 
-The database is behind `src/db/schema.ts`. Locally, `npm run dev` migrates first via `predev`; run `npm run db:migrate` directly if you are not starting the dev server. On a deployed environment this is either a failed post-deploy hook or a stale volume adopted by a "fresh" deploy—see [deployment.md](deployment.md).
+The database is behind `src/db/schema.ts`. Locally, `npm run dev` migrates first via `predev`; run `npm run db:migrate` directly if you are not starting the dev server. On a deployed environment this is either a failed `migrate` service or a stale volume adopted by a "fresh" deploy—see [deployment.md](deployment.md).
 
 ## `drizzle-kit migrate` fails on the first `CREATE TYPE` or `CREATE TABLE`
 

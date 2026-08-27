@@ -224,14 +224,14 @@ utils/
   backfill-twistiness.ts Fills twistiness columns on pre-existing rows
   tighten-em-dashes.mjs  Prose dash fixer — the pre-commit hook and npm scripts
   deploy/             deploy.sh, prod.sh, stage.sh, deploy-utils.sh (ops +
-                      env-to-env cloning), hooks/post-deploy.sh
+                      env-to-env cloning)
 .githooks/pre-commit  Opt-in: git config core.hooksPath .githooks
 .github/workflows/    CI — typecheck + tests on PRs and main
 .qlty/                Code quality (biome, prettier, markdownlint, actionlint)
 docker-compose.yml    PostgreSQL for dev (app service at deploy time)
 drizzle.config.ts     Drizzle Kit config
 drizzle/              Generated migrations + meta/ snapshots — committed;
-                      applied by db:migrate and the post-deploy hook
+                      applied by db:migrate and the one-shot migrate service
 vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
                       ideas.md (vision), decisions.md,

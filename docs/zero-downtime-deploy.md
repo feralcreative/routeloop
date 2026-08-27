@@ -1,6 +1,12 @@
 # Zero-downtime deploy for routeloop
 
-**Written:** 2026-08-25. **Status: a PLAN, not a record. Nothing in it has been built.** The six open calls at the end are unanswered and the approvals it names—Caddy as a prod dependency, anything touching prod or stage, and the migration-authoring rule—have not been given. Read it as a proposal.
+**Written:** 2026-08-25. **Updated:** 2026-08-27.
+
+**Status: Phase 1 is BUILT and unshipped. Phase 2 is still a plan and nothing in it exists.**
+
+Phase 1 landed on `feat/zero-downtime-phase-1`: `/healthz`, the SIGTERM drain, migrations moved off the serving container into a one-shot `migrate` service, and a deploy that converges the database instead of tearing it down. It has **not been deployed to stage or prod**, and the one thing in it that cannot be verified from a laptop—whether SIGTERM actually reaches Node as PID 1 inside the container—is listed under *Verification* below and has to be done by hand on stage first.
+
+Phase 2, blue/green behind Caddy, is unchanged and unbuilt. Its approvals—Caddy as a prod dependency, anything touching prod or stage, and the migration-authoring rule—have not been given. Read everything from *Phase 2* onward as a proposal.
 
 ## Context
 
@@ -36,7 +42,21 @@ Per the Prohibitions in `AGENTS.md`: Caddy as a new dependency, anything touchin
 
 ## Phase 1—stop tearing down the database
 
-No new dependency, no topology change, no compose restructure. `~60–90s` becomes `~10–20s`.
+**BUILT 2026-08-27, not yet deployed.** No new dependency, no topology change, no compose restructure. `~60–90s` becomes `~10–20s`.
+
+What actually shipped, against what this section proposed:
+
+| Proposed | Built | Difference |
+| --- | --- | --- |
+| `src/health.ts`, pure | `src/health.ts` + `test/health.test.ts` (13 cases) | `health()` takes `color` as an INPUT rather than reading `process.env.APP_COLOR` inside itself, which the draft snippet did—a pure function that reads a global is not one, and `APP_COLOR` now lives in `src/config.ts` with every other env-derived constant |
+| `src/shutdown.ts` | `src/shutdown.ts`, `pool` exported from `src/db/index.ts` | as proposed |
+| `HEALTHCHECK` moved to `/healthz` | done | as proposed |
+| `CMD ["node", "--import", "tsx", …]` | done | `node --import tsx` verified against the pinned `tsx ^4.19.2`; the SIGNAL half is unverified in-container—see *Verification* |
+| one-shot `migrate` service | done | as proposed, and `hooks/post-deploy.sh` deleted with its error text carried over verbatim into `deploy.sh` |
+| health-gated verify asserting the SHA | done | as proposed; the old `sleep 5` plus non-fatal curl is gone |
+| `stop_grace_period`, `DRAIN_GRACE_MS` | done | as proposed |
+
+Measured locally: a drain completes in **265ms** with both log lines, and `/healthz` answers 200 with the stamped `APP_VERSION`/`BUILD_SHA` and is not caught by the `LEGACY_HOSTS` redirect under a `Host: tankbag.app` header.
 
 ### 1. A real health endpoint
 
@@ -464,9 +484,11 @@ PROXY_IMAGE            # Phase 2
 
 ## Open calls for you
 
-1. **Phase 1 only, Phase 1 then Phase 2, or both at once?** My recommendation is staged.
-2. **Caddy confirmed?** You picked it already; noting it here because it is a new prod dependency and `AGENTS.md` requires explicit approval.
-3. **Expand/contract with a `--no-overlap` escape hatch, or strict?** I lean escape hatch—it costs one code path and means a genuine emergency is never blocked.
-4. **`/healthz` public with `BUILD_SHA` in it, or hidden behind the proxy?** I lean public; the SHA is already in the DOM of every page.
-5. **`DB_VOLUME_NAME` hard-pinned per environment, or parameterized as `${COMPOSE_PROJECT_NAME}_db-data`?** I lean hard-pinned—the parameterized form turns a typo into a wrong-but-loud volume, but it does not actually *pin* anything, and this is the one failure mode that has already happened twice here.
-6. **Advisory-lock migrator now or later?** I lean later, as its own issue. Replacing `drizzle-kit migrate` with a programmatic `migrate()` wrapper would drop `drizzle-kit` from the runtime path, but it also replaces a load-bearing path that has already burned this project once, and adding that risk to the riskiest change in months is bad sequencing.
+**Three of the six are answered, 2026-08-27**, and are struck through rather than deleted so the reasoning stays readable.
+
+1. ~~**Phase 1 only, Phase 1 then Phase 2, or both at once?**~~ **Phase 1 only, for now.** Stopping after it leaves a much better deploy and nothing half-finished; Phase 2 stays available and every piece of Phase 1 is a prerequisite for it either way.
+2. *(Phase 2)* **Caddy confirmed?** You picked it already; noting it here because it is a new prod dependency and `AGENTS.md` requires explicit approval.
+3. *(Phase 2)* **Expand/contract with a `--no-overlap` escape hatch, or strict?** I lean escape hatch—it costs one code path and means a genuine emergency is never blocked.
+4. ~~**`/healthz` public with `BUILD_SHA` in it, or hidden behind the proxy?**~~ **Public, with the SHA in it.** It is already in a `title` attribute on every page and in the feedback diagnostics, so this puts nothing new in reach; what it buys is a gate the deploy can reach directly rather than over SSH into the host.
+5. *(Phase 2)* **`DB_VOLUME_NAME` hard-pinned per environment, or parameterized as `${COMPOSE_PROJECT_NAME}_db-data`?** I lean hard-pinned—the parameterized form turns a typo into a wrong-but-loud volume, but it does not actually *pin* anything, and this is the one failure mode that has already happened twice here.
+6. ~~**Advisory-lock migrator now or later?**~~ **Later, as its own issue.** `drizzle-kit migrate` stays, run as a one-shot container. Replacing `drizzle-kit migrate` with a programmatic `migrate()` wrapper would drop `drizzle-kit` from the runtime path, but it also replaces a load-bearing path that has already burned this project once, and adding that risk to the riskiest change in months is bad sequencing.

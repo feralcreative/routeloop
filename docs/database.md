@@ -107,7 +107,7 @@ Prod, stage and both dev machines were built by `push`, so they already have eve
    utils/deploy/deploy-utils.sh db-baseline              # prod or stage, per DEPLOY_ENV
    ```
 
-3. **From then on, `migrate`.** The post-deploy hook already does.
+3. **From then on, `migrate`.** The deploy's one-shot `migrate` service already does.
 
 The script refuses two cases outright: a database with no `users` table (that one wants `migrate`, and baselining it would mark a schema created that never was), and a database that already has bookkeeping rows.
 
@@ -115,7 +115,7 @@ This dev machine did not need baselining. Its database was far enough behind—s
 
 ## Deployment
 
-[utils/deploy/hooks/post-deploy.sh](../utils/deploy/hooks/post-deploy.sh) runs `npx drizzle-kit migrate` inside the container and is **fatal on failure**. That is deliberate and predates this change: a non-fatal schema step is how production once drifted three sprints behind and started serving 500s while the deploy reported success. A deploy whose schema step failed has not succeeded.
+[utils/deploy/deploy.sh](../utils/deploy/deploy.sh) runs `npx drizzle-kit migrate` as a one-shot `migrate` service, **before the app container is recreated**, and it is **fatal on failure**. That is deliberate and predates this change: a non-fatal schema step is how production once drifted three sprints behind and started serving 500s while the deploy reported success. A deploy whose schema step failed has not succeeded.
 
 The image must carry `drizzle/`—see the `COPY drizzle ./drizzle` line in the [Dockerfile](../Dockerfile). Without it `migrate` finds no migrations, applies nothing, and exits 0, which is the same silent drift in a new costume.
 
