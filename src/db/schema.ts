@@ -36,6 +36,18 @@ export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'block
 // existing row changed meaning. See canView() in src/access/policy.ts for the
 // whole rule; nothing should read this enum and decide for itself.
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private', 'friends'])
+// WHICH EVENT IS PINNED when the clocks of several subgroups are solved against
+// each other. A second axis from WHOSE clock is pinned, which is
+// rides.primary_subgroup_id, and keeping them separate is what dissolves the
+// contradiction #143 was written with: one group setting the departure while
+// another is pinned at 9am is two anchors, and only one can hold.
+//
+//   departure  the primary group leaves at their day's start_at; everyone else
+//              is solved so they arrive at the meet when that group does
+//   meet       the first meet happens at a fixed time; every group, primary
+//              included, is solved backwards from it
+//   arrival    the primary group reaches the end of the day at a fixed time
+export const timeAnchorEnum = pgEnum('time_anchor', ['departure', 'meet', 'arrival'])
 // Three ways to hand out access, and the difference is not only max_uses. An
 // 'email' invite is bound to an address and mailed; a 'link' is one URL handed
 // to one person; a 'group' is pasted into a channel and read by everyone in it.
@@ -653,6 +665,27 @@ export const rides = pgTable(
     // rewrites which road a ride takes, unattended, on a site real riders have
     // accounts on, should be a thing the owner asked for.
     altVotesCloseAt: timestamp('alt_votes_close_at', { withTimezone: true }),
+    // WHOSE CLOCK IS FIXED. Not a decision the app can make fairly on its own:
+    // 3 miles against 60 to a 6am meet is unfair, the same two distances to a
+    // 10am meet heading the other way is not, and only the planner knows which
+    // they are looking at. #67 is explicit that the DEFAULT must not be the
+    // planner's own group — it is the one most likely to be nearest the meet,
+    // so that default reproduces the unfair case every time and the planner
+    // does not notice, being the one who rode three miles.
+    primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
+    // WHOSE ROUTE IS THE SPINE a rendezvous is proposed against. A SEPARATE
+    // COLUMN from the one above although the UI asks once, because the two come
+    // apart: they are the same group when Sacramento joins Oakland's run to the
+    // Sierras, and they are not the same thing at all when Seattle and San
+    // Francisco meet in eastern Oregon — there is no trunk there and the ride
+    // starts at the meet. #67 says keep them separate in the model and this is
+    // that.
+    trunkSubgroupId: bigint('trunk_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
+    timeAnchor: timeAnchorEnum('time_anchor').notNull().default('departure'),
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
@@ -801,6 +834,20 @@ export const days = pgTable(
     // Client-minted, exactly like a point's: same alphabet, same length, or the
     // save 400s. Backfilled for every pre-existing row in drizzle/0015.
     uid: varchar('uid', { length: 12 }).notNull(),
+    // WHOSE DAY THIS IS. Null means everyone rides it — the trunk — and that is
+    // the value every day that predates #67 carries, which is why this needed
+    // no backfill.
+    //
+    // A subgroup owns a SUBSEQUENCE of the ride's positions rather than a
+    // parallel numbering of its own, so uq_day_ride_pos is untouched and a
+    // multi-day approach is simply more days: Seattle takes 0 and 1, SF takes
+    // 2, the trunk takes 3. Which days happen on the same calendar day is
+    // carried by start_at, which already exists.
+    //
+    // `set null` on delete: removing a subgroup makes its days everyone's
+    // rather than destroying them. Losing a rider's planned road because they
+    // renamed a group wrong would be the place_groups mistake over again.
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
     // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
     // owns every rule about these two columns.
@@ -878,6 +925,18 @@ export const points = pgTable(
       .notNull()
       .default(sql`'{}'::waypoint_role[]`),
     durationMin: integer('duration_min'),
+    // TIME ONLY A LATE GROUP SPENDS, where duration_min is time everyone spends.
+    // Meaningful on a meeting point and nowhere else. Ziad's call, 2026-08-26,
+    // after #67 left it open.
+    //
+    // The two behave differently and that is the whole reason for a second
+    // column: dwell pushes the shared departure later for everybody, slack is a
+    // margin ahead of it that absorbs one group running late without moving
+    // anyone. See daySchedule and solveStrands in src/subgroups/schedule.ts.
+    //
+    // Null is not zero. Null means nobody set any; 0 means none is wanted, and
+    // a meet deliberately run to the minute is a real thing to say.
+    slackMin: integer('slack_min'),
     distFromStartM: integer('dist_from_start_m'), // server-computed cumulative meters
     // The point's DURABLE identity, and the thing `id` is not.
     //
@@ -1256,6 +1315,37 @@ export const rsvpEnum = pgEnum('rsvp', ['invited', 'going', 'maybe', 'declined']
 
 export const friendshipStatusEnum = pgEnum('friendship_status', ['pending', 'accepted', 'blocked'])
 
+// A NAMED SET OF RIDERS SHARING AN APPROACH — the Oakland contingent, the
+// Sacramento contingent. The primitive #67 is built on.
+//
+// NOT CHURNED ON SAVE, unlike days and points. The builder's PUT deletes and
+// re-inserts every day of a ride, and if it did the same here every
+// ride_members.subgroup_id would be orphaned on the first edit. So
+// insertRideGraph reconciles these BY UID — upsert what the payload carries,
+// delete what it does not — which is why they have a uid at all and why ids
+// here are safe to reference where days' and points' are not.
+export const rideSubgroups = pgTable(
+  'ride_subgroups',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    // Client-minted, same alphabet and length as days.uid and points.uid — see
+    // src/maps/uid.ts. It is what lets a payload reference a subgroup the
+    // server has never seen.
+    uid: varchar('uid', { length: 12 }).notNull(),
+    name: varchar('name', { length: 80 }).notNull(),
+    // Its own, not borrowed from a day. A subgroup spans several days and its
+    // line on the map has to read as one thing across all of them, which the
+    // per-day palette cannot do.
+    color: varchar('color', { length: 7 }).notNull().default('#0066cc'),
+    position: smallint('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uq_subgroup_ride_uid').on(t.rideId, t.uid), index('idx_subgroup_ride').on(t.rideId)],
+)
+
 // A rider's relationship to a ride: the primitive several planned features
 // assume and none of them owns.
 //
@@ -1276,6 +1366,12 @@ export const rideMembers = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     role: rideRoleEnum('role').notNull().default('rider'),
     rsvp: rsvpEnum('rsvp').notNull().default('invited'),
+    // Which approach this rider is on. NULLABLE AND THAT IS LOAD-BEARING: a
+    // club secretary planning a joint rally is not in any of the groups, and
+    // #67 says so explicitly. `set null` rather than cascade, so deleting a
+    // subgroup un-groups its riders instead of throwing them off the ride —
+    // the same call place_groups made about its places.
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
     // `set null` rather than cascade: the rider who did the inviting may leave,
     // and losing their account must not evict everyone they brought.
     invitedBy: bigint('invited_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
@@ -1373,6 +1469,9 @@ export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
 export type FriendshipRow = typeof friendships.$inferSelect
 export type AltVoteRow = typeof altVotes.$inferSelect
+export type RideSubgroupRow = typeof rideSubgroups.$inferSelect
+/** The three pinnable events, derived from the enum so the two cannot drift. */
+export type TimeAnchor = (typeof timeAnchorEnum.enumValues)[number]
 /** The two ride roles, derived from the enum so the two cannot drift. */
 export type RideRole = (typeof rideRoleEnum.enumValues)[number]
 /** The four RSVP states, likewise. */
