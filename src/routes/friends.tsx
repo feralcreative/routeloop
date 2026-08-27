@@ -23,15 +23,20 @@ import {
   removeFriend,
   requestFriend,
   unblockRider,
+  type FriendResult,
   type RiderCard,
 } from '../friends/service'
+import { notifyFriendAccepted, notifyFriendRequest } from '../friends/notify'
 import { page } from '../views/layout'
 import { FriendForm } from '../views/friend-form'
 import type { FriendVerb } from '../friends/policy'
 
 export const friendRoutes = new Hono<AuthEnv>()
 
-const VERBS: Record<FriendVerb, (viewerId: number, otherId: number) => Promise<unknown>> = {
+// Typed on FriendResult rather than `unknown`, which is what it was: the handler
+// now reads `ok` to decide whether to notify, and `unknown` would have made that
+// a cast. Every verb in service.ts already returns this shape.
+const VERBS: Record<FriendVerb, (viewerId: number, otherId: number) => Promise<FriendResult>> = {
   request: requestFriend,
   accept: acceptFriend,
   remove: removeFriend,
@@ -99,7 +104,20 @@ friendRoutes.post(
     // form than doing nothing.
     if (!other || other.id === user.id) return c.redirect(back, 303)
 
-    await VERBS[verb](user.id, other.id)
+    const result = await VERBS[verb](user.id, other.id)
+
+    // NOTIFY ONLY ON A VERB THAT ACTUALLY HAPPENED, and only for the two that
+    // mail at all — see src/friends/notify.ts for why block, unblock and remove
+    // send nothing. The ok:true check is the load-bearing half: a refused
+    // request may have been refused BECAUSE the other rider blocked this one,
+    // and mailing on it would announce the block to the person it was against,
+    // which is the one thing this whole subsystem is built to prevent.
+    if (result?.ok) {
+      if (verb === 'request') notifyFriendRequest(user.id, other.id)
+      // Reversed on purpose: the rider who pressed Accept is `user`, and the one
+      // who hears about it is the one who asked.
+      else if (verb === 'accept') notifyFriendAccepted(user.id, other.id)
+    }
     return c.redirect(back, 303)
   },
 )

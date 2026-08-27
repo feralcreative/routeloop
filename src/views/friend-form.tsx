@@ -25,7 +25,24 @@ export function FriendForm({
     <form method="post" action={`/friends/${verb}`} class="friend-act">
       <input type="hidden" name="handle" value={handle} />
       <input type="hidden" name="back" value={back} />
-      <button class={`btn btn-sm${variant ? ` ${variant}` : ''}`} type="submit">
+      {/* SIGN BY DEFAULT, FLAT WHEN A VARIANT ASKS. `.btn-sm` is in $btn-flat in
+          style/_chrome.scss, so a compact button opts OUT of the house
+          guide-sign treatment — which is right for a dense table and wrong for
+          these: Add friend and Accept are the primary verb of the row they sit
+          in, and they were rendering as the only flat blue buttons on a page
+          whose own Search button is a sign. `.btn.btn-sign` is the explicit
+          opt-back-in and beats that list.
+
+          `.btn-recreation` is the brown field with no arrow — brown is the
+          recreational category on a real sign, for places you go to rather than
+          roads you take, and adding a rider is not a direction. See the block in
+          style/_chrome.scss.
+
+          Every variant this is called with is a quiet one — Cancel request,
+          Decline, Unblock — and a quiet sign is a contradiction, so a variant
+          keeps the flat treatment. That is also what keeps the pairs readable:
+          Accept is the sign and Decline is not. */}
+      <button class={`btn btn-sm ${variant || 'btn-sign btn-recreation'}`} type="submit">
         {label}
       </button>
     </form>
