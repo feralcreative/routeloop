@@ -1,0 +1,39 @@
+# The proxy in front of the two app colors.
+#
+# SHIPPED EVERY DEPLOY, unlike proxy/upstream.caddy beside it, which is NAS
+# state: one line naming the container that is currently live. That file is not
+# in this repo and must not be — it is the answer to "which color is serving",
+# and a copy of it in git would be a second source of truth that goes stale the
+# first time anybody cuts over by hand.
+{
+	# `admin off` is tempting here and is WRONG: `caddy reload` goes through the
+	# admin API, so turning it off removes the mechanism the whole design runs
+	# on. The default endpoint is localhost:2019 INSIDE the container and is not
+	# published to the host, so it is not reachable from anywhere that matters.
+	auto_https off
+}
+
+# ONE listener. Both of the host ports the Cloudflare tunnel targets are mapped
+# onto it by the compose file, because they are the same site and a second
+# listener block would be a second thing to keep in step for no gain.
+#
+# The host port NUMBERS are frozen: the tunnel config is managed remotely by
+# whole-config PUT, so nothing in this repo may require it to change. The app
+# colors publish NO host ports at all — this is the only thing bound.
+:6686 {
+	# The one line the deploy rewrites. `reverse_proxy routeloop-blue:6686`, or
+	# green. Caddy re-resolves the upstream per dial, so a color that is not
+	# running yet is a 502 on that request rather than a proxy that refuses to
+	# start — which is what nginx would do, and is one of the four reasons it is
+	# not nginx.
+	import /etc/caddy/upstream.caddy
+
+	# Caddy preserves the incoming Host header for HTTP upstreams by default,
+	# which LEGACY_HOSTS and the alias 301 both depend on. Stated rather than
+	# configured because it is a default worth knowing is load-bearing: nginx
+	# defaults to $proxy_host here and the app would see `Host: routeloop-blue`.
+
+	# No request body limit is set, deliberately. The rider quota is 25MB and
+	# Caddy streams by default. nginx's `client_max_body_size` defaults to 1MB
+	# and would silently 413 every real KML/GPX import.
+}

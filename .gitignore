@@ -299,3 +299,9 @@ moto-storage/
 # Cached Routes API responses for utils/seed-demo-rides.ts. Regenerable, and
 # large enough to be noise in a diff.
 utils/.demo-route-cache.json
+
+# The live-color marker is NAS state, not a repo file. It is the single source
+# of truth for which color the proxy is serving, and a committed copy would be
+# a second answer that goes stale the first time anybody cuts over by hand.
+# proxy/upstream.caddy.example shows the shape.
+proxy/upstream.caddy

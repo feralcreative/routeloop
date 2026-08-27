@@ -2,11 +2,18 @@
 
 **Written:** 2026-08-25. **Updated:** 2026-08-27.
 
-**Status: Phase 1 is BUILT and unshipped. Phase 2 is still a plan and nothing in it exists.**
+**Status: Phase 1 is BUILT and deployed to stage. Phase 2 is BUILT and has NOT been cut over anywhere.**
 
 Phase 1 landed on `feat/zero-downtime-phase-1`: `/healthz`, the SIGTERM drain, migrations moved off the serving container into a one-shot `migrate` service, and a deploy that converges the database instead of tearing it down. It has **not been deployed to stage or prod**, and the one thing in it that cannot be verified from a laptop—whether SIGTERM actually reaches Node as PID 1 inside the container—is listed under *Verification* below and has to be done by hand on stage first.
 
-Phase 2, blue/green behind Caddy, is unchanged and unbuilt. Its approvals—Caddy as a prod dependency, anything touching prod or stage, and the migration-authoring rule—have not been given. Read everything from *Phase 2* onward as a proposal.
+Phase 2 landed on `feat/zero-downtime-phase-2`, branched off Phase 1. **All three of its approvals were given on 2026-08-27**: Caddy as a production dependency, expand/contract as a schema rule with a `--no-overlap` escape hatch, and `DB_VOLUME_NAME` hard-pinned per environment.
+
+**What has NOT happened is the one-time NAS cutover**, which is the only step in either phase that can lose a database. Both environments are still running the single pre-blue/green container. The runbook below is unchanged and its preconditions are not optional.
+
+Two things resolved that the plan left open:
+
+- **Compose on the NAS is v2.20.1** (measured 2026-08-27), so profiles are available. Both colors and the migrator sit behind them, which is what makes a bare `up -d` unable to start both colors—the plan had hedged on this because Synology often ships Compose v1.
+- **The plan's `health()` snippet read `process.env.APP_COLOR` inside a function described as pure.** `APP_COLOR` lives in `src/config.ts` with every other env-derived constant and is passed in.
 
 ## Context
 
