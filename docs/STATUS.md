@@ -1,13 +1,43 @@
 # Status and handoff
 
 **Updated:** 2026-08-26
-**Branch:** `feat/rider-access`, **five commits ahead of `main`**, nothing pushed. **1,657 tests across 62 files** (2 skipped, 1,659 total)
-**Closes, when it merges:** [#71](https://github.com/feralcreative/routeloop/issues/71), [#72](https://github.com/feralcreative/routeloop/issues/72), [#73](https://github.com/feralcreative/routeloop/issues/73) and part of [#12](https://github.com/feralcreative/routeloop/issues/12). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149) (which also took #134 and #148), the dashboard and themes work, and the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151).
+**Branch:** `feat/ride-membership`, **five commits ahead of `main`**, nothing pushed. **1,680 tests across 64 files** (2 skipped, 1,682 total)
+**Closes, when it merges:** [#12](https://github.com/feralcreative/routeloop/issues/12) and [#68](https://github.com/feralcreative/routeloop/issues/68). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), and the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152).
 **For:** the next agent, or the owner returning cold
 
-## The rider and access layer—read before touching visibility
+## Membership and voting—read before touching days or alternates
 
-Five commits on `feat/rider-access`, nothing pushed. `drizzle/0014` has run on **this machine only**.
+Five commits on `feat/ride-membership`, nothing pushed. `drizzle/0015` has run on **this machine only**, and it carries a DATA migration as well as a schema one.
+
+- **`days.uid` is new, and it is the reason this branch exists.** A vote could not reference a day: `days.id` churns because the builder's `PUT` deletes and re-inserts every day on every save, and `alt_group` is renumbered densely each time. Same answer `points.uid` was to the same problem, minted by the client, carried through the payload and the native JSON.
+- **The migration was hand-edited twice.** The differ emitted the uid column as a bare `NOT NULL` with no default, which fails on a populated table; it is three statements now. And it carries an `INSERT ... SELECT` putting every existing ride's owner on its own roster, which no differ could know about.
+- **Membership ships working, and the invite path is a FRIEND and nothing else.** No token, no email, no account creation—which is what dissolved the sign-off the last branch could not get. `ride_invites` stays unbuilt rather than deferred.
+- **`/m/:slug/riders` is the roster**, gated on membership rather than visibility, and it replaced the inert stub in the builder panel. A rider who is not the owner has no builder to open and still has to RSVP and vote.
+- **Voting is one pick per member per alternate group**, enforced in the transaction because a group has no durable id to index. A tie elects nobody. A deadline is opt-in per ride, and clearing it on resolve is what makes the sweep idempotent.
+- **`startVoteResolver()` is a new sweep** in `src/index.tsx`, alongside the trash purge and the quota sweep. A ride with no deadline is never selected, which is every ride until an owner sets one.
+
+### What was verified by hand, and what was not
+
+Same as last branch: there is no database-backed suite, so the paths that need one were checked against the local database directly.
+
+- A uid survives a full-replace `PUT` unchanged, and a save that drops a day reconciles that day's votes away.
+- The membership grant opens a private ride to a member and refuses a stranger.
+- Invite, re-invite, RSVP, a bogus RSVP, and the owner trying to remove themselves—all through HTTP with the right refusals.
+- Vote, withdraw by pressing again, a 1–1 tie changing nothing, a 2–0 electing a winner without tripping `uq_day_alt_active`, voting refused while closed, and the sweep clearing the deadline and being a no-op on a second pass.
+
+**Not verified:** anything in a real browser. The roster page, the ballot and the RSVP select have had no browser pass, and the RSVP select submits on `change` with a `<noscript>` Save button that has not been exercised.
+
+### Still outstanding from this work
+
+- **Nobody is told they were added to a ride.** They find out by looking at their dashboard. `src/auth/notify.ts` is the precedent for where a mail would live, and the same gap exists for friend requests from the last branch.
+- **The roster is not in the account archive.** `src/account/export.ts` covers rides and profile; who a rider rides with is arguably theirs too.
+- **#52 group-aware range planning is now unblocked**—both halves exist, `bikes` from the Paddock and `ride_members` from this. It is an `area:builder` issue.
+- **#67 is next and its model is settled**: a feeder is a day tagged with a subgroup, `days.subgroup_id` nullable. Written up in `docs/decisions.md` with the two consequences to plan for—the builder's day list stops being a straight sequence, and `MAX_DAYS` counts feeder days.
+
+
+## The rider and access layer (merged as #152)—read before touching visibility
+
+Merged. `drizzle/0014` has still run on **this machine only**—stage and production have seen none of it.
 
 - **`src/access/policy.ts` is now the only place the visibility table is written down.** Three hand-rolled copies of the same four-clause gate—`getViewable` in `index.tsx`, and one each in `handoff.tsx` and `roadbook.tsx`—collapsed into `viewableRide()` in `src/access/query.ts`. Every route that serves a ride by slug goes through it.
 - **Two behaviors folded in that only the `index.tsx` copy had:** the roadbook and the hand-off page now go dark for a leaving owner and for a trashed ride. That is what they should always have done; both pages ARE the ride, rendered differently.
