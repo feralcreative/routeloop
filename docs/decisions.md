@@ -56,6 +56,38 @@ It turned out nothing needs the second form. The only two list queries in the ap
 
 The asymmetry is the point and worth stating: viewable is not clonable.
 
+## A ride invite is a friend, and nothing else, 2026-08-26
+
+The invite path was cut from the access branch because it needed a sign-off: an invite link for someone with no account either bypasses the pending-approval gate—meaning any rider can create active accounts—or lands them somewhere they cannot see the ride they were invited to, via a special case inside `requireActive`.
+
+Friendships dissolved the question rather than answering it. **You can only add a friend to a ride.** No token, no email, no link: a friend already has an active account, already passed approval, and already chose to be reachable by this rider. `ride_invites` therefore stays unbuilt rather than deferred, and #12's fourth box—rate-limit rider lookup by email or phone—is answered by not having the surface to rate-limit.
+
+The cost is real and worth stating: **you cannot put somebody on a ride until you are friends.** That is one extra step for a rider who just wants to share a route, and it is the wrong tool for that job anyway—unlisted and public links already share a route with anybody. Membership is for the people you are actually riding with.
+
+## A tie elects nobody, 2026-08-26
+
+#68 left resolution rules open: majority, quorum, deadline, tie-breaking, leader override. Only two of those were settled and the rest turned out not to be needed.
+
+**A tie leaves the current pick alone.** It needed no negotiating because it changes nothing—and every candidate tie-break (first by position, most recent vote, the owner's own) is arbitrary dressed as a policy, justifying one road over another on no information. A tie is also the ordinary state rather than the edge one: a three-member ride with two alternates ties whenever one rider abstains.
+
+**No quorum.** A quorum turns "two of five bothered to vote" into "nothing happens", which is indistinguishable from a broken tally and is what an owner would report as a bug. The deadline is the opt-in, and an owner who set one asked for the answer the votes give.
+
+**A deadline is opt-in per ride**, `rides.alt_votes_close_at`, null on every ride that existed before it. Null means the tally is advisory and the owner promotes by hand, which is what the builder already does. Something that rewrites which road a ride takes, unattended, on a site real riders have accounts on, should be a thing the owner asked for.
+
+## A subgroup's approach is a DAY, not a set of legs, 2026-08-26
+
+Settled before building #67, which asks for it to be. `days` gains a nullable `subgroup_id`; null means every subgroup rides that day. A rider's plan is the ordered subsequence of days where the subgroup is theirs or null.
+
+**The alternative was subgroup-membership-on-legs**, with a join table saying which subgroups are on each leg and a point where the set changes being a meet or a split. It reads better in the issue and it breaks a settled rule: a day is ONE ORDERED LIST of points (Ziad's call, 2026-08-23), and Oakland's start and Sacramento's start cannot both be position 0 in one list. It also needs leg uids, because `route_legs` churns on every save the same way `points` does.
+
+Three things the chosen model gets for free, which is what settled it:
+
+- **`uq_day_ride_pos` does not change.** Days stay one dense sequence and a subgroup owns a subsequence of it, so a multi-day approach is just more days—Seattle takes positions 0 and 1, SF takes 2, the trunk is 3.
+- **Concurrency is carried by `days.start_at`**, which already exists and is already how the app reasons about time. No second ordinal saying which parallel days are the same calendar day.
+- **It is the shape `alt_group` already uses**—distinct positions grouped by a nullable key. The only difference is that every feeder is active where exactly one alternate is.
+
+Two consequences to plan for rather than discover: the builder's day list stops being a straight sequence and has to group by strand, and `MAX_DAYS = 31` counts feeder days, which is the trap alternates already carry.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.

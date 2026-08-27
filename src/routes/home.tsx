@@ -38,7 +38,7 @@ import { Hono } from 'hono'
 import { raw } from 'hono/html'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, days as daysTable, type RideRow } from '../db/schema'
+import { rides, days as daysTable, type RideRow, type Rsvp } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -48,6 +48,8 @@ import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
 import { LIVE_RIDE } from '../trash/service'
+import { ridesImOn } from '../members/service'
+import { RSVP_LABELS } from '../members/policy'
 
 export const homeRoutes = new Hono<AuthEnv>()
 
@@ -89,6 +91,42 @@ const RIDE_CEILING = 500
 // by closing the outer one early, which silently drops half the card out of the
 // link. The foot is a sibling of the link, and the card's own padding is what
 // makes the two read as one object.
+// A ride the viewer is ON but does not own.
+//
+// A THIRD CARD RATHER THAN A FLAG ON THE OTHER TWO, for the same reason
+// OwnRideCard is not views/cards.tsx's Card: the contract is different. There is
+// no visibility pill, because the setting is not this rider's to know or change;
+// there is no edit link, because they cannot; and there is an RSVP, which
+// neither of the others has anywhere to put. A flag meaning "am I the owner"
+// plus a flag meaning "am I a member" is two booleans encoding three cards.
+//
+// No color block: `ridesImOn` does not join days, and a fourth query per
+// dashboard render to tint a short list is not worth it. CardFace draws the
+// thumbnail when there is one and a neutral field when there is not.
+function JoinedRideCard({ ride, rsvp }: { ride: RideRow; rsvp: Rsvp }) {
+  return (
+    <li class="ride-card">
+      <a class="ride-card-link" href={`/m/${ride.slug}`}>
+        <CardFace slug={ride.slug} thumbHash={ride.thumbHash} color={null} />
+        <span class="ride-card-body">
+          <span class="ride-card-title">{ride.title}</span>
+          <span class="ride-card-meta">
+            {ride.stopCount} stops · {Number(ride.totalMiles)} mi
+          </span>
+        </span>
+      </a>
+      <div class="ride-card-foot">
+        <span class="pill">{RSVP_LABELS[rsvp]}</span>
+        {/* Straight to the roster rather than to the ride, because answering is
+            the thing this card is asking for. */}
+        <a class="editlink" href={`/m/${ride.slug}/riders`}>
+          Riders
+        </a>
+      </div>
+    </li>
+  )
+}
+
 function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
   return (
     <li class="ride-card">
@@ -475,7 +513,7 @@ homeRoutes.get('/', requireActive, async (c) => {
   // query, so this tests for the one string rather than for truthiness.
   const showAll = c.req.query('rides') === 'all'
 
-  const [stats, cached, owned, global] = await Promise.all([
+  const [stats, cached, owned, global, joined] = await Promise.all([
     loadStats(user.id),
     cachedUsedBytes(user.id),
     db
@@ -501,6 +539,12 @@ homeRoutes.get('/', requireActive, async (c) => {
     // Promise.all as the rest because a cache hit resolves immediately and a
     // miss should not be serialized behind the rider's own queries.
     cachedGlobalStats(),
+    // THE RIDES SOMEBODY ELSE PUT THIS RIDER ON. Without this a membership is
+    // unfindable: a member can open a private ride they were added to, but only
+    // if they were separately handed the link — which makes the invite do
+    // nothing the link was not already doing. Owned rides are excluded inside
+    // ridesImOn, because they are the list below.
+    ridesImOn(user.id)
   ])
 
   const hasMore = !showAll && owned.length > RIDE_PAGE
@@ -583,6 +627,26 @@ homeRoutes.get('/', requireActive, async (c) => {
             own, so each carries a visibility pill and an edit link that the
             public card must never show.
           */}
+          {/*
+            ABOVE the rider's own rides, not below. This is the short list and
+            the one carrying news — somebody added you to something — where the
+            list below is the one they already know about. A rider on no rides
+            sees nothing at all rather than an empty heading.
+          */}
+          {joined.length > 0 && (
+            <section class="stat-block">
+              <h2>Riding with others</h2>
+              <p class="sub">
+                {joined.length} {joined.length === 1 ? 'ride' : 'rides'} you were added to
+              </p>
+              <ul class="ride-cards ride-cards--dense">
+                {joined.map((j) => (
+                  <JoinedRideCard ride={j.ride} rsvp={j.rsvp} />
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section class="stat-block">
             <h2>Your rides</h2>
             <p class="sub">

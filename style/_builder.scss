@@ -2018,98 +2018,17 @@
 // pointer lives in while building — a destructive control belongs where someone
 // arrives on purpose, not where they click by reflex.
 //
-// --- The stubbed roster ------------------------------------------------------
+// --- The roster link ---------------------------------------------------------
 //
-// Everything in here is inert markup announcing a feature — see the block in
-// src/routes/builder.ts for why it exists rather than being left out. It is
-// styled at HALF STRENGTH ON PURPOSE: legible enough to read, plainly not
-// pressable, and never competing with a control that works. When membership
-// lands, this block goes with the markup it styles.
-.roster-stub {
-  margin: 1.5rem 0 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid $grey;
+// What is left of the stubbed roster that stood here for one branch: the roster
+// is a page now (src/routes/roster.tsx) and this is the way in from the panel.
+.panel-roster {
+  margin: 1.25rem 0 0;
 
-  summary {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    color: $neutral-50;
-    font-size: 0.85em;
+  .btn {
+    width: 100%;
+    justify-content: center;
   }
-
-  // Everything the summary opens onto is dead, so the whole body reads as a
-  // preview rather than as a form that will not submit.
-  select,
-  .btn,
-  .roster-list {
-    opacity: 0.55;
-  }
-
-  select {
-    font: inherit;
-    font-size: 0.85em;
-    padding: 0.3em 0.4em;
-    border: 1px solid $grey;
-    border-radius: 5px;
-    background: $white;
-  }
-}
-
-.soon-tag {
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: $neutral-57;
-  border: 1px solid $grey;
-  border-radius: 999px;
-  padding: 0.1em 0.55em;
-}
-
-.roster-note {
-  color: $neutral-57;
-  font-size: 0.75em;
-  margin: 0.6rem 0;
-}
-
-.roster-row {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-
-  select {
-    flex: 1;
-    min-width: 0;
-  }
-}
-
-.roster-list {
-  list-style: none;
-  margin: 0.6rem 0 0;
-  padding: 0;
-
-  li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.85em;
-  }
-}
-
-.roster-who {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-}
-
-.roster-role {
-  color: $neutral-57;
-  font-size: 0.8em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 // Muted rather than red. It moves the ride to the recycle bin, where it sits for

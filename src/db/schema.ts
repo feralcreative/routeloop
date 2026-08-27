@@ -643,6 +643,16 @@ export const rides = pgTable(
     visibility: visibilityEnum('visibility').notNull().default('private'),
     source: rideSourceEnum('source').notNull().default('imported'),
     externalUrl: varchar('external_url', { length: 2048 }),
+    // WHEN THE ALTERNATE VOTE CLOSES, and null — which is every row that existed
+    // before this landed — means it never does. A null tally is ADVISORY: the
+    // numbers are shown beside each alternate and the owner promotes one by
+    // hand, which is exactly what the builder already does. Set, and the sweep
+    // in src/votes/resolve.ts elects each group's leader at that moment.
+    //
+    // Opt-in per ride rather than a global default, deliberately. Something that
+    // rewrites which road a ride takes, unattended, on a site real riders have
+    // accounts on, should be a thing the owner asked for.
+    altVotesCloseAt: timestamp('alt_votes_close_at', { withTimezone: true }),
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
@@ -781,6 +791,16 @@ export const days = pgTable(
     // the number that actually tells a rider whether to go — a day average
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
+    // THE DAY'S DURABLE IDENTITY, and the same answer points.uid is to the same
+    // problem — see src/maps/uid.ts. `days.id` churns on every save because the
+    // builder's PUT deletes and re-inserts every day, and `alt_group` below is
+    // renumbered densely from 0 every time, so NEITHER can be referenced from
+    // another table. A vote on an alternate is the first feature that needs a
+    // day to keep its identity across a save, and this is what it keeps.
+    //
+    // Client-minted, exactly like a point's: same alphabet, same length, or the
+    // save 400s. Backfilled for every pre-existing row in drizzle/0015.
+    uid: varchar('uid', { length: 12 }).notNull(),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
     // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
     // owns every rule about these two columns.
@@ -808,6 +828,11 @@ export const days = pgTable(
   },
   (t) => [
     uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position),
+    // Scoped to the ride rather than global, the same way uq_point_day_uid is
+    // scoped to the day: a uid is unique where it is REFERENCED FROM, and
+    // alt_votes is keyed by (ride_id, day_uid). A global unique index would also
+    // make importing a native JSON file twice fail on the second copy.
+    uniqueIndex('uq_day_ride_uid').on(t.rideId, t.uid),
     // A TRIPWIRE, NOT A GATE. resolveAltGroups() is total and always elects
     // exactly one active member, so this should be unreachable — it is here to
     // turn a hole in that function into a loud failure rather than a quietly
@@ -1304,9 +1329,54 @@ export const friendships = pgTable(
   ],
 )
 
+// One member's pick among a day's alternates.
+//
+// KEYED BY (ride_id, day_uid), NOT BY day_id, and cascading from `rides` rather
+// than from `days` — the same arrangement point_details has and for the same
+// reason. The builder's PUT deletes and re-inserts every day of a ride on every
+// save, so a foreign key to `days` would take every vote with it the first time
+// anybody moved a stop. `days.uid` is what survives that.
+//
+// The flip side is the same too: nothing cleans these up automatically, so
+// `reconcileVotes()` in src/votes/service.ts deletes rows whose uid left the
+// payload. Skip that and a vote for a deleted alternate lives forever and keeps
+// counting.
+export const altVotes = pgTable(
+  'alt_votes',
+  {
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    dayUid: varchar('day_uid', { length: 12 }).notNull(),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // THE COMPOSITE KEY IS THE ANTI-DOUBLE-VOTE MECHANISM, enforced by Postgres
+    // rather than by a check a second code path could forget — the same argument
+    // feedback_votes makes about (feedback_id, user_id).
+    //
+    // What it CANNOT enforce is one vote per alt GROUP, because a group has no
+    // durable id: it forms and dissolves as a rider edits, and `alt_group` is
+    // renumbered on every save. castVote() resolves the group from the current
+    // days and clears the member's other votes in it. That rule lives in the
+    // service and nowhere else.
+    primaryKey({ columns: [t.rideId, t.dayUid, t.userId] }),
+    index('idx_alt_vote_ride').on(t.rideId),
+  ],
+)
+
 export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
 export type FriendshipRow = typeof friendships.$inferSelect
+export type AltVoteRow = typeof altVotes.$inferSelect
+/** The two ride roles, derived from the enum so the two cannot drift. */
+export type RideRole = (typeof rideRoleEnum.enumValues)[number]
+/** The four RSVP states, likewise. */
+export type Rsvp = (typeof rsvpEnum.enumValues)[number]
 export type BikeRow = typeof bikes.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type DayRow = typeof days.$inferSelect

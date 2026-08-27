@@ -1005,6 +1005,187 @@ ul.cards {
   }
 }
 
+// --- The roster page ---------------------------------------------------------
+//
+// Built on .rider-list, the same white-row list /riders and /friends use, with
+// a third column for what each person said. The row is the card and the anchor
+// is only the name — see the note on .rider-list above for why.
+.roster-back {
+  font-size: 0.9em;
+  margin-bottom: 0.5rem;
+
+  a {
+    color: $neutral-50;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.roster-list {
+  margin-bottom: 2rem;
+
+  li {
+    gap: 0.75rem;
+  }
+
+  // A declined rider stays on the roster and reads as out. Not hidden: the
+  // difference between "said no" and "never answered" is the reason RSVP is a
+  // column at all, and hiding one of them throws it away.
+  li.is-out {
+    opacity: 0.6;
+  }
+}
+
+.roster-who {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+
+  a.rider-display {
+    color: $text;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.roster-role {
+  color: $neutral-57;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+// What somebody else said. A fact, not a control — see canRsvp.
+.roster-said {
+  color: $neutral-50;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.roster-act,
+.roster-rsvp {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.roster-rsvp select,
+.roster-row select,
+.roster-owner-acts input {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.35em 0.5em;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  background: $white;
+  color: $text;
+}
+
+.roster-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0;
+
+  select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.roster-invite,
+.roster-votes {
+  margin-bottom: 2rem;
+}
+
+.roster-owner-acts {
+  padding-top: 0.75rem;
+  border-top: 1px solid $grey;
+}
+
+// --- The ballot --------------------------------------------------------------
+
+.ballot {
+  margin: 1rem 0;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+  }
+}
+
+.ballot-total {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: $neutral-50;
+  background: $neutral-94;
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
+}
+
+.ballot-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5em 0.6em 0.5em 0.8em;
+    background: $white;
+    border-radius: 8px;
+    // A hairline on every row so the active one's accent replaces a border
+    // rather than adding one — otherwise electing a winner shifts the whole
+    // list by two pixels.
+    border-left: 3px solid transparent;
+  }
+
+  li.is-active {
+    border-left-color: $go;
+  }
+}
+
+.ballot-day {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ballot-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+.ballot-note {
+  color: $neutral-57;
+  font-size: 0.8em;
+  margin: 0.5rem 0 0;
+}
+
+.panel-roster-link {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.9em;
+}
+
 // Rider roster.
 .rider-search {
   display: flex;

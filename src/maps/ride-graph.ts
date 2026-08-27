@@ -18,6 +18,7 @@ import { twistiness } from './twist'
 import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
+import { reconcileVotes } from '../votes/service'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
@@ -119,6 +120,11 @@ const legSchema = z.object({
 
 const daySchema = z
   .object({
+    // The day's durable identity — see src/maps/uid.ts. Optional and repaired
+    // rather than rejected, for exactly the reasons a point's is: an old tab, a
+    // native JSON file written before this shipped, and every lossy import
+    // arrive without one. ensureUids() settles them per ride below.
+    uid: z.string().max(12).nullable().default(null),
     title: z.string().max(150).default(''),
     color: fields.color.default('#0000cc'),
     startAt: z.iso.datetime({ offset: true }).nullable().default(null),
@@ -254,9 +260,13 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   // writePointDetails below for why this cannot ride along with the points.
   const details: Array<{ uid: string; d: PointDetailsInput }> = []
   const liveUids: string[] = []
+  // ONE SETTLE OVER THE WHOLE RIDE, because uq_day_ride_uid is scoped to the
+  // ride. Points settle per day for the same reason theirs is scoped per day.
+  const daysWithUids = ensureUids(p.days)
+  const liveDayUids = daysWithUids.map((d) => d.uid)
 
-  for (let ri = 0; ri < p.days.length; ri++) {
-    const r = p.days[ri]
+  for (let ri = 0; ri < daysWithUids.length; ri++) {
+    const r = daysWithUids[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
     const track = r.legs.flatMap((l) => l.geometry) as Track
     const twist = twistiness(track)
@@ -265,6 +275,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
       .values({
         rideId,
         position: ri,
+        uid: r.uid,
         title: r.title,
         color: r.color,
         startAt: r.startAt ? new Date(r.startAt) : null,
@@ -337,6 +348,11 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   }
 
   await writePointDetails(tx, rideId, details, liveUids)
+  // Same reconciliation, one level up. A vote whose day left the payload has to
+  // go, or a deleted alternate keeps counting toward a tally forever — the
+  // identical trap point_details carries, for the identical reason: alt_votes
+  // cascades from `rides`, so a save that deletes every day takes none of them.
+  await reconcileVotes(tx, rideId, liveDayUids)
 }
 
 // Empty string to null, so clearing a field removes the value rather than

@@ -17,6 +17,7 @@ import { db } from '../db/index'
 import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { newUid } from '../maps/uid'
+import { seedOwner } from '../members/service'
 import {
   FORMAT_INFO,
   GPX_MAX_BYTES,
@@ -283,6 +284,7 @@ mapsRoutes.post(
             })
             .returning()
           await insertRideGraph(tx, ride.id, payload)
+          await seedOwner(tx, ride.id, user.id)
           return ride
         })
         console.log(`[import] user ${user.id} restored native ride ${created.id} (${created.visibility})`)
@@ -499,6 +501,8 @@ mapsRoutes.post(
           })
           .returning()
 
+        await seedOwner(tx, ride.id, user.id)
+
         // One day per file, in the order they were given. A single upload is
         // the same code path with one day in the list.
         for (const [i, day] of days.entries()) {
@@ -515,6 +519,11 @@ mapsRoutes.post(
             .values({
               rideId: ride.id,
               position: i,
+              // Minted here rather than repaired later, for the same reason a
+              // point's is on this path: the lossy import does not go through
+              // insertRideGraph, so nothing downstream would fill it in and the
+              // NOT NULL fails at runtime with nothing useful to say.
+              uid: newUid(),
               // Every day the same color would make the viewer's legend
               // useless, so a multi-file import walks the palette the builder
               // uses. A single file keeps exactly the color that was asked for.

@@ -47,6 +47,16 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 
 The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per pair under a canonical ordering—`rider_a < rider_b`, enforced by `ck_friendship_order`—so `requested_by` and `blocked_by` carry the direction the columns cannot.
 
+## The roster (`routes/roster.tsx`)
+
+`GET /m/:slug/riders` is the page—who is on a ride, what they said, and the ballot for its alternates. Its verbs are `POST /m/:slug/riders/{invite,remove,rsvp,vote,resolve,deadline}`, all behind `requireActive` and `requireSameOrigin`, all form posts answering 303 back to the page with any refusal in `?error=`.
+
+**Gated on MEMBERSHIP, not visibility.** A public ride is readable by anyone and its roster is not: who is coming on a ride is a fact about people, and a share link is permission to see a route. Not-found rather than forbidden, the same as every other refusal that touches a slug.
+
+**You can only add a friend.** `invite` takes a handle and refuses anything that is not an accepted friendship—there is no token path, no email path and no account creation. See `docs/decisions.md` for why that replaced ride invites rather than deferring them.
+
+`rsvp` is yours only, the owner's included. `remove` is both "remove somebody" and "leave", which are the same row going away; the owner cannot remove themselves, because a ride with no owner has nobody who can invite, resolve or delete it. `vote` is one pick per member per alternate group and pressing your own pick again withdraws it. `resolve` and `deadline` are owner-only.
+
 ## Owner API
 
 All of these carry `requireAuthApi` (or `requireActiveApi`) plus `requireSameOrigin`.
