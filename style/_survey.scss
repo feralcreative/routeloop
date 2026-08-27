@@ -248,6 +248,27 @@ $rate-tones: (
   &:hover {
     border-color: $neutral-76;
   }
+
+  // THE ON STATE, for a quiet button that reports rather than offers — the
+  // Follow button once a rider is following, which is the only user today.
+  // Filled in the recreation brown at low alpha rather than switching to the
+  // sign treatment: the button has to stay the same SIZE in both states or the
+  // row reflows on every press, and it has to stay quieter than the Add friend
+  // sign beside it, which the sign treatment would not.
+  //
+  // A tint rather than $recreation itself, because this is still the secondary
+  // control and a solid brown field beside a solid brown sign is the exact
+  // competition the quiet treatment exists to avoid.
+  //
+  // color-mix, NOT a sass color function. Every token in _tokens.scss is a
+  // `var()` now — that is what makes the theme engine work — and Sass cannot
+  // operate on one: `color.change($recreation, ...)` fails the build with "is
+  // not a color". color-mix does the same job in the browser, where the custom
+  // property actually has a value, and it follows the theme for free.
+  &.is-on {
+    background: color-mix(in oklab, $recreation 10%, transparent);
+    border-color: color-mix(in oklab, $recreation 35%, transparent);
+  }
 }
 
 // --- The admin summary -------------------------------------------------------

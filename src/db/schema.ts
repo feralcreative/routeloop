@@ -1434,6 +1434,59 @@ export const friendships = pgTable(
   ],
 )
 
+// Who a rider watches. A SECOND RELATION, and deliberately not a mode of the
+// first one above.
+//
+// **DIRECTION IS THE DATA HERE, WHICH IS WHY THERE IS NO CANONICAL ORDERING.**
+// `friendships` holds one row per pair under `rider_a < rider_b` because "are
+// these two friends" is one question with one answer; following is two
+// independent questions and A following B says nothing about B following A. So
+// there are two columns with distinct meanings, two rows for a mutual follow,
+// and no `ck_..._order` check — copying that constraint here would make the
+// relation symmetric, which is the whole thing it is not.
+//
+// **NO STATUS COLUMN, BECAUSE THERE IS NOTHING TO ACCEPT.** A friendship has a
+// lifecycle — pending, accepted, blocked — and needs a status to sit in. A
+// follow is done the moment it is made and undone by deleting the row. A
+// `pending` follow would be a friend request with a different name.
+//
+// **FOLLOWING GRANTS NO VISIBILITY. NOT ANY. EVER.** It decides what reaches a
+// rider's feed and nothing else — `canView()` in src/access/policy.ts does not
+// know this table exists and must not learn. A one-way relationship the other
+// rider never agreed to cannot be a key to anything: if following granted what
+// friendship grants, `friends` visibility would be openable by anyone willing
+// to press a button, and the level would mean nothing. The feed shows PUBLIC
+// rides, which the follower could already have seen on /explore; what following
+// buys is that they no longer have to go looking.
+//
+// **A BLOCK REMOVES THE ROW IN BOTH DIRECTIONS AND REFUSES A NEW ONE.** A block
+// that left a follow standing would leave the blocked rider watching the
+// blocker's feed, which is precisely what a block is for stopping. See
+// src/follows/policy.ts.
+export const follows = pgTable(
+  'follows',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    followerId: bigint('follower_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    followeeId: bigint('followee_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_follow_pair').on(t.followerId, t.followeeId),
+    // The feed's own lookup reads follower-first, which the unique index above
+    // already serves. This one is for the other direction — "who follows this
+    // rider", which a profile's follower count asks.
+    index('idx_follow_followee').on(t.followeeId),
+    // A rider cannot follow themselves. In the database rather than in a service
+    // that has to remember, the same reasoning ck_friendship_order carries.
+    check('ck_follow_not_self', sql`${t.followerId} <> ${t.followeeId}`),
+  ],
+)
+
 // One member's pick among a day's alternates.
 //
 // KEYED BY (ride_id, day_uid), NOT BY day_id, and cascading from `rides` rather

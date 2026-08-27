@@ -6,25 +6,36 @@
 // file holds the QUERIES — the same arrangement as invites/policy.ts vs
 // service.ts and stats/shape.ts vs query.ts.
 //
-// A NOTE ON WHAT IS NOT HERE. The plan for this work called for a second
-// implementation of the rule as a drizzle predicate, `visibleToViewer(id)`,
-// with EXISTS subqueries, for the queries that filter a list and cannot load
-// each row to ask about it. It is not here because it turned out nothing needs
-// it: the only two list queries in the app — /explore and the ride grid on a
-// public profile — show LISTED rides, and `friends` is deliberately not a
-// listed level (see isListed). So the list form is a CONSTANT predicate after
-// all, LISTED_RIDE below, derived from the same isListed() the boolean form
-// uses rather than re-stating it. That is strictly better than two
-// implementations pinned by an agreement test, because there is nothing to
-// disagree. If a viewer-dependent list is ever wanted, the EXISTS form is the
-// answer and it will need that test.
+// THE VIEWER-DEPENDENT LIST ARRIVED ON 2026-08-26, and this note used to say it
+// had not. It said a second implementation of the rule as a drizzle predicate
+// was unnecessary, because the only two list queries in the app — /explore and
+// the ride grid on a public profile — showed LISTED rides, which is a CONSTANT
+// predicate (LISTED_RIDE below, derived from isListed()). That was true, and it
+// ended when the dashboard grew a "Friends' rides" tab: a list whose contents
+// depend on who is asking.
+//
+// The shape it predicted is the shape it took. friendsRides() at the foot of
+// this file is the list form, FRIEND_LISTED_RIDE is its constant half derived
+// from isFriendListed(), and the membership half is a join on `friendships`.
+// The old note also promised the thing that keeps it honest, so:
+// **test/access-lists.test.ts is the agreement test**, and it asserts that
+// anything either list surfaces is something canView() would allow.
 
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { db } from '../db/index'
-import { friendships, rideMembers, rides, users, visibilityEnum, type RideRow } from '../db/schema'
+import {
+  days as daysTable,
+  follows,
+  friendships,
+  rideMembers,
+  rides,
+  users,
+  visibilityEnum,
+  type RideRow,
+} from '../db/schema'
 import { LIVE_RIDE } from '../trash/service'
 import { areFriends, pairOf } from '../friends/policy'
-import { canView, isListed, type ViewGrants, type Viewer } from './policy'
+import { canView, isFriendListed, isListed, type ViewGrants, type Viewer } from './policy'
 
 /**
  * The levels that appear in a list nobody asked for by name.
@@ -116,4 +127,107 @@ export async function viewableRide(slug: string, viewer: Viewer): Promise<RideRo
 
   const grants = await grantsFor(row.ride, viewer)
   return canView(row.ride, viewer, grants) ? row.ride : undefined
+}
+
+/**
+ * The levels that appear in the "a friend's rides" list.
+ *
+ * The viewer-dependent list this file's header said would one day be wanted. The
+ * membership half of it is the join in friendsRides() below — this constant is
+ * only the visibility half, derived from isFriendListed() so the SQL and the
+ * boolean stay two readings of one rule.
+ */
+export const FRIEND_LISTED_RIDE = inArray(rides.visibility, visibilityEnum.enumValues.filter(isFriendListed))
+
+/** One row of a ride list, with the first day's color for the card's stripe. */
+type ListRow = { ride: RideRow; color: string | null }
+
+/**
+ * Rides that friends of this viewer have set to `friends`.
+ *
+ * THE EXISTS FORM THE HEADER PROMISED, and it is a join rather than a subquery
+ * because the friendship row is what makes a ride eligible — an inner join both
+ * filters and needs no correlation. `friendships` holds ONE row per pair under
+ * `rider_a < rider_b`, so there is no near or far column and the match has to
+ * test both arrangements. Getting that wrong shows exactly half the rides and
+ * looks like a data problem rather than a query one.
+ *
+ * `status = 'accepted'` and not `areFriends()`, because that helper reads a
+ * loaded row and this is the predicate. A pending request must not list
+ * anything, and neither must a blocked pair — 'blocked' is a status on the same
+ * row, so testing for 'accepted' rules both out at once rather than listing what
+ * to exclude.
+ *
+ * The owner join drops a leaving rider's rides, the same as every other list.
+ * The viewer's own rides cannot appear: a rider is never in a friendship with
+ * themselves, so no join row exists — stated because it looks like a missing
+ * `ne(rides.ownerId, viewerId)` and is not.
+ */
+export async function friendsRides(viewerId: number, limit: number): Promise<ListRow[]> {
+  return db
+    .select({ ride: rides, color: daysTable.color })
+    .from(rides)
+    .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
+    .innerJoin(
+      friendships,
+      and(
+        eq(friendships.status, 'accepted'),
+        or(
+          and(eq(friendships.riderA, viewerId), eq(friendships.riderB, rides.ownerId)),
+          and(eq(friendships.riderB, viewerId), eq(friendships.riderA, rides.ownerId)),
+        ),
+      ),
+    )
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .where(and(FRIEND_LISTED_RIDE, LIVE_RIDE))
+    .orderBy(desc(rides.updatedAt))
+    .limit(limit)
+}
+
+/**
+ * Listed rides by anybody other than the viewer.
+ *
+ * The same rows /explore shows, minus the viewer's own — which are the tab next
+ * to this one, and a ride in both reads as a duplicate. Ordered by update rather
+ * than by view count, because this strip is "what is happening" and not a
+ * leaderboard; /explore is still the place that ranks.
+ */
+export async function publicRides(viewerId: number, limit: number): Promise<ListRow[]> {
+  return db
+    .select({ ride: rides, color: daysTable.color })
+    .from(rides)
+    .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .where(and(LISTED_RIDE, LIVE_RIDE, ne(rides.ownerId, viewerId)))
+    .orderBy(desc(rides.updatedAt))
+    .limit(limit)
+}
+
+/**
+ * Public rides by riders this viewer follows. The feed.
+ *
+ * LISTED_RIDE, not FRIEND_LISTED_RIDE, and that is the whole safety property of
+ * this feature: **following grants no visibility.** It is a one-way relationship
+ * the other rider never agreed to, so it cannot open anything a stranger could
+ * not already open — every row here is one /explore would have shown. What
+ * following buys is that the rider no longer has to go looking.
+ *
+ * If this ever selected `friends` rides, `friends` visibility would be openable
+ * by anyone willing to press Follow and the level would mean nothing. See the
+ * note on the `follows` table in src/db/schema.ts.
+ *
+ * The join is one-directional, unlike friendsRides() above: `follows` has a
+ * follower and a followee rather than a canonical pair, so there is exactly one
+ * arrangement to test and testing both would make the feed reciprocal.
+ */
+export async function followingRides(viewerId: number, limit: number): Promise<ListRow[]> {
+  return db
+    .select({ ride: rides, color: daysTable.color })
+    .from(rides)
+    .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
+    .innerJoin(follows, and(eq(follows.followerId, viewerId), eq(follows.followeeId, rides.ownerId)))
+    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .where(and(LISTED_RIDE, LIVE_RIDE))
+    .orderBy(desc(rides.updatedAt))
+    .limit(limit)
 }

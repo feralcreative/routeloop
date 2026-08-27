@@ -34,6 +34,7 @@ import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { friendRoutes } from './routes/friends'
 import { rosterRoutes } from './routes/roster'
+import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
@@ -179,6 +180,7 @@ app.route('/', settingsRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', rosterRoutes)
+app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', friendRoutes)
 app.route('/', pageRoutes)

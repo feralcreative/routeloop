@@ -12,6 +12,7 @@ import { and, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { friendships, users, type FriendshipRow } from '../db/schema'
 import { canAccept, canBlock, canRemove, canRequest, canUnblock, friendView, pairOf, type FriendView } from './policy'
+import { dropFollowsBetween } from '../follows/service'
 
 /** What every verb hands back. `ok: false` carries the state that refused it,
  *  so a caller can render "already friends" rather than a bare failure — with
@@ -121,6 +122,14 @@ export async function blockRider(viewerId: number, otherId: number): Promise<Fri
   const row = await friendshipBetween(viewerId, otherId)
   const view = friendView(row, viewerId)
   if (!canBlock(view)) return { ok: false, view }
+  // BOTH FOLLOWS GO WITH IT, and leaving them is how a block silently fails to
+  // be one: a surviving row leaves the blocked rider still watching this
+  // rider's feed, which is the thing a block exists to stop. Following is a
+  // separate relation with its own table (src/follows/), so nothing about
+  // writing the friendship row touches it — this call is the only thing that
+  // does. Awaited before the block is written so a failure here cannot leave a
+  // block standing with a follow underneath it.
+  await dropFollowsBetween(viewerId, otherId)
   if (row) {
     await touch(row.id, { status: 'blocked', blockedBy: viewerId })
   } else {

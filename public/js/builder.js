@@ -2057,67 +2057,23 @@
   // was already the densest surface in the app turned it into one long scroll,
   // with the day being edited pushed below the fold by a feature about people.
   //
-  // A ROVING TABINDEX, which is what the tab pattern actually is: exactly one
-  // tab is in the page's tab order at a time and the arrow keys move between
-  // them. Three buttons all reachable by Tab would put the day list three
-  // presses further away for a keyboard rider, on every visit.
+  // THE BEHAVIOR IS public/js/tabs.js, shared with the dashboard's ride lists.
+  // The roving tabindex, the arrow keys and the `hidden` switching all live
+  // there; what is left here is the one thing this strip does that a generic one
+  // does not, which is fetch the roster when the Riders tab opens.
   //
-  // `hidden` on the inactive panels rather than `display: none` in CSS, because
-  // it is the attribute assistive tech and find-in-page both read — and because
-  // a panel hidden only by a class is still focusable, so Tab walks into a day
-  // list nobody can see.
-
-  const TABS = ["routes", "groups", "riders"];
-
-  function selectTab(name) {
-    if (!TABS.includes(name)) return;
-    for (const t of TABS) {
-      const btn = $("tab-" + t);
-      const panel = $("panel-" + t);
-      if (!btn || !panel) continue;
-      const on = t === name;
-      btn.setAttribute("aria-selected", on ? "true" : "false");
-      btn.classList.toggle("is-active", on);
-      // The roving half: only the selected tab is tabbable.
-      if (on) btn.removeAttribute("tabindex");
-      else btn.setAttribute("tabindex", "-1");
-      panel.hidden = !on;
-      panel.classList.toggle("is-active", on);
-    }
-    // The Riders tab is the only one whose contents come from the server, and it
-    // is fetched on open rather than on load: most sessions never open it, and
-    // the roster can change while the builder is sitting there. See loadRiders.
-    if (name === "riders") loadRiders();
-  }
+  // init() is called directly rather than through the `data-tabs` auto-wiring,
+  // because that hook is the whole reason this file still has a function here.
 
   function initTabs() {
     const strip = document.querySelector(".panel-tabs");
-    if (!strip) return;
-
-    strip.addEventListener("click", (e) => {
-      const btn = e.target.closest(".panel-tab");
-      if (!btn) return;
-      selectTab(btn.id.replace(/^tab-/, ""));
-    });
-
-    // Left/Right move, Home/End jump. Moving FOCUS and selection together is the
-    // "automatic activation" half of the pattern, which is right here because
-    // showing a panel costs nothing — the only fetch it triggers is the Riders
-    // one, which is cached for a few seconds by loadRiders itself.
-    strip.addEventListener("keydown", (e) => {
-      const btn = e.target.closest(".panel-tab");
-      if (!btn) return;
-      const i = TABS.indexOf(btn.id.replace(/^tab-/, ""));
-      if (i < 0) return;
-      let next = null;
-      if (e.key === "ArrowRight") next = TABS[(i + 1) % TABS.length];
-      else if (e.key === "ArrowLeft") next = TABS[(i - 1 + TABS.length) % TABS.length];
-      else if (e.key === "Home") next = TABS[0];
-      else if (e.key === "End") next = TABS[TABS.length - 1];
-      if (!next) return;
-      e.preventDefault();
-      selectTab(next);
-      $("tab-" + next).focus();
+    if (!strip || !window.TBTabs) return;
+    window.TBTabs.init(strip, (tab) => {
+      // The Riders tab is the only one whose contents come from the server, and
+      // it is fetched on open rather than on load: most sessions never open it,
+      // and the roster can change while the builder is sitting there. loadRiders
+      // caches, so flipping between tabs does not re-fetch.
+      if (tab.id === "tab-riders") loadRiders();
     });
   }
 

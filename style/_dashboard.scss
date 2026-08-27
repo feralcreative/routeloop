@@ -167,9 +167,19 @@
 .stat-block {
   margin: 0 0 2.25rem;
 
+  // 1.35rem, up from 1.05rem. Ziad's call, 2026-08-26. At the old size a section
+  // heading was barely larger than the body text under it, so eight of them down
+  // a long page read as labels rather than as the divisions they are — the page
+  // had one visual level where it has three things to say. It is the same size
+  // the first-run panel's h2 already used, which is what it should have been all
+  // along rather than a new number.
   h2 {
-    margin: 0 0 0.75rem;
-    font-size: 1.05rem;
+    // 1em above, on top of the 2.25rem the block below already carries. Ziad's
+    // call, 2026-08-26, and it goes on the HEADING rather than on .stat-block so
+    // it scales with the type it is separating — 1em of a 1.35rem heading is
+    // more air than 1em of body text, which is the right relationship.
+    margin: 1em 0 0.75rem;
+    font-size: 1.35rem;
   }
 }
 
@@ -836,4 +846,96 @@
 .u-cursor-y.u-off,
 .u-cursor-pt.u-off {
   display: none;
+}
+
+// --- The ride tabs ------------------------------------------------------------
+//
+// Your rides, Friends' rides, Public rides. The behavior is public/js/tabs.js,
+// shared with the builder's panel strip; the CSS deliberately is NOT, because a
+// 380px drawer and a full-width dashboard block want different metrics. What
+// they share is the pattern, not the numbers.
+//
+// `.page-tabs` rather than reusing `.panel-tabs`: that class is sticky inside a
+// scroller and sized for a drawer, and inheriting it here would have meant
+// overriding half of it. Two small rules beat one rule with a page's worth of
+// exceptions.
+//
+// NOT STICKY. The panel's strip sticks because a rider scrolls a day list past
+// it and has to get back; this one sits at the bottom of a page they scrolled TO,
+// and a bar that detached itself over the stats above would be the only such
+// thing on the page.
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid $grey;
+}
+
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.5em 0.9em;
+  border: 0;
+  // The strip's rule, re-drawn per tab so the active one can paint over it.
+  // -1px pulls it onto that border rather than sitting above it.
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: $neutral-50;
+  cursor: pointer;
+
+  &:hover:not(.is-active) {
+    color: $text;
+  }
+
+  &.is-active {
+    color: $text;
+    font-weight: 600;
+    border-bottom-color: $url;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $url;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+
+  // A count of zero is drawn, unlike the builder's `:not(:empty)` badges. There
+  // the number is a hint that something is inside a tab nobody has opened; here
+  // it is the answer to the question the tab asks, and "Friends' rides 0" is a
+  // fact worth reading rather than an empty state to hide.
+  .tab-count {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: $neutral-57;
+    background: $neutral-94;
+    border-radius: 999px;
+    padding: 0 0.45em;
+  }
+}
+
+// `hidden` does the hiding — see public/js/tabs.js for why it is the attribute
+// and not a class. This only handles what is left.
+.page-tabpanel {
+  &[hidden] {
+    display: none;
+  }
+
+  // The panel takes focus when a tab is chosen, so it must not draw a ring the
+  // way a control would — nothing was activated, only revealed.
+  &:focus-visible {
+    outline: none;
+  }
+
+  // The empty state from rideCards(), which is a <p class="empty">. Given room
+  // here rather than sitting flush under the strip, so an empty tab reads as an
+  // answer rather than as a list that failed to load.
+  .empty {
+    color: $neutral-57;
+    padding: 1.5rem 0;
+  }
 }
