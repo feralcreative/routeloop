@@ -1,8 +1,8 @@
 # Status and handoff
 
 **Updated:** 2026-08-26
-**Branch:** `feat/import-review-and-export-cart`, uncommitted. **1,822 tests across 71 files** (2 skipped, 1,824 total)
-**Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129) and [#131](https://github.com/feralcreative/routeloop/issues/131). [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
+**Branch:** `feat/import-review-and-export-cart`, committed. **1,935 tests across 72 files** (2 skipped, 1,937 total)
+**Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
 
@@ -15,6 +15,12 @@
 **The export half is a search box, a cart and one zip.** It used to select every ride the owner had, unpaginated, and render one row per ride times one button per format. `/api/export/search` is capped at 12 and searches names **and the days' dates**—not `rides.created_at`, because a rider searching "August" means when they rode. `POST /export/zip` takes at most 20 rides, re-checks ownership per slug, and names the archive for the export rather than for any ride in it.
 
 **Two traps this branch walked into, both now written down in AGENTS.md.** `GET /api/rides/:id` silently swallows any `/api/rides/<word>` added later—the search endpoint answered `{"error":"not found"}` as a lookup for a ride called "search"—hence `/api/export/search`. And a typed day name has to outrank the file's own `<trk><name>`, or a correction does nothing at all; the first pass had the precedence backwards and the ride imported with the GPX's name.
+
+## The fidelity matrix—2026-08-27
+
+`test/fidelity.test.ts` is the second half of #35—the first half, format agreement, has been in `round-trip.test.ts` since August 4. It declares per field per format what survives, in two columns that disagree on purpose: `writes` is what a third-party tool opening the file sees, `reads` is what our importer gets back. Per-day color is written by KML and GeoJSON and read back by neither.
+
+**One thing it turned up and one decision it settled.** No lossy format writes a day's start or end time, GeoJSON included although it could—left that way on purpose so the four agree and the filename stays the one place a date travels; recorded in docs/decisions.md. And #13's five boxes were all already satisfied in code—native JSON both ways, KMZ and CSV import, GeoJSON both ways, GPX as `trkpt` shaping points rather than `rtept`, everything inside the XXE-safe quota-enforced pipeline—so it closes with this branch as finished rather than as built here.
 
 ## Switching machines—read this first
 
