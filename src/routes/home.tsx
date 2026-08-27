@@ -712,7 +712,7 @@ homeRoutes.get('/', requireActive, async (c) => {
               </button>
               <button type="button" class="page-tab" role="tab" id="tab-friends"
                       aria-controls="rides-friends" aria-selected="false" tabindex={-1}>
-                Friends’ rides <span class="tab-count">{friendly.length}</span>
+                Friends <span class="tab-count">{friendly.length}</span>
               </button>
               {/*
                 FOLLOWING SITS BEFORE PUBLIC, because the strip runs from the
@@ -726,7 +726,7 @@ homeRoutes.get('/', requireActive, async (c) => {
               </button>
               <button type="button" class="page-tab" role="tab" id="tab-public"
                       aria-controls="rides-public" aria-selected="false" tabindex={-1}>
-                Public rides <span class="tab-count">{publik.length}</span>
+                Public <span class="tab-count">{publik.length}</span>
               </button>
             </div>
 
