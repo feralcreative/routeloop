@@ -1,13 +1,43 @@
 # Status and handoff
 
 **Updated:** 2026-08-26
-**Branch:** `feat/ride-membership`, **five commits ahead of `main`**, nothing pushed. **1,680 tests across 64 files** (2 skipped, 1,682 total)
-**Closes, when it merges:** [#12](https://github.com/feralcreative/routeloop/issues/12) and [#68](https://github.com/feralcreative/routeloop/issues/68). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), and the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152).
+**Branch:** `feat/rider-subgroups`, **eight commits ahead of `main`**, nothing pushed. **1,728 tests across 67 files** (2 skipped, 1,730 total)
+**Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
 
-## Membership and voting—read before touching days or alternates
+## Rider subgroups—read before touching days, the roadbook, or the exports
 
-Five commits on `feat/ride-membership`, nothing pushed. `drizzle/0015` has run on **this machine only**, and it carries a DATA migration as well as a schema one.
+Eight commits on `feat/rider-subgroups`, nothing pushed. `drizzle/0016` and `0017` have run on **this machine only**; both are fully additive and neither needs a backfill.
+
+All nine of #67's boxes, plus #52 which was waiting on the Paddock and the roster both.
+
+- **A FEEDER IS A DAY.** `days.subgroup_id`, nullable, null meaning everyone rides it. A subgroup owns a SUBSEQUENCE of the ride's dense positions, so `uq_day_ride_pos` never changed and a multi-day approach is simply more days. The rejected model—subgroups on legs—breaks the settled rule that a day is one ordered list of points. `docs/decisions.md` has the whole argument; do not reopen it without reading that.
+- **Meets and splits are DERIVED, never stored.** `junctions()` walks the day list. The `meet`/`split` waypoint roles stay labels and nothing reads them structurally.
+- **Whose clock and which event are two separate axes**, `rides.primary_subgroup_id` and `rides.time_anchor`, which is what dissolves the contradiction #143 was written with.
+- **Every per-rider surface takes `?group`**: the roadbook, the hand-off, all four formats and the zip. Derived from membership, `?group=all` for the whole ride. `ride.json` deliberately does the opposite and tags rather than filters, because the viewer draws the whole shape and dims what you are not on.
+- **The rendezvous proposer calls no router.** Pure geometry, four scoring terms, two hard refusals and a shared-road floor. It can return nothing, which is a real answer.
+- **#52**: fuel planned around the smallest tank coming, `ride_members.bike_id` falling back to a rider's default.
+
+### What was verified, and how
+
+**THIS IS THE FIRST BRANCH WITH A REAL BROWSER PASS**, and it found a bug nothing else could have. A rewrite of `takeMeet()` by index range silently deleted `removeSubgroup`, `findMeet` and `meetResultHtml`—Delete threw `ReferenceError` and Find a meet did nothing. `public/js` is neither typechecked nor covered by Vitest, so typecheck and 1,728 tests were both green. Do a browser pass on client work.
+
+Checked in Chrome: the Groups block renders, add/rename/recolor/delete all work, deleting a group that owns a day un-tags the day rather than destroying it, the day pickers stay in step with a rename, the fairness note appears when the primary is not the group with farthest to ride, Find a meet reports its refusals in words, the viewer dims the other approach and full-strengths your own, and the roster renders the fuel line and both selects. Console clean on all of it.
+
+Checked over HTTP: subgroup ids survive a re-save and so do rider assignments; the roadbook and hand-off filter per strand and `?group=all` returns the whole ride; `timeAnchor` round-trips (it silently did not, and the round-trip test is what caught it); assigning a rider to another ride's subgroup is refused.
+
+**Not verified:** the printed roadbook, and the `<noscript>` fallbacks on the three submit-on-change selects.
+
+### Still outstanding
+
+- **An export filename does not name the subgroup.** Two riders downloading the same day get files with the same name and different contents. `AGENTS.md` says a filename carries four fields and to resist adding more, so this was left alone deliberately rather than fixed—it needs a decision.
+- **Nobody is told anything.** No mail on being added to a ride, on a friend request, or on a vote closing. Three branches have now added a thing a rider finds out by looking.
+- **Timing is solved but not SHOWN.** `solveStrands` is written and tested; no surface calls it yet. The roadbook is the obvious place and it is the one piece of #67 that is built and invisible.
+
+
+## Membership and voting (merged as #153)—read before touching days or alternates
+
+Merged. `drizzle/0015` has still run on **this machine only**, and it carries a DATA migration as well as a schema one.
 
 - **`days.uid` is new, and it is the reason this branch exists.** A vote could not reference a day: `days.id` churns because the builder's `PUT` deletes and re-inserts every day on every save, and `alt_group` is renumbered densely each time. Same answer `points.uid` was to the same problem, minted by the client, carried through the payload and the native JSON.
 - **The migration was hand-edited twice.** The differ emitted the uid column as a bare `NOT NULL` with no default, which fails on a populated table; it is three statements now. And it carries an `INSERT ... SELECT` putting every existing ride's owner on its own roster, which no differ could know about.
