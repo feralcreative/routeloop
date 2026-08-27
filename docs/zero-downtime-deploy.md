@@ -54,6 +54,7 @@ What actually shipped, against what this section proposed:
 | `CMD ["node", "--import", "tsx", …]` | done | `node --import tsx` verified against the pinned `tsx ^4.19.2`; the SIGNAL half is unverified in-container—see *Verification* |
 | one-shot `migrate` service | done | as proposed, and `hooks/post-deploy.sh` deleted with its error text carried over verbatim into `deploy.sh` |
 | health-gated verify asserting the SHA | done | as proposed; the old `sleep 5` plus non-fatal curl is gone |
+| *(not in the plan)* | `utils/deploy/deploy-utils.sh` | `status` now reports `/healthz` and prints the body, so it names the BUILD running out there; `migrate` runs the one-shot service rather than `docker exec`, matching the recovery command the deploy's own failure message hands you |
 | `stop_grace_period`, `DRAIN_GRACE_MS` | done | as proposed |
 
 Measured locally: a drain completes in **265ms** with both log lines, and `/healthz` answers 200 with the stamped `APP_VERSION`/`BUILD_SHA` and is not caught by the `LEGACY_HOSTS` redirect under a `Host: tankbag.app` header.

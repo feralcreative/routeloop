@@ -55,9 +55,16 @@ cmd_status() {
     "/usr/local/bin/docker ps --filter name=${CONTAINER_NAME} --filter name=${DB_CONTAINER_NAME} \
      --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || echo 'Not running'"
   echo ""
+  # /healthz rather than `/`, for the same reason the Dockerfile's HEALTHCHECK
+  # moved: `/` renders the public map list — a visibility query, a session
+  # lookup and a full JSX render — to answer a question none of that is about.
+  # The body is printed rather than discarded because it names the BUILD, which
+  # is the thing you actually want when you are asking "what is running out
+  # there": a container serving an older SHA than you expect is this project's
+  # recurring failure mode and is invisible in a status line that says 200.
   log_info "Origin check (from the NAS host, the port the tunnel targets):"
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "curl -fsS -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\n' --max-time 10 http://127.0.0.1:${HOST_PORT}/ \
+    "curl -fsS -w '\nHTTP %{http_code} in %{time_total}s\n' --max-time 10 http://127.0.0.1:${HOST_PORT}/healthz \
      || echo 'no response'"
 }
 cmd_restart() {
@@ -89,11 +96,17 @@ cmd_psql() {
 # breath as using it: --force does not mean "unattended", it means "answer yes",
 # and push's prompts include offering to truncate the users table. migrate() has
 # no prompts to answer, so the flag has no successor.
+#
+# THE ONE-SHOT `migrate` SERVICE, NOT `docker exec` INTO THE APP. Both work —
+# drizzle-kit is in the image either way — but deploy.sh runs the compose
+# service, and the recovery command its failure message hands you is this exact
+# spelling. Two ways to say the same operation is two things to keep in step,
+# and the one in the error message is the one somebody will actually paste.
 cmd_migrate() {
   check_ssh_key
-  log_info "Applying Drizzle migrations in ${CONTAINER_NAME}..."
+  log_info "Applying Drizzle migrations for ${DEPLOY_ENV}..."
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${CONTAINER_NAME} npx drizzle-kit migrate"
+    "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose run --rm --no-deps -T migrate"
   log_success "Migrations applied"
 }
 # One-time, for a database created before drizzle/ existed. Records the
