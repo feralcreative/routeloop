@@ -1273,3 +1273,28 @@ body.is-arming #map,
 body.is-arming #map div {
   cursor: crosshair !important;
 }
+
+// --- Rider subgroups in the legend (#67) -------------------------------------
+//
+// A day belonging to one approach carries its group's name in the group's own
+// color. Nothing renders on a ride with no subgroups, which is nearly all of
+// them.
+.day-group {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--sg-color);
+  border: 1px solid var(--sg-color);
+}
+
+// SOMEBODY ELSE'S APPROACH. Quieter than a row you are on and quieter than a
+// hover-dimmed one, and it stays that way — it is a fact about the day rather
+// than about what is focused, the same as a ghosted alternate. The line under
+// it is dimmed by paintFocus for the same reason.
+.day-row.is-theirs {
+  opacity: 0.55;
+}

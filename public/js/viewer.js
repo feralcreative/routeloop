@@ -106,8 +106,22 @@
     const lit = hovering ? state.hover : active && active.dayIndex;
     const dimming = hovering || active != null;
 
+    // WHOSE PATH THIS READER IS ON. `mySubgroup` is derived server-side from
+    // membership — #67's "highlight my path" without anybody being asked — and
+    // is null for a planner, a stranger with the link, and a rider in no group.
+    // A day belonging to somebody else's approach is dimmed the same way an
+    // unfocused day is, and STAYS dimmed while hovering or scrubbing: it is a
+    // fact about the day rather than about what is focused, like ghosting.
+    //
+    // The whole shape is still drawn. ride.json tags every day rather than
+    // filtering, for exactly this reason — feeders converging and the trunk
+    // drawn once is the picture, and a filtered payload could not make it.
+    const mine = state.ride.mySubgroup || null;
+    const focusing = mine != null;
+
     state.ride.days.forEach((r, j) => {
-      const dim = dimming && j !== lit;
+      const theirs = focusing && r.subgroupUid != null && r.subgroupUid !== mine;
+      const dim = theirs || (dimming && j !== lit);
       const ghost = r.altGroup != null && !r.altActive;
       setRouteDim(state.map, j, dim);
       // Ghosting is a fact about the day, not about what is focused, so it is
@@ -262,9 +276,16 @@
             esc(twistLabel(r.twistinessDpm)) +
             "</span>"
           : "";
+        // The group's own name and color, on days that belong to one. Nothing at
+        // all on a ride with no subgroups, which is nearly every ride.
+        const group = (state.ride.subgroups || []).find((g) => g.uid === r.subgroupUid) || null;
+        const groupBadge = group
+          ? '<span class="day-group" style="--sg-color:' + esc(group.color) + '">' + esc(group.name) + "</span>"
+          : "";
         return (
           '<tr class="day-row' +
           (ghost ? " is-alt" : "") +
+          (group && state.ride.mySubgroup && group.uid !== state.ride.mySubgroup ? " is-theirs" : "") +
           '" data-i="' +
           i +
           '">' +
@@ -278,6 +299,7 @@
           esc(name) +
           "</span></label>" +
           badge +
+          groupBadge +
           twist +
           "</td>" +
           // The day's own mileage either way. A losing alternate really is that
