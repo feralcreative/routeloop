@@ -23,6 +23,8 @@ import { LIVE_RIDE } from '../trash/service'
 import { LISTED_RIDE } from '../access/query'
 import { notBlockedWith, viewOf, viewsOf } from '../friends/service'
 import { FriendActions } from '../views/friend-actions'
+import { FollowForm } from '../views/follow-form'
+import { followViewOf, followingSet } from '../follows/service'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -173,10 +175,19 @@ pageRoutes.get('/riders', requireActive, async (c) => {
 
   // One query for up to 200 riders rather than one per row. Ids missing from
   // the map have no row at all, which is 'none' — the overwhelming majority.
-  const views = await viewsOf(
-    me.id,
-    rows.map((r) => r.id),
-  )
+  // Two bulk lookups rather than two per row. They are separate questions and
+  // separate tables: friendship is negotiated and following is not, so a rider
+  // can be any combination of the two and the row shows both buttons.
+  const [views, followed] = await Promise.all([
+    viewsOf(
+      me.id,
+      rows.map((r) => r.id),
+    ),
+    followingSet(
+      me.id,
+      rows.map((r) => r.id),
+    ),
+  ])
 
   const body = (
     <>
@@ -204,6 +215,7 @@ pageRoutes.get('/riders', requireActive, async (c) => {
               </a>
               <div class="friend-acts">
                 <FriendActions handle={r.username!} view={views.get(r.id) ?? 'none'} back="/riders" />
+                <FollowForm handle={r.username!} view={followed.has(r.id) ? 'following' : 'none'} back="/riders" />
               </div>
             </li>
           ))}
@@ -278,7 +290,12 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   // invitation to a form that would refuse them.
   const viewer = c.get('user') ?? null
   const canAsk = viewer !== null && viewer.status === 'active' && viewer.id !== row.id
-  const view = canAsk ? await viewOf(viewer.id, row.id) : 'none'
+  // Two independent relationships, so two lookups. Neither implies the other:
+  // a rider can follow someone they are not friends with, which is the whole
+  // point of following, and be friends with someone they do not follow.
+  const [view, followView_] = canAsk
+    ? await Promise.all([viewOf(viewer.id, row.id), followViewOf(viewer.id, row.id)])
+    : (['none', 'none'] as const)
 
   const body = (
     <>
@@ -290,6 +307,7 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
       {canAsk && (
         <div class="profile-acts friend-acts">
           <FriendActions handle={row.username} view={view} back={`/@${row.username}`} />
+          <FollowForm handle={row.username} view={followView_} back={`/@${row.username}`} />
         </div>
       )}
       <h2>Public rides</h2>

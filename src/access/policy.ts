@@ -133,6 +133,37 @@ export function isListed(visibility: RideVisibility): boolean {
 }
 
 /**
+ * Whether a ride appears in the list of A FRIEND'S rides, shown to that friend.
+ *
+ * Only `friends`. This is the viewer-dependent list that ./query.ts's header
+ * said would one day be wanted, and it exists as a named rule for exactly the
+ * reason isListed() does: so the SQL predicate and the boolean are two readings
+ * of one rule rather than two rules. test/access-lists.test.ts pins it against
+ * canView().
+ *
+ * **IT OVERTURNS HALF OF WHAT isListed() SAYS, DELIBERATELY.** That function's
+ * note argues `friends` should not be listed because it "would put a rider's
+ * ride in front of their friends without them choosing to publish it." That
+ * argument is right about /explore, which it was written about, and wrong here:
+ * setting a ride to `friends` IS choosing an audience, and the audience is
+ * exactly who this list is shown to. The two lists ask different questions —
+ * isListed() is "does a stranger see this", this is "does the audience the owner
+ * named see it" — which is why they are separate functions and not one.
+ * Ziad's call, 2026-08-26.
+ *
+ * `public` is deliberately NOT here although a friend may obviously view one.
+ * Their public rides reach the same rider through the public list, and a ride in
+ * two tabs of the same strip reads as a duplicate rather than as two answers.
+ *
+ * `unlisted` is not here and must never be: its entire meaning is that it is
+ * viewable by whoever holds the link and surfaced to nobody who was not handed
+ * one. Friendship is not being handed a link.
+ */
+export function isFriendListed(visibility: RideVisibility): boolean {
+  return visibility === 'friends'
+}
+
+/**
  * Whether the viewer may take their own copy of someone else's ride.
  *
  * Ziad's call, 2026-08-26, made deliberately rather than inherited: cloning

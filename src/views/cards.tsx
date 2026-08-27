@@ -106,15 +106,24 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
 }
 
 /**
+ * `dense` is the dashboard's modifier — /explore and a public profile are pages
+ * whose entire job is the list, so a card there can be large, while the
+ * dashboard's strip hangs under eight blocks of stats and packs four or five
+ * across. One component and one extra class, not two card designs.
+ *
+ * `empty` overrides the empty-state line, because "No rides yet" is right for a
+ * rider's own list and wrong for a tab of other people's — nothing about a
+ * friend's empty list is about "yet".
+ *
  * Returns a string rather than a JSXNode on purpose, for as long as the
  * migration is partial: page() and every unconverted caller still concatenate
  * strings, and handing them an element would render `[object Object]`. The
  * `.toString()` goes away in the final commit, when page() itself takes a node.
  */
-export function rideCards(rows: CardRow[], showViews = false): string {
-  if (rows.length === 0) return '<p class="empty">No rides yet.</p>'
+export function rideCards(rows: CardRow[], showViews = false, o: { dense?: boolean; empty?: string } = {}): string {
+  if (rows.length === 0) return `<p class="empty">${o.empty ?? 'No rides yet.'}</p>`
   return (
-    <ul class="ride-cards">
+    <ul class={`ride-cards${o.dense ? ' ride-cards--dense' : ''}`}>
       {rows.map((row) => (
         <Card {...row} showViews={showViews} />
       ))}

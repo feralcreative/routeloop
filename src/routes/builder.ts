@@ -772,6 +772,7 @@ ${
     // because a drag handle is not one.
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
+  <script src="${asset('/js/tabs.js')}" defer></script>
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/duration.js')}" defer></script>
