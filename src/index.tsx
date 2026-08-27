@@ -51,6 +51,7 @@ import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 import { canClone, isSharedCacheable } from './access/policy'
 import { grantsFor, viewableRide } from './access/query'
+import { resolveStrand } from './subgroups/service'
 
 // The visibility gate now lives in src/access/query.ts, as viewableRide().
 // This is a name kept rather than a function: six call sites below read
@@ -242,6 +243,13 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, m.id)).orderBy(daysTable.position)
   if (dayRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
 
+  // Subgroups reach the client BY UID, never by id — the same rule the builder
+  // payload follows, and the reason is stronger here: this is a public document
+  // and a database id in it is a number about the installation rather than
+  // about the ride.
+  const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
+  const subgroupUidOf = new Map(strand.all.map((g) => [g.id, g.uid]))
+
   const daysOut = []
   for (const r of dayRows) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
@@ -300,6 +308,16 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       distFromStartMi: p.distFromStartM == null ? null : Math.round((p.distFromStartM / METERS_PER_MILE) * 10) / 10,
     })
     daysOut.push({
+      // WHOSE DAY THIS IS, by subgroup uid. EVERY day is sent, tagged rather
+      // than filtered, for exactly the reason the losing alternates are: the
+      // viewer draws the whole converge-and-split shape — feeders converging,
+      // the trunk drawn once — and dims the ones this reader is not on. A
+      // filtered payload could not draw the shape at all.
+      //
+      // The lossy exports do the opposite and filter, because a GPX file cannot
+      // say "this is somebody else's morning" and a rider handed one would ride
+      // it.
+      subgroupUid: r.subgroupId ? (subgroupUidOf.get(r.subgroupId) ?? null) : null,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
@@ -352,6 +370,14 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     description: m.description ?? '',
     source: m.source,
     totalMiles: Number(m.totalMiles),
+    // The converge-and-split shape, for the legend and the focus control. An
+    // empty array on every ride that has none, which is nearly all of them, so
+    // a client tests one thing rather than three.
+    subgroups: strand.all.map((g) => ({ uid: g.uid, name: g.name, color: g.color })),
+    // Which one THIS reader is on, derived from their membership — #67's
+    // "highlight my path" without asking anybody anything. Null for a planner,
+    // for a stranger with the link, and for a rider in no subgroup.
+    mySubgroup: strand.group?.uid ?? null,
     // Only offered when a KML was actually stored. A GPX-only import has none,
     // and advertising the link would give the viewer a download button that
     // 404s.
@@ -478,7 +504,11 @@ app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => 
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m || !spec) return c.text('Not found', 404)
 
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  // #67's per-rider export: a member downloads their own approach plus the
+  // shared days, not everybody's. Derived from membership, `?group=all` for the
+  // whole ride. `?group` is ignored entirely on a ride with no subgroups.
+  const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
   if (ride.days.length === 0) return c.text('Not found', 404)
 
   const files = ride.days.map((day, i) => ({
@@ -522,10 +552,18 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   }
   if (c.req.query('dl') !== undefined) headers['Content-Disposition'] = await attachment(m, format)
 
+  const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
+
   // The stored original wins where there is one. Generating it instead would
   // be lossy for no reason: the file carries styling, folders and per-point
   // detail this app does not model and therefore cannot reproduce.
-  if (spec.hasStored(m)) {
+  //
+  // EXCEPT WHEN A STRAND WAS ASKED FOR. A stored original is the whole ride as
+  // it was uploaded and knows nothing about subgroups, so handing it to a rider
+  // who asked for their own approach would answer a different question than the
+  // one they asked — silently, and with more days than they expect. An imported
+  // ride has no subgroups in practice, so this branch is nearly always taken.
+  if (spec.hasStored(m) && strand.subgroupId === undefined) {
     // readMapFile, not mapFilePath + readFile: the file may be under either
     // spelling and this is the only thing that knows both. Serving the brotli
     // bytes straight through with `Content-Encoding: br` was considered and
@@ -538,7 +576,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
     // restore, and the rows are still enough to build a usable file.
   }
 
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
   if (ride.days.length === 0) return c.text('Not found', 404) // pre-pivot rows
   return new Response(spec.build(ride), { headers })
 })

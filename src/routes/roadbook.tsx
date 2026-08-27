@@ -21,7 +21,9 @@ import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
+import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
+import { resolveStrand } from '../subgroups/service'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
 
@@ -157,7 +159,12 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // will be ridden and needs no filtering of its own. A roadbook is a thing you
   // print and carry; printing the road you decided against is worse than useless
   // on a tank bag. `ride.hiddenAlts` is how many were left out.
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  // WHOSE ROADBOOK. A rider on the Sacramento approach opens this and gets
+  // their own — their approach plus every shared day, and nothing about
+  // Oakland's morning. Derived from membership rather than asked for; `?group`
+  // overrides it and `?group=all` is the planner's way back to the whole ride.
+  const strand = await resolveStrand(m.id, user?.id ?? null, c.req.query('group'))
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
   if (ride.days.length === 0) return c.text('Not found', 404)
 
   const totalM = ride.days.reduce((n, r) => n + r.distanceM, 0)
@@ -178,6 +185,10 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
               {totalS > 0 && <> · {fmtDuration(totalS)} riding</>}
             </p>
             {m.description && <p class="rb-note">{m.description}</p>}
+            {/* A roadbook is a thing you print and carry, so which one you
+                printed has to be on it. Renders nothing on a ride with no
+                subgroups, which is nearly all of them. */}
+            <StrandSwitch strand={strand} base={`/m/${m.slug}/roadbook`} />
             {anyClock && (
               <p class="rb-caveat">
                 Times are estimates: the day’s riding time spread evenly over its distance, plus the time planned at

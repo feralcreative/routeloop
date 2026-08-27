@@ -152,3 +152,50 @@ export async function writeRideAnchors(
     })
     .where(eq(rides.id, rideId))
 }
+
+export type Strand = {
+  /**
+   * What to hand `loadRideForExport`. `undefined` is the whole ride, `null` is
+   * the trunk alone, a number is one subgroup's own strand — the three cases
+   * are genuinely different and collapsing any two of them is a bug.
+   */
+  subgroupId: number | null | undefined
+  /** The subgroup itself, for a heading. Null when the answer is the whole ride. */
+  group: RideSubgroupRow | null
+  /** Every subgroup on the ride, so a page can offer the others. */
+  all: RideSubgroupRow[]
+}
+
+/**
+ * Which strand this reader should be shown.
+ *
+ * DERIVED FROM MEMBERSHIP, NOT ASKED FOR, which is #67's own argument: it is
+ * what makes "highlight my path" and the per-rider hand-off work without
+ * anybody being asked anything. A rider on the Sacramento approach opens the
+ * roadbook and gets their own roadbook.
+ *
+ * `requested` overrides it, and `'all'` is the way back to the whole ride —
+ * which is what the PLANNER wants, since they are looking at everybody's. Both
+ * are query parameters and both are therefore rider-supplied: an unknown uid
+ * falls through to the derived answer rather than erroring, because a stale
+ * link should degrade to something sensible.
+ *
+ * A ride with no subgroups always answers `undefined`. Nothing downstream has
+ * to test for that separately, which is the point of resolving it here.
+ */
+export async function resolveStrand(
+  rideId: number,
+  viewerId: number | null,
+  requested?: string,
+): Promise<Strand> {
+  const all = await subgroupsOf(rideId)
+  if (all.length === 0) return { subgroupId: undefined, group: null, all }
+  if (requested === 'all') return { subgroupId: undefined, group: null, all }
+
+  const asked = requested ? (all.find((g) => g.uid === requested) ?? null) : null
+  if (asked) return { subgroupId: asked.id, group: asked, all }
+
+  const mine = viewerId === null ? null : await subgroupOf(rideId, viewerId)
+  if (mine === null) return { subgroupId: undefined, group: null, all }
+  return { subgroupId: mine, group: all.find((g) => g.id === mine) ?? null, all }
+}

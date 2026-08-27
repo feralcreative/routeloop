@@ -20,6 +20,7 @@ import { formatRoleName, type Role } from './roles'
 import { activeDays } from './alts'
 import { relegDay } from './track-split'
 import { subgroupsOf } from '../subgroups/service'
+import { strandOf } from '../subgroups/policy'
 
 export type ExportPoint = {
   lat: number
@@ -90,15 +91,31 @@ function concatLegs(legs: Array<{ geometry: Track }>): Track {
  * ride with twice the mileage. Losing them is the smaller lie. The lossless path
  * is the native JSON, which goes through loadNativeRide below and keeps
  * everything.
+ *
+ * ONE SUBGROUP AT A TIME, when asked. `subgroupId` narrows the ride to the days
+ * that rider actually rides — their own approach plus every shared day — which
+ * is #67's per-rider hand-off in one argument. It is a SECOND filter stacked on
+ * the alternates one, applied after it, and the order does not matter because a
+ * losing alternate on a feeder day is dropped by either.
+ *
+ * `undefined` means the whole ride and is what every existing caller passes by
+ * omission. `null` is NOT the same thing: it means "the trunk", the days
+ * everybody rides, which is what a rider in no subgroup gets — see strandOf.
  */
 export async function loadRideForExport(
   rideId: number,
   meta: { title: string; description: string | null },
+  subgroupId?: number | null,
 ): Promise<ExportRide> {
   const allDays = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
 
-  const dayRows = activeDays(allDays)
-  const hiddenAlts = allDays.length - dayRows.length
+  const dayRows = subgroupId === undefined ? activeDays(allDays) : strandOf(activeDays(allDays), subgroupId)
+  // Counted against what THIS reader would otherwise have seen, not against the
+  // whole ride: telling a rider on the Seattle approach that four alternates
+  // were hidden, three of them on a day they are not on, is a number about
+  // somebody else's ride.
+  const hiddenAlts =
+    subgroupId === undefined ? allDays.length - dayRows.length : strandOf(allDays, subgroupId).length - dayRows.length
 
   const out: ExportDay[] = []
   for (const r of dayRows) {

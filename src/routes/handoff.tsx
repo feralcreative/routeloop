@@ -21,7 +21,9 @@ import { loadRideForExport } from '../maps/export'
 import { linkLabel, routeLinks, type GmapsRouteLinks } from '../maps/gmaps-links'
 import { METERS_PER_MILE } from '../maps/kml'
 import { page } from '../views/layout'
+import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
+import { resolveStrand } from '../subgroups/service'
 
 export const handoffRoutes = new Hono<AuthEnv>()
 
@@ -60,7 +62,11 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
   // days" summary and the per-day headings are all over the ride as it will be
   // ridden. Handing a rider a Google Maps link for a day they chose not to do is
   // the one outcome this page must not produce.
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description })
+  // WHOSE HAND-OFF. #67's per-rider export: mine starts in Oakland, Dylan's in
+  // Sacramento, and neither is handed the other's morning. Derived from
+  // membership; `?group=all` is the planner's way back to the whole ride.
+  const strand = await resolveStrand(m.id, user?.id ?? null, c.req.query('group'))
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
   if (ride.days.length === 0) return c.text('Not found', 404)
 
   const density = densityOf(c.req.query('density'))
@@ -87,6 +93,9 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
             <p class="ho-note">
               Open a link and Google Maps starts from where you are. Ride it, and when you arrive open the next one.
             </p>
+            {/* Carries ?density forward, or switching whose copy you are
+                looking at silently resets how tightly the route is held. */}
+            <StrandSwitch strand={strand} base={`/m/${m.slug}/navigate`} extra={`&density=${density.key}`} />
           </header>
 
           <section class="ho-density">
@@ -150,8 +159,8 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
                 it recognises.
               </li>
               <li>
-                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of
-                what is in the link.
+                Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of what
+                is in the link.
               </li>
             </ul>
           </section>

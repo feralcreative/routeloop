@@ -1005,6 +1005,58 @@ ul.cards {
   }
 }
 
+// --- Whose copy is this ------------------------------------------------------
+//
+// On the roadbook and the hand-off page. Renders nothing at all on a ride with
+// no subgroups, so these rules are dead weight on almost every page — which is
+// why they are three short blocks rather than a component's worth of layout.
+.strand-switch {
+  margin: 0.75rem 0 0;
+}
+
+.strand-who {
+  color: $neutral-50;
+  font-size: 0.85em;
+  margin: 0 0 0.4rem;
+}
+
+.strand-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  li a {
+    display: inline-block;
+    padding: 0.25em 0.7em;
+    border: 1px solid $grey;
+    border-radius: 999px;
+    font-size: 0.85em;
+    text-decoration: none;
+    color: $text;
+
+    &:hover {
+      border-color: $neutral-76;
+    }
+  }
+
+  li.is-on a {
+    border-color: $text;
+    font-weight: 600;
+  }
+}
+
+// PRINTED, the switch is noise: a roadbook on a tank bag cannot be clicked, and
+// the line above it already says whose copy this is. The heading survives, the
+// alternatives do not.
+@media print {
+  .strand-choices {
+    display: none;
+  }
+}
+
 // --- The roster page ---------------------------------------------------------
 //
 // Built on .rider-list, the same white-row list /riders and /friends use, with
