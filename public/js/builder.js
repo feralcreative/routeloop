@@ -2040,6 +2040,259 @@
     // from one day into another. See initDragToReorder.
     host.querySelectorAll(".point-list").forEach((el) => initDragToReorder(el));
     initDayDrag(host);
+    // Here rather than on its own, because the two disagree the moment they are
+    // separate: a day's picker lists the subgroups and the editor renames them,
+    // so a rename that redrew only the editor would leave every picker showing
+    // the old name until something else happened to re-render.
+    renderSubgroups();
+  }
+
+  // --- Rider subgroups (#67) ------------------------------------------------
+  //
+  // A named set of riders sharing an approach. A DAY belongs to one, or to
+  // nobody — which means everyone rides it, the trunk. See src/subgroups/
+  // policy.ts; the model is one dense sequence of days where a subgroup owns a
+  // subsequence, so nothing here reorders or renumbers anything.
+  //
+  // RENDERS NOTHING UNTIL A RIDER ADDS ONE. A solo ride is the overwhelming
+  // majority and should not pay a line of panel for a feature about groups —
+  // which is also why every subgroup control below is built from
+  // state.meta.subgroups.length rather than being hidden with CSS.
+
+  function subgroupByUid(u) {
+    return state.meta.subgroups.find((g) => g.uid === u) || null;
+  }
+
+  // The picker that sits in a day header. Empty string when the ride has no
+  // subgroups, so daySectionHtml concatenates nothing.
+  function daySubgroupHtml(day, r) {
+    if (state.meta.subgroups.length === 0) return "";
+    return (
+      '<select class="day-subgroup" data-day="' + r + '" title="Which group rides this day"' +
+      ' aria-label="Group for day ' + dayNumber(r) + '">' +
+      // "Everyone" is the null option and it is FIRST, because it is what every
+      // day is until somebody says otherwise and what most days stay.
+      '<option value=""' + (day.subgroupUid ? "" : " selected") + ">Everyone</option>" +
+      state.meta.subgroups
+        .map(
+          (g) =>
+            '<option value="' + esc(g.uid) + '"' + (day.subgroupUid === g.uid ? " selected" : "") + ">" +
+            esc(g.name) + "</option>",
+        )
+        .join("") +
+      "</select>"
+    );
+  }
+
+  function renderSubgroups() {
+    const host = $("sg-body");
+    if (!host) return;
+    const groups = state.meta.subgroups;
+    const count = $("sg-count");
+    if (count) count.textContent = groups.length ? String(groups.length) : "";
+
+    if (groups.length === 0) {
+      host.innerHTML =
+        '<p class="sg-empty">Riders leaving from different places. Add a group for each starting point, then say ' +
+        "which days that group rides—the days you leave on Everyone are the ones you all ride together.</p>";
+      return;
+    }
+
+    host.innerHTML =
+      groups
+        .map(
+          (g) =>
+            '<div class="sg-row" data-sg="' + esc(g.uid) + '">' +
+            '<input class="sg-color" type="color" value="' + esc(g.color) + '" aria-label="Color for ' + esc(g.name) + '">' +
+            '<input class="sg-name" type="text" maxlength="80" value="' + esc(g.name) + '" aria-label="Name of this group">' +
+            '<button type="button" class="sg-meet" title="Suggest where this group could join the others">Find a meet</button>' +
+            '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' + esc(g.name) + '">×</button>' +
+            '</div>',
+        )
+        .join("") +
+      // The two axes, and they only appear once there are two groups to solve
+      // against each other. Whose clock and which event — see rides.time_anchor
+      // for why one control cannot carry both.
+      (groups.length < 2
+        ? ""
+        : '<div class="sg-anchor">' +
+          '<label for="sg-primary">Solve everyone around</label>' +
+          '<select id="sg-primary">' +
+          state.meta.subgroups
+            .map(
+              (g) =>
+                '<option value="' + esc(g.uid) + '"' +
+                (state.meta.primarySubgroup === g.uid ? " selected" : "") + ">" + esc(g.name) + "</option>",
+            )
+            .join("") +
+          "</select>" +
+          '<label for="sg-when">and pin their</label>' +
+          '<select id="sg-when">' +
+          ANCHORS.map(
+            (a) =>
+              '<option value="' + a.key + '"' + (state.meta.timeAnchor === a.key ? " selected" : "") + ">" +
+              a.label + "</option>",
+          ).join("") +
+          "</select>" +
+          '<p class="sg-anchor-note" id="sg-anchor-note"></p>' +
+          "</div>") +
+      '<div class="sg-meet-out" id="sg-meet-out"></div>';
+    renderAnchorNote();
+  }
+
+  function wireSubgroups() {
+    const add = $("sg-add");
+    if (!add) return;
+
+    add.addEventListener("click", () => {
+      beginEdit("add a group");
+      // Walks the day palette so two groups are never the same color. It is the
+      // group's own color rather than a day's because a group spans several
+      // days and its line has to read as one thing across all of them.
+      const color = DAY_COLORS[state.meta.subgroups.length % DAY_COLORS.length];
+      const g = { uid: uid(), name: "Group " + (state.meta.subgroups.length + 1), color: color };
+      state.meta.subgroups.push(g);
+      // The first group is the default primary only because there is nothing
+      // else to be. The moment there are two, renderAnchorNote says whether
+      // that is the fair answer — see #67 on why the app must not pick.
+      if (!state.meta.primarySubgroup) state.meta.primarySubgroup = g.uid;
+      $("subgroups").open = true;
+      renderDays();
+      markDirty();
+    });
+
+    // Delegated on the body, because every row is rebuilt by renderSubgroups
+    // and a handler bound to a row would be thrown away with it.
+    const body = $("sg-body");
+    body.addEventListener("input", (e) => {
+      const row = e.target.closest(".sg-row");
+      if (!row) return;
+      const g = subgroupByUid(row.dataset.sg);
+      if (!g) return;
+      if (e.target.classList.contains("sg-name")) {
+        beginEdit("rename a group");
+        g.name = e.target.value;
+        // NOT renderDays() — that would rebuild the field being typed in and
+        // lose the caret on every keystroke. The day pickers go stale for the
+        // length of the edit, which nobody can see, and the next render fixes
+        // them.
+        markDirty();
+      } else if (e.target.classList.contains("sg-color")) {
+        beginEdit("recolor a group");
+        g.color = e.target.value;
+        markDirty();
+      }
+    });
+
+    body.addEventListener("change", (e) => {
+      if (e.target.id === "sg-primary") {
+        beginEdit("change the primary group");
+        state.meta.primarySubgroup = e.target.value;
+        renderAnchorNote();
+        markDirty();
+      } else if (e.target.id === "sg-when") {
+        beginEdit("change what is pinned");
+        state.meta.timeAnchor = e.target.value;
+        markDirty();
+      }
+    });
+
+    body.addEventListener("click", (e) => {
+      if (e.target.classList.contains("sg-take")) return takeMeet(e.target.dataset);
+      const row = e.target.closest(".sg-row");
+      if (!row) return;
+      const g = subgroupByUid(row.dataset.sg);
+      if (!g) return;
+      if (e.target.classList.contains("sg-del")) return removeSubgroup(g);
+      if (e.target.classList.contains("sg-meet")) return findMeet(g);
+    });
+  }
+
+  // ACCEPTING A PROPOSAL IS TWO EDITS, NOT ONE, and that is the whole structure
+  // of a meet: the joining group's last day ENDS there and the first shared day
+  // BEGINS there. One place, two points, which is what gives each group a route
+  // that actually reaches it and what makes junctions() see a boundary.
+  //
+  // GOES THROUGH addPoint LIKE EVERY OTHER POINT. It appends, splices the leg,
+  // asks the router for it, re-renders and marks dirty — a meeting point is not
+  // special once it exists, and a second path that placed one would be a second
+  // path to keep in step with routing, undo and the map.
+  //
+  // The prebuilt carries `meet`, which is an existing waypoint role and is where
+  // #67's "meet/split become structural" lands. It is still only a LABEL:
+  // junctions() derives the boundary from the day list and reads no role. A
+  // point arriving with roles becomes a stop, which is right — a meeting point
+  // is somewhere you unambiguously stop, and it wants a dwell.
+  function takeMeet(d) {
+    const g = subgroupByUid(d.sg);
+    if (!g) return;
+    const lat = Number(d.lat);
+    const lng = Number(d.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    // Indices, not the day objects: addPoint takes an index and everything
+    // downstream of it is expressed in one.
+    let lastOwn = -1;
+    let firstShared = -1;
+    state.days.forEach((day, i) => {
+      if (day.subgroupUid === g.uid) lastOwn = i;
+      if (firstShared < 0 && day.subgroupUid == null) firstShared = i;
+    });
+    if (lastOwn < 0 || firstShared < 0) return;
+
+    const name = g.name + " meets here";
+    const mk = () => {
+      const pt = newPoint(lng, lat, name);
+      pt.roles = ["meet"];
+      return pt;
+    };
+    // The shared day FIRST, because adding to it does not move any index, and
+    // then the group's own — the reverse order would still work here since the
+    // two days are distinct, but doing index-shifting edits back to front is
+    // the habit that keeps the multi-day paths in this file correct.
+    addPoint(lng, lat, name, firstShared, mk(), 0);
+    addPoint(lng, lat, name, lastOwn, mk());
+    $("sg-meet-out").innerHTML = '<p class="sg-note">Added to ' + esc(g.name) + "'s last day and to the first shared day.</p>";
+  }
+
+  const ANCHORS = [
+    { key: "departure", label: "departure" },
+    { key: "meet", label: "arrival at the meet" },
+    { key: "arrival", label: "arrival at the end" },
+  ];
+
+  // #67 IS EXPLICIT THAT THE DEFAULT PRIMARY MUST NOT BE THE PLANNER'S OWN
+  // GROUP: it is the one most likely to be nearest the meet, so that default
+  // reproduces the unfair-6am case every time and the planner does not notice,
+  // being the one who rode three miles. The suggestion here is the group with
+  // the most riding to do, and the note says what choosing wrong costs.
+  function renderAnchorNote() {
+    const el = $("sg-anchor-note");
+    if (!el) return;
+    const longest = longestApproach();
+    if (!longest || state.meta.primarySubgroup === longest.uid) {
+      el.textContent = longest ? "" : "Give each group at least one day to see the effect.";
+      return;
+    }
+    el.textContent =
+      esc(longest.name) + " has the farthest to ride. Solving around a group that is closer asks them to leave earlier.";
+  }
+
+  // Longest by planned riding time across the days that group rides on its own
+  // — the shared days are the same for everybody and cancel out.
+  function longestApproach() {
+    let best = null;
+    let bestS = -1;
+    for (const g of state.meta.subgroups) {
+      const s = state.days
+        .filter((d) => d.subgroupUid === g.uid)
+        .reduce((n, d) => n + d.legs.reduce((m, l) => m + (l.durationS || 0), 0), 0);
+      if (s > bestS) {
+        bestS = s;
+        best = g;
+      }
+    }
+    return best;
   }
 
   // Which sections are currently open, so a rebuild does not spring every twirl
@@ -2113,6 +2366,7 @@
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
       ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
       altBadge +
+      daySubgroupHtml(day, r) +
       '<span class="day-actions">' +
       // Empty for the same reason .day-del is: icon-reverse.svg comes in through
       // a CSS mask on ::before, so it takes the button's color and its disabled
@@ -4233,6 +4487,7 @@
       if (sec) sec.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
     $("day-add").addEventListener("click", addDay);
+    wireSubgroups();
 
     // Only present on a saved ride — see the markup in src/routes/builder.ts.
     const del = $("ride-delete");
@@ -4336,6 +4591,19 @@
       setActive(r);
       const day = state.days[r];
       if (!day) return;
+      if (e.target.classList.contains("day-subgroup")) {
+        beginEdit("change which group rides a day");
+        // "" is the Everyone option, and null is what the payload carries — an
+        // empty string would reach the server as a uid that matches nothing and
+        // be resolved to null anyway, but silently and one layer too late.
+        day.subgroupUid = e.target.value || null;
+        // A full render: the map has to redraw the strand and the anchor note
+        // depends on which days each group owns.
+        renderDays();
+        rebuildLayers();
+        markDirty();
+        return;
+      }
       if (e.target.classList.contains("day-start")) {
         beginEdit("change start time");
         day.startAt = localInputToIso(e.target.value);

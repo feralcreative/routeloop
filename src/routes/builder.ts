@@ -514,6 +514,17 @@ function builderHtml(
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
             <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
           </div>
+          <!-- RIDER SUBGROUPS (#67). Collapsed, and empty until a rider adds
+               one—a solo ride should not pay a line of panel for a feature
+               about groups. renderSubgroups() in builder.js fills it; the
+               <details> is closed on first paint and its open state is the
+               browser's, not state's, because nothing re-renders the element
+               itself. -->
+          <details class="subgroups" id="subgroups">
+            <summary>Groups <span class="sg-count" id="sg-count"></span></summary>
+            <div id="sg-body"></div>
+            <button type="button" class="btn btn-sm btn-quiet" id="sg-add">Add a group</button>
+          </details>
         </div>
 
         <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
