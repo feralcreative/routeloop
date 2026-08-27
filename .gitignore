@@ -280,6 +280,7 @@ Icon
 **/*.sync-conflict*
 /docs/ops
 _reference
+_import
 
 _assets
 
