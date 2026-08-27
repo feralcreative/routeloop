@@ -27,7 +27,7 @@ export function FriendActions({ handle, view, back }: { handle: string; view: Fr
       return (
         <>
           <FriendForm verb="accept" handle={handle} label="Accept" back={back} />
-          <FriendForm verb="remove" handle={handle} label="Decline" back={back} variant="btn-quiet" />
+          <FriendForm verb="remove" handle={handle} label="Decline" back={back} variant="btn-sign btn-regulatory" />
         </>
       )
     case 'blocked':

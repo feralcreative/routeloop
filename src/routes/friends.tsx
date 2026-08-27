@@ -187,7 +187,7 @@ friendRoutes.get('/friends', requireActive, async (c) => {
         {(r) => (
           <>
             <FriendForm verb="accept" handle={r.username} label="Accept" back={back} />
-            <FriendForm verb="remove" handle={r.username} label="Decline" back={back} variant="btn-quiet" />
+            <FriendForm verb="remove" handle={r.username} label="Decline" back={back} variant="btn-sign btn-regulatory" />
           </>
         )}
       </Section>

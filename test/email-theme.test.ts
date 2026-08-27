@@ -36,7 +36,7 @@ const TOKENS_SCSS = readFileSync('style/_tokens.scss', 'utf8')
  * Three forms, because the palette stores three kinds of thing and a scraper
  * that silently matched none of them would pass while proving nothing:
  *
- *   1. `"stop": #dd0000` — a road-sign color, in one of the sign maps.
+ *   1. `"stop": #cc0000` — a road-sign color, in one of the sign maps.
  *   2. `21: #333333` — a neutral, keyed by its CIE L* number rather than by the
  *      `neutral-21` name the emails use.
  *   3. `$splash-ink: #0a0e11;` — the one token that stayed a real Sass color,
