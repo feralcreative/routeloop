@@ -412,6 +412,7 @@ async function main(): Promise<void> {
         .values({
           rideId: ride.id,
           position: r,
+          uid: newUid(),
           title: routeSpecs.length > 1 ? `Day ${r + 1}` : '',
           color: spec.color,
           distanceM,

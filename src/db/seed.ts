@@ -110,7 +110,7 @@ async function main() {
 
   const [route] = await db
     .insert(days)
-    .values({ rideId: ride.id, position: 0, color: '#0066cc', distanceM: distM })
+    .values({ rideId: ride.id, position: 0, uid: newUid(), color: '#0066cc', distanceM: distM })
     .returning()
 
   const prefix: number[] = [0]

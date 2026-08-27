@@ -515,6 +515,11 @@ mapsRoutes.post(
             .values({
               rideId: ride.id,
               position: i,
+              // Minted here rather than repaired later, for the same reason a
+              // point's is on this path: the lossy import does not go through
+              // insertRideGraph, so nothing downstream would fill it in and the
+              // NOT NULL fails at runtime with nothing useful to say.
+              uid: newUid(),
               // Every day the same color would make the viewer's legend
               // useless, so a multi-file import walks the palette the builder
               // uses. A single file keeps exactly the color that was asked for.

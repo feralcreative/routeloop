@@ -172,6 +172,10 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     })
 
     payloadDays.push({
+      // Fresh, exactly as a cloned point's is and for the same reason one level
+      // up: a clone must not inherit the original's votes, and alt_votes is
+      // keyed by day uid. Null lets insertRideGraph mint one.
+      uid: null,
       title: r.title,
       color: r.color,
       // Times belong to the ride the author planned, not to whenever the cloner
