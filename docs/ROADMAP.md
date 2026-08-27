@@ -244,7 +244,7 @@ Built and deployed today (see STATUS.md for the living detail):
 - **Basemaps**—the map opens on Google's terrain layer, with roadmap, satellite and hybrid behind a switcher that remembers the choice per rider.
 - **Rich stop details**—a stop carries a confirmation number, check-in and check-out, phone, address, links and notes, kept in their own table and visible to the owner alone. They ride along in the native JSON and are stripped from every lossy export.
 - **Saved places**—a rider's reusable library of locations, optionally filed into groups, offered inside the builder's search field and copied into a ride rather than referenced from it.
-- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (1,240 tests across 52 files as of 2026-08-24; `npm test` is the authority, not this number.) Note SCSS is **not** built in CI, which is why item 12's checklist calls that box partial.
+- **CI**—typecheck and the full test suite on every pull request and push to `main`, against Node 22 and 24. (1,728 tests across 67 files as of 2026-08-26; `npm test` is the authority, not this number.) Note SCSS is **not** built in CI, which is why item 12's checklist calls that box partial.
 - **Alternates**—two or more days grouped as candidates for the same stretch, exactly one active, and only the active one counted by anything that sums a ride.
 - **Rider feedback**—reports, ideas and questions from a signed-in rider, a public board at `/board` and the owner's queue at `/admin/feedback`. A report is private to its author and the owner until it is published, and nothing publishes one by default.
 - **Route thumbnails**—a preview image per ride from Static Maps, built by a sweep that skips rides still being edited.
@@ -395,7 +395,7 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Touches.** `src/db/schema.ts`, new routes, `src/routes/profile.ts`, `public/js/builder.js`.
 
-**Status.** planned—the model landed 2026-08-10 from a click-through; before that this item was a one-line stub. Note [#52 "Group-aware range planning"](https://github.com/feralcreative/routeloop/issues/52) is already open and depends on this: range only becomes a group problem once each rider on a ride has a bike, which needs items 8 and 13 as well.
+**Status.** **shipped 2026-08-26.** The `bikes` table, the paddock CRUD on the profile page and the photo upload landed as [#151](https://github.com/feralcreative/routeloop/pull/151); [#52 "Group-aware range planning"](https://github.com/feralcreative/routeloop/issues/52) closed on 2026-08-26 once items 8 and 13 landed with it, and fuel is now planned around the smallest tank coming with whose it is named. Range is stored in METERS and typed in MILES—`src/bikes/policy.ts` is the only place the two meet, because #150 will switch the site to metric. Still open from this item: range rings on the map, rest cadence from rider limits, and the EV counterpart ([#31](https://github.com/feralcreative/routeloop/issues/31)).
 
 ### 8. Riders and group rides
 
@@ -403,14 +403,14 @@ Consecutive links overlap by one point, so the leg between two batches is never 
 
 **Work.**
 
-- [ ] Rider list / roster (the `users.can_manage_riders` capability flag already exists).
-- [ ] Invite riders to a ride; per-ride RSVP.
-- [ ] Surface cost splitting from the payment handles already stored on the profile.
-- [ ] Rate-limit rider lookup by email/phone before it exists—it is a user-enumeration surface.
+- [x] Rider list / roster—`/m/:slug/riders`, gated on membership rather than visibility.
+- [x] Invite riders to a ride; per-ride RSVP.
+- [ ] Surface cost splitting from the payment handles already stored on the profile. **The one box left.**
+- [x] Rate-limit rider lookup by email/phone before it exists—**answered by not having the surface.** You can only add a FRIEND to a ride: no token, no email, no link, so there is nothing to enumerate.
 
-**Touches.** `src/db/schema.ts`, new routes, `src/routes/admin.ts` (extend), `src/routes/profile.ts`.
+**Touches.** `src/db/schema.ts`, `src/members/`, `src/friends/`, `src/routes/roster.tsx`, `src/routes/friends.tsx`.
 
-**Status.** planned. The admin panel is the first slice of this and is already shipped.
+**Status.** **shipped 2026-08-26** as [#152](https://github.com/feralcreative/routeloop/pull/152) (friendships and the access layer) and [#153](https://github.com/feralcreative/routeloop/pull/153) (membership and voting). `ride_invites` was scoped and then **replaced rather than deferred**—friendships dissolved the sign-off it needed, since a friend already has an active account and has already passed approval. See `docs/decisions.md`.
 
 ### 9. Import and export breadth
 
@@ -476,7 +476,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand, the Google Maps link builder, the drag-to-shape index math and the builder's undo/draft model are covered (777 tests across 34 files as of 2026-08-10). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
+- [ ] An automated test suite. Vitest is configured and `roles.ts`, the format parsers, Expand, the Google Maps link builder, the drag-to-shape index math and the builder's undo/draft model are covered (1,728 tests across 67 files as of 2026-08-26). Still missing: the leg-distance clamp, integration tests for ride save/load, and a viewer smoke test.
 - [x] CI on GitHub Actions: `npm run typecheck` and `npm test` on every pull request and on pushes to `main`, against Node 22 and 24 (`.github/workflows/ci.yml`). The SCSS build is deliberately not gated—formatting and style are qlty's job, and a failing build there would block a PR on something no reviewer reads.
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.
@@ -493,21 +493,21 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] Make **Rider Subgroup** a first-class thing: a named set of riders sharing an approach. Assign subgroups to legs, so a leg carries the subgroups on it. A stop where the set of subgroups changes is a **meeting point** (subgroups merge) or a **split** (a subgroup peels off)—the `meet` and `split` roles already exist in the taxonomy and become structural here rather than decorative.
-- [ ] Support multiple feeder approaches converging at **one or more** meeting points, possibly in stages: SF and Santa Cruz merge in San Jose, then that combined group meets the Oakland contingent in Dublin. Each feeder is a geographically distinct line ending at its meeting point; from there the merged group rides on as one shared leg. The same structure runs in reverse on the way home, splitting progressively.
-- [ ] Generate each rider's personal itinerary from the legs they're on—their start point, their pickups, the shared trunk, their way back—so no rider has to mentally subtract the legs that aren't theirs.
-- [ ] Per-rider hand-off: Expand (item 4), the Google Maps links (item 5) and the file exports (items 3, 9) produce a rider-specific file—mine starts in Oakland, Dylan's starts in Sacramento—not one file for an abstract whole-group route nobody actually rides end to end.
-- [ ] Show it on one map: distinct approach lines converging on the meeting points, the shared trunk drawn once, and a way to focus a single rider's path (reuse the route-dim mechanism the day slider and legend hover already use).
+- [x] Make **Rider Subgroup** a first-class thing: a named set of riders sharing an approach. **Assigned to DAYS rather than to legs**—see the model note below, which was the load-bearing open question and is now settled. A boundary where the set of subgroups changes is a **meeting point** or a **split**, and both are DERIVED from the day list rather than stored; the `meet` and `split` roles stay labels and nothing reads them structurally.
+- [x] Support multiple feeder approaches converging at **one or more** meeting points, possibly in stages: SF and Santa Cruz merge in San Jose, then that combined group meets the Oakland contingent in Dublin. Each feeder is a geographically distinct line ending at its meeting point; from there the merged group rides on as one shared leg. The same structure runs in reverse on the way home, splitting progressively.
+- [x] Generate each rider's personal itinerary from the days they're on—their start point, their pickups, the shared trunk, their way back—so no rider has to mentally subtract the legs that aren't theirs.
+- [x] Per-rider hand-off: the roadbook, the Google Maps links and all four file exports produce a rider-specific file—mine starts in Oakland, Dylan's starts in Sacramento—not one file for an abstract whole-group route nobody actually rides end to end.
+- [x] Show it on one map: distinct approach lines converging on the meeting points, the shared trunk drawn once, and a way to focus a single rider's path (reuse the route-dim mechanism the day slider and legend hover already use).
 
 **Open questions to settle when building.**
 
-- **Model.** Two shapes are viable and the choice is load-bearing. Either each approach and dispersal is its own **day** within the ride (leans on the existing rides-hold-many-days model; a meeting point is a stop shared between a feeder's end and the trunk's start), or legs carry participant membership directly and a rider's path is the ordered set of legs they are on (matches "assign people to legs" literally, but needs branching geometry within a single day). Decide before building—it changes the schema and every downstream view.
-- **Timing.** Convergence is a time problem too: two groups have to reach Dublin near enough the same moment. The timeline (item 2) already models per-leg spans; a meeting point wants an arrival window and a warning when approaches do not line up.
-- **Who edits.** Does each subgroup's lead plan their own approach, or does the ride leader plan all of them? Ties to collaborative editing in the backlog.
+- **Model. SETTLED 2026-08-26: a feeder is a DAY.** `days.subgroup_id` nullable, null meaning everyone rides it. A subgroup owns a SUBSEQUENCE of the ride's dense positions, so `uq_day_ride_pos` never changed and a multi-day approach is simply more days. The rejected shape—legs carrying membership—reads better in this entry and breaks the settled rule that a day is ONE ORDERED LIST of points: two feeders cannot both start at position 0 of one list. Full argument in `docs/decisions.md`.
+- **Timing. SETTLED and built**, in `src/subgroups/schedule.ts`: whose clock is pinned and which event is pinned are two separate axes, which is what dissolves the contradiction #143 was written with. A meet carries dwell AND slack, separately. **Solved but not yet SHOWN**—no surface calls the solver, and the roadbook is the obvious one.
+- **Who edits. SETTLED by what exists**: the ride leader plans all of them. Subgroup leads planning their own approach IS collaborative editing, which is item 20 and is not built; `canEditRide` is owner-only and nothing on this branch changed that.
 
 **Touches.** `src/db/schema.ts` (participant/leg assignment, or feeder-route structure), new or extended routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `src/maps/expand.ts` and the export path (per-rider hand-off), `src/maps/roles.ts` (`meet` / `split` become structural).
 
-**Status.** planned—extends item 8 (riders and group rides), which is its prerequisite: there have to be riders before they can be assigned to legs.
+**Status.** **shipped 2026-08-26.** All nine boxes, including the proposed meeting point—@epim's idea in [#143](https://github.com/feralcreative/routeloop/issues/143), which this item absorbed. The proposer is pure geometry and calls no router. What is left is the timing SURFACE, above.
 
 ### 14. Alternate routes and group voting
 
@@ -531,7 +531,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Touches.** `src/db/schema.ts` (alternates + votes), new routes under `src/routes/`, `public/js/builder.js`, `public/js/viewer.js`, `public/js/map-common.js` (ghosted alternates), the timeline and roadbook (active path only).
 
-**Status.** in progress—**the alternate object shipped 2026-08-16** on `feat/fixed-day-slider`, at day level and for a single planner, which is the split the note below recommended. What remains is the group-collaboration half: voting, vote scoping and auto-resolve, all of which still depend on riders (item 8).
+**Status.** **shipped 2026-08-26.** The alternate object landed 2026-08-16 and the group-collaboration half—voting scoped to ride members, a live tally, and auto-resolve at an opt-in deadline—landed as [#153](https://github.com/feralcreative/routeloop/pull/153) once membership existed. Governance was settled narrowly and deliberately: **a tie elects nobody**, there is no quorum, and a deadline is opt-in per ride. `docs/decisions.md` says why each. A vote references a day by `uid`, which is what `days.uid` was added for.
 
 **This item was split, and item 21 is why.** It bundled three things: the **alternate object** (two or more candidates for a stretch, exactly one active), the **voting**, and the **resolution**. Only the last two are group collaboration. The object landed on its own on 2026-08-16 with the builder able to create, switch and ungroup alternates for a single planner—so item 21 no longer sits behind riders (item 8), and the schema question was settled by a much smaller piece of work than this whole item, exactly as this note predicted.
 

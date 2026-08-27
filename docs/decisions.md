@@ -74,6 +74,19 @@ The cost is real and worth stating: **you cannot put somebody on a ride until yo
 
 **A deadline is opt-in per ride**, `rides.alt_votes_close_at`, null on every ride that existed before it. Null means the tally is advisory and the owner promotes by hand, which is what the builder already does. Something that rewrites which road a ride takes, unattended, on a site real riders have accounts on, should be a thing the owner asked for.
 
+## A meet carries dwell AND slack, and they mostly do the same thing, 2026-08-26
+
+Ziad's call, after #67 left it open. Dwell is time everyone spends at a meeting point—`points.duration_min`, which already existed. Slack is `points.slack_min`, new, and is a margin ahead of the meet that absorbs one group running late.
+
+**The honest finding, which a test produced rather than confirmed: in a PLANNED schedule the two sum.** The gap between the last asked-for arrival and the onward departure is `dwell + slack` however it is split, and under the `departure` and `arrival` anchors moving a minute from one to the other changes nothing the solver returns. Only under the `meet` anchor do they move opposite sides of the anchor.
+
+Two things still justify the second column, and they are the reasons rather than the arithmetic:
+
+- **Robustness, which no static plan can express.** A group arriving X late where X ≤ slack costs nobody anything and the error does not reach the next meet; the same X against dwell alone moves every subsequent event, and over two meets in a row it accumulates. That is #67's own argument and it is about what happens when reality departs from the plan.
+- **What the rider is told.** "Be there at 09:30, we roll at 10:00, thirty minutes of slack" and "be there at 09:30, thirty-minute stop, we roll at 10:00" are the same three numbers and different instructions.
+
+Written down because the tempting simplification—one column, since the maths agrees—throws both away.
+
 ## A subgroup's approach is a DAY, not a set of legs, 2026-08-26
 
 Settled before building #67, which asks for it to be. `days` gains a nullable `subgroup_id`; null means every subgroup rides that day. A rider's plan is the ordered subsequence of days where the subgroup is theirs or null.
@@ -87,6 +100,18 @@ Three things the chosen model gets for free, which is what settled it:
 - **It is the shape `alt_group` already uses**—distinct positions grouped by a nullable key. The only difference is that every feeder is active where exactly one alternate is.
 
 Two consequences to plan for rather than discover: the builder's day list stops being a straight sequence and has to group by strand, and `MAX_DAYS = 31` counts feeder days, which is the trap alternates already carry.
+
+## The rendezvous proposer calls no router, 2026-08-26
+
+@epim's idea in #143, and the thing that turns subgroups from bookkeeping into planning. Given a trunk and a joining group's origin, propose somewhere to meet.
+
+**It is pure geometry.** Ranking a few dozen candidates through the Routes API would be a Routes bill per keystroke on a proxied, cached, per-request SKU—and the proposal is a suggestion the planner accepts or ignores, at which point the ordinary routing path draws the real road and every number is replaced by a measured one. Straight-line distance is the right precision for "is this a sane place to meet" and the wrong precision for "how long will it take"; the module never claims the second.
+
+Four terms, all measured in miles-equivalent so the weights are readable rather than tuned: divert against riding direct to the destination (the term that dominates), approach angle, shared road left after the meet, and a two-mile thumb for an existing `gas` stop. Two hard refusals—a backtrack past 110°, and a divert past 25 miles—and one floor: at least a fifth of the trunk must be left to ride together.
+
+**That floor exists because a failing test found the proposer cheating.** Minimising divert alone proposes a meet a few miles short of the destination for any origin far enough off the trunk, because going direct and going to a point just short of it are nearly the same ride. The two groups would ride together for twenty minutes.
+
+**It can return nothing, and that is a real answer.** Two origins on opposite sides of a trunk running away from both have no sensible rendezvous, and offering the least bad one would be worse than saying so.
 
 ## The export filename carries four fields and no more
 

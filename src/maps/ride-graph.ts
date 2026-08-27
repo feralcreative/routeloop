@@ -11,7 +11,7 @@ import { z } from 'zod'
 // Only the transaction type is needed here; the queries all run on the `tx`
 // the caller passes in.
 import type { db } from '../db/index'
-import { days as daysTable, pointDetails, points as pointsTable, routeLegs } from '../db/schema'
+import { days as daysTable, pointDetails, points as pointsTable, routeLegs, timeAnchorEnum } from '../db/schema'
 import { METERS_PER_MILE, sanitizeText, trackMeters, round6, type Track } from './kml'
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
@@ -19,6 +19,7 @@ import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
 import { reconcileVotes } from '../votes/service'
+import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
 export const MAX_DAYS = 31
@@ -88,6 +89,10 @@ const pointSchema = z.object({
   description: z.string().max(2000).default(''),
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
   durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
+  // Meaningful on a meeting point and nowhere else, and null is not zero — see
+  // points.slack_min in src/db/schema.ts. Optional and defaulted so every native
+  // file and every in-flight save from an older tab stays valid.
+  slackMin: z.number().int().min(0).max(1440).nullable().default(null),
   // The point's durable identity — see src/maps/uid.ts. Optional in the payload
   // and repaired by ensureUids() rather than rejected: an old tab, an old native
   // JSON file and an import from another app all arrive without one, and a
@@ -120,6 +125,11 @@ const legSchema = z.object({
 
 const daySchema = z
   .object({
+    // WHOSE DAY THIS IS, by the subgroup's uid rather than its id — the client
+    // mints a subgroup and tags days with it before the server has ever seen
+    // one, so an id could not appear here. Null means everyone rides it, which
+    // is what every day of every ride that predates #67 carries.
+    subgroupUid: z.string().max(12).nullable().default(null),
     // The day's durable identity — see src/maps/uid.ts. Optional and repaired
     // rather than rejected, for exactly the reasons a point's is: an old tab, a
     // native JSON file written before this shipped, and every lossy import
@@ -182,12 +192,30 @@ const daySchema = z
     message: 'a day needs at least one stop',
   })
 
+/** A named set of riders sharing an approach. Ids never appear in a payload —
+ *  the client has not seen them and must not have to. */
+const subgroupSchema = z.object({
+  uid: z.string().max(12),
+  name: z.string().trim().min(1).max(80),
+  color: fields.color.default('#0066cc'),
+})
+
 export const ridePayload = z
   .object({
     title: fields.title,
     description: fields.description.default(''),
     visibility: fields.visibility.default('private'),
     external_url: fields.external_url.default(''),
+    // SUBGROUPS ARE RIDE-LEVEL, not day-level, because several days reference
+    // one and a rider is assigned to one across the whole ride. Bounded to the
+    // day cap for the same reason alt_group is: a hostile payload should not be
+    // able to insert an arbitrary number of rows.
+    subgroups: z.array(subgroupSchema).max(MAX_DAYS).default([]),
+    // Which subgroup's clock is pinned, and whose route is the spine. Two keys
+    // although the builder asks once — see rides.primary_subgroup_id.
+    primarySubgroup: z.string().max(12).nullable().default(null),
+    trunkSubgroup: z.string().max(12).nullable().default(null),
+    timeAnchor: z.enum(timeAnchorEnum.enumValues).default('departure'),
     days: z.array(daySchema).min(1).max(MAX_DAYS),
   })
   .refine(
@@ -264,6 +292,12 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   // ride. Points settle per day for the same reason theirs is scoped per day.
   const daysWithUids = ensureUids(p.days)
   const liveDayUids = daysWithUids.map((d) => d.uid)
+  // BEFORE THE DAYS, because days.subgroup_id is resolved through the map this
+  // returns and a payload can create a subgroup and tag a day with it in the
+  // same save. Reconciled by uid rather than deleted and re-inserted like every
+  // other child of a ride, because ride_members.subgroup_id points at these rows
+  // — see reconcileSubgroups.
+  const subgroupIds = await reconcileSubgroups(tx, rideId, p.subgroups)
 
   for (let ri = 0; ri < daysWithUids.length; ri++) {
     const r = daysWithUids[ri]
@@ -276,6 +310,11 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
         rideId,
         position: ri,
         uid: r.uid,
+        // An unknown uid lands null — everyone rides it — rather than failing
+        // the save. A client naming a subgroup it also deleted in the same
+        // payload is describing a coherent intention badly, and refusing an
+        // autosave the rider did not press would lose their work.
+        subgroupId: r.subgroupUid ? (subgroupIds.get(r.subgroupUid) ?? null) : null,
         title: r.title,
         color: r.color,
         startAt: r.startAt ? new Date(r.startAt) : null,
@@ -323,6 +362,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
       description: s.description || null,
       roles: s.roles,
       durationMin: s.durationMin,
+      slackMin: s.slackMin,
       distFromStartM: prefix[Math.min(i, prefix.length - 1)],
       uid: s.uid,
     }))
@@ -347,6 +387,9 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
     }
   }
 
+  // AFTER the reconcile, because a payload can create a subgroup and name it
+  // primary in the same save — the id does not exist until then.
+  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
   await writePointDetails(tx, rideId, details, liveUids)
   // Same reconciliation, one level up. A vote whose day left the payload has to
   // go, or a deleted alternate keeps counting toward a tally forever — the

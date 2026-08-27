@@ -55,6 +55,12 @@ The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per 
 
 **You can only add a friend.** `invite` takes a handle and refuses anything that is not an accepted friendship—there is no token path, no email path and no account creation. See `docs/decisions.md` for why that replaced ride invites rather than deferring them.
 
+`bike` is yours only and owner-scoped over the bikes as well as the membership, so a forged id cannot pull somebody else's machine into the group's range calculation. `group`—which approach a rider is on—is OWNER-only, and that is the difference from the RSVP beside it: being on the Oakland run is a fact about the plan rather than a statement by the rider. It is scoped to this ride's own subgroups, because the foreign key alone would accept an id from somebody else's.
+
+`POST /api/rides/:id/rendezvous` proposes meeting points for one subgroup, owner-only. The whole computation is pure geometry and calls no router—ranking candidates through the Routes API would be a Routes bill per keystroke, and the proposal is a suggestion the planner accepts, at which point the ordinary routing path draws the real road. An empty `candidates` with a `reason` is a real answer: `no-trunk`, `no-days`, or `none-viable`.
+
+**Every per-rider surface takes `?group`.** The roadbook, the hand-off page, all four file formats and the per-day zip narrow to one subgroup's strand—their own approach plus every shared day. Derived from membership when not given, `?group=all` for the whole ride. `ride.json` deliberately does the OPPOSITE and tags every day rather than filtering, because the viewer draws the whole converge-and-split shape and dims what the reader is not on.
+
 `rsvp` is yours only, the owner's included. `remove` is both "remove somebody" and "leave", which are the same row going away; the owner cannot remove themselves, because a ride with no owner has nobody who can invite, resolve or delete it. `vote` is one pick per member per alternate group and pressing your own pick again withdraws it. `resolve` and `deadline` are owner-only.
 
 ## Owner API

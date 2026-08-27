@@ -2018,6 +2018,160 @@
 // pointer lives in while building — a destructive control belongs where someone
 // arrives on purpose, not where they click by reflex.
 //
+// --- Rider subgroups (#67) ---------------------------------------------------
+//
+// Collapsed and empty on a solo ride, which is nearly every ride — the <details>
+// costs one line of panel and nothing else until somebody adds a group.
+.subgroups {
+  margin-top: 0.5rem;
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    color: $neutral-50;
+    font-size: 0.85em;
+  }
+}
+
+.sg-count:not(:empty) {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: $neutral-57;
+  background: $neutral-94;
+  border-radius: 999px;
+  padding: 0 0.5em;
+}
+
+.sg-empty,
+.sg-note {
+  color: $neutral-57;
+  font-size: 0.75em;
+  margin: 0.5rem 0;
+}
+
+.sg-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+
+  .sg-name {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.85em;
+    padding: 0.3em 0.4em;
+    border: 1px solid $grey;
+    border-radius: 5px;
+  }
+
+  .sg-color {
+    // Matches .day-color's box so the two colour wells in the panel read as the
+    // same control at two levels.
+    width: 1.6rem;
+    height: 1.6rem;
+    flex: none;
+    padding: 0;
+    border: 1px solid $grey;
+    border-radius: 5px;
+    background: none;
+  }
+
+  .sg-meet,
+  .sg-del {
+    flex: none;
+    font: inherit;
+    font-size: 0.75em;
+    padding: 0.3em 0.5em;
+    border: 1px solid $grey;
+    border-radius: 5px;
+    background: $white;
+    color: $neutral-36;
+    cursor: pointer;
+
+    &:hover {
+      border-color: $neutral-76;
+    }
+  }
+}
+
+// The two axes: whose clock, and which of their events. Two selects rather than
+// one, because one control cannot carry both — see rides.time_anchor.
+.sg-anchor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid $grey;
+  font-size: 0.8em;
+  color: $neutral-50;
+
+  select {
+    font: inherit;
+    padding: 0.25em 0.35em;
+    border: 1px solid $grey;
+    border-radius: 5px;
+    background: $white;
+    color: $text;
+  }
+}
+
+// The fairness warning. Amber rather than red: choosing a nearer group is a
+// decision the planner is allowed to make, and #67 asks only that the
+// consequence be visible beside the choice.
+.sg-anchor-note:not(:empty) {
+  flex-basis: 100%;
+  margin: 0.3rem 0 0;
+  color: $neutral-36;
+  font-size: 0.95em;
+}
+
+.sg-meets {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.75em;
+  }
+}
+
+.sg-take {
+  flex: none;
+  font: inherit;
+  padding: 0.25em 0.5em;
+  border: 1px solid $grey;
+  border-radius: 5px;
+  background: $white;
+  cursor: pointer;
+}
+
+.sg-meet-fact {
+  color: $neutral-57;
+}
+
+// The picker in a day header. Rendered only when the ride has subgroups, so on
+// every other ride this rule matches nothing.
+.day-subgroup {
+  font: inherit;
+  font-size: 0.7em;
+  max-width: 7rem;
+  padding: 0.1em 0.2em;
+  border: 1px solid $grey;
+  border-radius: 4px;
+  background: $white;
+  color: $neutral-36;
+}
+
 // --- The roster link ---------------------------------------------------------
 //
 // What is left of the stubbed roster that stood here for one branch: the roster

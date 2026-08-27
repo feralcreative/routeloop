@@ -172,15 +172,33 @@ src/                  TypeScript app (Hono)
   maps/               roles.ts, kml/kmz/gpx/geojson/csv parsers, export.ts,
                       filename.ts (the naming convention), zip.ts (read +
                       write; kmz.ts is its policy layer), ride-graph.ts,
+                      uid.ts (durable identity), alts.ts, track-split.ts,
+                      point-details.ts (the private-details boundary),
+                      compress.ts (the only place brotli is spoken),
                       expand.ts, gmaps-links.ts, twist.ts, storage.ts,
                       slug.ts, palette.ts, turnstile.ts
-  routes/             maps.ts (import), rides.ts (builder), routing.ts (Routes
-                      + Geocoding proxies), admin.tsx (rider approval),
-                      dashboard.tsx, profile.tsx, auth.tsx, pages.tsx
-                      (explore/riders/profiles/legal), import.tsx,
-                      handoff.tsx (navigate), roadbook.tsx
+  access/             Who may see a ride. policy.ts is the ONLY place the
+                      visibility table is written down
+  friends/            Friendships—one row per pair, canonical ordering
+  members/            A ride's roster: invite, RSVP, remove
+  votes/              Voting on a day's alternates, plus the resolve sweep
+  subgroups/          Converge-and-split groups: strands, the timing solve,
+                      and the rendezvous proposer (pure geometry, no router)
+  bikes/              The paddock, plus group-range.ts—the smallest tank
+  trash/              The recycle bin. purge.ts is the only code in the app
+                      that destroys a ride
+  account/            Deletion holds, the archive export, the quota sweep
+  places/ images/     Saved places; the re-encoding image upload path
+  feedback/           Rider reports, the idea board, the private-bug rule
+  routes/             maps.ts (import), builder.ts (the builder API and page),
+                      routing.ts (Routes + Geocoding proxies), home.tsx (the
+                      dashboard at /), admin.tsx (rider approval), auth.tsx,
+                      pages.tsx (explore/riders/profiles/legal), import.tsx,
+                      handoff.tsx (navigate), roadbook.tsx, roster.tsx,
+                      friends.tsx, trash.tsx, rendezvous.ts, settings.tsx
   views/              layout.tsx (chrome shell), splash.tsx (alpha modal),
-                      cards.tsx, esc.ts, assets.ts
+                      cards.tsx, tokens.ts (reads the compiled palette),
+                      esc.ts, assets.ts
 public/
   js/map-common.js    Shared Google engine—ONLY file touching google.maps
   js/viewer.js        Ride viewer
