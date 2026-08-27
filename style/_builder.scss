@@ -831,10 +831,15 @@
     }
   }
 
-  // The visibility select and the click-mode pair, on one line. Everything here
-  // is scaled to 0.85em and padded tighter than a form field would be, because
-  // this row is a pair of settings rather than a pair of questions: it is read
-  // once, set once, and then sat above the work for the rest of the session.
+  // The visibility select and its FAQ link, on one line. Scaled to 0.85em and
+  // padded tighter than a form field would be, because this row is a setting
+  // rather than a question: it is read once, set once, and then sat above the
+  // work for the rest of the session.
+  //
+  // RIDE-LEVEL, WHICH IS WHY IT IS ABOVE THE TAB STRIP and why + Day is no
+  // longer on it — see .day-add below. Visibility governs the whole shareable
+  // package rather than any one of Routes, Groups or Riders, and it is the most
+  // consequential control in the panel, so it is not filed inside a tab.
   //
   // (The `#day-color` rule that used to live here was dead — the color picker
   // is in .day-head and never has been in this row.)
@@ -847,41 +852,42 @@
       font-size: 0.85em;
       padding: 0.3em 0.4em;
     }
+  }
 
-    // Pushed to the right end of the row, which is where the removed + Stop /
-    // + POI pair used to claim the free space. It is the only control on this
-    // row that acts rather than sets, so it gets the end to itself.
-    //
-    // Styled at all, which it was not: this shipped as a bare <button> with no
-    // rule anywhere in the stylesheet, so it rendered as the browser's native
-    // grey chrome beside two custom pills and read as broken. It always worked.
-    // Not a `.btn` — that is a highway sign now, and a sign at 0.85em in a
-    // 380px panel would be the loudest thing on the page.
-    .day-add {
-      margin-left: auto;
-      font: inherit;
-      font-size: 0.85em;
-      padding: 0.3em 0.55em;
-      border: 1px solid $grey;
-      border-radius: 6px;
-      background: $white;
-      color: $text;
-      cursor: pointer;
+  // + DAY, WHICH IS NO LONGER IN .meta-row. It moved to the Routes tab's own
+  // action row when the panel gained tabs — adding a day is about the route and
+  // the meta-row is now ride-level only — so this is a sibling of .meta-row
+  // rather than nested in it. Left nested, the rule would have matched nothing
+  // and the button would have rendered as the browser's native grey chrome,
+  // which is exactly the state the note below records it shipping in once.
+  //
+  // Styled at all, which it was not: this shipped as a bare <button> with no
+  // rule anywhere in the stylesheet and read as broken beside two custom pills.
+  // It always worked. Not a `.btn` — that is a highway sign now, and a sign at
+  // 0.85em in a 380px panel would be the loudest thing on the page.
+  .day-add {
+    font: inherit;
+    font-size: 0.85em;
+    padding: 0.3em 0.55em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: $white;
+    color: $text;
+    cursor: pointer;
 
-      &:hover:not(:disabled) {
-        border-color: $url;
-        color: $url;
-      }
+    &:hover:not(:disabled) {
+      border-color: $url;
+      color: $url;
+    }
 
-      &:focus-visible {
-        outline: 2px solid $accent;
-        outline-offset: 1px;
-      }
+    &:focus-visible {
+      outline: 2px solid $accent;
+      outline-offset: 1px;
+    }
 
-      &:disabled {
-        opacity: 0.4;
-        cursor: default;
-      }
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
   }
 
@@ -2020,29 +2026,11 @@
 //
 // --- Rider subgroups (#67) ---------------------------------------------------
 //
-// Collapsed and empty on a solo ride, which is nearly every ride — the <details>
-// costs one line of panel and nothing else until somebody adds a group.
-.subgroups {
-  margin-top: 0.5rem;
-
-  summary {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    cursor: pointer;
-    color: $neutral-50;
-    font-size: 0.85em;
-  }
-}
-
-.sg-count:not(:empty) {
-  font-size: 0.85em;
-  font-weight: 600;
-  color: $neutral-57;
-  background: $neutral-94;
-  border-radius: 999px;
-  padding: 0 0.5em;
-}
+// THE `.subgroups` BLOCK THAT WAS HERE IS GONE. It styled a <details> that
+// collapsed the group editor on a solo ride; the editor is the Groups tab now
+// and the tab strip does that job. What survives is every row inside it, which
+// did not change — and .sg-count, which moved from the summary to the strip and
+// is shared with .tab-count.
 
 .sg-empty,
 .sg-note {
@@ -2172,19 +2160,6 @@
   color: $neutral-36;
 }
 
-// --- The roster link ---------------------------------------------------------
-//
-// What is left of the stubbed roster that stood here for one branch: the roster
-// is a page now (src/routes/roster.tsx) and this is the way in from the panel.
-.panel-roster {
-  margin: 1.25rem 0 0;
-
-  .btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 // Muted rather than red. It moves the ride to the recycle bin, where it sits for
 // thirty days with a button to undo, so styling it as a danger would overstate
 // what pressing it does. Same reasoning as the dashboard card's Delete.
@@ -2207,4 +2182,243 @@
 .builder-danger-note {
   color: $neutral-57;
   font-size: 0.75em;
+}
+
+// --- The panel's three tabs --------------------------------------------------
+//
+// Routes, Groups and Riders. The panel is 380px of a fixed-height drawer and the
+// day list is the thing it exists to show; before this, a subgroup editor and a
+// roster link sat above it and pushed the day being edited below the fold.
+//
+// STUCK TO THE TOP OF THE SCROLLER, so the strip is reachable from day 9 without
+// scrolling back up. `position: sticky` rather than moving the strip out of
+// .panel-content: the tab panels are its siblings and have to scroll with it, so
+// it belongs to the same scroller.
+//
+// A BOTTOM RULE ACROSS THE WHOLE STRIP with the active tab punching through it.
+// That is what says the panel below belongs to the tab above rather than to the
+// strip as a whole—a pill-shaped selection would read as a segmented control,
+// which is a filter, and these are not filters.
+.panel-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.15rem;
+  margin: 0.75rem 0 0;
+  padding-top: 0.25rem;
+  background: $white;
+  border-bottom: 1px solid $grey;
+}
+
+.panel-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.9em;
+  padding: 0.5em 0.4em;
+  border: 0;
+  // The rule the strip draws, re-drawn per tab so the active one can hide it.
+  // -1px pulls it onto the strip's own border instead of sitting above it.
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: $neutral-50;
+  cursor: pointer;
+
+  &:hover:not(.is-active) {
+    color: $text;
+  }
+
+  &.is-active {
+    color: $text;
+    font-weight: 600;
+    border-bottom-color: $url;
+  }
+
+  // Inside the drawer rather than at its edge, because the default outline is
+  // clipped by the scroller on the first and last tab.
+  &:focus-visible {
+    outline: 2px solid $url;
+    outline-offset: -3px;
+    border-radius: 4px;
+  }
+}
+
+// Shared with .sg-count, which is what this element is on the Groups tab — the
+// same pill saying the same kind of thing, so one rule rather than two that
+// drift.
+.tab-count:not(:empty),
+.sg-count:not(:empty) {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: $neutral-57;
+  background: $neutral-94;
+  border-radius: 999px;
+  padding: 0 0.45em;
+}
+
+// `hidden` does the hiding — see initTabs() in builder.js for why it is the
+// attribute and not a class. This only handles the spacing.
+.panel-tabpanel {
+  padding-top: 0.6rem;
+
+  &[hidden] {
+    display: none;
+  }
+
+  // The panel takes focus when a tab is chosen; it is a scroll container in the
+  // Routes case, so it is genuinely focusable rather than decoratively so.
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+// The row a tab's own actions live on: + Day on Routes, Add a group on Groups,
+// the link out on Riders. Right-aligned, which is where + Day already sat when
+// it was in .meta-row.
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0.5rem 0;
+
+  .day-add,
+  .btn {
+    margin-left: auto;
+  }
+}
+
+// --- The Riders tab ----------------------------------------------------------
+//
+// Filled by renderRiders() in builder.js. Deliberately not a copy of the roster
+// page's .roster-list: this is four facts on one 380px line, and that page has
+// room for a form per row.
+.riders-summary {
+  font-size: 0.85em;
+  color: $neutral-43;
+  margin: 0 0 0.5rem;
+}
+
+.riders-empty,
+.riders-note {
+  color: $neutral-57;
+  font-size: 0.75em;
+  margin: 0.5rem 0;
+
+  &.is-error {
+    color: $stop;
+  }
+}
+
+.riders-fuel {
+  font-size: 0.8em;
+  color: $neutral-43;
+  margin: 0 0 0.6rem;
+
+  &.is-quiet {
+    color: $neutral-57;
+  }
+}
+
+.riders-fuel-gap {
+  color: $neutral-57;
+}
+
+.riders-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+// A grid rather than flex, so the RSVP word and the group picker line up down
+// the column instead of each row placing them wherever its name ran out. The
+// name takes the free space and truncates; nothing else is allowed to.
+.rider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  padding: 0.4rem 0;
+
+  + .rider-row {
+    border-top: 1px solid $neutral-94;
+  }
+}
+
+.rider-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+  min-width: 0;
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rider-tag {
+  flex: none;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $neutral-57;
+}
+
+// THREE STATES SEPARATED BY WEIGHT ON ONE NEUTRAL RAMP, not by hue. The obvious
+// treatment is green / amber / red, and it is wrong twice over: somebody saying
+// they cannot come is not an error, and green and red at 0.75em is the pair
+// dichromatic riders cannot tell apart. The word is the label here — "coming",
+// "maybe", "not coming" — so the color has nothing left to carry and only has to
+// rank them. Every value is one the palette already paints as text on the panel.
+.rider-rsvp {
+  font-size: 0.75em;
+  white-space: nowrap;
+  color: $neutral-50;
+
+  &.is-going {
+    color: $text;
+    font-weight: 600;
+  }
+
+  &.is-declined {
+    color: $neutral-63;
+  }
+}
+
+.rider-bike {
+  grid-column: 1 / -1;
+  font-size: 0.72em;
+  color: $neutral-57;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rider-group {
+  grid-column: 1 / -1;
+  font: inherit;
+  font-size: 0.8em;
+  padding: 0.2em 0.3em;
+  max-width: 100%;
+}
+
+.rider-del {
+  grid-row: 1;
+  grid-column: 3;
+  font: inherit;
+  font-size: 1em;
+  line-height: 1;
+  padding: 0.1em 0.35em;
+  border: 0;
+  background: none;
+  color: $neutral-63;
+  cursor: pointer;
+
+  &:hover {
+    color: $stop;
+  }
 }

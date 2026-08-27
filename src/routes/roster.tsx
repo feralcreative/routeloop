@@ -1,26 +1,33 @@
 // The roster: who is on a ride, what they said, and how they vote.
 //
-// ONE PAGE PER RIDE at /m/:slug/riders, rather than a panel inside the builder.
-// Three reasons, in order of weight: a rider who is NOT the owner has no builder
-// to open and still needs somewhere to RSVP and vote; the builder's panel is
-// already the densest surface in the app; and the roster is about people rather
-// than about the route, which is what every other thing in that panel is.
+// ONE PAGE PER RIDE at /m/:slug/riders, and it is still where every verb lives.
+// The reason has not changed and is not about space: a rider who is NOT the
+// owner has no builder to open and still needs somewhere to RSVP and vote, and
+// most of what is here is a statement BY a rider rather than a decision by the
+// planner.
 //
-// SERVER-RENDERED FORMS, NOT THE JSON API — the same choice /trash and /friends
-// made and for the same reason. Every verb here is one button press with no
-// state to keep in sync, and a redirect back to the page is the interaction.
+// THE BUILDER HAS A RIDERS TAB AS OF 2026-08-26 and it is not a second copy of
+// this page — see the JSON block at the foot of this file. It reads the roster
+// and carries the two verbs that are about the PLAN (which approach a rider is
+// on, and taking somebody off the ride); both call the same service functions
+// the forms below do, so no gate is decided twice.
+//
+// SERVER-RENDERED FORMS for everything on the page itself — the same choice
+// /trash and /friends made and for the same reason. Every verb here is one
+// button press with no state to keep in sync, and a redirect back to the page is
+// the interaction.
 //
 // The rules are src/members/policy.ts and src/votes/policy.ts. Nothing in this
 // file decides whether a verb is allowed; it decides what to show.
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { days as daysTable, rides, rsvpEnum, type RideRow, type Rsvp } from '../db/schema'
-import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { days as daysTable, rides, rsvpEnum, type RideRole, type RideRow, type Rsvp } from '../db/schema'
+import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { canInvite, canRemove, canRsvp, isComing, RSVP_LABELS, type MemberFields } from '../members/policy'
 import { invitableFriends, invite, removeMember, roleOf, roster, setRsvp, type RosterEntry } from '../members/service'
 import { applyTallies, castVote, voteGroups, type VoteGroup } from '../votes/service'
-import { groupRange, setBikeOnRide, type GroupRange } from '../bikes/group-range'
+import { bikesOnRide, groupRange, setBikeOnRide, type GroupRange } from '../bikes/group-range'
 import { listBikes } from '../bikes/service'
 import { bikeLabel } from '../bikes/policy'
 import { assignRider, subgroupsOf } from '../subgroups/service'
@@ -31,6 +38,7 @@ import { fmtDateFull } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
 import { page } from '../views/layout'
+import { ownRide } from './maps'
 
 export const rosterRoutes = new Hono<AuthEnv>()
 
@@ -561,4 +569,119 @@ rosterRoutes.post('/m/:slug/riders/deadline', requireActive, requireSameOrigin, 
   if (closeAt && Number.isNaN(closeAt.getTime())) return c.redirect(back(found.ride.slug, 'refused'), 303)
   await db.update(rides).set({ altVotesCloseAt: closeAt }).where(eq(rides.id, found.ride.id))
   return c.redirect(back(found.ride.slug), 303)
+})
+
+// --- The builder's Riders tab, over JSON ------------------------------------
+//
+// THREE ROUTES, NOT A SECOND ROSTER. The page above is still where a rider
+// RSVPs, picks a bike, is invited and votes — every verb that is a statement by
+// the rider rather than a decision about the plan. What the builder gets is the
+// read, plus the two verbs that ARE about the plan: which approach a rider is
+// on, and taking somebody off the ride.
+//
+// Both writes call the same service functions the forms above call, so
+// src/members/policy.ts and the ride-scoping check on a subgroup id are decided
+// in exactly one place. A JSON arm that re-implemented either gate is the drift
+// this file's header warns about.
+//
+// GATED BY OWNERSHIP RATHER THAN MEMBERSHIP, and keyed by ride id rather than by
+// slug, because these serve the builder and only an owner reaches it — the same
+// gate and the same key as /api/rides/:id/rendezvous. A rider who is on the ride
+// but does not own it has the page.
+
+/** One rider, as the builder's tab draws them. */
+type RiderJson = {
+  riderId: number
+  displayName: string
+  username: string | null
+  role: RideRole
+  rsvp: Rsvp
+  /** The subgroup they are on, by id — `ride_members.subgroup_id`. Null is a
+   *  real state: unassigned, or a ride with no subgroups at all. */
+  subgroupId: number | null
+  bike: string | null
+  canRemove: boolean
+}
+
+rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+
+  const [members, groups, range, riding] = await Promise.all([
+    roster(ride.id),
+    subgroupsOf(ride.id),
+    groupRange(ride.id),
+    bikesOnRide(ride.id),
+  ])
+  const bikeOf = new Map(riding.map((r) => [r.riderId, r.bike ? bikeLabel(r.bike) : null]))
+
+  const riders: RiderJson[] = members.map((m) => ({
+    riderId: m.riderId,
+    displayName: m.displayName,
+    username: m.username,
+    role: m.role,
+    rsvp: m.rsvp,
+    subgroupId: m.subgroupId,
+    bike: bikeOf.get(m.riderId) ?? null,
+    // From the policy rather than from `role !== 'owner'`, which is the same
+    // answer today and stops being one the moment canRemove grows a case. Note
+    // it is false for the owner themselves — a ride with no owner has nobody who
+    // can invite, resolve a vote or delete it.
+    canRemove: canRemove(user.id, 'owner', m),
+  }))
+
+  // BY UID AS WELL AS BY ID. The builder holds subgroups by uid — it mints them
+  // client-side and `reconcileSubgroups` matches on uid — while a member row
+  // points at one by id. The tab's picker is the only place the two meet, so it
+  // needs both, and a group the rider added since the last save appears in
+  // neither list until the autosave lands.
+  return c.json({
+    riders,
+    groups: groups.map((g) => ({ id: g.id, uid: g.uid, name: g.name, color: g.color })),
+    range,
+    coming: members.filter(isComing).length,
+  })
+})
+
+rosterRoutes.post('/api/rides/:id/riders/group', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+
+  const body = (await c.req.json().catch(() => null)) as { rider?: unknown; group?: unknown } | null
+  const rider = Number(body?.rider)
+  // `null` is the answer for "on no approach", and it arrives as JSON null
+  // rather than as the empty string the form arm uses.
+  const groupId = body?.group == null ? null : Number(body.group)
+  if (!Number.isInteger(rider) || (groupId !== null && !Number.isInteger(groupId))) {
+    return c.json({ error: 'bad request' }, 400)
+  }
+  // The same ride-scoping check the form handler makes, and for the same reason:
+  // the FK points at ride_subgroups rather than at THIS ride's rows, so it would
+  // accept an id from somebody else's ride and every reader downstream would
+  // then see a rider on an approach that is not part of their ride.
+  const mine = (await subgroupsOf(ride.id)).some((g) => g.id === groupId)
+  if (groupId !== null && !mine) return c.json({ error: 'unknown group' }, 400)
+  // Only somebody already on the roster: assignRider's UPDATE matches no row
+  // otherwise, which is silent, so the check is here rather than in the service.
+  if (!(await roleOf(ride.id, rider))) return c.json({ error: 'not a member' }, 404)
+
+  await assignRider(ride.id, rider, groupId)
+  return c.json({ ok: true })
+})
+
+rosterRoutes.post('/api/rides/:id/riders/remove', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+
+  const body = (await c.req.json().catch(() => null)) as { rider?: unknown } | null
+  const rider = Number(body?.rider)
+  if (!Number.isInteger(rider)) return c.json({ error: 'bad request' }, 400)
+  // removeMember re-reads the viewer's own row and runs canRemove itself, so the
+  // owner-may-not-remove-themselves rule is enforced once, in policy.ts. A
+  // refusal here is a 403 rather than a 400 because the request was well formed.
+  if (!(await removeMember(ride.id, user.id, rider))) return c.json({ error: 'refused' }, 403)
+  return c.json({ ok: true })
 })
