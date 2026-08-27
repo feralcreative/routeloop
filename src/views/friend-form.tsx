@@ -35,13 +35,15 @@ export function FriendForm({
 
           `.btn-recreation` is the brown field with no arrow — brown is the
           recreational category on a real sign, for places you go to rather than
-          roads you take, and adding a rider is not a direction. See the block in
-          style/_chrome.scss.
+          roads you take, and adding a rider is not a direction. See the
+          flat-field family in style/_chrome.scss.
 
-          Every variant this is called with is a quiet one — Cancel request,
-          Decline, Unblock — and a quiet sign is a contradiction, so a variant
-          keeps the flat treatment. That is also what keeps the pairs readable:
-          Accept is the sign and Decline is not. */}
+          A VARIANT MAY BE A SIGN TOO, and one is: Decline passes
+          `btn-sign btn-regulatory`, the red field, because refusing a request is
+          a regulatory act rather than a quiet one and the pair reads correctly
+          as two signs of two categories — Accept in brown, Decline in red. The
+          rest are genuinely quiet — Cancel request, Unblock — and keep the flat
+          treatment, because those undo something the rider themselves did. */}
       <button class={`btn btn-sm ${variant || 'btn-sign btn-recreation'}`} type="submit">
         {label}
       </button>

@@ -421,22 +421,32 @@ $octagon: polygon(
   0 $octagon-cut
 );
 
-// --- The recreation sign ------------------------------------------------------
+// --- The flat-field signs -----------------------------------------------------
 //
-// Brown field, no arrow. Ziad's call, 2026-08-26, for the friendship verbs —
-// Add friend and Accept, on /riders, /friends and a public profile.
+// A family of three: the same panel as the guide sign above — keyline, radius,
+// shadow, legend treatment — with a different field and no arrow.
 //
-// **BROWN IS A REAL DISTINCTION AND NOT A TINT.** On a US sign, brown is the
-// recreational and cultural-interest category — parks, trailheads, places you go
-// to rather than roads you take. Green is the guide sign: it tells you where a
-// road goes. Adding a rider is not a direction, which is why this one also drops
-// the arrow: a guide sign's whole grammar is "that way", and there is no that
-// way here. The two are the same decision, not two.
+// **THE FIELD IS A REAL DISTINCTION AND NOT A TINT.** On a US sign the color IS
+// the category, so each of these says something the green one cannot:
 //
-// A SIGN, STILL. It keeps the keyline, the radius, the shadow and the legend
-// treatment from the base above — only the field and the arrow change. That is
-// why it is `.btn.btn-sign.btn-recreation` and not a member of $btn-flat: flat
-// would have taken the keyline with it.
+//   .btn-recreation   $recreation, brown. The recreational and cultural class —
+//                     parks, trailheads, places you go TO rather than roads you
+//                     take. The friendship verbs: Add friend, Accept.
+//   .btn-regulatory   $stop, red. The regulatory class, and the rectangular one
+//                     rather than the octagon — WRONG WAY is exactly this panel.
+//                     Decline, which refuses a request rather than destroying
+//                     anything. .btn-stop below is the octagon and is spoken for.
+//   .btn-services     $disabled, blue. Motorist services and the
+//                     accessible-parking symbol. Follow, which is neither a
+//                     direction nor a request: it is unilateral, instant and
+//                     reversible.
+//
+// ALL THREE DROP THE ARROW, and that is the same decision as the field rather
+// than a second one: a guide sign's whole grammar is "that way", and none of
+// these points anywhere.
+//
+// SIGNS, STILL. Which is why they are `.btn.btn-sign.btn-*` and not members of
+// $btn-flat — flat would have taken the keyline with them.
 //
 // `content: none` rather than `display: none` on the arrow. The pseudo-element
 // is a flex item, and `display: none` removes it from the line while leaving the
@@ -448,23 +458,52 @@ $octagon: polygon(
 // 0.35rem so the legend and the arrow are not evenly spaced from the edges — a
 // real sign's legend sits closer to its arrow than to its border. With no arrow
 // that asymmetry has nothing to describe and reads as a centering bug.
-.btn.btn-sign.btn-recreation {
-  background: $recreation;
+@mixin sign-field($field) {
+  background: $field;
   padding: calc(0.75rem + 0.1em) 1.4rem calc(0.75rem - 0.1em);
   gap: 0;
 
   // THE KEYLINE HAS TO BE RESTATED, and forgetting it is the whole trap of this
-  // variant. The base draws the ring as two inset shadows — 3px of the FIELD
+  // family. The base draws the ring as two inset shadows — 3px of the FIELD
   // COLOR, then 2px of white — and it bakes $interstate into the first, so a
   // variant that changes only `background` comes out a brown sign with a green
   // border. It looked like a rendering fault rather than a color choice.
   box-shadow:
-    inset 0 0 0 3px $recreation,
+    inset 0 0 0 3px $field,
     inset 0 0 0 5px $white;
 
   &::before {
     content: none;
   }
+
+  // Lit differently, not a different sign — the same reading the guide sign's
+  // own hover is after, and both inset layers move together for the same reason.
+  //
+  // color-mix rather than a `-d8` token or color.adjust(): every color in this
+  // stylesheet is a `var()` now, so Sass cannot see a value to darken, and only
+  // three of the ten sign fields have a darkened twin generated for them. The
+  // browser does the arithmetic instead, in the same oklab space _palette.scss
+  // derives in.
+  &:hover {
+    $lit: color-mix(in oklab, $field, black 12%);
+
+    background: $lit;
+    box-shadow:
+      inset 0 0 0 3px $lit,
+      inset 0 0 0 5px $white;
+  }
+}
+
+.btn.btn-sign.btn-recreation {
+  @include sign-field($recreation);
+}
+
+.btn.btn-sign.btn-regulatory {
+  @include sign-field($stop);
+}
+
+.btn.btn-sign.btn-services {
+  @include sign-field($disabled);
 }
 
 .btn.btn-sign.btn-stop {

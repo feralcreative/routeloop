@@ -58,9 +58,12 @@ describe('every palette is emitted at all', () => {
   it.each(PALETTE_KEYS)('%s emits real values, never a var()', (key: PaletteKey) => {
     for (const [name, value] of palette(key)) {
       expect(value, `--${name}`).not.toMatch(/var\(/)
-      // A hex, a functional color, or one of the two keywords Sass shortens to.
-      // Anything else is a value that reached the palette without being a color.
-      expect(value, `--${name}`).toMatch(/^(#[0-9a-f]{3,8}|rgba?\(|color-mix\(|black$|white$)/i)
+      // A hex, a functional color, or one of the keywords Sass shortens to —
+      // black and white at the clamped ends of the lightness scale, and `red`,
+      // which the dark schemes' `kml-d10` lands on exactly. Anything else is a
+      // value that reached the palette without being a color, OR a keyword the
+      // reader in src/views/tokens.ts cannot measure. Both are worth the failure.
+      expect(value, `--${name}`).toMatch(/^(#[0-9a-f]{3,8}|rgba?\(|color-mix\(|black$|white$|red$)/i)
     }
   })
 

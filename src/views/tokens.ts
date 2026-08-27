@@ -56,12 +56,19 @@ export type Literal = {
   files: string[]
 }
 
+/** The named colors Sass shortens to in this palette. See channels(). */
+const KEYWORDS = new Map<string, [number, number, number]>([
+  ['black', [0, 0, 0]],
+  ['white', [1, 1, 1]],
+  ['red', [1, 0, 0]],
+])
+
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
-// `black` and `white` are here for the same reason luminance() knows them: Sass
-// writes the shortest form of a color, so a derivation clamped to either end of
-// the lightness scale arrives as a keyword rather than as a hex.
+// The three keywords are here for the same reason luminance() knows them: Sass
+// writes the shortest form of a color, so a derivation that lands exactly on one
+// arrives as a keyword rather than as a hex.
 const isColorValue = (v: string) =>
-  HEX.test(v) || v.startsWith('rgba(') || v.startsWith('rgb(') || v === 'black' || v === 'white'
+  HEX.test(v) || v.startsWith('rgba(') || v.startsWith('rgb(') || KEYWORDS.has(v)
 
 /**
  * Parses `$name: value;` declarations, carrying the comment block above each
@@ -185,14 +192,22 @@ const channel = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) 
 function channels(value: string): [number, number, number] | null {
   const v = value.trim().toLowerCase()
 
-  // The two keywords Sass actually emits. It writes the shortest form of a
-  // color, so a derivation clamped to either end of the lightness scale comes out
-  // as `black` or `white` rather than as a hex — and without these, the tokens
-  // most likely to have been clamped by accident are the ones that cannot be
-  // measured. No general keyword table: every other color in this app is written
-  // as a hex, and a lookup of 148 names would be inviting values that are not.
-  if (v === 'black') return [0, 0, 0]
-  if (v === 'white') return [1, 1, 1]
+  // The keywords Sass actually emits. It writes the shortest form of a color, so
+  // a derivation that lands exactly on a named one comes out as that name rather
+  // than as a hex — and without these, the tokens most likely to have been
+  // clamped by accident are the ones that cannot be measured.
+  //
+  // `black` and `white` are the clamped ends of the lightness scale. `red` is
+  // there since 2026-08-26 and is the reason this is a table rather than two
+  // comparisons: $stop became #cc0000, which sits at exactly 40% HSL lightness,
+  // so the dark schemes' `kml-d10` — a 10% step run the other way — lands on
+  // hsl(0, 100%, 50%), which IS #ff0000, which Sass writes as `red`.
+  //
+  // Still not a general lookup of all 148 names. Each entry is a value this
+  // palette provably emits, checked by the sweep in test/palette-contrast.ts
+  // that refuses anything not matching this set.
+  const named = KEYWORDS.get(v)
+  if (named) return named
 
   const h = expand(v)
   if (HEX.test(h)) {
