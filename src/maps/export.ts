@@ -14,11 +14,12 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import type { PointDetailsOut } from './point-details'
-import { points as pointsTable, days as daysTable, routeLegs } from '../db/schema'
+import { points as pointsTable, days as daysTable, routeLegs, rides, type TimeAnchor } from '../db/schema'
 import { METERS_PER_MILE, type Track } from './kml'
 import { formatRoleName, type Role } from './roles'
 import { activeDays } from './alts'
 import { relegDay } from './track-split'
+import { subgroupsOf } from '../subgroups/service'
 
 export type ExportPoint = {
   lat: number
@@ -579,7 +580,15 @@ export function upgradeNativeRide(file: NativeRide): object {
 // false in exactly the case where the rider did the most work.
 export async function loadNativeRide(
   rideId: number,
-  meta: { title: string; description: string | null; visibility: string; externalUrl: string | null },
+  meta: {
+    title: string
+    description: string | null
+    visibility: string
+    externalUrl: string | null
+    /** Defaulted rather than required, so the two existing callers do not have
+     *  to be changed to pass something every ride already has a value for. */
+    timeAnchor?: TimeAnchor
+  },
   // Private stop details, already resolved for whoever is asking — an empty map
   // for anyone but the owner.
   //
@@ -592,6 +601,15 @@ export async function loadNativeRide(
   details: Map<string, PointDetailsOut> = new Map(),
 ): Promise<NativeRide> {
   const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, rideId)).orderBy(daysTable.position)
+  const groups = await subgroupsOf(rideId)
+  const subgroupUid = new Map(groups.map((g) => [g.id, g.uid]))
+  const [rideRow] = await db
+    .select({ primary: rides.primarySubgroupId, trunk: rides.trunkSubgroupId })
+    .from(rides)
+    .where(eq(rides.id, rideId))
+    .limit(1)
+  const primaryUid = rideRow?.primary ? (subgroupUid.get(rideRow.primary) ?? null) : null
+  const trunkUid = rideRow?.trunk ? (subgroupUid.get(rideRow.trunk) ?? null) : null
 
   const out = []
   for (const r of dayRows) {
@@ -611,6 +629,7 @@ export async function loadNativeRide(
         description: p.description ?? '',
         roles: p.roles,
         durationMin: p.durationMin,
+        slackMin: p.slackMin,
         uid: p.uid,
         ...(d ? { details: d } : {}),
       }
@@ -626,6 +645,9 @@ export async function loadNativeRide(
       // this needs no format-version bump: a v5 file written yesterday has no
       // day uids and ensureUids() fills them in.
       uid: r.uid,
+      // Whose day this is, by uid — see days.subgroup_id. Additive and optional
+      // for the same reason, and null on every file written before #67.
+      subgroupUid: r.subgroupId ? (subgroupUid.get(r.subgroupId) ?? null) : null,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
@@ -661,6 +683,17 @@ export async function loadNativeRide(
       description: meta.description ?? '',
       visibility: meta.visibility,
       external_url: meta.externalUrl ?? '',
+      // THE SUBGROUPS COME ACROSS BUT THE RIDERS DO NOT, and the split is
+      // deliberate. A subgroup is part of the PLAN — the Oakland approach is a
+      // route, and a file that lost it would restore as a pile of unrelated
+      // days. Who is in it is a set of accounts on this installation, which
+      // means nothing in somebody else's file and would be a roster of real
+      // people travelling in an export. `ride_members` is deliberately not
+      // serialized anywhere.
+      subgroups: groups.map((g) => ({ uid: g.uid, name: g.name, color: g.color })),
+      primarySubgroup: primaryUid,
+      trunkSubgroup: trunkUid,
+      timeAnchor: meta.timeAnchor ?? 'departure',
       days: out,
     },
   }

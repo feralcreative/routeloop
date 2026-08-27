@@ -33,6 +33,7 @@ import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
 import { canClone } from '../access/policy'
 import { seedOwner } from '../members/service'
+import { subgroupsOf } from '../subgroups/service'
 import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
@@ -176,6 +177,10 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     })
 
     payloadDays.push({
+      // A clone has no subgroups: the cloner is one person taking a copy, and
+      // the original's approaches are about people who are not on their ride.
+      // The days come across as everyone's, which is what a solo ride is.
+      subgroupUid: null,
       // Fresh, exactly as a cloned point's is and for the same reason one level
       // up: a clone must not inherit the original's votes, and alt_votes is
       // keyed by day uid. Null lets insertRideGraph mint one.
@@ -197,7 +202,9 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // so the rider's own sequence clones intact. Both kinds carry a duration,
       // so a clone keeps the POI dwell too — dropping it would quietly shorten
       // every cloned day.
-      points: pts.map((p) => ({ ...point(p), kind: p.kind, durationMin: p.durationMin })),
+      // slackMin comes across with the dwell: it is a property of the meeting
+      // point the author planned, not of who is riding to it.
+      points: pts.map((p) => ({ ...point(p), kind: p.kind, durationMin: p.durationMin, slackMin: p.slackMin })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
         distanceM: l.distanceM,
@@ -212,6 +219,14 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     description: '',
     visibility: 'private',
     external_url: '',
+    // NO SUBGROUPS ON A CLONE, and therefore no anchors either. A clone is one
+    // person taking a copy of a route; the original's approaches are about
+    // people who are not on their ride, and carrying them over would give the
+    // cloner a converge-and-split shape with nobody in any of the groups.
+    subgroups: [],
+    primarySubgroup: null,
+    trunkSubgroup: null,
+    timeAnchor: 'departure',
     days: payloadDays,
   }
 
@@ -301,6 +316,11 @@ export async function loadRidePayload(ride: RideRow) {
   // already happened, and doing it twice would mean two places to get it wrong.
   const details = await detailsForOwner(ride.id)
   const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position)
+  // BY UID, both here and in the payload the client sends back — ids never
+  // cross the wire, so `days[].subgroupUid` needs the map to be resolvable on
+  // the way out as well as on the way in.
+  const groups = await subgroupsOf(ride.id)
+  const uidOf = new Map(groups.map((g) => [g.id, g.uid]))
   const out = {
     id: ride.id,
     slug: ride.slug,
@@ -309,12 +329,19 @@ export async function loadRidePayload(ride: RideRow) {
     description: ride.description ?? '',
     visibility: ride.visibility,
     external_url: ride.externalUrl ?? '',
+    subgroups: groups.map((g) => ({ uid: g.uid, name: g.name, color: g.color })),
+    primarySubgroup: ride.primarySubgroupId ? (uidOf.get(ride.primarySubgroupId) ?? null) : null,
+    trunkSubgroup: ride.trunkSubgroupId ? (uidOf.get(ride.trunkSubgroupId) ?? null) : null,
+    timeAnchor: ride.timeAnchor,
     days: [] as unknown[],
   }
   for (const r of dayRows) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
     out.days.push({
+      // Out and straight back, like the uid below. Omitting it is how a rider's
+      // whole subgroup assignment survives until they reload and is then gone.
+      subgroupUid: r.subgroupId ? (uidOf.get(r.subgroupId) ?? null) : null,
       // The day's uid, out and straight back on the next save — exactly what
       // the point comment below says about a stop's, and the same failure if it
       // is omitted: the save mints a fresh one, uq_day_ride_uid is satisfied,
@@ -348,6 +375,7 @@ export async function loadRidePayload(ride: RideRow) {
         description: p.description ?? '',
         roles: p.roles,
         durationMin: p.durationMin,
+        slackMin: p.slackMin,
         uid: p.uid,
         details: details.get(p.uid) ?? null,
       })),

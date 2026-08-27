@@ -113,6 +113,9 @@
       description: "",
       roles: [],
       durationMin: null,
+      // Time only a LATE group spends, and meaningful on a meeting point alone
+      // — see points.slack_min. Null is not zero: null is nobody set any.
+      slackMin: null,
       uid: uid(),
       details: null,
     };
@@ -318,6 +321,10 @@
     // `days.uid` in src/db/schema.ts. Votes on an alternate are keyed by it, so
     // a day that loses its uid loses its votes silently.
     uid: uid(),
+    // WHOSE DAY THIS IS, by subgroup uid. Null means everyone rides it, which
+    // is what a new day always is: tagging one is something a rider does to a
+    // day that already exists, the same as grouping it as an alternate.
+    subgroupUid: null,
     // Alternates. A new day is always a plain one — grouping is something a
     // rider does to days that already exist. Both fields DO go in payload() and
     // both come back in loadExisting(); see src/maps/alts.ts for what they mean
@@ -357,7 +364,24 @@
     // day.points.length would be the bottom row, which is always there anyway.
     insertAt: null,
     rideId: window.TB.rideId || null,
-    meta: { title: "", description: "", visibility: "private", external_url: "" },
+    meta: {
+      title: "",
+      description: "",
+      visibility: "private",
+      external_url: "",
+      // SUBGROUPS ARE RIDE-LEVEL — several days reference one and a rider is
+      // assigned to one across the whole ride. Each is {uid, name, color}; the
+      // uid is minted here and is what days reference, because the server's ids
+      // do not exist until the first save. Mirror of ride_subgroups.
+      subgroups: [],
+      // Whose clock is pinned, and whose route is the spine — two keys although
+      // the panel asks once. See rides.primary_subgroup_id for why they come
+      // apart. Both are subgroup uids or null.
+      primarySubgroup: null,
+      trunkSubgroup: null,
+      // Which event is pinned: "departure", "meet" or "arrival".
+      timeAnchor: "departure",
+    },
     days: [newDay()],
     // The active day, as a plain index into state.days. It is where a map click
     // puts a stop and which day the map emphasizes; it is NOT a filter, because
@@ -4011,6 +4035,10 @@
       description: state.meta.description,
       visibility: state.meta.visibility,
       external_url: state.meta.external_url,
+      subgroups: state.meta.subgroups,
+      primarySubgroup: state.meta.primarySubgroup,
+      trunkSubgroup: state.meta.trunkSubgroup,
+      timeAnchor: state.meta.timeAnchor,
       // The API requires at least one stop per day, so a day you added but
       // never filled in would fail validation for the whole ride. Dropping it
       // is what the rider means; save() warns when it happens.
@@ -4018,6 +4046,7 @@
         .filter((r) => r.points.length > 0)
         .map((r) => ({
           uid: r.uid,
+          subgroupUid: r.subgroupUid,
           title: r.title,
           color: r.color,
           startAt: r.startAt,
@@ -4126,6 +4155,15 @@
       description: ride.description,
       visibility: ride.visibility,
       external_url: ride.external_url,
+      // The other half of payload()'s round-trip. Omitting any of these is how
+      // a rider's whole subgroup setup works perfectly until they reload and is
+      // then silently gone — the same trap the altGroup comment below names,
+      // and worse here because the days keep their tags while the subgroups
+      // they name stop existing.
+      subgroups: ride.subgroups || [],
+      primarySubgroup: ride.primarySubgroup ?? null,
+      trunkSubgroup: ride.trunkSubgroup ?? null,
+      timeAnchor: ride.timeAnchor || "departure",
     };
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
@@ -4135,6 +4173,10 @@
       // a day carrying undefined here would send undefined straight back and
       // churn its uid on every save, losing its votes each time.
       uid: r.uid || uid(),
+      // `?? null` rather than `|| null` for symmetry with altGroup below —
+      // there is no falsy uid, but the two fields are read the same way and one
+      // of them written differently is a thing somebody has to check.
+      subgroupUid: r.subgroupUid ?? null,
       title: r.title || "",
       color: r.color || DAY_COLORS[i % DAY_COLORS.length],
       startAt: r.startAt || null,
