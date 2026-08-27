@@ -117,6 +117,8 @@ Four terms, all measured in miles-equivalent so the weights are readable rather 
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.
 
+**And GeoJSON is not made an exception, 2026-08-27.** Measured while building the fidelity matrix: none of the four lossy formats writes a day's start or end time, and GeoJSON is the one that could—it carries arbitrary `properties` and already writes distance, twistiness and color there. It still does not, so the four agree and the filename stays the single place a date travels. Teaching one format its own schedule would make a ride's date depend on which format it was exported as, and a rider who renamed the file would get their dates back from a GeoJSON and lose them from a GPX. `test/fidelity.test.ts` asserts the row rather than describing it.
+
 ## Turnstile, and why it is off
 
 Cloudflare Turnstile guards uploads and saves but is feature-flagged off until keys are set, so an unconfigured environment is not silently unprotected-looking-protected. Cloudflare **Access** was removed from the codebase entirely on 2026-07-30—it is billed per seat and could not survive open signups. The Access _policy_ still exists at the Cloudflare edge and is pure redundancy; the app has not read the header it injects since that date.
