@@ -2,8 +2,22 @@
 #
 # This file is transferred to the NAS as docker-compose.yml by
 # utils/deploy/deploy.sh, which also writes the .env beside it that supplies
-# every ${VAR} below. It is deliberately separate from the root
-# docker-compose.yml, which is local-dev-only (Postgres alone).
+# every ${VAR} below.
+#
+# **THAT .env IS SUBSTITUTION ONLY, AND IT IS NOT THE CONTAINER'S ENVIRONMENT.**
+# Compose reads it to expand `${VAR}` in THIS file and nowhere else — a variable
+# written into it that no line below references is read by nothing and reaches
+# no process. There is no `env_file:` here on purpose, because the allow-list in
+# deploy.sh plus an explicit line here is two places a secret has to be named
+# before it ships, and that is the property worth keeping.
+#
+# So a new key needs BOTH: the allow-list in deploy.sh, and a line in the
+# `environment:` block below. Missing the second is silent — the container
+# starts, passes its healthcheck, and the app sees an unset variable. That is
+# exactly how every deployed build reported its version as `dev` for three days.
+#
+# It is deliberately separate from the root docker-compose.yml, which is
+# local-dev-only (Postgres alone).
 #
 # cloudflared runs natively on the Synology host, so the app is published on
 # 127.0.0.1 only — the tunnel reaches it at http://localhost:${HOST_PORT}
@@ -50,6 +64,13 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       MAIL_FROM: ${MAIL_FROM}
+      # WHAT BUILD THIS IS. Both were missing until 2026-08-26 and every deployed
+      # environment reported itself as `dev`, because src/version.ts falls back to
+      # that when APP_VERSION is empty — see the header of this file for why being
+      # on deploy.sh's allow-list was not enough on its own. BUILD_SHA went the
+      # same way, so every feedback report named no commit.
+      APP_VERSION: ${APP_VERSION}
+      BUILD_SHA: ${BUILD_SHA}
     ports:
       - "127.0.0.1:${HOST_PORT}:6686"
       - "127.0.0.1:${ALIAS_HOST_PORT}:6686"

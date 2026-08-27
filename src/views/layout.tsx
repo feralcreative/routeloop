@@ -623,12 +623,15 @@ function feedbackFab(area?: string): string {
     <div class="fab-dock" data-fab-dock>
       {/* Before the launcher in the DOM so it opens UPWARD in the tab order as
           well as visually — a menu that reads after the button that opened it
-          is what a keyboard expects. */}
+          is what a keyboard expects.
+
+          WHAT'S NEW IS FIRST, and the bug report is under it. .fab-menu is a
+          plain `column`, so this order is the visual one top to bottom. The bug
+          led for as long as the menu was a feedback control that had picked up a
+          second item; it reads better the other way round, because the notes are
+          the thing a rider opens on purpose and the bug is the thing they reach
+          for when something has already gone wrong. */}
       <div class="fab-menu" id="fab-menu" hidden>
-        <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
-          <span class="fab-item-mark fab-item-mark--bug">{raw(icon('bug'))}</span>
-          <span class="fab-item-label">Something wrong?</span>
-        </a>
         <button type="button" class="fab-item" data-open-notes data-fab-notes>
           <span class="fab-item-mark fab-item-mark--notes">{raw(icon('info'))}</span>
           <span class="fab-item-label">
@@ -639,6 +642,10 @@ function feedbackFab(area?: string): string {
             <span class="fab-item-sub">{APP_VERSION}</span>
           </span>
         </button>
+        <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
+          <span class="fab-item-mark fab-item-mark--bug">{raw(icon('bug'))}</span>
+          <span class="fab-item-label">Something wrong?</span>
+        </a>
       </div>
       <button
         type="button"

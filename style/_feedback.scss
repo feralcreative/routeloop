@@ -672,10 +672,21 @@ $fb-line: palette.light("neutral-88");
   color: $stop;
 }
 
-// Not a second red disc: one alarm-colored mark in a two-item menu is what
-// makes the bug easy to find, and two would make it harder.
+// GUIDE-SIGN GREEN, WHICH IS $interstate AND NOT $go. These marks are a field in
+// currentColor with the glyph knocked out in WHITE, so the field has to be one
+// that carries a white legend — $go is the traffic signal, takes black ink, and
+// sits at 3.8:1 behind white. $interstate is the green a guide sign is actually
+// painted, clears 4.5:1 under white, and is already what .fab-launcher paints
+// the shield, so the row and the button that opened it read as one thing.
+//
+// Still not a second alarm-colored disc, which is the rule this replaces rather
+// than breaks: one red mark in a two-item menu is what makes the bug easy to
+// find, and two reds would make it harder. Green against red is also the pair
+// dichromacy flattens, so note what carries the distinction here instead — two
+// different glyphs and two text labels. The color is never the only cue, and
+// under the colorblind palette both tokens shift to blues by design.
 .fab-item-mark--notes {
-  color: $neutral-43;
+  color: $interstate;
 }
 
 .fab-item-label {
