@@ -22,6 +22,7 @@ import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { startQuotaSweep } from './account/quota-sweep'
 import { startAccountPurge } from './account/purge'
 import { startTrashPurge } from './trash/purge'
+import { startVoteResolver } from './votes/resolve'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
@@ -32,6 +33,7 @@ import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { friendRoutes } from './routes/friends'
+import { rosterRoutes } from './routes/roster'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
@@ -174,6 +176,7 @@ app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
+app.route('/', rosterRoutes)
 app.route('/', friendRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
@@ -194,11 +197,16 @@ app.get('/m/:slug', async (c) => {
   // friend, and being a friend is a lookup. grantsFor short-circuits to nothing
   // on a public ride, which is every ride this button has ever appeared on, so
   // the common path costs no query.
-  const clonable = canClone(m, viewer, await grantsFor(m, viewer))
+  const grants = await grantsFor(m, viewer)
+  const clonable = canClone(m, viewer, grants)
+  // Whether to offer the roster. `grants.isMember` is false for the owner —
+  // grantsFor short-circuits on them — so the owner is added back explicitly
+  // rather than by making grantsFor answer a question it was not asked.
+  const onRoster = Boolean(viewer && (viewer.id === m.ownerId || grants.isMember))
   // One shell for both sources. ride.json has served them identically since the
   // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
-  return c.html(viewHtml(m, viewer, clonable))
+  return c.html(viewHtml(m, viewer, clonable, onRoster))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -542,7 +550,13 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 // `timeline` is opt-in rather than default because the legacy shell's main.js
 // knows nothing about it — rendering the control there would give an imported
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
-function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false, signedIn = false): string {
+function viewerPanel(
+  m: RideRow,
+  editUrl: string | null = null,
+  clonable = false,
+  signedIn = false,
+  rosterUrl: string | null = null,
+): string {
   return panelShell({
     title: m.title,
     contents: (
@@ -568,6 +582,17 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
               Clone this ride
             </button>
           )}
+          {/*
+            Members only, and rendered as nothing for everyone else rather than
+            as a disabled control — the same rule the Edit link above follows.
+            Who is coming on a ride is a fact about people; a share link is
+            permission to see a route, not to see the roster.
+          */}
+          {rosterUrl && (
+            <a class="panel-roster-link" href={rosterUrl}>
+              Riders and the vote
+            </a>
+          )}
         </div>
         {/*
           The timeline used to sit here, between the details and the day table.
@@ -591,7 +616,7 @@ function viewerPanel(m: RideRow, editUrl: string | null = null, clonable = false
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
 // The viewer shell, for every ride regardless of source.
-function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean): string {
+function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster: boolean): string {
   return page({
     title: m.title,
     user,
@@ -604,6 +629,7 @@ function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean): string {
       canEditRide(m, user) ? `/builder/${m.id}` : null,
       clonable,
       Boolean(user),
+      onRoster ? `/m/${m.slug}/riders` : null,
     )}\n\n  ${rideTimeline()}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
@@ -637,6 +663,10 @@ startQuotaSweep()
 // The bin, hourly rather than every five minutes: this enforces a thirty-day
 // deadline, so an hour of slack is invisible. See src/trash/purge.ts.
 startTrashPurge()
+// Elects each alternate group's leader on rides whose vote has closed. A ride
+// with no deadline is never selected, which is every ride until an owner sets
+// one — see src/votes/resolve.ts.
+startVoteResolver()
 // The account purge, which does nothing unless PURGE_ACCOUNTS is set. It is the
 // only job here that destroys a person's account, and it had no runner at all
 // until now — /account/delete promised a date and nothing kept it.

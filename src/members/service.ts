@@ -12,6 +12,13 @@ import { rideMembers, rides, users, type RideRole, type Rsvp } from '../db/schem
 import { areFriends, pairOf } from '../friends/policy'
 import { friendships } from '../db/schema'
 import { canInvite, canRemove, canRsvp, MAX_MEMBERS, type MemberFields } from './policy'
+import type { Tx } from '../maps/ride-graph'
+
+/** The db or a transaction on it. seedOwner is called from inside the same
+ *  transaction that inserts the ride at every real call site — a ride that
+ *  exists with nobody on its roster, even for a moment, is a state no reader
+ *  should have to allow for — and from the seed script, which has none. */
+type Writer = Tx | typeof db
 
 /** The viewer's role on this ride, or null if they are not on it. The one
  *  question every gate in this file starts from. */
@@ -33,8 +40,8 @@ export async function roleOf(rideId: number, viewerId: number | null): Promise<R
  * ride whose owner is not a member forces every reader to ask about `ownerId`
  * separately, and the reader that forgets shows a ride nobody is on.
  */
-export async function seedOwner(rideId: number, ownerId: number): Promise<void> {
-  await db
+export async function seedOwner(w: Writer, rideId: number, ownerId: number): Promise<void> {
+  await w
     .insert(rideMembers)
     .values({ rideId, riderId: ownerId, role: 'owner', rsvp: 'going' })
     .onConflictDoNothing({ target: [rideMembers.rideId, rideMembers.riderId] })

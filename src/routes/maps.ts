@@ -17,6 +17,7 @@ import { db } from '../db/index'
 import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { newUid } from '../maps/uid'
+import { seedOwner } from '../members/service'
 import {
   FORMAT_INFO,
   GPX_MAX_BYTES,
@@ -283,6 +284,7 @@ mapsRoutes.post(
             })
             .returning()
           await insertRideGraph(tx, ride.id, payload)
+          await seedOwner(tx, ride.id, user.id)
           return ride
         })
         console.log(`[import] user ${user.id} restored native ride ${created.id} (${created.visibility})`)
@@ -498,6 +500,8 @@ mapsRoutes.post(
             stopCount,
           })
           .returning()
+
+        await seedOwner(tx, ride.id, user.id)
 
         // One day per file, in the order they were given. A single upload is
         // the same code path with one day in the list.

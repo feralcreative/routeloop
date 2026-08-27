@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { access, readFile } from 'node:fs/promises'
 import { newUid } from '../maps/uid'
+import { seedOwner } from '../members/service'
 import { sql } from 'drizzle-orm'
 import { db } from './index'
 import { users, rides, days, points, routeLegs } from './schema'
@@ -107,6 +108,8 @@ async function main() {
       gpxBytes: 247907,
     })
     .returning()
+
+  await seedOwner(db, ride.id, u.id)
 
   const [route] = await db
     .insert(days)

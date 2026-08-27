@@ -32,6 +32,7 @@ import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canEditRide, ownRide } from './maps'
 import { canClone } from '../access/policy'
+import { seedOwner } from '../members/service'
 import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
@@ -100,6 +101,9 @@ builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit,
       })
       .returning()
     await insertRideGraph(tx, ride.id, p)
+    // In the SAME transaction as the ride, so a ride never exists with an empty
+    // roster — see seedOwner.
+    await seedOwner(tx, ride.id, user.id)
     return ride
   })
   console.log(`[rides] user ${user.id} created ride ${created.id} (${created.stopCount} stops)`)
@@ -226,6 +230,10 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       })
       .returning()
     await insertRideGraph(tx, ride.id, p)
+    // The CLONER's roster, not the original's. A clone is a new ride owned by
+    // whoever took it, and copying the source's members would put a stranger on
+    // a ride they were never invited to.
+    await seedOwner(tx, ride.id, user.id)
     return ride
   })
 
@@ -418,7 +426,7 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // cannot drift into offering an action that is then refused. It no longer
   // refuses an imported ride — see canEditRide in ./maps.
   if (!canEditRide(ride, user)) return c.text('Not found', 404)
-  return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id)))
+  return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id), ride.slug))
 })
 
 function builderHtml(
@@ -426,6 +434,9 @@ function builderHtml(
   user: UserRow,
   home: { lat: number; lng: number } | null,
   prefs: BuilderPrefs,
+  // The ride's slug, for the roster link. Null on a new ride, which has no
+  // roster to link to — and no ride, so nothing to be on.
+  slug: string | null = null,
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
@@ -511,44 +522,17 @@ function builderHtml(
 
         <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
 ${
-  // THE ROSTER, STUBBED. Ziad's call, 2026-08-26: ride membership ships as
-  // schema and nothing else this round — `ride_members` exists and canView()
-  // already honours it, but no code path creates a row, so the controls that
-  // would are here as disabled markup announcing themselves.
+  // THE ROSTER IS A PAGE NOW, not a panel and not a stub. It replaced the inert
+  // markup that stood here for one branch — see src/routes/roster.tsx for why it
+  // is its own page rather than living in here: a rider who is not the owner has
+  // no builder to open and still has to RSVP and vote somewhere.
   //
-  // A DEAD CONTROL RATHER THAN NO CONTROL, deliberately, and it is the opposite
-  // of what viewerPanel does two files over — that one renders nothing where
-  // there is no action, on the argument that a disabled button offers something
-  // it cannot give. The difference is what the absence would say. Edit is
-  // missing there because the viewer genuinely may not edit, and telling them
-  // so is the answer. Here the feature is coming for everyone, and an empty
-  // space says the app has no idea who is on a ride rather than "not yet".
-  //
-  // Closed by default, so it costs a rider who does not care nothing but a line.
-  // Everything inside is inert: no form action, no name attributes, and
-  // `disabled` on every control, so nothing here can be submitted even by hand.
-  //
-  // WHEN MEMBERSHIP LANDS this whole block is replaced, not un-disabled. The
-  // shapes below are a sketch of the intent and not a contract.
-  rideId
-    ? `        <details class="roster-stub">
-          <summary>Riders <span class="soon-tag">Coming soon</span></summary>
-          <p class="roster-note">Invite the people you are actually riding with, see who is in, and share the plan with them whatever its visibility is set to. Not yet—this is what it will&nbsp;look&nbsp;like.</p>
-          <div class="roster-row">
-            <select disabled aria-label="Invite a friend">
-              <option>Invite a friend…</option>
-            </select>
-            <button type="button" class="btn btn-sm" disabled>Invite</button>
-          </div>
-          <ul class="roster-list">
-            <li>
-              <span class="roster-who">You<span class="roster-role">Owner</span></span>
-              <select disabled aria-label="Your RSVP">
-                <option>Going</option>
-              </select>
-            </li>
-          </ul>
-        </details>`
+  // Owner-only in this panel because only the owner reaches the builder at all.
+  // Everyone else arrives at the same page from the viewer.
+  rideId && slug
+    ? `        <div class="panel-roster">
+          <a class="btn btn-sm btn-quiet" href="/m/${slug}/riders">Riders and the vote</a>
+        </div>`
     : ''
 }
 ${
