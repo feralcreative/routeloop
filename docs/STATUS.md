@@ -30,7 +30,16 @@ Rewritten 2026-08-26. The version this replaced still described `fix/map-mechani
 
 ### 1. The database
 
-**Migrations 0002 through 0017 have run on the development machine ONLY.** Stage and production have seen none of them. `npm run dev` applies whatever is outstanding through `predev`, so a second development machine catches up by itself the first time it starts the server—but take a `db-backup` before pointing anything at a database you care about.
+**Measured 2026-08-27, because this paragraph was wrong for weeks.** It read *"stage and production have seen none of them"*, and production had in fact recorded nineteen. Do not trust a written claim about which migrations an environment has—ask it:
+
+```bash
+DEPLOY_ENV=prod utils/deploy/deploy-utils.sh schema-state
+```
+
+- **Production is current and healthy:** 26 tables, 19 migrations recorded, 6 users and 10 rides. Nothing outstanding.
+- **Stage was a STALE ADOPTED VOLUME**, not a database that was merely behind: 7 tables including `routes`—the name replaced by `days` on 2026-08-09—with 0 migrations recorded and **0 rows in every table**. Its schemas were dropped on 2026-08-27 and it rebuilds from `0000` on the next deploy. **Baselining it would have been the damaging move**, recording all 19 as applied against a schema missing most of them; that is why `schema-state` exists and why the deploy's failure message now tells you to look before choosing a fix.
+
+`npm run dev` applies whatever is outstanding through `predev`, so a second development machine catches up by itself the first time it starts the server—but take a `db-backup` before pointing anything at a database you care about.
 
 Four of those carry more than a schema change, and none of the four is repeatable by re-running the migration:
 

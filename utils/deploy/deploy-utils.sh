@@ -109,6 +109,47 @@ cmd_migrate() {
     "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose run --rm --no-deps -T migrate"
   log_success "Migrations applied"
 }
+# What shape is this database actually in?
+#
+# EXISTS BECAUSE THE THREE WAYS `migrate` FAILS LOOK IDENTICAL FROM THE DEPLOY
+# LOG AND TWO OF THEM HAVE OPPOSITE FIXES. A stale adopted volume and a genuine
+# pre-drizzle database both present as "migrate tried to create a table that
+# already exists"; baselining is right for the second and destroys the first,
+# because it records every later migration as applied against a schema that
+# never got them. The difference is visible in ten seconds — is the table list
+# COMPLETE, and are there any rows — and invisible in the error.
+#
+# Observed on stage 2026-08-27: 7 tables including `routes`, the name `days`
+# replaced on 2026-08-09, 0 migrations recorded and 0 rows anywhere. Prod on the
+# same host was 26 tables and 19 migrations. Read-only; safe to run anywhere.
+cmd_schema_state() {
+  check_ssh_key
+  log_info "Schema state for ${DEPLOY_ENV} (${DB_CONTAINER_NAME}):"
+  $(get_ssh_cmd) "$NAS_SSH_HOST" \
+    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} psql -U routeloop -d routeloop -At -c \"
+      select 'tables=' || count(*) from information_schema.tables where table_schema = 'public';
+      -- Guarded with to_regclass because a wiped or never-migrated database has
+      -- no drizzle schema at all, and psql runs a multi-statement -c as ONE
+      -- transaction: an undefined-relation error there aborts every query
+      -- after it, so the interesting half of this report would never print.
+      -- CASE short-circuits, and query_to_xml takes its query as a runtime
+      -- string, so nothing plans a table that does not exist.
+      select 'migrations_recorded=' || case
+        when to_regclass('drizzle.__drizzle_migrations') is null then 'none (no drizzle schema)'
+        else (xpath('/row/c/text()', query_to_xml('select count(*) as c from drizzle.__drizzle_migrations', false, true, '')))[1]::text
+      end;
+      select string_agg(table_name, ' ' order by table_name) from information_schema.tables where table_schema = 'public';
+      -- Exact counts per table, so 'stale but empty' is distinguishable from
+      -- 'behind and full'. query_to_xml is the standard way to count a table
+      -- whose name is only known at runtime without writing a DO block.
+      select coalesce(string_agg(t.table_name || '=' || t.n, ' ' order by t.n desc, t.table_name), '(no tables)')
+        from (
+          select table_name,
+                 (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text::bigint as n
+            from information_schema.tables where table_schema = 'public'
+        ) t;
+    \"" 2>&1 || log_warning "Could not read the schema — is the database container up?"
+}
 # One-time, for a database created before drizzle/ existed. Records the
 # migrations as applied without running them. See docs/database.md.
 cmd_db_baseline() {
@@ -345,6 +386,7 @@ Commands:
   shell        Shell into the app container
   psql         Open psql against the app database
   migrate      Apply pending Drizzle migrations (drizzle-kit migrate)
+  schema-state Table list, row counts and migrations recorded — read-only
   db-baseline  Record migrations as applied WITHOUT running them — one-time,
                for a database created before drizzle/ existed
   db-backup    Dump Postgres to ./<container>-db-<ts>.sql.gz
@@ -397,6 +439,7 @@ case "${1:-help}" in
   shell)      cmd_shell ;;
   psql)       cmd_psql ;;
   migrate)     cmd_migrate ;;
+  schema-state) cmd_schema_state ;;
   db-baseline) cmd_db_baseline ;;
   db-backup)  cmd_db_backup ;;
   backup)     cmd_backup ;;
