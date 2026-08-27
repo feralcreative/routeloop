@@ -421,6 +421,52 @@ $octagon: polygon(
   0 $octagon-cut
 );
 
+// --- The recreation sign ------------------------------------------------------
+//
+// Brown field, no arrow. Ziad's call, 2026-08-26, for the friendship verbs —
+// Add friend and Accept, on /riders, /friends and a public profile.
+//
+// **BROWN IS A REAL DISTINCTION AND NOT A TINT.** On a US sign, brown is the
+// recreational and cultural-interest category — parks, trailheads, places you go
+// to rather than roads you take. Green is the guide sign: it tells you where a
+// road goes. Adding a rider is not a direction, which is why this one also drops
+// the arrow: a guide sign's whole grammar is "that way", and there is no that
+// way here. The two are the same decision, not two.
+//
+// A SIGN, STILL. It keeps the keyline, the radius, the shadow and the legend
+// treatment from the base above — only the field and the arrow change. That is
+// why it is `.btn.btn-sign.btn-recreation` and not a member of $btn-flat: flat
+// would have taken the keyline with it.
+//
+// `content: none` rather than `display: none` on the arrow. The pseudo-element
+// is a flex item, and `display: none` removes it from the line while leaving the
+// rule that sizes it in place for anything that later re-shows it; `none`
+// content means the box is never generated at all, which is the honest way to
+// say a variant has no arrow.
+//
+// The padding goes symmetric with it. The base tightens the arrow's side by
+// 0.35rem so the legend and the arrow are not evenly spaced from the edges — a
+// real sign's legend sits closer to its arrow than to its border. With no arrow
+// that asymmetry has nothing to describe and reads as a centering bug.
+.btn.btn-sign.btn-recreation {
+  background: $recreation;
+  padding: calc(0.75rem + 0.1em) 1.4rem calc(0.75rem - 0.1em);
+  gap: 0;
+
+  // THE KEYLINE HAS TO BE RESTATED, and forgetting it is the whole trap of this
+  // variant. The base draws the ring as two inset shadows — 3px of the FIELD
+  // COLOR, then 2px of white — and it bakes $interstate into the first, so a
+  // variant that changes only `background` comes out a brown sign with a green
+  // border. It looked like a rendering fault rather than a color choice.
+  box-shadow:
+    inset 0 0 0 3px $recreation,
+    inset 0 0 0 5px $white;
+
+  &::before {
+    content: none;
+  }
+}
+
 .btn.btn-sign.btn-stop {
   position: relative;
   z-index: 0;

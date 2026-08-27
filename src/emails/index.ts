@@ -11,6 +11,8 @@
 // (the signup notifications live in src/auth/notify.ts for exactly that reason).
 import { approvedEmail } from './approved'
 import { feedbackStatusEmail } from './feedback-status'
+import { friendAcceptedEmail } from './friend-accepted'
+import { friendRequestEmail } from './friend-request'
 import { inviteEmail } from './invite'
 import { magicLinkEmail } from './magic-link'
 import { ownerFeedbackEmail } from './owner-feedback'
@@ -26,11 +28,15 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   ownerFeedbackEmail,
   feedbackStatusEmail,
   inviteEmail,
+  friendRequestEmail,
+  friendAcceptedEmail,
 ]
 
 export {
   approvedEmail,
   feedbackStatusEmail,
+  friendAcceptedEmail,
+  friendRequestEmail,
   inviteEmail,
   magicLinkEmail,
   ownerFeedbackEmail,
