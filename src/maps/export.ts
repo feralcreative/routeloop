@@ -617,6 +617,15 @@ export async function loadNativeRide(
     }
 
     out.push({
+      // The day's uid rides along for the same reason a point's does above:
+      // this is the format that promises to lose nothing, and a re-import that
+      // minted fresh ones would silently drop every vote cast on an alternate.
+      // Not sensitive — nothing is authorized by knowing one.
+      //
+      // Additive and optional on the way back in, exactly as a point's is, so
+      // this needs no format-version bump: a v5 file written yesterday has no
+      // day uids and ensureUids() fills them in.
+      uid: r.uid,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,

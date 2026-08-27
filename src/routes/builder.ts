@@ -307,6 +307,12 @@ export async function loadRidePayload(ride: RideRow) {
     const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
     const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
     out.days.push({
+      // The day's uid, out and straight back on the next save — exactly what
+      // the point comment below says about a stop's, and the same failure if it
+      // is omitted: the save mints a fresh one, uq_day_ride_uid is satisfied,
+      // and every vote cast on that alternate is reconciled away as belonging
+      // to a day that no longer exists. Nothing would raise anything.
+      uid: r.uid,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,

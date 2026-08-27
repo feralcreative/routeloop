@@ -313,6 +313,11 @@
     endAt: null,
     // Session-only: see inferEndManual(). Never part of payload().
     endManual: false,
+    // The day's durable identity, minted here the way a point's is. It DOES go
+    // in payload() and it DOES come back in loadExisting(); mirror of
+    // `days.uid` in src/db/schema.ts. Votes on an alternate are keyed by it, so
+    // a day that loses its uid loses its votes silently.
+    uid: uid(),
     // Alternates. A new day is always a plain one — grouping is something a
     // rider does to days that already exist. Both fields DO go in payload() and
     // both come back in loadExisting(); see src/maps/alts.ts for what they mean
@@ -1734,6 +1739,9 @@
       state.days.splice(r + 1, 0, {
         ...src,
         title: src.title ? src.title + " (copy)" : "",
+        // A FRESH uid, or the spread above copies the original's and the save
+        // fails uq_day_ride_uid — the same reason a duplicated point gets one.
+        uid: uid(),
         altGroup: null,
         altActive: true,
         points: src.points.map((pt) => ({ ...pt, roles: (pt.roles || []).slice() })),
@@ -1858,6 +1866,10 @@
     const copy = {
       ...src,
       title: src.title ? src.title + " (copy)" : "",
+      // A FRESH uid, for the same reason the multi-day duplicate above mints
+      // one: the spread would otherwise carry the original's and the save would
+      // fail uq_day_ride_uid.
+      uid: uid(),
       // The copy is NOT part of its original's group. A duplicate of one
       // alternate would otherwise silently become a third member of a group the
       // rider has not been asked about.
@@ -4005,6 +4017,7 @@
       days: state.days
         .filter((r) => r.points.length > 0)
         .map((r) => ({
+          uid: r.uid,
           title: r.title,
           color: r.color,
           startAt: r.startAt,
@@ -4117,6 +4130,11 @@
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
     state.days = (ride.days || []).map((r, i) => ({
+      // `|| uid()` rather than assuming one is there: a ride saved before this
+      // shipped has none in flight, and the server repairs a null anyway — but
+      // a day carrying undefined here would send undefined straight back and
+      // churn its uid on every save, losing its votes each time.
+      uid: r.uid || uid(),
       title: r.title || "",
       color: r.color || DAY_COLORS[i % DAY_COLORS.length],
       startAt: r.startAt || null,
