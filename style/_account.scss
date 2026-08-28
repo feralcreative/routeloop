@@ -17,11 +17,64 @@
   }
 }
 
-// In the two-column grid the gap does the spacing. The stacked margin would add
-// to it, and only on the cells that are not in the first row, so the two columns
-// would start at different heights.
-.two-col > .setting {
+// In a grid the gap does the spacing. The stacked margin would add to it, and
+// only on the cells that are not in the first row, so the columns would start at
+// different heights.
+.two-col > .setting,
+.three-col > .setting {
   margin-top: 0;
+}
+
+// A settings column inside a topic row. The flex column plus the auto margin on
+// the actions is what lands every Save button on one line however many options
+// the group above it has — Distances offers two where the other two offer three,
+// and without this its button floats a row higher than its neighbors'.
+.three-col > .setting {
+  display: flex;
+  flex-direction: column;
+
+  .setting-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .setting-actions {
+    margin-top: auto;
+  }
+}
+
+// A TOPIC: a heading, a sentence, and a row of related settings under it (#178).
+//
+// The page was four peer sections in a two-column grid and read as a ragged
+// list. It is two topics now — Appearance, and How things read — each a
+// full-width block whose settings sit in a `.three-col` row. The topic owns the
+// vertical rhythm; the settings inside it own none, which is what keeps the rows
+// aligned.
+//
+// Its own measure cap rather than `.setting`'s 60ch, and only on the prose: the
+// intro sentence wants the same reading width every other explanation here has,
+// while the row of settings underneath must span the full width or the columns
+// have nowhere to go.
+.setting-topic {
+  margin-top: 3rem;
+
+  > h2 {
+    margin-bottom: 0.35rem;
+  }
+
+  > p {
+    max-width: 60ch;
+    margin-top: 0;
+  }
+
+  // The settings inside a topic are subordinate to it, so their headings step
+  // down. Sized between the topic's h2 and body text — it is a label for a
+  // column, not a section heading competing with the topic above it.
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
 }
 
 // A radio group drawn as a stack of rows rather than as a form: each choice

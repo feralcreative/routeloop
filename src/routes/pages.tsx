@@ -25,6 +25,7 @@ import { notBlockedWith, viewOf, viewsOf } from '../friends/service'
 import { FriendActions } from '../views/friend-actions'
 import { FollowForm } from '../views/follow-form'
 import { followViewOf, followingSet } from '../follows/service'
+import { unitsFor } from '../views/prefs'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -94,6 +95,7 @@ pageRoutes.get('/explore', async (c) => {
 
   const hasNext = rows.length > PER_PAGE
   const cards = rows.slice(0, PER_PAGE)
+  const units = await unitsFor(c)
 
   const Tab = ({ key_, label }: { key_: string; label: string }) => (
     <a class={`explore-tab${sort === key_ ? ' is-on' : ''}`} href={`/explore?sort=${key_}`}>
@@ -116,7 +118,7 @@ pageRoutes.get('/explore', async (c) => {
         <Tab key_="popular" label="Most viewed" />
         <Tab key_="new" label="Newest" />
       </nav>
-      {raw(rideCards(cards, sort === 'popular'))}
+      {raw(rideCards(cards, sort === 'popular', { units }))}
       <nav class="explore-pager">
         {page_ > 1 && <PageLink n={page_ - 1} label="← Newer page" />}
         {hasNext && <PageLink n={page_ + 1} label="Older page →" />}
@@ -297,6 +299,8 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     ? await Promise.all([viewOf(viewer.id, row.id), followViewOf(viewer.id, row.id)])
     : (['none', 'none'] as const)
 
+  const units = await unitsFor(c)
+
   const body = (
     <>
       <h1 class="profile-name">
@@ -311,7 +315,7 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
         </div>
       )}
       <h2>Public rides</h2>
-      {raw(rideCards(cards))}
+      {raw(rideCards(cards, false, { units }))}
     </>
   ).toString()
 

@@ -116,7 +116,38 @@ describe('rollUpTwist', () => {
   })
 
   it('reports a genuine zero as Straight', () => {
-    expect(rollUpTwist([{ dpm: 0, distanceM: 100 * MI }])).toEqual({ dpm: 0, label: 'Straight' })
+    expect(rollUpTwist([{ dpm: 0, distanceM: 100 * MI }])).toEqual({ dpm: 0, label: 'Straight', unit: '°/mi' })
+  })
+
+  // #150. THE NUMBER CONVERTS AND THE LABEL DOES NOT, which is the whole trap in
+  // making this units-aware: TWIST_BANDS are thresholds on degrees per MILE, so
+  // looking the band up from a converted figure would silently move every metric
+  // rider a band or two down — "Very twisty" becoming "Twisty" on the same road,
+  // with nothing to say why.
+  describe('in metric', () => {
+    const rows = [{ dpm: 840, distanceM: 100 * MI }]
+
+    it('prints a smaller figure per kilometer', () => {
+      const imperial = rollUpTwist(rows, 'imperial')
+      const metric = rollUpTwist(rows, 'metric')
+      expect(imperial?.dpm).toBe(840)
+      expect(metric?.dpm).toBe(522)
+      expect(metric!.dpm).toBeLessThan(imperial!.dpm)
+    })
+
+    it('keeps the band the mile figure earned', () => {
+      expect(rollUpTwist(rows, 'metric')?.label).toBe(rollUpTwist(rows, 'imperial')?.label)
+    })
+
+    it('carries the unit so the caller does not have to know', () => {
+      expect(rollUpTwist(rows, 'metric')?.unit).toBe('°/km')
+      expect(rollUpTwist(rows, 'imperial')?.unit).toBe('°/mi')
+    })
+
+    // Defaulting to imperial is what lets every pre-#150 caller keep working.
+    it('defaults to imperial when nobody says', () => {
+      expect(rollUpTwist(rows)).toEqual(rollUpTwist(rows, 'imperial'))
+    })
   })
 
   // A route with no distance carries no weight and must not divide by zero.

@@ -1,0 +1,69 @@
+// THE STILL-PAGE GUARD, in one place (#174).
+//
+// The app honored `prefers-reduced-motion` in five SCSS blocks before this file
+// existed. #174 added a second way to ask for the same thing — an in-app setting
+// at /settings, for the rider who wants motion off HERE without changing their
+// whole machine, or who does not know the OS setting exists.
+//
+// **THAT IS THE REASON THIS IS A MIXIN AND NOT A COPIED MEDIA QUERY.** The guard
+// is now "the OS says reduce OR the rider said never", which is three selectors
+// rather than one, and hand-writing it in five places is five chances to write
+// it once. A block that keeps the bare media query still works — it just
+// silently ignores the rider's own setting, which is the whole feature.
+//
+// The three cases, and why each is needed:
+//
+//   [data-motion="never"]                 the rider said never, full stop.
+//   media reduce, :not([data-motion=…])   the OS says reduce and the rider has
+//                                         not overridden it.
+//
+// `always` is what that :not() is excluding, and it is not redundant with having
+// no preference: it means "animate even though my machine says reduce", which is
+// a real answer for a machine whose setting somebody else chose. Without the
+// :not(), `always` would be ignored and the setting would have two members that
+// did the same thing.
+//
+// `system` stamps NO attribute — see motionAttr() in src/views/motion.ts — so it
+// falls through the :not() and the media query answers, which is exactly the
+// behavior that existed before this file.
+
+/// Wrap any rule that should not run when motion is unwanted.
+///
+/// Used as: `@include still { .thing { animation: none; } }`
+///
+/// NOTE THE SELECTOR NESTING. The two `data-motion` cases have to be written as
+/// `:root[data-motion=...] &` rather than as a bare attribute selector, because
+/// the attribute is on <html> and the rule being guarded is almost never about
+/// <html>. Sass's `&` is what carries the caller's own selector into both.
+@mixin still {
+  @media (prefers-reduced-motion: reduce) {
+    // The OS asked, and the rider has not said otherwise. `always` is the only
+    // value that opts back in, so it is the only one excluded here.
+    :root:not([data-motion="always"]) & {
+      @content;
+    }
+  }
+
+  // The rider asked, whatever the machine says.
+  :root[data-motion="never"] & {
+    @content;
+  }
+}
+
+/// The same guard for a rule that IS on the root, or for an at-rule that cannot
+/// take a descendant selector.
+///
+/// Exists because `@include still` compiles to `:root[...] &`, and there is no
+/// `&` to attach to at the top level of a file. Keyframes and the one `html`
+/// rule are what need this.
+@mixin still-root {
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion="always"]) {
+      @content;
+    }
+  }
+
+  :root[data-motion="never"] {
+    @content;
+  }
+}

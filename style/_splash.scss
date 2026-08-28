@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "motion" as *;
 
 // The sign-in page is the only full-bleed marketing surface in the app: a
 // looping aerial clip behind the pitch. Every rule here assumes light type over
@@ -626,8 +627,8 @@ body.splash-page {
 //@ Reduced motion — the poster frame is already the layer's background, so
 // dropping the element is the whole fallback. site.js additionally never
 // assigns a src, so the clip is not fetched either.
-@media (prefers-reduced-motion: reduce) {
-  .splash-video {
+.splash-video {
+  @include still {
     display: none;
   }
 }

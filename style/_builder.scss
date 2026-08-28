@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "motion" as *;
 
 // Builder
 .builder-panel {
@@ -1946,9 +1947,10 @@
 }
 
 //@ Reduced motion — the pulse is decoration; the color and the text both
-// already say "saving", so removing it costs nothing.
-@media (prefers-reduced-motion: reduce) {
-  .builder-panel .save-status[data-state="saving"] .save-dot {
+// already say "saving", so removing it costs nothing. Through the mixin, so the
+// rider's own setting reaches it too.
+.builder-panel .save-status[data-state="saving"] .save-dot {
+  @include still {
     animation: none;
   }
 }

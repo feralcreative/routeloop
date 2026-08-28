@@ -78,7 +78,17 @@
           return Intl.DateTimeFormat().resolvedOptions().timeZone;
         }, ""),
         dark: mq("(prefers-color-scheme: dark)"),
+        // THE MACHINE'S SETTING, kept as it was. `motion` below is the rider's
+        // own answer, and a bug report wants BOTH — "my machine says reduce and
+        // I overrode it" is a different report from "neither says anything", and
+        // one field cannot carry that.
         reducedMotion: mq("(prefers-reduced-motion: reduce)"),
+        motion: safe(function () {
+          return document.documentElement.getAttribute("data-motion") || "system";
+        }, ""),
+        motionEffective: safe(function () {
+          return window.TBMotion ? window.TBMotion.reduced() : null;
+        }, null),
       },
       health: {
         online: safe(function () {

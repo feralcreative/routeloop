@@ -131,7 +131,12 @@
   // Asked for, not guessed at. A rider who has turned motion down is telling us
   // this specifically, and a number ticking up is exactly the kind of motion the
   // setting exists to stop.
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  //
+  // Through TBMotion since #174, which answers the in-app setting as well as the
+  // OS one. A bare matchMedia here would ignore a rider who turned motion off in
+  // /settings and would do it silently — the CSS would go still around a number
+  // that carried on counting.
+  if (!window.TBMotion || window.TBMotion.reduced()) return;
 
   const DURATION = 900;
 

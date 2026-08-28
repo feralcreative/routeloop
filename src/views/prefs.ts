@@ -17,6 +17,7 @@ import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { type DateFormat, fromAcceptLanguage, toDateFormat } from './date-format'
 import { type Scheme, type Theme, toScheme, toTheme } from './appearance'
+import { DEFAULT_UNITS, type Units, toUnits } from './units'
 
 /**
  * Which date format this request should render in.
@@ -41,6 +42,30 @@ import { type Scheme, type Theme, toScheme, toTheme } from './appearance'
  * save some other preference must not silently overwrite what the header was
  * already giving them.
  */
+/**
+ * Miles or kilometers, for this request.
+ *
+ * NO Accept-Language EQUIVALENT, and the asymmetry with dateFormatFor is
+ * deliberate rather than an omission — the same shape as appearanceFor's. A
+ * browser's language is a genuine hint about date order; it is a much worse one
+ * about road distance, because `en-GB` is a locale that writes 24/08/2026 and
+ * measures in MILES. Guessing metric from a language would be wrong for exactly
+ * the riders most likely to notice.
+ *
+ * So a rider with no `user_profiles` row gets the column default, which is
+ * imperial, until they say otherwise.
+ */
+export async function unitsFor(c: Context<AuthEnv>): Promise<Units> {
+  const user = c.get('user')
+  if (!user) return DEFAULT_UNITS
+  const [p] = await db
+    .select({ units: userProfiles.units })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, user.id))
+    .limit(1)
+  return toUnits(p?.units)
+}
+
 export async function dateFormatFor(c: Context<AuthEnv>): Promise<DateFormat> {
   const user = c.get('user')
   if (user) {

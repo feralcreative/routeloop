@@ -22,6 +22,7 @@
 // repurposing it would have turned the rider roster into a grid of empty
 // picture frames. Two classes, because they are two things.
 import type { RideRow } from '../db/schema'
+import { DEFAULT_UNITS, type Units, distanceFromMiles, distanceUnit } from './units'
 
 export type CardRow = { ride: RideRow; color: string | null }
 
@@ -80,7 +81,18 @@ export function CardFace({
   )
 }
 
-function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
+/**
+ * A ride's cached mileage, in the rider's own unit.
+ *
+ * FROM MILES RATHER THAN FROM METERS, because `rides.total_miles` is a cache in
+ * miles and there is no meter figure on the row to convert instead. Rounded to a
+ * whole unit the same way the card always rounded — `Number()` on the numeric
+ * column was already dropping nothing a card showed.
+ */
+export const fmtRideDistance = (totalMiles: unknown, units: Units): string =>
+  Math.round(distanceFromMiles(Number(totalMiles), units)).toLocaleString('en-US')
+
+function Card({ ride, color, showViews, units }: CardRow & { showViews: boolean; units: Units }) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
@@ -96,7 +108,7 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
             positions is the safe one. The page is UTF-8, so the character is fine.
           */}
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {Number(ride.totalMiles)} mi
+            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
             {showViews ? ` · ${ride.viewCount} views` : ''}
           </span>
         </span>
@@ -120,12 +132,16 @@ function Card({ ride, color, showViews }: CardRow & { showViews: boolean }) {
  * strings, and handing them an element would render `[object Object]`. The
  * `.toString()` goes away in the final commit, when page() itself takes a node.
  */
-export function rideCards(rows: CardRow[], showViews = false, o: { dense?: boolean; empty?: string } = {}): string {
+export function rideCards(
+  rows: CardRow[],
+  showViews = false,
+  o: { dense?: boolean; empty?: string; units?: Units } = {},
+): string {
   if (rows.length === 0) return `<p class="empty">${o.empty ?? 'No rides yet.'}</p>`
   return (
     <ul class={`ride-cards${o.dense ? ' ride-cards--dense' : ''}`}>
       {rows.map((row) => (
-        <Card {...row} showViews={showViews} />
+        <Card {...row} showViews={showViews} units={o.units ?? DEFAULT_UNITS} />
       ))}
     </ul>
   ).toString()

@@ -3,6 +3,12 @@
 // checkboxes, mileage, hover highlight/dim, download buttons, arrow toggle.
 (function () {
   "use strict";
+
+  // Miles or kilometers — public/js/units.js mirrors src/views/units.ts and
+  // test/units-client.test.ts pins the two together. `window.TB.units` is the
+  // rider's stored preference, already coerced server-side.
+  const U = window.TBUnits;
+  const UNITS = U ? U.toUnits(window.TB && window.TB.units) : "imperial";
   const {
     esc,
     initMap,
@@ -237,9 +243,17 @@
   // when it is meaningfully better than the day as a whole — on a uniformly
   // twisty road it is the same figure twice.
   function twistDetail(r) {
-    let s = r.twistinessDpm + "°/mi of heading change";
+    // Converted for display; the BAND LABEL beside it is looked up from the mile
+    // figure and does not move — see rollUpTwist() in src/stats/shape.ts.
+    let s = Math.round(U.twistFrom(r.twistinessDpm, UNITS)) + U.twistUnit(UNITS) + " of heading change";
     if (r.twistinessBestDpm && r.twistinessBestDpm > r.twistinessDpm * 1.25) {
-      s += ", best 20 mi at " + r.twistinessBestDpm;
+      s +=
+        ", best " +
+        Math.round(U.distanceFromMiles(20, UNITS)) +
+        " " +
+        U.distanceUnit(UNITS) +
+        " at " +
+        Math.round(U.twistFrom(r.twistinessBestDpm, UNITS));
     }
     return s;
   }
@@ -317,8 +331,10 @@
           // long — it is just not part of the ride, which is what the badge and
           // the total below say.
           '<td class="day-miles">' +
-          Number(r.distanceMi).toFixed(1) +
-          " mi</td></tr>"
+          U.distanceFromMiles(Number(r.distanceMi), UNITS).toFixed(1) +
+          " " +
+          U.distanceUnit(UNITS) +
+          "</td></tr>"
         );
       })
       .join("");
@@ -339,8 +355,10 @@
           (n === 1 ? " day" : " days") +
           ", not counting alternatives</td>" +
           '<td class="day-miles">' +
-          counted.toFixed(1) +
-          " mi</td></tr>",
+          U.distanceFromMiles(counted, UNITS).toFixed(1) +
+          " " +
+          U.distanceUnit(UNITS) +
+          "</td></tr>",
       );
     }
 

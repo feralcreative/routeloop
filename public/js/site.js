@@ -221,8 +221,11 @@
     // Reduced motion means no clip is fetched at all, so there is nothing to
     // offer a control over — the button is not rendered rather than rendered
     // inert.
-    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (reduce && reduce.matches) return;
+    // Through TBMotion since #174, so the in-app setting suppresses the clip the
+    // same way the OS one does. Note what that means and it is the strongest
+    // version of this feature: a rider who chose "never animate" never DOWNLOADS
+    // the video, because the src is assigned below and not in the markup.
+    if (!window.TBMotion || window.TBMotion.reduced()) return;
 
     let paused = readStore(VIDEO_KEY) === "paused";
 

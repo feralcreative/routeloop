@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "motion" as *;
 
 // Google Maps overrides (imported rides still render on Google until Phase 4).
 .gm-ui-hover-effect {
@@ -139,14 +140,14 @@
 
 // Nobody should watch the furniture animate if they have asked not to. The
 // drawer still opens and closes, it just arrives immediately.
-@media (prefers-reduced-motion: reduce) {
-  #map,
-  #info-panel,
-  // The phone sheet's contents hold their visibility for the length of the
-  // slide. With no slide to wait for, they have nothing to wait for either.
-  #info-panel .panel-title,
-  #info-panel .panel-contents-wrapper,
-  #info-panel .drawer-foot {
+#map,
+#info-panel,
+// The phone sheet's contents hold their visibility for the length of the
+// slide. With no slide to wait for, they have nothing to wait for either.
+#info-panel .panel-title,
+#info-panel .panel-contents-wrapper,
+#info-panel .drawer-foot {
+  @include still {
     transition: none !important;
   }
 }
