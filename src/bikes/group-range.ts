@@ -14,7 +14,7 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { bikes, rideMembers, users, type BikeRow } from '../db/schema'
 import { bikeLabel, bindingRange, metersToMiles } from './policy'
-import { isComing } from '../members/policy'
+import { DEFAULT_PERM, isComing } from '../members/policy'
 
 export type RidingBike = {
   riderId: number
@@ -52,7 +52,10 @@ export async function bikesOnRide(rideId: number): Promise<RidingBike[]> {
     .where(eq(rideMembers.rideId, rideId))
     .orderBy(users.displayName)
 
-  const coming = rows.filter((r) => isComing({ riderId: r.riderId, role: r.role, rsvp: r.rsvp }))
+  // `perm` is in MemberFields and isComing does not read it, so the query does
+  // not fetch it. The default is the honest filler: this asks who is coming, not
+  // what they may do.
+  const coming = rows.filter((r) => isComing({ riderId: r.riderId, role: r.role, perm: DEFAULT_PERM, rsvp: r.rsvp }))
   const out: RidingBike[] = []
   for (const r of coming) {
     const [bike] = await db

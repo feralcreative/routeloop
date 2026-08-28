@@ -120,6 +120,7 @@ function MemberRow({
   slug,
   viewerId,
   viewerRole,
+  ownerCount,
   subgroups,
   canAssign,
 }: {
@@ -127,10 +128,13 @@ function MemberRow({
   slug: string
   viewerId: number
   viewerRole: 'owner' | 'rider'
+  /** How many members hold `owner`. The last-owner rule needs it — see
+   *  canRemove. Counted from the roster this page already read. */
+  ownerCount: number
   subgroups: RideSubgroupRow[]
   canAssign: boolean
 }) {
-  const fields: MemberFields = { riderId: m.riderId, role: m.role, rsvp: m.rsvp }
+  const fields: MemberFields = { riderId: m.riderId, role: m.role, perm: m.perm, rsvp: m.rsvp }
   const isMe = m.riderId === viewerId
   return (
     <li class={isComing(fields) ? '' : 'is-out'}>
@@ -177,7 +181,7 @@ function MemberRow({
           <span class="roster-said">{subgroups.find((g) => g.id === m.subgroupId)?.name ?? 'No group'}</span>
         ))}
       {isMe ? <RsvpForm slug={slug} current={m.rsvp} /> : <span class="roster-said">{RSVP_LABELS[m.rsvp]}</span>}
-      {canRemove(viewerId, viewerRole, fields) && (
+      {canRemove(viewerId, viewerRole, fields, ownerCount) && (
         <Verb
           action="remove"
           slug={slug}
@@ -318,6 +322,10 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   const open = votingOpen(ride.altVotesCloseAt, new Date())
   const coming = members.filter(isComing).length
   const error = c.req.query('error')
+  // Co-ownership means "may this row be removed" is no longer a fact about the
+  // row alone — the last owner may not leave. Counted once here rather than per
+  // row.
+  const ownerCount = members.filter((m) => m.role === 'owner').length
 
   const body = (
     <>
@@ -341,6 +349,7 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
             slug={ride.slug}
             viewerId={user.id}
             viewerRole={role}
+            ownerCount={ownerCount}
             subgroups={subgroups}
             canAssign={role === 'owner'}
           />
@@ -616,6 +625,7 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
   ])
   const bikeOf = new Map(riding.map((r) => [r.riderId, r.bike ? bikeLabel(r.bike) : null]))
 
+  const owners = members.filter((m) => m.role === 'owner').length
   const riders: RiderJson[] = members.map((m) => ({
     riderId: m.riderId,
     displayName: m.displayName,
@@ -624,11 +634,10 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
     rsvp: m.rsvp,
     subgroupId: m.subgroupId,
     bike: bikeOf.get(m.riderId) ?? null,
-    // From the policy rather than from `role !== 'owner'`, which is the same
-    // answer today and stops being one the moment canRemove grows a case. Note
-    // it is false for the owner themselves — a ride with no owner has nobody who
-    // can invite, resolve a vote or delete it.
-    canRemove: canRemove(user.id, 'owner', m),
+    // From the policy rather than from `role !== 'owner'`, which was the same
+    // answer until co-ownership and is not one now: an owner may step down while
+    // another owner remains, and no owner may remove a different owner.
+    canRemove: canRemove(user.id, 'owner', m, owners),
   }))
 
   // BY UID AS WELL AS BY ID. The builder holds subgroups by uid — it mints them

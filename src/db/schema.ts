@@ -1353,9 +1353,32 @@ export type RideVisibility = (typeof visibilityEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
 // --- The rider layer --------------------------------------------------------
 
-// Minimal on purpose. Editor rights are #32's problem; this leaves room for the
-// value without pretending to answer it.
+// WHO A RIDE BELONGS TO, which is an identity rather than a permission. What a
+// rider may DO about a ride is ride_perm below, deliberately a second column:
+// folding the ladder into this enum would make `owner` a rung, and every rule
+// that asks "is this the owner" would start having to ask "or one of these".
+//
+// `owner` IS HELD BY MORE THAN ONE ROW SINCE #190 — co-owners rather than an
+// ownership transfer, Ziad's call 2026-08-28. rides.owner_id stays singular and
+// keeps meaning the creator and the QUOTA holder, because rides.size_bytes rolls
+// up to users.used_bytes through one owner and reconcileUsedBytes() rebuilds
+// every tally on that assumption. Co-ownership is a roster role; the bytes
+// belong to the creator.
 export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
+
+// WHAT A MEMBER MAY DO to the ride they are on. Least to most: look at it,
+// discuss it, propose changes to it, change it. #190.
+//
+// THE MEMBER ORDER IS NOT THE RANK AND CANNOT BE REORDERED LATER. Same trap as
+// visibilityEnum: `ALTER TYPE ... ADD VALUE` appends, so a pgEnum's order is
+// fixed the day it is created and putting a new rung "in the right place" means
+// rebuilding every column using the type. Nothing may sort by this, compare two
+// members of it, or read one and decide what it outranks — PERM_RANK in
+// src/members/policy.ts is the only ordering, and every gate asks that.
+//
+// It happens to read in ascending order today. That is a convenience for a human
+// reading the file and is not something any code may rely on.
+export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
 
 // Distinct from role, because a rider who declined is still on the roster —
 // that is the whole reason the two are separate columns.
@@ -1397,11 +1420,15 @@ export const rideSubgroups = pgTable(
 // A rider's relationship to a ride: the primitive several planned features
 // assume and none of them owns.
 //
-// SCHEMA ONLY FOR NOW. Ziad's call, 2026-08-26: the invite path that would
-// create rows here is cut, so nothing in the app inserts one yet. The table
-// exists because canView() already reads it — the membership grant is wired and
-// correct the day membership is switched on, rather than being a second change
-// to the access rule later.
+// LIVE SINCE #68 — the note that used to sit here saying the table was schema
+// only predates the invite path and was wrong from the day seedOwner() landed.
+// Every ride insert seeds its owner a row here, in the same transaction.
+//
+// TWO AXES, THREE COLUMNS, AND THEY ARE ALL DIFFERENT QUESTIONS. `role` is who
+// the ride belongs to, `perm` is what this rider may do to it, and `rsvp` is
+// whether they are coming. A rider who declined still holds their permission
+// level, and an owner's `perm` is never read at all — see rankOf() in
+// src/members/policy.ts, where `owner` outranks the whole ladder.
 export const rideMembers = pgTable(
   'ride_members',
   {
@@ -1413,6 +1440,19 @@ export const rideMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: rideRoleEnum('role').notNull().default('rider'),
+    // WHAT THIS RIDER MAY DO, defaulting to `suggest` — the top of what an
+    // invitation grants on its own. Edit is a deliberate promotion by an owner
+    // and never something an invite hands out, which is the whole shape of #190.
+    //
+    // Existing rows backfilled to `suggest` rather than to `view`: it grants
+    // comment and suggest rights to riders whose owners never chose that, which
+    // was accepted because the alternative makes every existing owner promote
+    // their roster by hand before the feature does anything at all.
+    //
+    // An owner's value here is never read. It is left at the default rather than
+    // stamped to `edit`, so that demoting a co-owner is one column changing and
+    // not two that can disagree.
+    perm: ridePermEnum('perm').notNull().default('suggest'),
     rsvp: rsvpEnum('rsvp').notNull().default('invited'),
     // Which approach this rider is on. NULLABLE AND THAT IS LOAD-BEARING: a
     // club secretary planning a joint rally is not in any of the groups, and
@@ -1584,6 +1624,10 @@ export type RideSubgroupRow = typeof rideSubgroups.$inferSelect
 export type TimeAnchor = (typeof timeAnchorEnum.enumValues)[number]
 /** The two ride roles, derived from the enum so the two cannot drift. */
 export type RideRole = (typeof rideRoleEnum.enumValues)[number]
+/** A rung on the permission ladder. What each one MEANS is src/members/policy.ts
+ *  and nothing else may read this union and decide for itself — in particular
+ *  nothing may infer an ordering from the member order. */
+export type RidePerm = (typeof ridePermEnum.enumValues)[number]
 /** The four RSVP states, likewise. */
 export type Rsvp = (typeof rsvpEnum.enumValues)[number]
 export type BikeRow = typeof bikes.$inferSelect
