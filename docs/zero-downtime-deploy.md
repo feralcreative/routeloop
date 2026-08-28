@@ -2,13 +2,27 @@
 
 **Written:** 2026-08-25. **Updated:** 2026-08-27.
 
-**Status: Phase 1 is BUILT and deployed to stage. Phase 2 is BUILT and has NOT been cut over anywhere.**
+**Status: Phase 1 and Phase 2 are BUILT, and STAGE IS RUNNING BLUE/GREEN. Production has NOT been cut over.**
 
 Phase 1 landed on `feat/zero-downtime-phase-1`: `/healthz`, the SIGTERM drain, migrations moved off the serving container into a one-shot `migrate` service, and a deploy that converges the database instead of tearing it down. It has **not been deployed to stage or prod**, and the one thing in it that cannot be verified from a laptop—whether SIGTERM actually reaches Node as PID 1 inside the container—is listed under *Verification* below and has to be done by hand on stage first.
 
 Phase 2 landed on `feat/zero-downtime-phase-2`, branched off Phase 1. **All three of its approvals were given on 2026-08-27**: Caddy as a production dependency, expand/contract as a schema rule with a `--no-overlap` escape hatch, and `DB_VOLUME_NAME` hard-pinned per environment.
 
-**What has NOT happened is the one-time NAS cutover**, which is the only step in either phase that can lose a database. Both environments are still running the single pre-blue/green container. The runbook below is unchanged and its preconditions are not optional.
+**Stage was cut over on 2026-08-27 and the rehearsal is complete.** Six deploys, blue→green→blue→green→blue, and every precondition the runbook names for prod is now satisfied:
+
+- **Zero dropped requests, measured three times** by polling the origin from the NAS host through a full deploy including the cutover: 198/198, 188/188 and 220/220, all `200`.
+- **Postgres never restarted** and no new volume appeared. `db` reported up-to-date on every deploy, never `Recreating`—which is the runbook's abort signal.
+- **The `Host` header survives the hop**: `stage.tankbag.app` still 301s, which is the whole Caddy-over-nginx argument.
+- **A 9.5MB GPX imported through the proxy** with no body cap.
+- Sign-in, a round-tripped export/import, and the map all pass.
+
+**What has NOT happened is the PRODUCTION cutover**, which is the only step in either phase that can lose a database. Prod is still the single pre-blue/green container. The runbook below is unchanged and its preconditions are not optional.
+
+**Three defects the rehearsal caught**, none of them predicted by the plan:
+
+- **A phantom idle color.** On a first deploy the script reported an idle color that had never existed and presented it as a rollback target. `resolve_live_color()` returns the empty string for "nothing is live" now, and every caller handles it.
+- **The summary lied about rollback.** It said the previous color was "still up for rollback" while the drain two lines earlier had stopped it. It now says drained and stopped and prints the two commands to bring it back.
+- **`viewer.js` and `builder.js` both spread a whole track into `push()`**, which throws `RangeError: Maximum call stack size exceeded` above roughly 65k vertices in Safari and 125k in V8. Pre-existing and nothing to do with the proxy—but a large import is what surfaced it, and a dense GPS recording reaches that without being unusual. Fixed in both.
 
 Two things resolved that the plan left open:
 
