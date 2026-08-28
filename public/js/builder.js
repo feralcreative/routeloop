@@ -64,6 +64,11 @@
   const DRAG = window.TBDragIndex;
 
   const MILE = 1609.344;
+
+  // Miles or kilometers — see public/js/units.js, which mirrors
+  // src/views/units.ts and is pinned to it by test/units-client.test.ts.
+  const UNITS = window.TBUnits ? window.TBUnits.toUnits(window.TB.units) : "imperial";
+  const distUnit = window.TBUnits ? window.TBUnits.distanceUnit(UNITS) : "mi";
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
   // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
   // whole list, plus a separate ceiling on how many of them may be routing
@@ -3448,7 +3453,13 @@
     // dwell figures still drive the end times and the timeline, they are just not
     // worth a slot in a 380px panel.
     const line = (t, withLink) =>
-      (t.meters / MILE).toFixed(1) + " mi · " + (t.estimated ? "~" : "") + hm(t.riding) + " riding" +
+      window.TBUnits.distanceFrom(t.meters, UNITS).toFixed(1) +
+      " " +
+      distUnit +
+      " · " +
+      (t.estimated ? "~" : "") +
+      hm(t.riding) +
+      " riding" +
       (t.twist ? " · " + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
 
     // The label alone on the line; the numbers behind it on hover. "252°/mi"
@@ -3456,11 +3467,20 @@
     // looks wrong, so it should be reachable without being in the way.
     const twistTitle = (t) => {
       if (!t.twist) return "";
-      let s = t.twist.dpm + "°/mi of heading change";
+      // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE. The band the label
+      // comes from is a threshold in degrees per MILE, so only the number moves —
+      // see rollUpTwist() in src/stats/shape.ts.
+      let s = Math.round(window.TBUnits.twistFrom(t.twist.dpm, UNITS)) + window.TBUnits.twistUnit(UNITS) + " of heading change";
       // Only worth saying when the best stretch is meaningfully better than the
       // day as a whole. On a uniformly twisty day it is the same number twice.
       if (t.twist.bestDpm && t.twist.bestDpm > t.twist.dpm * 1.25) {
-        s += ", best " + t.twist.bestMiles + " mi at " + t.twist.bestDpm;
+        s +=
+          ", best " +
+          window.TBUnits.distanceFromMiles(t.twist.bestMiles, UNITS).toFixed(1) +
+          " " +
+          distUnit +
+          " at " +
+          Math.round(window.TBUnits.twistFrom(t.twist.bestDpm, UNITS));
       }
       return s;
     };

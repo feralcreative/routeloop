@@ -1,6 +1,7 @@
 @use "sass:color";
 @use "sass:map";
 @use "tokens" as *;
+@use "motion" as *;
 
 // Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
 // chrome and map pages share one stylesheet and one accent color. The old
@@ -46,6 +47,54 @@
 // belonging to the whole form rather than to one column of it.
 .two-col > .full-span {
   grid-column: 1 / -1;
+}
+
+// THREE EQUAL COLUMNS, for a row of short radio groups (#178).
+//
+// The settings page is the case this exists for and it is worth stating why it
+// is not `.two-col`. Four settings in two columns went ragged: the cells keep
+// their own heights by design, so the shorter column simply ended early and the
+// page looked broken when nothing was misaligned. Every control on that page is
+// a radio group of three, so grouping them in THREES makes each row the same
+// height by construction and there is nothing left for `align-items: start` to
+// expose.
+//
+// Same fixed count and the same reason as `.two-col`: an `auto-fit`/`minmax()`
+// track list would let the CONTENT decide the column count, which is the
+// jumping-layout failure #130 names.
+//
+// Two columns at the middle breakpoint rather than dropping straight to one —
+// three groups of three do not fit in 960px minus the wrap padding at a readable
+// size, but two do, and a lone third under a pair reads as deliberate where a
+// hole in a three-track does not.
+//
+// ALIGN-ITEMS: STRETCH, WHICH IS WHERE THIS DEPARTS FROM `.two-col`, and the
+// departure is the point rather than an inconsistency. `.two-col` holds
+// INDEPENDENT blocks, so each keeping its own height is correct and a shorter
+// column ending early is honest. A `.three-col` row is one topic's settings side
+// by side, and they carry a Save button each — with `start` those buttons land
+// at three different heights, because a two-option group is shorter than a
+// three-option one. That is the same raggedness #178 was filed about, one level
+// down. Stretching the cells and pushing `.setting-actions` to the bottom (see
+// _account.scss) puts every Save on one line.
+.three-col {
+  display: grid;
+  gap: 2rem;
+  align-items: stretch;
+}
+
+//@ MD ≥768px — two across; the wrap is still growing but a radio row fits half.
+@media (min-width: 768px) {
+  .three-col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+//@ LG ≥992px — .page-wrap is at its cap, so all three fit on one line.
+@media (min-width: 992px) {
+  .three-col {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 body {
@@ -678,9 +727,9 @@ ul.cards {
 }
 
 //@ Reduced motion — the lift goes, the shadow stays, so the card still answers
-// the pointer.
-@media (prefers-reduced-motion: reduce) {
-  .ride-card {
+// the pointer. Through the mixin, so the rider's own setting reaches it too.
+.ride-card {
+  @include still {
     transition: box-shadow 120ms ease;
 
     &:hover {

@@ -24,11 +24,22 @@ import { page } from '../views/layout'
 import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
 import { resolveStrand } from '../subgroups/service'
+import { type Units, distanceFrom, distanceUnit, twistFrom, twistUnit } from '../views/units'
+import { unitsFor } from '../views/prefs'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
 
 const mi = (m: number) => m / METERS_PER_MILE
-const fmtMi = (m: number) => mi(m).toFixed(1)
+
+/**
+ * One decimal, in the rider's own unit (#150).
+ *
+ * ONE DECIMAL IN BOTH, deliberately. A kilometer is the shorter unit so the same
+ * road prints a bigger number, and dropping to a whole unit for metric would
+ * make the roadbook LESS precise for the rider who chose the finer scale. The
+ * printed page has room for the digit either way.
+ */
+const fmtMi = (m: number, units: Units) => distanceFrom(m, units).toFixed(1)
 
 // "4h 20m", or "35m" under the hour. A dash rather than "0m" when the router
 // never answered for a leg — a dash reads as unknown, 0m reads as instant.
@@ -167,6 +178,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
   if (ride.days.length === 0) return c.text('Not found', 404)
 
+  const units = await unitsFor(c)
   const totalM = ride.days.reduce((n, r) => n + r.distanceM, 0)
   const totalS = ride.days.reduce((n, r) => n + r.durationS, 0)
   const anyClock = ride.days.some((r) => r.startAt)
@@ -181,7 +193,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
           <header class="rb-head">
             <h1>{m.title}</h1>
             <p class="rb-summary">
-              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'} · {fmtMi(totalM)} mi
+              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'} · {fmtMi(totalM, units)} {distanceUnit(units)}
               {totalS > 0 && <> · {fmtDuration(totalS)} riding</>}
             </p>
             {m.description && <p class="rb-note">{m.description}</p>}
@@ -207,9 +219,18 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                 </h2>
                 <p class="rb-day-meta">
                   {r.startAt && <>{fmtDateLong(r.startAt, dateFormat)} · </>}
-                  {fmtMi(r.distanceM)} mi
+                  {fmtMi(r.distanceM, units)} {distanceUnit(units)}
                   {r.durationS > 0 && <> · {fmtDuration(r.durationS)} riding</>}
-                  {r.twistinessDpm != null && <> · {r.twistinessDpm}°/mi</>}
+                  {/* Converted for display, and the STORED figure stays degrees
+                    per mile — see rollUpTwist() in src/stats/shape.ts for why the
+                    band labels are not converted with it. */}
+                  {r.twistinessDpm != null && (
+                    <>
+                      {' '}
+                      · {Math.round(twistFrom(r.twistinessDpm, units))}
+                      {twistUnit(units)}
+                    </>
+                  )}
                 </p>
 
                 {rows.length === 0 ? (
@@ -236,11 +257,11 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                             {row.point.roles.length > 0 && <span class="rb-roles">{roleTitles(row.point.roles)}</span>}
                             {row.point.description && <span class="rb-desc">{row.point.description}</span>}
                           </td>
-                          <td class="rb-num">{row.fromPrevM ? fmtMi(row.fromPrevM) : '—'}</td>
-                          <td class="rb-num">{row.atM == null ? '—' : fmtMi(row.atM)}</td>
+                          <td class="rb-num">{row.fromPrevM ? fmtMi(row.fromPrevM, units) : '—'}</td>
+                          <td class="rb-num">{row.atM == null ? '—' : fmtMi(row.atM, units)}</td>
                           {/* Blank until the first fuel stop: "miles since fuel" has no
                               answer before there has been any. */}
-                          <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM)}</td>
+                          <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
                           {r.startAt && <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat) : '—'}</td>}
                           <td class="rb-num">
                             {row.point.durationMin ? fmtDuration(row.point.durationMin * 60) : '—'}

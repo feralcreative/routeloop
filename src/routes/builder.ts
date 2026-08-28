@@ -46,6 +46,7 @@ import {
   rideTotals,
   type RidePayload,
 } from '../maps/ride-graph'
+import { type Units, toUnits } from '../views/units'
 
 export const builderRoutes = new Hono<AuthEnv>()
 
@@ -420,7 +421,7 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | 
 //   toDurationFormat rather than trusted, because a rider with no profile row at
 //   all gets undefined here and every reader has to agree on what that means.
 type PublicStart = { lat: number; lng: number; label: string }
-type BuilderPrefs = { publicStart: PublicStart | null; durationFormat: DurationFormat }
+type BuilderPrefs = { publicStart: PublicStart | null; durationFormat: DurationFormat; units: Units }
 
 async function builderPrefs(userId: number): Promise<BuilderPrefs> {
   const [p] = await db
@@ -429,6 +430,7 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
       lng: userProfiles.startLng,
       label: userProfiles.startLabel,
       durationFormat: userProfiles.durationFormat,
+      units: userProfiles.units,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -437,6 +439,7 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
     publicStart:
       p?.lat == null || p?.lng == null ? null : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
     durationFormat: toDurationFormat(p?.durationFormat),
+    units: toUnits(p?.units),
   }
 }
 
@@ -757,6 +760,7 @@ ${
       home,
       publicStart: prefs.publicStart,
       durationFormat: prefs.durationFormat,
+      units: prefs.units,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but

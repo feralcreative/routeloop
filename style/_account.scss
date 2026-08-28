@@ -17,11 +17,64 @@
   }
 }
 
-// In the two-column grid the gap does the spacing. The stacked margin would add
-// to it, and only on the cells that are not in the first row, so the two columns
-// would start at different heights.
-.two-col > .setting {
+// In a grid the gap does the spacing. The stacked margin would add to it, and
+// only on the cells that are not in the first row, so the columns would start at
+// different heights.
+.two-col > .setting,
+.three-col > .setting {
   margin-top: 0;
+}
+
+// A settings column inside a topic row. The flex column plus the auto margin on
+// the actions is what lands every Save button on one line however many options
+// the group above it has — Distances offers two where the other two offer three,
+// and without this its button floats a row higher than its neighbors'.
+.three-col > .setting {
+  display: flex;
+  flex-direction: column;
+
+  .setting-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .setting-actions {
+    margin-top: auto;
+  }
+}
+
+// A TOPIC: a heading, a sentence, and a row of related settings under it (#178).
+//
+// The page was four peer sections in a two-column grid and read as a ragged
+// list. It is two topics now — Appearance, and How things read — each a
+// full-width block whose settings sit in a `.three-col` row. The topic owns the
+// vertical rhythm; the settings inside it own none, which is what keeps the rows
+// aligned.
+//
+// Its own measure cap rather than `.setting`'s 60ch, and only on the prose: the
+// intro sentence wants the same reading width every other explanation here has,
+// while the row of settings underneath must span the full width or the columns
+// have nowhere to go.
+.setting-topic {
+  margin-top: 3rem;
+
+  > h2 {
+    margin-bottom: 0.35rem;
+  }
+
+  > p {
+    max-width: 60ch;
+    margin-top: 0;
+  }
+
+  // The settings inside a topic are subordinate to it, so their headings step
+  // down. Sized between the topic's h2 and body text — it is a label for a
+  // column, not a section heading competing with the topic above it.
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
 }
 
 // A radio group drawn as a stack of rows rather than as a form: each choice
@@ -212,5 +265,197 @@
 @media (max-width: 575px) {
   .gtfo-item {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// --- Profile autosave (#100) -------------------------------------------------
+//
+// The submit row, which now carries a state readout beside the button rather
+// than in place of it. The button is still the only way to save with script off,
+// and still the way to commit a username or an address, neither of which
+// autosaves — so the row holds both.
+.profile-save {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+// Deliberately NOT `.builder-panel .save-status`, which is a different readout
+// on a different surface with its own dot and its own fixed-width box. Sharing
+// the class name is fine; sharing the rule would tie a 380px panel's constraints
+// to a full-width form.
+//
+// Colored by state, and `error` takes $label rather than $stop. A field that did
+// not pass validation is not a failure — the other fields saved, the rider's
+// text is still on screen, and the button below still works. Red would claim
+// otherwise.
+.profile-save .save-status {
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  &[data-state="saving"] {
+    color: $neutral-50;
+  }
+
+  // $interstate-text rather than $go. $go is the green traffic SIGNAL — a field
+  // colour, and _tokens.scss records it as too light for white ink and dark
+  // enough only for black. This is text on a white card, which is the case the
+  // -text derivations exist for, and that one is measured at AA in all six
+  // palettes by test/palette-contrast.test.ts.
+  &[data-state="saved"] {
+    color: $interstate-text;
+  }
+
+  &[data-state="error"] {
+    color: $label;
+  }
+}
+
+// The live error line, appended by profile.js under the field it belongs to.
+// Matches the server-rendered `.field-error` exactly, because a rider should not
+// be able to tell which half of the app noticed.
+.field-error-live {
+  margin: 0.25rem 0 0;
+}
+
+// --- Address suggestions (#101) ----------------------------------------------
+//
+// A dropdown attached to the address line, replacing the status line below it as
+// the primary feedback. The status line stays — it shows the formatted address
+// the geocoder settled on AFTER a pick, which is a different fact from the list
+// of candidates before one.
+//
+// The wrapper is what positions this — see `.field` in _forms.scss, which owns
+// that rule because that is where `.field` is defined. An input cannot be a
+// containing block for an absolutely positioned sibling.
+.addr-suggest {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  // The list is the only thing on this page that floats over other content, so
+  // it needs a shadow to read as above rather than as part of the next field.
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.addr-suggest-item {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid $neutral-94;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  // Hover and keyboard highlight share one appearance deliberately: a rider
+  // arrowing down and a rider pointing are looking at the same thing, and two
+  // different highlights on screen at once is the confusing part.
+  &:hover,
+  &.is-active {
+    background: $neutral-96;
+  }
+}
+
+// --- Avatar (#99) ------------------------------------------------------------
+//
+// STORED SQUARE, SHOWN ROUND. Nothing circular is written to disk — a round
+// image would mean baking a background colour into the corners, and the corners
+// would then be wrong on every surface with a different background. The radius
+// lives here, the same way `.nav-avatar` already carries its own.
+.avatar-now {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.avatar-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  // Its own box-sizing, because there is no global border-box reset in style/ —
+  // without it the 1px ring would put this at 98px and the circle would sit off
+  // the baseline of the text beside it.
+  box-sizing: border-box;
+  object-fit: cover;
+  background: $neutral-94;
+  border: 1px solid $grey;
+  flex: none;
+
+  &.is-initials {
+    display: grid;
+    place-items: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: $neutral-50;
+  }
+}
+
+.avatar-acts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  .field-hint {
+    flex-basis: 100%;
+    margin: 0.25rem 0 0;
+  }
+}
+
+#avatar-crop {
+  margin-top: 1rem;
+  max-width: 320px;
+}
+
+// `touch-action: none` is LOAD-BEARING on a phone: without it the browser claims
+// a vertical drag as a page scroll and the pointermove handler never sees it, so
+// the image can be dragged sideways and not up. Same class of problem as the
+// SortableJS `preventOnFilter` note in AGENTS.md — a default gesture eating the
+// one the feature needs.
+#avatar-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 320px;
+  border-radius: 8px;
+  background: $neutral-94;
+  touch-action: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.avatar-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  input[type="range"] {
+    flex: 1;
+  }
+}
+
+#avatar-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  &[data-state="error"] {
+    color: $label;
   }
 }

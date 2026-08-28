@@ -10,6 +10,7 @@ import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { sessions, userProfiles, users, type UserRow } from '../db/schema'
 import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
+import { type Motion, toMotion } from '../views/motion'
 
 // Renamed with the product on 2026-08-11. No legacy name is read: these cookies
 // are host-scoped with no `domain` attribute, so moving the canonical host to
@@ -53,15 +54,18 @@ export async function createSession(userId: number): Promise<string> {
 }
 
 /**
- * The signed-in rider, plus the two appearance values the shell needs.
+ * The signed-in rider, plus the three appearance values the shell needs.
  *
- * `theme` and `scheme` are widened onto the user rather than returned beside it
+ * `theme`, `scheme` and `motion` are widened onto the user rather than returned beside it
  * because `page()` takes a user and nothing else that could carry them. They are
  * DISPLAY values and belong to no table row on their own — `user_profiles` holds
  * them, `users` does not — which is why this is a composed type rather than a
  * change to UserRow.
  */
-export type SessionUser = { user: UserRow & { theme: Theme; scheme: Scheme }; sessionId: string }
+export type SessionUser = {
+  user: UserRow & { theme: Theme; scheme: Scheme; motion: Motion; avatarBytes: number }
+  sessionId: string
+}
 
 // Returns the signed-in user, or undefined. Expired rows are deleted on sight
 // rather than left to accumulate.
@@ -84,7 +88,14 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
   // upsert, so most riders have no row at all. An inner join here would sign
   // them all out.
   const [row] = await db
-    .select({ session: sessions, user: users, theme: userProfiles.theme, scheme: userProfiles.scheme })
+    .select({
+      session: sessions,
+      user: users,
+      theme: userProfiles.theme,
+      scheme: userProfiles.scheme,
+      motion: userProfiles.motion,
+      avatarBytes: userProfiles.avatarBytes,
+    })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
@@ -107,7 +118,17 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
   // Coerced here so no reader downstream has to interpret a null — a rider with
   // no profile row gets the same values as one who chose the defaults.
   return {
-    user: { ...row.user, theme: toTheme(row.theme), scheme: toScheme(row.scheme) },
+    user: {
+      ...row.user,
+      theme: toTheme(row.theme),
+      scheme: toScheme(row.scheme),
+      motion: toMotion(row.motion),
+      // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
+      // `users.avatar_url` is write-once from Google sign-in and a rider cannot
+      // change it; an upload is a deliberate choice and outranks it. Zero means
+      // no upload, which is what makes the column the flag as well as the size.
+      avatarBytes: row.avatarBytes ?? 0,
+    },
     sessionId: id,
   }
 }

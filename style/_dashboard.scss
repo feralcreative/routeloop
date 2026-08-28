@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "motion" as *;
 
 // The dashboard is `/`, served by src/routes/home.tsx — NOT src/routes/rides.tsx,
 // which is the ride list and was called dashboard.tsx until 2026-08-15. This
@@ -514,8 +515,12 @@
 
 //@ Reduced motion — the lift is motion too, not just the count-up. The shadow
 // stays, so the card still answers the pointer.
-@media (prefers-reduced-motion: reduce) {
-  .record {
+//
+// Through the mixin rather than a bare media query since #174: the guard is "the
+// OS says reduce OR the rider said never", and the in-app setting is invisible to
+// a block that only asks the media query. See style/_motion.scss.
+.record {
+  @include still {
     transition: box-shadow 120ms ease;
 
     &:hover {

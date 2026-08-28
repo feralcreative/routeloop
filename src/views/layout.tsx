@@ -108,6 +108,7 @@ export type PageOpts = {
    */
   theme?: string
   scheme?: string
+  motion?: string
   /**
    * Serialized to window.TB via jsonScript.
    *
@@ -182,6 +183,21 @@ const ADMIN_LINKS: NavItem[] = [
 ]
 
 const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
+
+/**
+ * Which picture a rider has, in precedence order.
+ *
+ * The uploaded one is served through a route rather than a static path, because
+ * src/maps/storage.ts writes outside the web root and avatars live beside those
+ * files. No cache-buster here: the nav renders on every page and threading the
+ * hash through the session for a 24px image is not worth the column. The route
+ * answers `max-age=300` without one, so a changed picture is current within five
+ * minutes everywhere and immediately on the profile, which posts the hashed URL.
+ */
+export function avatarSrc(user: { id: number; avatarUrl?: string | null; avatarBytes?: number }): string | null {
+  if (user.avatarBytes && user.avatarBytes > 0) return `/profile/avatar/${user.id}`
+  return user.avatarUrl ?? null
+}
 
 function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
   return (
@@ -526,8 +542,11 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
   return (
     <details class="nav-sub nav-account">
       <summary>
-        {user.avatarUrl ? (
-          <img class="nav-avatar" src={user.avatarUrl} alt="" width="24" height="24" />
+        {/* THE UPLOAD FIRST, then the provider picture, then initials (#99).
+            avatarUrl is write-once from Google sign-in and a magic-link rider has
+            never had one — which is the whole reason the upload exists. */}
+        {avatarSrc(user) ? (
+          <img class="nav-avatar" src={avatarSrc(user)!} alt="" width="24" height="24" />
         ) : (
           <span class="nav-avatar is-initials" aria-hidden="true">
             {initials || '?'}
@@ -745,7 +764,8 @@ export function page(opts: PageOpts): string {
   const isMap = variant === 'map'
   const htmlClass = isMap ? ' class="map-page"' : ''
 
-  // THE TWO APPEARANCE ATTRIBUTES, read by style/_theme.scss.
+  // THE THREE APPEARANCE ATTRIBUTES, read by style/_theme.scss and the
+  // `motion()` mixin in style/_motion.scss.
   //
   // Stamped on <html> rather than <body> because the palettes are emitted on
   // `:root`, and because a custom property has to be defined above everything
@@ -758,15 +778,22 @@ export function page(opts: PageOpts): string {
   // OS setting. Absence is what lets `prefers-color-scheme` answer instead — see
   // schemeAttr() in src/views/appearance.ts and the media block in _theme.scss.
   //
+  // `data-motion` follows the second reason exactly: `system` stamps nothing so
+  // `prefers-reduced-motion` can answer, and BOTH overrides are stamped, because
+  // `always` means "animate even though my machine says reduce" and the CSS has
+  // to tell that apart from "I have not said".
+  //
   // Server-rendered rather than set by script, so there is no flash of the wrong
   // palette before the first paint.
   // Read off the user rather than passed in, so all 32 call sites get it without
   // being touched — see the note in src/auth/session.ts about why.
-  const u = opts.user as (UserRow & { theme?: string; scheme?: string }) | null
+  const u = opts.user as (UserRow & { theme?: string; scheme?: string; motion?: string }) | null
   const theme = opts.theme ?? u?.theme
   const scheme = opts.scheme ?? u?.scheme
+  const motion = opts.motion ?? u?.motion
   const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
   const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
+  const motionAttr_ = motion && motion !== 'system' ? ` data-motion="${esc(motion)}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -777,7 +804,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -843,6 +870,21 @@ ${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
   console.error and fetch, and every read inside it is feature-detected — it is
   a crash handler, so it must not be able to crash.
 -->
+<!--
+  MOTION FIRST, AND ON EVERY PAGE. site.js, dashboard.js and feedback.js all ask
+  it whether to animate, and none of them loads the others — so it belongs in the
+  shell rather than beside any one of them. ~1 KB, no dependencies, and every
+  caller null-checks it, so a page that somehow loads without it degrades to "do
+  not animate" rather than to an exception.
+-->
+<script src="${asset('/js/motion.js')}" defer></script>
+<!--
+  Beside motion.js and for the same reason: the builder and the viewer both need
+  it, neither loads the other, and it is a handful of pure functions with no
+  dependencies. Both callers fall back to imperial if it is somehow absent, which
+  is the column default and therefore the behavior every page had before #150.
+-->
+<script src="${asset('/js/units.js')}" defer></script>
 <script src="${asset('/js/feedback-buffer.js')}" defer></script>
 <script src="${asset('/js/site.js')}" defer></script>
 ${opts.scripts ?? ''}

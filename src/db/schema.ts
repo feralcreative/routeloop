@@ -78,6 +78,18 @@ export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
 // src/views/appearance.ts.
 export const themeEnum = pgEnum('theme', ['default', 'contrast', 'colorblind'])
 export const schemeEnum = pgEnum('scheme', ['system', 'light', 'dark'])
+
+// Whether this app animates. THREE STATES AND NOT A BOOLEAN — `system` means
+// "whatever prefers-reduced-motion says", which is the default, because a
+// two-state toggle defaulting to on would silently override the OS setting of
+// every rider who already asked for less motion. See src/views/motion.ts.
+export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
+
+// Miles or kilometers. ITS OWN AXIS rather than derived from `date_format`,
+// although the two look like siblings: `en-GB` writes 24/08/2026 and measures
+// road distance in MILES, so deriving would hand every British rider kilometers
+// they never asked for. See src/views/units.ts.
+export const unitsEnum = pgEnum('units', ['imperial', 'metric'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -325,6 +337,42 @@ export const userProfiles = pgTable('user_profiles', {
   // upsert has to learn about these.
   theme: themeEnum('theme').notNull().default('default'),
   scheme: schemeEnum('scheme').notNull().default('system'),
+  // Defaulted for the same reason as the four above: no third state for a reader
+  // to interpret. Neither is seeded from a header — `motion` delegates to the
+  // browser through its own `system` member rather than through a header, and
+  // there is no Accept-Units.
+  motion: motionEnum('motion').notNull().default('system'),
+  units: unitsEnum('units').notNull().default('imperial'),
+  // Contact details, each behind its own share flag (#183).
+  //
+  // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four
+  // fields because the four are the same kind of thing; a phone number is not
+  // the same kind of thing as an Instagram handle, and one flag over both would
+  // mean a rider who wants their socials seen has to publish their phone to do
+  // it. The phone's default matters more than any other on this table.
+  phone: varchar('phone', { length: 40 }),
+  sharePhone: boolean('share_phone').notNull().default(false),
+  // HANDLES, NOT URLS, and that is a security decision rather than a storage
+  // preference. A rider-supplied `href` needs a scheme allow-list or
+  // `javascript:` is stored XSS, and JSX escaping does not save an attribute. A
+  // handle cannot carry a scheme, so composing the link at render time removes
+  // the class of bug instead of defending against it. Same shape as the four
+  // payment handles above.
+  instagram: varchar('instagram', { length: 120 }),
+  facebook: varchar('facebook', { length: 120 }),
+  youtube: varchar('youtube', { length: 120 }),
+  strava: varchar('strava', { length: 120 }),
+  shareSocials: boolean('share_socials').notNull().default(false),
+  // The rider's own avatar, counted HERE AND NOWHERE ELSE — never in
+  // `users.used_bytes` and never in `rides.size_bytes`'s generated expression.
+  // Same rule as `bikes.photo_bytes` and `feedback_attachments.bytes`: an avatar
+  // is not ride data and must not eat a rider's map quota, and a fourth byte
+  // column reaching that expression corrupts quota accounting on every delete.
+  //
+  // Zero means "no uploaded avatar", which is what makes this the flag as well
+  // as the size — `users.avatar_url` may still hold a Google picture, and the
+  // uploaded one wins when both exist.
+  avatarBytes: integer('avatar_bytes').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

@@ -26,6 +26,7 @@ import type { RideVisibility } from '../db/schema'
 import { ROLE_META, type Role } from '../maps/roles'
 import { roleColor } from '../maps/role-colors'
 import { twistLabel } from '../maps/twist'
+import { type Units, distanceFrom, distanceUnit, distanceUnitLong, twistFrom, twistUnit } from '../views/units'
 
 const METERS_PER_MILE = 1609.344
 
@@ -136,8 +137,32 @@ export type RawStats = {
 
 export const miles = (m: number): number => m / METERS_PER_MILE
 
-/** Thousands separators, no decimals. Dashboard figures are read, not audited. */
-export const fmtMiles = (m: number): string => Math.round(miles(m)).toLocaleString('en-US')
+/** The window the "twistiest stretch" record is measured over, in MILES.
+ *  Mirrors WINDOW_MI in public/js/twist.js, which is where it is actually
+ *  applied; this copy exists so the record's LABEL can name the same distance in
+ *  whichever unit the rider reads. Change one and change the other. */
+export const TWIST_WINDOW_MI = 20
+
+/**
+ * A distance in the rider's own unit, with thousands separators and no decimals.
+ * Dashboard figures are read, not audited.
+ *
+ * TAKES THE UNITS RATHER THAN ASSUMING MILES (#150), and defaults to imperial so
+ * every existing caller keeps its behavior. The name stays `fmtMiles` even
+ * though it no longer always formats miles — renaming it would touch six call
+ * sites to say nothing new, and the parameter is what tells the truth here.
+ *
+ * The UNIT ITSELF is not appended. Callers put the label in their own markup,
+ * usually in a separate element with its own type — see .record-unit — so
+ * returning "248 mi" from here would give them a string they had to split.
+ */
+export const fmtDistance = (m: number, units: Units = 'imperial'): string =>
+  Math.round(distanceFrom(m, units)).toLocaleString('en-US')
+
+/** @deprecated in spirit rather than in fact — the old name, kept because six
+ *  call sites read better as `fmtMiles` than as `fmtDistance(m, 'imperial')` and
+ *  because a rider on imperial is the default. New code should name the units. */
+export const fmtMiles = (m: number): string => fmtDistance(m, 'imperial')
 
 export const fmtCount = (n: number): string => n.toLocaleString('en-US')
 
@@ -189,7 +214,7 @@ export function fmtBytes(n: number): string {
 
 // --- Twistiness --------------------------------------------------------------
 
-export type TwistRollup = { dpm: number; label: string } | null
+export type TwistRollup = { dpm: number; label: string; unit: string } | null
 
 /**
  * One twistiness figure across every route that has one.
@@ -204,7 +229,7 @@ export type TwistRollup = { dpm: number; label: string } | null
  * to measure, while 0 is a genuine claim that the road is straight. Reporting an
  * unmeasured library as "Straight" would be a lie the rider cannot see through.
  */
-export function rollUpTwist(rows: readonly RawTwist[]): TwistRollup {
+export function rollUpTwist(rows: readonly RawTwist[], units: Units = 'imperial'): TwistRollup {
   let degrees = 0
   let meters = 0
   for (const r of rows) {
@@ -213,9 +238,14 @@ export function rollUpTwist(rows: readonly RawTwist[]): TwistRollup {
     meters += r.distanceM
   }
   if (meters <= 0) return null
-  const dpm = Math.round(degrees / miles(meters))
-  const label = twistLabel(dpm)
-  return label ? { dpm, label } : null
+  // WEIGHTED IN MILES AND LABELED IN MILES, WHATEVER IS DISPLAYED. TWIST_BANDS in
+  // src/maps/twist.ts are thresholds on degrees per MILE — "Very twisty" starts
+  // at a number that means nothing per kilometer — so converting before the
+  // lookup would silently move every rider on metric up a band or two. The
+  // conversion happens on the way OUT, after the label is decided.
+  const dpmi = Math.round(degrees / miles(meters))
+  const label = twistLabel(dpmi)
+  return label ? { dpm: Math.round(twistFrom(dpmi, units)), label, unit: twistUnit(units) } : null
 }
 
 // --- The stop histogram ------------------------------------------------------
@@ -390,7 +420,12 @@ export type SaddleTime = { hours: string; estimated: boolean; note: string } | n
 
 export type DashboardStats = {
   hasRides: boolean
+  /** The hero figure, in the rider's own unit. The name predates #150 and is
+   *  kept because renaming it touches the dashboard for no reader's benefit —
+   *  `heroUnit` beside it is what says which unit it is in. */
   heroMiles: string
+  /** "miles" or "kilometers", spelled out, because the hero says it in prose. */
+  heroUnit: string
   saddle: SaddleTime
   tiles: Tile[]
   meter: Meter
@@ -413,7 +448,13 @@ export type DashboardStats = {
  * is a worse page, not a broken one, and this signature says so rather than
  * making every call site invent a zeroed spread.
  */
-export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, global?: RawGlobal): DashboardStats {
+export function shapeStats(
+  raw: RawStats,
+  cachedUsedBytes: number,
+  now: Date,
+  global?: RawGlobal,
+  units: Units = 'imperial',
+): DashboardStats {
   const t = raw.totals
   const hasRides = t.rides > 0
 
@@ -486,8 +527,8 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, gl
   if (r.longestDayM != null && r.longestDayM > 0) {
     records.push({
       label: 'Longest single day',
-      value: fmtMiles(r.longestDayM),
-      unit: 'mi',
+      value: fmtDistance(r.longestDayM, units),
+      unit: distanceUnit(units),
       // The ride's title, which this record did not carry before it had a
       // picture. A map with no name, on a card that links somewhere, asks the
       // rider to recognize their own route from 320 pixels of road.
@@ -500,8 +541,8 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, gl
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
       label: 'Biggest ride',
-      value: fmtMiles(r.biggestRideM),
-      unit: 'mi',
+      value: fmtDistance(r.biggestRideM, units),
+      unit: distanceUnit(units),
       hint: r.biggestRideTitle ?? undefined,
       kind: 'ride',
       numeric: true,
@@ -515,12 +556,19 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, gl
   // one takes the text treatment and the degrees-per-mile figure stays in the
   // hint, where it already was. Putting the number in `value` instead would read
   // as a better record than the label it replaced, and it is the same fact.
+  // THE BAND IS LOOKED UP FROM THE MILE FIGURE, whatever the rider reads in.
+  // TWIST_BANDS are thresholds in degrees per mile, so converting first would
+  // move a metric rider a band or two down the scale on an unchanged road.
   const bestLabel = twistLabel(r.bestTwistDpm)
   if (r.bestTwistDpm != null && bestLabel) {
     records.push({
-      label: 'Twistiest 20 miles',
+      // THE WINDOW IS 20 MILES AND IT IS MEASURED IN MILES — see WINDOW_MI in
+      // public/js/twist.js. So this converts the LENGTH for the label rather than
+      // rounding it to a tidy 30: the record really is "the best 32 km", and
+      // saying 30 would be a different measurement reported as this one.
+      label: `Twistiest ${Math.round(distanceFrom(TWIST_WINDOW_MI * METERS_PER_MILE, units))} ${distanceUnitLong(units)}`,
       value: bestLabel,
-      hint: `${r.bestTwistDpm}°/mi of heading change`,
+      hint: `${Math.round(twistFrom(r.bestTwistDpm, units))}${twistUnit(units)} of heading change`,
       kind: 'twist',
       numeric: false,
       ...ride(r.bestTwistSlug, r.bestTwistThumb),
@@ -564,11 +612,12 @@ export function shapeStats(raw: RawStats, cachedUsedBytes: number, now: Date, gl
 
   return {
     hasRides,
-    heroMiles: fmtMiles(t.distanceM),
+    heroMiles: fmtDistance(t.distanceM, units),
+    heroUnit: distanceUnitLong(units),
     saddle,
     tiles,
     meter,
-    twist: rollUpTwist(raw.twist),
+    twist: rollUpTwist(raw.twist, units),
     roles: roleBars(raw.roles),
     rolesExceedPoints: roleTotalExceedsPoints(roleBars(raw.roles), t.points),
     months: monthSeries(raw.months, now),

@@ -36,7 +36,8 @@
 // src/maps/ride-time.ts and src/stats/shape.ts.
 import { Hono } from 'hono'
 import { raw } from 'hono/html'
-import { rideCards } from '../views/cards'
+import { fmtRideDistance, rideCards } from '../views/cards'
+import { type Units, distanceUnit } from '../views/units'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, days as daysTable, type RideRow, type Rsvp } from '../db/schema'
@@ -52,6 +53,7 @@ import { followingRides, friendsRides, publicRides } from '../access/query'
 import { LIVE_RIDE } from '../trash/service'
 import { ridesImOn } from '../members/service'
 import { RSVP_LABELS } from '../members/policy'
+import { unitsFor } from '../views/prefs'
 
 export const homeRoutes = new Hono<AuthEnv>()
 
@@ -105,7 +107,7 @@ const RIDE_CEILING = 500
 // No color block: `ridesImOn` does not join days, and a fourth query per
 // dashboard render to tint a short list is not worth it. CardFace draws the
 // thumbnail when there is one and a neutral field when there is not.
-function JoinedRideCard({ ride, rsvp }: { ride: RideRow; rsvp: Rsvp }) {
+function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; units: Units }) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
@@ -113,7 +115,7 @@ function JoinedRideCard({ ride, rsvp }: { ride: RideRow; rsvp: Rsvp }) {
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {Number(ride.totalMiles)} mi
+            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -129,7 +131,7 @@ function JoinedRideCard({ ride, rsvp }: { ride: RideRow; rsvp: Rsvp }) {
   )
 }
 
-function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
+function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | null; units: Units }) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
@@ -137,7 +139,7 @@ function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {Number(ride.totalMiles)} mi
+            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -571,7 +573,8 @@ homeRoutes.get('/', requireActive, async (c) => {
   const hasMore = !showAll && owned.length > RIDE_PAGE
   const visibleRides = hasMore ? owned.slice(0, RIDE_PAGE) : owned
 
-  const s = shapeStats(stats, cached, new Date(), global)
+  const units = await unitsFor(c)
+  const s = shapeStats(stats, cached, new Date(), global, units)
   const drawChart = s.months.some((m) => m.n > 0)
 
   // dashboard.js carries two unrelated enhancements now — the chart, and the
@@ -609,7 +612,7 @@ homeRoutes.get('/', requireActive, async (c) => {
           <section class="hero-stat">
             <span class="hero-value">{s.heroMiles}</span>
             <span class="hero-label">
-              miles planned
+              {s.heroUnit} planned
               {/*
                 Saddle time rides in the hero rather than as a fifth tile: the
                 four tiles are counts of things, this is a duration, and #137 is
@@ -667,7 +670,7 @@ homeRoutes.get('/', requireActive, async (c) => {
               </p>
               <ul class="ride-cards ride-cards--dense">
                 {joined.map((j) => (
-                  <JoinedRideCard ride={j.ride} rsvp={j.rsvp} />
+                  <JoinedRideCard ride={j.ride} rsvp={j.rsvp} units={units} />
                 ))}
               </ul>
             </section>
@@ -743,7 +746,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             <div class="page-tabpanel is-active" role="tabpanel" id="rides-mine" aria-labelledby="tab-mine" tabindex={0}>
               <ul class="ride-cards ride-cards--dense">
                 {visibleRides.map((r) => (
-                  <OwnRideCard {...r} />
+                  <OwnRideCard {...r} units={units} />
                 ))}
               </ul>
               {hasMore && (
@@ -764,6 +767,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             <div class="page-tabpanel" role="tabpanel" id="rides-friends" aria-labelledby="tab-friends" tabindex={0} hidden>
               {raw(
                 rideCards(friendly, false, {
+                  units,
                   dense: true,
                   empty: 'Nothing here yet. A ride shows up when a friend sets one to Friends.',
                 }),
@@ -779,6 +783,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             <div class="page-tabpanel" role="tabpanel" id="rides-following" aria-labelledby="tab-following" tabindex={0} hidden>
               {raw(
                 rideCards(feed, false, {
+                  units,
                   dense: true,
                   empty: 'Nothing here yet. Follow a rider and their public rides show up in this tab.',
                 }),
@@ -798,6 +803,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             <div class="page-tabpanel" role="tabpanel" id="rides-public" aria-labelledby="tab-public" tabindex={0} hidden>
               {raw(
                 rideCards(publik, false, {
+                  units,
                   dense: true,
                   empty: 'Nobody else has published a ride yet.',
                 }),

@@ -58,6 +58,8 @@ import { APP_VERSION, BUILD_SHA } from './version'
 import { canClone, isSharedCacheable } from './access/policy'
 import { grantsFor, viewableRide } from './access/query'
 import { resolveStrand } from './subgroups/service'
+import { unitsFor } from './views/prefs'
+import type { Units } from './views/units'
 
 // The visibility gate now lives in src/access/query.ts, as viewableRide().
 // This is a name kept rather than a function: six call sites below read
@@ -255,7 +257,7 @@ app.get('/m/:slug', async (c) => {
   // One shell for both sources. ride.json has served them identically since the
   // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
-  return c.html(viewHtml(m, viewer, clonable, onRoster))
+  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c)))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -702,7 +704,7 @@ function viewerPanel(
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
 // The viewer shell, for every ride regardless of source.
-function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster: boolean): string {
+function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster: boolean, units: Units): string {
   return page({
     title: m.title,
     user,
@@ -723,6 +725,7 @@ function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster:
       mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
       dayColors: DAY_COLORS,
+      units,
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>

@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
+import { type AddressHit, type GoogleComponent, addressParts } from '../maps/address'
 
 export const routingRoutes = new Hono<AuthEnv>()
 
@@ -190,15 +191,25 @@ const geocodeRequest = z.object({
   q: z.string().trim().min(4).max(300),
 })
 
-type GeocodeHit = { lat: number; lng: number; label: string }
+/** Re-exported under the name this module has always used, so the endpoint below
+ *  reads as it did. The type itself lives in src/maps/address.ts now, with the
+ *  decomposition it belongs to. */
+type GeocodeHit = AddressHit
 
 // Same shape and reasoning as the leg cache above: a rider tabbing between four
 // address fields re-submits the same string repeatedly, and Geocoding bills per
 // call. Keyed on the normalized query, so "  main st " and "Main St" share.
 const GEO_CACHE_MAX = 500
-const geoCache = new Map<string, GeocodeHit | null>()
 
-function rememberGeo(key: string, hit: GeocodeHit | null): GeocodeHit | null {
+/** THE WHOLE RESPONSE IS CACHED, NOT JUST THE TOP HIT, and that matters since
+ *  #101: the suggestion list is built from the same billed call, so caching only
+ *  the first result would give a rider a dropdown the first time they typed an
+ *  address and an empty one every time after — working, then silently not. */
+type GeocodeAnswer = GeocodeHit & { suggestions: GeocodeHit[] }
+
+const geoCache = new Map<string, GeocodeAnswer | null>()
+
+function rememberGeo(key: string, hit: GeocodeAnswer | null): GeocodeAnswer | null {
   if (geoCache.size >= GEO_CACHE_MAX) {
     const oldest = geoCache.keys().next().value
     if (oldest !== undefined) geoCache.delete(oldest)
@@ -244,26 +255,73 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
 
   const data = (await res.json().catch(() => null)) as {
     status?: string
-    results?: { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }[]
+    error_message?: string
+    results?: {
+      formatted_address?: string
+      geometry?: { location?: { lat?: number; lng?: number } }
+      address_components?: GoogleComponent[]
+    }[]
   } | null
 
+  // **A FAILURE IS NOT A MISS, AND IT MUST NOT BE CACHED AS ONE.**
+  //
   // Geocoding reports "found nothing" as HTTP 200 with ZERO_RESULTS, the same
-  // way Routes reports "no path" as 200 with an empty array.
+  // way Routes reports "no path" as 200 with an empty array. It also reports
+  // OVER_QUERY_LIMIT, REQUEST_DENIED and INVALID_REQUEST as HTTP 200 — so a
+  // handler that treats every non-OK status the same way tells a rider their
+  // address does not exist when the truth is that the key is out of quota or was
+  // never authorized for this API.
+  //
+  // Observed 2026-08-27, which is what prompted this: every local lookup came
+  // back "no match for that address" and the API was actually answering
+  // OVER_QUERY_LIMIT with "verify your project has an active billing account".
+  // The rider-facing message was wrong and the failure was invisible.
+  //
+  // Worse, the old code called rememberGeo(key, null) on it — so a quota blip
+  // POISONED THE CACHE for that address for the life of the process, and the
+  // address kept reading as nonexistent long after the quota reset. Only a real
+  // ZERO_RESULTS is cached now.
+  //
+  // Same shape as the Places 403 handling this file already does: a 503 naming
+  // the reason, because "the service is unavailable" is a different thing for a
+  // rider to be told than "we looked and it is not there".
+  const status = data?.status
+  if (status && status !== 'OK' && status !== 'ZERO_RESULTS') {
+    console.error(`[geocode] Geocoding API status ${status}: ${data?.error_message ?? ''}`)
+    return c.json({ error: 'address lookup is unavailable right now' }, 503)
+  }
+
   const top = data?.results?.[0]
   const loc = top?.geometry?.location
-  if (data?.status !== 'OK' || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
-    if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      console.error(`[geocode] Geocoding API status ${data.status}`)
-    }
+  if (status !== 'OK' || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
     rememberGeo(key, null)
     return c.json({ error: 'no match for that address' }, 404)
   }
 
+  // Capped at five: the list is a dropdown under a form field, and Geocoding
+  // occasionally returns a dozen near-identical matches for a vague query.
+  const suggestions: GeocodeHit[] = []
+  for (const r of (data?.results ?? []).slice(0, 5)) {
+    const l = r.geometry?.location
+    if (!l || !Number.isFinite(l.lat) || !Number.isFinite(l.lng)) continue
+    suggestions.push({
+      lat: round6(Number(l.lat)),
+      lng: round6(Number(l.lng)),
+      label: r.formatted_address ?? q,
+      parts: addressParts(r.address_components),
+    })
+  }
+
+  // THE TOP-LEVEL SHAPE IS UNCHANGED and `suggestions` is added beside it. The
+  // geocoder's existing caller reads lat/lng/label off the root and is untouched;
+  // the dropdown reads the array. One response, one billed call, two consumers.
   return c.json(
     rememberGeo(key, {
       lat: round6(Number(loc.lat)),
       lng: round6(Number(loc.lng)),
       label: top?.formatted_address ?? q,
+      parts: addressParts(top?.address_components),
+      suggestions,
     })!,
   )
 })
