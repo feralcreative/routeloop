@@ -259,6 +259,11 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
       deletionRequestedAt: users.deletionRequestedAt,
       lastName: userProfiles.lastName,
       shareLastName: userProfiles.shareLastName,
+      shareSocials: userProfiles.shareSocials,
+      instagram: userProfiles.instagram,
+      facebook: userProfiles.facebook,
+      youtube: userProfiles.youtube,
+      strava: userProfiles.strava,
     })
     .from(users)
     .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
@@ -308,6 +313,13 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
         {surname}
       </h1>
       <p class="profile-handle">@{row.username}</p>
+      {/*
+        GATED ON THE FLAG, and the flag defaults to false — filling a field in is
+        not agreeing to publish it. The PHONE is deliberately not here at all:
+        `sharePhone` says "riders on my rides", which is a membership scope, and a
+        public profile is not that. It belongs on a roster if it ever surfaces.
+      */}
+      {row.shareSocials && <SocialLinks row={row} />}
       {canAsk && (
         <div class="profile-acts friend-acts">
           <FriendActions handle={row.username} view={view} back={`/@${row.username}`} />
@@ -321,6 +333,46 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
 
   return render(c, row.displayName, body, 'content-page profile-page')
 })
+
+/**
+ * The four social links, composed from stored HANDLES.
+ *
+ * **THE URL IS BUILT HERE AND NEVER STORED, WHICH IS THE WHOLE SECURITY DESIGN.**
+ * A rider-supplied `href` would need a scheme allow-list — `javascript:` in an
+ * attribute is stored XSS and JSX escaping does not stop it. A handle cannot
+ * carry a scheme, so there is no allow-list to forget: the origin is a literal
+ * in this file and only the last path segment comes from the rider.
+ *
+ * `rel="noopener noreferrer"` on every one, and `nofollow` besides — a public
+ * profile with a rider-controlled outbound link is a link farm the moment this
+ * app is worth spamming.
+ */
+function SocialLinks({
+  row,
+}: {
+  row: { instagram: string | null; facebook: string | null; youtube: string | null; strava: string | null }
+}) {
+  const links = [
+    { label: 'Instagram', handle: row.instagram, href: (h: string) => `https://instagram.com/${encodeURIComponent(h)}` },
+    { label: 'Facebook', handle: row.facebook, href: (h: string) => `https://facebook.com/${encodeURIComponent(h)}` },
+    { label: 'YouTube', handle: row.youtube, href: (h: string) => `https://youtube.com/@${encodeURIComponent(h)}` },
+    { label: 'Strava', handle: row.strava, href: (h: string) => `https://strava.com/athletes/${encodeURIComponent(h)}` },
+  ].filter((l) => l.handle)
+
+  if (links.length === 0) return null
+
+  return (
+    <ul class="profile-links">
+      {links.map((l) => (
+        <li>
+          <a href={l.href(l.handle as string)} rel="noopener noreferrer nofollow" target="_blank">
+            {l.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 pageRoutes.get('/faq', (c) =>
   render(c, 'Questions', content('faq.html', { RIDING_YEARS, WEB_YEARS }), 'content-page faq-page'),

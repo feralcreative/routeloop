@@ -176,6 +176,22 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           venmo: profile.venmo,
           paypal: profile.paypal,
           zelle: profile.zelle,
+          // #183 and #174/#150. "Everything the app holds about you" has to mean
+          // it — a field added to user_profiles and not added here leaves the
+          // rider's own archive quietly incomplete, and nothing would raise it.
+          sharePhone: profile.sharePhone,
+          phone: profile.phone,
+          shareSocials: profile.shareSocials,
+          instagram: profile.instagram,
+          facebook: profile.facebook,
+          youtube: profile.youtube,
+          strava: profile.strava,
+          durationFormat: profile.durationFormat,
+          dateFormat: profile.dateFormat,
+          theme: profile.theme,
+          scheme: profile.scheme,
+          motion: profile.motion,
+          units: profile.units,
           createdAt: iso(profile.createdAt),
           updatedAt: iso(profile.updatedAt),
         }

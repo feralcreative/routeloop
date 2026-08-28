@@ -8,13 +8,14 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'
-import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { sanitizeText } from '../maps/kml'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
 import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAYS } from '../auth/username'
 import { usernameSchema } from '../auth/username'
 import type { UsernameHistoryRow } from '../db/schema'
+import { fromAcceptLanguage } from '../views/date-format'
 
 export const profileRoutes = new Hono<AuthEnv>()
 
@@ -39,6 +40,22 @@ const profileFields = {
   venmo: optionalText(120),
   paypal: optionalText(120),
   zelle: optionalText(120),
+  // Free text and deliberately unvalidated beyond a length cap (#183). The same
+  // argument as `state` above, which the schema keeps loose because the labels
+  // are US-shaped and nothing should reject a rider outside them — it holds
+  // harder here. E.164 normalization rejects perfectly good international input
+  // and every extension anyone writes down, and a rider whose number this app
+  // refuses has no way to tell it it is wrong.
+  phone: optionalText(40),
+  // HANDLES, NOT URLS, which is the security half of this block. A rider-supplied
+  // `href` needs a scheme allow-list or `javascript:` is stored XSS, and JSX
+  // escaping does not save an attribute. A handle cannot carry a scheme, so
+  // composing the link at render time removes the class of bug rather than
+  // defending against it. Same shape as the four payment handles above.
+  instagram: optionalText(120),
+  facebook: optionalText(120),
+  youtube: optionalText(120),
+  strava: optionalText(120),
 }
 
 // An unchecked checkbox is simply absent from the body, so presence is the value.
@@ -64,6 +81,12 @@ const profileSchema = z.object({
   shareLastName: checkbox,
   addHomeToRides: checkbox,
   sharePaymentHandles: checkbox,
+  // TWO FLAGS AND NOT ONE (#183). `sharePaymentHandles` covers four fields
+  // because the four are the same kind of thing. A phone number is not the same
+  // kind of thing as an Instagram handle, and one flag over both would mean a
+  // rider who wants their socials seen has to publish their phone to do it.
+  sharePhone: checkbox,
+  shareSocials: checkbox,
 })
 
 type ProfileValues = z.infer<typeof profileSchema>
@@ -258,6 +281,64 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <Check name="sharePaymentHandles" label="Share these with riders on my rides" values={v} />
         </fieldset>
 
+        {/*
+          TWO BLOCKS AND TWO FLAGS, not one of each (#183). Splitting costs above
+          covers four fields with a single checkbox because the four are the same
+          kind of thing. A phone number and an Instagram handle are not, and one
+          flag over both would mean a rider who wants their socials seen has to
+          publish their phone to do it.
+
+          Both default to OFF and stay off until asked. Filling a field in is not
+          the same as agreeing to publish it, which is the whole reason the
+          existing block works the way it does.
+        */}
+        <fieldset>
+          <legend>Phone</legend>
+          <p class="field-hint">Optional. For riders on a ride with you, if you let&nbsp;them.</p>
+          {/*
+            NOT VALIDATED INTO A SHAPE. `state` above is free text with a comment
+            saying the labels are US-shaped and nothing should reject a rider
+            outside them, and that argument holds harder here — E.164 rejects
+            good international input and every extension anyone writes down.
+          */}
+          <Field name="phone" label="Phone number" values={v} errors={errors} autocomplete="tel" />
+          <Check name="sharePhone" label="Share this with riders on my rides" values={v} />
+        </fieldset>
+
+        <fieldset>
+          <legend>Elsewhere</legend>
+          <p class="field-hint">
+            Optional. Your handle, not the whole link — paste a URL and we will take the handle out&nbsp;of&nbsp;it.
+          </p>
+          <Field name="instagram" label="Instagram" values={v} errors={errors} />
+          <Field name="facebook" label="Facebook" values={v} errors={errors} />
+          <Field name="youtube" label="YouTube" values={v} errors={errors} />
+          <Field name="strava" label="Strava" values={v} errors={errors} />
+          <Check name="shareSocials" label="Show these on my profile" values={v} />
+        </fieldset>
+
+        {/*
+          #181. NO CLUB FIELDS, DELIBERATELY, and this note is what stands in for
+          them until there is somewhere real to put one.
+
+          Club name, chapter and icon stored per rider means fifteen members of
+          one chapter produce fifteen spellings and fifteen images, and the
+          eventual "show me this club" is unbuildable on free text — so the
+          migration out of it would be a hand de-duplication across everyone who
+          had already typed one. Nothing is stored until a club is its own record.
+
+          The feedback thread is the interim collection and it is better than a
+          column would be: it carries which club, which chapter, and who should
+          hold it, which no form field here could ask.
+        */}
+        <fieldset>
+          <legend>Clubs</legend>
+          <p class="field-hint">
+            Clubs are not built yet. If you ride with one, <a href="/feedback?area=account">tell us about it</a> and we
+            will find you when they&nbsp;are.
+          </p>
+        </fieldset>
+
         <fieldset disabled={!user.canManageRiders}>
           <legend>Your riders</legend>
           {user.canManageRiders ? (
@@ -311,10 +392,22 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           </div>
         </fieldset>
 
-        <p class="full-span">
+        {/*
+          THE BUTTON STAYS (#100). Autosave relabels this row rather than
+          replacing it: with script off the button is the only way to save, and
+          with script on it is still the way to commit a username or an address,
+          neither of which autosaves. Silent saving with no affordance at all is
+          worse than an explicit button, not better.
+
+          The indicator is empty until profile.js writes to it, so a page with no
+          script shows a button and nothing else — which is exactly what it did
+          before.
+        */}
+        <p class="full-span profile-save">
           <button class="btn" type="submit">
             Save profile
           </button>
+          <span class="save-status" id="profile-autosave" role="status" aria-live="polite"></span>
         </p>
       </form>
     </>
@@ -362,6 +455,34 @@ profileRoutes.post('/profile', requireActive, async (c) => {
 
   const p = parsed.data
   const text = (s: string) => sanitizeText(s) || null
+
+  // A SOCIAL HANDLE, NORMALIZED TO THE BARE NAME (#183).
+  //
+  // Riders paste whatever is in front of them — a full profile URL, an @, a
+  // trailing slash — and the app composes `https://instagram.com/<handle>` at
+  // render time, so anything left in the stored value ends up inside that URL.
+  // A pasted `instagram.com/ziad` would compose to `instagram.com/instagram.com/ziad`.
+  //
+  // This is a convenience, NOT the security boundary. The boundary is that the
+  // column holds a handle rather than a URL at all: a handle cannot carry a
+  // `javascript:` scheme, so no allow-list is needed on the way out. Stripping
+  // the last path segment out of a URL is just being kind to the paste.
+  const handle = (s: string) => {
+    const t = sanitizeText(s)
+    if (!t) return null
+    // Take the last non-empty path segment of anything URL-shaped, then drop a
+    // leading @ and anything after a ? or #.
+    const bare = t
+      .replace(/^https?:\/\//i, '')
+      .split(/[?#]/)[0]
+      .split('/')
+      .filter(Boolean)
+      .pop()
+    // Null rather than falling back to `t`: a string that is nothing but
+    // separators ("///", "https://") has no handle in it, and returning the
+    // original would store the separators as though they were one.
+    return bare ? bare.replace(/^@+/, '') || null : null
+  }
   const username = p.username ? sanitizeText(p.username) : null
 
   // Only a real change goes through the claim path: re-saving the form with the
@@ -422,12 +543,34 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         venmo: text(p.venmo),
         paypal: text(p.paypal),
         zelle: text(p.zelle),
+        sharePhone: p.sharePhone,
+        phone: text(p.phone),
+        shareSocials: p.shareSocials,
+        instagram: handle(p.instagram),
+        facebook: handle(p.facebook),
+        youtube: handle(p.youtube),
+        strava: handle(p.strava),
         updatedAt: new Date(),
       }
 
+      // dateFormat IS SEEDED ON INSERT AND IS ABSENT FROM THE UPDATE SET, which
+      // is why `profile` is not simply spread into both halves.
+      //
+      // This is the same obligation the three handlers in settings.tsx carry and
+      // for the same reason: `user_profiles` rows are created lazily, so this
+      // upsert is often the moment a rider's first row appears — and until it
+      // does, `dateFormatFor` has been giving them day-first off Accept-Language
+      // for free. Without the seed the column's own default stamps 'en-US' over
+      // that, permanently and silently, the first time they save their name.
+      // Leaving it out of `set` is what stops this handler overwriting a date
+      // choice they made deliberately on /settings.
       await tx
         .insert(userProfiles)
-        .values({ userId: user.id, ...profile })
+        .values({
+          userId: user.id,
+          ...profile,
+          dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+        })
         .onConflictDoUpdate({ target: userProfiles.userId, set: profile })
     })
   } catch (err) {
@@ -441,4 +584,141 @@ profileRoutes.post('/profile', requireActive, async (c) => {
 
   // Redirect rather than re-render so a refresh cannot resubmit the form.
   return c.redirect('/profile?saved=1', 302)
+})
+
+// --- Autosave (#100) ---------------------------------------------------------
+//
+// The profile saved on a button, so a rider who edited a field and navigated away
+// lost it silently. This is the JSON half: the form's own POST is untouched and
+// still works with script off.
+//
+// **THREE THINGS THIS DELIBERATELY WILL NOT SAVE, and each for its own reason.**
+//
+// `username` — claiming one is not a field write. It closes out the old name in
+// `username_history`, opens the new one, and holds it. On an idle timer that
+// fires mid-typing, "zia" gets claimed and held before the rider finishes typing
+// "ziad", and the name they wanted is now taken by their own abandoned keystroke.
+// The button is the right affordance for a write with a side effect.
+//
+// The two ADDRESS BLOCKS — #100 says why and #101 is the other half: autosave and
+// address autocomplete both act on a pause in typing, so a rider who stops to
+// read the suggestion list gets "123 Ma" saved and geocoded underneath them. The
+// address fields are owned by the selection trigger instead, never by a timer.
+//
+// **A FIELD THAT FAILS VALIDATION DOES NOT BLOCK THE ONES THAT PASSED.** A ride is
+// one object and a bad leg invalidates it; a profile is independent fields, so a
+// postal code with a typo in it must not stop a display name from persisting.
+// Each field is parsed on its own and only the ones that passed are written —
+// which is also why this cannot reuse the whole-form schema in one call.
+const AUTOSAVE_FIELDS = [
+  'displayName',
+  'firstName',
+  'lastName',
+  'cashApp',
+  'venmo',
+  'paypal',
+  'zelle',
+  'phone',
+  'instagram',
+  'facebook',
+  'youtube',
+  'strava',
+] as const
+
+const AUTOSAVE_FLAGS = ['shareLastName', 'addHomeToRides', 'sharePaymentHandles', 'sharePhone', 'shareSocials'] as const
+
+/** Which stored column each text field writes, and how its value is cleaned.
+ *  The social handles go through handle() and everything else through text(),
+ *  which is the only reason this is a table rather than a loop over the names. */
+const AUTOSAVE_CLEAN: Record<string, 'text' | 'handle'> = {
+  instagram: 'handle',
+  facebook: 'handle',
+  youtube: 'handle',
+  strava: 'handle',
+}
+
+profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+
+  const text = (s: string) => sanitizeText(s) || null
+  const handle = (s: string) => {
+    const t = sanitizeText(s)
+    if (!t) return null
+    const bare = t
+      .replace(/^https?:\/\//i, '')
+      .split(/[?#]/)[0]
+      .split('/')
+      .filter(Boolean)
+      .pop()
+    return bare ? bare.replace(/^@+/, '') || null : null
+  }
+
+  const set: Record<string, unknown> = {}
+  const errors: Record<string, string> = {}
+
+  for (const name of AUTOSAVE_FIELDS) {
+    // Absent means the caller did not send it, which is not the same as an empty
+    // string — an empty string is a rider clearing a field and IS a write.
+    if (!(name in body)) continue
+    const parsed = profileFields[name].safeParse(body[name])
+    if (!parsed.success) {
+      errors[name] = parsed.error.issues[0]?.message ?? 'invalid'
+      continue
+    }
+    const v = parsed.data as string
+    set[name] = AUTOSAVE_CLEAN[name] === 'handle' ? handle(v) : text(v)
+  }
+
+  // A checkbox absent from the body is unchecked, but only if the caller was
+  // sending checkboxes at all — otherwise every partial save would silently clear
+  // every flag. The client posts the whole form, so `_flags` says so explicitly
+  // rather than being inferred from what happens to be present.
+  if (body._flags === '1') {
+    for (const name of AUTOSAVE_FLAGS) set[name] = body[name] === 'on' || body[name] === 'true'
+  }
+
+  // displayName is the one required field, and an empty one is a rider mid-edit
+  // rather than an error worth writing. Refusing to store it is right; reporting
+  // it as a failure while they are still typing is not.
+  if ('displayName' in set && !set.displayName) {
+    delete set.displayName
+    errors.displayName = 'display name is required'
+  }
+
+  if (Object.keys(set).length === 0) {
+    return c.json({ ok: Object.keys(errors).length === 0, saved: [], errors }, 200)
+  }
+
+  // displayName lives on `users`, not on `user_profiles`, so it is lifted out.
+  const displayName = set.displayName as string | undefined
+  delete set.displayName
+
+  await db.transaction(async (tx) => {
+    if (displayName) {
+      await tx.update(users).set({ displayName, updatedAt: new Date() }).where(eq(users.id, user.id))
+    }
+    if (Object.keys(set).length > 0) {
+      const values = { ...set, updatedAt: new Date() }
+      // THE FOURTH UPSERT, AND IT CARRIES THE SAME OBLIGATION AS THE OTHER THREE.
+      // Profile rows are created lazily, so this is often where a rider's first
+      // row appears — and the column default would stamp 'en-US' over whatever
+      // Accept-Language had been giving them. Seeded on INSERT, absent from the
+      // update set. See the note in src/routes/settings.tsx.
+      await tx
+        .insert(userProfiles)
+        .values({
+          userId: user.id,
+          ...values,
+          dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+        })
+        .onConflictDoUpdate({ target: userProfiles.userId, set: values })
+    }
+  })
+
+  return c.json({
+    ok: Object.keys(errors).length === 0,
+    saved: [...(displayName ? ['displayName'] : []), ...Object.keys(set)],
+    errors,
+  })
 })

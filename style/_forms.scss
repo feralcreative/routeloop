@@ -475,6 +475,12 @@
 
 .field {
   margin: 0 0 1.1rem;
+  // The containing block for `.addr-suggest` (#101), which is absolutely
+  // positioned over whatever follows the address line. Declared here rather than
+  // beside the dropdown in _account.scss because this is where `.field` lives,
+  // and two rules for one selector in two files is how a later reader ends up
+  // changing only one of them.
+  position: relative;
 
   label,
   .field-label {

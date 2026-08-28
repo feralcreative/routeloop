@@ -267,3 +267,100 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+// --- Profile autosave (#100) -------------------------------------------------
+//
+// The submit row, which now carries a state readout beside the button rather
+// than in place of it. The button is still the only way to save with script off,
+// and still the way to commit a username or an address, neither of which
+// autosaves — so the row holds both.
+.profile-save {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+// Deliberately NOT `.builder-panel .save-status`, which is a different readout
+// on a different surface with its own dot and its own fixed-width box. Sharing
+// the class name is fine; sharing the rule would tie a 380px panel's constraints
+// to a full-width form.
+//
+// Colored by state, and `error` takes $label rather than $stop. A field that did
+// not pass validation is not a failure — the other fields saved, the rider's
+// text is still on screen, and the button below still works. Red would claim
+// otherwise.
+.profile-save .save-status {
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  &[data-state="saving"] {
+    color: $neutral-50;
+  }
+
+  // $interstate-text rather than $go. $go is the green traffic SIGNAL — a field
+  // colour, and _tokens.scss records it as too light for white ink and dark
+  // enough only for black. This is text on a white card, which is the case the
+  // -text derivations exist for, and that one is measured at AA in all six
+  // palettes by test/palette-contrast.test.ts.
+  &[data-state="saved"] {
+    color: $interstate-text;
+  }
+
+  &[data-state="error"] {
+    color: $label;
+  }
+}
+
+// The live error line, appended by profile.js under the field it belongs to.
+// Matches the server-rendered `.field-error` exactly, because a rider should not
+// be able to tell which half of the app noticed.
+.field-error-live {
+  margin: 0.25rem 0 0;
+}
+
+// --- Address suggestions (#101) ----------------------------------------------
+//
+// A dropdown attached to the address line, replacing the status line below it as
+// the primary feedback. The status line stays — it shows the formatted address
+// the geocoder settled on AFTER a pick, which is a different fact from the list
+// of candidates before one.
+//
+// The wrapper is what positions this — see `.field` in _forms.scss, which owns
+// that rule because that is where `.field` is defined. An input cannot be a
+// containing block for an absolutely positioned sibling.
+.addr-suggest {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  // The list is the only thing on this page that floats over other content, so
+  // it needs a shadow to read as above rather than as part of the next field.
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.addr-suggest-item {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid $neutral-94;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  // Hover and keyboard highlight share one appearance deliberately: a rider
+  // arrowing down and a rider pointing are looking at the same thing, and two
+  // different highlights on screen at once is the confusing part.
+  &:hover,
+  &.is-active {
+    background: $neutral-96;
+  }
+}
