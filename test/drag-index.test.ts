@@ -7,7 +7,7 @@
 // actually landed, so a wrong drop is invisible unless you follow the names.
 //
 // The recorded pairs below are what Sortable actually reported on /builder/8 on
-// 2026-08-28, not numbers invented to fit. Same harness as route-shape.test.ts.
+// 2026-08-27, not numbers invented to fit. Same harness as route-shape.test.ts.
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 

@@ -3974,7 +3974,7 @@
         // at roughly double the one `day.points` is addressed by.
         //
         // That was live from 2026-08-24, when the insert slots landed nine days
-        // after this arithmetic, to 2026-08-28, and it failed in two ways at once
+        // after this arithmetic, to 2026-08-27, and it failed in two ways at once
         // — measured on /builder/8, not theorized. Dragging point 7 of 8 up one
         // slot reported `newIndex: 13`, which clamped to 7 and equalled `from`, so
         // nothing moved, the ride was never marked dirty, and the next render put
