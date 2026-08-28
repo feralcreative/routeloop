@@ -1,10 +1,29 @@
 # Status and handoff
 
-**Updated:** 2026-08-26
-**Branch:** `feat/import-review-and-export-cart`, committed. **1,935 tests across 72 files** (2 skipped, 1,937 total)
+**Updated:** 2026-08-28
+**Branch:** `feat/ride-permission-ladder`, committed, not pushed. **2,134 tests across 82 files** (2 skipped, 2,136 total)
+**Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## The permission ladder—2026-08-28
+
+**An invited rider gets View / Comment / Suggest. Edit is a deliberate promotion by an owner**, either while adding them or later, and an owner can go the other way and hand out View alone. `ride_perm` is a new column on `ride_members`, separate from `role` on purpose: `role` carries `owner`, which is an identity and not a rung, and folding the two would make every "is this the owner" test start asking "or one of these". Existing rows backfilled to `suggest` via the column default.
+
+**The rank is in code, not in the enum.** `ALTER TYPE ... ADD VALUE` appends, so a pgEnum's member order is fixed the day it is created—`PERM_RANK` in `src/members/policy.ts` is the only ordering and `atLeast()` the only comparison, exactly the arrangement `visibility` already has.
+
+**Edit means the builder and nothing more.** Delete, visibility and the roster stay owner powers (`canAdminister`). A rider below `edit` gets the **read-only builder**, not a redirect to the viewer—comments and suggestions both attach to the row list, so the viewer is a dead end and the redirect would only have to be built twice. A member's rung is shown to the owner alone: the roster answers who is coming, and rendering rungs down it publishes a ranking of the riders to the riders.
+
+**Co-owners rather than an ownership transfer.** `canRemove()`'s no-orphan rule narrowed from "an owner may not leave" to "the LAST owner may not leave", and no owner may remove a different owner—co-owners hold equal power, so that would hand the ride to whoever clicked first with no way back. `rides.owner_id` stays singular and keeps meaning the creator and the quota holder, because `reconcileUsedBytes()` rebuilds every tally on a single-owner assumption.
+
+**Comments have two anchors and demote rather than die.** A point by uid, or the ride when the uid is null. When a save deletes the point, `demoteOrphanComments()` clears the anchor and keeps the row—the opposite of `point_details` and `alt_votes`, which are reconciled away, because those are data about a point and a comment is a thing a person said. `point_label` is copied in at post time for exactly that moment.
+
+**Suggestions are a whole day, and staleness is derived.** `dayFingerprint()` hashes the point uids in order with kind and position rounded to about a meter; a suggestion is stale when that no longer matches, so a day edited and then edited back stops being stale—the case a stored flag gets wrong. The fingerprint is always taken server-side, and re-checked on accept. Accepting goes through `insertRideGraph` like any other save with one day swapped.
+
+**The trap this branch walked into, now in AGENTS.md.** An `edit`-level member loads the ride through `detailsForViewer()` and gets an empty details map, correctly. Their save would then have posted a payload with no details in it, and a reconciling write reads that as the rider having cleared every one—deleting every gate code and confirmation number on the ride, silently, because somebody moved a stop. `DetailsMode` is the guard: `preserve` for a non-owner.
+
+**Still open in #190 and written into it rather than hidden:** whether a co-owner may delete the ride, whether a comment thread is threaded or flat, and whether `comment` implies a vote on alternates.
 
 ## The import review table and the export cart—2026-08-26
 
