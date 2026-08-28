@@ -837,6 +837,37 @@ ul.cards {
   }
 }
 
+// What stands where a ride card was, after it went to the bin in place (#175).
+//
+// It keeps .ride-card so it holds the grid track — a card that collapsed would
+// reflow every card after it, which is the jump this whole change exists to
+// stop. Quieter than a real card and deliberately not a full one: there is no
+// title, because a ride the rider just binned does not need naming back at them.
+//
+// No fixed height and no timer. It sits there until the page is left or the
+// undo is pressed; a card that vanished after a few seconds would be a deadline
+// on a decision, and thirty days in the bin is the actual deadline.
+.ride-card--binned {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed $grey;
+  background: none;
+  color: $neutral-50;
+  font-size: 0.9rem;
+}
+
+// A refused restore — over quota, most often. Sits in the same box rather than
+// beside it, because by then the undo button is gone and this is the only thing
+// the card has left to say.
+.ride-card-undo-error {
+  margin: 0;
+  color: $label;
+  font-size: 0.9rem;
+}
+
 // The sign-in splash used to live here. It moved to _splash.scss when the page
 // gained its own dark, full-bleed treatment.
 
