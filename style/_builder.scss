@@ -201,6 +201,38 @@
     }
   }
 
+  // WHAT THIS RIDER MAY DO, at the top of the panel and only ever shown to
+  // somebody who is not the ride's owner (#190).
+  //
+  // Not .tb-banner, which is FIXED to the top of the viewport and offsets the
+  // map through --banner-h. This one belongs to the panel's flow: it scrolls
+  // with what it describes, and a second fixed bar would push the map down for a
+  // message about the drawer.
+  //
+  // Deliberately quiet. It is a statement of standing, not a warning — an alert
+  // color here would read as something having gone wrong, and nothing has.
+  .builder-standing {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
+    padding: 0.5em 0.6em;
+    margin-bottom: 0.6em;
+    border-radius: 8px;
+    border-left: 3px solid $neutral-63;
+    background: $neutral-96;
+    font-size: 0.85em;
+    line-height: 1.35;
+
+    strong {
+      color: $text;
+    }
+
+    span {
+      color: $neutral-43;
+      text-wrap: pretty;
+    }
+  }
+
   // The ride's own fields sit at the top of the panel under its title, so they
   // need no container of their own — a tint here would box in the whole panel.
   //
@@ -2422,5 +2454,40 @@
 
   &:hover {
     color: $stop;
+  }
+}
+
+// A BUILDER SOMEBODY MAY LOOK AT BUT NOT WRITE TO (#190).
+//
+// applyReadOnly() in builder.js disables the FIELDS; this hides the controls
+// that would still be live and would still do nothing — the per-day add rows,
+// the insert-between hairlines, and the drag handles. What stays is everything a
+// reader uses to move around: the tab strip, the day rail, the row menus and the
+// map itself.
+//
+// The class goes on <body> rather than on the panel because the timeline and the
+// map's own controls sit outside .builder-panel.
+.builder-readonly {
+  .builder-panel {
+    .add-row,
+    .insert-slot,
+    .day-add,
+    .row-drag,
+    .day-drag {
+      display: none;
+    }
+
+    // A disabled field still has to be READ. The browser's default is a gray
+    // that drops well under 4.5:1 on the panel's white, which turns every stop
+    // name into something a rider has to squint at — and reading them is the
+    // entire point of the page in this mode.
+    input:disabled,
+    textarea:disabled,
+    select:disabled {
+      color: $text;
+      background: $neutral-98;
+      border-color: $neutral-88;
+      opacity: 1;
+    }
   }
 }

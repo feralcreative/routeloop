@@ -122,12 +122,17 @@ export const canSuggest = (m: MemberFields | null): boolean => atLeast(m, 'sugge
 /**
  * Whether `m` may write to the ride itself — days, points, legs, alts.
  *
+ * Named for the membership question rather than called `canEditRide`, because
+ * src/routes/maps.ts already exports that name for the OWNERSHIP question the
+ * viewer's edit button reads. Two predicates with one name is how a gate ends up
+ * answering a question nobody asked.
+ *
  * **THE BUILDER AND NOTHING MORE.** Deleting the ride, changing its visibility
  * and administering its roster are owner powers and stay owner powers; see
  * canAdminister. An editor who can delete the ride is a co-owner, and
  * co-ownership is a role you are given, not a rung you climb to.
  */
-export const canEditRide = (m: MemberFields | null): boolean => atLeast(m, 'edit')
+export const canEditAsMember = (m: MemberFields | null): boolean => atLeast(m, 'edit')
 
 /**
  * Whether `m` holds the whole-ride powers: delete, visibility, and the roster.

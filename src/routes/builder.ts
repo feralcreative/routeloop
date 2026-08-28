@@ -14,6 +14,7 @@ import {
   points as pointsTable,
   routeLegs,
   userProfiles,
+  type RidePerm,
   type RideRow,
   type UserRow,
 } from '../db/schema'
@@ -21,7 +22,7 @@ import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type A
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
 import { toDurationFormat, type DurationFormat } from '../maps/duration'
 import { DAY_COLORS } from '../maps/palette'
-import { detailsForOwner } from '../maps/point-details'
+import { detailsForViewer } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
@@ -30,9 +31,16 @@ import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
-import { canEditRide, ownRide } from './maps'
 import { canClone } from '../access/policy'
-import { seedOwner } from '../members/service'
+import { membershipOf, seedOwner } from '../members/service'
+import {
+  canAdminister,
+  canEditAsMember,
+  canViewAsMember,
+  DEFAULT_PERM,
+  PERM_LABELS,
+  type MemberFields,
+} from '../members/policy'
 import { subgroupsOf } from '../subgroups/service'
 import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
@@ -275,10 +283,50 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
 // insertRideGraph, ridePayload and loadRidePayload — the path the native JSON
 // import shares. Do not add the reference and hope; the failure is silent and
 // looks like data that wandered off.
+/**
+ * The ride, plus the viewer's own roster row — what all three builder gates ask
+ * about now that a ride is editable by somebody who does not own it.
+ *
+ * NOT `ownRide()`, which filters on `rides.owner_id` and is still correct for
+ * every OWNER power: delete, clone, visibility, the roster. This one resolves the
+ * ride first and asks the roster second, and the caller decides which rung it
+ * needs.
+ *
+ * **The owner's row is synthesized if it is somehow missing** rather than being
+ * a second permission rule beside canEditAsMember(). seedOwner() runs inside the
+ * transaction that inserts every ride and drizzle/0015 backfilled the rest, so
+ * this should never fire — but the cost of the invariant being wrong once is an
+ * owner locked out of their own ride, and repairing the INPUT keeps there being
+ * exactly one answer to "who may edit this".
+ */
+async function builderRide(
+  userId: number,
+  idParam: string,
+): Promise<{ ride: RideRow; member: MemberFields | null } | undefined> {
+  const id = Number(idParam)
+  if (!Number.isInteger(id) || id <= 0) return undefined
+  const [ride] = await db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.id, id), LIVE_RIDE))
+    .limit(1)
+  if (!ride) return undefined
+  const row = await membershipOf(ride.id, userId)
+  const member: MemberFields | null =
+    row ??
+    (ride.ownerId === userId ? { riderId: userId, role: 'owner', perm: DEFAULT_PERM, rsvp: 'going' } : null)
+  return { ride, member }
+}
+
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
-  if (!ride) return c.json({ error: 'not found' }, 404)
+  const found = await builderRide(user.id, c.req.param('id'))
+  // 404 rather than 403 for a rider who may see the ride but not write to it.
+  // A 403 confirms the ride exists to somebody holding a guessed id, and this
+  // endpoint is reachable by anyone signed in.
+  if (!found || !canEditAsMember(found.member)) return c.json({ error: 'not found' }, 404)
+  const { ride, member } = found
+  const isOwner = canAdminister(member)
 
   const body = await parseRideBody(c)
   if (!body.data) return c.json({ error: body.error }, 400)
@@ -290,7 +338,13 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
       .set({
         title: p.title,
         description: p.description || null,
-        visibility: p.visibility,
+        // VISIBILITY IS AN OWNER POWER AND THIS IS THE GATE. Edit means the
+        // builder — days, points, legs, alts — and not the decision about who
+        // gets to see the thing. The field is ignored rather than refused,
+        // because the payload is a whole-ride replace sent by an autosave: a
+        // 400 here would block every save an editor made over a value they were
+        // never shown a control for.
+        ...(isOwner ? { visibility: p.visibility } : {}),
         externalUrl: p.external_url || null,
         ...rideTotals(p),
         updatedAt: new Date(),
@@ -298,24 +352,36 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
       .where(eq(rides.id, ride.id))
     // Full replace: routes cascade to points and legs.
     await tx.delete(daysTable).where(eq(daysTable.rideId, ride.id))
-    await insertRideGraph(tx, ride.id, p)
+    // `preserve` for a non-owner — see DetailsMode in ride-graph.ts. Their
+    // payload carries no details because they were never sent any, and a
+    // reconciling write would read that as the rider clearing every one.
+    await insertRideGraph(tx, ride.id, p, isOwner ? 'reconcile' : 'preserve')
   })
   return c.json({ id: ride.id, slug: ride.slug })
 })
 
-// Owner load for the builder — the same shape PUT accepts, vias included.
+// Member load for the builder — the same shape PUT accepts, vias included.
+//
+// The gate is `view`, not `edit`: the read-only builder is what a view-, comment-
+// or suggest-level rider gets, and it loads through here like any other.
 builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
-  if (!ride) return c.json({ error: 'not found' }, 404)
-  return c.json(await loadRidePayload(ride))
+  const found = await builderRide(user.id, c.req.param('id'))
+  if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
+  return c.json(await loadRidePayload(found.ride, user))
 })
 
-export async function loadRidePayload(ride: RideRow) {
-  // Owner-only by construction: every caller reaches this behind `ownRide()`.
-  // detailsForOwner and not detailsForViewer for that reason — the check has
-  // already happened, and doing it twice would mean two places to get it wrong.
-  const details = await detailsForOwner(ride.id)
+export async function loadRidePayload(ride: RideRow, viewer: UserRow | null) {
+  // NOT owner-only by construction any more. This used to reach detailsForOwner
+  // directly, on the grounds that every caller arrived behind `ownRide()` — true
+  // until #190 let an `edit`-level member load the same payload, and false in a
+  // way that would have handed somebody else's confirmation numbers and gate
+  // codes to every collaborator on the ride.
+  //
+  // detailsForViewer() is the boundary and it is owner-only and deliberately
+  // blind to visibility. A non-owner gets an empty map, which is why a non-owner
+  // save writes point_details in `preserve` mode — see the PUT above.
+  const details = await detailsForViewer(ride.id, ride.ownerId, viewer)
   const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position)
   // BY UID, both here and in the payload the client sends back — ids never
   // cross the wire, so `days[].subgroupUid` needs the map to be resolvable on
@@ -451,14 +517,35 @@ builderRoutes.get('/builder', requireActive, async (c) => {
 
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
-  if (!ride) return c.text('Not found', 404)
-  // Same predicate the viewer's edit button reads, so the button and this gate
-  // cannot drift into offering an action that is then refused. It no longer
-  // refuses an imported ride — see canEditRide in ./maps.
-  if (!canEditRide(ride, user)) return c.text('Not found', 404)
-  return c.html(builderHtml(ride.id, user, null, await builderPrefs(user.id), ride.slug))
+  const found = await builderRide(user.id, c.req.param('id'))
+  // `view` is the floor, not `edit`. A member below `edit` gets the SAME PAGE
+  // with its writes turned off rather than a redirect to the viewer: comments
+  // and suggestions both hang off the row list and the stop details, so the
+  // viewer is a dead end and the redirect would only have to be built twice.
+  if (!found || !canViewAsMember(found.member)) return c.text('Not found', 404)
+  const { ride, member } = found
+  return c.html(
+    builderHtml(ride.id, user, null, await builderPrefs(user.id), ride.slug, {
+      canEdit: canEditAsMember(member),
+      isOwner: canAdminister(member),
+      // A rider always knows their OWN rung — it is what the banner says. It is
+      // everyone else's that is the owner's business; see canSeePerms.
+      perm: member?.role === 'owner' ? null : (member?.perm ?? null),
+    }),
+  )
 })
+
+/** What the page needs to know about the viewer's standing on this ride. The
+ *  new-ride page has no ride and therefore no roster, so it is always the owner
+ *  of what it is about to create. */
+type BuilderStanding = {
+  canEdit: boolean
+  isOwner: boolean
+  /** The viewer's own rung, or null for an owner, who is not on the ladder. */
+  perm: RidePerm | null
+}
+
+const OWNS_IT: BuilderStanding = { canEdit: true, isOwner: true, perm: null }
 
 function builderHtml(
   rideId: number | null,
@@ -468,6 +555,7 @@ function builderHtml(
   // The ride's slug, for the roster link. Null on a new ride, which has no
   // roster to link to — and no ride, so nothing to be on.
   slug: string | null = null,
+  standing: BuilderStanding = OWNS_IT,
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
@@ -616,16 +704,45 @@ function builderHtml(
           <div id="riders-body"></div>
         </div>`
 
-  const contents = `        <div class="panel-band panel-band--ride">
+  // WHAT THIS RIDER MAY DO, said once at the top of the panel.
+  //
+  // Only for somebody who is not the owner. An owner does not need telling they
+  // own the ride, and a line saying so on every builder load is a line every
+  // rider reads once and then stops seeing — which is how a banner that DOES
+  // matter gets missed.
+  //
+  // It names the rider's OWN rung and nobody else's. A rung is administration
+  // and belongs to the owner; see canSeePerms in src/members/policy.ts.
+  const standingBanner = standing.isOwner
+    ? ''
+    : `        <div class="builder-standing">
+          <strong>${standing.canEdit ? 'You can edit this ride' : PERM_LABELS[standing.perm ?? DEFAULT_PERM]}</strong>
+          <span>${
+            standing.canEdit
+              ? 'It belongs to someone else, so sharing, the roster and deleting stay&nbsp;theirs.'
+              : 'You are looking at someone else&rsquo;s ride. Nothing you do here is&nbsp;saved.'
+          }</span>
+        </div>
+`
+
+  const contents = `${standingBanner}        <div class="panel-band panel-band--ride">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
-          <div class="meta-row">
+${
+  // VISIBILITY IS AN OWNER CONTROL and is not rendered for anybody else — the
+  // PUT ignores the field from a non-owner, and a select that silently does
+  // nothing is worse than no select. The description above it stays, because
+  // editing the ride's own text is part of editing the ride.
+  standing.isOwner
+    ? `          <div class="meta-row">
             <select id="ride-visibility" name="visibility" title="Visibility">
               <option value="private" selected>Private</option>
               <option value="friends">Friends</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, friends, unlisted and public')}
-          </div>
+          </div>`
+    : ''
+}
         </div>
 
 ${tabs}
@@ -645,7 +762,9 @@ ${
   // both of those rows are ones a rider's pointer lives in while building, and a
   // destructive control wants distance from anything pressed by reflex. The end
   // of the panel is where a rider goes deliberately.
-  rideId
+  // ...AND ONLY FOR AN OWNER. Deleting is one of the three powers `edit` does
+  // not carry, along with visibility and the roster.
+  rideId && standing.isOwner
     ? `        <div class="builder-danger">
           <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
           <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
@@ -761,6 +880,13 @@ ${
       publicStart: prefs.publicStart,
       durationFormat: prefs.durationFormat,
       units: prefs.units,
+      // WHAT THIS RIDER MAY DO, and it is a hint rather than the gate. The
+      // server refuses a write from a rider below `edit` whatever the page
+      // believes — see the PUT — and this is here so the page does not offer an
+      // action that would then be refused, and does not autosave into a 404.
+      canEdit: standing.canEdit,
+      isOwner: standing.isOwner,
+      perm: standing.perm,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but

@@ -283,7 +283,35 @@ export function rideTotals(p: RidePayload) {
 // Inserts the ride graph. Callers run this inside a transaction,
 // on a ride that has no days (fresh insert or after a full-replace delete).
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
-export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<void> {
+/**
+ * What a save does about `point_details`.
+ *
+ * `reconcile` is the owner's save and the normal case: the payload is the whole
+ * truth, and a detail row whose uid is no longer in it is deleted.
+ *
+ * **`preserve` IS FOR A SAVE BY SOMEBODY WHO CANNOT SEE THE DETAILS, and it
+ * exists to stop a silent, unrecoverable data loss.** An `edit`-level member
+ * loads the ride through detailsForViewer(), which hands a non-owner an EMPTY
+ * map — correctly, because a confirmation number is not shared by sharing a
+ * route. Their save then posts a payload with no details in it, and a
+ * reconciling write would read that as "the rider cleared every one of them"
+ * and delete the lot. The owner would lose every gate code and reservation on
+ * the ride, with nothing raised, because somebody they trusted to move a stop
+ * moved one.
+ *
+ * Under `preserve` nothing in point_details is written or deleted. The cost is
+ * that details belonging to a point the editor DELETED linger as orphans until
+ * the owner's next save reconciles them — invisible to everyone in the meantime,
+ * and the right way round: an orphan is recoverable and a deletion is not.
+ */
+export type DetailsMode = 'reconcile' | 'preserve'
+
+export async function insertRideGraph(
+  tx: Tx,
+  rideId: number,
+  p: RidePayload,
+  detailsMode: DetailsMode = 'reconcile',
+): Promise<void> {
   // Collected across every day and reconciled once at the end — see
   // writePointDetails below for why this cannot ride along with the points.
   const details: Array<{ uid: string; d: PointDetailsInput }> = []
@@ -390,7 +418,7 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
   await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
-  await writePointDetails(tx, rideId, details, liveUids)
+  if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
   // Same reconciliation, one level up. A vote whose day left the payload has to
   // go, or a deleted alternate keeps counting toward a tally forever — the
   // identical trap point_details carries, for the identical reason: alt_votes

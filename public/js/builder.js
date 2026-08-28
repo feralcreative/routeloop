@@ -310,6 +310,16 @@
   const DUR = window.TBDuration;
   const durFormat = DUR.toFormat(window.TB.durationFormat);
 
+  // WHETHER THIS RIDER MAY WRITE. A hint, never the gate — the server refuses a
+  // PUT from anybody below `edit` whatever this says (#190). What it buys is a
+  // page that does not offer an edit it cannot keep and does not autosave into a
+  // 404 every twenty seconds.
+  //
+  // Defaults to TRUE on a missing value, deliberately: the new-ride page has no
+  // ride and therefore no roster, and an older cached page that predates the key
+  // must keep working for the rider who owns what it is showing.
+  const CAN_EDIT = window.TB.canEdit !== false;
+
   // Alternates: the numbering, the active-day filter and the ride rollup. The
   // builder is the only client that calls resolveAltGroups — it is the one
   // editing days, and repairing locally is what keeps the panel, the map and
@@ -612,6 +622,15 @@
   }
 
   function markDirty() {
+    // THE READ-ONLY BUILDER STOPS HERE, and this is the only place it needs to.
+    // Every edit in the panel funnels through markDirty, so nothing goes dirty,
+    // no recovery draft is filed, and no autosave arms — rather than letting a
+    // save be attempted and refused, which would show a rider an error for
+    // something they were never allowed to do.
+    //
+    // Not routed through saveBlockReason(): that reports a condition the rider
+    // can CLEAR by editing, and this one they cannot.
+    if (!CAN_EDIT) return;
     state.dirty = true;
     editSeq++;
     setSaveStatus("dirty");
@@ -2057,6 +2076,27 @@
     // so a rename that redrew only the editor would leave every picker showing
     // the old name until something else happened to re-render.
     renderSubgroups();
+    applyReadOnly();
+  }
+
+  /**
+   * Turn the panel's controls off for a rider who may look but not write.
+   *
+   * Runs after every render because the day list is rebuilt wholesale — a row
+   * disabled once comes back enabled the next time anything re-renders.
+   *
+   * It disables FIELDS, not buttons wholesale: the tab strip, the day rail and
+   * the row menus are how a reader moves around, and a panel whose every button
+   * is dead is not read-only, it is broken. `.builder-readonly` on the body is
+   * what hides the controls that only make sense for an editor — the add rows,
+   * the drag handles — and lives in style/_builder.scss.
+   */
+  function applyReadOnly() {
+    if (CAN_EDIT) return;
+    document.body.classList.add("builder-readonly");
+    document.querySelectorAll(".builder-panel input, .builder-panel textarea, .builder-panel select").forEach((el) => {
+      el.disabled = true;
+    });
   }
 
   // --- The panel's three tabs -----------------------------------------------
@@ -4753,6 +4793,10 @@
 
   async function save() {
     if (state.saving) return;
+    // Unreachable while markDirty holds the line, and here because a save is the
+    // one thing in this file that cannot be allowed to happen by a route nobody
+    // thought of.
+    if (!CAN_EDIT) return;
     const body = payload();
     const dropped = state.days.length - body.days.length;
     if (dropped > 0 && !warnedDropped) {

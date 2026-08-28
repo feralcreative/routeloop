@@ -11,7 +11,7 @@ import {
   atLeast,
   canAdminister,
   canComment,
-  canEditRide,
+  canEditAsMember,
   canInvite,
   canRemove,
   canRsvp,
@@ -119,7 +119,7 @@ describe('the permission ladder', () => {
 
   it('defaults an invitation to suggest, never to edit', () => {
     expect(DEFAULT_PERM).toBe('suggest')
-    expect(canEditRide(member({ perm: DEFAULT_PERM }))).toBe(false)
+    expect(canEditAsMember(member({ perm: DEFAULT_PERM }))).toBe(false)
     expect(canSuggest(member({ perm: DEFAULT_PERM }))).toBe(true)
   })
 
@@ -134,7 +134,7 @@ describe('the permission ladder', () => {
   // ride, so demoting a co-owner is one column changing and not two.
   it('puts an owner above every rung whatever their own perm says', () => {
     const stubborn = member({ riderId: OWNER, role: 'owner', perm: 'view' })
-    expect(canEditRide(stubborn)).toBe(true)
+    expect(canEditAsMember(stubborn)).toBe(true)
     expect(canAdminister(stubborn)).toBe(true)
     expect(rankOf(stubborn)).toBeGreaterThan(PERM_RANK.edit)
   })
@@ -147,9 +147,9 @@ describe('the permission ladder', () => {
     expect(canSuggest(member({ perm: 'comment' }))).toBe(false)
 
     expect(canSuggest(member({ perm: 'suggest' }))).toBe(true)
-    expect(canEditRide(member({ perm: 'suggest' }))).toBe(false)
+    expect(canEditAsMember(member({ perm: 'suggest' }))).toBe(false)
 
-    expect(canEditRide(member({ perm: 'edit' }))).toBe(true)
+    expect(canEditAsMember(member({ perm: 'edit' }))).toBe(true)
     expect(canComment(member({ perm: 'edit' }))).toBe(true)
   })
 
@@ -159,7 +159,7 @@ describe('the permission ladder', () => {
       expect(atLeast(m, 'view')).toBe(canViewAsMember(m))
       expect(atLeast(m, 'comment')).toBe(canComment(m))
       expect(atLeast(m, 'suggest')).toBe(canSuggest(m))
-      expect(atLeast(m, 'edit')).toBe(canEditRide(m))
+      expect(atLeast(m, 'edit')).toBe(canEditAsMember(m))
     }
   })
 })
