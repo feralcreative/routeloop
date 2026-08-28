@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
+import type { Server as HttpServer } from 'node:http'
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
 import { rides, days as daysTable, points as pointsTable, routeLegs, type RideRow, type UserRow } from './db/schema'
@@ -50,7 +51,10 @@ import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
-import { GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
+import { APP_COLOR, DRAIN_GRACE_MS, GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
+import { health } from './health'
+import { installShutdown, isDraining } from './shutdown'
+import { APP_VERSION, BUILD_SHA } from './version'
 import { canClone, isSharedCacheable } from './access/policy'
 import { grantsFor, viewableRide } from './access/query'
 import { resolveStrand } from './subgroups/service'
@@ -69,6 +73,46 @@ import { resolveStrand } from './subgroups/service'
 const getViewable = (slug: string, viewer: UserRow | null): Promise<RideRow | undefined> => viewableRide(slug, viewer)
 
 const app = new Hono<AuthEnv>()
+
+// THE FIRST ROUTE IN THE FILE, and both of the things it is above are the
+// reason it is here rather than anywhere else.
+//
+// ABOVE THE LEGACY_HOSTS REDIRECT, because the deploy probes with
+// `Host: 127.0.0.1` and that table would answer a health check with a 301 the
+// moment somebody added a hostname to it. A probe that follows a redirect to
+// the canonical name is measuring the tunnel and Cloudflare, not this container.
+//
+// ABOVE withSession, because a health check that takes a session lookup is
+// measuring the wrong thing — and once this is what the deploy gates on, it is
+// also a session lookup every thirty seconds forever for no reader.
+//
+// The DB probe is deliberately `select 1` and not a real query. The question is
+// whether the pool can reach Postgres at all; anything richer would start
+// reporting the health of whatever table it happened to touch.
+app.get('/healthz', async (c) => {
+  let dbUp = false
+  try {
+    await db.execute(sql`select 1`)
+    dbUp = true
+  } catch {
+    // Deliberately swallowed: a health endpoint that 500s tells the deploy far
+    // less than one that answers 503 and says which half is broken.
+  }
+  const { status, body } = health({
+    version: APP_VERSION,
+    build: BUILD_SHA,
+    color: APP_COLOR,
+    dbUp,
+    draining: isDraining(),
+    uptimeSec: process.uptime(),
+  })
+  // No-store, or the tunnel's cache could hand the deploy gate the PREVIOUS
+  // container's answer — which is this project's silent-success failure mode
+  // wearing a different hat.
+  c.header('Cache-Control', 'no-store')
+  return c.json(body, status)
+})
+
 
 // Keep the former domains alive during the one-year transition, but make the
 // canonical host unambiguous for cookies, sharing, and search engines. Each
@@ -689,9 +733,16 @@ function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster:
   })
 }
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
+// `serve()` is typed as `Server | Http2Server | Http2SecureServer` because it
+// can be handed a createServer. We never do and never enable HTTP/2, so it is
+// always the plain HTTP server — which is the only one of the three that has
+// closeIdleConnections/closeAllConnections, the two methods the drain needs.
+const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
-})
+}) as HttpServer
+
+// Before the sweeps, so a SIGTERM arriving during startup is still caught.
+installShutdown(server, DRAIN_GRACE_MS)
 
 // After serve(), so a slow first pass cannot delay the port binding — the
 // container's healthcheck is what the deploy waits on. The timer is unref'd, so

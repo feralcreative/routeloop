@@ -252,6 +252,7 @@ printf '%s\n' \
   "APP_VERSION=${APP_VERSION}" \
   "BUILD_SHA=${GIT_SHA}" \
   "PURGE_ACCOUNTS=${PURGE_ACCOUNTS:-}" \
+  "DRAIN_GRACE_MS=${DRAIN_GRACE_MS:-10000}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,
@@ -277,7 +278,8 @@ if [ -n "${DRY_RUN:-}" ]; then
   log_info "Would build ${IMAGE_NAME} (${DOCKER_PLATFORM}) from $PROJECT_ROOT"
   log_info "Would transfer the image + ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
   log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and restart the stack"
-  log_info "Would apply the Drizzle schema via ${POST_DEPLOY_HOOK:-<no hook>}"
+  log_info "Would converge db, run the one-shot migrate service, then recreate app"
+  log_info "Would gate on /healthz reporting build ${GIT_SHA}"
   log_success "Dry run complete — no changes made."
   exit 0
 fi
@@ -322,36 +324,143 @@ cat "$PROJECT_ROOT/$COMPOSE_SRC" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_
 cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
 
 # --------------------------------------------------------------- deploy ------
-log_info "Restarting stack..."
-$SSH_CMD "$NAS_SSH_HOST" << EOF
-cd ${NAS_DEPLOY_PATH}
-/usr/local/bin/docker-compose down || true
-/usr/local/bin/docker-compose up -d
-EOF
+#
+# THE DATABASE IS NEVER TORN DOWN. This block used to be
+# `docker-compose down || true` followed by `up -d`, and `down` takes the app
+# container, the Postgres container AND the bridge network with it — after which
+# `up -d` has to wait on `depends_on: db: condition: service_healthy` before the
+# app can even start. That is where the 60–90 seconds of 502s came from. Nothing
+# below stops db, so its healthcheck is already green and the app's dependency
+# is satisfied the moment it starts.
+#
+# Order matters and is the point of the whole change: converge db, migrate,
+# THEN recreate the app. See docs/zero-downtime-deploy.md.
 
-# --------------------------------------------------------------- verify ------
-log_info "Verifying..."
-sleep 5
-if $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker ps --format '{{.Names}}' | grep -qx ${CONTAINER_NAME}"; then
-  log_success "Container ${CONTAINER_NAME} is running"
+log_info "Converging database container..."
+$SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose up -d db" || {
+  log_error "Could not bring up the database container. Refusing to continue."
+  exit 1
+}
+
+# Poll rather than sleep. On a deploy where db was already running this returns
+# on the first attempt; on a cold start it is the only thing standing between
+# the migration and a connection refused.
+log_info "Waiting for Postgres to report healthy..."
+DB_READY=""
+for _ in $(seq 1 60); do
+  if $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_isready -U routeloop -d routeloop" >/dev/null 2>&1; then
+    DB_READY="yes"; break
+  fi
+  sleep 1
+done
+if [ -z "$DB_READY" ]; then
+  log_error "Postgres did not become ready within 60s. Refusing to migrate or deploy."
+  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 30 ${DB_CONTAINER_NAME}" || true
+  exit 1
+fi
+log_success "Database ready"
+
+# ------------------------------------------------------------ migrations -----
+#
+# BEFORE the new code serves anything, which is the half of this that fixes a
+# live bug rather than an inconvenience. This step used to run as a post-deploy
+# hook via `docker exec` into the app container AFTER it was already serving, so
+# a deploy carrying a migration had a window where new code answered requests
+# against the old schema.
+#
+# Applying migrations is idempotent — migrate() records each one in
+# drizzle.__drizzle_migrations and skips what is already there — so a re-run
+# after a fixed failure is safe.
+#
+# Fatal on failure, and the wording below is carried over verbatim from the hook
+# this replaced. That text is the record of a real outage (2026-08-03, when a
+# non-fatal schema step let prod drift three sprints behind, serving 500s on
+# every page that touched a table with a missing column). A deploy whose schema
+# step failed has not succeeded.
+log_info "Applying Drizzle migrations..."
+if $SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose run --rm --no-deps -T migrate"; then
+  log_success "Migrations applied"
 else
-  log_error "Container failed to start"
-  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 50 ${CONTAINER_NAME}" || true
+  log_error "Migration FAILED. Refusing to deploy code against a database that does not match it."
+  log_error ""
+  log_error "LOOK AT THE SCHEMA BEFORE YOU DO ANYTHING. Two of the three causes below"
+  log_error "look identical from here and the fixes are opposites:"
+  log_error ""
+  log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh schema-state"
+  log_error ""
+  log_error "  1. A STALE VOLUME was adopted — the tables are from an older pivot of the"
+  log_error "     schema and the row counts are zero. Compose namespaces volumes by"
+  log_error "     COMPOSE_PROJECT_NAME, not by deploy directory, so a \"fresh\" environment"
+  log_error "     can come up on a months-old database. DO NOT BASELINE THIS. Drop the"
+  log_error "     schemas and let the migrations build it from 0000:"
+  log_error "       docker exec <db-container> psql -U routeloop -d routeloop -c \\"
+  log_error "         'DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
+  log_error "     Confirm the row counts really are zero first. This destroys the database."
+  log_error ""
+  log_error "  2. This database PREDATES drizzle/ and was never baselined, so migrate is"
+  log_error "     trying to create tables that already exist. This is cause 1 with real"
+  log_error "     data in it, and the schema must ALREADY match src/db/schema.ts — check"
+  log_error "     that the table list is complete, not merely non-empty. Then, ONCE:"
+  log_error "       DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh db-baseline"
+  log_error "     A baseline records a claim it cannot verify: run it against a database"
+  log_error "     that is actually behind and every later migration is skipped forever,"
+  log_error "     leaving an app that 500s on columns that will never be created."
+  log_error "     See docs/database.md."
+  log_error ""
+  log_error "  3. A migration genuinely failed against real data — a NOT NULL on a column"
+  log_error "     holding nulls, or a unique constraint on duplicates. Fix it by editing"
+  log_error "     the generated SQL to backfill first, not by forcing it through."
+  log_error ""
+  log_error "Re-run it and see the error in full:"
+  log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh migrate"
+  log_error ""
+  log_error "THE OLD CONTAINER IS STILL SERVING and still matches the old schema, so the"
+  log_error "site is up. Nothing has been swapped."
   exit 1
 fi
 
-# Hit the port the tunnel actually targets, from the NAS host itself.
-if $SSH_CMD "$NAS_SSH_HOST" "curl -fsS -o /dev/null --max-time 10 http://127.0.0.1:${HOST_PORT}/"; then
-  log_success "App responding on 127.0.0.1:${HOST_PORT} (tunnel origin)"
-else
-  log_warning "App not responding yet on 127.0.0.1:${HOST_PORT} — it may still be starting"
-  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 30 ${CONTAINER_NAME}" || true
-fi
+# ----------------------------------------------------------- recreate app ----
+#
+# --force-recreate because the image TAG is unchanged (routeloop:latest), and a
+# Compose that decides the service is already up-to-date leaves the OLD
+# container in place and "deploys" nothing while reporting success.
+# --no-deps so this can never reach db.
+log_info "Recreating app container..."
+$SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose up -d --no-deps --force-recreate app" || {
+  log_error "Failed to recreate the app container"
+  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 50 ${CONTAINER_NAME}" || true
+  exit 1
+}
 
-# ------------------------------------------------------ post-deploy hook -----
-if [ -n "${POST_DEPLOY_HOOK:-}" ] && [ -f "$PROJECT_ROOT/$POST_DEPLOY_HOOK" ]; then
-  log_info "Running post-deploy hook: $POST_DEPLOY_HOOK"
-  DEPLOY_ENV="$DEPLOY_ENV" bash "$PROJECT_ROOT/$POST_DEPLOY_HOOK"
+# --------------------------------------------------------------- verify ------
+#
+# THE SHA ASSERTION IS THE PART THAT EARNS ITS KEEP. This was `sleep 5` plus a
+# NON-FATAL curl of `/`, which deploy.config and docs/STATUS.md both already
+# flagged as untrustworthy: a 200 alone proves only that something is listening,
+# and the --force-recreate failure mode above answers 200 with the OLD build,
+# perfectly happily. Gating on the SHA we just pushed is what turns a hopeful
+# deploy into a verified one.
+log_info "Verifying (polling /healthz for ${GIT_SHA})..."
+HEALTH_OK=""
+HEALTH_LAST=""
+for _ in $(seq 1 60); do
+  HEALTH_LAST=$($SSH_CMD "$NAS_SSH_HOST" "curl -fsS --max-time 5 http://127.0.0.1:${HOST_PORT}/healthz" 2>/dev/null || true)
+  case "$HEALTH_LAST" in
+    *"\"build\":\"${GIT_SHA}\""*) HEALTH_OK="yes"; break ;;
+  esac
+  sleep 1
+done
+
+if [ -n "$HEALTH_OK" ]; then
+  log_success "App healthy on 127.0.0.1:${HOST_PORT} and reporting ${GIT_SHA}"
+else
+  log_error "App did not report a healthy /healthz with build ${GIT_SHA} within 60s."
+  log_error "Last response: ${HEALTH_LAST:-<none>}"
+  log_error ""
+  log_error "If it answered with a DIFFERENT build, the old container is still running and"
+  log_error "compose did not recreate it — check that --force-recreate reached the app service."
+  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 50 ${CONTAINER_NAME}" || true
+  exit 1
 fi
 
 # ------------------------------------------------------ cloudflare purge -----

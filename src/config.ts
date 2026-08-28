@@ -130,6 +130,24 @@ export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE &
 // enable it, which is what a bare Boolean() on the string would do.
 export const PURGE_ACCOUNTS = env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
 
+// How long a container that has been told to stop will wait for the requests it
+// already has before cutting them off. See src/shutdown.ts.
+//
+// Ten seconds because that is what Docker's own default SIGKILL timeout is, and
+// a grace period longer than the runtime's patience is a number that never gets
+// used — the process is killed mid-drain and the setting reads as though it did
+// something. `stop_grace_period` in docker-compose.prod.yml raises the runtime
+// side to 30s so this can be tuned up to about 25 without hitting that wall.
+export const DRAIN_GRACE_MS = Number(env('DRAIN_GRACE_MS', '10000'))
+
+// Which half of a blue/green pair this container is, blank everywhere today.
+//
+// Phase 2 of docs/zero-downtime-deploy.md gives the two colors their own value;
+// until then it reports empty, which is the honest answer for a topology with
+// one container. It is read only by /healthz, so an environment that never sets
+// it loses nothing.
+export const APP_COLOR = env('APP_COLOR', '')
+
 // Two Google Maps keys, and they are not interchangeable — the restriction types
 // are mutually exclusive. A referrer-restricted key cannot be used server-side
 // because a server sends no Referer header for Google to check, and an
@@ -195,8 +213,7 @@ export const MAGIC_LINK_ENABLED = MAIL_ENABLED
 // dead one, so collapsing '' to the default would remove the only way to turn
 // one off. They are also never written by the deploy, so the empty-string
 // hazard env() exists for cannot reach them.
-export const ALPHA_GITHUB_URL =
-  process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
+export const ALPHA_GITHUB_URL = process.env.ALPHA_GITHUB_URL ?? 'https://github.com/feralcreative/routeloop/issues'
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'
 export const ALPHA_VMC_URL = process.env.ALPHA_VMC_URL ?? 'https://vampiresmc.com'
