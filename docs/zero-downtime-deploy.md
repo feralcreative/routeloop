@@ -2,11 +2,32 @@
 
 **Written:** 2026-08-25. **Updated:** 2026-08-27.
 
-**Status: Phase 1 is BUILT and unshipped. Phase 2 is still a plan and nothing in it exists.**
+**Status: Phase 1 and Phase 2 are BUILT, and STAGE IS RUNNING BLUE/GREEN. Production has NOT been cut over.**
 
 Phase 1 landed on `feat/zero-downtime-phase-1`: `/healthz`, the SIGTERM drain, migrations moved off the serving container into a one-shot `migrate` service, and a deploy that converges the database instead of tearing it down. It has **not been deployed to stage or prod**, and the one thing in it that cannot be verified from a laptop—whether SIGTERM actually reaches Node as PID 1 inside the container—is listed under *Verification* below and has to be done by hand on stage first.
 
-Phase 2, blue/green behind Caddy, is unchanged and unbuilt. Its approvals—Caddy as a prod dependency, anything touching prod or stage, and the migration-authoring rule—have not been given. Read everything from *Phase 2* onward as a proposal.
+Phase 2 landed on `feat/zero-downtime-phase-2`, branched off Phase 1. **All three of its approvals were given on 2026-08-27**: Caddy as a production dependency, expand/contract as a schema rule with a `--no-overlap` escape hatch, and `DB_VOLUME_NAME` hard-pinned per environment.
+
+**Stage was cut over on 2026-08-27 and the rehearsal is complete.** Six deploys, blue→green→blue→green→blue, and every precondition the runbook names for prod is now satisfied:
+
+- **Zero dropped requests, measured three times** by polling the origin from the NAS host through a full deploy including the cutover: 198/198, 188/188 and 220/220, all `200`.
+- **Postgres never restarted** and no new volume appeared. `db` reported up-to-date on every deploy, never `Recreating`—which is the runbook's abort signal.
+- **The `Host` header survives the hop**: `stage.tankbag.app` still 301s, which is the whole Caddy-over-nginx argument.
+- **A 9.5MB GPX imported through the proxy** with no body cap.
+- Sign-in, a round-tripped export/import, and the map all pass.
+
+**What has NOT happened is the PRODUCTION cutover**, which is the only step in either phase that can lose a database. Prod is still the single pre-blue/green container. The runbook below is unchanged and its preconditions are not optional.
+
+**Three defects the rehearsal caught**, none of them predicted by the plan:
+
+- **A phantom idle color.** On a first deploy the script reported an idle color that had never existed and presented it as a rollback target. `resolve_live_color()` returns the empty string for "nothing is live" now, and every caller handles it.
+- **The summary lied about rollback.** It said the previous color was "still up for rollback" while the drain two lines earlier had stopped it. It now says drained and stopped and prints the two commands to bring it back.
+- **`viewer.js` and `builder.js` both spread a whole track into `push()`**, which throws `RangeError: Maximum call stack size exceeded` above roughly 65k vertices in Safari and 125k in V8. Pre-existing and nothing to do with the proxy—but a large import is what surfaced it, and a dense GPS recording reaches that without being unusual. Fixed in both.
+
+Two things resolved that the plan left open:
+
+- **Compose on the NAS is v2.20.1** (measured 2026-08-27), so profiles are available. Both colors and the migrator sit behind them, which is what makes a bare `up -d` unable to start both colors—the plan had hedged on this because Synology often ships Compose v1.
+- **The plan's `health()` snippet read `process.env.APP_COLOR` inside a function described as pure.** `APP_COLOR` lives in `src/config.ts` with every other env-derived constant and is passed in.
 
 ## Context
 
@@ -190,7 +211,7 @@ browser → CF edge → tunnel → cloudflared (native on NAS host)
 | | nginx | Caddy |
 | --- | --- | --- |
 | Graceful reload | Yes, `nginx -s reload` | Yes, `caddy reload` |
-| **Request body limit** | **`client_max_body_size` defaults to 1MB.** The rider quota is 25MB. Forgetting one line silently 413s every real KML/GPX import | No default limit, streams by default |
+| **Request body limit** | **`client_max_body_size` defaults to 1MB.** The largest upload the app accepts is 10MB. Forgetting one line silently 413s every real GPX import | No default limit, streams by default |
 | **`Host` header** | **Defaults to `$proxy_host`**—the app would see `Host: routeloop-blue`, breaking `LEGACY_HOSTS` and the alias 301 | Preserves the incoming `Host` for HTTP upstreams |
 | Upstream DNS | Resolves once at config load; a literal upstream that doesn't resolve makes nginx **fail to start** | Re-resolves per dial |
 | Config size | ~40 lines of boilerplate | ~12 lines |
@@ -378,7 +399,7 @@ Watch for, in order: `up -d db proxy` reporting db as **up-to-date**, not `Recre
 ssh nas 'docker volume ls'          # NO new db volume appeared
 ```
 
-Then in a browser: sign in (proves the session cookie and `Host` survive the proxy hop); load a ride's map (proves `data/storage` is still bound and readable as `1026:100`); download a KML; import a real GPX near the 25MB ceiling (proves no body-size cap); hit `tankbag.app` and confirm the 301 (proves `LEGACY_HOSTS` sees the real host); check the footer shows the expected `APP_VERSION`.
+Then in a browser: sign in (proves the session cookie and `Host` survive the proxy hop); load a ride's map (proves `data/storage` is still bound and readable as `1026:100`); download a KML; import a GPX just under the 10MB per-file cap (proves no body-size cap—see the correction under Verification; there is no 25MB upload ceiling); hit `tankbag.app` and confirm the 301 (proves `LEGACY_HOSTS` sees the real host); check the footer shows the expected `APP_VERSION`.
 
 ```bash
 # 6. ROLLBACK if any of step 5 fails — back on the old topology in ~60s.
@@ -436,7 +457,7 @@ Specifically **not** proposed: a Vitest test for the color picker. That logic li
 2. **Zero dropped requests, measured.** From the NAS host during a deploy: `while true; do curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6687/healthz; sleep 0.2; done | sort | uniq -c`. Anything that isn't `200` is the thing this plan exists to eliminate.
 3. **SIGTERM actually reaches Node.** The PID-1 problem. Single most likely thing to be silently broken.
 4. **A deliberately broken build rolls back cleanly.** Ship a commit that throws on boot. Confirm the proxy is never touched, the old color keeps serving, and the failure output names the container and dumps its logs.
-5. **A real GPX/KML import through the proxy**, near the 25MB ceiling—the nginx body-limit trap in reverse.
+5. **A real GPX/KML import through the proxy**, as large as the app will take—the nginx body-limit trap in reverse. **Corrected 2026-08-27: there is no 25MB upload ceiling**, which is what this line used to claim. 25MB is the STORAGE QUOTA. The upload caps are 10MB per GPX/KMZ/GeoJSON and 5MB per KML (`src/maps/kml.ts`), behind a 16MB multipart backstop (`src/routes/maps.ts`). A file over those is refused by the app with `{"error":"upload too large"}` before its size ever reaches the proxy, so testing with one proves nothing about the proxy at all—measured, by doing exactly that.
 6. **Sign in through the proxy**, both Google OAuth and the magic link. Proves `Host`, the cookie `Secure` flag, `APP_ORIGIN`, and the OAuth redirect URI all survive the extra hop.
 7. **The alias 301** through the proxy.
 8. **A ride's map and a file download**, proving `data/storage` is still bound and readable from a container whose name changed.

@@ -16,15 +16,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 [ -f "$PROJECT_ROOT/deploy.config" ] || { echo "ERROR: deploy.config not found in project root" >&2; exit 1; }
 source "$PROJECT_ROOT/deploy.config"
 
-NAS_SSH_HOST="${NAS_USER}@${NAS_HOST}"
-
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'
-CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
-
-log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+# Colors, logging, SSH plumbing and — the part that matters here — the single
+# implementation of "which color is live". See utils/deploy/lib.sh.
+source "$SCRIPT_DIR/lib.sh"
 
 format_time() { local s=$1; if [ "$s" -lt 60 ]; then echo "${s}s"; else echo "$((s/60))m $((s%60))s"; fi; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { log_error "Required command '$1' not found. ${2:-}"; exit 1; }; }
@@ -35,12 +29,19 @@ BUILD_TIME=0
 TRANSFER_TIME=0
 
 # ---------------------------------------------------------------- flags ------
-DRY_RUN=""; FORCE=""
+DRY_RUN=""; FORCE=""; NO_OVERLAP=""; FORCE_COLOR=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-n) DRY_RUN=1 ;;
     --force|-f)   FORCE=1 ;;
-    --help|-h)    echo "Usage: $(basename "$0") [--dry-run] [--force]"; exit 0 ;;
+    # THE ESCAPE HATCH FOR A MIGRATION THAT CANNOT BE MADE ADDITIVE. Ziad's
+    # call, 2026-08-27: expand/contract is the rule, and a rule with no lever
+    # blocks a genuine emergency. This stops the old color BEFORE starting the
+    # new one, so the two never overlap and the old code never sees the new
+    # schema — at the cost of one slow deploy with real downtime.
+    --no-overlap) NO_OVERLAP=1 ;;
+    --color=*)    FORCE_COLOR="${arg#*=}" ;;
+    --help|-h)    echo "Usage: $(basename "$0") [--dry-run] [--force] [--no-overlap] [--color=blue|green]"; exit 0 ;;
     *) log_error "Unknown flag: $arg"; exit 1 ;;
   esac
 done
@@ -141,18 +142,8 @@ APP_ORIGIN="https://${DOMAIN}"
 [ -f "$PROJECT_ROOT/$COMPOSE_SRC" ] || { log_error "Compose file not found: $COMPOSE_SRC"; exit 1; }
 
 # -------------------------------------------------------------- ssh key ------
-check_ssh_key() {
-  if [ -n "${SSH_KEY_PATH:-}" ] && [ -f "$SSH_KEY_PATH" ]; then return; fi
-  if [ -f "$HOME/.ssh/id_ed25519" ]; then SSH_KEY_PATH="$HOME/.ssh/id_ed25519"; return; fi
-  if [ -f "$HOME/.ssh/id_rsa" ];      then SSH_KEY_PATH="$HOME/.ssh/id_rsa";      return; fi
-  if ssh-add -l > /dev/null 2>&1;     then USE_SSH_AGENT=1;                       return; fi
-  log_error "No SSH key found."; exit 1
-}
-get_ssh_cmd() {
-  local cmd="ssh -p ${NAS_SSH_PORT}"
-  [ -z "${USE_SSH_AGENT:-}" ] && [ -n "${SSH_KEY_PATH:-}" ] && cmd="$cmd -i $SSH_KEY_PATH"
-  echo "$cmd"
-}
+# check_ssh_key and get_ssh_cmd live in lib.sh; both scripts carried identical
+# copies before blue/green gave them a third thing to agree about.
 check_ssh_key
 SSH_CMD=$(get_ssh_cmd)
 
@@ -216,7 +207,8 @@ echo ""
 echo -e "${CYAN}═══ ${PROJECT_NAME} → ${ENV_COLOR}${ENV_LABEL}${NC}${CYAN} ═══${NC}"
 echo -e "  ${MAGENTA}Target${NC}    : ${TARGET_URL}"
 echo -e "  ${MAGENTA}NAS path${NC}  : ${NAS_DEPLOY_PATH}"
-echo -e "  ${MAGENTA}Container${NC} : ${CONTAINER_NAME} (host 127.0.0.1:${HOST_PORT})"
+echo -e "  ${MAGENTA}Colors${NC}    : ${BLUE_CONTAINER_NAME} / ${GREEN_CONTAINER_NAME}"
+echo -e "  ${MAGENTA}Proxy${NC}     : ${PROXY_CONTAINER_NAME} (host 127.0.0.1:${HOST_PORT}, 127.0.0.1:${ALIAS_HOST_PORT})"
 [ -n "${DRY_RUN:-}" ] && echo -e "  ${YELLOW}DRY RUN — nothing will be built, transferred, or restarted${NC}"
 echo ""
 
@@ -230,7 +222,6 @@ printf '%s\n' \
   "# Written by utils/deploy/deploy.sh — do not edit by hand." \
   "COMPOSE_PROJECT_NAME=${PROJECT_NAME}-${DEPLOY_ENV}" \
   "IMAGE_NAME=${IMAGE_NAME}" \
-  "CONTAINER_NAME=${CONTAINER_NAME}" \
   "DB_CONTAINER_NAME=${DB_CONTAINER_NAME}" \
   "HOST_PORT=${HOST_PORT}" \
   "ALIAS_HOST_PORT=${ALIAS_HOST_PORT}" \
@@ -253,6 +244,11 @@ printf '%s\n' \
   "BUILD_SHA=${GIT_SHA}" \
   "PURGE_ACCOUNTS=${PURGE_ACCOUNTS:-}" \
   "DRAIN_GRACE_MS=${DRAIN_GRACE_MS:-10000}" \
+  "BLUE_CONTAINER_NAME=${BLUE_CONTAINER_NAME}" \
+  "GREEN_CONTAINER_NAME=${GREEN_CONTAINER_NAME}" \
+  "PROXY_CONTAINER_NAME=${PROXY_CONTAINER_NAME}" \
+  "PROXY_IMAGE=${PROXY_IMAGE}" \
+  "DB_VOLUME_NAME=${DB_VOLUME_NAME}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,
@@ -278,8 +274,9 @@ if [ -n "${DRY_RUN:-}" ]; then
   log_info "Would build ${IMAGE_NAME} (${DOCKER_PLATFORM}) from $PROJECT_ROOT"
   log_info "Would transfer the image + ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
   log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and restart the stack"
-  log_info "Would converge db, run the one-shot migrate service, then recreate app"
-  log_info "Would gate on /healthz reporting build ${GIT_SHA}"
+  log_info "Would converge db and proxy, then run the one-shot migrate service"
+  log_info "Would deploy the idle color, gate it on /healthz reporting ${GIT_SHA},"
+  log_info "  cut the proxy over, verify the origin, and drain the old color"
   log_success "Dry run complete — no changes made."
   exit 0
 fi
@@ -318,8 +315,20 @@ log_info "Loading image on NAS..."
 $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker load < ${NAS_DEPLOY_PATH}/${PROJECT_NAME}.tar.gz && rm ${NAS_DEPLOY_PATH}/${PROJECT_NAME}.tar.gz"
 
 # --------------------------------------------- compose file + remote env -----
-log_info "Writing compose file and environment..."
+log_info "Writing compose file, proxy config and environment..."
 cat "$PROJECT_ROOT/$COMPOSE_SRC" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/docker-compose.yml"
+
+# THE PROXY'S CONFIG DIRECTORY HAS TO EXIST AS A DIRECTORY AND upstream.caddy
+# AS A FILE, BEFORE THE PROXY IS EVER STARTED. Compose bind-mounts
+# ./proxy/upstream.caddy into the container; if that path does not exist on the
+# host, Docker helpfully creates a DIRECTORY there — and Caddy then fails to
+# read its own config with an error that says nothing about bind mounts. The
+# seed points at blue because a first deploy has no live color to preserve;
+# every deploy after this one finds the file already written and leaves it
+# alone, because it is the only record of which color is serving.
+$SSH_CMD "$NAS_SSH_HOST" "mkdir -p ${NAS_DEPLOY_PATH}/proxy"
+cat "$PROJECT_ROOT/proxy/Caddyfile" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/proxy/Caddyfile"
+$SSH_CMD "$NAS_SSH_HOST" "test -f ${NAS_DEPLOY_PATH}/proxy/upstream.caddy || printf 'reverse_proxy %s:6686\n' '${BLUE_CONTAINER_NAME}' > ${NAS_DEPLOY_PATH}/proxy/upstream.caddy"
 
 cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
 
@@ -419,48 +428,156 @@ else
   exit 1
 fi
 
-# ----------------------------------------------------------- recreate app ----
+# ------------------------------------------------------------- the colors ----
 #
-# --force-recreate because the image TAG is unchanged (routeloop:latest), and a
-# Compose that decides the service is already up-to-date leaves the OLD
-# container in place and "deploys" nothing while reporting success.
-# --no-deps so this can never reach db.
-log_info "Recreating app container..."
-$SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose up -d --no-deps --force-recreate app" || {
-  log_error "Failed to recreate the app container"
-  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 50 ${CONTAINER_NAME}" || true
+# THE OLD CONTAINER IS NEVER RECREATED. It is replaced by whichever color is not
+# currently serving, and the proxy is the last thing touched — so every failure
+# before the cutover is a no-op on the live site.
+
+LIVE_COLOR=$(resolve_live_color)
+if [ -n "$FORCE_COLOR" ]; then
+  TARGET_COLOR="$FORCE_COLOR"
+  log_warning "Deploying to ${TARGET_COLOR} because --color was given, not because it is idle"
+elif [ -z "$LIVE_COLOR" ]; then
+  # FIRST DEPLOY ONTO THIS TOPOLOGY. Nothing is serving, so there is no idle
+  # color and nothing to drain or roll back to — say so rather than inventing
+  # one. Blue by convention, so a fresh environment is predictable.
+  TARGET_COLOR="blue"
+else
+  TARGET_COLOR=$(other_color "$LIVE_COLOR")
+fi
+TARGET_SERVICE=$(service_for "$TARGET_COLOR")
+TARGET_CONTAINER=$(container_for "$TARGET_COLOR")
+
+if [ -n "$LIVE_COLOR" ]; then
+  LIVE_SERVICE=$(service_for "$LIVE_COLOR")
+  LIVE_CONTAINER=$(container_for "$LIVE_COLOR")
+  log_info "Live: ${LIVE_COLOR} (${LIVE_CONTAINER}) → deploying ${TARGET_COLOR} (${TARGET_CONTAINER})"
+else
+  LIVE_SERVICE=""; LIVE_CONTAINER=""
+  log_warning "Nothing is serving — this is a first deploy onto the blue/green topology."
+  log_warning "There is no idle color to roll back to until the next deploy."
+  log_info "Deploying ${TARGET_COLOR} (${TARGET_CONTAINER})"
+fi
+
+# Bring the proxy up if it is not already. Never a bare `up -d`: that would
+# start every service in the file, and the two colors are exactly what must not
+# both be started. They are behind Compose profiles for that reason, so naming
+# them is the only way they run at all.
+log_info "Converging proxy..."
+nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE up -d --no-deps proxy" || {
+  log_error "Could not bring up the proxy. Nothing has been swapped."
   exit 1
 }
 
-# --------------------------------------------------------------- verify ------
+if [ -n "$NO_OVERLAP" ] && [ -n "$LIVE_COLOR" ]; then
+  # THE ESCAPE HATCH, AND IT HAS REAL DOWNTIME. Used when a migration cannot be
+  # made backward compatible, so the old code must never see the new schema.
+  log_warning "--no-overlap: stopping ${LIVE_COLOR} BEFORE starting ${TARGET_COLOR}."
+  log_warning "This deploy HAS DOWNTIME — roughly the boot time of one container."
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE stop ${LIVE_SERVICE}" || true
+fi
+
+log_info "Starting ${TARGET_COLOR}..."
+nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE up -d --no-deps --force-recreate ${TARGET_SERVICE}" || {
+  log_error "Failed to start ${TARGET_COLOR}."
+  nas "$DOCKER logs --tail 50 ${TARGET_CONTAINER}" || true
+  [ -n "$LIVE_COLOR" ] && log_error "The proxy was never touched — ${LIVE_COLOR} is still serving."
+  exit 1
+}
+
+# --------------------------------------------------------- the health gate ---
 #
-# THE SHA ASSERTION IS THE PART THAT EARNS ITS KEEP. This was `sleep 5` plus a
-# NON-FATAL curl of `/`, which deploy.config and docs/STATUS.md both already
-# flagged as untrustworthy: a 200 alone proves only that something is listening,
-# and the --force-recreate failure mode above answers 200 with the OLD build,
-# perfectly happily. Gating on the SHA we just pushed is what turns a hopeful
-# deploy into a verified one.
-log_info "Verifying (polling /healthz for ${GIT_SHA})..."
-HEALTH_OK=""
-HEALTH_LAST=""
+# ASKED OF THE CONTAINER DIRECTLY, not through the proxy, because the proxy is
+# still pointed at the OLD color — a probe through it would cheerfully report
+# the old container healthy and pass a gate that has tested nothing.
+#
+# The SHA assertion is the part that earns its keep: a 200 alone proves only
+# that something is listening, and a Compose that decided the service was
+# up-to-date would answer 200 with the old build.
+log_info "Health-gating ${TARGET_COLOR} for ${GIT_SHA} (direct, not through the proxy)..."
+GATE_OK=""
+GATE_LAST=""
 for _ in $(seq 1 60); do
-  HEALTH_LAST=$($SSH_CMD "$NAS_SSH_HOST" "curl -fsS --max-time 5 http://127.0.0.1:${HOST_PORT}/healthz" 2>/dev/null || true)
-  case "$HEALTH_LAST" in
-    *"\"build\":\"${GIT_SHA}\""*) HEALTH_OK="yes"; break ;;
+  GATE_LAST=$(color_health "$TARGET_COLOR")
+  case "$GATE_LAST" in
+    *"\"build\":\"${GIT_SHA}\""*) GATE_OK="yes"; break ;;
   esac
   sleep 1
 done
 
-if [ -n "$HEALTH_OK" ]; then
-  log_success "App healthy on 127.0.0.1:${HOST_PORT} and reporting ${GIT_SHA}"
-else
-  log_error "App did not report a healthy /healthz with build ${GIT_SHA} within 60s."
-  log_error "Last response: ${HEALTH_LAST:-<none>}"
-  log_error ""
-  log_error "If it answered with a DIFFERENT build, the old container is still running and"
-  log_error "compose did not recreate it — check that --force-recreate reached the app service."
-  $SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker logs --tail 50 ${CONTAINER_NAME}" || true
+if [ -z "$GATE_OK" ]; then
+  log_error "${TARGET_COLOR} did not report healthy with build ${GIT_SHA} within 60s."
+  log_error "Last response: ${GATE_LAST:-<none>}"
+  nas "$DOCKER logs --tail 50 ${TARGET_CONTAINER}" || true
+  echo ""
+  if [ -n "$LIVE_COLOR" ]; then
+    log_warning "The new color failed its health gate and the proxy was never touched —"
+    log_warning "the site is still serving ${LIVE_COLOR} and never blinked."
+  else
+    log_warning "The new color failed its health gate. Nothing was serving before it,"
+    log_warning "so this environment is down until a color comes up."
+  fi
+  log_warning ""
+  log_warning "BUT: migrations already ran. This environment's schema is now AHEAD of"
+  log_warning "the code serving it. That is safe only if the migration was backward"
+  log_warning "compatible — which is exactly what the expand/contract rule in"
+  log_warning "AGENTS.md exists to guarantee. If it was not, roll the schema back by"
+  log_warning "hand before doing anything else."
   exit 1
+fi
+log_success "${TARGET_COLOR} is healthy and reporting ${GIT_SHA}"
+
+# --------------------------------------------------------------- cutover -----
+log_info "Pointing the proxy at ${TARGET_COLOR}..."
+if ! point_proxy_at "$TARGET_COLOR"; then
+  log_error "Cutover failed. ${LIVE_COLOR:-nothing} is still serving and the site never blinked."
+  exit 1
+fi
+
+# --------------------------------------------------------------- verify ------
+#
+# Through the HOST PORT this time — the one the tunnel actually targets — so
+# this proves the whole path rather than the container in isolation.
+log_info "Verifying through the tunnel origin on 127.0.0.1:${HOST_PORT}..."
+VERIFY_OK=""
+VERIFY_LAST=""
+for _ in $(seq 1 30); do
+  VERIFY_LAST=$(nas "curl -fsS --max-time 5 http://127.0.0.1:${HOST_PORT}/healthz" 2>/dev/null || true)
+  case "$VERIFY_LAST" in
+    *"\"build\":\"${GIT_SHA}\""*) VERIFY_OK="yes"; break ;;
+  esac
+  sleep 1
+done
+
+if [ -z "$VERIFY_OK" ]; then
+  log_error "The origin is not serving ${GIT_SHA} after the cutover."
+  log_error "Last response: ${VERIFY_LAST:-<none>}"
+  if [ -z "$LIVE_COLOR" ]; then
+    log_error "There is no previous color to roll back to — this was a first deploy."
+    exit 1
+  fi
+  log_warning "Rolling the proxy back to ${LIVE_COLOR}..."
+  if point_proxy_at "$LIVE_COLOR"; then
+    log_success "Rolled back — ${LIVE_COLOR} is serving again."
+  else
+    log_error "ROLLBACK ALSO FAILED. Do this by hand, now:"
+    log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh cutover ${LIVE_COLOR}"
+  fi
+  exit 1
+fi
+log_success "Origin serving ${TARGET_COLOR} on 127.0.0.1:${HOST_PORT}, reporting ${GIT_SHA}"
+
+# ------------------------------------------------------------ drain the old --
+#
+# LAST, AND ONLY AFTER THE VERIFY PASSED. Until this line the old color is still
+# running and one `cutover` away from taking traffic back, which is the whole
+# rollback story. `docker-compose stop` sends SIGTERM and waits out
+# stop_grace_period, so the requests it is still holding finish — see
+# src/shutdown.ts.
+if [ -z "$NO_OVERLAP" ] && [ -n "$LIVE_COLOR" ]; then
+  log_info "Draining ${LIVE_COLOR}..."
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE stop ${LIVE_SERVICE}" || log_warning "Could not stop ${LIVE_COLOR} — it is idle, so this is not fatal."
 fi
 
 # ------------------------------------------------------ cloudflare purge -----
@@ -490,7 +607,19 @@ echo -e "${CYAN}═══ ${PROJECT_NAME} — ${ENV_COLOR}${ENV_LABEL}${NC}${CYA
 echo -e "  Target        : ${BOLD}${TARGET_URL}${NC}"
 echo -e "  Git           : ${BOLD}${GIT_SHA}${NC} (${GIT_BRANCH})"
 echo -e "  Version       : ${BOLD}${APP_VERSION}${NC}"
-echo -e "  Container     : ${CONTAINER_NAME} → 127.0.0.1:${HOST_PORT}"
+echo -e "  Serving       : ${TARGET_COLOR} (${TARGET_CONTAINER}) → 127.0.0.1:${HOST_PORT}"
+if [ -n "$LIVE_COLOR" ]; then
+  # STOPPED, not warm. The drain above stops it once the origin verify passes,
+  # which is deliberate — two live app containers on this NAS is memory spent on
+  # nothing, and the next deploy force-recreates the idle one anyway. Rolling
+  # back is therefore start-then-cutover rather than cutover alone, so the
+  # command is printed rather than described.
+  echo -e "  Previous      : ${LIVE_COLOR} (${LIVE_CONTAINER}), drained and stopped"
+  echo -e "  ${DIM}Roll back:      docker-compose up -d --no-deps ${LIVE_SERVICE}${NC}"
+  echo -e "  ${DIM}                then deploy-utils.sh cutover ${LIVE_COLOR}${NC}"
+else
+  echo -e "  Previous      : none — first deploy onto this topology"
+fi
 echo -e "  Build time    : $(format_time $BUILD_TIME)"
 echo -e "  Transfer time : $(format_time $TRANSFER_TIME)"
 echo -e "  Total time    : ${GREEN}$(format_time $TOTAL_TIME)${NC}"

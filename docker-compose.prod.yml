@@ -23,9 +23,48 @@
 # 127.0.0.1 only — the tunnel reaches it at http://localhost:${HOST_PORT}
 # and nothing is exposed to the LAN.
 services:
-  app:
+  # THE PROXY OWNS THE HOST PORTS. Nothing else in this file publishes one.
+  #
+  # The two numbers are frozen: the Cloudflare tunnel config is managed remotely
+  # by whole-config PUT, so nothing in this repo may require it to change. What
+  # moves is which container Caddy points at, and that lives in
+  # proxy/upstream.caddy — one line of NAS state, deliberately not in the repo.
+  proxy:
+    image: ${PROXY_IMAGE}
+    container_name: ${PROXY_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOST_PORT}:6686"
+      - "127.0.0.1:${ALIAS_HOST_PORT}:6686"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # NOT :ro — the deploy rewrites this file on the host and Caddy re-reads it
+      # on reload. Mounted as a FILE rather than the directory so a stray file in
+      # proxy/ cannot end up inside the container.
+      - ./proxy/upstream.caddy:/etc/caddy/upstream.caddy
+    networks:
+      - routeloop
+
+  # ---------------------------------------------------------------------------
+  # THE TWO COLORS. These blocks MUST stay identical apart from three things:
+  # the service name, `container_name`, `APP_COLOR`, and `profiles`.
+  #
+  # WRITTEN OUT IN FULL RATHER THAN SHARED WITH A YAML ANCHOR, on purpose.
+  # `<<: *app` merges TOP-LEVEL keys only, so an `environment:` in the second
+  # block REPLACES the anchored one wholesale rather than extending it — green
+  # would get APP_COLOR and nothing else. Given how long this env list is and
+  # how badly a missing GOOGLE_CLIENT_SECRET fails (silently, with no sign-in at
+  # all and a container that passes its healthcheck), duplication a human can
+  # diff beats a merge rule that quietly drops keys.
+  #
+  # `profiles:` is what stops a bare `docker-compose up -d` starting BOTH
+  # colors. Compose is v2.20.1 on the NAS (measured 2026-08-27), and naming a
+  # profiled service explicitly still starts it — so the deploy is unaffected
+  # and the footgun is gone.
+  # ---------------------------------------------------------------------------
+  app-blue:
     image: ${IMAGE_NAME}
-    container_name: ${CONTAINER_NAME}
+    container_name: ${BLUE_CONTAINER_NAME}
     restart: unless-stopped
     # The image's own user is node (uid 1000), but ./data/storage lives on a
     # Synology share whose ACL grants no access to uid 1000 — the app gets
@@ -75,9 +114,8 @@ services:
       # stay comfortably under stop_grace_period below, or the runtime SIGKILLs
       # mid-drain and this number reads as though it did something.
       DRAIN_GRACE_MS: ${DRAIN_GRACE_MS}
-    ports:
-      - "127.0.0.1:${HOST_PORT}:6686"
-      - "127.0.0.1:${ALIAS_HOST_PORT}:6686"
+      # Which half of the pair this is. Reported by /healthz and by nothing else.
+      APP_COLOR: blue
     volumes:
       - ./data/storage:/app/storage
     # Docker's default is 10s, which is exactly DRAIN_GRACE_MS — so the forced
@@ -89,6 +127,76 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    profiles: ["blue"]
+    networks:
+      - routeloop
+
+  app-green:
+    image: ${IMAGE_NAME}
+    container_name: ${GREEN_CONTAINER_NAME}
+    restart: unless-stopped
+    # The image's own user is node (uid 1000), but ./data/storage lives on a
+    # Synology share whose ACL grants no access to uid 1000 — the app gets
+    # "Permission denied" on every KML/GPX read. Synology ACLs cannot be granted
+    # to a bare numeric uid, so the container runs as the host owner instead.
+    # Supplied by the .env deploy.sh writes; see APP_UID/APP_GID in deploy.config.
+    user: "${APP_UID}:${APP_GID}"
+    environment:
+      PORT: 6686
+      STORAGE_PATH: /app/storage
+      # Referrer-restricted, ships to the browser.
+      GMAPS_KEY: ${GMAPS_KEY}
+      # IP-restricted to this host's egress address; server-side calls only.
+      # The Routes proxy at POST /api/route depends on it — the builder cannot
+      # route a leg without it.
+      GMAPS_SERVER_KEY: ${GMAPS_SERVER_KEY}
+      # Vector Map ID. Advanced Markers render NOTHING without it — no error,
+      # no marker, an empty map that looks like a data bug.
+      GMAPS_MAP_ID: ${GMAPS_MAP_ID}
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+      # Set from $DOMAIN by deploy.sh. APP_ORIGIN decides the Secure flag on the
+      # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
+      # must be the canonical host — https://routeloop.app, not the alias.
+      APP_ORIGIN: ${APP_ORIGIN}
+      # Sign-in. Cloudflare Access no longer authenticates at the edge, so these
+      # are the only way in: omit them and the deployed site has no sign-in at
+      # all, because both methods hide themselves when unconfigured.
+      OWNER_EMAIL: ${OWNER_EMAIL}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # Outbound mail: the sign-in link AND every notification (waitlist
+      # confirmation, approval notice, owner alert). Optional — Google OAuth
+      # alone is a working sign-in — but unset means no notifications at all.
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      MAIL_FROM: ${MAIL_FROM}
+      # WHAT BUILD THIS IS. Both were missing until 2026-08-26 and every deployed
+      # environment reported itself as `dev`, because src/version.ts falls back to
+      # that when APP_VERSION is empty — see the header of this file for why being
+      # on deploy.sh's allow-list was not enough on its own. BUILD_SHA went the
+      # same way, so every feedback report named no commit.
+      APP_VERSION: ${APP_VERSION}
+      BUILD_SHA: ${BUILD_SHA}
+      # How long a container told to stop waits for its in-flight requests. Must
+      # stay comfortably under stop_grace_period below, or the runtime SIGKILLs
+      # mid-drain and this number reads as though it did something.
+      DRAIN_GRACE_MS: ${DRAIN_GRACE_MS}
+      # Which half of the pair this is. Reported by /healthz and by nothing else.
+      APP_COLOR: green
+    volumes:
+      - ./data/storage:/app/storage
+    # Docker's default is 10s, which is exactly DRAIN_GRACE_MS — so the forced
+    # close and the SIGKILL would race and the drain would sometimes be cut off
+    # at the moment it was giving up anyway. 30s leaves the app's own deadline
+    # the one that decides, and a healthy drain still exits in well under a
+    # second (measured: 265ms locally).
+    stop_grace_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["green"]
     networks:
       - routeloop
 
@@ -113,6 +221,10 @@ services:
     environment:
       DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
     command: ["npx", "drizzle-kit", "migrate"]
+    # Profiled so a bare `up -d` cannot run migrations as a side effect. Naming
+    # the service explicitly — which is what `run --rm ... migrate` does — still
+    # works, so the deploy is unaffected.
+    profiles: ["tools"]
     networks:
       - routeloop
 
@@ -137,6 +249,15 @@ services:
 
 volumes:
   db-data:
+    # PINNED TO THE NAME THE RUNNING VOLUME ALREADY HAS. Compose addresses a
+    # volume as <COMPOSE_PROJECT_NAME>_db-data, so a changed project name or a
+    # reshaped volume block makes it create a NEW EMPTY one — Postgres
+    # initializes a fresh database into it, the container passes its
+    # healthcheck, and the deploy reports success while every rider's account is
+    # gone. That is trap #2 in docs/deployment.md and it has bitten this project
+    # already. Naming it explicitly turns that silent loss into a loud failure:
+    # if the volume is not there, Compose errors out instead of inventing one.
+    name: ${DB_VOLUME_NAME}
 
 networks:
   routeloop:

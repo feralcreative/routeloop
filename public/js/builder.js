@@ -5142,7 +5142,12 @@
   function allTrackPoints() {
     const pts = [];
     state.days.forEach((day, r) => {
-      pts.push(...fullTrack(r));
+      // NOT a spread — see the same note in viewer.js. Spread passes every
+      // element as its own ARGUMENT, so a long track exceeds the engine's
+      // argument limit (~65k Safari, ~125k V8) and throws
+      // `RangeError: Maximum call stack size exceeded`. Measured on a
+      // 211,939-vertex import, where one leg alone held 161,831.
+      for (const p of fullTrack(r)) pts.push(p);
       day.points.forEach((p) => pts.push([p.lng, p.lat]));
     });
     return pts;

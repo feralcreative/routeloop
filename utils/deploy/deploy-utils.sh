@@ -14,36 +14,26 @@ export DEPLOY_ENV="${DEPLOY_ENV:-prod}"
 [ -f "$PROJECT_ROOT/deploy.config" ] || { echo "ERROR: deploy.config not found" >&2; exit 1; }
 source "$PROJECT_ROOT/deploy.config"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
-
-log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; }
-
-check_ssh_key() {
-  if [ -n "${SSH_KEY_PATH:-}" ] && [ -f "$SSH_KEY_PATH" ]; then return; fi
-  if [ -f "$HOME/.ssh/id_ed25519" ]; then SSH_KEY_PATH="$HOME/.ssh/id_ed25519"; return; fi
-  if [ -f "$HOME/.ssh/id_rsa" ];      then SSH_KEY_PATH="$HOME/.ssh/id_rsa";      return; fi
-  if ssh-add -l > /dev/null 2>&1;     then USE_SSH_AGENT=1;                       return; fi
-  log_error "No SSH key found."; exit 1
-}
-get_ssh_cmd() {
-  local cmd="ssh -p ${NAS_SSH_PORT}"
-  [ -z "${USE_SSH_AGENT:-}" ] && [ -n "${SSH_KEY_PATH:-}" ] && cmd="$cmd -i $SSH_KEY_PATH"
-  echo "$cmd"
-}
-get_scp_cmd() {
-  local cmd="scp -P ${NAS_SSH_PORT}"
-  [ -z "${USE_SSH_AGENT:-}" ] && [ -n "${SSH_KEY_PATH:-}" ] && cmd="$cmd -i $SSH_KEY_PATH"
-  echo "$cmd"
-}
-
-NAS_SSH_HOST="${NAS_USER}@${NAS_HOST}"
+# Colors, logging, SSH plumbing, and the one implementation of "which color is
+# live" that this script and deploy.sh both read. See utils/deploy/lib.sh.
+source "$SCRIPT_DIR/lib.sh"
 
 cmd_logs() {
   check_ssh_key
-  $(get_ssh_cmd) "$NAS_SSH_HOST" "/usr/local/bin/docker logs -f ${CONTAINER_NAME}"
+  # DEFAULTS TO THE LIVE COLOR AND SAYS SO. A `logs` that silently follows an
+  # idle container shows you a container serving nothing while you are trying to
+  # work out why the site is broken — worse than an error, because it looks like
+  # an answer.
+  local what="${1:-}" target
+  case "$what" in
+    blue|green) target=$(container_for "$what") ;;
+    proxy)      target="$PROXY_CONTAINER_NAME" ;;
+    db)         target="$DB_CONTAINER_NAME" ;;
+    "")         local c; c=$(resolve_live_color); target=$(container_for "$c")
+                log_info "Following the LIVE color: ${c} (${target})" ;;
+    *) log_error "Usage: logs [blue|green|proxy|db]"; exit 1 ;;
+  esac
+  nas "$DOCKER logs -f ${target}"
 }
 cmd_db_logs() {
   check_ssh_key
@@ -51,40 +41,93 @@ cmd_db_logs() {
 }
 cmd_status() {
   check_ssh_key
-  $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker ps --filter name=${CONTAINER_NAME} --filter name=${DB_CONTAINER_NAME} \
-     --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || echo 'Not running'"
+  local live idle
+  live=$(live_color)
+  [ -z "$live" ] && live="(upstream.caddy unreadable)"
+  idle=""
+  case "$live" in blue) idle="green" ;; green) idle="blue" ;; esac
+
+  nas "$DOCKER ps -a --filter name=${BLUE_CONTAINER_NAME} --filter name=${GREEN_CONTAINER_NAME} \
+       --filter name=${PROXY_CONTAINER_NAME} --filter name=${DB_CONTAINER_NAME} \
+       --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || echo 'Not running'"
   echo ""
-  # /healthz rather than `/`, for the same reason the Dockerfile's HEALTHCHECK
-  # moved: `/` renders the public map list — a visibility query, a session
-  # lookup and a full JSX render — to answer a question none of that is about.
-  # The body is printed rather than discarded because it names the BUILD, which
-  # is the thing you actually want when you are asking "what is running out
-  # there": a container serving an older SHA than you expect is this project's
-  # recurring failure mode and is invisible in a status line that says 200.
-  log_info "Origin check (from the NAS host, the port the tunnel targets):"
-  $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "curl -fsS -w '\nHTTP %{http_code} in %{time_total}s\n' --max-time 10 http://127.0.0.1:${HOST_PORT}/healthz \
-     || echo 'no response'"
+  log_info "The proxy says LIVE is: ${live}"
+  echo ""
+
+  # THROUGH the host port — what a rider actually gets.
+  log_info "Origin (127.0.0.1:${HOST_PORT}, the port the tunnel targets):"
+  nas "curl -fsS --max-time 10 http://127.0.0.1:${HOST_PORT}/healthz || echo 'no response'"
+  echo ""
+
+  # AND each color directly. This is the pair that tells you "green is healthy
+  # but nothing points at it" — which through the proxy alone is invisible.
+  for c in blue green; do
+    local t; t=$(container_for "$c")
+    if nas "$DOCKER ps --format '{{.Names}}' | grep -qx ${t}"; then
+      log_info "${c} (direct):"
+      echo "  $(color_health "$c")"
+    else
+      log_info "${c}: not running"
+    fi
+  done
 }
 cmd_restart() {
   check_ssh_key
-  $(get_ssh_cmd) "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose restart"
-  log_success "Stack restarted"
+  local c; c=$(resolve_live_color)
+  log_warning "Restarting the LIVE color (${c}) IN PLACE. This is brief downtime."
+  log_warning "The zero-downtime path is a deploy: DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/${DEPLOY_ENV}.sh"
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE restart $(service_for "$c")"
+  log_success "${c} restarted"
+}
+cmd_restart_proxy() {
+  check_ssh_key
+  # A reload, not a restart: Caddy re-reads its config without dropping a
+  # connection, which is the entire reason the proxy is Caddy.
+  nas "$DOCKER exec ${PROXY_CONTAINER_NAME} caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile"
+  log_success "Proxy config reloaded"
+}
+cmd_restart_db() {
+  check_ssh_key
+  log_warning "This restarts POSTGRES for ${DEPLOY_ENV}. Every in-flight query dies."
+  read -r -p "Type the environment name to confirm: " confirm
+  [ "$confirm" = "$DEPLOY_ENV" ] || { log_error "Not confirmed."; exit 1; }
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE restart db"
+  log_success "Database restarted"
 }
 cmd_stop() {
+  # STOPS THE COLORS AND THE PROXY, LEAVING db UP. `down` would take the
+  # database and the bridge network with it, which is the thing Phase 1 spent
+  # its whole existence removing from the deploy path.
   check_ssh_key
-  $(get_ssh_cmd) "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose down"
-  log_success "Stack stopped"
+  if [ "${1:-}" = "--all" ]; then
+    log_warning "--all stops the DATABASE too, for ${DEPLOY_ENV}."
+    read -r -p "Type the environment name to confirm: " confirm
+    [ "$confirm" = "$DEPLOY_ENV" ] || { log_error "Not confirmed."; exit 1; }
+    nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE stop app-blue app-green proxy db"
+    log_success "Everything stopped, including the database"
+    return
+  fi
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE stop app-blue app-green proxy"
+  log_success "Colors and proxy stopped — the database is still up"
 }
 cmd_start() {
+  # NEVER A BARE `up -d`. The colors are behind Compose profiles so it could not
+  # start both even by accident, but naming what you want is the habit that
+  # survives somebody removing the profiles.
   check_ssh_key
-  $(get_ssh_cmd) "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose up -d"
-  log_success "Stack started"
+  local c; c=$(resolve_live_color)
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE up -d db proxy"
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE up -d --no-deps $(service_for "$c")"
+  log_success "Started db, proxy and ${c} (the color upstream.caddy names)"
 }
 cmd_shell() {
   check_ssh_key
-  $(get_ssh_cmd) -t "$NAS_SSH_HOST" "/usr/local/bin/docker exec -it ${CONTAINER_NAME} /bin/sh"
+  # The LIVE color. Under blue/green "the app container" is two containers, and
+  # a shell in the idle one looks identical while telling you nothing about what
+  # riders are hitting.
+  local c; c=$(resolve_live_color)
+  log_info "Opening a shell in the LIVE color: ${c}"
+  $(get_ssh_cmd) -t "$NAS_SSH_HOST" "$DOCKER exec -it $(container_for "$c") /bin/sh"
 }
 cmd_psql() {
   check_ssh_key
@@ -109,6 +152,74 @@ cmd_migrate() {
     "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose run --rm --no-deps -T migrate"
   log_success "Migrations applied"
 }
+# Live, idle, and what is actually running. The first thing to type when
+# something looks wrong, because "which container is serving" is the question
+# every other answer depends on.
+cmd_colors() {
+  check_ssh_key
+  local live; live=$(live_color)
+  if [ -z "$live" ]; then
+    log_warning "upstream.caddy is missing or names neither color."
+  else
+    log_success "LIVE: ${live} ($(container_for "$live"))"
+    local idle; idle=$(other_color "$live")
+    # Only call it idle if it is actually there. An "idle" color that is not
+    # running is not a rollback target, and reporting one is worse than
+    # reporting none — `cutover` would refuse it and the operator would find
+    # out during an incident.
+    if color_is_running "$idle"; then
+      log_info  "IDLE: ${idle} ($(container_for "$idle")) — up, and a valid rollback target"
+    else
+      log_warning "IDLE: ${idle} is NOT running. There is no rollback target right now."
+    fi
+  fi
+  echo ""
+  log_info "Actually running:"
+  nas "$DOCKER ps --filter name=${BLUE_CONTAINER_NAME} --filter name=${GREEN_CONTAINER_NAME} \
+       --filter name=${PROXY_CONTAINER_NAME} --format '  {{.Names}}  {{.Status}}'"
+}
+
+# THE MANUAL LEVER, and the reason the old color is left running after a deploy:
+# this is how you put it back in about ten seconds, while it is still warm.
+#
+# REFUSES A TARGET THAT IS NOT RUNNING AND HEALTHY. Pointing the proxy at a dead
+# container is a 502 for every rider, and it is the one mistake this command
+# exists to make impossible — a human types it when something is already wrong,
+# which is exactly when a second failure is least welcome.
+cmd_cutover() {
+  check_ssh_key
+  local target="${1:-}"
+  case "$target" in
+    blue|green) ;;
+    *) log_error "Usage: cutover blue|green"; exit 1 ;;
+  esac
+
+  local container; container=$(container_for "$target")
+  if ! nas "$DOCKER ps --format '{{.Names}}' | grep -qx ${container}"; then
+    log_error "${target} (${container}) is not running. Refusing to cut over to it."
+    log_error "Start it first:  cd ${NAS_DEPLOY_PATH} && docker-compose up -d --no-deps $(service_for "$target")"
+    exit 1
+  fi
+
+  local body; body=$(color_health "$target")
+  case "$body" in
+    *'"ok":true'*) ;;
+    *) log_error "${target} is running but not healthy. Refusing to cut over to it."
+       log_error "It said: ${body:-<nothing>}"
+       exit 1 ;;
+  esac
+
+  local from; from=$(live_color)
+  log_info "Cutting over from ${from:-unknown} to ${target}..."
+  point_proxy_at "$target" || { log_error "Cutover failed — nothing changed."; exit 1; }
+
+  local origin; origin=$(nas "curl -fsS --max-time 5 http://127.0.0.1:${HOST_PORT}/healthz" 2>/dev/null || true)
+  case "$origin" in
+    *'"ok":true'*) log_success "Origin is now serving ${target}"; echo "  ${origin}" ;;
+    *) log_error "Proxy reloaded but the origin did not answer healthy: ${origin:-<nothing>}"; exit 1 ;;
+  esac
+}
+
 # What shape is this database actually in?
 #
 # EXISTS BECAUSE THE THREE WAYS `migrate` FAILS LOOK IDENTICAL FROM THE DEPLOY
@@ -154,14 +265,16 @@ cmd_schema_state() {
 # migrations as applied without running them. See docs/database.md.
 cmd_db_baseline() {
   check_ssh_key
-  log_info "Baselining migration history in ${CONTAINER_NAME}..."
-  $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${CONTAINER_NAME} npx tsx utils/db-baseline.ts"
+  # The same one-shot the migration uses, with the command overridden. It used
+  # to `docker exec` into the app container, which under blue/green means
+  # "whichever color happens to be up" — and during a cutover that is ambiguous.
+  log_info "Baselining migration history for ${DEPLOY_ENV}..."
+  nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE run --rm --no-deps -T --entrypoint sh migrate -c 'npx tsx utils/db-baseline.ts'"
 }
 # Postgres dump — the real backup. Map files are backed up separately.
 cmd_db_backup() {
   check_ssh_key
-  local f="${CONTAINER_NAME}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
+  local f="routeloop-${DEPLOY_ENV}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
   log_info "Dumping database to $f"
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
     "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U routeloop -d routeloop | gzip" > "./$f"
@@ -170,7 +283,7 @@ cmd_db_backup() {
 # User-uploaded KML/GPX from the mounted storage volume.
 cmd_backup() {
   check_ssh_key
-  local f="${CONTAINER_NAME}-storage-$(date +%Y%m%d-%H%M%S).tar.gz"
+  local f="routeloop-${DEPLOY_ENV}-storage-$(date +%Y%m%d-%H%M%S).tar.gz"
   log_info "Archiving user files to $f"
   $(get_ssh_cmd) "$NAS_SSH_HOST" "tar -czf - -C ${NAS_DEPLOY_PATH}/data storage" > "./$f"
   log_success "Storage backup saved to ./$f"
@@ -377,13 +490,17 @@ Usage: $0 <command>
        DEPLOY_ENV=stage $0 <command>
 
 Commands:
-  logs         Follow app container logs
+  logs [what]  Follow logs — blue|green|proxy|db, default the LIVE color
+  colors       Which color is live, which is idle, what is running
+  cutover <c>  Point the proxy at blue|green — the manual rollback lever
   db-logs      Follow Postgres logs
   status       Container status + origin HTTP check on 127.0.0.1:${HOST_PORT}
-  restart      Restart the stack
-  stop         Stop the stack
-  start        Start the stack
-  shell        Shell into the app container
+  restart      Restart the LIVE color in place (brief downtime)
+  restart-proxy  Reload the proxy config (no dropped connections)
+  restart-db   Restart Postgres (asks for confirmation)
+  stop [--all] Stop the colors and proxy; --all adds the database
+  start        Start db, proxy and the color upstream.caddy names
+  shell        Shell into the LIVE color
   psql         Open psql against the app database
   migrate      Apply pending Drizzle migrations (drizzle-kit migrate)
   schema-state Table list, row counts and migrations recorded — read-only
@@ -430,15 +547,19 @@ done
 set -- "${ARGS[@]:-help}"
 
 case "${1:-help}" in
-  logs)       cmd_logs ;;
+  logs)       cmd_logs "${2:-}" ;;
   db-logs)    cmd_db_logs ;;
   status)     cmd_status ;;
   restart)    cmd_restart ;;
-  stop)       cmd_stop ;;
+  stop)       cmd_stop "${2:-}" ;;
   start)      cmd_start ;;
   shell)      cmd_shell ;;
   psql)       cmd_psql ;;
   migrate)     cmd_migrate ;;
+  colors)      cmd_colors ;;
+  cutover)     cmd_cutover "${2:-}" ;;
+  restart-proxy) cmd_restart_proxy ;;
+  restart-db)  cmd_restart_db ;;
   schema-state) cmd_schema_state ;;
   db-baseline) cmd_db_baseline ;;
   db-backup)  cmd_db_backup ;;
