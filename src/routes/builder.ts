@@ -371,7 +371,7 @@ builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   return c.json(await loadRidePayload(found.ride, user))
 })
 
-export async function loadRidePayload(ride: RideRow, viewer: UserRow | null) {
+export async function loadRidePayload(ride: RideRow, viewer: { id: number } | null) {
   // NOT owner-only by construction any more. This used to reach detailsForOwner
   // directly, on the grounds that every caller arrived behind `ownRide()` — true
   // until #190 let an `edit`-level member load the same payload, and false in a
@@ -765,7 +765,13 @@ ${
   // Only on a saved ride, like Delete. A comment needs a ride id to hang off,
   // and the autosave makes that a few seconds.
   rideId
-    ? `        <div class="builder-comments" id="builder-comments">
+    ? `        <div class="builder-suggestions" id="builder-suggestions">
+          <h3 class="comments-head">
+            Suggestions <span class="comments-count" id="suggestions-count" hidden></span>
+          </h3>
+          <div id="suggestions-body"></div>
+        </div>
+        <div class="builder-comments" id="builder-comments">
           <h3 class="comments-head">
             Comments <span class="comments-count" id="comments-count" hidden></span>
           </h3>

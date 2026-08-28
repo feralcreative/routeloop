@@ -35,6 +35,7 @@ import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { friendRoutes } from './routes/friends'
 import { commentRoutes } from './routes/comments'
+import { suggestionRoutes } from './routes/suggestions'
 import { rosterRoutes } from './routes/roster'
 import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
@@ -228,6 +229,7 @@ app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', rosterRoutes)
 app.route('/', commentRoutes)
+app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', friendRoutes)

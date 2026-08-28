@@ -1124,6 +1124,66 @@ export const rideComments = pgTable(
   ],
 )
 
+// HOW A SUGGESTION ENDED, and only ever written together with resolved_at. There
+// is deliberately no `pending` member and no `stale` one: pending is resolved_at
+// being null, and stale is DERIVED from the target day's fingerprint. A member
+// for either would be a second answer to a question the data already answers,
+// and the stale one would additionally be wrong the moment a day was edited back.
+export const suggestionOutcomeEnum = pgEnum('suggestion_outcome', ['accepted', 'discarded', 'withdrawn'])
+
+/**
+ * A proposed change to one day of a ride, waiting for an owner to take it or
+ * leave it. #190.
+ *
+ * **A SUGGESTION IS A WHOLE DAY, NOT A FIELD-LEVEL DIFF.** The builder deletes
+ * and re-inserts every day and point on every save, so there is no stable row to
+ * hang a per-field change off — `uid` is the only identity that survives, and a
+ * diff expressed in uids still has to be reconciled against an owner who has
+ * been editing underneath. Storing the proposed day whole means accepting one is
+ * a replace, which is an operation this app already does on every save.
+ *
+ * **STALENESS IS DERIVED, NEVER STORED.** `base_fingerprint` is what the target
+ * day looked like when the suggestion was made; a suggestion is stale when the
+ * day's fingerprint no longer matches. Nothing has to sweep, nothing has to be
+ * invalidated on save, and a day edited and then edited BACK correctly stops
+ * being stale — which a stored flag would get wrong. Same reasoning as
+ * junctions() in src/subgroups/policy.ts: the shape changes every time somebody
+ * drags something, and a stored answer is wrong the first time they do.
+ *
+ * **THE TARGET IS A DAY `uid`, NEVER AN `id`.** days.id churns on every save.
+ * Same rule alt_votes follows and for the same reason.
+ */
+export const rideSuggestions = pgTable(
+  'ride_suggestions',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    authorId: bigint('author_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Which day this proposes to replace.
+    dayUid: varchar('day_uid', { length: 12 }).notNull(),
+    // The proposed day, in the same shape the builder's PUT accepts for one.
+    // jsonb rather than a parallel set of tables: nothing queries across the
+    // inside of a suggestion, and a second copy of the day/point/leg schema is a
+    // second place for the payload's shape to drift.
+    payload: jsonb('payload').$type<unknown>().notNull(),
+    // What the day looked like when this was made. See the note above on why
+    // staleness is derived from this rather than stored beside it.
+    baseFingerprint: varchar('base_fingerprint', { length: 64 }).notNull(),
+    // Why. Optional, because the diff is usually the argument.
+    note: varchar('note', { length: 2000 }),
+    // Null while pending. The outcome column says which way it went; the two are
+    // written together and neither is read without the other.
+    resolvedAt: timestamp('resolved_at'),
+    outcome: suggestionOutcomeEnum('outcome'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('idx_ride_suggestion_ride').on(t.rideId, t.createdAt)],
+)
+
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
 // the Directions API (distance/duration are Directions-authoritative — the
 // mileage authority). via_points are the rider's ephemeral shaping waypoints.
@@ -1412,6 +1472,8 @@ export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
 export type RideVisibility = (typeof visibilityEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
 export type RideCommentRow = typeof rideComments.$inferSelect
+export type RideSuggestionRow = typeof rideSuggestions.$inferSelect
+export type SuggestionOutcome = (typeof suggestionOutcomeEnum.enumValues)[number]
 // --- The rider layer --------------------------------------------------------
 
 // WHO A RIDE BELONGS TO, which is an identity rather than a permission. What a
@@ -1440,6 +1502,7 @@ export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
 // It happens to read in ascending order today. That is a convenience for a human
 // reading the file and is not something any code may rely on.
 export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
+
 
 // Distinct from role, because a rider who declined is still on the roster —
 // that is the whole reason the two are separate columns.

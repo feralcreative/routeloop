@@ -226,6 +226,13 @@ export const ridePayload = z
 
 export type RidePayload = z.infer<typeof ridePayload>
 
+/** One day, on its own. Exported so a suggestion can be validated against the
+ *  SAME schema the builder's save uses — a second definition of what a day is
+ *  would drift, and a suggestion that parsed here and failed on accept would be
+ *  a proposal nobody could take. */
+export const dayPayload = daySchema
+export type DayPayload = z.infer<typeof daySchema>
+
 // --- Integrity + persistence ----------------------------------------------
 
 // Normalizes a validated payload in place: rounds coordinates, sanitizes all

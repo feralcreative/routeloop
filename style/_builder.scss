@@ -2608,3 +2608,53 @@
     }
   }
 }
+
+// SUGGESTIONS, above the comments and styled as their siblings (#190). They
+// share .comment-list, .comment-meta and .comment-acts deliberately: they are the
+// same kind of thing on the page — something a rider said about the ride — and
+// two visual languages for that would read as two features.
+.builder-suggestions {
+  margin-top: 0.8em;
+  padding-top: 0.7em;
+  border-top: 1px solid $grey;
+
+  .suggestion {
+    border-left: 3px solid $neutral-88;
+
+    // PENDING IS THE ONLY ONE THAT GETS A COLOR. A proposal waiting on the owner
+    // is the only state anybody has to do something about; the rest are a record.
+    &.is-pending {
+      border-left-color: $go;
+    }
+
+    // Not an error color. A stale suggestion is nobody's mistake — the day moved
+    // under it, which is the ordinary consequence of two people planning a ride.
+    &.is-stale {
+      border-left-color: $pending;
+    }
+
+    &.is-accepted,
+    &.is-discarded,
+    &.is-withdrawn {
+      opacity: 0.6;
+    }
+  }
+
+  .suggestion-state {
+    margin-left: auto;
+    font-size: 0.9em;
+  }
+
+  .suggest-bar {
+    margin-top: 0.5em;
+
+    textarea {
+      width: 100%;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 0.3em;
+    }
+  }
+}

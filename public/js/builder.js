@@ -320,6 +320,13 @@
   // must keep working for the rider who owns what it is showing.
   const CAN_EDIT = window.TB.canEdit !== false;
 
+  // WHETHER THIS RIDER MAY PROPOSE A CHANGE. `suggest` is the DEFAULT an
+  // invitation grants, so this is the common case for anybody who is not the
+  // owner — and it is what makes the read-only builder useful rather than a
+  // museum: a rider edits a day locally, presses Suggest, and the owner takes it
+  // or leaves it. Nothing they do is saved to the ride.
+  const CAN_SUGGEST = window.TB.perm === "suggest" || CAN_EDIT;
+
   // Alternates: the numbering, the active-day filter and the ride rollup. The
   // builder is the only client that calls resolveAltGroups — it is the one
   // editing days, and repairing locally is what keeps the panel, the map and
@@ -630,7 +637,15 @@
     //
     // Not routed through saveBlockReason(): that reports a condition the rider
     // can CLEAR by editing, and this one they cannot.
-    if (!CAN_EDIT) return;
+    //
+    // A SUGGESTER IS THE EXCEPTION AND STILL GOES NO FURTHER THAN THIS LINE.
+    // Their edits live in `state` so there is something to propose, and the
+    // suggest bar below reads it — but no draft is filed and no autosave arms,
+    // because there is nothing they are allowed to save.
+    if (!CAN_EDIT) {
+      if (CAN_SUGGEST) renderSuggestBar();
+      return;
+    }
     state.dirty = true;
     editSeq++;
     setSaveStatus("dirty");
@@ -2342,6 +2357,162 @@
       box.scrollIntoView({ block: "center", behavior: "smooth" });
       box.focus();
     }
+  }
+
+  // --- Suggestions ----------------------------------------------------------
+  //
+  // A SUGGESTION IS A WHOLE DAY, PROPOSED AGAINST THAT DAY AS IT WAS. A rider
+  // below `edit` still edits the panel normally — markDirty keeps their work in
+  // `state` and files nothing — and Suggest posts the day they are looking at.
+  // The owner accepts it, which is an ordinary ride save with one day swapped, or
+  // discards it.
+  //
+  // STALENESS IS THE SERVER'S ANSWER AND IS NEVER COMPUTED HERE. It compares the
+  // day's fingerprint now against the one taken when the proposal was made, and
+  // it re-checks on accept — the list this page drew may be minutes old, and
+  // applying a proposal made against a day that has since moved is the one real
+  // hazard the feature has.
+  let suggestionsCache = null;
+  let suggestionsLoading = false;
+
+  const SUGGESTION_LABELS = {
+    pending: "Waiting on the owner",
+    stale: "The day changed—needs redoing",
+    accepted: "Accepted",
+    discarded: "Not taken",
+    withdrawn: "Withdrawn",
+  };
+
+  async function loadSuggestions(force) {
+    const host = $("suggestions-body");
+    if (!host || !state.rideId) return;
+    if (suggestionsCache && !force) return renderSuggestions();
+    if (suggestionsLoading) return;
+    suggestionsLoading = true;
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/suggestions");
+      if (!res.ok) throw new Error("could not load the suggestions");
+      suggestionsCache = await res.json();
+      renderSuggestions();
+    } catch (e) {
+      host.innerHTML = '<p class="comments-empty is-error">' + esc(e.message) + "</p>";
+    } finally {
+      suggestionsLoading = false;
+    }
+  }
+
+  function suggestionRowHtml(sg) {
+    const mine = suggestionsCache && sg.authorId === suggestionsCache.viewerId;
+    const owner = suggestionsCache && suggestionsCache.isOwner;
+    const live = sg.state === "pending";
+    // ACCEPT IS OWNER-ONLY AND ONLY WHILE PENDING. Discard stays available on a
+    // stale one — clearing a proposal that can no longer be applied is exactly
+    // what an owner wants to be able to do with it.
+    const acts = [];
+    if (owner && live) acts.push('<button type="button" class="linkbtn" data-sact="accept">Accept</button>');
+    if (owner && !sg.state.match(/^(accepted|discarded|withdrawn)$/)) {
+      acts.push('<button type="button" class="linkbtn" data-sact="discard">Discard</button>');
+    }
+    if (mine && !sg.state.match(/^(accepted|discarded|withdrawn)$/)) {
+      acts.push('<button type="button" class="linkbtn" data-sact="withdraw">Withdraw</button>');
+    }
+    const dayNo = state.days.findIndex((d) => d.uid === sg.dayUid);
+    return (
+      '<li class="comment suggestion is-' + esc(sg.state) + '" data-sid="' + sg.id + '">' +
+      '<div class="comment-meta">' +
+      "<strong>" + esc(sg.authorName) + "</strong>" +
+      '<span class="comment-on">on ' + (dayNo >= 0 ? "day " + (dayNo + 1) : "a day that is gone") + "</span>" +
+      '<span class="suggestion-state">' + esc(SUGGESTION_LABELS[sg.state] || sg.state) + "</span>" +
+      "</div>" +
+      (sg.note ? '<p class="comment-body">' + esc(sg.note) + "</p>" : "") +
+      (acts.length ? '<div class="comment-acts">' + acts.join("") + "</div>" : "") +
+      "</li>"
+    );
+  }
+
+  function renderSuggestions() {
+    const host = $("suggestions-body");
+    const count = $("suggestions-count");
+    if (!host || !suggestionsCache) return;
+    const all = suggestionsCache.suggestions;
+    const live = all.filter((sg) => sg.state === "pending");
+    if (count) {
+      count.textContent = String(live.length);
+      count.hidden = live.length === 0;
+    }
+    host.innerHTML = all.length
+      ? '<ul class="comment-list">' + all.map(suggestionRowHtml).join("") + "</ul>"
+      : '<p class="comments-empty">Nothing proposed yet.</p>';
+    renderSuggestBar();
+  }
+
+  /** The propose control, for a rider who may suggest but not save. It names the
+   *  day being edited, because a suggestion is one day and picking the wrong one
+   *  is the easy mistake. */
+  function renderSuggestBar() {
+    const host = $("suggestions-body");
+    if (!host || CAN_EDIT || !CAN_SUGGEST || !state.rideId) return;
+    if (host.querySelector("#suggest-bar")) return;
+    const bar = document.createElement("form");
+    bar.id = "suggest-bar";
+    bar.className = "suggest-bar";
+    bar.innerHTML =
+      '<label class="visually-hidden" for="suggest-note">Why</label>' +
+      '<textarea id="suggest-note" rows="2" maxlength="2000" placeholder="What you changed, and why (optional)"></textarea>' +
+      '<button class="btn btn-sm" type="submit">Suggest this day</button>';
+    host.appendChild(bar);
+  }
+
+  async function postSuggestion(note) {
+    const day = editRoute();
+    if (!day) throw new Error("open a day first");
+    const body = payload();
+    const proposed = body.days.find((d) => d.uid === day.uid);
+    if (!proposed) throw new Error("that day has nothing in it to suggest");
+    const res = await fetch("/api/rides/" + state.rideId + "/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dayUid: day.uid, day: proposed, note }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error === "too-many" ? "you have too many open suggestions" : "could not suggest that");
+    }
+    await loadSuggestions(true);
+    toast("Suggested. The owner decides whether it lands.");
+  }
+
+  async function suggestionVerb(sid, act) {
+    const res = await fetch("/api/rides/" + state.rideId + "/suggestions/" + sid + "/" + act, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+      // 409 is the stale case and is the one worth naming: the day moved under
+      // the proposal, so there is nothing safe to apply.
+      throw new Error(res.status === 409 ? "that day has changed since—the suggestion needs redoing" : "that did not work");
+    }
+    await loadSuggestions(true);
+    if (act === "accept") location.reload();
+  }
+
+  function initSuggestions() {
+    const host = $("builder-suggestions");
+    if (!host) return;
+    host.addEventListener("submit", (e) => {
+      if (e.target.id !== "suggest-bar") return;
+      e.preventDefault();
+      const box = $("suggest-note");
+      postSuggestion(box ? box.value.trim() : "").catch((err) => toast(err.message, true));
+    });
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || !btn.dataset.sact) return;
+      const li = btn.closest(".suggestion");
+      if (!li) return;
+      suggestionVerb(Number(li.dataset.sid), btn.dataset.sact).catch((err) => toast(err.message, true));
+    });
+    loadSuggestions(false);
   }
 
   function initComments() {
@@ -5595,6 +5766,7 @@
     // only hint that anybody has said anything, and warming it costs one request
     // on a ride that has an id. It returns immediately on one that does not.
     initComments();
+    initSuggestions();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {
