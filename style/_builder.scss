@@ -2491,3 +2491,15 @@
     }
   }
 }
+
+// The owner's promote/demote select on the roster. Sits between the RSVP state
+// and the Remove verb, so it is sized to sit in that run rather than to draw
+// attention — it is administration, and the roster's subject is who is coming.
+.roster-perm {
+  select {
+    font: inherit;
+    font-size: 0.8em;
+    padding: 0.2em 0.3em;
+    max-width: 100%;
+  }
+}

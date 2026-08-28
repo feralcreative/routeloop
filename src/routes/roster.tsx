@@ -22,10 +22,40 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { days as daysTable, rides, rsvpEnum, type RideRole, type RideRow, type Rsvp } from '../db/schema'
+import {
+  days as daysTable,
+  ridePermEnum,
+  rides,
+  rsvpEnum,
+  type RidePerm,
+  type RideRole,
+  type RideRow,
+  type Rsvp,
+} from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { canInvite, canRemove, canRsvp, isComing, RSVP_LABELS, type MemberFields } from '../members/policy'
-import { invitableFriends, invite, removeMember, roleOf, roster, setRsvp, type RosterEntry } from '../members/service'
+import {
+  canInvite,
+  canRemove,
+  canRsvp,
+  canSeePerms,
+  canSetPerm,
+  DEFAULT_PERM,
+  isComing,
+  PERM_HELP,
+  PERM_LABELS,
+  RSVP_LABELS,
+  type MemberFields,
+} from '../members/policy'
+import {
+  invitableFriends,
+  invite,
+  removeMember,
+  roleOf,
+  roster,
+  setPerm,
+  setRsvp,
+  type RosterEntry,
+} from '../members/service'
 import { applyTallies, castVote, voteGroups, type VoteGroup } from '../votes/service'
 import { bikesOnRide, groupRange, setBikeOnRide, type GroupRange } from '../bikes/group-range'
 import { listBikes } from '../bikes/service'
@@ -64,6 +94,9 @@ async function memberRide(slug: string, viewerId: number): Promise<{ ride: RideR
 const isRsvp = (v: unknown): v is Rsvp =>
   typeof v === 'string' && (rsvpEnum.enumValues as readonly string[]).includes(v)
 
+const isPerm = (v: unknown): v is RidePerm =>
+  typeof v === 'string' && (ridePermEnum.enumValues as readonly string[]).includes(v)
+
 function Verb({
   action,
   slug,
@@ -85,6 +118,40 @@ function Verb({
       <button class={`btn btn-sm${variant ? ` ${variant}` : ''}`} type="submit">
         {label}
       </button>
+    </form>
+  )
+}
+
+/**
+ * The owner's promote/demote control for one rider.
+ *
+ * SHOWN TO THE OWNER AND NOBODY ELSE — canSeePerms. A rung is administration,
+ * and rendering it down the roster would publish a ranking of the riders to the
+ * riders: somebody learns they were trusted less than the person above them,
+ * from a page they opened to check who was going.
+ *
+ * Submits on change like the RSVP select above it, and for the same reasons —
+ * one field, one possible next action, and a <noscript> button for the rest.
+ */
+function PermForm({ slug, m }: { slug: string; m: RosterEntry }) {
+  return (
+    <form method="post" action={`/m/${slug}/riders/perm`} class="roster-perm">
+      <input type="hidden" name="rider" value={String(m.riderId)} />
+      <label class="visually-hidden" for={`perm-${m.riderId}`}>
+        What {m.displayName} can do
+      </label>
+      <select id={`perm-${m.riderId}`} name="perm" onchange="this.form.submit()">
+        {ridePermEnum.enumValues.map((v) => (
+          <option value={v} selected={v === m.perm} title={PERM_HELP[v]}>
+            {PERM_LABELS[v]}
+          </option>
+        ))}
+      </select>
+      <noscript>
+        <button class="btn btn-sm" type="submit">
+          Save
+        </button>
+      </noscript>
     </form>
   )
 }
@@ -120,6 +187,8 @@ function MemberRow({
   slug,
   viewerId,
   viewerRole,
+  viewerFields,
+  viewerSeesPerms,
   ownerCount,
   subgroups,
   canAssign,
@@ -128,6 +197,10 @@ function MemberRow({
   slug: string
   viewerId: number
   viewerRole: 'owner' | 'rider'
+  /** The viewer's own roster row, which canSetPerm asks about. */
+  viewerFields: MemberFields | null
+  /** Whether rungs are shown at all on this page — owner only. */
+  viewerSeesPerms: boolean
   /** How many members hold `owner`. The last-owner rule needs it — see
    *  canRemove. Counted from the roster this page already read. */
   ownerCount: number
@@ -181,6 +254,9 @@ function MemberRow({
           <span class="roster-said">{subgroups.find((g) => g.id === m.subgroupId)?.name ?? 'No group'}</span>
         ))}
       {isMe ? <RsvpForm slug={slug} current={m.rsvp} /> : <span class="roster-said">{RSVP_LABELS[m.rsvp]}</span>}
+      {/* An owner is not on the ladder, so there is nothing to set on one —
+          canSetPerm refuses it and the control is not rendered either. */}
+      {viewerSeesPerms && canSetPerm(viewerFields, fields) && <PermForm slug={slug} m={m} />}
       {canRemove(viewerId, viewerRole, fields, ownerCount) && (
         <Verb
           action="remove"
@@ -326,6 +402,8 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   // row alone — the last owner may not leave. Counted once here rather than per
   // row.
   const ownerCount = members.filter((m) => m.role === 'owner').length
+  const viewerFields = members.find((m) => m.riderId === user.id) ?? null
+  const viewerSeesPerms = canSeePerms(viewerFields)
 
   const body = (
     <>
@@ -349,6 +427,8 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
             slug={ride.slug}
             viewerId={user.id}
             viewerRole={role}
+            viewerFields={viewerFields}
+            viewerSeesPerms={viewerSeesPerms}
             ownerCount={ownerCount}
             subgroups={subgroups}
             canAssign={role === 'owner'}
@@ -393,6 +473,20 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
                 {friends.map((f) => (
                   <option value={f.username}>
                     {f.displayName} (@{f.username})
+                  </option>
+                ))}
+              </select>
+              {/* SET THE LEVEL WHILE ADDING, rather than adding and then
+                  promoting. The default is `suggest` — look, discuss, propose —
+                  and Edit is picked deliberately here or later, never handed out
+                  by an invitation on its own. */}
+              <label class="visually-hidden" for="perm">
+                What they can do
+              </label>
+              <select id="perm" name="perm">
+                {ridePermEnum.enumValues.map((v) => (
+                  <option value={v} selected={v === DEFAULT_PERM}>
+                    {PERM_LABELS[v]}
                   </option>
                 ))}
               </select>
@@ -472,7 +566,10 @@ rosterRoutes.post('/m/:slug/riders/invite', requireActive, requireSameOrigin, as
   const form = await c.req.parseBody()
   const handle = typeof form.handle === 'string' ? form.handle.trim() : ''
   if (!handle) return c.redirect(back(found.ride.slug), 303)
-  const res = await invite(found.ride.id, user.id, handle)
+  // An unrecognized value falls back to the default rather than refusing. The
+  // rung is a secondary field on somebody else's form post, and the safe answer
+  // to a bad one is the level an invitation grants anyway — never `edit`.
+  const res = await invite(found.ride.id, user.id, handle, isPerm(form.perm) ? form.perm : DEFAULT_PERM)
   return c.redirect(back(found.ride.slug, res.ok ? undefined : res.reason), 303)
 })
 
@@ -486,6 +583,20 @@ rosterRoutes.post('/m/:slug/riders/remove', requireActive, requireSameOrigin, as
   // Leaving takes away the page you are standing on, so a rider who removed
   // themselves goes to the ride rather than to a roster that will 404 at them.
   if (ok && rider === user.id) return c.redirect(`/m/${found.ride.slug}`, 303)
+  return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
+})
+
+// MOVE A RIDER UP OR DOWN THE LADDER. Owner only, both directions, and never on
+// another owner — canSetPerm is the rule and setPerm re-reads the viewer's own
+// row before writing, like every other verb on this page.
+rosterRoutes.post('/m/:slug/riders/perm', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const found = await memberRide(c.req.param('slug'), user.id)
+  if (!found) return c.text('Not found', 404)
+  const form = await c.req.parseBody()
+  const rider = Number(form.rider)
+  const ok =
+    Number.isInteger(rider) && isPerm(form.perm) && (await setPerm(found.ride.id, user.id, rider, form.perm))
   return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
 })
 
