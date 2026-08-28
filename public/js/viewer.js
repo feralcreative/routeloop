@@ -55,7 +55,18 @@
   function allTrackPoints() {
     const pts = [];
     for (const r of state.ride.days) {
-      pts.push(...r.track);
+      // NOT `pts.push(...r.track)`. Spread passes every element as its own
+      // ARGUMENT, so a long track blows the engine's argument limit — roughly
+      // 65k in Safari and 125k in V8 — and throws
+      // `RangeError: Maximum call stack size exceeded`. That lands in the one
+      // try/catch wrapping the whole viewer, so the symptom is a map that draws
+      // correctly and a panel reading "Could not load this ride", with the real
+      // error only in the browser console.
+      //
+      // Measured 2026-08-27 on a 211,939-vertex import: 161,831 vertices in a
+      // single leg was enough. A dense GPS recording reaches that without being
+      // unusual, so this was never a synthetic-input problem.
+      for (const p of r.track) pts.push(p);
       for (const s of r.points) pts.push([s.lng, s.lat]);
     }
     return pts;

@@ -197,7 +197,7 @@ browser → CF edge → tunnel → cloudflared (native on NAS host)
 | | nginx | Caddy |
 | --- | --- | --- |
 | Graceful reload | Yes, `nginx -s reload` | Yes, `caddy reload` |
-| **Request body limit** | **`client_max_body_size` defaults to 1MB.** The rider quota is 25MB. Forgetting one line silently 413s every real KML/GPX import | No default limit, streams by default |
+| **Request body limit** | **`client_max_body_size` defaults to 1MB.** The largest upload the app accepts is 10MB. Forgetting one line silently 413s every real GPX import | No default limit, streams by default |
 | **`Host` header** | **Defaults to `$proxy_host`**—the app would see `Host: routeloop-blue`, breaking `LEGACY_HOSTS` and the alias 301 | Preserves the incoming `Host` for HTTP upstreams |
 | Upstream DNS | Resolves once at config load; a literal upstream that doesn't resolve makes nginx **fail to start** | Re-resolves per dial |
 | Config size | ~40 lines of boilerplate | ~12 lines |
@@ -385,7 +385,7 @@ Watch for, in order: `up -d db proxy` reporting db as **up-to-date**, not `Recre
 ssh nas 'docker volume ls'          # NO new db volume appeared
 ```
 
-Then in a browser: sign in (proves the session cookie and `Host` survive the proxy hop); load a ride's map (proves `data/storage` is still bound and readable as `1026:100`); download a KML; import a real GPX near the 25MB ceiling (proves no body-size cap); hit `tankbag.app` and confirm the 301 (proves `LEGACY_HOSTS` sees the real host); check the footer shows the expected `APP_VERSION`.
+Then in a browser: sign in (proves the session cookie and `Host` survive the proxy hop); load a ride's map (proves `data/storage` is still bound and readable as `1026:100`); download a KML; import a GPX just under the 10MB per-file cap (proves no body-size cap—see the correction under Verification; there is no 25MB upload ceiling); hit `tankbag.app` and confirm the 301 (proves `LEGACY_HOSTS` sees the real host); check the footer shows the expected `APP_VERSION`.
 
 ```bash
 # 6. ROLLBACK if any of step 5 fails — back on the old topology in ~60s.
@@ -443,7 +443,7 @@ Specifically **not** proposed: a Vitest test for the color picker. That logic li
 2. **Zero dropped requests, measured.** From the NAS host during a deploy: `while true; do curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6687/healthz; sleep 0.2; done | sort | uniq -c`. Anything that isn't `200` is the thing this plan exists to eliminate.
 3. **SIGTERM actually reaches Node.** The PID-1 problem. Single most likely thing to be silently broken.
 4. **A deliberately broken build rolls back cleanly.** Ship a commit that throws on boot. Confirm the proxy is never touched, the old color keeps serving, and the failure output names the container and dumps its logs.
-5. **A real GPX/KML import through the proxy**, near the 25MB ceiling—the nginx body-limit trap in reverse.
+5. **A real GPX/KML import through the proxy**, as large as the app will take—the nginx body-limit trap in reverse. **Corrected 2026-08-27: there is no 25MB upload ceiling**, which is what this line used to claim. 25MB is the STORAGE QUOTA. The upload caps are 10MB per GPX/KMZ/GeoJSON and 5MB per KML (`src/maps/kml.ts`), behind a 16MB multipart backstop (`src/routes/maps.ts`). A file over those is refused by the app with `{"error":"upload too large"}` before its size ever reaches the proxy, so testing with one proves nothing about the proxy at all—measured, by doing exactly that.
 6. **Sign in through the proxy**, both Google OAuth and the magic link. Proves `Host`, the cookie `Secure` flag, `APP_ORIGIN`, and the OAuth redirect URI all survive the extra hop.
 7. **The alias 301** through the proxy.
 8. **A ride's map and a file download**, proving `data/storage` is still bound and readable from a container whose name changed.

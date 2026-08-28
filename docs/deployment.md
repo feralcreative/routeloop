@@ -78,7 +78,7 @@ Everything before the cutover is a no-op on the live site:
 | `caddy validate` or `reload` fails | no—Caddy keeps its running config | never blinked |
 | Origin verify shows the wrong SHA | yes, then rolled back automatically | one reload's worth |
 
-**Caddy rather than nginx**, on two grounds that are both *silent* failures in exactly the areas this app cares about: nginx's `client_max_body_size` defaults to 1MB against a 25MB rider quota, so every real KML/GPX import would 413; and nginx sets the upstream's `Host` by default, so the app would see `Host: routeloop-blue` and both `LEGACY_HOSTS` and the alias 301 would break.
+**Caddy rather than nginx**, on two grounds that are both *silent* failures in exactly the areas this app cares about: nginx's `client_max_body_size` defaults to 1MB against a 10MB per-GPX cap, so every real import would 413; and nginx sets the upstream's `Host` by default, so the app would see `Host: routeloop-blue` and both `LEGACY_HOSTS` and the alias 301 would break.
 
 ## Schema on deploy
 
