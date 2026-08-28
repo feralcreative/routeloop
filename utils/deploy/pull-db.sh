@@ -22,7 +22,7 @@
 #   are deliberately inspecting the remote schema as it actually is.
 #
 # Everything destructive still belongs to db-clone: it dumps the LOCAL database
-# to ./dev-db-before-clone-<ts>.sql.gz before dropping anything, makes you type
+# to data/dev-db-before-clone-<ts>.sql.gz before dropping anything, makes you type
 # "dev" to confirm, and prints the db-restore line that undoes it. The remote is
 # only ever read—pg_dump, no writes—and this script has no path that names
 # prod or stage as a destination.

@@ -39,7 +39,7 @@ This section outranks everything else in this file and everything in the codebas
 | Regenerate the favicon set | `node utils/build-favicons.mjs` (needs `rsvg-convert`; writes all eight files in `public/img/favicon/`) |
 | Report who the account purge would destroy | `npx tsx utils/purge-accounts.ts --dry-run` |
 | Compress stored originals already on disk | `npx tsx utils/compress-originals.ts` (`--dry-run` first) |
-| Back up a database before anything destructive | `utils/deploy/deploy-utils.sh db-backup` |
+| Back up a database before anything destructive | `utils/deploy/deploy-utils.sh db-backup` (writes to `data/`) |
 | Which color is serving | `utils/deploy/deploy-utils.sh colors` |
 | Roll back by hand, in about ten seconds | `utils/deploy/deploy-utils.sh cutover blue\|green` |
 | What shape is a deployed database in | `utils/deploy/deploy-utils.sh schema-state` |

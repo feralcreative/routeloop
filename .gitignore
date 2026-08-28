@@ -147,7 +147,7 @@ storybook-static/
 # drizzle/0000_baseline.sql the moment it was generated.
 !drizzle/*.sql
 # Compressed dumps too. deploy-utils.sh writes its safety backups to the repo
-# root — db-backup as <container>-db-<ts>.sql.gz, db-clone as
+# data/ — db-backup as routeloop-<env>-db-<ts>.sql.gz, db-clone as
 # <env>-db-before-clone-<ts>.sql.gz — so a bare `git add -A` after a clone would
 # commit a full database, real rider addresses and payment handles included.
 # Same class of hole as the .env.bak-* one: the existing *.sql never matched .gz.

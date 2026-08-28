@@ -39,7 +39,7 @@ utils/deploy/prod.sh                # prod
 
 Both wrappers set `DEPLOY_ENV` and exec `utils/deploy/deploy.sh`, which gates on a clean tree and being on `main` unless `--force`.
 
-`utils/deploy/deploy-utils.sh` carries the operational subcommands: `colors`, `cutover`, `status`, `logs`, `db-logs`, `restart`, `restart-proxy`, `restart-db`, `stop`, `start`, `shell`, `psql`, `migrate`, `schema-state`, `db-baseline`, `db-backup`, `backup`, `db-clone <src> <dst>`, `db-restore`. `db-clone`'s dump-and-load path has never actually been exercised end to end.
+`utils/deploy/deploy-utils.sh` carries the operational subcommands: `colors`, `cutover`, `status`, `logs`, `db-logs`, `restart`, `restart-proxy`, `restart-db`, `stop`, `start`, `shell`, `psql`, `migrate`, `schema-state`, `db-baseline`, `db-backup`, `backup`, `db-clone <src> <dst>`, `db-restore`. `db-clone`'s dump-and-load path has never actually been exercised end to end. **Every dump lands in `data/`**—`db-backup`, `backup`, and the safety dump `db-clone` takes before it drops anything. The root was a bad default for files nobody reviews: `*.sql.gz` and `*.tar.gz` are gitignored, so a stray one is invisible rather than untidy, and these hold rider PII.
 
 `utils/deploy/pull-db.sh` is the one-command form of the case that comes up most, refreshing local from production:
 

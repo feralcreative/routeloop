@@ -271,22 +271,35 @@ cmd_db_baseline() {
   log_info "Baselining migration history for ${DEPLOY_ENV}..."
   nas "cd ${NAS_DEPLOY_PATH} && $COMPOSE run --rm --no-deps -T --entrypoint sh migrate -c 'npx tsx utils/db-baseline.ts'"
 }
+# WHERE A BACKUP LANDS. Ziad's call, 2026-08-27: data/, not the repo root.
+#
+# It is where dumps had already been collecting by hand, and the root is a bad
+# default for a file nobody reviews — `*.sql.gz` and `*.tar.gz` are gitignored,
+# so a stray one is invisible rather than merely untidy, and these hold rider
+# PII. Keeping them in one directory means "what backups do I have" is an `ls`.
+#
+# Created on demand: a fresh clone has no data/ and a backup must never be the
+# thing that fails because a directory was missing.
+BACKUP_DIR="$PROJECT_ROOT/data"
+
 # Postgres dump — the real backup. Map files are backed up separately.
 cmd_db_backup() {
   check_ssh_key
-  local f="routeloop-${DEPLOY_ENV}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
+  mkdir -p "$BACKUP_DIR"
+  local f="$BACKUP_DIR/routeloop-${DEPLOY_ENV}-db-$(date +%Y%m%d-%H%M%S).sql.gz"
   log_info "Dumping database to $f"
   $(get_ssh_cmd) "$NAS_SSH_HOST" \
-    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U routeloop -d routeloop | gzip" > "./$f"
-  log_success "Database backup saved to ./$f"
+    "/usr/local/bin/docker exec ${DB_CONTAINER_NAME} pg_dump -U routeloop -d routeloop | gzip" > "$f"
+  log_success "Database backup saved to $f"
 }
 # User-uploaded KML/GPX from the mounted storage volume.
 cmd_backup() {
   check_ssh_key
-  local f="routeloop-${DEPLOY_ENV}-storage-$(date +%Y%m%d-%H%M%S).tar.gz"
+  mkdir -p "$BACKUP_DIR"
+  local f="$BACKUP_DIR/routeloop-${DEPLOY_ENV}-storage-$(date +%Y%m%d-%H%M%S).tar.gz"
   log_info "Archiving user files to $f"
-  $(get_ssh_cmd) "$NAS_SSH_HOST" "tar -czf - -C ${NAS_DEPLOY_PATH}/data storage" > "./$f"
-  log_success "Storage backup saved to ./$f"
+  $(get_ssh_cmd) "$NAS_SSH_HOST" "tar -czf - -C ${NAS_DEPLOY_PATH}/data storage" > "$f"
+  log_success "Storage backup saved to $f"
 }
 ################################################################################
 # Environment-to-environment cloning.
@@ -427,7 +440,8 @@ cmd_db_clone() {
 
   local ts stamp safety
   ts="$(date +%Y%m%d-%H%M%S)"
-  safety="./${dst}-db-before-clone-${ts}.sql.gz"
+  mkdir -p "$BACKUP_DIR"
+  safety="$BACKUP_DIR/${dst}-db-before-clone-${ts}.sql.gz"
 
   # Taken before anything is dropped. This is the only undo.
   log_info "Backing up ${dst} first → ${safety}"
@@ -506,8 +520,8 @@ Commands:
   schema-state Table list, row counts and migrations recorded — read-only
   db-baseline  Record migrations as applied WITHOUT running them — one-time,
                for a database created before drizzle/ existed
-  db-backup    Dump Postgres to ./<container>-db-<ts>.sql.gz
-  backup       Archive user KML/GPX to ./<container>-storage-<ts>.tar.gz
+  db-backup    Dump Postgres to data/routeloop-<env>-db-<ts>.sql.gz
+  backup       Archive user KML/GPX to data/routeloop-<env>-storage-<ts>.tar.gz
   help         Show this help
 
 Cloning (these name their environments explicitly and ignore DEPLOY_ENV,
@@ -526,7 +540,7 @@ except db-restore, which targets DEPLOY_ENV):
     $0 db-clone prod dev              # pull production down to your laptop
     $0 db-clone prod stage            # refresh staging from production
     NO_STORAGE=1 $0 db-clone prod dev # database only, skip the KML/GPX files
-    DEPLOY_ENV=stage $0 db-restore stage-db-20260731-010000.sql.gz
+    DEPLOY_ENV=stage $0 db-restore data/stage-db-20260731-010000.sql.gz
 
 Environment:
   DEPLOY_ENV   prod (default) | stage
