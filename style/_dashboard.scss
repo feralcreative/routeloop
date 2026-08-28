@@ -93,11 +93,20 @@
   // auto-fit rather than a fixed count: the tile row is 4 or 5 items depending
   // on whether the rider has ever dragged the route line, and a fixed grid
   // leaves a hole when it is 4.
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  //
+  // THE FLOOR IS WHAT SIZES THE ROW, NOT THE TYPE (#176). Growing .stat-value
+  // alone just makes tighter tiles — the track width is this number, so raising
+  // it is what actually gives the figures room. 10.5rem from 8.5rem: at the
+  // 960px .page-wrap cap that still fits five across with the gap, which is the
+  // count the row has to survive, and four across it reads as a deliberately
+  // wider row rather than as a hole.
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
 }
 
 .stat-tile {
-  padding: 0.9rem 1rem;
+  // Grown with the type rather than held, or a larger figure sits in the same
+  // box and the tile reads cramped instead of bigger.
+  padding: 1.1rem 1.2rem;
   background: $white;
   border: 1px solid $grey;
   border-radius: 10px;
@@ -107,14 +116,21 @@
 }
 
 .stat-value {
-  font-size: 1.6rem;
+  // Up from 1.6rem (#176). Still below .record-figure's 1.9–2.4rem, which is the
+  // ordering the page depends on: a tile is a count, a record is an achievement,
+  // and the hero is the one number the page leads with.
+  font-size: 2rem;
   font-weight: 800;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
+// The label grows too, and by less than the figure. Scaling both equally would
+// have kept the ratio and made the block merely bigger; the figure is the thing
+// being read, so it takes most of the increase and the gap between them widens
+// slightly on purpose.
 .stat-label {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: $neutral-50;
 }
 
@@ -127,9 +143,14 @@
 // where "days" does not. Without this the comparison rows sit at different
 // heights across the row and the eye cannot scan them.
 //
-// Deliberately quiet. The rider's own figure is the headline at 1.6rem/800; these
+// Deliberately quiet. The rider's own figure is the headline at 2rem/800; these
 // are context and are sized and colored to lose against it. A comparison that
 // competes with the number it explains is a worse tile.
+//
+// HELD AT ITS OLD SIZE WHEN THE TILES GREW (#176), which is a decision and not an
+// omission: growing everything by the same factor keeps the ratio and makes the
+// block merely bigger, where the point was to make the FIGURE louder. Leaving
+// these where they were widens the gap, which is the direction that was wanted.
 .stat-spread {
   display: flex;
   gap: 0.75rem;
@@ -503,20 +524,30 @@
   }
 }
 
+// EACH RECORD SETS TWO COLORS, AND THEY ARE NOT INTERCHANGEABLE. --record-accent
+// is the FIELD: the left edge and the filled mark. --record-figure-color is the
+// same hue as TEXT, which every one of these needs to be its own token because a
+// sign field is not a text color — $detour is the loudest failure (3.19:1 on
+// $white, 2.25:1 in colorblind) but all four fail on the dark schemes. Measured;
+// see test/palette-contrast.test.ts, which holds all eight pairs.
 .record--distance {
   --record-accent: #{$interstate};
+  --record-figure-color: #{$interstate-text};
 }
 .record--ride {
   --record-accent: #{$disabled};
+  --record-figure-color: #{$disabled-text};
 }
 .record--twist {
   --record-accent: #{$detour};
+  --record-figure-color: #{$detour-text};
 }
 // Brown rather than a second amber: $detour and $warning are adjacent under the
 // colorblind palette, and two cards running the same accent is exactly the
 // sameness this block was trying to lose.
 .record--views {
   --record-accent: #{$recreation};
+  --record-figure-color: #{$recreation-text};
 }
 
 // Top right, out of the text's way. Absolutely positioned rather than a grid
@@ -552,6 +583,22 @@
   align-items: baseline;
   gap: 0.3rem;
   line-height: 1.1;
+}
+
+// THE FIGURE TAKES ITS OWN RECORD'S COLOR (#177), so the number and the mark
+// above it read as one thing rather than as a glyph decorating a black numeral.
+//
+// Falls back to --record-accent, which is what makes this one line rather than
+// four: three of the four records use their accent directly and only .record--twist
+// overrides it, because $detour is a field color and fails as text. A record that
+// forgets to set the override still gets its accent, which is right for every
+// accent that reads.
+//
+// Colored text is never the ONLY cue here — every card carries its mark, its
+// label and its hint — which is the same property that makes the role ring and
+// the dashboard's categorical slots honest under dichromacy.
+.record-figure {
+  color: var(--record-figure-color, var(--record-accent));
 }
 
 // A figure. Sits between .stat-value (1.6rem) and .hero-value (up to 4rem) —

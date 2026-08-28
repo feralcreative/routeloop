@@ -223,6 +223,24 @@ $day: var(--day);
 $date: var(--date);
 $label: var(--label);
 
+// THE FOUR "YOUR RECORDS" FIGURE COLORS (#177), each the same hue as the accent
+// it is named for, at an absolute lightness that survives as text.
+//
+// A sign field is not a text color. All four accents are fields — authored to be
+// sat on, carrying a legend — and using one as type is inverting what it was
+// picked for. Measured: $detour is 3.19:1 on $white in the default palette and
+// 2.25:1 in colorblind, and on the DARK schemes all four fail, because the
+// surface is near-black and every field is a mid-tone (interstate 2.67, disabled
+// 2.52, recreation 2.01, worse again under contrast-dark).
+//
+// So the mark keeps the field color — it is a filled glyph, not text — and only
+// the numeral takes these. Do not use one as a field, and do not use a bare
+// accent as text. test/palette-contrast.test.ts holds all eight pairs.
+$interstate-text: var(--interstate-text);
+$disabled-text: var(--disabled-text);
+$detour-text: var(--detour-text);
+$recreation-text: var(--recreation-text);
+
 // NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` used to appear
 // in eighteen places and every one of them broke silently the moment tokens
 // became `var()` references: Sass passes the call through untouched, so it

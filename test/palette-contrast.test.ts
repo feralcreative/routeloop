@@ -130,6 +130,60 @@ describe.each(PALETTE_KEYS)('%s', (key: PaletteKey) => {
     expect(contrast(token(key, name), surface())!).toBeGreaterThanOrEqual(AA)
   })
 
+  // THE FOUR "YOUR RECORDS" FIGURES (#177), which are the third signed derivation
+  // and the one that came with a measurement.
+  //
+  // Each record's numeral takes its own accent's hue as TEXT. The accents are sign
+  // FIELDS, and a field is not a text color: $detour is the loudest failure at
+  // 3.19:1 on $white in the default palette and 2.25:1 in colorblind — the theme
+  // that exists for legibility being the worse of the two — and that is what got
+  // this looked at. But the dark schemes are where it is unanimous, and the
+  // original hand measurement missed them by only checking light $white.
+  //
+  // Held to full body-text AA rather than the 3:1 large-text floor the figure
+  // could fairly claim. The floor is exactly what let $detour through at 3.19.
+  it.each(['interstate-text', 'disabled-text', 'detour-text', 'recreation-text'])(
+    '%s survives as a record figure on the page surface',
+    (name: string) => {
+      expect(contrast(token(key, name), surface())!).toBeGreaterThanOrEqual(AA)
+    },
+  )
+
+  // THE OTHER HALF OF THE PAIR: every one of the four raw accents FAILS as text in
+  // exactly three of the six palettes, which is the whole reason the -text tokens
+  // exist. Same shape as the ink table's "fails on the other ink" assertion — it
+  // is not a preference, and an accent that quietly started passing would mean the
+  // derivation had stopped being needed, which is a decision rather than a silent
+  // improvement.
+  //
+  // The split is clean and worth having written down. Measured on $white, which is
+  // the record card's own background:
+  //
+  //   palette            interstate  disabled  detour  recreation
+  //   default-light            7.27      7.69    3.19        9.65
+  //   contrast-light          11.64     11.33    2.54       14.07
+  //   colorblind-light         7.32      8.42    2.25        9.39
+  //   default-dark             2.67      2.52    6.08        2.01
+  //   contrast-dark            1.66      1.71    7.63        1.38
+  //   colorblind-dark          2.65      2.30    8.60        2.06
+  //
+  // $interstate, $disabled and $recreation are dark fields: fine as text on a white
+  // card, hopeless on a near-black one. $detour is a bright work-zone orange and is
+  // the exact mirror — it is the one that fails in the light, which is how this got
+  // noticed, and the ONLY one that would have passed a dark-only audit. Neither
+  // half generalizes, which is why the derivation covers all four rather than the
+  // one that was reported.
+  const FIELDS_FAILING_HERE = key.endsWith('-dark')
+    ? ['interstate', 'disabled', 'recreation']
+    : ['detour']
+
+  it.each(FIELDS_FAILING_HERE)(
+    '%s is a field here and does NOT read as text, which is why the -text tokens exist',
+    (name: string) => {
+      expect(contrast(token(key, name), surface())!).toBeLessThan(AA)
+    },
+  )
+
   // $url is the app's generic accent and is a link color everywhere.
   it('keeps links legible on the page surface', () => {
     expect(contrast(token(key, 'url'), surface())!).toBeGreaterThanOrEqual(AA)

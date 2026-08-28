@@ -189,6 +189,20 @@ $-signs-colorblind: (
   // it the token for a label sitting on a $pending tint.
   $pending-l: 30%;
   $label-l: 28%;
+  // Where the four "Your records" FIGURES land (#177). Every one of the four
+  // accents is a sign FIELD — a color authored to be sat on, carrying a legend —
+  // and a field is not a text color. $detour is the loudest failure (3.19:1 on
+  // $white in the default palette, 2.25:1 in colorblind), which is what got this
+  // measured at all, but ALL FOUR fail on the dark schemes, where the surface is
+  // near-black and every field is a mid-tone: interstate 2.67, disabled 2.52,
+  // recreation 2.01, and worse again under contrast-dark.
+  //
+  // So this is one lightness for all four rather than a patch for the one that
+  // was noticed. The mark keeps its field color — it is a filled glyph, not text —
+  // and only the numeral takes the derived tone. Same mechanism as the two amber
+  // text tokens above, and the same reason: a derivation whose job is to be READ
+  // takes an absolute lightness, not a relative step off a base a theme may move.
+  $record-text-l: 30%;
   @if $dark {
     $n: $-neutrals-dark;
     $white: map.get($n, 98);
@@ -201,6 +215,7 @@ $-signs-colorblind: (
     $panel-shadow: rgba(0, 0, 0, 0.5);
     $pending-l: 70%;
     $label-l: 72%;
+    $record-text-l: 72%;
   }
 
   // The semantic layer, unchanged in shape from what _tokens.scss always had.
@@ -295,6 +310,13 @@ $-signs-colorblind: (
     // from 2.24:1 to 4.71:1. See -tone() for why a step could not have worked.
     "pending": -tone($warning, $pending-l),
     "label": -tone($warning, $label-l),
+    // The four record figures. Named for their base so the pairing is obvious at
+    // the call site: .record--twist sets --record-accent to $detour and its figure
+    // color to $detour-text, and a reader can see those are the same hue.
+    "interstate-text": -tone(map.get($s, "interstate"), $record-text-l),
+    "disabled-text": -tone(map.get($s, "disabled"), $record-text-l),
+    "detour-text": -tone(map.get($s, "detour"), $record-text-l),
+    "recreation-text": -tone(map.get($s, "recreation"), $record-text-l),
 
     "panel-bg": $panel-bg,
     "panel-shadow": $panel-shadow,

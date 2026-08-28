@@ -153,7 +153,12 @@ function OwnRideCard({ ride, color }: { ride: RideRow; color: string | null }) {
             sits for thirty days with a button to undo — the bin is the
             confirmation. A dialog in front of a reversible action is how riders
             learn to click through the one that is not. */}
-        <form method="post" action={`/trash/rides/${ride.id}/bin`} class="ride-card-del">
+        {/* data-ride-id is for dashboard.js, which bins this in place rather than
+            letting the POST navigate — see #175. The id is already in the action,
+            but parsing it back out of a URL is a second place the route shape has
+            to be known; an attribute says it once. With script off nothing reads
+            it and the plain POST is unchanged. */}
+        <form method="post" action={`/trash/rides/${ride.id}/bin`} class="ride-card-del" data-ride-id={ride.id}>
           <button class="linkbtn" type="submit">
             Delete
           </button>
