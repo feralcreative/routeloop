@@ -364,3 +364,98 @@
     background: $neutral-96;
   }
 }
+
+// --- Avatar (#99) ------------------------------------------------------------
+//
+// STORED SQUARE, SHOWN ROUND. Nothing circular is written to disk — a round
+// image would mean baking a background colour into the corners, and the corners
+// would then be wrong on every surface with a different background. The radius
+// lives here, the same way `.nav-avatar` already carries its own.
+.avatar-now {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.avatar-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  // Its own box-sizing, because there is no global border-box reset in style/ —
+  // without it the 1px ring would put this at 98px and the circle would sit off
+  // the baseline of the text beside it.
+  box-sizing: border-box;
+  object-fit: cover;
+  background: $neutral-94;
+  border: 1px solid $grey;
+  flex: none;
+
+  &.is-initials {
+    display: grid;
+    place-items: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: $neutral-50;
+  }
+}
+
+.avatar-acts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  .field-hint {
+    flex-basis: 100%;
+    margin: 0.25rem 0 0;
+  }
+}
+
+#avatar-crop {
+  margin-top: 1rem;
+  max-width: 320px;
+}
+
+// `touch-action: none` is LOAD-BEARING on a phone: without it the browser claims
+// a vertical drag as a page scroll and the pointermove handler never sees it, so
+// the image can be dragged sideways and not up. Same class of problem as the
+// SortableJS `preventOnFilter` note in AGENTS.md — a default gesture eating the
+// one the feature needs.
+#avatar-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 320px;
+  border-radius: 8px;
+  background: $neutral-94;
+  touch-action: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.avatar-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  input[type="range"] {
+    flex: 1;
+  }
+}
+
+#avatar-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: $neutral-50;
+
+  &[data-state="error"] {
+    color: $label;
+  }
+}

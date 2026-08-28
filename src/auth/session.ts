@@ -62,7 +62,10 @@ export async function createSession(userId: number): Promise<string> {
  * them, `users` does not — which is why this is a composed type rather than a
  * change to UserRow.
  */
-export type SessionUser = { user: UserRow & { theme: Theme; scheme: Scheme; motion: Motion }; sessionId: string }
+export type SessionUser = {
+  user: UserRow & { theme: Theme; scheme: Scheme; motion: Motion; avatarBytes: number }
+  sessionId: string
+}
 
 // Returns the signed-in user, or undefined. Expired rows are deleted on sight
 // rather than left to accumulate.
@@ -91,6 +94,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: userProfiles.theme,
       scheme: userProfiles.scheme,
       motion: userProfiles.motion,
+      avatarBytes: userProfiles.avatarBytes,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -114,7 +118,17 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
   // Coerced here so no reader downstream has to interpret a null — a rider with
   // no profile row gets the same values as one who chose the defaults.
   return {
-    user: { ...row.user, theme: toTheme(row.theme), scheme: toScheme(row.scheme), motion: toMotion(row.motion) },
+    user: {
+      ...row.user,
+      theme: toTheme(row.theme),
+      scheme: toScheme(row.scheme),
+      motion: toMotion(row.motion),
+      // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
+      // `users.avatar_url` is write-once from Google sign-in and a rider cannot
+      // change it; an upload is a deliberate choice and outranks it. Zero means
+      // no upload, which is what makes the column the flag as well as the size.
+      avatarBytes: row.avatarBytes ?? 0,
+    },
     sessionId: id,
   }
 }

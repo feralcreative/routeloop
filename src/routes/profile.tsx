@@ -16,6 +16,11 @@ import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAY
 import { usernameSchema } from '../auth/username'
 import type { UsernameHistoryRow } from '../db/schema'
 import { fromAcceptLanguage } from '../views/date-format'
+import { bodyLimit } from 'hono/body-limit'
+import { MAX_IMAGE_BYTES, UPLOAD_REFUSAL_MESSAGES, checkUpload } from '../images/policy'
+import { PROCESSED_MIME } from '../images/process'
+import { deleteAvatar, processAvatar, readAvatar, writeAvatar } from '../account/avatar'
+import { avatarSrc } from '../views/layout'
 
 export const profileRoutes = new Hono<AuthEnv>()
 
@@ -204,6 +209,9 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
 
 function renderProfile({ user, values, errors, saved, history }: RenderArgs): string {
   const v = values
+  // The session carries `avatarBytes` so the nav can prefer an upload over the
+  // provider picture; the same value is what decides whether Remove is offered.
+  const hasUpload = ((user as { avatarBytes?: number }).avatarBytes ?? 0) > 0
   const body = (
     <>
       <h1>Your profile</h1>
@@ -292,6 +300,70 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           the same as agreeing to publish it, which is the whole reason the
           existing block works the way it does.
         */}
+        {/*
+          #99. AT THE TOP, BESIDE THE NAME, because that is what it is a picture
+          OF — and because a rider looking for it looks where their face already
+          appears in the nav.
+
+          THE WHOLE BLOCK IS PROGRESSIVE. With script off there is no crop box
+          and no upload: the file input and its buttons live inside
+          #avatar-crop's controls, which avatar.js reveals. What a no-script
+          rider sees is their current picture and nothing that lies about being
+          usable. An upload needs a canvas to crop in, and there is no honest
+          server-side fallback for "position this circle".
+        */}
+        <fieldset class="avatar-block">
+          <legend>Your picture</legend>
+          <div class="avatar-now">
+            {avatarSrc(user) ? (
+              <img id="avatar-current" class="avatar-preview" src={avatarSrc(user)!} alt="" width="96" height="96" />
+            ) : (
+              <>
+                <img id="avatar-current" class="avatar-preview" alt="" width="96" height="96" hidden />
+                <span id="avatar-initials" class="avatar-preview is-initials" aria-hidden="true">
+                  {(user.displayName || '?').trim().charAt(0).toUpperCase()}
+                </span>
+              </>
+            )}
+            <div class="avatar-acts">
+              {/* Hidden and clicked by the button, so the control reads as a
+                  button rather than as a file input — and so it can sit beside
+                  Remove without the two looking like different kinds of thing. */}
+              <input type="file" id="avatar-file" accept="image/jpeg,image/png" hidden />
+              <button type="button" class="btn btn-quiet" id="avatar-open" hidden>
+                Choose a picture
+              </button>
+              <button type="button" class="btn btn-quiet" id="avatar-remove" hidden={!hasUpload}>
+                Remove
+              </button>
+              <p class="field-hint">
+                JPEG or PNG, up to 1&nbsp;MB. Stored square and shown round; we re-encode it and strip the location your
+                camera put&nbsp;in&nbsp;it.
+              </p>
+            </div>
+          </div>
+
+          <div id="avatar-crop" hidden>
+            {/* 320 is the canvas's PIXEL size and the stylesheet may display it
+                smaller — avatar.js scales pointer deltas by the ratio, so the
+                two are allowed to differ. */}
+            <canvas id="avatar-canvas" width="320" height="320"></canvas>
+            <label class="avatar-zoom-row">
+              <span>Zoom</span>
+              <input type="range" id="avatar-zoom" min="1" max="4" step="0.01" value="1" />
+            </label>
+            <div class="avatar-acts">
+              <button type="button" class="btn" id="avatar-save">
+                Use this
+              </button>
+              <button type="button" class="btn btn-quiet" id="avatar-cancel">
+                Cancel
+              </button>
+            </div>
+          </div>
+          <p class="save-status" id="avatar-status" role="status" aria-live="polite"></p>
+        </fieldset>
+
         <fieldset>
           <legend>Phone</legend>
           <p class="field-hint">Optional. For riders on a ride with you, if you let&nbsp;them.</p>
@@ -421,6 +493,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
     // Only the token: profile.js geocodes the address so the builder can read
     // coordinates straight off the profile instead of looking them up per ride.
     scripts: `<script src="${asset('/js/profile.js')}" defer></script>
+    <script src="${asset('/js/avatar.js')}" defer></script>
   <script src="${asset('/js/places.js')}" defer></script>
   <script src="${asset('/js/paddock.js')}" defer></script>`,
   })
@@ -720,5 +793,143 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
     ok: Object.keys(errors).length === 0,
     saved: [...(displayName ? ['displayName'] : []), ...Object.keys(set)],
     errors,
+  })
+})
+
+// --- Avatar (#99) ------------------------------------------------------------
+//
+// `users.avatar_url` exists but is WRITE-ONCE FROM GOOGLE SIGN-IN, so a
+// magic-link rider has never had one and never could. This is the upload.
+//
+// **THE FIRST USER-SUPPLIED BINARY THIS APP SERVES PUBLICLY**, and that is what
+// makes it a different risk profile from a stored ride original — the nav
+// renders it on every page, to anyone. The rules, all of them enforced here and
+// not by the browser:
+//
+//   RASTER ONLY, NEVER SVG. An SVG can carry script and would be stored XSS from
+//   this origin. `checkUpload` sniffs the magic number and accepts only JPEG and
+//   PNG, so an SVG is refused whatever it is named or what Content-Type it
+//   claims. This is a security boundary, not a format preference.
+//
+//   RE-ENCODED ALWAYS. The client-side crop is convenience; browser output is
+//   attacker-controlled, so the server decodes, orients, crops, resizes and
+//   re-encodes to WebP regardless of what arrived.
+//
+//   EXIF STRIPPED, which sharp does by default and processAvatar() documents.
+//   A phone photo carries GPS and an avatar should not publish where it was
+//   taken.
+//
+//   SERVED THROUGH A ROUTE, never a static path. src/maps/storage.ts writes
+//   outside the web root deliberately and avatars live in the same place.
+profileRoutes.post(
+  '/api/profile/avatar',
+  requireActiveApi,
+  requireSameOrigin,
+  // TWO LIMITS AND THEY ARE NOT THE SAME LIMIT, exactly as the bike photo route
+  // says: bodyLimit refuses an oversized REQUEST before Hono buffers it,
+  // checkUpload refuses an oversized FILE. The body allowance is larger because
+  // the multipart framing and the three crop fields ride along with it.
+  bodyLimit({ maxSize: MAX_IMAGE_BYTES * 2, onError: (c) => c.json({ error: 'That image is too large.' }, 413) }),
+  async (c) => {
+    const user = currentUser(c)
+    const body = await c.req.parseBody().catch(() => null)
+    const file = body?.avatar
+    if (!(file instanceof File)) return c.json({ error: 'No image was sent.' }, 400)
+
+    const raw = new Uint8Array(await file.arrayBuffer())
+    const check = checkUpload(raw)
+    if (!check.ok) return c.json({ error: UPLOAD_REFUSAL_MESSAGES[check.reason] }, 400)
+
+    // A HINT, NOT AN INSTRUCTION. clampCrop puts it inside the image whatever
+    // arrives, because these are three numbers from a multipart body and a
+    // hand-crafted one can say anything — see test/avatar.test.ts.
+    const num = (v: unknown) => (typeof v === 'string' ? Number(v) : NaN)
+    const crop =
+      'cropSize' in (body ?? {}) ? { x: num(body?.cropX), y: num(body?.cropY), size: num(body?.cropSize) } : null
+
+    let processed
+    try {
+      processed = await processAvatar(Buffer.from(raw), crop)
+    } catch {
+      // Sniffed as a JPEG and will not decode: corrupt, or deliberately
+      // malformed. Either way a refusal rather than a 500.
+      return c.json({ error: 'That image could not be read.' }, 400)
+    }
+
+    // File first, row second, matching the bike photo: a row pointing at an
+    // avatar that was never written renders broken, where a file with no row is
+    // invisible and swept up by the account purge.
+    await writeAvatar(user.id, processed.data)
+    const values = { avatarBytes: processed.data.length, updatedAt: new Date() }
+    await db
+      .insert(userProfiles)
+      .values({
+        userId: user.id,
+        ...values,
+        // The fifth upsert, same obligation as the other four. See settings.tsx.
+        dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      })
+      .onConflictDoUpdate({ target: userProfiles.userId, set: values })
+
+    // The hash is the cache-buster in the URL, so a new picture is a new URL and
+    // the route can serve it immutable.
+    return c.json({ ok: true, url: `/profile/avatar/${user.id}?v=${processed.hash}` })
+  },
+)
+
+/**
+ * Remove the uploaded avatar and fall back.
+ *
+ * FALL BACK, NOT GO BLANK. `users.avatar_url` may still hold the picture Google
+ * gave them at sign-in, and clearing the upload should reveal it again rather
+ * than replace one picture with initials. `avatar_bytes = 0` is what says "no
+ * upload", which is why it is the flag as well as the size.
+ */
+profileRoutes.delete('/api/profile/avatar', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  await deleteAvatar(user.id)
+  await db.update(userProfiles).set({ avatarBytes: 0, updatedAt: new Date() }).where(eq(userProfiles.userId, user.id))
+  return c.json({ ok: true })
+})
+
+/**
+ * Serving it.
+ *
+ * PUBLIC, unlike the bike photo's owner-only gate, and deliberately: this is
+ * rendered in the nav and beside a rider's name on a roster, an explore card and
+ * a public profile. A gate here would mean those surfaces could not show it,
+ * which is the entire feature.
+ *
+ * What that costs is one fact — that a given rider id has an avatar — which is
+ * already visible to anyone who can see the rider at all. It is NOT a way to
+ * enumerate accounts: an id with no avatar 404s exactly like an id that does not
+ * exist, which is the same answer /@handle gives for a pending or blocked
+ * account.
+ *
+ * IMMUTABLE, because the hash is in the query string. A new picture is a new URL,
+ * so a year is safe and a rider never sees a stale face.
+ */
+profileRoutes.get('/profile/avatar/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
+  const data = await readAvatar(id)
+  if (!data) return c.notFound()
+  // `new Response(new Uint8Array(...))` rather than `c.body(buffer)`, matching
+  // the bike photo route — a Node Buffer's ArrayBufferLike does not satisfy the
+  // BodyInit overload and the error it produces names SharedArrayBuffer, which
+  // is not a clue anybody wants twice.
+  return new Response(new Uint8Array(data), {
+    headers: {
+      'Content-Type': PROCESSED_MIME,
+      // IMMUTABLE ONLY WITH THE HASH IN THE URL. Without `?v=` this is a plain
+      // /profile/avatar/7, which is a stable URL whose CONTENT changes the next
+      // time the rider uploads — caching that for a year would show a stale face
+      // until the browser was cleared. Five minutes is the honest answer there.
+      'Cache-Control': c.req.query('v') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+      // The bytes are ours — decoded and re-encoded by sharp — but this is a
+      // user-supplied picture served from the app's own origin, so the sniffing
+      // opt-out costs nothing and closes the question.
+      'X-Content-Type-Options': 'nosniff',
+    },
   })
 })

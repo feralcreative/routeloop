@@ -184,6 +184,21 @@ const ADMIN_LINKS: NavItem[] = [
 
 const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
 
+/**
+ * Which picture a rider has, in precedence order.
+ *
+ * The uploaded one is served through a route rather than a static path, because
+ * src/maps/storage.ts writes outside the web root and avatars live beside those
+ * files. No cache-buster here: the nav renders on every page and threading the
+ * hash through the session for a 24px image is not worth the column. The route
+ * answers `max-age=300` without one, so a changed picture is current within five
+ * minutes everywhere and immediately on the profile, which posts the hashed URL.
+ */
+export function avatarSrc(user: { id: number; avatarUrl?: string | null; avatarBytes?: number }): string | null {
+  if (user.avatarBytes && user.avatarBytes > 0) return `/profile/avatar/${user.id}`
+  return user.avatarUrl ?? null
+}
+
 function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
   return (
     <a href={item.href} aria-current={item.key === navKey ? 'page' : undefined}>
@@ -527,8 +542,11 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
   return (
     <details class="nav-sub nav-account">
       <summary>
-        {user.avatarUrl ? (
-          <img class="nav-avatar" src={user.avatarUrl} alt="" width="24" height="24" />
+        {/* THE UPLOAD FIRST, then the provider picture, then initials (#99).
+            avatarUrl is write-once from Google sign-in and a magic-link rider has
+            never had one — which is the whole reason the upload exists. */}
+        {avatarSrc(user) ? (
+          <img class="nav-avatar" src={avatarSrc(user)!} alt="" width="24" height="24" />
         ) : (
           <span class="nav-avatar is-initials" aria-hidden="true">
             {initials || '?'}
