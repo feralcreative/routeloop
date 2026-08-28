@@ -60,6 +60,9 @@
   // Pure drag-to-shape arithmetic — see route-shape.js.
   const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
 
+  // Turning a SortableJS drop into a position in day.points — see drag-index.js.
+  const DRAG = window.TBDragIndex;
+
   const MILE = 1609.344;
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
   // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
@@ -3955,9 +3958,6 @@
 
         const day = state.days[Number(evt.from.dataset.day)];
         if (!day) return;
-        // A DRAG THAT ENDED WHERE IT STARTED IS NOT AN EDIT. Sortable fires
-        // onEnd for every drop, including one that changed nothing.
-        if (evt.oldIndex === evt.newIndex) return;
 
         // ONE OPERATION FOR BOTH KINDS, and Sortable's own indices finally mean
         // something: every row is a point in day.points and the list on screen is
@@ -3965,11 +3965,31 @@
         // to solve — two arrays, a derived interleave, a POI drag that was a
         // reposition rather than a reorder — went away with the merge.
         //
-        // .add-row is filtered so it can never be the dragged item, but it IS a
-        // child of the list, and it is always last, so a drop below every point
-        // row can report an index one past the end. Clamped rather than trusted.
+        // **`newDraggableIndex`, NEVER `newIndex`, AND THE DIFFERENCE IS NOT
+        // COSMETIC.** Sortable reports two pairs of indices: `oldIndex`/`newIndex`
+        // count EVERY child of the list, and `oldDraggableIndex`/`newDraggableIndex`
+        // count only children matching `draggable` — the `.point-row`s. This list
+        // renders an `.insert-slot` hairline ABOVE every row plus one trailing
+        // `.add-row`, so it holds 2n+1 children for n points and the raw index runs
+        // at roughly double the one `day.points` is addressed by.
+        //
+        // That was live from 2026-08-24, when the insert slots landed nine days
+        // after this arithmetic, to 2026-08-28, and it failed in two ways at once
+        // — measured on /builder/8, not theorized. Dragging point 7 of 8 up one
+        // slot reported `newIndex: 13`, which clamped to 7 and equalled `from`, so
+        // nothing moved, the ride was never marked dirty, and the next render put
+        // the row back. Dragging point 0 down one slot reported `newIndex: 3` and
+        // moved it three places instead of one — that half DID save, wrongly.
+        // Reported as #166.
+        //
+        // The clamping and the did-it-move question are TBDragIndex.dropTarget,
+        // in public/js/drag-index.js, so that test/drag-index.test.ts can hold the
+        // arithmetic: nothing in this closure is reachable from a test, and there
+        // is no browser suite. A null answer means the drop was not an edit —
+        // Sortable fires onEnd for every drop, including one that changed nothing.
         const i = Number(evt.item.dataset.i);
-        const to = Math.max(0, Math.min(day.points.length - 1, evt.newIndex));
+        const to = DRAG.dropTarget(i, evt.newDraggableIndex, day.points.length);
+        if (to == null) return;
         return reorderPoint(i, to);
       },
     });
@@ -4009,6 +4029,12 @@
       // given an ambiguous meaning.
       disabled: !!state.select,
       onEnd: (evt) => {
+        // The RAW indices are safe here and only because #day-list holds nothing
+        // but .day-section children, so they agree with the draggable ones. The
+        // point list does not have that property and #166 is what it cost: adding
+        // any sibling between the sections — a separator, a drop hint — silently
+        // makes these read about double. Use the draggable pair if that ever
+        // changes.
         const from = evt.oldIndex;
         const to = evt.newIndex;
         if (from === to || from == null || to == null) return;
@@ -4061,8 +4087,17 @@
 
     const [pt] = src.points.splice(i, 1);
     // Where it landed in the DESTINATION's list — Sortable's index into the
-    // rows, clamped because .add-row is a child too and always last.
-    const at = Math.max(0, Math.min(dst.points.length, evt.newIndex));
+    // ROWS, clamped because .add-row is a child too and always last.
+    //
+    // `newDraggableIndex`, never `newIndex`: the destination list interleaves an
+    // .insert-slot above every row, so the raw child index runs at about double
+    // the one dst.points is addressed by. Same bug as the same-day path in
+    // initDragToReorder's onEnd, and it landed here as an append to the bottom of
+    // the target day rather than a drop where the rider aimed. See #166.
+    //
+    // insertTarget rather than dropTarget: the point is not in this array yet, so
+    // one past the last element is an append and a legitimate answer.
+    const at = DRAG.insertTarget(evt.newDraggableIndex, dst.points.length);
     // A POI's distance along the track belongs to the day it was measured on and
     // means nothing on another one. Null is honest — "near this day's route,
     // position not measured" — and is exactly what an import with no track
