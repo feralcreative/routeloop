@@ -19,6 +19,7 @@ import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
 import { reconcileVotes } from '../votes/service'
+import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
@@ -419,6 +420,12 @@ export async function insertRideGraph(
   // primary in the same save — the id does not exist until then.
   await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
   if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
+  // THE THIRD RECONCILIATION, AND THE ONE THAT GOES THE OTHER WAY. The two
+  // around it DELETE what has lost its uid; this one clears the anchor and keeps
+  // the row. A comment is a thing a person said, and a save must not destroy
+  // those — see the table's own comment in schema.ts. It runs whoever is saving,
+  // owner or editor: a demotion loses nothing, so there is no `preserve` case.
+  await demoteOrphanComments(tx, rideId, liveUids)
   // Same reconciliation, one level up. A vote whose day left the payload has to
   // go, or a deleted alternate keeps counting toward a tally forever — the
   // identical trap point_details carries, for the identical reason: alt_votes

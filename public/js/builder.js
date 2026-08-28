@@ -2200,6 +2200,177 @@
     }
   }
 
+  // --- Comments -------------------------------------------------------------
+  //
+  // TWO ANCHORS, ONE LIST. A comment hangs off a POINT by uid, or off the RIDE
+  // when it has no uid — "is this hotel actually walkable" versus "can we leave
+  // an hour earlier". They are read in one place, below the tabs, because a
+  // fourth tab would undo the three-tab decision; they are WRITTEN from two, the
+  // composer here and the row menu's "Comment on this stop".
+  //
+  // A COMMENT WHOSE POINT IS DELETED IS NOT DELETED WITH IT. The server clears
+  // its anchor and the comment carries on at ride level, still labeled with the
+  // stop it was about — see demoteOrphanComments in src/comments/service.ts.
+  // Nothing here has to handle that case specially: an unanchored comment with a
+  // pointLabel renders exactly like one that always was.
+  let commentsCache = null;
+  let commentsLoading = false;
+  // What the composer is anchored to: a point uid, or null for the ride.
+  let commentAnchor = null;
+
+  async function loadComments(force) {
+    const host = $("comments-body");
+    if (!host || !state.rideId) return;
+    if (commentsCache && !force) return renderComments();
+    if (commentsLoading) return;
+    commentsLoading = true;
+    if (!host.innerHTML) host.innerHTML = '<p class="comments-empty">Loading…</p>';
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/comments");
+      if (!res.ok) throw new Error("could not load the comments");
+      commentsCache = await res.json();
+      renderComments();
+    } catch (e) {
+      host.innerHTML = '<p class="comments-empty is-error">' + esc(e.message) + "</p>";
+    } finally {
+      commentsLoading = false;
+    }
+  }
+
+  /** The name to file a new comment under. Copied from what the commenter is
+   *  LOOKING AT rather than resolved later: the point may not be saved yet, and
+   *  once it is deleted there is nothing left to read a name off. */
+  function labelForUid(uid) {
+    for (const day of state.days) {
+      for (const pt of day.points) if (pt.uid === uid) return pt.name || pt.label || "";
+    }
+    return "";
+  }
+
+  function commentRowHtml(c) {
+    const mine = commentsCache && c.authorId === commentsCache.viewerId;
+    const canManage = mine || window.TB.isOwner === true;
+    const when = new Date(c.createdAt);
+    return (
+      '<li class="comment' + (c.resolvedAt ? " is-resolved" : "") + '" data-cid="' + c.id + '">' +
+      '<div class="comment-meta">' +
+      '<strong>' + esc(c.authorName) + "</strong>" +
+      (c.pointLabel ? '<span class="comment-on">on ' + esc(c.pointLabel) + "</span>" : "") +
+      '<time datetime="' + esc(c.createdAt) + '">' + esc(when.toLocaleDateString()) + "</time>" +
+      "</div>" +
+      '<p class="comment-body">' + esc(c.body) + "</p>" +
+      (canManage
+        ? '<div class="comment-acts">' +
+          '<button type="button" class="linkbtn" data-cact="' +
+          (c.resolvedAt ? "reopen" : "resolve") +
+          '">' +
+          (c.resolvedAt ? "Reopen" : "Mark done") +
+          "</button>" +
+          '<button type="button" class="linkbtn is-danger" data-cact="delete">Delete</button>' +
+          "</div>"
+        : "") +
+      "</li>"
+    );
+  }
+
+  function renderComments() {
+    const host = $("comments-body");
+    const count = $("comments-count");
+    if (!host || !commentsCache) return;
+    const all = commentsCache.comments;
+    const open = all.filter((c) => !c.resolvedAt);
+    if (count) {
+      count.textContent = String(open.length);
+      count.hidden = open.length === 0;
+    }
+    const list = all.length
+      ? '<ul class="comment-list">' + all.map(commentRowHtml).join("") + "</ul>"
+      : '<p class="comments-empty">Nothing said yet.</p>';
+    // The composer is only drawn for somebody who may actually post. A box that
+    // refuses on submit is worse than no box — see canPost, which the server
+    // re-checks whatever this page decided.
+    const composer = commentsCache.canPost
+      ? '<form class="comment-new" id="comment-new">' +
+        '<label class="visually-hidden" for="comment-body">Your comment</label>' +
+        '<textarea id="comment-body" rows="2" maxlength="4000" placeholder="' +
+        (commentAnchor ? "Comment on " + esc(labelForUid(commentAnchor)) : "Comment on this ride") +
+        '"></textarea>' +
+        '<div class="comment-new-acts">' +
+        (commentAnchor
+          ? '<button type="button" class="linkbtn" id="comment-unanchor">On the whole ride instead</button>'
+          : "") +
+        '<button class="btn btn-sm" type="submit">Post</button>' +
+        "</div>" +
+        "</form>"
+      : "";
+    host.innerHTML = list + composer;
+  }
+
+  async function postComment(body) {
+    const res = await fetch("/api/rides/" + state.rideId + "/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body,
+        pointUid: commentAnchor,
+        pointLabel: commentAnchor ? labelForUid(commentAnchor) : null,
+      }),
+    });
+    if (!res.ok) throw new Error("could not post that comment");
+    commentAnchor = null;
+    await loadComments(true);
+  }
+
+  async function commentVerb(cid, act) {
+    const url = "/api/rides/" + state.rideId + "/comments/" + cid + "/" + (act === "delete" ? "delete" : "resolve");
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ open: act === "reopen" }),
+    });
+    if (!res.ok) throw new Error("that did not work");
+    await loadComments(true);
+  }
+
+  /** Point the composer at one stop and scroll it into view. What the row menu's
+   *  "Comment on this stop" does. */
+  function commentOnPoint(uid) {
+    commentAnchor = uid;
+    renderComments();
+    const box = $("comment-body");
+    if (box) {
+      box.scrollIntoView({ block: "center", behavior: "smooth" });
+      box.focus();
+    }
+  }
+
+  function initComments() {
+    const host = $("builder-comments");
+    if (!host) return;
+    host.addEventListener("submit", (e) => {
+      if (e.target.id !== "comment-new") return;
+      e.preventDefault();
+      const box = $("comment-body");
+      const body = box ? box.value.trim() : "";
+      if (!body) return;
+      postComment(body).catch((err) => toast(err.message, true));
+    });
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      if (btn.id === "comment-unanchor") {
+        commentAnchor = null;
+        return renderComments();
+      }
+      const act = btn.dataset.cact;
+      if (!act) return;
+      const li = btn.closest(".comment");
+      if (!li) return;
+      commentVerb(Number(li.dataset.cid), act).catch((err) => toast(err.message, true));
+    });
+    loadComments(false);
+  }
+
   function renderRiders(data) {
     const host = $("riders-body");
     if (!host) return;
@@ -3676,6 +3847,7 @@
           if (first) first.focus();
           return;
         }
+        if (act === "comment") return commentOnPoint(point.uid);
         if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
         if (act === "delete") return deletePoint(i);
@@ -3813,6 +3985,10 @@
     // would read as a POI that is somehow tagged Gas.
     { act: "demote", label: "Make this a POI", when: (pt) => pt.kind === "stop" },
     // No longer stopOnly: a POI has a place in the list of its own now.
+    // ANCHORED BY UID, which is the point's identity across a save — its id
+    // churns on every PUT and cannot be referenced. The comment survives the
+    // point being deleted, demoting to ride level rather than going with it.
+    { act: "comment", label: "Comment on this stop" },
     { act: "up", label: "Move up" },
     { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
@@ -4832,6 +5008,11 @@
         // every newly planned ride until the rider happens to open it, which is
         // exactly the ride where they are least likely to think to look.
         loadRiders();
+        // NOT initComments() here. Its host element is server-rendered only for
+        // a ride that already has an id, so on a brand-new ride there is nothing
+        // in the DOM to bind to and it would return without doing anything.
+        // Comments appear on the next load of the builder, which is the same
+        // moment the Delete control does, and for the same reason.
       }
       if (data.slug) showViewLink(data.slug);
 
@@ -5410,6 +5591,10 @@
     // first open paints with no round trip. On a ride with no id yet it returns
     // immediately without asking the server anything.
     loadRiders();
+    // Same reasoning as loadRiders above: the count beside the heading is the
+    // only hint that anybody has said anything, and warming it costs one request
+    // on a ride that has an id. It returns immediately on one that does not.
+    initComments();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {

@@ -2503,3 +2503,108 @@
     max-width: 100%;
   }
 }
+
+// COMMENTS, BELOW THE TABS with the other ride-level controls (#190).
+//
+// Not a fourth tab: three tabs is a recorded decision and a fourth would undo
+// it. This block holds both anchors — a comment on the ride and a comment on a
+// point — because they are READ together even though they are written from two
+// places, the composer here and the row menu's "Comment on this stop".
+.builder-comments {
+  margin-top: 0.8em;
+  padding-top: 0.7em;
+  border-top: 1px solid $grey;
+
+  .comments-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0 0 0.5em;
+    font-size: 0.9em;
+  }
+
+  // Open comments only. A badge that never comes down is a badge nobody reads,
+  // which is why openCommentCount() excludes the resolved ones.
+  .comments-count {
+    font-size: 0.8em;
+    line-height: 1;
+    padding: 0.15em 0.45em;
+    border-radius: 999px;
+    background: $neutral-88;
+    color: $text;
+  }
+
+  .comment-list {
+    list-style: none;
+    margin: 0 0 0.6em;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+  }
+
+  .comment {
+    padding: 0.45em 0.55em;
+    border-radius: 6px;
+    background: $neutral-96;
+    font-size: 0.85em;
+
+    // RESOLVED IS DIMMED, NOT HIDDEN. A closed comment is the record of why the
+    // ride is shaped the way it is — the same argument docs/decisions.md is
+    // built on — so it stays readable and stops competing for attention.
+    &.is-resolved {
+      opacity: 0.6;
+    }
+  }
+
+  .comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4em;
+    color: $neutral-43;
+    font-size: 0.9em;
+  }
+
+  // Which stop it was about. Survives that stop being deleted — the anchor is
+  // cleared and this label is all that is left saying what it referred to.
+  .comment-on {
+    font-style: italic;
+  }
+
+  .comment-body {
+    margin: 0.2em 0 0;
+    color: $text;
+    text-wrap: pretty;
+    white-space: pre-wrap;
+  }
+
+  .comment-acts {
+    display: flex;
+    gap: 0.6em;
+    margin-top: 0.3em;
+  }
+
+  .comment-new textarea {
+    width: 100%;
+    resize: vertical;
+  }
+
+  .comment-new-acts {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-top: 0.3em;
+  }
+
+  .comments-empty {
+    margin: 0 0 0.5em;
+    color: $neutral-43;
+    font-size: 0.85em;
+
+    &.is-error {
+      color: $stop;
+    }
+  }
+}

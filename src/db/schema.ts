@@ -1064,6 +1064,66 @@ export const pointDetails = pgTable(
   (t) => [primaryKey({ columns: [t.rideId, t.uid] }), index('idx_point_details_ride').on(t.rideId)],
 )
 
+/**
+ * What a rider said about a ride, or about one point on it. #190.
+ *
+ * **ANCHORED TO A POINT BY `uid`, OR TO THE RIDE WHEN `point_uid` IS NULL.** Two
+ * anchors and one table: "is this hotel actually walkable" belongs on the stop,
+ * "can we leave an hour earlier" belongs on the ride, and splitting them into two
+ * tables would mean two queries, two policies and two chances to forget the gate.
+ *
+ * **AN ORPHANED COMMENT DEMOTES TO THE RIDE. IT IS NEVER DELETED BY A SAVE, AND
+ * THIS IS THE OPPOSITE OF EVERY OTHER uid-KEYED CHILD OF A RIDE.** point_details
+ * and alt_votes are both reconciled away when their uid leaves the payload —
+ * correctly, because they are DATA ABOUT a point and a point that is gone has
+ * none. A comment is a thing a PERSON said. Deleting a stop must not silently
+ * delete somebody's words, so demoteOrphanComments() in src/comments/service.ts
+ * sets point_uid to null instead and the thread carries on at ride level.
+ *
+ * **`point_label` IS DENORMALIZED FOR EXACTLY THAT MOMENT.** It is the name the
+ * point had when the comment was written, copied at write time, and it is what
+ * keeps a demoted comment readable — the row it referred to is gone, so there is
+ * nothing left to join to and "on Shell, Oakdale" is the only thing that stops
+ * the comment being about nothing. It is never updated afterwards: it records
+ * what the commenter was looking at, not what the stop is called now.
+ *
+ * Cascades from `rides` like point_details, for the same reason — the builder
+ * deletes every day and point on every save, and a comment that did not survive
+ * that would not survive being written.
+ */
+export const rideComments = pgTable(
+  'ride_comments',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    // Cascade rather than `set null`: an account purge destroys what that rider
+    // wrote, the same as it destroys their rides. An anonymous comment nobody
+    // can be asked about is worse than no comment.
+    authorId: bigint('author_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Null means the ride itself — either written there, or demoted there when
+    // its point went away. The two are indistinguishable by design; what the
+    // reader needs is point_label, not which of the two happened.
+    pointUid: varchar('point_uid', { length: 12 }),
+    pointLabel: varchar('point_label', { length: 200 }),
+    body: varchar('body', { length: 4000 }).notNull(),
+    // Closed rather than deleted. A resolved comment stays readable — the
+    // question and the answer are the record of why a ride is shaped the way it
+    // is, which is the same argument docs/decisions.md is built on.
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // The one query the surface makes: every comment on a ride, oldest first,
+    // grouped into threads in memory. A ride's comments are counted in dozens.
+    index('idx_ride_comment_ride').on(t.rideId, t.createdAt),
+  ],
+)
+
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
 // the Directions API (distance/duration are Directions-authoritative — the
 // mileage authority). via_points are the rider's ephemeral shaping waypoints.
@@ -1351,6 +1411,7 @@ export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
  *  nothing else should read this union and decide for itself. */
 export type RideVisibility = (typeof visibilityEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
+export type RideCommentRow = typeof rideComments.$inferSelect
 // --- The rider layer --------------------------------------------------------
 
 // WHO A RIDE BELONGS TO, which is an identity rather than a permission. What a

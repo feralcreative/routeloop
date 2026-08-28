@@ -753,6 +753,27 @@ ${groupsTab}
 
 ${ridersTab}
 ${
+  // COMMENTS ARE RIDE-LEVEL AND SIT BELOW THE TABS, not in a fourth one.
+  //
+  // The panel being THREE tabs is a recorded decision (2026-08-26) and a fourth
+  // would undo it, so this goes where the other ride-level things go — with the
+  // description, the visibility select and Delete. It holds BOTH anchors: a
+  // comment on the ride, and every comment on a point, each labeled with the
+  // stop it belongs to. The row menu's "Comment on this stop" is what anchors a
+  // new one; this is where they are all read.
+  //
+  // Only on a saved ride, like Delete. A comment needs a ride id to hang off,
+  // and the autosave makes that a few seconds.
+  rideId
+    ? `        <div class="builder-comments" id="builder-comments">
+          <h3 class="comments-head">
+            Comments <span class="comments-count" id="comments-count" hidden></span>
+          </h3>
+          <div id="comments-body"></div>
+        </div>`
+    : ''
+}
+${
   // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
   // delete — closing the tab already discards it — and a Delete button on a
   // blank builder is an offer to destroy something that does not exist.
