@@ -49,7 +49,7 @@ The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per 
 
 ## The roster (`routes/roster.tsx`)
 
-`GET /m/:slug/riders` is the page—who is on a ride, what they said, and the ballot for its alternates. Its verbs are `POST /m/:slug/riders/{invite,remove,rsvp,vote,resolve,deadline}`, all behind `requireActive` and `requireSameOrigin`, all form posts answering 303 back to the page with any refusal in `?error=`.
+`GET /m/:slug/riders` is the page—who is on a ride, what they said, and the ballot for its alternates. Its verbs are `POST /m/:slug/riders/{invite,remove,rsvp,perm,vote,resolve,deadline}`, all behind `requireActive` and `requireSameOrigin`, all form posts answering 303 back to the page with any refusal in `?error=`.
 
 **Gated on MEMBERSHIP, not visibility.** A public ride is readable by anyone and its roster is not: who is coming on a ride is a fact about people, and a share link is permission to see a route. Not-found rather than forbidden, the same as every other refusal that touches a slug.
 
@@ -58,6 +58,10 @@ The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per 
 `bike` is yours only and owner-scoped over the bikes as well as the membership, so a forged id cannot pull somebody else's machine into the group's range calculation. `group`—which approach a rider is on—is OWNER-only, and that is the difference from the RSVP beside it: being on the Oakland run is a fact about the plan rather than a statement by the rider. It is scoped to this ride's own subgroups, because the foreign key alone would accept an id from somebody else's.
 
 ### The builder's Riders tab, over JSON
+
+`GET /api/rides/:id/comments` reads a ride's comments—both anchors in one list, point-level by uid and ride-level when the uid is null. Its verbs are `POST /api/rides/:id/comments` and `POST /api/rides/:id/comments/:cid/{resolve,delete}`. Reading needs `view` on the roster, posting needs `comment`, and deleting or closing is the author or an owner. **Roster-gated and never visibility-gated**: a share link is permission to see a route, not to write on it.
+
+`GET /api/rides/:id/suggestions` reads every suggestion on a ride with its state derived against what the ride says right now—`pending`, `stale`, or the outcome. `POST /api/rides/:id/suggestions` proposes one day; `POST /api/rides/:id/suggestions/:sid/{accept,discard,withdraw}` decides it. Accept is owner-only and answers **409** when the target day has changed since the proposal was made. Every rider on the roster sees every pending suggestion, deliberately—two riders proposing the same reroute and neither knowing is the failure that avoids.
 
 `GET /api/rides/:id/riders` reads the roster for the builder's Riders tab: every rider with their role, RSVP, bike label and `subgroup_id`, plus the ride's subgroups by **both id and uid**, the group's binding fuel range, and how many are coming. Its two verbs are `POST /api/rides/:id/riders/{group,remove}`, behind `requireActiveApi` and `requireSameOrigin`.
 

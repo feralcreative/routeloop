@@ -201,6 +201,38 @@
     }
   }
 
+  // WHAT THIS RIDER MAY DO, at the top of the panel and only ever shown to
+  // somebody who is not the ride's owner (#190).
+  //
+  // Not .tb-banner, which is FIXED to the top of the viewport and offsets the
+  // map through --banner-h. This one belongs to the panel's flow: it scrolls
+  // with what it describes, and a second fixed bar would push the map down for a
+  // message about the drawer.
+  //
+  // Deliberately quiet. It is a statement of standing, not a warning — an alert
+  // color here would read as something having gone wrong, and nothing has.
+  .builder-standing {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
+    padding: 0.5em 0.6em;
+    margin-bottom: 0.6em;
+    border-radius: 8px;
+    border-left: 3px solid $neutral-63;
+    background: $neutral-96;
+    font-size: 0.85em;
+    line-height: 1.35;
+
+    strong {
+      color: $text;
+    }
+
+    span {
+      color: $neutral-43;
+      text-wrap: pretty;
+    }
+  }
+
   // The ride's own fields sit at the top of the panel under its title, so they
   // need no container of their own — a tint here would box in the whole panel.
   //
@@ -2422,5 +2454,207 @@
 
   &:hover {
     color: $stop;
+  }
+}
+
+// A BUILDER SOMEBODY MAY LOOK AT BUT NOT WRITE TO (#190).
+//
+// applyReadOnly() in builder.js disables the FIELDS; this hides the controls
+// that would still be live and would still do nothing — the per-day add rows,
+// the insert-between hairlines, and the drag handles. What stays is everything a
+// reader uses to move around: the tab strip, the day rail, the row menus and the
+// map itself.
+//
+// The class goes on <body> rather than on the panel because the timeline and the
+// map's own controls sit outside .builder-panel.
+.builder-readonly {
+  .builder-panel {
+    .add-row,
+    .insert-slot,
+    .day-add,
+    .row-drag,
+    .day-drag {
+      display: none;
+    }
+
+    // A disabled field still has to be READ. The browser's default is a gray
+    // that drops well under 4.5:1 on the panel's white, which turns every stop
+    // name into something a rider has to squint at — and reading them is the
+    // entire point of the page in this mode.
+    input:disabled,
+    textarea:disabled,
+    select:disabled {
+      color: $text;
+      background: $neutral-98;
+      border-color: $neutral-88;
+      opacity: 1;
+    }
+  }
+}
+
+// The owner's promote/demote select on the roster. Sits between the RSVP state
+// and the Remove verb, so it is sized to sit in that run rather than to draw
+// attention — it is administration, and the roster's subject is who is coming.
+.roster-perm {
+  select {
+    font: inherit;
+    font-size: 0.8em;
+    padding: 0.2em 0.3em;
+    max-width: 100%;
+  }
+}
+
+// COMMENTS, BELOW THE TABS with the other ride-level controls (#190).
+//
+// Not a fourth tab: three tabs is a recorded decision and a fourth would undo
+// it. This block holds both anchors — a comment on the ride and a comment on a
+// point — because they are READ together even though they are written from two
+// places, the composer here and the row menu's "Comment on this stop".
+.builder-comments {
+  margin-top: 0.8em;
+  padding-top: 0.7em;
+  border-top: 1px solid $grey;
+
+  .comments-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0 0 0.5em;
+    font-size: 0.9em;
+  }
+
+  // Open comments only. A badge that never comes down is a badge nobody reads,
+  // which is why openCommentCount() excludes the resolved ones.
+  .comments-count {
+    font-size: 0.8em;
+    line-height: 1;
+    padding: 0.15em 0.45em;
+    border-radius: 999px;
+    background: $neutral-88;
+    color: $text;
+  }
+
+  .comment-list {
+    list-style: none;
+    margin: 0 0 0.6em;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+  }
+
+  .comment {
+    padding: 0.45em 0.55em;
+    border-radius: 6px;
+    background: $neutral-96;
+    font-size: 0.85em;
+
+    // RESOLVED IS DIMMED, NOT HIDDEN. A closed comment is the record of why the
+    // ride is shaped the way it is — the same argument docs/decisions.md is
+    // built on — so it stays readable and stops competing for attention.
+    &.is-resolved {
+      opacity: 0.6;
+    }
+  }
+
+  .comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4em;
+    color: $neutral-43;
+    font-size: 0.9em;
+  }
+
+  // Which stop it was about. Survives that stop being deleted — the anchor is
+  // cleared and this label is all that is left saying what it referred to.
+  .comment-on {
+    font-style: italic;
+  }
+
+  .comment-body {
+    margin: 0.2em 0 0;
+    color: $text;
+    text-wrap: pretty;
+    white-space: pre-wrap;
+  }
+
+  .comment-acts {
+    display: flex;
+    gap: 0.6em;
+    margin-top: 0.3em;
+  }
+
+  .comment-new textarea {
+    width: 100%;
+    resize: vertical;
+  }
+
+  .comment-new-acts {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-top: 0.3em;
+  }
+
+  .comments-empty {
+    margin: 0 0 0.5em;
+    color: $neutral-43;
+    font-size: 0.85em;
+
+    &.is-error {
+      color: $stop;
+    }
+  }
+}
+
+// SUGGESTIONS, above the comments and styled as their siblings (#190). They
+// share .comment-list, .comment-meta and .comment-acts deliberately: they are the
+// same kind of thing on the page — something a rider said about the ride — and
+// two visual languages for that would read as two features.
+.builder-suggestions {
+  margin-top: 0.8em;
+  padding-top: 0.7em;
+  border-top: 1px solid $grey;
+
+  .suggestion {
+    border-left: 3px solid $neutral-88;
+
+    // PENDING IS THE ONLY ONE THAT GETS A COLOR. A proposal waiting on the owner
+    // is the only state anybody has to do something about; the rest are a record.
+    &.is-pending {
+      border-left-color: $go;
+    }
+
+    // Not an error color. A stale suggestion is nobody's mistake — the day moved
+    // under it, which is the ordinary consequence of two people planning a ride.
+    &.is-stale {
+      border-left-color: $pending;
+    }
+
+    &.is-accepted,
+    &.is-discarded,
+    &.is-withdrawn {
+      opacity: 0.6;
+    }
+  }
+
+  .suggestion-state {
+    margin-left: auto;
+    font-size: 0.9em;
+  }
+
+  .suggest-bar {
+    margin-top: 0.5em;
+
+    textarea {
+      width: 100%;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 0.3em;
+    }
   }
 }

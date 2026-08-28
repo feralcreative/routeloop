@@ -1064,6 +1064,126 @@ export const pointDetails = pgTable(
   (t) => [primaryKey({ columns: [t.rideId, t.uid] }), index('idx_point_details_ride').on(t.rideId)],
 )
 
+/**
+ * What a rider said about a ride, or about one point on it. #190.
+ *
+ * **ANCHORED TO A POINT BY `uid`, OR TO THE RIDE WHEN `point_uid` IS NULL.** Two
+ * anchors and one table: "is this hotel actually walkable" belongs on the stop,
+ * "can we leave an hour earlier" belongs on the ride, and splitting them into two
+ * tables would mean two queries, two policies and two chances to forget the gate.
+ *
+ * **AN ORPHANED COMMENT DEMOTES TO THE RIDE. IT IS NEVER DELETED BY A SAVE, AND
+ * THIS IS THE OPPOSITE OF EVERY OTHER uid-KEYED CHILD OF A RIDE.** point_details
+ * and alt_votes are both reconciled away when their uid leaves the payload —
+ * correctly, because they are DATA ABOUT a point and a point that is gone has
+ * none. A comment is a thing a PERSON said. Deleting a stop must not silently
+ * delete somebody's words, so demoteOrphanComments() in src/comments/service.ts
+ * sets point_uid to null instead and the thread carries on at ride level.
+ *
+ * **`point_label` IS DENORMALIZED FOR EXACTLY THAT MOMENT.** It is the name the
+ * point had when the comment was written, copied at write time, and it is what
+ * keeps a demoted comment readable — the row it referred to is gone, so there is
+ * nothing left to join to and "on Shell, Oakdale" is the only thing that stops
+ * the comment being about nothing. It is never updated afterwards: it records
+ * what the commenter was looking at, not what the stop is called now.
+ *
+ * Cascades from `rides` like point_details, for the same reason — the builder
+ * deletes every day and point on every save, and a comment that did not survive
+ * that would not survive being written.
+ */
+export const rideComments = pgTable(
+  'ride_comments',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    // Cascade rather than `set null`: an account purge destroys what that rider
+    // wrote, the same as it destroys their rides. An anonymous comment nobody
+    // can be asked about is worse than no comment.
+    authorId: bigint('author_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Null means the ride itself — either written there, or demoted there when
+    // its point went away. The two are indistinguishable by design; what the
+    // reader needs is point_label, not which of the two happened.
+    pointUid: varchar('point_uid', { length: 12 }),
+    pointLabel: varchar('point_label', { length: 200 }),
+    body: varchar('body', { length: 4000 }).notNull(),
+    // Closed rather than deleted. A resolved comment stays readable — the
+    // question and the answer are the record of why a ride is shaped the way it
+    // is, which is the same argument docs/decisions.md is built on.
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // The one query the surface makes: every comment on a ride, oldest first,
+    // grouped into threads in memory. A ride's comments are counted in dozens.
+    index('idx_ride_comment_ride').on(t.rideId, t.createdAt),
+  ],
+)
+
+// HOW A SUGGESTION ENDED, and only ever written together with resolved_at. There
+// is deliberately no `pending` member and no `stale` one: pending is resolved_at
+// being null, and stale is DERIVED from the target day's fingerprint. A member
+// for either would be a second answer to a question the data already answers,
+// and the stale one would additionally be wrong the moment a day was edited back.
+export const suggestionOutcomeEnum = pgEnum('suggestion_outcome', ['accepted', 'discarded', 'withdrawn'])
+
+/**
+ * A proposed change to one day of a ride, waiting for an owner to take it or
+ * leave it. #190.
+ *
+ * **A SUGGESTION IS A WHOLE DAY, NOT A FIELD-LEVEL DIFF.** The builder deletes
+ * and re-inserts every day and point on every save, so there is no stable row to
+ * hang a per-field change off — `uid` is the only identity that survives, and a
+ * diff expressed in uids still has to be reconciled against an owner who has
+ * been editing underneath. Storing the proposed day whole means accepting one is
+ * a replace, which is an operation this app already does on every save.
+ *
+ * **STALENESS IS DERIVED, NEVER STORED.** `base_fingerprint` is what the target
+ * day looked like when the suggestion was made; a suggestion is stale when the
+ * day's fingerprint no longer matches. Nothing has to sweep, nothing has to be
+ * invalidated on save, and a day edited and then edited BACK correctly stops
+ * being stale — which a stored flag would get wrong. Same reasoning as
+ * junctions() in src/subgroups/policy.ts: the shape changes every time somebody
+ * drags something, and a stored answer is wrong the first time they do.
+ *
+ * **THE TARGET IS A DAY `uid`, NEVER AN `id`.** days.id churns on every save.
+ * Same rule alt_votes follows and for the same reason.
+ */
+export const rideSuggestions = pgTable(
+  'ride_suggestions',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    authorId: bigint('author_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Which day this proposes to replace.
+    dayUid: varchar('day_uid', { length: 12 }).notNull(),
+    // The proposed day, in the same shape the builder's PUT accepts for one.
+    // jsonb rather than a parallel set of tables: nothing queries across the
+    // inside of a suggestion, and a second copy of the day/point/leg schema is a
+    // second place for the payload's shape to drift.
+    payload: jsonb('payload').$type<unknown>().notNull(),
+    // What the day looked like when this was made. See the note above on why
+    // staleness is derived from this rather than stored beside it.
+    baseFingerprint: varchar('base_fingerprint', { length: 64 }).notNull(),
+    // Why. Optional, because the diff is usually the argument.
+    note: varchar('note', { length: 2000 }),
+    // Null while pending. The outcome column says which way it went; the two are
+    // written together and neither is read without the other.
+    resolvedAt: timestamp('resolved_at'),
+    outcome: suggestionOutcomeEnum('outcome'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('idx_ride_suggestion_ride').on(t.rideId, t.createdAt)],
+)
+
 // Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
 // the Directions API (distance/duration are Directions-authoritative — the
 // mileage authority). via_points are the rider's ephemeral shaping waypoints.
@@ -1351,11 +1471,38 @@ export type InviteKind = (typeof inviteKindEnum.enumValues)[number]
  *  nothing else should read this union and decide for itself. */
 export type RideVisibility = (typeof visibilityEnum.enumValues)[number]
 export type PlaceGroupRow = typeof placeGroups.$inferSelect
+export type RideCommentRow = typeof rideComments.$inferSelect
+export type RideSuggestionRow = typeof rideSuggestions.$inferSelect
+export type SuggestionOutcome = (typeof suggestionOutcomeEnum.enumValues)[number]
 // --- The rider layer --------------------------------------------------------
 
-// Minimal on purpose. Editor rights are #32's problem; this leaves room for the
-// value without pretending to answer it.
+// WHO A RIDE BELONGS TO, which is an identity rather than a permission. What a
+// rider may DO about a ride is ride_perm below, deliberately a second column:
+// folding the ladder into this enum would make `owner` a rung, and every rule
+// that asks "is this the owner" would start having to ask "or one of these".
+//
+// `owner` IS HELD BY MORE THAN ONE ROW SINCE #190 — co-owners rather than an
+// ownership transfer, Ziad's call 2026-08-28. rides.owner_id stays singular and
+// keeps meaning the creator and the QUOTA holder, because rides.size_bytes rolls
+// up to users.used_bytes through one owner and reconcileUsedBytes() rebuilds
+// every tally on that assumption. Co-ownership is a roster role; the bytes
+// belong to the creator.
 export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
+
+// WHAT A MEMBER MAY DO to the ride they are on. Least to most: look at it,
+// discuss it, propose changes to it, change it. #190.
+//
+// THE MEMBER ORDER IS NOT THE RANK AND CANNOT BE REORDERED LATER. Same trap as
+// visibilityEnum: `ALTER TYPE ... ADD VALUE` appends, so a pgEnum's order is
+// fixed the day it is created and putting a new rung "in the right place" means
+// rebuilding every column using the type. Nothing may sort by this, compare two
+// members of it, or read one and decide what it outranks — PERM_RANK in
+// src/members/policy.ts is the only ordering, and every gate asks that.
+//
+// It happens to read in ascending order today. That is a convenience for a human
+// reading the file and is not something any code may rely on.
+export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
+
 
 // Distinct from role, because a rider who declined is still on the roster —
 // that is the whole reason the two are separate columns.
@@ -1397,11 +1544,15 @@ export const rideSubgroups = pgTable(
 // A rider's relationship to a ride: the primitive several planned features
 // assume and none of them owns.
 //
-// SCHEMA ONLY FOR NOW. Ziad's call, 2026-08-26: the invite path that would
-// create rows here is cut, so nothing in the app inserts one yet. The table
-// exists because canView() already reads it — the membership grant is wired and
-// correct the day membership is switched on, rather than being a second change
-// to the access rule later.
+// LIVE SINCE #68 — the note that used to sit here saying the table was schema
+// only predates the invite path and was wrong from the day seedOwner() landed.
+// Every ride insert seeds its owner a row here, in the same transaction.
+//
+// TWO AXES, THREE COLUMNS, AND THEY ARE ALL DIFFERENT QUESTIONS. `role` is who
+// the ride belongs to, `perm` is what this rider may do to it, and `rsvp` is
+// whether they are coming. A rider who declined still holds their permission
+// level, and an owner's `perm` is never read at all — see rankOf() in
+// src/members/policy.ts, where `owner` outranks the whole ladder.
 export const rideMembers = pgTable(
   'ride_members',
   {
@@ -1413,6 +1564,19 @@ export const rideMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: rideRoleEnum('role').notNull().default('rider'),
+    // WHAT THIS RIDER MAY DO, defaulting to `suggest` — the top of what an
+    // invitation grants on its own. Edit is a deliberate promotion by an owner
+    // and never something an invite hands out, which is the whole shape of #190.
+    //
+    // Existing rows backfilled to `suggest` rather than to `view`: it grants
+    // comment and suggest rights to riders whose owners never chose that, which
+    // was accepted because the alternative makes every existing owner promote
+    // their roster by hand before the feature does anything at all.
+    //
+    // An owner's value here is never read. It is left at the default rather than
+    // stamped to `edit`, so that demoting a co-owner is one column changing and
+    // not two that can disagree.
+    perm: ridePermEnum('perm').notNull().default('suggest'),
     rsvp: rsvpEnum('rsvp').notNull().default('invited'),
     // Which approach this rider is on. NULLABLE AND THAT IS LOAD-BEARING: a
     // club secretary planning a joint rally is not in any of the groups, and
@@ -1584,6 +1748,10 @@ export type RideSubgroupRow = typeof rideSubgroups.$inferSelect
 export type TimeAnchor = (typeof timeAnchorEnum.enumValues)[number]
 /** The two ride roles, derived from the enum so the two cannot drift. */
 export type RideRole = (typeof rideRoleEnum.enumValues)[number]
+/** A rung on the permission ladder. What each one MEANS is src/members/policy.ts
+ *  and nothing else may read this union and decide for itself — in particular
+ *  nothing may infer an ordering from the member order. */
+export type RidePerm = (typeof ridePermEnum.enumValues)[number]
 /** The four RSVP states, likewise. */
 export type Rsvp = (typeof rsvpEnum.enumValues)[number]
 export type BikeRow = typeof bikes.$inferSelect

@@ -19,6 +19,7 @@ import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
 import { reconcileVotes } from '../votes/service'
+import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
 
 // 31 rather than 30: a month-long ride plus the day you get home.
@@ -225,6 +226,13 @@ export const ridePayload = z
 
 export type RidePayload = z.infer<typeof ridePayload>
 
+/** One day, on its own. Exported so a suggestion can be validated against the
+ *  SAME schema the builder's save uses — a second definition of what a day is
+ *  would drift, and a suggestion that parsed here and failed on accept would be
+ *  a proposal nobody could take. */
+export const dayPayload = daySchema
+export type DayPayload = z.infer<typeof daySchema>
+
 // --- Integrity + persistence ----------------------------------------------
 
 // Normalizes a validated payload in place: rounds coordinates, sanitizes all
@@ -283,7 +291,35 @@ export function rideTotals(p: RidePayload) {
 // Inserts the ride graph. Callers run this inside a transaction,
 // on a ride that has no days (fresh insert or after a full-replace delete).
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
-export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): Promise<void> {
+/**
+ * What a save does about `point_details`.
+ *
+ * `reconcile` is the owner's save and the normal case: the payload is the whole
+ * truth, and a detail row whose uid is no longer in it is deleted.
+ *
+ * **`preserve` IS FOR A SAVE BY SOMEBODY WHO CANNOT SEE THE DETAILS, and it
+ * exists to stop a silent, unrecoverable data loss.** An `edit`-level member
+ * loads the ride through detailsForViewer(), which hands a non-owner an EMPTY
+ * map — correctly, because a confirmation number is not shared by sharing a
+ * route. Their save then posts a payload with no details in it, and a
+ * reconciling write would read that as "the rider cleared every one of them"
+ * and delete the lot. The owner would lose every gate code and reservation on
+ * the ride, with nothing raised, because somebody they trusted to move a stop
+ * moved one.
+ *
+ * Under `preserve` nothing in point_details is written or deleted. The cost is
+ * that details belonging to a point the editor DELETED linger as orphans until
+ * the owner's next save reconciles them — invisible to everyone in the meantime,
+ * and the right way round: an orphan is recoverable and a deletion is not.
+ */
+export type DetailsMode = 'reconcile' | 'preserve'
+
+export async function insertRideGraph(
+  tx: Tx,
+  rideId: number,
+  p: RidePayload,
+  detailsMode: DetailsMode = 'reconcile',
+): Promise<void> {
   // Collected across every day and reconciled once at the end — see
   // writePointDetails below for why this cannot ride along with the points.
   const details: Array<{ uid: string; d: PointDetailsInput }> = []
@@ -390,7 +426,13 @@ export async function insertRideGraph(tx: Tx, rideId: number, p: RidePayload): P
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
   await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
-  await writePointDetails(tx, rideId, details, liveUids)
+  if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
+  // THE THIRD RECONCILIATION, AND THE ONE THAT GOES THE OTHER WAY. The two
+  // around it DELETE what has lost its uid; this one clears the anchor and keeps
+  // the row. A comment is a thing a person said, and a save must not destroy
+  // those — see the table's own comment in schema.ts. It runs whoever is saving,
+  // owner or editor: a demotion loses nothing, so there is no `preserve` case.
+  await demoteOrphanComments(tx, rideId, liveUids)
   // Same reconciliation, one level up. A vote whose day left the payload has to
   // go, or a deleted alternate keeps counting toward a tally forever — the
   // identical trap point_details carries, for the identical reason: alt_votes

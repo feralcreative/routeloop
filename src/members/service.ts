@@ -8,10 +8,10 @@
 // src/friends/service.ts has, for the same reason.
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rideMembers, rides, users, type RideRole, type Rsvp } from '../db/schema'
+import { rideMembers, rides, users, type RidePerm, type RideRole, type Rsvp } from '../db/schema'
 import { areFriends, pairOf } from '../friends/policy'
 import { friendships } from '../db/schema'
-import { canInvite, canRemove, canRsvp, MAX_MEMBERS, type MemberFields } from './policy'
+import { canInvite, canRemove, canRsvp, canSetPerm, DEFAULT_PERM, MAX_MEMBERS, type MemberFields } from './policy'
 import type { Tx } from '../maps/ride-graph'
 
 /** The db or a transaction on it. seedOwner is called from inside the same
@@ -68,6 +68,7 @@ export async function roster(rideId: number): Promise<RosterEntry[]> {
     .select({
       riderId: rideMembers.riderId,
       role: rideMembers.role,
+      perm: rideMembers.perm,
       rsvp: rideMembers.rsvp,
       invitedBy: rideMembers.invitedBy,
       subgroupId: rideMembers.subgroupId,
@@ -98,7 +99,12 @@ export type InviteResult =
  * It also answers #12's fourth box — rate-limit rider lookup by email or phone —
  * by not having the surface to rate-limit.
  */
-export async function invite(rideId: number, viewerId: number, handle: string): Promise<InviteResult> {
+export async function invite(
+  rideId: number,
+  viewerId: number,
+  handle: string,
+  perm: RidePerm = DEFAULT_PERM,
+): Promise<InviteResult> {
   const role = await roleOf(rideId, viewerId)
   if (!canInvite(role)) return { ok: false, reason: 'not-owner' }
 
@@ -130,7 +136,7 @@ export async function invite(rideId: number, viewerId: number, handle: string): 
 
   const added = await db
     .insert(rideMembers)
-    .values({ rideId, riderId: target.id, role: 'rider', invitedBy: viewerId })
+    .values({ rideId, riderId: target.id, role: 'rider', perm, invitedBy: viewerId })
     .onConflictDoNothing({ target: [rideMembers.rideId, rideMembers.riderId] })
     .returning({ id: rideMembers.id })
   return added.length > 0 ? { ok: true } : { ok: false, reason: 'already-on' }
@@ -140,20 +146,71 @@ export async function invite(rideId: number, viewerId: number, handle: string): 
  *  to hand the whole row through two layers. */
 async function memberRow(rideId: number, riderId: number): Promise<MemberFields | null> {
   const [row] = await db
-    .select({ riderId: rideMembers.riderId, role: rideMembers.role, rsvp: rideMembers.rsvp })
+    .select({
+      riderId: rideMembers.riderId,
+      role: rideMembers.role,
+      perm: rideMembers.perm,
+      rsvp: rideMembers.rsvp,
+    })
     .from(rideMembers)
     .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.riderId, riderId)))
     .limit(1)
   return row ?? null
 }
 
+/** How many members hold `role = 'owner'`. Read on every removal because the
+ *  last-owner rule needs it, and read as its own query rather than off a roster
+ *  the caller happens to have: the roster a page rendered from is a hint, and a
+ *  co-owner can leave between the render and the press. */
+async function ownerCount(rideId: number): Promise<number> {
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(rideMembers)
+    .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.role, 'owner')))
+  return n
+}
+
 /** Remove somebody, or leave. One operation because they are the same row going
  *  away, and canRemove is the only thing that tells them apart. */
 export async function removeMember(rideId: number, viewerId: number, targetId: number): Promise<boolean> {
-  const [role, target] = await Promise.all([roleOf(rideId, viewerId), memberRow(rideId, targetId)])
-  if (!target || !canRemove(viewerId, role, target)) return false
+  const [role, target, owners] = await Promise.all([
+    roleOf(rideId, viewerId),
+    memberRow(rideId, targetId),
+    ownerCount(rideId),
+  ])
+  if (!target || !canRemove(viewerId, role, target, owners)) return false
   await db.delete(rideMembers).where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.riderId, targetId)))
   return true
+}
+
+/**
+ * Move a member up or down the ladder.
+ *
+ * Owner-only, and never on another owner — canSetPerm is the rule. The viewer's
+ * own row is re-read here rather than trusted from the page that rendered the
+ * control, the same as every other write in this file.
+ */
+export async function setPerm(
+  rideId: number,
+  viewerId: number,
+  targetId: number,
+  perm: RidePerm,
+): Promise<boolean> {
+  const [viewer, target] = await Promise.all([memberRow(rideId, viewerId), memberRow(rideId, targetId)])
+  if (!target || !canSetPerm(viewer, target)) return false
+  await db
+    .update(rideMembers)
+    .set({ perm, updatedAt: new Date() })
+    .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.riderId, targetId)))
+  return true
+}
+
+/** The viewer's own row, for the gates that need the rung and not just the
+ *  role. Null means they are not on the roster — which is not the same as
+ *  `view`, and rankOf() keeps the two apart. */
+export async function membershipOf(rideId: number, viewerId: number | null): Promise<MemberFields | null> {
+  if (viewerId === null) return null
+  return memberRow(rideId, viewerId)
 }
 
 /** Answer for yourself, and nobody else — see canRsvp. */

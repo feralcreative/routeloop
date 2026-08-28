@@ -43,7 +43,10 @@ export type PointDetailsOut = {
 export async function detailsForViewer(
   rideId: number,
   ownerId: number,
-  viewer: UserRow | null,
+  // Only the id is read — canSeeDetails is `viewer.id === ownerId` and nothing
+  // else. Typed as the narrow shape rather than UserRow so a caller that holds
+  // an owner id and no user row does not have to cast one into existence.
+  viewer: { id: number } | null,
 ): Promise<Map<string, PointDetailsOut>> {
   if (!canSeeDetails(ownerId, viewer)) return new Map()
   return detailsForOwner(rideId)

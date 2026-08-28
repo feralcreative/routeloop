@@ -310,6 +310,23 @@
   const DUR = window.TBDuration;
   const durFormat = DUR.toFormat(window.TB.durationFormat);
 
+  // WHETHER THIS RIDER MAY WRITE. A hint, never the gate — the server refuses a
+  // PUT from anybody below `edit` whatever this says (#190). What it buys is a
+  // page that does not offer an edit it cannot keep and does not autosave into a
+  // 404 every twenty seconds.
+  //
+  // Defaults to TRUE on a missing value, deliberately: the new-ride page has no
+  // ride and therefore no roster, and an older cached page that predates the key
+  // must keep working for the rider who owns what it is showing.
+  const CAN_EDIT = window.TB.canEdit !== false;
+
+  // WHETHER THIS RIDER MAY PROPOSE A CHANGE. `suggest` is the DEFAULT an
+  // invitation grants, so this is the common case for anybody who is not the
+  // owner — and it is what makes the read-only builder useful rather than a
+  // museum: a rider edits a day locally, presses Suggest, and the owner takes it
+  // or leaves it. Nothing they do is saved to the ride.
+  const CAN_SUGGEST = window.TB.perm === "suggest" || CAN_EDIT;
+
   // Alternates: the numbering, the active-day filter and the ride rollup. The
   // builder is the only client that calls resolveAltGroups — it is the one
   // editing days, and repairing locally is what keeps the panel, the map and
@@ -612,6 +629,23 @@
   }
 
   function markDirty() {
+    // THE READ-ONLY BUILDER STOPS HERE, and this is the only place it needs to.
+    // Every edit in the panel funnels through markDirty, so nothing goes dirty,
+    // no recovery draft is filed, and no autosave arms — rather than letting a
+    // save be attempted and refused, which would show a rider an error for
+    // something they were never allowed to do.
+    //
+    // Not routed through saveBlockReason(): that reports a condition the rider
+    // can CLEAR by editing, and this one they cannot.
+    //
+    // A SUGGESTER IS THE EXCEPTION AND STILL GOES NO FURTHER THAN THIS LINE.
+    // Their edits live in `state` so there is something to propose, and the
+    // suggest bar below reads it — but no draft is filed and no autosave arms,
+    // because there is nothing they are allowed to save.
+    if (!CAN_EDIT) {
+      if (CAN_SUGGEST) renderSuggestBar();
+      return;
+    }
     state.dirty = true;
     editSeq++;
     setSaveStatus("dirty");
@@ -2057,6 +2091,27 @@
     // so a rename that redrew only the editor would leave every picker showing
     // the old name until something else happened to re-render.
     renderSubgroups();
+    applyReadOnly();
+  }
+
+  /**
+   * Turn the panel's controls off for a rider who may look but not write.
+   *
+   * Runs after every render because the day list is rebuilt wholesale — a row
+   * disabled once comes back enabled the next time anything re-renders.
+   *
+   * It disables FIELDS, not buttons wholesale: the tab strip, the day rail and
+   * the row menus are how a reader moves around, and a panel whose every button
+   * is dead is not read-only, it is broken. `.builder-readonly` on the body is
+   * what hides the controls that only make sense for an editor — the add rows,
+   * the drag handles — and lives in style/_builder.scss.
+   */
+  function applyReadOnly() {
+    if (CAN_EDIT) return;
+    document.body.classList.add("builder-readonly");
+    document.querySelectorAll(".builder-panel input, .builder-panel textarea, .builder-panel select").forEach((el) => {
+      el.disabled = true;
+    });
   }
 
   // --- The panel's three tabs -----------------------------------------------
@@ -2158,6 +2213,333 @@
     } finally {
       ridersLoading = false;
     }
+  }
+
+  // --- Comments -------------------------------------------------------------
+  //
+  // TWO ANCHORS, ONE LIST. A comment hangs off a POINT by uid, or off the RIDE
+  // when it has no uid — "is this hotel actually walkable" versus "can we leave
+  // an hour earlier". They are read in one place, below the tabs, because a
+  // fourth tab would undo the three-tab decision; they are WRITTEN from two, the
+  // composer here and the row menu's "Comment on this stop".
+  //
+  // A COMMENT WHOSE POINT IS DELETED IS NOT DELETED WITH IT. The server clears
+  // its anchor and the comment carries on at ride level, still labeled with the
+  // stop it was about — see demoteOrphanComments in src/comments/service.ts.
+  // Nothing here has to handle that case specially: an unanchored comment with a
+  // pointLabel renders exactly like one that always was.
+  let commentsCache = null;
+  let commentsLoading = false;
+  // What the composer is anchored to: a point uid, or null for the ride.
+  let commentAnchor = null;
+
+  async function loadComments(force) {
+    const host = $("comments-body");
+    if (!host || !state.rideId) return;
+    if (commentsCache && !force) return renderComments();
+    if (commentsLoading) return;
+    commentsLoading = true;
+    if (!host.innerHTML) host.innerHTML = '<p class="comments-empty">Loading…</p>';
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/comments");
+      if (!res.ok) throw new Error("could not load the comments");
+      commentsCache = await res.json();
+      renderComments();
+    } catch (e) {
+      host.innerHTML = '<p class="comments-empty is-error">' + esc(e.message) + "</p>";
+    } finally {
+      commentsLoading = false;
+    }
+  }
+
+  /** The name to file a new comment under. Copied from what the commenter is
+   *  LOOKING AT rather than resolved later: the point may not be saved yet, and
+   *  once it is deleted there is nothing left to read a name off. */
+  function labelForUid(uid) {
+    for (const day of state.days) {
+      for (const pt of day.points) if (pt.uid === uid) return pt.name || pt.label || "";
+    }
+    return "";
+  }
+
+  function commentRowHtml(c) {
+    const mine = commentsCache && c.authorId === commentsCache.viewerId;
+    const canManage = mine || window.TB.isOwner === true;
+    const when = new Date(c.createdAt);
+    return (
+      '<li class="comment' + (c.resolvedAt ? " is-resolved" : "") + '" data-cid="' + c.id + '">' +
+      '<div class="comment-meta">' +
+      '<strong>' + esc(c.authorName) + "</strong>" +
+      (c.pointLabel ? '<span class="comment-on">on ' + esc(c.pointLabel) + "</span>" : "") +
+      '<time datetime="' + esc(c.createdAt) + '">' + esc(when.toLocaleDateString()) + "</time>" +
+      "</div>" +
+      '<p class="comment-body">' + esc(c.body) + "</p>" +
+      (canManage
+        ? '<div class="comment-acts">' +
+          '<button type="button" class="linkbtn" data-cact="' +
+          (c.resolvedAt ? "reopen" : "resolve") +
+          '">' +
+          (c.resolvedAt ? "Reopen" : "Mark done") +
+          "</button>" +
+          '<button type="button" class="linkbtn is-danger" data-cact="delete">Delete</button>' +
+          "</div>"
+        : "") +
+      "</li>"
+    );
+  }
+
+  function renderComments() {
+    const host = $("comments-body");
+    const count = $("comments-count");
+    if (!host || !commentsCache) return;
+    const all = commentsCache.comments;
+    const open = all.filter((c) => !c.resolvedAt);
+    if (count) {
+      count.textContent = String(open.length);
+      count.hidden = open.length === 0;
+    }
+    const list = all.length
+      ? '<ul class="comment-list">' + all.map(commentRowHtml).join("") + "</ul>"
+      : '<p class="comments-empty">Nothing said yet.</p>';
+    // The composer is only drawn for somebody who may actually post. A box that
+    // refuses on submit is worse than no box — see canPost, which the server
+    // re-checks whatever this page decided.
+    const composer = commentsCache.canPost
+      ? '<form class="comment-new" id="comment-new">' +
+        '<label class="visually-hidden" for="comment-body">Your comment</label>' +
+        '<textarea id="comment-body" rows="2" maxlength="4000" placeholder="' +
+        (commentAnchor ? "Comment on " + esc(labelForUid(commentAnchor)) : "Comment on this ride") +
+        '"></textarea>' +
+        '<div class="comment-new-acts">' +
+        (commentAnchor
+          ? '<button type="button" class="linkbtn" id="comment-unanchor">On the whole ride instead</button>'
+          : "") +
+        '<button class="btn btn-sm" type="submit">Post</button>' +
+        "</div>" +
+        "</form>"
+      : "";
+    host.innerHTML = list + composer;
+  }
+
+  async function postComment(body) {
+    const res = await fetch("/api/rides/" + state.rideId + "/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body,
+        pointUid: commentAnchor,
+        pointLabel: commentAnchor ? labelForUid(commentAnchor) : null,
+      }),
+    });
+    if (!res.ok) throw new Error("could not post that comment");
+    commentAnchor = null;
+    await loadComments(true);
+  }
+
+  async function commentVerb(cid, act) {
+    const url = "/api/rides/" + state.rideId + "/comments/" + cid + "/" + (act === "delete" ? "delete" : "resolve");
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ open: act === "reopen" }),
+    });
+    if (!res.ok) throw new Error("that did not work");
+    await loadComments(true);
+  }
+
+  /** Point the composer at one stop and scroll it into view. What the row menu's
+   *  "Comment on this stop" does. */
+  function commentOnPoint(uid) {
+    commentAnchor = uid;
+    renderComments();
+    const box = $("comment-body");
+    if (box) {
+      box.scrollIntoView({ block: "center", behavior: "smooth" });
+      box.focus();
+    }
+  }
+
+  // --- Suggestions ----------------------------------------------------------
+  //
+  // A SUGGESTION IS A WHOLE DAY, PROPOSED AGAINST THAT DAY AS IT WAS. A rider
+  // below `edit` still edits the panel normally — markDirty keeps their work in
+  // `state` and files nothing — and Suggest posts the day they are looking at.
+  // The owner accepts it, which is an ordinary ride save with one day swapped, or
+  // discards it.
+  //
+  // STALENESS IS THE SERVER'S ANSWER AND IS NEVER COMPUTED HERE. It compares the
+  // day's fingerprint now against the one taken when the proposal was made, and
+  // it re-checks on accept — the list this page drew may be minutes old, and
+  // applying a proposal made against a day that has since moved is the one real
+  // hazard the feature has.
+  let suggestionsCache = null;
+  let suggestionsLoading = false;
+
+  const SUGGESTION_LABELS = {
+    pending: "Waiting on the owner",
+    stale: "The day changed—needs redoing",
+    accepted: "Accepted",
+    discarded: "Not taken",
+    withdrawn: "Withdrawn",
+  };
+
+  async function loadSuggestions(force) {
+    const host = $("suggestions-body");
+    if (!host || !state.rideId) return;
+    if (suggestionsCache && !force) return renderSuggestions();
+    if (suggestionsLoading) return;
+    suggestionsLoading = true;
+    try {
+      const res = await fetch("/api/rides/" + state.rideId + "/suggestions");
+      if (!res.ok) throw new Error("could not load the suggestions");
+      suggestionsCache = await res.json();
+      renderSuggestions();
+    } catch (e) {
+      host.innerHTML = '<p class="comments-empty is-error">' + esc(e.message) + "</p>";
+    } finally {
+      suggestionsLoading = false;
+    }
+  }
+
+  function suggestionRowHtml(sg) {
+    const mine = suggestionsCache && sg.authorId === suggestionsCache.viewerId;
+    const owner = suggestionsCache && suggestionsCache.isOwner;
+    const live = sg.state === "pending";
+    // ACCEPT IS OWNER-ONLY AND ONLY WHILE PENDING. Discard stays available on a
+    // stale one — clearing a proposal that can no longer be applied is exactly
+    // what an owner wants to be able to do with it.
+    const acts = [];
+    if (owner && live) acts.push('<button type="button" class="linkbtn" data-sact="accept">Accept</button>');
+    if (owner && !sg.state.match(/^(accepted|discarded|withdrawn)$/)) {
+      acts.push('<button type="button" class="linkbtn" data-sact="discard">Discard</button>');
+    }
+    if (mine && !sg.state.match(/^(accepted|discarded|withdrawn)$/)) {
+      acts.push('<button type="button" class="linkbtn" data-sact="withdraw">Withdraw</button>');
+    }
+    const dayNo = state.days.findIndex((d) => d.uid === sg.dayUid);
+    return (
+      '<li class="comment suggestion is-' + esc(sg.state) + '" data-sid="' + sg.id + '">' +
+      '<div class="comment-meta">' +
+      "<strong>" + esc(sg.authorName) + "</strong>" +
+      '<span class="comment-on">on ' + (dayNo >= 0 ? "day " + (dayNo + 1) : "a day that is gone") + "</span>" +
+      '<span class="suggestion-state">' + esc(SUGGESTION_LABELS[sg.state] || sg.state) + "</span>" +
+      "</div>" +
+      (sg.note ? '<p class="comment-body">' + esc(sg.note) + "</p>" : "") +
+      (acts.length ? '<div class="comment-acts">' + acts.join("") + "</div>" : "") +
+      "</li>"
+    );
+  }
+
+  function renderSuggestions() {
+    const host = $("suggestions-body");
+    const count = $("suggestions-count");
+    if (!host || !suggestionsCache) return;
+    const all = suggestionsCache.suggestions;
+    const live = all.filter((sg) => sg.state === "pending");
+    if (count) {
+      count.textContent = String(live.length);
+      count.hidden = live.length === 0;
+    }
+    host.innerHTML = all.length
+      ? '<ul class="comment-list">' + all.map(suggestionRowHtml).join("") + "</ul>"
+      : '<p class="comments-empty">Nothing proposed yet.</p>';
+    renderSuggestBar();
+  }
+
+  /** The propose control, for a rider who may suggest but not save. It names the
+   *  day being edited, because a suggestion is one day and picking the wrong one
+   *  is the easy mistake. */
+  function renderSuggestBar() {
+    const host = $("suggestions-body");
+    if (!host || CAN_EDIT || !CAN_SUGGEST || !state.rideId) return;
+    if (host.querySelector("#suggest-bar")) return;
+    const bar = document.createElement("form");
+    bar.id = "suggest-bar";
+    bar.className = "suggest-bar";
+    bar.innerHTML =
+      '<label class="visually-hidden" for="suggest-note">Why</label>' +
+      '<textarea id="suggest-note" rows="2" maxlength="2000" placeholder="What you changed, and why (optional)"></textarea>' +
+      '<button class="btn btn-sm" type="submit">Suggest this day</button>';
+    host.appendChild(bar);
+  }
+
+  async function postSuggestion(note) {
+    const day = editRoute();
+    if (!day) throw new Error("open a day first");
+    const body = payload();
+    const proposed = body.days.find((d) => d.uid === day.uid);
+    if (!proposed) throw new Error("that day has nothing in it to suggest");
+    const res = await fetch("/api/rides/" + state.rideId + "/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dayUid: day.uid, day: proposed, note }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error === "too-many" ? "you have too many open suggestions" : "could not suggest that");
+    }
+    await loadSuggestions(true);
+    toast("Suggested. The owner decides whether it lands.");
+  }
+
+  async function suggestionVerb(sid, act) {
+    const res = await fetch("/api/rides/" + state.rideId + "/suggestions/" + sid + "/" + act, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+      // 409 is the stale case and is the one worth naming: the day moved under
+      // the proposal, so there is nothing safe to apply.
+      throw new Error(res.status === 409 ? "that day has changed since—the suggestion needs redoing" : "that did not work");
+    }
+    await loadSuggestions(true);
+    if (act === "accept") location.reload();
+  }
+
+  function initSuggestions() {
+    const host = $("builder-suggestions");
+    if (!host) return;
+    host.addEventListener("submit", (e) => {
+      if (e.target.id !== "suggest-bar") return;
+      e.preventDefault();
+      const box = $("suggest-note");
+      postSuggestion(box ? box.value.trim() : "").catch((err) => toast(err.message, true));
+    });
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || !btn.dataset.sact) return;
+      const li = btn.closest(".suggestion");
+      if (!li) return;
+      suggestionVerb(Number(li.dataset.sid), btn.dataset.sact).catch((err) => toast(err.message, true));
+    });
+    loadSuggestions(false);
+  }
+
+  function initComments() {
+    const host = $("builder-comments");
+    if (!host) return;
+    host.addEventListener("submit", (e) => {
+      if (e.target.id !== "comment-new") return;
+      e.preventDefault();
+      const box = $("comment-body");
+      const body = box ? box.value.trim() : "";
+      if (!body) return;
+      postComment(body).catch((err) => toast(err.message, true));
+    });
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      if (btn.id === "comment-unanchor") {
+        commentAnchor = null;
+        return renderComments();
+      }
+      const act = btn.dataset.cact;
+      if (!act) return;
+      const li = btn.closest(".comment");
+      if (!li) return;
+      commentVerb(Number(li.dataset.cid), act).catch((err) => toast(err.message, true));
+    });
+    loadComments(false);
   }
 
   function renderRiders(data) {
@@ -3636,6 +4018,7 @@
           if (first) first.focus();
           return;
         }
+        if (act === "comment") return commentOnPoint(point.uid);
         if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
         if (act === "delete") return deletePoint(i);
@@ -3773,6 +4156,10 @@
     // would read as a POI that is somehow tagged Gas.
     { act: "demote", label: "Make this a POI", when: (pt) => pt.kind === "stop" },
     // No longer stopOnly: a POI has a place in the list of its own now.
+    // ANCHORED BY UID, which is the point's identity across a save — its id
+    // churns on every PUT and cannot be referenced. The comment survives the
+    // point being deleted, demoting to ride level rather than going with it.
+    { act: "comment", label: "Comment on this stop" },
     { act: "up", label: "Move up" },
     { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
@@ -4753,6 +5140,10 @@
 
   async function save() {
     if (state.saving) return;
+    // Unreachable while markDirty holds the line, and here because a save is the
+    // one thing in this file that cannot be allowed to happen by a route nobody
+    // thought of.
+    if (!CAN_EDIT) return;
     const body = payload();
     const dropped = state.days.length - body.days.length;
     if (dropped > 0 && !warnedDropped) {
@@ -4788,6 +5179,11 @@
         // every newly planned ride until the rider happens to open it, which is
         // exactly the ride where they are least likely to think to look.
         loadRiders();
+        // NOT initComments() here. Its host element is server-rendered only for
+        // a ride that already has an id, so on a brand-new ride there is nothing
+        // in the DOM to bind to and it would return without doing anything.
+        // Comments appear on the next load of the builder, which is the same
+        // moment the Delete control does, and for the same reason.
       }
       if (data.slug) showViewLink(data.slug);
 
@@ -5366,6 +5762,11 @@
     // first open paints with no round trip. On a ride with no id yet it returns
     // immediately without asking the server anything.
     loadRiders();
+    // Same reasoning as loadRiders above: the count beside the heading is the
+    // only hint that anybody has said anything, and warming it costs one request
+    // on a ride that has an id. It returns immediately on one that does not.
+    initComments();
+    initSuggestions();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {
