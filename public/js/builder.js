@@ -5644,9 +5644,26 @@
   //
   // Reads 0 when the banner is hidden or absent, which is what every other page
   // gets and what makes the calc()s in _map.scss a no-op by default.
+  //
+  // IT ONLY ACTS ON A CHANGE, AND THAT IS WHAT STOPS IT RECURSING FOREVER.
+  // This function dispatches a resize, and it is itself a resize listener, so
+  // dispatching unconditionally called it again from inside itself: a
+  // RangeError every time a banner appeared, thrown out of offerRecovery() and
+  // straight through init(). Everything after that line was then never wired —
+  // clicking the map added nothing and the route could not be dragged into
+  // shape — so a rider with an unsaved draft got a builder that looked normal
+  // and did not work, with one console error nobody was looking at.
+  //
+  // Comparing against the last value fixes it at the source rather than with a
+  // re-entry flag: the nested call measures the same height, changes nothing
+  // and returns, and a resize that did not move the banner no longer costs a
+  // pointless map redraw either.
+  let bannerH = null;
   function setBannerOffset() {
     const bar = document.querySelector(".tb-banner:not([hidden])");
     const h = bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    if (h === bannerH) return;
+    bannerH = h;
     document.documentElement.style.setProperty("--banner-h", h + "px");
     // The map's own viewport changed size, and Google only notices on a resize
     // event. Without this the tiles keep the old height and the controls sit
