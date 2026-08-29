@@ -5236,10 +5236,36 @@
   // in src/routes/builder.ts for why it is `visibility` and not `hidden`.
   function showViewLink(slug) {
     state.slug = slug;
+    showExport(slug);
     const a = $("view-link");
     if (!a) return;
     a.href = "/m/" + encodeURIComponent(slug);
     a.classList.remove("is-empty");
+  }
+
+  // The export block's hrefs, filled in the same moment the View link is.
+  //
+  // A NEW RIDE HAS NO SLUG, so the server renders this hidden with every href a
+  // "#" — there is genuinely nothing to download yet, and a live-looking link to
+  // a ride that does not exist is worse than no link. The first successful save
+  // mints the slug and this reveals the block, so the rider never has to reload
+  // to find it.
+  //
+  // Rebuilt from `data-export`, which carries the path segment, rather than
+  // rewritten by index: the list is one <li> per format plus a per-day zip
+  // beside four of them, and a positional loop would silently point the zips at
+  // the wrong format the first time the order changed.
+  function showExport(slug) {
+    const box = $("builder-export");
+    if (!box || !slug) return;
+    box.hidden = false;
+    box.querySelectorAll("[data-export]").forEach((a) => {
+      const what = a.getAttribute("data-export");
+      // Only the whole-ride formats take ?dl. A zip is already an attachment by
+      // virtue of being a zip, and the flag would be noise on the URL.
+      const dl = what.indexOf("zip/") === 0 ? "" : "?dl";
+      a.href = "/api/public/maps/" + encodeURIComponent(slug) + "/" + what + dl;
+    });
   }
 
   async function loadExisting() {

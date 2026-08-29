@@ -26,6 +26,36 @@ export type DownloadSpec = {
   build: (r: ExportRide, firstDay?: number) => string
 }
 
+/**
+ * Does the stored original still describe this ride?
+ *
+ * **THE FILE ON DISK IS NOT UPDATED BY A SAVE, AND NOTHING CLEARS IT.** That was
+ * harmless while the original always won and nearly nobody reached it — the only
+ * way was typing the download URL — and it stopped being harmless when #172 put
+ * an Export control in the builder. A rider who imported a GPX, spent an hour
+ * re-cutting it and pressed Export got their hour back as the pre-edit file,
+ * silently and with nothing raised.
+ *
+ * So the original wins only while it is still TRUE. `original_stored_at` is
+ * stamped in the same transaction that writes the file, so a ride whose
+ * `updated_at` has moved past it has been rebuilt here and its rows are the
+ * better answer. Same shape as `updated_at > thumb_built_at`, deliberately.
+ *
+ * **NULL IS "STILL CURRENT", NOT "STALE".** It means nothing recorded the write,
+ * which after the 0023 backfill is only true of a ride with no stored original
+ * at all — and every caller checks `hasStored` first. Reading null as stale
+ * would silently start generating for any row the backfill missed, which is the
+ * lossy answer given for free to exactly the rides nobody looked at.
+ *
+ * Nothing is deleted either way: the file stays on disk, still counted in the
+ * rider's quota, and the account archive still hands back what they uploaded.
+ * This decides which of two true things a download answers with.
+ */
+export function originalIsCurrent(m: Pick<RideRow, 'originalStoredAt' | 'updatedAt'>): boolean {
+  if (!m.originalStoredAt) return true
+  return m.updatedAt.getTime() <= m.originalStoredAt.getTime()
+}
+
 export const DOWNLOADS: Record<string, DownloadSpec> = {
   kml: {
     type: 'application/vnd.google-earth.kml+xml',

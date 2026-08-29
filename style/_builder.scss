@@ -2194,6 +2194,55 @@
   color: $neutral-36;
 }
 
+// --- Export ------------------------------------------------------------------
+//
+// A <details> below the tabs, closed by default. Downloading is an errand a
+// rider runs occasionally and the panel is 380px they work in continuously, so
+// nine links in the flow would cost more room than they earn — the same argument
+// that keeps the panel at three tabs.
+.builder-export {
+  margin: 1.5rem 0 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid $grey;
+
+  > summary {
+    color: $neutral-50;
+    font-size: 0.85em;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+.builder-export-body {
+  padding-top: 0.5rem;
+
+  .field-hint {
+    margin: 0 0 0.5rem;
+  }
+}
+
+.builder-export-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    // Baseline rather than center, so the format and the smaller per-day link
+    // sit on one line of type rather than being optically stacked.
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+  }
+
+  .export-zip,
+  .field-hint {
+    font-size: 0.75em;
+    color: $neutral-57;
+  }
+}
+
 // Muted rather than red. It moves the ride to the recycle bin, where it sits for
 // thirty days with a button to undo, so styling it as a danger would overstate
 // what pressing it does. Same reasoning as the dashboard card's Delete.

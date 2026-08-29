@@ -780,6 +780,65 @@ ${
     : ''
 }
 ${
+  // EXPORT SITS BELOW THE TABS FOR THE SAME REASON COMMENTS DO: it is a
+  // ride-level action and the panel being THREE tabs is a recorded decision, so
+  // a fourth tab is not available and was not wanted. It is a <details> rather
+  // than nine links in the flow, because it is an errand a rider runs
+  // occasionally and the panel is where they work continuously.
+  //
+  // EVERY ENDPOINT ALREADY EXISTED AND WAS ALREADY GATED. #172 was UI only:
+  // /api/public/maps/:slug/{gpx,kml,geojson,csv}, the native JSON, and the
+  // per-day zips all sit behind getViewable(), so a private ride's own owner
+  // could already download it by typing the URL. The export cart on /import is
+  // a multi-ride picker built for batches, not for the ride you have open.
+  //
+  // NOT GATED ON `edit`. Anyone who can open this builder can already reach
+  // these URLs, and the read-only builder is what a view-, comment- or
+  // suggest-level rider gets. A control that hid what the address bar offers
+  // would be theatre.
+  //
+  // `?dl` is what turns each one into a download rather than a render; the
+  // filename comes from src/maps/filename.ts server-side.
+  //
+  // The hrefs are filled in by the FIRST SAVE on a new ride, exactly as the
+  // View link is — see showViewLink() in builder.js. A ride with no slug has
+  // nothing to export yet, so the block renders hidden and reveals itself the
+  // moment there is something behind it.
+  `        <details class="builder-export" id="builder-export"${slug ? '' : ' hidden'}>
+          <summary>Export this ride</summary>
+          <div class="builder-export-body">
+            <p class="field-hint">
+              An imported ride hands back the file you uploaded until you edit it here; after that it is built from
+              your&nbsp;ride.
+            </p>
+            <ul class="builder-export-list">
+              ${
+                // Labeled explicitly rather than by uppercasing the path
+                // segment: that produced "GEOJSON", which is not how the format
+                // writes its own name and reads as shouting beside GPX.
+                (
+                  [
+                    ['gpx', 'GPX'],
+                    ['kml', 'KML'],
+                    ['geojson', 'GeoJSON'],
+                    ['csv', 'CSV'],
+                  ] as const
+                )
+                .map(
+                  ([f, label]) =>
+                    `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
+                    ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
+                )
+                .join('\n              ')}
+              <li>
+                <a data-export="routeloop.json" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/routeloop.json?dl` : '#'}">Routeloop JSON</a>
+                <span class="field-hint">Everything, including what the other four cannot carry.</span>
+              </li>
+            </ul>
+          </div>
+        </details>`
+}
+${
   // ONLY ON AN EXISTING RIDE. A ride that has never been saved has nothing to
   // delete — closing the tab already discards it — and a Delete button on a
   // blank builder is an offer to destroy something that does not exist.

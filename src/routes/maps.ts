@@ -546,6 +546,12 @@ mapsRoutes.post(
             kmlBytes,
             gpxBytes,
             sourceBytes,
+            // Stamped here, in the same transaction that writes the files, so
+            // it is the moment the original was stored rather than a guess at
+            // it. The export path compares it against updated_at to tell a ride
+            // that still IS its uploaded file from one rebuilt in the builder
+            // since — see the column's comment in schema.ts.
+            originalStoredAt: new Date(),
             totalMiles,
             stopCount,
           })
