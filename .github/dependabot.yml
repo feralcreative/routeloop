@@ -1,0 +1,22 @@
+# Version updates for the ONE ecosystem that is a supply-chain surface for CI.
+#
+# GitHub Actions only, deliberately. An action referenced by a moving tag runs
+# whatever that tag points at today, inside a workflow that will soon hold
+# registry and SSH credentials — so keeping those current is worth a PR a month.
+#
+# npm is NOT here, and its absence is a decision rather than an oversight.
+# Dependabot's SECURITY updates are already enabled for it at the repository
+# level, which is the half that matters; version updates on top would open a PR
+# for every minor bump of every dependency, and a queue nobody reads is worse
+# than no queue at all. Add it the day someone wants to spend time on it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - 'area:ops'
