@@ -193,6 +193,24 @@ cmd_colors() {
 # the one most likely to be mid-cutover, and the one where a second deploy
 # starting is worst. A human reading who holds it and deciding they are gone is
 # the correct amount of ceremony for something that happens approximately never.
+# Write the server's .env from the local one, without deploying anything.
+#
+# THE OTHER HALF OF DEPLOY_SKIP_ENV. A CI deploy never reads an application
+# secret and therefore cannot write this file; it verifies the file instead and
+# refuses if a key the release needs is absent. This is how the file gets there
+# in the first place, and how a new key gets added ahead of the release that
+# needs it.
+#
+# It delegates to deploy.sh rather than reimplementing the allow-list. Two
+# copies of that list is two places to forget a variable, and the failure for
+# that is a container which starts, passes its healthcheck and cannot sign
+# anybody in.
+cmd_push_env() {
+  log_info "Writing ${NAS_DEPLOY_PATH}/.env on ${DEPLOY_ENV} from your local .env."
+  log_info "Nothing is built, pushed or restarted."
+  DEPLOY_ENV="$DEPLOY_ENV" ENV_ONLY=1 bash "${SCRIPT_DIR}/deploy.sh"
+}
+
 cmd_unlock() {
   local dir="${NAS_DEPLOY_PATH}/.deploy.lock"
   local held; held=$(nas "cat '${dir}/holder' 2>/dev/null" || true)
@@ -529,6 +547,7 @@ Commands:
   colors       Which color is live, which is idle, what is running
   cutover <c>  Point the proxy at blue|green — the manual rollback lever
   unlock       Break a stale deploy lock (says who holds it first)
+  push-env     Write the server's .env from your local one — no deploy
   db-logs      Follow Postgres logs
   status       Container status + origin HTTP check on 127.0.0.1:${HOST_PORT}
   restart      Restart the LIVE color in place (brief downtime)
@@ -596,6 +615,7 @@ case "${1:-help}" in
   cutover)     cmd_cutover "${2:-}" ;;
   restart-proxy) cmd_restart_proxy ;;
   restart-db)  cmd_restart_db ;;
+  push-env)    cmd_push_env ;;
   unlock)      cmd_unlock ;;
   schema-state) cmd_schema_state ;;
   db-baseline) cmd_db_baseline ;;

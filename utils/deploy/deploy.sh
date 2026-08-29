@@ -66,7 +66,32 @@ else
   DB_PASSWORD="${STAGE_DB_PASSWORD:-}"
 fi
 
+# ------------------------------------------------- who writes the remote env --
+#
+# **SET DEPLOY_SKIP_ENV=1 AND THIS RUN NEVER LEARNS AN APPLICATION SECRET.**
+# That is the whole point of the flag, and it exists for CI.
+#
+# deploy.sh composes the server's `.env` from about twenty-five values read out
+# of the local one — both Maps keys, the Google OAuth client secret, the SMTP
+# password, the database password. A workflow that did that job would need every
+# one of them as an Actions secret, which is the single largest thing a GitHub
+# compromise could be worth in this project.
+#
+# It does not need to. Those values change perhaps twice a year, and they are
+# already on the server. So the split is: a deploy from a laptop writes them, as
+# it always has, and a deploy from CI VERIFIES them instead — see the block
+# after the allow-list. CI then needs exactly two credentials, registry and SSH,
+# and neither is an application secret.
+#
+# The verification is the load-bearing half rather than a nicety. Skipping the
+# write and not checking would ship a release whose new required key is simply
+# absent, and the failure mode for that is documented and silent: the container
+# starts, passes its healthcheck, and nobody can sign in.
+WRITE_REMOTE_ENV=1
+[ "${DEPLOY_SKIP_ENV:-}" = "1" ] && WRITE_REMOTE_ENV=""
+
 MISSING=""
+if [ -n "$WRITE_REMOTE_ENV" ]; then
 [ -n "${GMAPS_KEY:-}" ]  || MISSING="${MISSING} GMAPS_KEY"
 [ -n "${DB_PASSWORD}" ]  || MISSING="${MISSING} $([ "$DEPLOY_ENV" = "prod" ] && echo PROD_DB_PASSWORD || echo STAGE_DB_PASSWORD)"
 
@@ -91,6 +116,9 @@ if [ -n "$MISSING" ]; then
   log_error "Missing required value(s) in .env:${MISSING}"
   log_error "See .env.example. Aborting rather than deploying a broken container."
   exit 1
+fi
+else
+  log_info "DEPLOY_SKIP_ENV=1 — this run will verify ${NAS_DEPLOY_PATH}/.env rather than write it."
 fi
 
 
@@ -266,6 +294,16 @@ echo ""
 # Composed here, above the dry-run exit, so `--dry-run` exercises the guard
 # below. A check that only runs during a real deploy is one nobody can test.
 # Supplies every ${VAR} in docker-compose.yml. Contains secrets → mode 600.
+# EVERY KEY THE CONTAINER NEEDS, NAMED ONCE. The writer below fills these in and
+# the verifier checks for exactly these, so a key added to the release and not to
+# the server cannot slip through on a CI deploy that does not write the file.
+# Two lists would have drifted the first time anybody added a variable.
+REMOTE_ENV_KEYS="COMPOSE_PROJECT_NAME IMAGE_NAME DB_CONTAINER_NAME HOST_PORT ALIAS_HOST_PORT
+APP_UID APP_GID GMAPS_KEY GMAPS_SERVER_KEY GMAPS_MAP_ID DB_PASSWORD APP_ORIGIN
+GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET APP_VERSION BUILD_SHA DRAIN_GRACE_MS
+BLUE_CONTAINER_NAME GREEN_CONTAINER_NAME PROXY_CONTAINER_NAME PROXY_IMAGE
+DB_VOLUME_NAME"
+
 REMOTE_ENV=$(mktemp)
 trap 'rm -f "$REMOTE_ENV"' EXIT
 printf '%s\n' \
@@ -319,6 +357,31 @@ for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL; do
   fi
 done
 
+
+# --------------------------------------------------------------- env only ----
+#
+# `deploy-utils.sh push-env`. Writes the server's .env and stops — no build, no
+# push, no container touched. It is how the file gets onto a server for the
+# first time and how a new key is added AHEAD of the release that needs it,
+# which is what makes DEPLOY_SKIP_ENV's verification survivable.
+#
+# It takes the lock, briefly: a deploy in flight is about to write this same
+# file and then start containers from it, and two writers interleaving would
+# produce a file that is neither.
+if [ -n "${ENV_ONLY:-}" ]; then
+  if [ -n "${DRY_RUN:-}" ]; then
+    log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and stop."
+    exit 0
+  fi
+  if ! acquire_deploy_lock; then exit 1; fi
+  trap 'release_deploy_lock; rm -f "$REMOTE_ENV"' EXIT
+  $SSH_CMD "$NAS_SSH_HOST" "mkdir -p ${NAS_DEPLOY_PATH}"
+  cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
+  log_success "Wrote ${NAS_DEPLOY_PATH}/.env on ${DEPLOY_ENV}."
+  log_info "Nothing was built or restarted — the running containers still hold the OLD"
+  log_info "values until the next deploy recreates them."
+  exit 0
+fi
 
 if [ -n "${DRY_RUN:-}" ]; then
   log_info "Would take the deploy lock on ${NAS_DEPLOY_PATH}/.deploy.lock"
@@ -423,7 +486,55 @@ $SSH_CMD "$NAS_SSH_HOST" "mkdir -p ${NAS_DEPLOY_PATH}/proxy"
 cat "$PROJECT_ROOT/proxy/Caddyfile" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/proxy/Caddyfile"
 $SSH_CMD "$NAS_SSH_HOST" "test -f ${NAS_DEPLOY_PATH}/proxy/upstream.caddy || printf 'reverse_proxy %s:6686\n' '${BLUE_CONTAINER_NAME}' > ${NAS_DEPLOY_PATH}/proxy/upstream.caddy"
 
-cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
+if [ -n "$WRITE_REMOTE_ENV" ]; then
+  cat "$REMOTE_ENV" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/.env && chmod 600 ${NAS_DEPLOY_PATH}/.env"
+else
+  # ------------------------------------------------------ verify, not write ---
+  #
+  # The CI path. Every key the release needs must ALREADY be on the server with a
+  # non-empty value, and this is where that is proven rather than hoped.
+  #
+  # The three that this run legitimately owns are rewritten in place: IMAGE_NAME
+  # is the whole point of the deploy, and APP_VERSION and BUILD_SHA describe the
+  # build being shipped. Everything else is the server's own and is left alone.
+  log_info "Verifying ${NAS_DEPLOY_PATH}/.env carries every key this release needs..."
+  REMOTE_KEYS=$($SSH_CMD "$NAS_SSH_HOST" "grep -oE '^[A-Z_]+=.' ${NAS_DEPLOY_PATH}/.env 2>/dev/null | cut -d= -f1" || true)
+  if [ -z "$REMOTE_KEYS" ]; then
+    log_error "Could not read ${NAS_DEPLOY_PATH}/.env, or it is empty."
+    log_error "Deploy once from a machine that has the values, or run:"
+    log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh push-env"
+    exit 1
+  fi
+  ENV_MISSING=""
+  for KEY in $REMOTE_ENV_KEYS; do
+    case "$KEY" in
+      # Written below rather than required above — this run is their source.
+      IMAGE_NAME|APP_VERSION|BUILD_SHA) continue ;;
+    esac
+    printf '%s\n' "$REMOTE_KEYS" | grep -qx "$KEY" || ENV_MISSING="${ENV_MISSING} ${KEY}"
+  done
+  if [ -n "$ENV_MISSING" ]; then
+    log_error "The server's .env is missing:${ENV_MISSING}"
+    log_error ""
+    log_error "This release needs them and this run has no way to supply them —"
+    log_error "DEPLOY_SKIP_ENV is set, so no application secret was ever read."
+    log_error "Deploying anyway would start a container that passes its"
+    log_error "healthcheck and cannot do the thing the key is for."
+    log_error ""
+    log_error "From a machine that has them:"
+    log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh push-env"
+    exit 1
+  fi
+  log_success "Every key present"
+
+  # sed in place over three lines rather than rewriting the file: everything else
+  # in it is the server's, and this run does not have it to write back.
+  $SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && \
+    sed -i -e 's|^IMAGE_NAME=.*|IMAGE_NAME=${IMAGE_NAME}|' \
+           -e 's|^APP_VERSION=.*|APP_VERSION=${APP_VERSION}|' \
+           -e 's|^BUILD_SHA=.*|BUILD_SHA=${GIT_SHA}|' .env" || {
+    log_error "Could not update the build identifiers in the server's .env."; exit 1; }
+fi
 
 # --------------------------------------------------------------- deploy ------
 #
