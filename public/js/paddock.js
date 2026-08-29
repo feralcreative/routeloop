@@ -188,15 +188,48 @@
     };
   }
 
+  // A FIELD SAVE PATCHES THE ROW; IT MUST NOT RE-RENDER. This is #188, and the
+  // failure was one line: `await load()` here, which rebuilds host.innerHTML and
+  // therefore destroys the input the rider has just clicked into.
+  //
+  // The sequence is worth writing down because nothing about it is visible in
+  // the code that causes it. `change` fires on BLUR, so the click that moves the
+  // rider from Make to Model is what triggers the save. The PUT is async, so
+  // focus has already landed on Model by the time the response arrives — and
+  // then the re-render replaces Model with a new node and focus falls back to
+  // <body>. Every field after the first edit therefore needed clicking twice,
+  // and the second click worked because by then there was nothing left to save.
+  //
+  // Patching is safe here in a way it would not be on a sorted list: bikes are
+  // ordered by `position`, so no field on this form can reorder the list. Only
+  // the derived label can change, and that is one text node.
+  function patchRow(row, bike) {
+    const name = row.querySelector(".bike-name");
+    if (name) {
+      name.innerHTML = esc(bike.label) + (bike.isDefault ? ' <span class="pill">default</span>' : "");
+    }
+    // The server normalizes: a range goes miles -> meters -> miles and can come
+    // back a mile off what was typed. Writing the answer back is what `load()`
+    // used to do for free. The field the rider is IN is skipped — it holds their
+    // cursor, and the value there is the one we just sent anyway.
+    row.querySelectorAll("[data-field]").forEach((el) => {
+      if (el === document.activeElement) return;
+      const v = bike[el.getAttribute("data-field")];
+      el.value = v == null ? "" : v;
+    });
+  }
+
   async function save(row) {
     if (!row) return;
     try {
-      await api("/api/bikes/" + row.getAttribute("data-id"), {
+      const bike = await api("/api/bikes/" + row.getAttribute("data-id"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload(row)),
       });
-      await load();
+      const i = bikes.findIndex((b) => String(b.id) === row.getAttribute("data-id"));
+      if (i >= 0) bikes[i] = bike;
+      patchRow(row, bike);
     } catch (e) {
       fail(e.message);
     }

@@ -187,15 +187,41 @@
     }
   }
 
+  // WHAT MAY RE-RENDER AND WHAT MAY NOT, because getting this wrong is #188 all
+  // over again on a different screen.
+  //
+  // `change` fires on BLUR, so the click that carries a rider from one field to
+  // the next is what triggers the save. Rebuilding host.innerHTML when the
+  // response lands then destroys the field they have already focused, and the
+  // click has to be made twice. Only a change that genuinely MOVES a row earns
+  // a re-render:
+  //
+  //   renaming a place  — no. Places sort by name, so the row does eventually
+  //                       belong somewhere else, and it gets there on the next
+  //                       full load. A list re-sorting under a rider's cursor
+  //                       while they type is its own defect, not a feature.
+  //   renaming a group  — no. Groups sort by `position`, which a rename cannot
+  //                       touch. The name does appear in every row's group
+  //                       picker though, so those options are patched by hand.
+  //   changing a group  — YES. The row leaves one section for another and there
+  //                       is no honest way to show that in place. Focus is on a
+  //                       <select> the rider has just committed to, which is the
+  //                       one case where losing it costs nothing.
   async function save(el) {
     try {
       if (el.classList.contains("group-name")) {
+        const name = el.value.trim();
         await api("/api/place-groups/" + el.dataset.group, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: el.value.trim() }),
+          body: JSON.stringify({ name }),
         });
-        return load();
+        const sec = sections.find((s) => s.group && String(s.group.id) === String(el.dataset.group));
+        if (sec) sec.group.name = name;
+        host.querySelectorAll(".place-group-pick option").forEach((opt) => {
+          if (opt.value === el.dataset.group) opt.textContent = name;
+        });
+        return;
       }
 
       const row = el.closest(".place-row");
@@ -204,6 +230,7 @@
       const current = sections.flatMap((s) => s.places).find((p) => String(p.id) === String(id));
       if (!current) return;
       const groupSel = row.querySelector(".place-group-pick").value;
+      const movedGroup = el.classList.contains("place-group-pick");
       // PUT is a full replace, so every field the row does not edit has to be
       // sent back as it was. Omitting phone, address or links here would silently
       // erase them — they are editable in the builder, not on this screen.
@@ -221,7 +248,11 @@
           groupId: groupSel ? Number(groupSel) : null,
         }),
       });
-      return load();
+      current.name = row.querySelector(".place-name").value.trim() || current.name;
+      current.groupId = groupSel ? Number(groupSel) : null;
+      // The row has changed sections, so the sections are what has to be redrawn.
+      if (movedGroup) return load();
+      return;
     } catch (e) {
       window.alert(e.message);
       load();
