@@ -197,6 +197,20 @@ const RIDES_LINKS: NavItem[] = [
 // Do not undo it while tidying the list up.
 const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
 
+// IN THE ACCOUNT MENU, NOT THE BAR, since 2026-08-29. These are four links for
+// the one rider who owns the site, and they were taking a top-level slot from
+// every rider-facing destination — on the widest nav the app has, since only an
+// admin sees them.
+//
+// The account menu is where they belong on the same argument that put the
+// recycle bin there: it holds what acts on WHO YOU ARE rather than on what you
+// are planning, and "I am the person who approves riders" is exactly that.
+//
+// FLATTENED BEHIND AN `<hr>` rather than nested as a second <details>. The
+// account menu is already a disclosure and a menu that opens into another menu
+// is two taps to reach a link that was one; the four labels say what they are
+// without a group heading over them, and the rule already separates the two
+// blocks below it.
 const ADMIN_LINKS: NavItem[] = [
   { key: 'admin', href: '/admin', label: 'Admin' },
   { key: 'approvals', href: '/admin/approvals', label: 'Approvals' },
@@ -309,7 +323,6 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
                 <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
                 <NavLink item={RIDERS_LINK} navKey={navKey} />
                 <NavAboutMenu user={user} navKey={navKey} />
-                {user.canManageRiders && <NavGroup label="Admin" items={ADMIN_LINKS} navKey={navKey} />}
               </>
             ) : (
               <>
@@ -603,6 +616,18 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
             reports looks for. */}
         <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Tell us something' }} navKey={navKey} />
         <NavLink item={{ key: 'board', href: '/board', label: 'Idea board' }} navKey={navKey} />
+        {/* LAST, and behind its own rule. Running the site is the least-often
+            used thing in here and the only block that is not about the rider
+            reading it — an admin is still a rider first, and their own profile,
+            settings and bin should not be below four moderation queues. */}
+        {user.canManageRiders && (
+          <>
+            <hr />
+            {ADMIN_LINKS.map((i) => (
+              <NavLink item={i} navKey={navKey} />
+            ))}
+          </>
+        )}
         <hr />
         <form method="post" action="/logout">
           <button class="linkbtn" type="submit">

@@ -83,6 +83,32 @@
   color: $neutral-43;
 }
 
+// --- The onramp --------------------------------------------------------------
+//
+// One guide sign under the hero. It is the page's most prominent control and the
+// only one that starts something, so it is bigger than a `.btn` elsewhere.
+//
+// SIZED FROM THE CONTAINER, NOT BY A `.btn-lg`. `$btn-flat` in _chrome.scss is
+// the list of variants that opt OUT of the guide-sign treatment, and a variant
+// bringing its own size is exactly what that list is for — so a size modifier
+// would have had to join it and would have turned the sign off, which is the
+// opposite of prominent. Scaling it from here leaves the class system alone.
+//
+// The keyline does not scale with it, and should not: it is two inset shadows at
+// 3px and 5px, and a real sign's keyline is a fixed width whatever the sign
+// measures.
+//
+// `inline-flex` so the sign is as wide as its own legend rather than the column.
+.dash-cta {
+  margin: 0 0 2rem;
+
+  .btn {
+    display: inline-flex;
+    font-size: 1.15rem;
+    padding: 0.7em 2.2em 0.7em 1.4em;
+  }
+}
+
 // --- KPI tiles ---------------------------------------------------------------
 
 .stat-tiles {

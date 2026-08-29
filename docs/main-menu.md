@@ -4,7 +4,7 @@ The nav's shape and contents. Ziad's structure, with the four gaps resolved on 2
 
 ## Shape
 
-`Dash` and `Riders` are plain links on the left, then three groups that open a panel, with the account menu pinned right.
+`Dash` and `Riders` are plain links on the left, then two groups that open a panel, with the account menu pinned right.
 
 At LG (≥992px) this renders as a bar. Below that, and on map pages at any width, the same markup is the drawer. Both are native `<details>`, so the menu works with JavaScript off.
 
@@ -27,12 +27,6 @@ About ▾
   Rider survey        /survey          (only if surveyInvitedAt)
   About this app      —                (opens the alpha modal)
 
-Admin ▾                                (only if canManageRiders)
-  Admin               /admin           (overview)
-  Approvals           /admin/approvals
-  Invitations         /admin/invites
-  Survey results      /admin/survey
-
                                        ← the account menu is pushed right from here
 
 {displayName} {avatar} ▾
@@ -42,11 +36,18 @@ Admin ▾                                (only if canManageRiders)
   ───
   Tell us something   /feedback
   Idea board          /board
+  ───                                  (the four below only if canManageRiders)
+  Admin               /admin           (overview)
+  Approvals           /admin/approvals
+  Invitations         /admin/invites
+  Survey results      /admin/survey
   ───
   Sign out            POST /logout
 ```
 
 **`Friends` left this menu on 2026-08-29** (#179). It was here on the grounds that `/riders` is the roster—everyone—while `/friends` is the rider's own list, a different question about a different set of people. That reasoning is struck: both are lists of riders with buttons beside them, and they are now one two-tab screen reached through `Riders`. `/friends` still resolves, because both friendship emails link to it, and it opens the Friends tab.
+
+**`Admin` left the bar on 2026-08-29** (#194). It was a fourth top-level group holding four links, taking a top-level slot from every rider-facing destination on the widest nav the app has—and only the one rider who owns the site ever saw it. It sits under the account on the same argument that put the recycle bin there: that menu holds what acts on WHO YOU ARE rather than on what you are planning, and "I am the person who approves riders" is exactly that. **Flattened behind a rule rather than nested as a second disclosure**—a menu that opens into another menu is two taps to reach a link that was one, and the four labels say what they are without a heading over them. **Last, above Sign out**, because an admin is still a rider first and their own profile, settings and bin should not sit below four moderation queues.
 
 **`Recycle bin` stays under the account** rather than under `Rides`, for the reason the pair shared—it belongs to the RIDER rather than to their rides, since the bin holds saved places and place groups as well. It is not urgent enough for the top level either: a rider only goes looking for it after they have deleted something they wanted.
 
