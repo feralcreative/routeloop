@@ -18,7 +18,11 @@
 
 **There is a deploy lock, on the NAS, held as a `mkdir`.** There was none at all before, which was survivable only while one person at one terminal could start a deploy.
 
-**What is still Ziad's to do before any of this runs**, in order: point a tunnel route at the NAS's SSH port, put an Access policy with a service token in front of it, add the four repository secrets the workflow names, run `push-env` for stage, and then a `--dry-run` and a real stage deploy from the terminal before ever pressing the button. Nothing here has been exercised against a real NAS.
+**The Cloudflare side is built and proven, 2026-08-29.** `nas-ssh.feralcreative.co` is a new ingress rule on the `feral-nas` tunnel pointing at `ssh://localhost:33725`, with a proxied CNAME, an Access application, and a policy scoped to one service token. Verified by probe: no credentials gets **403**, the service token gets **502**—which is the success signal against an SSH origin, since Access passed the request through and the tunnel then handed HTTP to something that does not speak it. All five repository secrets are set.
+
+**A correction that came out of doing it, because it invalidates an argument recorded above.** SSH to the NAS was never behind the tunnel: `nas.feralcreative.co` is an UNPROXIED CNAME to a Synology DDNS name that resolves to a home IP, and port 33725 answers from the public internet today. External 22 does not, whatever the router is meant to be doing. So CI could always have reached the NAS directly, and the reason to finish this changed from *"CI needs a way in"* to *"this lets 33725 be closed"*—which only pays off if it actually gets closed. Until it is, the tunnel is a second door beside an open one.
+
+**What is still Ziad's to do:** add the CI public key to `~/.ssh/authorized_keys` on the NAS (a 1Password agent that will not sign non-interactively is why this could not be done from here), run `push-env` for stage, then a `--dry-run` and a real `stage.sh` from a terminal before the button is ever pressed. **The deploy path itself has still never run.**
 
 ## The UI and nav sprint—2026-08-29
 
