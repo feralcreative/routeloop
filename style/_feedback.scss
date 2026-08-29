@@ -439,17 +439,24 @@ $fb-line: palette.light("neutral-88");
 // which is the entire circumstance it exists for.
 //
 // **It is inset from the right edge, not tucked into the corner, and that is
-// measured rather than taste.** Google stacks fullscreen and zoom in a 40px
-// column down the right edge — measured on both pages at x 1050–1090, running
-// from y 823 to the attribution strip at 986 — so anything anchored to that
-// corner sits on a control. The first attempt lifted it 120px off the bottom and
-// landed on the fullscreen button, which is above the zoom pair rather than
-// below it. Clearing the column horizontally is what actually works; clearing it
-// vertically does not, because the column is most of the edge.
+// measured rather than taste.** Google stacks its controls in a column down the
+// right edge, so anything anchored to that corner sits on one. The first attempt
+// lifted it 120px off the bottom and landed on a control that is ABOVE the zoom
+// pair rather than below it. Clearing the column horizontally is what actually
+// works; clearing it vertically does not, because the column is most of the
+// edge.
 //
 // The bottom offset then only has to clear the attribution strip.
 //
-// Re-measure if the map's control layout changes: `.gmnoprint` and
+// **RE-MEASURED 2026-08-29 FOR #173**, which scaled Google's controls to 0.7 —
+// see the block in _map.scss. Stated as offsets from the right edge rather than
+// as absolute x, because those held for one viewport width and nothing else:
+// Google anchors the bundle at `right: 40px` with a 10px margin, so the column
+// used to run 10–50px in from that edge and now runs 22–50px. The dock is
+// `right: 72px` and 56px wide, so it occupies 72–128px. The 22px of daylight
+// between them is unchanged by the scale, which is why the 72px did not move.
+//
+// Re-measure again if the control layout changes: `.gm-bundled-control` and
 // `.gm-control-active` on the right edge are the things to check.
 // THE PAIR. Reporting something broken and reading what changed are different
 // errands, so they are two marks rather than one control with a menu.

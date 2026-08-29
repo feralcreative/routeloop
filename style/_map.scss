@@ -7,6 +7,56 @@
   display: none !important;
 }
 
+// --- Google's own controls, scaled down -------------------------------------
+//
+// #173. They are drawn at a size that suits a full-screen map and this app puts
+// one behind a drawer, so they took more of the view than they earn.
+//
+// **SEVENTY PERCENT, NOT SIXTY, AND THE NUMBER IS MEASURED.** The call was
+// "about 40% smaller"; the issue asked for the controls to be measured first
+// because the answer decides the figure. Measured in Chrome on /builder at
+// 1200px: every zoom button is exactly 40x40 CSS px, so 40% off lands on 24px —
+// which is the WCAG 2.2 SC 2.5.8 (Target Size, Minimum, AA) floor EXACTLY, on
+// the line rather than clear of it, and a transform's rounding is not something
+// to spend that last pixel on. 0.7 gives 28px, which clears it and is within
+// the 25-30% the issue named for this outcome.
+//
+// **CSS ON GOOGLE'S OWN DOM, NOT CUSTOM CONTROLS.** Ziad's call, 2026-08-29.
+// Custom controls are the documented, supported API and would match the house
+// style — but they mean reimplementing the map-type control's collapse-to-a-
+// dropdown behavior that map-common.js deliberately leaves to Google, and they
+// put new `google.maps` calls outside that file, which is the one boundary
+// AGENTS.md flags as his to move. This touches no JavaScript at all. The cost
+// is that `.gm-bundled-control` and `.gm-style-mtc-bbw` are undocumented
+// internals with generated class names: a Google release can silently stop
+// matching, and the failure mode is the controls quietly returning to full
+// size. That is a visible, harmless regression rather than a broken map.
+//
+// **TRANSFORM-ORIGIN IS THE LOAD-BEARING HALF.** A scaled element keeps its
+// original layout box, so scaling from the default center leaves the control
+// floating away from the edge it is anchored to by half the difference. Each
+// origin is the corner Google positioned that control against.
+//
+// NOT TOUCHED, and deliberately: the logo, the attribution strip, the keyboard
+// shortcuts link and Terms along the bottom. Those are a licensing requirement
+// rather than controls, and they must be neither scaled nor covered.
+
+// The zoom pair and the camera control, stacked bottom-right. One wrapper holds
+// both, so one rule moves them together and they cannot drift apart.
+.gm-bundled-control {
+  transform: scale(0.7);
+  transform-origin: 100% 100%;
+}
+
+// The map-type control, top-center. Same factor as the pair rather than one of
+// its own: they are read as one set of chrome, and two factors show up as one
+// control looking wrong beside the other. It carries text where the zoom
+// buttons do not — 18px falls to 12.6px, which is why the factor is not lower.
+.gm-style-mtc-bbw {
+  transform: scale(0.7);
+  transform-origin: 50% 0;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
