@@ -21,6 +21,50 @@
 // Getting one wrong does not error; it silently makes the browser download a
 // file it cannot use, or skip one it needed.
 
+// --- The interpunct's advance width -----------------------------------------
+//
+// **U+00B7 HAS AN ADVANCE WIDTH OF ZERO IN OVERPASS, AND THAT IS A DEFECT IN THE
+// FONT RATHER THAN ANYTHING THIS APP DOES.** Measured in Chrome 2026-08-29:
+// `A·B` sets exactly as wide as `AB`, so the dot consumes no horizontal space
+// and paints into whatever follows it. The character is inside the latin
+// subset's `U+0000-00FF` range, so it is present — it is the metrics that are
+// wrong, not the coverage. The same measurement in system sans and in Georgia
+// gives it about 3.9px at 14px, as it should be.
+//
+// This app uses it as a data delimiter on roughly twenty surfaces — see
+// src/views/sep.ts — so the symptom was everywhere: `4 stops ·193 mi`, reading
+// as though the space after it had been lost. It had not. **No amount of space
+// on either side can fix it**, because the glyph paints past its own origin: the
+// gap grows on both sides and the ink stays jammed against the right-hand one.
+// That is worth stating because "add more space" is the obvious response and it
+// is the one thing that cannot work.
+//
+// The fix is one @font-face carrying NO FILE, matching a single codepoint, and
+// listed FIRST in the stack — see `$font` in _tokens.scss. `local()` hands that
+// one character to whichever system face is present, which brings its own
+// correct advance with it. Nothing downloads and no markup changes.
+//
+// **IT DEGRADES TO EXACTLY TODAY'S BEHAVIOR.** If none of the named faces exists
+// the rule matches nothing, the browser falls through to Overpass, and the dot
+// renders as it does now. So this cannot break a platform it was not tested on;
+// the worst case is that it fails to help there.
+//
+// A plain round dot is a plain round dot at this size, which is why substituting
+// a system face for this one glyph is invisible. Do not extend the range: the
+// point is one broken glyph, and a wider range would start mixing faces in text.
+@font-face {
+  font-family: "sep-dot";
+  src:
+    local("Helvetica Neue"),
+    local("Helvetica"),
+    local("Arial"),
+    local("Liberation Sans"),
+    local("DejaVu Sans"),
+    local("Segoe UI"),
+    local("Roboto");
+  unicode-range: U+00B7;
+}
+
 // latin-ext first, latin second. Both orders work — the browser picks by
 // unicode-range, not by source order — but keeping the narrower set last
 // matches how Google writes it and makes a diff against their CSS readable.

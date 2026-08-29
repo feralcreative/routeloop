@@ -28,6 +28,7 @@
 import { expandTrack } from './expand'
 import { distFromStartAlongTrack, type Track } from './kml'
 import type { ExportPoint, ExportDay } from './export'
+import { SEP } from '../views/sep'
 
 // Origin + 9 waypoints + destination. The 9 is Google's documented ceiling and
 // the tested one; the two ends are not waypoints and do not count against it.
@@ -229,5 +230,5 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
 // "Day 2 · part 1 of 3", or just the day when it fits in one link.
 export function linkLabel(links: GmapsRouteLinks, link: GmapsLink, dayIndex: number): string {
   const day = links.title?.trim() || `Day ${dayIndex + 1}`
-  return link.parts > 1 ? `${day} · part ${link.part} of ${link.parts}` : day
+  return link.parts > 1 ? `${day}${SEP}part ${link.part} of ${link.parts}` : day
 }

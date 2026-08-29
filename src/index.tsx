@@ -12,7 +12,7 @@ import { METERS_PER_MILE, type Track } from './maps/kml'
 import { DAY_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
 import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from './maps/export'
-import { DOWNLOADS, storedExtFor } from './maps/downloads'
+import { DOWNLOADS, originalIsCurrent, storedExtFor } from './maps/downloads'
 import { buildExportName, NATIVE_EXT } from './maps/filename'
 import { buildZip } from './maps/zip'
 import { readMapFile, thumbFilePath } from './maps/storage'
@@ -34,6 +34,7 @@ import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { friendRoutes } from './routes/friends'
+import { riderRoutes } from './routes/riders'
 import { commentRoutes } from './routes/comments'
 import { suggestionRoutes } from './routes/suggestions'
 import { rosterRoutes } from './routes/roster'
@@ -116,7 +117,6 @@ app.get('/healthz', async (c) => {
   c.header('Cache-Control', 'no-store')
   return c.json(body, status)
 })
-
 
 // Keep the former domains alive during the one-year transition, but make the
 // canonical host unambiguous for cookies, sharing, and search engines. Each
@@ -233,6 +233,9 @@ app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', friendRoutes)
+// Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not
+// catch them anyway — kept together with the other rider-facing modules.
+app.route('/', riderRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
@@ -608,16 +611,22 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 
   const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
 
-  // The stored original wins where there is one. Generating it instead would
-  // be lossy for no reason: the file carries styling, folders and per-point
-  // detail this app does not model and therefore cannot reproduce.
+  // The stored original wins where there is one AND IT IS STILL TRUE. Generating
+  // it otherwise would be lossy for no reason: the file carries styling, folders
+  // and per-point detail this app does not model and therefore cannot reproduce.
+  //
+  // EXCEPT WHEN THE RIDE HAS BEEN EDITED SINCE — see originalIsCurrent(). A save
+  // does not rewrite the file and nothing clears it, so an imported ride that
+  // has been re-cut in the builder would otherwise hand back the pre-edit
+  // upload, silently. Until #172 that took typing the URL to reach; there is a
+  // button on it now.
   //
   // EXCEPT WHEN A STRAND WAS ASKED FOR. A stored original is the whole ride as
   // it was uploaded and knows nothing about subgroups, so handing it to a rider
   // who asked for their own approach would answer a different question than the
   // one they asked — silently, and with more days than they expect. An imported
   // ride has no subgroups in practice, so this branch is nearly always taken.
-  if (spec.hasStored(m) && strand.subgroupId === undefined) {
+  if (spec.hasStored(m) && originalIsCurrent(m) && strand.subgroupId === undefined) {
     // readMapFile, not mapFilePath + readFile: the file may be under either
     // spelling and this is the only thing that knows both. Serving the brotli
     // bytes straight through with `Content-Encoding: br` was considered and

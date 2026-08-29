@@ -54,6 +54,7 @@ import { LIVE_RIDE } from '../trash/service'
 import { ridesImOn } from '../members/service'
 import { RSVP_LABELS } from '../members/policy'
 import { unitsFor } from '../views/prefs'
+import { SEP } from '../views/sep'
 
 export const homeRoutes = new Hono<AuthEnv>()
 
@@ -115,7 +116,7 @@ function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; unit
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -139,7 +140,7 @@ function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | nu
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -626,13 +627,37 @@ homeRoutes.get('/', requireActive, async (c) => {
               */}
               {s.saddle && (
                 <span title={s.saddle.note}>
-                  {' · '}
+                  {SEP}
                   {s.saddle.hours} hours riding{s.saddle.estimated && '*'}
                 </span>
               )}
-              {s.twist && <> · {s.twist.label} overall</>}
+              {s.twist && <>{SEP}{s.twist.label} overall</>}
             </span>
           </section>
+
+          {/*
+            THE ONRAMP, and it is directly under the hero because planning a ride
+            is what this site is for. Ziad's call, 2026-08-29.
+            /builder was reachable in one click already — it is the second item
+            in the Rides menu — but a menu item is a thing you go looking for and
+            a sign is a thing you see. The dashboard's whole first screen was a
+            report on rides already planned, with no way to start the next one
+            that did not begin with opening a menu.
+
+            ONE CTA, NOT TWO. A second copy beside the ride list further down
+            would compete with this one and turn the page's most prominent
+            control into a repeated motif.
+
+            NOT IN THE EMPTY STATE, and not missing from it either — a rider with
+            no rides gets FirstRun instead of this whole branch, and that panel
+            is already three steps and two doors in. Two different first-visit
+            answers on one page would be the noise this is trying to cut.
+          */}
+          <p class="dash-cta">
+            <a class="btn" href="/builder">
+              Plan a ride
+            </a>
+          </p>
 
           <ul class="stat-tiles">
             {s.tiles.map((t) => (

@@ -83,6 +83,42 @@
   color: $neutral-43;
 }
 
+// --- The onramp --------------------------------------------------------------
+//
+// One guide sign under the hero. It is the page's most prominent control and the
+// only one that starts something, so it is bigger than a `.btn` elsewhere.
+//
+// SIZED FROM THE CONTAINER, NOT BY A `.btn-lg`. `$btn-flat` in _chrome.scss is
+// the list of variants that opt OUT of the guide-sign treatment, and a variant
+// bringing its own size is exactly what that list is for — so a size modifier
+// would have had to join it and would have turned the sign off, which is the
+// opposite of prominent. Scaling it from here leaves the class system alone.
+//
+// The keyline does not scale with it, and should not: it is two inset shadows at
+// 3px and 5px, and a real sign's keyline is a fixed width whatever the sign
+// measures.
+//
+// `inline-flex` so the sign is as wide as its own legend rather than the column.
+.dash-cta {
+  margin: 0 0 2rem;
+
+  .btn {
+    display: inline-flex;
+    font-size: 1.15rem;
+    // THE SAME PADDING THE SIGN ALREADY HAS, RESTATED IN em SO IT SCALES WITH
+    // THE LARGER TYPE. The base rule is in rem, which would have left a bigger
+    // button with a normal button's padding.
+    //
+    // Copying its numbers means copying the two decisions inside them, and the
+    // second is the one worth naming: the arrow's side is TIGHTER (1.05 against
+    // 1.4), because the arrow's bounding box carries air that the glyphs of a
+    // word do not. A first pass here set the arrow's side LOOSER instead, and
+    // the gap after the arrow was the first thing Ziad saw. The other is the
+    // 0.1em the legend rides down by; see the note on the base rule.
+    padding: calc(0.75em + 0.1em) 1.05em calc(0.75em - 0.1em) 1.4em;
+  }
+}
+
 // --- KPI tiles ---------------------------------------------------------------
 
 .stat-tiles {
@@ -902,115 +938,9 @@
 
 // --- The ride tabs ------------------------------------------------------------
 //
-// Your rides, Friends' rides, Public rides. The behavior is public/js/tabs.js,
-// shared with the builder's panel strip; the CSS deliberately is NOT, because a
-// 380px drawer and a full-width dashboard block want different metrics. What
-// they share is the pattern, not the numbers.
-//
-// `.page-tabs` rather than reusing `.panel-tabs`: that class is sticky inside a
-// scroller and sized for a drawer, and inheriting it here would have meant
-// overriding half of it. Two small rules beat one rule with a page's worth of
-// exceptions.
-//
-// NOT STICKY. The panel's strip sticks because a rider scrolls a day list past
-// it and has to get back; this one sits at the bottom of a page they scrolled TO,
-// and a bar that detached itself over the stats above would be the only such
-// thing on the page.
-.page-tabs {
-  display: flex;
-  // NOT wrapping any more. With equal-width tabs a wrap would put one tab alone
-  // on a second row at full width, which reads as a heading rather than as a
-  // tab. They share the row and shrink together instead.
-  gap: 0.25rem;
-  margin: 0 0 1rem;
-  border-bottom: 1px solid $grey;
-}
+// MOVED TO _chrome.scss ON 2026-08-29. `.page-tabs`, `.page-tab` and
+// `.page-tabpanel` were named as generic classes from the start and are now on
+// two surfaces — the dashboard's ride lists and the riders screen (#179) — so
+// they belong with the site-wide chrome rather than in the dashboard's file.
+// The behavior was always shared: public/js/tabs.js.
 
-.page-tab {
-  // EQUAL WIDTHS, so the four tabs split the strip evenly rather than each
-  // taking the width of its own label. Ziad's call, 2026-08-26.
-  //
-  // `flex: 1` with `min-width: 0`, not `width: 25%`: a percentage is a
-  // number that has to be edited every time a tab is added or removed, and the
-  // one that got left at 33% is a strip that no longer fills its row. This
-  // divides by however many there are.
-  //
-  // `min-width: 0` is what actually lets it hold: a flex item's default
-  // `min-width: auto` refuses to shrink below its content, so the longest label
-  // would quietly claim more than its share and the rest would not be equal at
-  // all. Centering keeps the label in the middle of the space it is given.
-  flex: 1;
-  min-width: 0;
-  justify-content: center;
-  // ONE LINE EACH. "Your rides" is the only two-word label and it wrapped at an
-  // equal quarter of the strip, which set the height of all four from the one
-  // that broke and left its count badge floating beside a two-line label. The
-  // tabs shrink together instead; at the narrowest viewport the padding gives
-  // before the text does.
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font: inherit;
-  font-size: 1rem;
-  padding: 0.5em 0.9em;
-  border: 0;
-  // The strip's rule, re-drawn per tab so the active one can paint over it.
-  // -1px pulls it onto that border rather than sitting above it.
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  background: none;
-  color: $neutral-50;
-  cursor: pointer;
-
-  &:hover:not(.is-active) {
-    color: $text;
-  }
-
-  &.is-active {
-    color: $text;
-    font-weight: 600;
-    border-bottom-color: $url;
-  }
-
-  &:focus-visible {
-    outline: 2px solid $url;
-    outline-offset: -2px;
-    border-radius: 4px;
-  }
-
-  // A count of zero is drawn, unlike the builder's `:not(:empty)` badges. There
-  // the number is a hint that something is inside a tab nobody has opened; here
-  // it is the answer to the question the tab asks, and "Friends' rides 0" is a
-  // fact worth reading rather than an empty state to hide.
-  .tab-count {
-    font-size: 0.8em;
-    font-weight: 600;
-    color: $neutral-57;
-    background: $neutral-94;
-    border-radius: 999px;
-    padding: 0 0.45em;
-  }
-}
-
-// `hidden` does the hiding — see public/js/tabs.js for why it is the attribute
-// and not a class. This only handles what is left.
-.page-tabpanel {
-  &[hidden] {
-    display: none;
-  }
-
-  // The panel takes focus when a tab is chosen, so it must not draw a ring the
-  // way a control would — nothing was activated, only revealed.
-  &:focus-visible {
-    outline: none;
-  }
-
-  // The empty state from rideCards(), which is a <p class="empty">. Given room
-  // here rather than sitting flush under the strip, so an empty tab reads as an
-  // answer rather than as a list that failed to load.
-  .empty {
-    color: $neutral-57;
-    padding: 1.5rem 0;
-  }
-}

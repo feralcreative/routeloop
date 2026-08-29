@@ -66,7 +66,10 @@ export type NavKey =
   | 'builder'
   | 'import'
   | 'places'
-  | 'friends'
+  // No 'friends' member either, removed on 2026-08-29 for the same reason as
+  // 'rides': /friends became a tab of the riders screen (#179), both its URLs
+  // set 'riders', and a key no NavItem carries is an aria-current that is wired
+  // and can never fire.
   | 'profile'
   | 'settings'
   | 'trash'
@@ -156,13 +159,30 @@ export type PageOpts = {
 // below could never fire.
 type NavItem = { key: NavKey; href: string; label: string }
 
+// OUT OF THE RIDES GROUP AND FIRST IN THE BAR, 2026-08-27 (#184). It was
+// `{ key: 'home', label: 'Your rides' }` at the head of RIDES_LINKS, under a
+// comment arguing that "Home" names a location rather than a purpose and that
+// the group was already called Rides.
+//
+// **That argument was right and its premise is what changed.** Outside the
+// group the label has no "Rides" above it, so "Your rides" starts competing
+// with the three verbs still in the menu — and the page is not only rides
+// anyway. It is the stat tiles, then Your records, then the list. "Dash" is the
+// honest name for that page once it stands alone, and the old comment is struck
+// rather than left contradicting the code.
+//
+// THE KEY STAYS `home`, exactly as it did when /rides folded into / and the
+// label changed then too. The route, the file and the navKey every page sets
+// are all untouched; only the label and the position moved.
+//
+// The wordmark also links to `/`, so the header carries two ways to the same
+// page. That is ordinary rather than a fault — Dash earns its place by being
+// LABELED, which a logo is not.
+const DASH_LINK: NavItem = { key: 'home', href: '/', label: 'Dash' }
+
+// Three verbs, which is what the group reads as now that the destination came
+// out of it.
 const RIDES_LINKS: NavItem[] = [
-  // ONE ITEM, NOT TWO, since 2026-08-24: `/rides` folded into `/` and the list
-  // now sits under the stats on the same page. Labeled for the destination a
-  // rider actually wants — the group is already called Rides, and "Home" names
-  // a location rather than a purpose. The key stays `home` because the file and
-  // the route did not move; only the label did.
-  { key: 'home', href: '/', label: 'Your rides' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'explore', href: '/explore', label: 'Find a ride' },
   { key: 'import', href: '/import', label: 'Import / Export' },
@@ -172,9 +192,25 @@ const RIDES_LINKS: NavItem[] = [
 // rather than by index: this was `RIDES_LINKS[2]` inline, which silently became
 // the wrong link the moment Home was inserted at the front — a positional
 // reference into a list that other people edit is a trap, and it sprang the
-// first time anyone edited the list.
+// first time anyone edited the list. Removing that first element again for #184
+// is exactly the edit that used to break this; the guard is why it did not.
+// Do not undo it while tidying the list up.
 const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
 
+// IN THE ACCOUNT MENU, NOT THE BAR, since 2026-08-29. These are four links for
+// the one rider who owns the site, and they were taking a top-level slot from
+// every rider-facing destination — on the widest nav the app has, since only an
+// admin sees them.
+//
+// The account menu is where they belong on the same argument that put the
+// recycle bin there: it holds what acts on WHO YOU ARE rather than on what you
+// are planning, and "I am the person who approves riders" is exactly that.
+//
+// FLATTENED BEHIND AN `<hr>` rather than nested as a second <details>. The
+// account menu is already a disclosure and a menu that opens into another menu
+// is two taps to reach a link that was one; the four labels say what they are
+// without a group heading over them, and the rule already separates the two
+// blocks below it.
 const ADMIN_LINKS: NavItem[] = [
   { key: 'admin', href: '/admin', label: 'Admin' },
   { key: 'approvals', href: '/admin/approvals', label: 'Approvals' },
@@ -283,10 +319,10 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
             )}
             {user ? (
               <>
+                <NavLink item={DASH_LINK} navKey={navKey} />
                 <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
                 <NavLink item={RIDERS_LINK} navKey={navKey} />
                 <NavAboutMenu user={user} navKey={navKey} />
-                {user.canManageRiders && <NavGroup label="Admin" items={ADMIN_LINKS} navKey={navKey} />}
               </>
             ) : (
               <>
@@ -556,10 +592,17 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
       </summary>
       <div class="nav-sub-items">
         <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
-        {/* Under the account rather than beside Riders. /riders is the roster —
-            everyone — and this is the rider's own list, which is a different
-            question about a different set of people. */}
-        <NavLink item={{ key: 'friends', href: '/friends', label: 'Friends' }} navKey={navKey} />
+        {/* FRIENDS IS NOT HERE ANY MORE, as of 2026-08-29 (#179). It sat under
+            the account on the grounds that "/riders is the roster — everyone —
+            and this is the rider's own list, which is a different question about
+            a different set of people". That reasoning is struck rather than left
+            standing to be re-discovered: both are lists of riders with buttons
+            beside them, and they are one two-tab screen now. `/friends` still
+            resolves, because both friendship emails link to it — it opens the
+            Friends tab of `Riders` in the bar above.
+
+            The `friends` NavKey went with it, per the rule on the union above:
+            both URLs set 'riders', so the bar highlights Riders on either. */}
         <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
         {/* Under the account rather than under Rides: the bin holds saved places
             and groups as well, so it belongs to the rider rather than to their
@@ -573,6 +616,18 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
             reports looks for. */}
         <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Tell us something' }} navKey={navKey} />
         <NavLink item={{ key: 'board', href: '/board', label: 'Idea board' }} navKey={navKey} />
+        {/* LAST, and behind its own rule. Running the site is the least-often
+            used thing in here and the only block that is not about the rider
+            reading it — an admin is still a rider first, and their own profile,
+            settings and bin should not be below four moderation queues. */}
+        {user.canManageRiders && (
+          <>
+            <hr />
+            {ADMIN_LINKS.map((i) => (
+              <NavLink item={i} navKey={navKey} />
+            ))}
+          </>
+        )}
         <hr />
         <form method="post" action="/logout">
           <button class="linkbtn" type="submit">

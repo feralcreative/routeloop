@@ -10,7 +10,7 @@
 // should go back to that file.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, days as daysTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
@@ -21,10 +21,10 @@ import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
 import { LIVE_RIDE } from '../trash/service'
 import { LISTED_RIDE } from '../access/query'
-import { notBlockedWith, viewOf, viewsOf } from '../friends/service'
+import { viewOf } from '../friends/service'
 import { FriendActions } from '../views/friend-actions'
 import { FollowForm } from '../views/follow-form'
-import { followViewOf, followingSet } from '../follows/service'
+import { followViewOf } from '../follows/service'
 import { unitsFor } from '../views/prefs'
 
 export const pageRoutes = new Hono<AuthEnv>()
@@ -129,107 +129,11 @@ pageRoutes.get('/explore', async (c) => {
   return render(c, 'Explore', body, 'content-page explore-page', 'explore')
 })
 
-// The rider roster.
-//
-// Shows exactly what a public profile shows and nothing more — display name and
-// handle — because it is the same question asked in bulk. Anything a rider has
-// not chosen to publish stays off both. In particular no email, which is what
-// separates this from /admin.
-//
-// Signed-in only. That is not because the data is sensitive (it is all on the
-// public profiles already) but because an anonymous bulk list of every account
-// is a scraping target with no upside.
-pageRoutes.get('/riders', requireActive, async (c) => {
-  if (!allow('roster', clientIp(c.req.raw.headers), { max: 60 })) {
-    return c.text('Slow down a moment.', 429)
-  }
-
-  const q = (c.req.query('q') ?? '').trim().slice(0, 30)
-
-  const me = currentUser(c)
-
-  const rows = await db
-    .select({ id: users.id, displayName: users.displayName, username: users.username })
-    .from(users)
-    .where(
-      and(
-        // deletion_requested_at is null keeps a leaving rider off the roster
-        // from the moment they ask, the same as it keeps their rides off
-        // /explore.
-        q
-          ? sql`${users.status} = 'active' and ${users.username} is not null
-                and ${users.deletionRequestedAt} is null
-                and (lower(${users.username}) like lower(${'%' + q + '%'})
-                     or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
-          : sql`${users.status} = 'active' and ${users.username} is not null
-                and ${users.deletionRequestedAt} is null`,
-        // Both halves of every blocked pair drop out, symmetrically. This is
-        // what makes a block mean anything: without it the roster is a way
-        // around one, and the search box is a way around it by name.
-        notBlockedWith(me.id),
-        // The rider themselves. They are on the roster today and it reads as an
-        // oddity; with a friend button beside every name it reads as a bug.
-        ne(users.id, me.id),
-      ),
-    )
-    .orderBy(users.displayName)
-    .limit(200)
-
-  // One query for up to 200 riders rather than one per row. Ids missing from
-  // the map have no row at all, which is 'none' — the overwhelming majority.
-  // Two bulk lookups rather than two per row. They are separate questions and
-  // separate tables: friendship is negotiated and following is not, so a rider
-  // can be any combination of the two and the row shows both buttons.
-  const [views, followed] = await Promise.all([
-    viewsOf(
-      me.id,
-      rows.map((r) => r.id),
-    ),
-    followingSet(
-      me.id,
-      rows.map((r) => r.id),
-    ),
-  ])
-
-  const body = (
-    <>
-      <h1>Riders</h1>
-      <p class="lede">
-        Everyone planning here. Names and handles only—anything else is on a rider’s own profile, and only if they put
-        it there.
-      </p>
-      <form class="rider-search" method="get" action="/riders">
-        <label class="visually-hidden" for="rider-q">
-          Search riders
-        </label>
-        <input id="rider-q" name="q" type="search" maxlength={30} placeholder="Search by name or handle" value={q} />
-        <button class="btn" type="submit">
-          Search
-        </button>
-      </form>
-      {rows.length > 0 ? (
-        <ul class="rider-list">
-          {rows.map((r) => (
-            <li>
-              <a class="friend-who" href={`/@${r.username!}`}>
-                <span class="rider-display">{r.displayName}</span>
-                <span class="rider-handle">@{r.username!}</span>
-              </a>
-              <div class="friend-acts">
-                <FriendActions handle={r.username!} view={views.get(r.id) ?? 'none'} back="/riders" />
-                <FollowForm handle={r.username!} view={followed.has(r.id) ? 'following' : 'none'} back="/riders" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p class="empty">Nobody matches that.</p>
-      )}
-    </>
-  ).toString()
-
-  return render(c, 'Riders', body, 'content-page riders-page', 'riders')
-})
+// The rider roster moved to routes/riders.tsx on 2026-08-29 (#179), where it is
+// one tab of a two-tab screen alongside a rider's own friends list. Nothing of
+// it stayed here — including the query, whose three predicates (a leaving rider
+// dropped, both halves of every blocked pair dropped, and the viewer themselves
+// dropped) are load-bearing and are documented where they now live.
 
 // Public rider profile at /@handle.
 //
@@ -353,10 +257,18 @@ function SocialLinks({
   row: { instagram: string | null; facebook: string | null; youtube: string | null; strava: string | null }
 }) {
   const links = [
-    { label: 'Instagram', handle: row.instagram, href: (h: string) => `https://instagram.com/${encodeURIComponent(h)}` },
+    {
+      label: 'Instagram',
+      handle: row.instagram,
+      href: (h: string) => `https://instagram.com/${encodeURIComponent(h)}`,
+    },
     { label: 'Facebook', handle: row.facebook, href: (h: string) => `https://facebook.com/${encodeURIComponent(h)}` },
     { label: 'YouTube', handle: row.youtube, href: (h: string) => `https://youtube.com/@${encodeURIComponent(h)}` },
-    { label: 'Strava', handle: row.strava, href: (h: string) => `https://strava.com/athletes/${encodeURIComponent(h)}` },
+    {
+      label: 'Strava',
+      handle: row.strava,
+      href: (h: string) => `https://strava.com/athletes/${encodeURIComponent(h)}`,
+    },
   ].filter((l) => l.handle)
 
   if (links.length === 0) return null

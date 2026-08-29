@@ -23,6 +23,7 @@
 // picture frames. Two classes, because they are two things.
 import type { RideRow } from '../db/schema'
 import { DEFAULT_UNITS, type Units, distanceFromMiles, distanceUnit } from './units'
+import { SEP } from './sep'
 
 export type CardRow = { ride: RideRow; color: string | null }
 
@@ -100,16 +101,21 @@ function Card({ ride, color, showViews, units }: CardRow & { showViews: boolean;
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           {/*
-            Literal · rather than &middot;, and the two are not interchangeable
-            here. JSX *decodes* entities in static text, so `&middot;` compiles to
-            the character anyway — but inside an expression it does not, and
-            `{'&middot;'}` would render the visible text "&middot;" because the
-            ampersand gets escaped. One spelling that behaves the same in both
-            positions is the safe one. The page is UTF-8, so the character is fine.
+            SEP rather than a literal ·, since 2026-08-29. The delimiter carries
+            its own spacing now and there is one place to change it — see
+            src/views/sep.ts.
+
+            The note this replaces is still the reason it is a CONSTANT and not
+            an entity: JSX decodes entities in static text, so `&middot;` would
+            compile to the character there — but inside an expression it does
+            not, and `{'&middot;'}` renders the visible text "&middot;" because
+            the ampersand gets escaped. A constant behaves the same in both
+            positions, which an entity does not. The page is UTF-8 either way.
           */}
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
-            {showViews ? ` · ${ride.viewCount} views` : ''}
+            {ride.stopCount} stops{SEP}
+            {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {showViews ? `${SEP}${ride.viewCount} views` : ''}
           </span>
         </span>
       </a>

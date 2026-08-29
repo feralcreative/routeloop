@@ -53,6 +53,52 @@
 </p>
 
 <section class="rn-release">
+  <h3>29 August 2026 — two fixes and a tidier way around</h3>
+  <ul>
+    <li>
+      Adding a bike in the Paddock no longer throws you out of every field. Each time you clicked into one it lost
+      focus straight away and had to be clicked again; it just works&nbsp;now. Saving a place or renaming a group had
+      the same problem, and&nbsp;does&nbsp;not.
+    </li>
+    <li>
+      You can set a stop shorter than an hour. Typing <strong>.25</strong> gives you a quarter of an hour, and stop
+      times are shown to two decimals so a fifteen-minute coffee stop stays fifteen&nbsp;minutes. It did not before:
+      anything that was not a multiple of six minutes was quietly rounded on its way out of the box, and grew a little
+      every time you touched the&nbsp;row.
+      <strong>Worth re-checking any stop time you set before today</strong> — a stop you meant as twenty minutes
+      may be sitting at&nbsp;eighteen.
+    </li>
+    <li>
+      <strong>Dash</strong> is now the first thing in the menu instead of hiding at the top of the Rides list. Your
+      numbers, your records, then your&nbsp;rides.
+    </li>
+    <li>
+      There is a <strong>Plan a ride</strong> sign at the top of your dashboard. Starting a ride is what this is for
+      and it used to mean opening a menu&nbsp;first.
+    </li>
+    <li>
+      Riders and Friends are one page with two tabs, reached from <strong>Riders</strong>. Everyone in one place
+      instead of two, and old links to your friends list still land in the right&nbsp;place.
+    </li>
+    <li>
+      You can download a ride straight from the builder now — GPX, KML, GeoJSON, CSV, or a file per day —
+      without going to the Import / Export&nbsp;page.
+    </li>
+    <li>
+      If you imported a route file and then re-cut it here, downloading it gives you <em>your</em> version. It used to
+      hand back the file you uploaded, so an afternoon of edits came back as though you had never made&nbsp;them. What
+      you uploaded is still kept, and is still in your account&nbsp;archive.
+    </li>
+    <li>Google's zoom and map-type controls are about a third smaller, so there is more map to&nbsp;look&nbsp;at.</li>
+    <li>
+      A fix worth knowing about even though it was never reported: if the builder offered to restore unsaved changes,
+      clicking the map to add a point silently did nothing, and the route could not be dragged into shape. It looked
+      completely normal. That is&nbsp;fixed.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
   <h3>28 August 2026 — riding on someone else's ride</h3>
   <ul>
     <li>

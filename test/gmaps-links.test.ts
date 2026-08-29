@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_POINTS_PER_LINK, linkLabel, routeLinks } from '../src/maps/gmaps-links'
 import type { ExportPoint, ExportDay } from '../src/maps/export'
+import { SEP } from '../src/views/sep'
 
 const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
   lat: 37 + n / 100,
@@ -172,7 +173,7 @@ describe('labels', () => {
 
   it('numbers the parts when it does not', () => {
     const r = routeLinks(routeOf(Array.from({ length: 25 }, (_, i) => stop(i)), 'Coast run'))
-    expect(linkLabel(r, r.links[1], 0)).toBe(`Coast run · part 2 of ${r.links.length}`)
+    expect(linkLabel(r, r.links[1], 0)).toBe(`Coast run${SEP}part 2 of ${r.links.length}`)
   })
 
   it('falls back to the day number when the route has no title', () => {

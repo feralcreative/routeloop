@@ -4,7 +4,7 @@ The nav's shape and contents. Ziad's structure, with the four gaps resolved on 2
 
 ## Shape
 
-Four top-level groups on the left, the account menu pinned right. `Riders` is a plain link; everything else opens a panel.
+`Dash` and `Riders` are plain links on the left, then two groups that open a panel, with the account menu pinned right.
 
 At LG (≥992px) this renders as a bar. Below that, and on map pages at any width, the same markup is the drawer. Both are native `<details>`, so the menu works with JavaScript off.
 
@@ -13,8 +13,9 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 ```text
 Exit map              /                (map pages only)
 
+Dash                  /                (plain link, no panel)
+
 Rides ▾
-  Your rides          /
   Plan a ride         /builder
   Find a ride         /explore
   Import / Export     /import
@@ -26,32 +27,31 @@ About ▾
   Rider survey        /survey          (only if surveyInvitedAt)
   About this app      —                (opens the alpha modal)
 
-Admin ▾                                (only if canManageRiders)
-  Admin               /admin           (overview)
-  Approvals           /admin/approvals
-  Invitations         /admin/invites
-  Survey results      /admin/survey
-
                                        ← the account menu is pushed right from here
 
 {displayName} {avatar} ▾
   Your profile        /profile
-  Friends             /friends
   Settings            /settings
   Recycle bin         /trash
   ───
   Tell us something   /feedback
   Idea board          /board
+  ───                                  (the four below only if canManageRiders)
+  Admin               /admin           (overview)
+  Approvals           /admin/approvals
+  Invitations         /admin/invites
+  Survey results      /admin/survey
   ───
   Sign out            POST /logout
 ```
 
-Two of those sit under the account rather than where a reader might first look, and both for the same reason—they belong to the RIDER rather than to their rides:
+**`Friends` left this menu on 2026-08-29** (#179). It was here on the grounds that `/riders` is the roster—everyone—while `/friends` is the rider's own list, a different question about a different set of people. That reasoning is struck: both are lists of riders with buttons beside them, and they are now one two-tab screen reached through `Riders`. `/friends` still resolves, because both friendship emails link to it, and it opens the Friends tab.
 
-- **`Friends` is not beside `Riders`.** `/riders` is the roster, everyone; `/friends` is this rider's own list. A different question about a different set of people.
-- **`Recycle bin` is not under `Rides`.** The bin holds saved places and place groups as well.
+**`Admin` left the bar on 2026-08-29** (#194). It was a fourth top-level group holding four links, taking a top-level slot from every rider-facing destination on the widest nav the app has—and only the one rider who owns the site ever saw it. It sits under the account on the same argument that put the recycle bin there: that menu holds what acts on WHO YOU ARE rather than on what you are planning, and "I am the person who approves riders" is exactly that. **Flattened behind a rule rather than nested as a second disclosure**—a menu that opens into another menu is two taps to reach a link that was one, and the four labels say what they are without a heading over them. **Last, above Sign out**, because an admin is still a rider first and their own profile, settings and bin should not sit below four moderation queues.
 
-Neither is urgent enough for the top level: a rider only goes looking for the bin after they have deleted something they wanted.
+**`Recycle bin` stays under the account** rather than under `Rides`, for the reason the pair shared—it belongs to the RIDER rather than to their rides, since the bin holds saved places and place groups as well. It is not urgent enough for the top level either: a rider only goes looking for it after they have deleted something they wanted.
+
+**`Dash` is first and it is not in the Rides group.** Decided 2026-08-27. It was `Your rides` at the head of that menu, labeled for the destination rather than the location on the grounds that the group was already called Rides. Outside the group that reasoning inverts: with no "Rides" above it the label competes with the three verbs still in the menu, and the page is the stat tiles and Your records before it is a list of rides. The key stays `home`, so `navKey` and the `aria-current` it drives are untouched. The wordmark links to `/` as well, which is ordinary—`Dash` earns its place by being labeled, which a logo is not.
 
 Plus one thing that is not in the tree: a floating dock holding a **bug** mark and a **what's new** mark, on every page a signed-in rider can reach. See the decision below.
 
@@ -117,7 +117,7 @@ It was on the builder and the viewer only, on the reasoning that those are where
 
 **[superseded] Settings is stubbed.** `/settings` gets a real page with nothing on it yet, so the link is not dead. What goes on it is open. **No longer true**—see the two entries below: the page gained its first real setting on 2026-08-15 and is being renamed on 2026-08-16. Kept because it records why the link existed before the page did.
 
-**[shipped 2026-08-15] Settings has its first real setting.** The stop-duration format—hours to one decimal by default, switchable to hours+minutes or plain minutes. It posts to `/settings/duration-format` and writes one column, `user_profiles.duration_format`, rather than going through the profile form's POST, which validates and rewrites the whole profile and would need every other field carried along. The page is no longer a stub, though it is still short.
+**[shipped 2026-08-15] Settings has its first real setting.** The stop-duration format—hours to two decimals by default, switchable to hours+minutes or plain minutes. It posts to `/settings/duration-format` and writes one column, `user_profiles.duration_format`, rather than going through the profile form's POST, which validates and rewrites the whole profile and would need every other field carried along. The page is no longer a stub, though it is still short.
 
 ## Open
 

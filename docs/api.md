@@ -26,7 +26,7 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 | `GET /m/:slug/navigate`                                          | The Google Maps hand-off: each day as ordered `/maps/dir/?api=1` links carrying 9 waypoints plus two ends, with an Expand density control (off / light / tight). `routes/handoff.tsx`       |
 | `GET /m/:slug/roadbook`                                          | Printable stop-by-stop sheet, server-rendered, no JavaScript. `routes/roadbook.tsx`                                                                                                         |
 | `GET /api/public/rides/:slug/ride.json`                          | The normalized viewer contract for both sources: ride meta plus `days[]`, each with `track`, one ordered `points[]` and `legs[]` carrying `startIndex`/`endIndex` spans into that same `track` |
-| `GET /api/public/maps/:slug/:format{kml\|gpx\|geojson\|csv}`     | Gated download. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in; every other format is generated from the rows                    |
+| `GET /api/public/maps/:slug/:format{kml\|gpx\|geojson\|csv}`     | Gated download. **Source-aware:** an imported ride streams its stored original byte-for-byte for the format it arrived in, **until it is edited here**—`updated_at > original_stored_at` and it is generated from the rows instead. Every other format is generated always                    |
 | `GET /api/public/maps/:slug/routeloop.json`                      | Lossless native export                                                                                                                                                                      |
 | `GET /api/public/maps/:slug/zip/:format{kml\|gpx\|geojson\|csv}` | One conforming file per day. **Registered ahead of the generic `:format` route on purpose**—after it, the generic route swallows `/zip/gpx` and answers with a plain GPX                    |
 | `GET /explore`, `/faq`, `/privacy`, `/terms`                     | `routes/pages.tsx`                                                                                                                                                                          |
@@ -39,9 +39,15 @@ Public ride reads are gated by `getViewable(slug, viewer)` in `src/index.tsx`: p
 
 `GET /dev/login` registers **only** when `DEV_LOGIN_EMAIL` names an existing account, `DATABASE_URL` is local, `APP_ORIGIN` is not HTTPS, and the request Host is `127.0.0.1` or `localhost`. When off it is a plain 404, not a refusal. It is not on the deploy's env allow-list, so it cannot reach a server.
 
-## Friendships (`routes/friends.tsx`)
+## The riders screen (`routes/riders.tsx`)
 
-`GET /friends` is the page. The five verbs are one route, `POST /friends/:verb{request|accept|remove|block|unblock}`, behind `requireActive` and `requireSameOrigin`, taking a `handle` and a `back` path as a form post and answering 303 to `back` in every case.
+`GET /riders` and `GET /friends` are the same two-tab page—**Friends** and **All riders**—both behind `requireActive` and both setting `navKey: 'riders'`. `/riders` carries a 60-per-minute IP rate limit on the roster half. Both panels are rendered into the page and one is `hidden`; `public/js/tabs.js` switches them, and with no script the tab a URL asks for is the one shown. `?tab=friends|all` selects it, and a `?q=` search always selects **All riders**, since a search is an answer to which tab was wanted. `/friends` is kept rather than redirected because both friendship emails link to it.
+
+The roster is capped at 200, ordered by display name, and filtered by three predicates that are each load-bearing: a rider who has asked to leave is dropped, **both halves** of every blocked pair are dropped, and the viewer themselves is dropped.
+
+## Friendship verbs (`routes/friends.tsx`)
+
+The five verbs are one route, `POST /friends/:verb{request|accept|remove|block|unblock}`, behind `requireActive` and `requireSameOrigin`, taking a `handle` and a `back` path as a form post and answering 303 to `back` in every case.
 
 **Every answer is identical whether it worked or not.** No verb reports which refusal it hit, and an unknown handle is indistinguishable from one that has blocked you. That is what makes a block work: a distinguishable refusal is a notification. `back` is validated as an allow-shape (one leading slash, no second one, no backslash) rather than sanitized, and anything failing it lands on `/friends`.
 

@@ -14,6 +14,7 @@ import { page } from '../views/layout'
 import { esc } from '../views/esc'
 import { contrast, readTokens, type Literal, type Token } from '../views/tokens'
 import { DAY_COLORS } from '../maps/palette'
+import { SEP } from '../views/sep'
 
 export const brandRoutes = new Hono<AuthEnv>()
 
@@ -112,8 +113,8 @@ brandRoutes.get('/brand', requireActive, (c) => {
     </p>
 
     <p class="brand-summary">
-      <strong>${colors.length}</strong> color tokens ·
-      <strong>${DAY_COLORS.length}</strong> day colors ·
+      <strong>${colors.length}</strong> color tokens${SEP}
+      <strong>${DAY_COLORS.length}</strong> day colors${SEP}
       <strong>${untokenized.length}</strong> hexes with no token, used <strong>${strayTotal}</strong> times
     </p>
 

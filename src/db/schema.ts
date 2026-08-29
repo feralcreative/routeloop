@@ -745,6 +745,27 @@ export const rides = pgTable(
     // Kept separate rather than folded into kml_bytes so "how big is the KML"
     // stays answerable.
     sourceBytes: integer('source_bytes').notNull().default(0),
+    // WHEN THE STORED ORIGINAL WAS WRITTEN, so an export can tell a ride that
+    // still IS its uploaded file from one that has been rebuilt in the builder
+    // since. `updated_at > original_stored_at` is the whole test, and it is
+    // deliberately the same shape as `updated_at > thumb_built_at` above rather
+    // than a second idea about how to ask "has this changed since".
+    //
+    // It exists because the export route prefers the stored original — rightly,
+    // since that file carries styling, folders and per-point detail this app
+    // does not model — and nothing clears it when the builder saves. A rider who
+    // imported a GPX, spent an hour re-cutting it and pressed Export got their
+    // hour back as the pre-edit file, silently. That was nearly invisible while
+    // the only way to reach it was typing the URL; #172 puts a button on it.
+    //
+    // NULL where nothing was ever stored, which is every ride built here. Null
+    // is not a date in the past: a ride with no original cannot have a stale
+    // one, and the export path checks `hasStored` before it looks at this at
+    // all. Nullable with no default for the reason `deleted_at` gives above — a
+    // default would stamp a timestamp onto every existing row and claim their
+    // originals were written the day the column was added, which for a ride
+    // edited since would be exactly backwards.
+    originalStoredAt: timestamp('original_stored_at'),
     // Must include every byte column. used_bytes is incremented by the app on
     // import and decremented by this on delete, so a column missing here means
     // quota leaks a little on every delete, permanently and silently.

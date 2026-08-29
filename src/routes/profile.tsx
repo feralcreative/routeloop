@@ -21,6 +21,7 @@ import { MAX_IMAGE_BYTES, UPLOAD_REFUSAL_MESSAGES, checkUpload } from '../images
 import { PROCESSED_MIME } from '../images/process'
 import { deleteAvatar, processAvatar, readAvatar, writeAvatar } from '../account/avatar'
 import { avatarSrc } from '../views/layout'
+import { SEP } from '../views/sep'
 
 export const profileRoutes = new Hono<AuthEnv>()
 
@@ -197,7 +198,7 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
               <span class="handle">@{r.username}</span>{' '}
               <span class="handle-dates">
                 {day(r.claimedAt)} – {day(r.releasedAt!)}
-                {held ? ` · yours to reclaim until ${day(until)}` : ''}
+                {held ? `${SEP}yours to reclaim until ${day(until)}` : ''}
               </span>
             </li>
           )

@@ -42,16 +42,24 @@ beforeAll(() => {
 
 describe('formatDuration', () => {
   it('writes 90 minutes differently in each format', () => {
-    expect(formatDuration(90, 'hours')).toBe('1.5')
+    expect(formatDuration(90, 'hours')).toBe('1.50')
     expect(formatDuration(90, 'hm')).toBe('1h 30m')
     expect(formatDuration(90, 'minutes')).toBe('90')
   })
 
-  it('keeps the trailing zero on a round number of hours', () => {
+  it('keeps the trailing zeros on a round number of hours', () => {
     // A column mixing "2" and "1.5" reads as two units. See the comment on
     // decimalHours().
-    expect(formatDuration(120, 'hours')).toBe('2.0')
-    expect(formatDuration(60, 'hours')).toBe('1.0')
+    expect(formatDuration(120, 'hours')).toBe('2.00')
+    expect(formatDuration(60, 'hours')).toBe('1.00')
+  })
+
+  it('writes a quarter of an hour as a quarter of an hour', () => {
+    // #189, and the value the issue names. At one decimal place this was '0.3',
+    // which is 18 minutes as soon as anything reads it back.
+    expect(formatDuration(15, 'hours')).toBe('0.25')
+    expect(formatDuration(20, 'hours')).toBe('0.33')
+    expect(formatDuration(45, 'hours')).toBe('0.75')
   })
 
   it('drops the hours part below an hour', () => {
@@ -71,7 +79,7 @@ describe('formatDuration', () => {
   })
 
   it('never emits a negative duration', () => {
-    expect(formatDuration(-30, 'hours')).toBe('0.0')
+    expect(formatDuration(-30, 'hours')).toBe('0.00')
     expect(formatDuration(-30, 'hm')).toBe('0m')
     expect(formatDuration(-30, 'minutes')).toBe('0')
   })
@@ -80,7 +88,7 @@ describe('formatDuration', () => {
     // 658 minutes is the roadbook comment's real example.
     expect(formatDuration(658, 'minutes')).toBe('658')
     expect(formatDuration(658, 'hm')).toBe('10h 58m')
-    expect(formatDuration(658, 'hours')).toBe('11.0')
+    expect(formatDuration(658, 'hours')).toBe('10.97')
   })
 })
 
@@ -90,7 +98,7 @@ describe('parseDuration', () => {
     expect(parseDuration('90', 'hm')).toBe(90)
     expect(parseDuration('90', 'minutes')).toBe(90)
     // The one that looks alarming and is not: under 'hours' the field shows
-    // "1.5", so a rider typing 90 there means 90 hours.
+    // "1.50", so a rider typing 90 there means 90 hours.
     expect(parseDuration('90', 'hours')).toBe(5400)
   })
 
@@ -152,28 +160,36 @@ describe('parseDuration', () => {
     expect(parseDuration('43199m', 'hm')).toBe(43199)
   })
 
-  it('round-trips every format', () => {
+  it('round-trips EVERY storable minute in every format, exhaustively', () => {
     // The property that matters in the panel: what a rider sees is what the
-    // field will read back. 'hours' is exact only on six-minute boundaries,
-    // which is the documented cost of one decimal place.
-    const exact = [0, 5, 15, 30, 45, 60, 90, 125, 658, 1440]
-    for (const m of exact) {
-      for (const f of ['hm', 'minutes'] as DurationFormat[]) {
+    // field will read back. This is the test #189 did not have — the old one
+    // sampled six-minute boundaries for 'hours' and asserted a three-minute loss
+    // everywhere else, so the format silently rewriting a 15-minute stop as 18
+    // was inside what it allowed. Exhaustive rather than sampled, because the
+    // whole claim is that there is no value left over.
+    for (const f of DURATION_FORMATS) {
+      for (let m = 0; m <= MAX_DURATION_MIN; m++) {
         expect(parseDuration(formatDuration(m, f), f)).toBe(m)
       }
     }
-    for (const m of [0, 6, 30, 60, 90, 120, 660]) {
-      expect(parseDuration(formatDuration(m, 'hours'), 'hours')).toBe(m)
-    }
   })
 
-  it('loses at most three minutes to the hours format, and says so here', () => {
-    // Not a bug, a documented trade: one decimal hour is six minutes. This test
-    // exists so the size of the loss cannot grow unnoticed.
-    for (let m = 0; m <= 600; m++) {
-      const back = parseDuration(formatDuration(m, 'hours'), 'hours')
-      expect(back).not.toBe(null)
-      expect(Math.abs((back as number) - m)).toBeLessThanOrEqual(3)
+  it('reads a number that opens with its decimal point', () => {
+    // The other half of #189: ".25" matched nothing, so the field emptied itself
+    // on the one input a rider reaches for when they want a short stop.
+    expect(parseDuration('.25', 'hours')).toBe(15)
+    expect(parseDuration('.5', 'hours')).toBe(30)
+    for (const f of DURATION_FORMATS) {
+      expect(parseDuration('.5h', f)).toBe(30)
+      expect(parseDuration('.5 hours', f)).toBe(30)
+      expect(parseDuration('.5m', f)).toBe(1)
+      expect(parseDuration('1h .5m', f)).toBe(61)
+      // A trailing point is a number someone is still typing, not a typo.
+      expect(parseDuration('2.', 'hours')).toBe(120)
+      // A lone point is not a number, and neither is a bare sign.
+      expect(parseDuration('.', f)).toBe(null)
+      expect(parseDuration('.h', f)).toBe(null)
+      expect(parseDuration('-.5', f)).toBe(null)
     }
   })
 })
@@ -232,6 +248,17 @@ describe('public/js/duration.js agrees with src/maps/duration.ts', () => {
     '90',
     '1.5',
     '0.34',
+    // #189's shapes: a leading point, a trailing point, and the two that are not
+    // numbers at all. The two implementations build NUM by hand out of different
+    // string literals, which is exactly the kind of drift this block exists for.
+    '.25',
+    '.5',
+    '.5h',
+    '.5m',
+    '2.',
+    '.',
+    '.h',
+    '-.5',
     '90m',
     '90 min',
     '90 minutes',

@@ -4,6 +4,12 @@
 (function () {
   "use strict";
 
+  // The interpunct data delimiter and the space around it, mirroring SEP in
+  // src/views/sep.ts — read that file for why it is an en space rather than a
+  // word space, and why it is written as an escape. test/sep.test.ts fails if
+  // the three copies stop agreeing.
+  const SEP = "\u2002\u00b7\u2002";
+
   // Miles or kilometers — public/js/units.js mirrors src/views/units.ts and
   // test/units-client.test.ts pins the two together. `window.TB.units` is the
   // rider's stored preference, already coerced server-side.
@@ -204,16 +210,16 @@
     if (a.dayIndex == null) {
       what = "between days";
     } else if (a.legIndex != null) {
-      what = dayName(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.ride.days[a.dayIndex].legs.length;
+      what = dayName(a.dayIndex) + SEP + "leg " + (a.legIndex + 1) + " of " + state.ride.days[a.dayIndex].legs.length;
     } else {
       // ONE INDEX into the day's own points array, matching what the builder
       // reads. It used to be a stopIndex or a poiIndex, each into its own
       // filtered array — see the note in ride-time.js on why that is a trap.
       const pt = a.pointIndex == null ? null : state.ride.days[a.dayIndex].points[a.pointIndex];
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
-      what = dayName(a.dayIndex) + " · at " + ((pt && pt.name) || fallback);
+      what = dayName(a.dayIndex) + SEP + "at " + ((pt && pt.name) || fallback);
     }
-    say(fmtMoment(state.moment) + " · " + what);
+    say(fmtMoment(state.moment) + SEP + what);
   }
 
   function wireTimeline() {
