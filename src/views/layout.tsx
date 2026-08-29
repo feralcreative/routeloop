@@ -66,7 +66,10 @@ export type NavKey =
   | 'builder'
   | 'import'
   | 'places'
-  | 'friends'
+  // No 'friends' member either, removed on 2026-08-29 for the same reason as
+  // 'rides': /friends became a tab of the riders screen (#179), both its URLs
+  // set 'riders', and a key no NavItem carries is an aria-current that is wired
+  // and can never fire.
   | 'profile'
   | 'settings'
   | 'trash'
@@ -576,10 +579,17 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
       </summary>
       <div class="nav-sub-items">
         <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
-        {/* Under the account rather than beside Riders. /riders is the roster —
-            everyone — and this is the rider's own list, which is a different
-            question about a different set of people. */}
-        <NavLink item={{ key: 'friends', href: '/friends', label: 'Friends' }} navKey={navKey} />
+        {/* FRIENDS IS NOT HERE ANY MORE, as of 2026-08-29 (#179). It sat under
+            the account on the grounds that "/riders is the roster — everyone —
+            and this is the rider's own list, which is a different question about
+            a different set of people". That reasoning is struck rather than left
+            standing to be re-discovered: both are lists of riders with buttons
+            beside them, and they are one two-tab screen now. `/friends` still
+            resolves, because both friendship emails link to it — it opens the
+            Friends tab of `Riders` in the bar above.
+
+            The `friends` NavKey went with it, per the rule on the union above:
+            both URLs set 'riders', so the bar highlights Riders on either. */}
         <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
         {/* Under the account rather than under Rides: the bin holds saved places
             and groups as well, so it belongs to the rider rather than to their

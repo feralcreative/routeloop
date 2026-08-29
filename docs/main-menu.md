@@ -37,7 +37,6 @@ Admin ▾                                (only if canManageRiders)
 
 {displayName} {avatar} ▾
   Your profile        /profile
-  Friends             /friends
   Settings            /settings
   Recycle bin         /trash
   ───
@@ -47,12 +46,9 @@ Admin ▾                                (only if canManageRiders)
   Sign out            POST /logout
 ```
 
-Two of those sit under the account rather than where a reader might first look, and both for the same reason—they belong to the RIDER rather than to their rides:
+**`Friends` left this menu on 2026-08-29** (#179). It was here on the grounds that `/riders` is the roster—everyone—while `/friends` is the rider's own list, a different question about a different set of people. That reasoning is struck: both are lists of riders with buttons beside them, and they are now one two-tab screen reached through `Riders`. `/friends` still resolves, because both friendship emails link to it, and it opens the Friends tab.
 
-- **`Friends` is not beside `Riders`.** `/riders` is the roster, everyone; `/friends` is this rider's own list. A different question about a different set of people.
-- **`Recycle bin` is not under `Rides`.** The bin holds saved places and place groups as well.
-
-Neither is urgent enough for the top level: a rider only goes looking for the bin after they have deleted something they wanted.
+**`Recycle bin` stays under the account** rather than under `Rides`, for the reason the pair shared—it belongs to the RIDER rather than to their rides, since the bin holds saved places and place groups as well. It is not urgent enough for the top level either: a rider only goes looking for it after they have deleted something they wanted.
 
 **`Dash` is first and it is not in the Rides group.** Decided 2026-08-27. It was `Your rides` at the head of that menu, labeled for the destination rather than the location on the grounds that the group was already called Rides. Outside the group that reasoning inverts: with no "Rides" above it the label competes with the three verbs still in the menu, and the page is the stat tiles and Your records before it is a list of rides. The key stays `home`, so `navKey` and the `aria-current` it drives are untouched. The wordmark links to `/` as well, which is ordinary—`Dash` earns its place by being labeled, which a logo is not.
 

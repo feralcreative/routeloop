@@ -34,6 +34,7 @@ import { ridesRoutes } from './routes/rides'
 import { mapsRoutes } from './routes/maps'
 import { pageRoutes } from './routes/pages'
 import { friendRoutes } from './routes/friends'
+import { riderRoutes } from './routes/riders'
 import { commentRoutes } from './routes/comments'
 import { suggestionRoutes } from './routes/suggestions'
 import { rosterRoutes } from './routes/roster'
@@ -116,7 +117,6 @@ app.get('/healthz', async (c) => {
   c.header('Cache-Control', 'no-store')
   return c.json(body, status)
 })
-
 
 // Keep the former domains alive during the one-year transition, but make the
 // canonical host unambiguous for cookies, sharing, and search engines. Each
@@ -233,6 +233,9 @@ app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', friendRoutes)
+// Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not
+// catch them anyway — kept together with the other rider-facing modules.
+app.route('/', riderRoutes)
 app.route('/', pageRoutes)
 app.route('/', profileRoutes)
 app.route('/', routingRoutes)
