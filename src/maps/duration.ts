@@ -16,11 +16,13 @@
 // THREE FORMATS, NOT ONE, because the argument for each is real and they do not
 // settle it between them:
 //
-//   'hours'   — 1.5. Ziad's default. It sorts, it does arithmetic in your head,
-//               and it matches how riders talk about a day. The cost is
-//               granularity: one decimal hour is six minutes, so a 20-minute gas
-//               stop reads 0.3 and a 25-minute one reads 0.4. That is a real
-//               loss and it is why the other two exist.
+//   'hours'   — 1.50. Ziad's default. It sorts, it does arithmetic in your head,
+//               and it matches how riders talk about a day. TWO decimal places,
+//               not one, and that is #189: at one place the smallest stop the
+//               format could hold was six minutes, every value off that grid was
+//               silently rewritten on the way out, and a quarter-hour stop was
+//               not expressible at all. Two places holds every stored minute
+//               exactly — see decimalHours().
 //   'hm'      — 1h 30m. Exact to the minute and the same shape the roadbook
 //               prints, which is the one place a rider sees these numbers
 //               outside the builder. hoursMinutes() below is what both use.
@@ -32,8 +34,14 @@
 // explicit unit always wins, and a bare number is read in the format's own unit.
 // "90" is ninety minutes under 'hm' and 'minutes' and ninety HOURS under
 // 'hours', which sounds alarming until you notice that under 'hours' the field
-// is showing "1.5" and a rider typing there means hours. Anyone who means
+// is showing "1.50" and a rider typing there means hours. Anyone who means
 // minutes can type "90m" in any format and be understood.
+//
+// A NUMBER MAY OPEN WITH ITS DECIMAL POINT. ".25" is a quarter of an hour and it
+// used to parse as nothing at all — the field simply cleared, in every format,
+// on the one input a rider reaches for when they want a short stop. That is the
+// other half of #189 and it is why every numeric group below is NUM rather than
+// a hand-written \d+ with an optional tail.
 
 export const DURATION_FORMATS = ['hours', 'hm', 'minutes'] as const
 export type DurationFormat = (typeof DURATION_FORMATS)[number]
@@ -72,14 +80,23 @@ export function hoursMinutes(minutes: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-// One decimal, and the trailing zero is kept: "2.0" rather than "2".
+// TWO decimals, and the trailing zeros are kept: "2.00" rather than "2".
 //
-// It looks like noise on a round number and it is not. The field is an editable
-// heading of sorts — a column of them, one per stop — and a mixture of "2" and
-// "1.5" down that column reads as two different units. Holding the decimal place
-// makes the column scannable, which is most of what this format is for.
+// Holding the decimal places is what makes the column scannable — the field is
+// an editable heading of sorts, one per stop, and a mixture of "2" and "1.5"
+// down that column reads as two different units. That argument has not changed.
+// What changed is HOW MANY places, and the number is not a matter of taste:
+//
+// TWO IS THE SMALLEST PRECISION THAT ROUND-TRIPS EVERY STORED VALUE. At one
+// place the format could only express six-minute boundaries, so blurring the
+// field REWROTE the stop: 15 minutes came back "0.3", which reads as 18 the next
+// time anything parses it, and a rider watched a quarter-hour coffee stop grow
+// every time they touched the row. At two places `round(Number(v) * 60)` returns
+// the original for all 43,201 storable minutes, which test/duration.test.ts
+// asserts exhaustively rather than by sampling. Do not trim this back to one
+// place to tidy the column up.
 export function decimalHours(minutes: number): string {
-  return (Math.max(0, minutes) / 60).toFixed(1)
+  return (Math.max(0, minutes) / 60).toFixed(2)
 }
 
 export function formatDuration(minutes: number | null | undefined, format: DurationFormat): string {
@@ -95,11 +112,17 @@ export function formatDuration(minutes: number | null | undefined, format: Durat
 // Everything the parser will take, in every format. Order matters: the compound
 // forms have to be tried before the bare ones or "1h 30m" matches the "1h" rule
 // and silently loses the minutes.
-const COMPOUND = /^(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\s*(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?$/i
+//
+// NUM is one source for the number so all four agree about what a number is.
+// `.5` and `5.` are both numbers a person types; `.` on its own and `1.2.3` are
+// not, and neither is a leading minus — a negative dwell is a typo, and letting
+// it through would clamp to 0 and read as a deliberate no-time stop.
+const NUM = '(?:\\d+(?:\\.\\d*)?|\\.\\d+)'
+const COMPOUND = new RegExp(`^(${NUM})\\s*h(?:ours?|rs?)?\\s*(${NUM})\\s*m(?:in(?:ute)?s?)?$`, 'i')
 const CLOCK = /^(\d+):([0-5]?\d)$/
-const HOURS_ONLY = /^(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?$/i
-const MINUTES_ONLY = /^(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?$/i
-const BARE = /^(\d+(?:\.\d+)?)$/
+const HOURS_ONLY = new RegExp(`^(${NUM})\\s*h(?:ours?|rs?)?$`, 'i')
+const MINUTES_ONLY = new RegExp(`^(${NUM})\\s*m(?:in(?:ute)?s?)?$`, 'i')
+const BARE = new RegExp(`^(${NUM})$`)
 
 // Text back to stored minutes, or null for "nothing here".
 //
@@ -112,8 +135,7 @@ export function parseDuration(text: string, format: DurationFormat): number | nu
   const s = String(text ?? '').trim()
   if (s === '') return null
 
-  const round = (n: number) =>
-    Number.isFinite(n) ? Math.min(MAX_DURATION_MIN, Math.max(0, Math.round(n))) : null
+  const round = (n: number) => (Number.isFinite(n) ? Math.min(MAX_DURATION_MIN, Math.max(0, Math.round(n))) : null)
 
   const compound = COMPOUND.exec(s)
   if (compound) return round(Number(compound[1]) * 60 + Number(compound[2]))

@@ -32,8 +32,11 @@ window.TBDuration = (function () {
     return h > 0 ? h + "h " + m + "m" : m + "m";
   }
 
+  // Two decimals, not one: at one place the format could only express six-minute
+  // boundaries, so blurring the field rewrote a 15-minute stop as "0.3" and the
+  // next parse read it back as 18. See src/maps/duration.ts for the whole of it.
   function decimalHours(minutes) {
-    return (Math.max(0, minutes) / 60).toFixed(1);
+    return (Math.max(0, minutes) / 60).toFixed(2);
   }
 
   function format(minutes, fmt) {
@@ -46,11 +49,16 @@ window.TBDuration = (function () {
   }
 
   // Compound first, or "1h 30m" matches the hours-only rule and loses the 30.
-  const COMPOUND = /^(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\s*(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?$/i;
+  //
+  // NUM allows a leading decimal point, so ".25" is a quarter hour rather than
+  // nothing — it parsed as null in every format until #189, and the field simply
+  // emptied itself.
+  const NUM = "(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+  const COMPOUND = new RegExp("^(" + NUM + ")\\s*h(?:ours?|rs?)?\\s*(" + NUM + ")\\s*m(?:in(?:ute)?s?)?$", "i");
   const CLOCK = /^(\d+):([0-5]?\d)$/;
-  const HOURS_ONLY = /^(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?$/i;
-  const MINUTES_ONLY = /^(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?$/i;
-  const BARE = /^(\d+(?:\.\d+)?)$/;
+  const HOURS_ONLY = new RegExp("^(" + NUM + ")\\s*h(?:ours?|rs?)?$", "i");
+  const MINUTES_ONLY = new RegExp("^(" + NUM + ")\\s*m(?:in(?:ute)?s?)?$", "i");
+  const BARE = new RegExp("^(" + NUM + ")$");
 
   function parse(text, fmt) {
     const s = String(text == null ? "" : text).trim();
