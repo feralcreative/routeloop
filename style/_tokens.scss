@@ -191,7 +191,12 @@ $panel-shadow: var(--panel-shadow);
 // There is no width axis. Archivo had one and `font-stretch` worked; here it
 // does nothing, because Overpass ships a weight axis only. Reaching for
 // letter-spacing is the substitute.
-$font: overpass;
+//
+// `sep-dot` leads the stack and covers exactly one codepoint, U+00B7 — see the
+// block at the top of _fonts.scss for why. It carries no file and downloads
+// nothing; it exists to take the interpunct away from Overpass, whose copy of
+// it has an advance width of zero.
+$font: sep-dot, overpass;
 
 // Forward-looking alias. `$url` is historical — it is the generic accent, not a
 // link color — so new work should reach for `$brand`.

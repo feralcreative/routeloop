@@ -7,6 +7,12 @@
 // map is the point of the app, so dimming is the only thing focus does.
 (function () {
   "use strict";
+
+  // The interpunct data delimiter and the space around it, mirroring SEP in
+  // src/views/sep.ts — read that file for why it is an en space rather than a
+  // word space, and why it is written as an escape. test/sep.test.ts fails if
+  // the three copies stop agreeing.
+  const SEP = "\u2002\u00b7\u2002";
   const {
     esc,
     initMap,
@@ -2048,7 +2054,7 @@
   // there is a name, the number alone when there is not.
   function dayLabel(r) {
     const name = dayName(r);
-    return name ? "Day " + dayNumber(r) + " · " + name : "Day " + dayNumber(r);
+    return name ? "Day " + dayNumber(r) + SEP + name : "Day " + dayNumber(r);
   }
 
   // EVERY DAY, RENDERED AT ONCE. This replaces renderSlider + renderDayEditing +
@@ -2958,8 +2964,8 @@
             '<button type="button" class="sg-take" data-lat="' + c.lat + '" data-lng="' + c.lng + '"' +
             ' data-sg="' + esc(g.uid) + '">Use this</button>' +
             '<span class="sg-meet-fact">' +
-            (c.isFuel ? "a fuel stop · " : "") +
-            "+" + c.divertMi + " mi out of their way · " +
+            (c.isFuel ? "a fuel stop" + SEP : "") +
+            "+" + c.divertMi + " mi out of their way" + SEP +
             c.sharedPct + "% of the shared route still ahead" +
             "</span>" +
             "</li>",
@@ -3323,7 +3329,7 @@
     if (a.dayIndex == null) {
       what = "between days";
     } else if (a.legIndex != null) {
-      what = dayLabel(a.dayIndex) + " · leg " + (a.legIndex + 1) + " of " + state.days[a.dayIndex].legs.length;
+      what = dayLabel(a.dayIndex) + SEP + "leg " + (a.legIndex + 1) + " of " + state.days[a.dayIndex].legs.length;
     } else {
       // ONE INDEX, into the day's own points array — no filtering, so no chance
       // of reading the wrong element. A point with no name falls back to its
@@ -3331,9 +3337,9 @@
       // shows counts stops only and a POI has none.
       const pt = a.pointIndex == null ? null : state.days[a.dayIndex].points[a.pointIndex];
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
-      what = dayLabel(a.dayIndex) + " · at " + ((pt && pt.name) || fallback);
+      what = dayLabel(a.dayIndex) + SEP + "at " + ((pt && pt.name) || fallback);
     }
-    say(fmtMoment(state.moment) + " · " + what);
+    say(fmtMoment(state.moment) + SEP + what);
   }
 
   // Moving the timeline is the primary gesture; the day slider follows it so
@@ -3838,11 +3844,11 @@
       window.TBUnits.distanceFrom(t.meters, UNITS).toFixed(1) +
       " " +
       distUnit +
-      " · " +
+      SEP +
       (t.estimated ? "~" : "") +
       hm(t.riding) +
       " riding" +
-      (t.twist ? " · " + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
+      (t.twist ? SEP + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
 
     // The label alone on the line; the numbers behind it on hover. "252°/mi"
     // means nothing to a rider, but it is the thing to check when the label
@@ -3903,7 +3909,7 @@
       // The count of days that COUNT, not of sections on screen. A ride with
       // three days and two alternates is a three-day ride, and saying "5 days"
       // beside a mileage that only covers three would make both look wrong.
-      counted.length + " days · " + line(ride, true) + "</span>" +
+      counted.length + " days" + SEP + line(ride, true) + "</span>" +
       // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
       // its own line, so the block is the same height whichever way the scrubber
       // is set and the controls below it never move. Dropping the span when

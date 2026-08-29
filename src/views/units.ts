@@ -23,6 +23,8 @@
 // third question nothing in the app currently asks, and a member added here for
 // it would be a member no formatter reads.
 
+import { SEP } from './sep'
+
 export const UNITS = ['imperial', 'metric'] as const
 export type Units = (typeof UNITS)[number]
 export const DEFAULT_UNITS: Units = 'imperial'
@@ -77,6 +79,6 @@ export const twistUnit = (units: Units): string => (units === 'metric' ? '°/km'
 /** The settings page's radio set. The examples are the same road in both, which
  *  is the question being asked — not two different roads. */
 export const UNITS_CHOICES: { id: Units; label: string; example: string }[] = [
-  { id: 'imperial', label: 'Miles', example: '248 mi · 840°/mi' },
-  { id: 'metric', label: 'Kilometers', example: '399 km · 522°/km' },
+  { id: 'imperial', label: 'Miles', example: `248 mi${SEP}840°/mi` },
+  { id: 'metric', label: 'Kilometers', example: `399 km${SEP}522°/km` },
 ]

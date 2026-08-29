@@ -23,6 +23,7 @@ import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
 import type { PlaceGroupRow, PlaceRow, RideRow } from '../db/schema'
 import type { RestoreResult } from '../trash/service'
+import { SEP } from '../views/sep'
 
 export const trashRoutes = new Hono<AuthEnv>()
 
@@ -33,8 +34,8 @@ function Countdown({ purgeAfter, dateFormat }: { purgeAfter: Date | null; dateFo
   const days = daysUntilPurge({ deletedAt: null, purgeAfter }, new Date())
   return (
     <span class="trash-when">
-      {days === 0 ? 'Goes today' : `${days} ${days === 1 ? 'day' : 'days'} left`} · destroyed{' '}
-      {fmtDateFull(purgeAfter, dateFormat)}
+      {days === 0 ? 'Goes today' : `${days} ${days === 1 ? 'day' : 'days'} left`}
+      {SEP}destroyed {fmtDateFull(purgeAfter, dateFormat)}
     </span>
   )
 }

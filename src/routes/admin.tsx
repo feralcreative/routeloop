@@ -18,6 +18,7 @@ import { sendTemplateDetached } from '../auth/mailer'
 import { approvedEmail } from '../emails/approved'
 import { shouldSendApproval } from '../emails/rules'
 import { page } from '../views/layout'
+import { SEP } from '../views/sep'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -80,10 +81,10 @@ function RiderRowView({ rider, meId }: { rider: RiderRow; meId: number }) {
         </span>
         <span class="rider-email">
           {rider.email ?? '—'}
-          {handle ? ` · ${handle}` : ''}
+          {handle ? `${SEP}${handle}` : ''}
         </span>
         <span class="rider-meta">
-          joined {fmtDate(rider.createdAt)} · last seen {fmtDate(rider.lastLoginAt)}
+          joined {fmtDate(rider.createdAt)}{SEP}last seen {fmtDate(rider.lastLoginAt)}
         </span>
       </span>
       <span class="rider-status">
@@ -136,7 +137,7 @@ adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
       <h1>Approvals</h1>
       <div class="sub">
         {riders.length} account{riders.length === 1 ? '' : 's'}
-        {pending ? ` · ${pending} waiting for approval` : ''}
+        {pending ? `${SEP}${pending} waiting for approval` : ''}
       </div>
       <Notice query={(k) => c.req.query(k)} />
       {riders.length > 0 ? (

@@ -24,6 +24,7 @@ import { page } from '../views/layout'
 import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
 import { resolveStrand } from '../subgroups/service'
+import { SEP } from '../views/sep'
 
 export const handoffRoutes = new Hono<AuthEnv>()
 
@@ -136,7 +137,7 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
                         <p class="ho-stops">
                           {link.points.map((p) => p.name || 'Unnamed stop').join(' → ')}
                           {link.shaping > 0 && (
-                            <span class="ho-shaping"> · {link.shaping} points holding the route</span>
+                            <span class="ho-shaping">{SEP}{link.shaping} points holding the route</span>
                           )}
                         </p>
                       </li>

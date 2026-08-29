@@ -38,6 +38,7 @@ import {
 import type { SurveyAnswers } from '../survey/questions'
 import { choiceTally, histogram, openAnswers, rankBundles, summaryLine } from '../survey/score'
 import { surveyCsv } from '../survey/csv'
+import { SEP } from '../views/sep'
 
 export const surveyRoutes = new Hono<AuthEnv>()
 
@@ -366,7 +367,7 @@ surveyRoutes.get('/admin/survey', requireManageRiders, async (c) => {
     <>
       <h1>Rider survey</h1>
       <div class="sub">
-        {summaryLine(answers)} · {all.length - submitted.length} still in draft ·{' '}
+        {summaryLine(answers)}{SEP}{all.length - submitted.length} still in draft{SEP}
         <a href="/admin/survey.csv">download the CSV</a>
       </div>
 
@@ -475,7 +476,7 @@ surveyRoutes.get('/admin/survey', requireManageRiders, async (c) => {
                   <div class="rider-name">{r.displayName}</div>
                   <div class="rider-email">{r.email}</div>
                   <div class="rider-meta">
-                    sent {r.submittedAt ? r.submittedAt.toISOString().slice(0, 10) : '—'} · top pick:{' '}
+                    sent {r.submittedAt ? r.submittedAt.toISOString().slice(0, 10) : '—'}{SEP}top pick:{' '}
                     {r.answers.top[0] ? bundleLabel(r.answers.top[0]) : '—'}
                   </div>
                 </div>

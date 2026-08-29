@@ -26,6 +26,7 @@ import { viewableRide } from '../access/query'
 import { resolveStrand } from '../subgroups/service'
 import { type Units, distanceFrom, distanceUnit, twistFrom, twistUnit } from '../views/units'
 import { unitsFor } from '../views/prefs'
+import { SEP } from '../views/sep'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
 
@@ -61,7 +62,7 @@ function fmtDuration(seconds: number): string {
 // is a wall clock at the departure point, carried as UTC. See that file, and the
 // header of public/js/day-clock.js.
 
-const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(' · ')
+const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(SEP)
 
 // A row is a stop or a POI, already in along-the-route order.
 export type Row = {
@@ -193,8 +194,8 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
           <header class="rb-head">
             <h1>{m.title}</h1>
             <p class="rb-summary">
-              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'} · {fmtMi(totalM, units)} {distanceUnit(units)}
-              {totalS > 0 && <> · {fmtDuration(totalS)} riding</>}
+              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'}{SEP}{fmtMi(totalM, units)} {distanceUnit(units)}
+              {totalS > 0 && <>{SEP}{fmtDuration(totalS)} riding</>}
             </p>
             {m.description && <p class="rb-note">{m.description}</p>}
             {/* A roadbook is a thing you print and carry, so which one you
@@ -218,16 +219,16 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                   {r.title || `Day ${i + 1}`}
                 </h2>
                 <p class="rb-day-meta">
-                  {r.startAt && <>{fmtDateLong(r.startAt, dateFormat)} · </>}
+                  {r.startAt && <>{fmtDateLong(r.startAt, dateFormat)}{SEP}</>}
                   {fmtMi(r.distanceM, units)} {distanceUnit(units)}
-                  {r.durationS > 0 && <> · {fmtDuration(r.durationS)} riding</>}
+                  {r.durationS > 0 && <>{SEP}{fmtDuration(r.durationS)} riding</>}
                   {/* Converted for display, and the STORED figure stays degrees
                     per mile — see rollUpTwist() in src/stats/shape.ts for why the
                     band labels are not converted with it. */}
                   {r.twistinessDpm != null && (
                     <>
                       {' '}
-                      · {Math.round(twistFrom(r.twistinessDpm, units))}
+                      {SEP}{Math.round(twistFrom(r.twistinessDpm, units))}
                       {twistUnit(units)}
                     </>
                   )}

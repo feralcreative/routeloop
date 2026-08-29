@@ -54,6 +54,7 @@ import { LIVE_RIDE } from '../trash/service'
 import { ridesImOn } from '../members/service'
 import { RSVP_LABELS } from '../members/policy'
 import { unitsFor } from '../views/prefs'
+import { SEP } from '../views/sep'
 
 export const homeRoutes = new Hono<AuthEnv>()
 
@@ -115,7 +116,7 @@ function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; unit
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -139,7 +140,7 @@ function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | nu
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops · {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -626,11 +627,11 @@ homeRoutes.get('/', requireActive, async (c) => {
               */}
               {s.saddle && (
                 <span title={s.saddle.note}>
-                  {' · '}
+                  {SEP}
                   {s.saddle.hours} hours riding{s.saddle.estimated && '*'}
                 </span>
               )}
-              {s.twist && <> · {s.twist.label} overall</>}
+              {s.twist && <>{SEP}{s.twist.label} overall</>}
             </span>
           </section>
 

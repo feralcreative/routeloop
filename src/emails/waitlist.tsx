@@ -14,6 +14,7 @@
 import { APP_ORIGIN } from '../config'
 import { A, Muted, P } from './shell'
 import { defineEmail } from './types'
+import { SEP } from '../views/sep'
 
 // Propless. The message is identical for every rider, and that is the honest
 // shape rather than a limitation — nothing about their account exists yet that
@@ -50,7 +51,9 @@ export const waitlistEmail = defineEmail<Props>({
           get an email when your turn comes&nbsp;up.
         </P>
         <Muted>
-          <A href={WELCOME_URL}>Your place</A> · <A href={FAQ_URL}>Why it works this way</A>
+          <A href={WELCOME_URL}>Your place</A>
+          {SEP}
+          <A href={FAQ_URL}>Why it works this way</A>
         </Muted>
       </>
     ).toString(),

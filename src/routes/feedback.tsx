@@ -80,6 +80,7 @@ import { ATTACHMENT_MAX_BYTES, MIME_EXT, pathForKey } from '../feedback/storage'
 import { visibleTo } from '../feedback/policy'
 import { feedbackStateEnum, feedbackStatusEnum } from '../db/schema'
 import type { FeedbackKind, FeedbackState, FeedbackStatus } from '../db/schema'
+import { SEP } from '../views/sep'
 
 /** The enum members, in schema order, for the queue's status picker. */
 const feedbackStatusValues = feedbackStatusEnum.enumValues
@@ -692,7 +693,9 @@ feedbackRoutes.get('/feedback/:publicId', requireActive, async (c) => {
     <>
       <h1>{r.title ?? KIND_META[r.kind].label}</h1>
       <p class="fb-when">
-        {KIND_META[r.kind].label} · {r.createdAt.toISOString().slice(0, 10)}
+        {KIND_META[r.kind].label}
+        {SEP}
+        {r.createdAt.toISOString().slice(0, 10)}
       </p>
       <div class="fb-status">
         <strong>{statusLabel(r.status, r.kind)}</strong>
@@ -788,13 +791,13 @@ feedbackRoutes.get('/admin/feedback', requireManageRiders, async (c) => {
 
               <p class="q-facts">
                 <strong>{r.authorName}</strong>
-                {r.authorEmail ? ` · ${r.authorEmail}` : ''}
-                {r.replyOk ? '' : ' · asked not to be contacted'}
-                {r.area ? ` · ${areaLabel(r.area) ?? r.area}` : ''}
-                {r.frequency ? ` · ${frequencyLabel(r.frequency) ?? r.frequency}` : ''}
-                {r.impact ? ` · ${impactLabel(r.impact) ?? r.impact}` : ''}
-                {r.shots ? ` · ${r.shots} photo${r.shots === 1 ? '' : 's'}` : ''}
-                {r.duplicateOf ? ` · duplicate of #${r.duplicateOf}` : ''}
+                {r.authorEmail ? `${SEP}${r.authorEmail}` : ''}
+                {r.replyOk ? '' : `${SEP}asked not to be contacted`}
+                {r.area ? `${SEP}${areaLabel(r.area) ?? r.area}` : ''}
+                {r.frequency ? `${SEP}${frequencyLabel(r.frequency) ?? r.frequency}` : ''}
+                {r.impact ? `${SEP}${impactLabel(r.impact) ?? r.impact}` : ''}
+                {r.shots ? `${SEP}${r.shots} photo${r.shots === 1 ? '' : 's'}` : ''}
+                {r.duplicateOf ? `${SEP}duplicate of #${r.duplicateOf}` : ''}
               </p>
 
               {r.shots > 0 && (

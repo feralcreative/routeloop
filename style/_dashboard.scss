@@ -105,7 +105,17 @@
   .btn {
     display: inline-flex;
     font-size: 1.15rem;
-    padding: 0.7em 2.2em 0.7em 1.4em;
+    // THE SAME PADDING THE SIGN ALREADY HAS, RESTATED IN em SO IT SCALES WITH
+    // THE LARGER TYPE. The base rule is in rem, which would have left a bigger
+    // button with a normal button's padding.
+    //
+    // Copying its numbers means copying the two decisions inside them, and the
+    // second is the one worth naming: the arrow's side is TIGHTER (1.05 against
+    // 1.4), because the arrow's bounding box carries air that the glyphs of a
+    // word do not. A first pass here set the arrow's side LOOSER instead, and
+    // the gap after the arrow was the first thing Ziad saw. The other is the
+    // 0.1em the legend rides down by; see the note on the base rule.
+    padding: calc(0.75em + 0.1em) 1.05em calc(0.75em - 0.1em) 1.4em;
   }
 }
 

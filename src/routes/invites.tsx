@@ -42,6 +42,7 @@ import {
 import { grantsLabel, inviteStatus, inviteUrl, seatsLeft } from '../invites/policy'
 import type { InviteListRow } from '../invites/service'
 import type { InviteRow } from '../db/schema'
+import { SEP } from '../views/sep'
 
 export const inviteRoutes = new Hono<AuthEnv>()
 
@@ -264,12 +265,14 @@ function InviteCard({ inv }: { inv: InviteListRow }) {
           <span class={`pill ${pill}`}>{live === 'ok' ? 'open' : live}</span>
         </div>
         <div class="invite-meta">
-          {inv.kind} · grants {grantsLabel(inv)} · expires {fmtDate(inv.expiresAt)}
-          {inv.email ? ` · ${inv.email}` : ''}
+          {inv.kind}
+          {SEP}grants {grantsLabel(inv)}
+          {SEP}expires {fmtDate(inv.expiresAt)}
+          {inv.email ? `${SEP}${inv.email}` : ''}
         </div>
         <div class="invite-meta">
           {inv.usedCount} of {inv.maxUses} {inv.maxUses === 1 ? 'seat' : 'seats'} used
-          {inv.redeemed !== inv.usedCount ? ` · ${inv.redeemed} opened it` : ''}
+          {inv.redeemed !== inv.usedCount ? `${SEP}${inv.redeemed} opened it` : ''}
         </div>
         {/* A meter rather than a number alone: a group link filling up is the
             thing you want to notice from across the page. */}
@@ -357,7 +360,7 @@ inviteRoutes.get('/admin/invites', requireManageRiders, async (c) => {
     <>
       <h1>Invitations</h1>
       <div class="sub">
-        {rows.length} issued{open ? ` · ${open} still open` : ''}
+        {rows.length} issued{open ? `${SEP}${open} still open` : ''}
       </div>
       <Notice query={(k) => c.req.query(k)} />
       <CreateForm />
