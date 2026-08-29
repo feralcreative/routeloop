@@ -292,7 +292,7 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
   | `area:chrome` | 0 | **Cleared.** Site-wide layout, styling, and shared components—`_chrome.scss`, `layout.tsx`, themes |
   | `area:dashboard` | 0 | **Cleared.** The dashboard at `/`—`home.tsx`, `dashboard.js`, `_dashboard.scss` |
 
-  Counts move; run the command rather than trusting the table. **As of 2026-08-29 they assume the UI-and-nav sprint has merged**—#172, #173, #179 and #184 close on merge and are counted as closed here. `area:schema` fell from eleven to five over four branches in August 2026—the recycle bin, the Paddock, the rider and access layer, membership and voting, and rider subgroups.
+  Counts move; run the command rather than trusting the table. **As of 2026-08-29 they assume the UI-and-nav sprint has merged**—#172, #173, #179, #184 and #194 close on merge and are counted as closed here. `area:schema` fell from eleven to five over four branches in August 2026—the recycle bin, the Paddock, the rider and access layer, membership and voting, and rider subgroups.
 
   **Two folds were deliberate and are not gaps to fill later:** routing options live in `area:builder` rather than an `area:routing` of their own, and the whole rider/group layer lives in `area:schema` rather than an `area:riders`. Both were split out and then folded back the same day, because fewer branches beat a truer taxonomy.
 - Hand over a single chained one-liner (`git add -A && git commit -m "…"`) and let Ziad run it. Do not commit unasked.
