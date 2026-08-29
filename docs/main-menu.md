@@ -4,7 +4,7 @@ The nav's shape and contents. Ziad's structure, with the four gaps resolved on 2
 
 ## Shape
 
-Four top-level groups on the left, the account menu pinned right. `Riders` is a plain link; everything else opens a panel.
+`Dash` and `Riders` are plain links on the left, then three groups that open a panel, with the account menu pinned right.
 
 At LG (≥992px) this renders as a bar. Below that, and on map pages at any width, the same markup is the drawer. Both are native `<details>`, so the menu works with JavaScript off.
 
@@ -13,8 +13,9 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 ```text
 Exit map              /                (map pages only)
 
+Dash                  /                (plain link, no panel)
+
 Rides ▾
-  Your rides          /
   Plan a ride         /builder
   Find a ride         /explore
   Import / Export     /import
@@ -52,6 +53,8 @@ Two of those sit under the account rather than where a reader might first look, 
 - **`Recycle bin` is not under `Rides`.** The bin holds saved places and place groups as well.
 
 Neither is urgent enough for the top level: a rider only goes looking for the bin after they have deleted something they wanted.
+
+**`Dash` is first and it is not in the Rides group.** Decided 2026-08-27. It was `Your rides` at the head of that menu, labeled for the destination rather than the location on the grounds that the group was already called Rides. Outside the group that reasoning inverts: with no "Rides" above it the label competes with the three verbs still in the menu, and the page is the stat tiles and Your records before it is a list of rides. The key stays `home`, so `navKey` and the `aria-current` it drives are untouched. The wordmark links to `/` as well, which is ordinary—`Dash` earns its place by being labeled, which a logo is not.
 
 Plus one thing that is not in the tree: a floating dock holding a **bug** mark and a **what's new** mark, on every page a signed-in rider can reach. See the decision below.
 

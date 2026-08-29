@@ -156,13 +156,30 @@ export type PageOpts = {
 // below could never fire.
 type NavItem = { key: NavKey; href: string; label: string }
 
+// OUT OF THE RIDES GROUP AND FIRST IN THE BAR, 2026-08-27 (#184). It was
+// `{ key: 'home', label: 'Your rides' }` at the head of RIDES_LINKS, under a
+// comment arguing that "Home" names a location rather than a purpose and that
+// the group was already called Rides.
+//
+// **That argument was right and its premise is what changed.** Outside the
+// group the label has no "Rides" above it, so "Your rides" starts competing
+// with the three verbs still in the menu — and the page is not only rides
+// anyway. It is the stat tiles, then Your records, then the list. "Dash" is the
+// honest name for that page once it stands alone, and the old comment is struck
+// rather than left contradicting the code.
+//
+// THE KEY STAYS `home`, exactly as it did when /rides folded into / and the
+// label changed then too. The route, the file and the navKey every page sets
+// are all untouched; only the label and the position moved.
+//
+// The wordmark also links to `/`, so the header carries two ways to the same
+// page. That is ordinary rather than a fault — Dash earns its place by being
+// LABELED, which a logo is not.
+const DASH_LINK: NavItem = { key: 'home', href: '/', label: 'Dash' }
+
+// Three verbs, which is what the group reads as now that the destination came
+// out of it.
 const RIDES_LINKS: NavItem[] = [
-  // ONE ITEM, NOT TWO, since 2026-08-24: `/rides` folded into `/` and the list
-  // now sits under the stats on the same page. Labeled for the destination a
-  // rider actually wants — the group is already called Rides, and "Home" names
-  // a location rather than a purpose. The key stays `home` because the file and
-  // the route did not move; only the label did.
-  { key: 'home', href: '/', label: 'Your rides' },
   { key: 'builder', href: '/builder', label: 'Plan a ride' },
   { key: 'explore', href: '/explore', label: 'Find a ride' },
   { key: 'import', href: '/import', label: 'Import / Export' },
@@ -172,7 +189,9 @@ const RIDES_LINKS: NavItem[] = [
 // rather than by index: this was `RIDES_LINKS[2]` inline, which silently became
 // the wrong link the moment Home was inserted at the front — a positional
 // reference into a list that other people edit is a trap, and it sprang the
-// first time anyone edited the list.
+// first time anyone edited the list. Removing that first element again for #184
+// is exactly the edit that used to break this; the guard is why it did not.
+// Do not undo it while tidying the list up.
 const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
 
 const ADMIN_LINKS: NavItem[] = [
@@ -283,6 +302,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
             )}
             {user ? (
               <>
+                <NavLink item={DASH_LINK} navKey={navKey} />
                 <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
                 <NavLink item={RIDERS_LINK} navKey={navKey} />
                 <NavAboutMenu user={user} navKey={navKey} />
