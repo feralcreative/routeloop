@@ -184,6 +184,39 @@ else
 fi
 export APP_VERSION
 
+# ---------------------------------------------------------- the image name ---
+#
+# THE TAG IS THE COMMIT. See IMAGE_REPO in deploy.config for why that is a
+# correctness property and not bookkeeping.
+#
+# Composed here rather than in deploy.config because it needs GIT_SHA, which is
+# resolved twenty lines above and which that file is sourced far too early to
+# know.
+if [ "$GIT_SHA" = "unknown" ]; then
+  log_error "Could not read a commit SHA, and the image is tagged with it."
+  log_error "Deploying would push a tag that describes nothing. Refusing."
+  exit 1
+fi
+
+# A DIRTY TREE GETS A TAG THAT CANNOT COLLIDE WITH A CLEAN ONE. `--force` exists
+# to let a genuine emergency deploy uncommitted work, and under the old local
+# `routeloop:latest` the only cost was that BUILD_SHA lied. With an immutable
+# per-commit tag the cost would be worse: the push would put uncommitted code
+# under a name that claims to be that commit, and every later deploy of the real
+# commit would find the tag already there. The suffix makes that impossible, and
+# makes the lie visible in `docker images` rather than only in this script.
+IMAGE_TAG_RESOLVED="$GIT_SHA"
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+  IMAGE_TAG_RESOLVED="${GIT_SHA}-dirty-$(date -u +%Y%m%dT%H%M%SZ)"
+  log_warning "Working tree is dirty — tagging ${IMAGE_TAG_RESOLVED} so it cannot"
+  log_warning "be mistaken for a clean build of ${GIT_SHA}."
+fi
+
+IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG_RESOLVED}"
+# The moving tag, pushed alongside. Nothing reads it — the compose file is given
+# the immutable one — it is there so `docker images` on the NAS is legible.
+IMAGE_MOVING="${IMAGE_REPO}:${IMAGE_TAG}"
+
 if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${FORCE:-}" ]; then
   if [ -n "$(git status --porcelain)" ]; then
     log_error "Working tree is dirty. Commit/stash, or pass --force."; exit 1
@@ -199,8 +232,25 @@ if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${DRY_RUN:-}" ]; then
   echo -e "   URL    : ${BOLD}${TARGET_URL}${NC}"
   echo -e "   Commit : ${BOLD}${GIT_SHA}${NC} on ${BOLD}${GIT_BRANCH}${NC}"
   echo -e "   Version: ${BOLD}${APP_VERSION}${NC}"
-  read -r -p "Type 'yes' to continue: " CONFIRM
-  [ "$CONFIRM" = "yes" ] || { log_error "Aborted."; exit 1; }
+  echo -e "   Image  : ${BOLD}${IMAGE_NAME}${NC}"
+  # NON-INTERACTIVE IS OPT-IN AND NARROW. A workflow has no TTY, so `read` would
+  # either block forever or take EOF as an answer — and "no terminal" must never
+  # be allowed to MEAN yes, which is what a bare `[ -t 0 ] || skip` would do.
+  #
+  # So: the variable is the only way past this prompt, it names the environment
+  # it applies to, and a run with no terminal and no variable is refused rather
+  # than assumed. That is one deliberate act per non-interactive prod deploy,
+  # which is the point of the prompt in the first place.
+  if [ "${DEPLOY_CONFIRM:-}" = "yes" ]; then
+    log_warning "DEPLOY_CONFIRM=yes — skipping the production confirmation prompt."
+  elif [ ! -t 0 ]; then
+    log_error "No terminal to confirm on, and DEPLOY_CONFIRM is not set to 'yes'."
+    log_error "Refusing to treat a missing answer as consent. Aborted."
+    exit 1
+  else
+    read -r -p "Type 'yes' to continue: " CONFIRM
+    [ "$CONFIRM" = "yes" ] || { log_error "Aborted."; exit 1; }
+  fi
 fi
 
 echo ""
@@ -209,7 +259,7 @@ echo -e "  ${MAGENTA}Target${NC}    : ${TARGET_URL}"
 echo -e "  ${MAGENTA}NAS path${NC}  : ${NAS_DEPLOY_PATH}"
 echo -e "  ${MAGENTA}Colors${NC}    : ${BLUE_CONTAINER_NAME} / ${GREEN_CONTAINER_NAME}"
 echo -e "  ${MAGENTA}Proxy${NC}     : ${PROXY_CONTAINER_NAME} (host 127.0.0.1:${HOST_PORT}, 127.0.0.1:${ALIAS_HOST_PORT})"
-[ -n "${DRY_RUN:-}" ] && echo -e "  ${YELLOW}DRY RUN — nothing will be built, transferred, or restarted${NC}"
+[ -n "${DRY_RUN:-}" ] && echo -e "  ${YELLOW}DRY RUN — nothing will be built, pushed, pulled, or restarted${NC}"
 echo ""
 
 # ------------------------------------------------- remote environment ------
@@ -271,8 +321,11 @@ done
 
 
 if [ -n "${DRY_RUN:-}" ]; then
+  log_info "Would take the deploy lock on ${NAS_DEPLOY_PATH}/.deploy.lock"
   log_info "Would build ${IMAGE_NAME} (${DOCKER_PLATFORM}) from $PROJECT_ROOT"
-  log_info "Would transfer the image + ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
+  log_info "Would push it to ${IMAGE_REPO}, and ${IMAGE_MOVING} beside it"
+  log_info "Would have the NAS pull ${IMAGE_NAME} over its own connection"
+  log_info "Would copy ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
   log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and restart the stack"
   log_info "Would converge db and proxy, then run the one-shot migrate service"
   log_info "Would deploy the idle color, gate it on /healthz reporting ${GIT_SHA},"
@@ -287,32 +340,72 @@ if [ -n "${PRE_BUILD_HOOK:-}" ] && [ -f "$PROJECT_ROOT/$PRE_BUILD_HOOK" ]; then
   bash "$PROJECT_ROOT/$PRE_BUILD_HOOK"
 fi
 
+# ------------------------------------------------------------ the lock -------
+#
+# TAKEN BEFORE THE BUILD, NOT BEFORE THE CUTOVER. The cutover is the part two
+# deploys must not interleave on, but taking the lock only there would mean two
+# builds racing to push the same tag and the loser waiting several minutes to
+# find out it was never going to be allowed to proceed. Fail early instead.
+#
+# The trap also carries the REMOTE_ENV cleanup that used to stand alone, because
+# a second `trap ... EXIT` silently REPLACES the first rather than adding to it —
+# which is how the temp file holding every production secret would have started
+# surviving the script.
+if ! acquire_deploy_lock; then exit 1; fi
+trap 'release_deploy_lock; rm -f "$REMOTE_ENV"' EXIT
+
 # ---------------------------------------------------------------- build ------
-log_info "Building Docker image (${DOCKER_PLATFORM})..."
+log_info "Building ${IMAGE_NAME} (${DOCKER_PLATFORM})..."
 BUILD_START=$(date +%s)
-docker build --platform "${DOCKER_PLATFORM}" -t "${IMAGE_NAME}" .
+docker build --platform "${DOCKER_PLATFORM}" -t "${IMAGE_NAME}" -t "${IMAGE_MOVING}" .
 BUILD_TIME=$(($(date +%s) - BUILD_START))
 log_success "Image built in $(format_time $BUILD_TIME)"
 
-# ----------------------------------------------------- save and transfer -----
-TEMP_FILE="/tmp/${PROJECT_NAME}-$(date +%s).tar.gz"
-cleanup() { rm -f "$TEMP_FILE"; }
-trap cleanup EXIT
+# ------------------------------------------------------------- push ----------
+#
+# REGISTRY LOGIN IS OPTIONAL ON PURPOSE, on both sides. A GHCR package created
+# by a first push is PRIVATE regardless of whether the repository is public, so
+# the NAS needs a read-only credential — until somebody decides to make the
+# package public, at which point it needs none. Rather than encode that choice
+# here, both logins happen only when a token is configured, so flipping the
+# package's visibility is a decision made in GitHub's UI and not a code change.
+#
+# --password-stdin, never a token on the command line: on the NAS that would put
+# the credential into the process list for every other process on the box.
+if [ -n "${GHCR_TOKEN:-}" ]; then
+  log_info "Signing in to ${IMAGE_REGISTRY_HOST} locally..."
+  printf '%s' "${GHCR_TOKEN}" | docker login "${IMAGE_REGISTRY_HOST}" -u "${GHCR_USER:-$USER}" --password-stdin >/dev/null || {
+    log_error "Registry login failed locally. Nothing has been pushed."; exit 1; }
+fi
 
-log_info "Saving image..."
-docker save "${IMAGE_NAME}" | gzip > "${TEMP_FILE}"
+log_info "Pushing ${IMAGE_NAME}..."
+PUSH_START=$(date +%s)
+docker push "${IMAGE_NAME}" || { log_error "Push failed. Nothing on the NAS has been touched."; exit 1; }
+docker push "${IMAGE_MOVING}" || log_warning "The moving tag ${IMAGE_MOVING} failed to push; the commit tag is what matters and is already up."
+PUSH_TIME=$(($(date +%s) - PUSH_START))
+log_success "Pushed in $(format_time $PUSH_TIME)"
 
-log_info "Transferring image ($(du -h "$TEMP_FILE" | cut -f1))..."
-TRANSFER_START=$(date +%s)
 $SSH_CMD "$NAS_SSH_HOST" "mkdir -p ${NAS_DEPLOY_PATH}/data/storage ${NAS_DEPLOY_PATH}/logs"
-# Piped cat, not scp — more reliable to the NAS.
-cat "${TEMP_FILE}" | $SSH_CMD "$NAS_SSH_HOST" "cat > ${NAS_DEPLOY_PATH}/${PROJECT_NAME}.tar.gz"
-TRANSFER_TIME=$(($(date +%s) - TRANSFER_START))
-rm -f "${TEMP_FILE}"
-log_success "Transferred in $(format_time $TRANSFER_TIME)"
 
-log_info "Loading image on NAS..."
-$SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker load < ${NAS_DEPLOY_PATH}/${PROJECT_NAME}.tar.gz && rm ${NAS_DEPLOY_PATH}/${PROJECT_NAME}.tar.gz"
+if [ -n "${NAS_GHCR_TOKEN:-}" ]; then
+  log_info "Signing the NAS in to ${IMAGE_REGISTRY_HOST}..."
+  printf '%s' "${NAS_GHCR_TOKEN}" | $SSH_CMD "$NAS_SSH_HOST" "${DOCKER} login ${IMAGE_REGISTRY_HOST} -u '${NAS_GHCR_USER:-${GHCR_USER:-$USER}}' --password-stdin >/dev/null" || {
+    log_error "The NAS could not sign in to the registry. Nothing has been swapped."; exit 1; }
+fi
+
+# PULLED HERE RATHER THAN LEFT TO `up -d`, so a registry failure is its own error
+# with its own message instead of surfacing as a confusing Compose failure three
+# steps later, after the database has already been converged and migrated.
+log_info "Pulling ${IMAGE_NAME} onto the NAS..."
+PULL_START=$(date +%s)
+$SSH_CMD "$NAS_SSH_HOST" "${DOCKER} pull '${IMAGE_NAME}'" || {
+  log_error "The NAS could not pull ${IMAGE_NAME}."
+  log_error "If the GHCR package is private, the NAS needs NAS_GHCR_TOKEN in .env."
+  log_error "Nothing has been swapped — the live color is untouched."
+  exit 1
+}
+PULL_TIME=$(($(date +%s) - PULL_START))
+log_success "Pulled in $(format_time $PULL_TIME)"
 
 # --------------------------------------------- compose file + remote env -----
 log_info "Writing compose file, proxy config and environment..."

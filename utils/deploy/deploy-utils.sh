@@ -186,6 +186,27 @@ cmd_colors() {
 # container is a 502 for every rider, and it is the one mistake this command
 # exists to make impossible — a human types it when something is already wrong,
 # which is exactly when a second failure is least welcome.
+# Break a deploy lock whose holder is gone.
+#
+# DELIBERATELY MANUAL, WITH NO AGE-BASED AUTO-BREAK. A lock that expires on its
+# own is a lock that expires DURING the slowest deploy you ever run — which is
+# the one most likely to be mid-cutover, and the one where a second deploy
+# starting is worst. A human reading who holds it and deciding they are gone is
+# the correct amount of ceremony for something that happens approximately never.
+cmd_unlock() {
+  local dir="${NAS_DEPLOY_PATH}/.deploy.lock"
+  local held; held=$(nas "cat '${dir}/holder' 2>/dev/null" || true)
+  if [ -z "$held" ] && ! nas "test -d '${dir}'"; then
+    log_info "No deploy lock is held on ${DEPLOY_ENV}."
+    return 0
+  fi
+  log_warning "Deploy lock on ${DEPLOY_ENV}: ${held:-<no holder recorded>}"
+  log_warning "Breaking it while that deploy is still running risks two deploys"
+  log_warning "cutting the proxy over at once. Check first."
+  nas "rm -rf '${dir}'"
+  log_success "Lock released."
+}
+
 cmd_cutover() {
   check_ssh_key
   local target="${1:-}"
@@ -507,6 +528,7 @@ Commands:
   logs [what]  Follow logs — blue|green|proxy|db, default the LIVE color
   colors       Which color is live, which is idle, what is running
   cutover <c>  Point the proxy at blue|green — the manual rollback lever
+  unlock       Break a stale deploy lock (says who holds it first)
   db-logs      Follow Postgres logs
   status       Container status + origin HTTP check on 127.0.0.1:${HOST_PORT}
   restart      Restart the LIVE color in place (brief downtime)
@@ -574,6 +596,7 @@ case "${1:-help}" in
   cutover)     cmd_cutover "${2:-}" ;;
   restart-proxy) cmd_restart_proxy ;;
   restart-db)  cmd_restart_db ;;
+  unlock)      cmd_unlock ;;
   schema-state) cmd_schema_state ;;
   db-baseline) cmd_db_baseline ;;
   db-backup)  cmd_db_backup ;;

@@ -50,6 +50,58 @@ nas() { $(get_ssh_cmd) "$NAS_SSH_HOST" "$@"; }
 COMPOSE="/usr/local/bin/docker-compose"
 DOCKER="/usr/local/bin/docker"
 
+# --- The deploy lock ---------------------------------------------------------
+#
+# ONE DEPLOY AT A TIME, AND THE LOCK LIVES ON THE NAS BECAUSE THAT IS THE ONLY
+# PLACE BOTH DEPLOYERS CAN SEE IT. There was no lock at all until 2026-08-29,
+# which was survivable while a deploy could only ever be started by one person
+# at one terminal. It stops being survivable the moment a CI workflow can start
+# one too: two deploys interleaving during a cutover both rewrite
+# `proxy/upstream.caddy`, which is the ONE line recording which color is
+# serving — so the proxy can end up pointed at a container the other deploy is
+# in the middle of recreating.
+#
+# A local flock would not do: the two racers are different machines.
+#
+# `mkdir` rather than a lock FILE, because mkdir is atomic on POSIX — it either
+# creates the directory or fails, with no window between testing and taking.
+# `test -f && touch` has exactly that window and would hand the lock to both.
+#
+# The holder writes who and when into the directory, so a stuck lock says what
+# to look at rather than only that something is stuck.
+DEPLOY_LOCK_DIR=""
+
+acquire_deploy_lock() {
+  local dir="${NAS_DEPLOY_PATH}/.deploy.lock"
+  local who="${DEPLOY_LOCK_OWNER:-$(whoami)@$(hostname -s 2>/dev/null || echo unknown)}"
+
+  # -p on the PARENT only. The lock directory itself is created without -p on
+  # purpose: `mkdir -p` succeeds when the directory already exists, which would
+  # hand the lock to every caller at once and make this whole function a no-op.
+  # A first deploy onto a fresh path needs the parent, though, or the lock fails
+  # for a reason that has nothing to do with contention.
+  if ! nas "mkdir -p '${NAS_DEPLOY_PATH}' && mkdir '${dir}' 2>/dev/null"; then
+    local held; held=$(nas "cat '${dir}/holder' 2>/dev/null" || true)
+    log_error "Another deploy holds the lock on ${DEPLOY_ENV}."
+    log_error "  ${held:-<no holder recorded>}"
+    log_error ""
+    log_error "If that deploy is genuinely gone, break the lock and retry:"
+    log_error "  DEPLOY_ENV=${DEPLOY_ENV} utils/deploy/deploy-utils.sh unlock"
+    return 1
+  fi
+
+  DEPLOY_LOCK_DIR="$dir"
+  nas "printf '%s\n' 'held by ${who} since '\"\$(date -u '+%Y-%m-%dT%H:%M:%SZ')\" > '${dir}/holder'" || true
+  return 0
+}
+
+# Called from a trap, so it must never fail the script it is cleaning up after.
+release_deploy_lock() {
+  [ -n "$DEPLOY_LOCK_DIR" ] || return 0
+  nas "rm -rf '${DEPLOY_LOCK_DIR}'" >/dev/null 2>&1 || true
+  DEPLOY_LOCK_DIR=""
+}
+
 # --- Colors -----------------------------------------------------------------
 #
 # WHICH COLOR IS LIVE IS READ OUT OF THE PROXY'S OWN CONFIG, and that is the
