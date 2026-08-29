@@ -276,6 +276,16 @@ Things an agent gets wrong by default. This section is why the file exists.
 | `PROD_DB_PASSWORD`, `STAGE_DB_PASSWORD` | `.env` | Read by `utils/deploy/deploy.sh` for the matching environment |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_ACCOUNT_ID` | `.env` | Cache purge on deploy |
 
+### The CI deploy's credentials live in GitHub, not in `.env`
+
+Five repository secrets, set 2026-08-29: `NAS_SSH_HOSTNAME`, `NAS_SSH_KEY`, `NAS_SSH_KNOWN_HOSTS`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`. **No application secret is among them, and that is the design**—see `DEPLOY_SKIP_ENV` above.
+
+**THE ACCESS SERVICE TOKEN EXPIRES 2027-08-29, AND THE FAILURE WILL NOT LOOK LIKE AN EXPIRY.** `routeloop-ci-deploy` was minted with a one-year duration. When it lapses, Cloudflare Access starts refusing the runner and the symptom is an SSH step that hangs or fails to connect—which reads as a network problem, a NAS problem, or a tunnel problem long before anyone thinks of a date. **If a CI deploy fails at the SSH step on or after that date, check this first.** Rotating it is: create a new service token, set the two repository secrets, repoint the Access policy's `service_token` include at the new id.
+
+**Cloudflare's client secret is returned exactly once**, at creation. It exists in GitHub and nowhere else; there is no way to read it back out of Cloudflare. Losing it means minting a new token, not recovering this one.
+
+**THE NAS'S SSH PORT 33725 IS OPEN TO THE PUBLIC INTERNET AND STAYS THAT WAY.** Ziad's call, 2026-08-29: he uses it. `nas.feralcreative.co` is an UNPROXIED CNAME to a Synology DDNS name, so it bypasses Cloudflare entirely, and the tunnel route added for CI is a second path rather than a replacement. Do not keep proposing that it be closed—the decision is recorded, and the tunnel was worth building anyway because it is what CI uses. Note the consequence for anyone reasoning about the deploy: **the NAS is NOT unreachable from the internet**, so an argument that begins "CI cannot reach the NAS without a tunnel" is false and was false when it was first made here.
+
 The deploy writes the server's `.env` from an explicit allow-list in `utils/deploy/deploy.sh`. A new required key that is not added to that list reaches no environment, and the container still starts and passes its healthcheck.
 
 ## Commit and PR conventions
