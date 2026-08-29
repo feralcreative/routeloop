@@ -193,9 +193,11 @@ src/                  TypeScript app (Hono)
   routes/             maps.ts (import), builder.ts (the builder API and page),
                       routing.ts (Routes + Geocoding proxies), home.tsx (the
                       dashboard at /), admin.tsx (rider approval), auth.tsx,
-                      pages.tsx (explore/riders/profiles/legal), import.tsx,
+                      pages.tsx (explore/profiles/legal), import.tsx,
                       handoff.tsx (navigate), roadbook.tsx, roster.tsx,
-                      friends.tsx, trash.tsx, rendezvous.ts, settings.tsx
+                      riders.tsx (the Friends / All riders screen, at both
+                      /riders and /friends), friends.tsx (the friendship verbs),
+                      trash.tsx, rendezvous.ts, settings.tsx
   views/              layout.tsx (chrome shell), splash.tsx (alpha modal),
                       cards.tsx, tokens.ts (reads the compiled palette),
                       esc.ts, assets.ts
