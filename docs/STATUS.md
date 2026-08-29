@@ -1,12 +1,24 @@
 # Status and handoff
 
 **Updated:** 2026-08-29
-**Branch:** `feat/ui-nav-sprint`, committed, not pushed. **2,140 tests across 83 files** (2 skipped, 2,142 total)
+**Branch:** `feat/registry-deploy`, committed, not pushed. `feat/ui-nav-sprint` merged as #195. **2,140 tests across 83 files** (2 skipped, 2,142 total)
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## The deploy moves to a registry—2026-08-29
+
+**Not deployed, not merged.** Branch `feat/registry-deploy`. Steps 1–3 of the plan in `_PLANS/registry-deploy-map.md`; the workflow exists but has never run.
+
+**The image is pushed and pulled instead of piped over SSH.** `docker save | gzip` down the SSH connection was a few hundred MB per deploy, which is fine over a LAN and a poor fit for the tunnel. **The tag is the commit**, which turns the health gate's SHA assertion from the only guard against a silent no-op deploy into a belt beside a brace—Compose cannot run the old image when the name does not resolve to it.
+
+**`DEPLOY_SKIP_ENV=1` is what keeps application secrets out of CI.** A run with it set verifies the server's `.env` rather than composing it, and rewrites only the three keys the deploy is the source of. `deploy-utils.sh push-env` is the other half. **The consequence to plan around: a new required key must reach the server BEFORE the release that needs it**, or that release's CI deploy correctly refuses.
+
+**There is a deploy lock, on the NAS, held as a `mkdir`.** There was none at all before, which was survivable only while one person at one terminal could start a deploy.
+
+**What is still Ziad's to do before any of this runs**, in order: point a tunnel route at the NAS's SSH port, put an Access policy with a service token in front of it, add the four repository secrets the workflow names, run `push-env` for stage, and then a `--dry-run` and a real stage deploy from the terminal before ever pressing the button. Nothing here has been exercised against a real NAS.
 
 ## The UI and nav sprint—2026-08-29
 
