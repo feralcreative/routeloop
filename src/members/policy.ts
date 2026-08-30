@@ -135,6 +135,37 @@ export const canSuggest = (m: MemberFields | null): boolean => atLeast(m, 'sugge
 export const canEditAsMember = (m: MemberFields | null): boolean => atLeast(m, 'edit')
 
 /**
+ * What the viewer's link into the builder should SAY, or null for a non-member.
+ *
+ * **THE LABEL IS DERIVED FROM THE RUNG BECAUSE THE BUILDER IS ONE PAGE FOR ALL
+ * OF THEM.** `/builder/:id` admits anyone from `view` upward and turns its
+ * writes off below `edit` — comments and suggestions both hang off the row list
+ * and the stop details, so a below-edit rider genuinely belongs there. But a
+ * link that says "Edit this ride" to a `suggest`-level rider offers an action
+ * the page then refuses, which is exactly the disagreement canEditRide's own
+ * comment warns about: the viewer's button and the builder's gate must never
+ * answer differently.
+ *
+ * It lives here rather than in a view because the ORDER is here. A label picked
+ * by comparing enum members somewhere else is a second ranking of ride_perm,
+ * and there may only be one — see PERM_RANK.
+ *
+ * Deliberately not a lookup keyed on RidePerm: an owner has no rung, and the
+ * ladder is walked top-down so a rung added in the middle inherits the nearest
+ * label below it rather than falling through to "Open this ride".
+ */
+export function builderLabel(m: MemberFields | null): string | null {
+  if (m === null) return null
+  // An owner is caught here, not by a case of their own: OWNER_RANK outranks
+  // every rung, so canEditAsMember() is already true for them.
+  if (canEditAsMember(m)) return 'Edit this ride'
+  if (canSuggest(m)) return 'Suggest changes'
+  if (canComment(m)) return 'Comment on this ride'
+  if (canViewAsMember(m)) return 'Open this ride'
+  return null
+}
+
+/**
  * Whether `m` holds the whole-ride powers: delete, visibility, and the roster.
  *
  * Role rather than rank, because these are not the top of the ladder — they are

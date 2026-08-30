@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   atLeast,
+  builderLabel,
   canAdminister,
   canComment,
   canEditAsMember,
@@ -238,6 +239,50 @@ describe('PERM_LABELS and PERM_HELP', () => {
     expect(Object.keys(PERM_HELP).sort()).toEqual([...ridePermEnum.enumValues].sort())
     for (const v of [...Object.values(PERM_LABELS), ...Object.values(PERM_HELP)]) {
       expect(v.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+// THE VIEWER'S LINK AND THE BUILDER'S GATE MUST NOT DISAGREE. `/builder/:id`
+// admits everyone from `view` upward, so the link is offered to all of them —
+// but a link saying "Edit this ride" to a rider the page will refuse to save
+// for is the exact failure canEditRide's own comment warns about, and it is
+// invisible until somebody tries.
+describe('builderLabel', () => {
+  it('offers nothing to a rider who is not on the roster', () => {
+    expect(builderLabel(null)).toBe(null)
+  })
+
+  it('names the edit for an owner and for an edit-level rider', () => {
+    expect(builderLabel(ownerRow)).toBe('Edit this ride')
+    expect(builderLabel(member({ perm: 'edit' }))).toBe('Edit this ride')
+  })
+
+  it('never promises an edit to a rider below `edit`', () => {
+    for (const perm of ['view', 'comment', 'suggest'] as const) {
+      expect(builderLabel(member({ perm }))).not.toBe('Edit this ride')
+    }
+  })
+
+  it('names what each rung can actually do there', () => {
+    expect(builderLabel(member({ perm: 'suggest' }))).toBe('Suggest changes')
+    expect(builderLabel(member({ perm: 'comment' }))).toBe('Comment on this ride')
+    expect(builderLabel(member({ perm: 'view' }))).toBe('Open this ride')
+  })
+
+  // An owner's `perm` column is never read — see rankOf — so a row left at the
+  // default must still label as an owner rather than as whatever rung it holds.
+  it('reads the role for an owner, not their perm column', () => {
+    for (const perm of ridePermEnum.enumValues) {
+      expect(builderLabel(member({ role: 'owner', perm }))).toBe('Edit this ride')
+    }
+  })
+
+  // Every rung gets a link. A rung that returned null would be a member the
+  // viewer silently strands, which is the bug this whole change is about.
+  it('offers a link at every rung', () => {
+    for (const perm of ridePermEnum.enumValues) {
+      expect(builderLabel(member({ perm }))).not.toBe(null)
     }
   })
 })

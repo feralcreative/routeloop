@@ -190,12 +190,7 @@ export async function removeMember(rideId: number, viewerId: number, targetId: n
  * own row is re-read here rather than trusted from the page that rendered the
  * control, the same as every other write in this file.
  */
-export async function setPerm(
-  rideId: number,
-  viewerId: number,
-  targetId: number,
-  perm: RidePerm,
-): Promise<boolean> {
+export async function setPerm(rideId: number, viewerId: number, targetId: number, perm: RidePerm): Promise<boolean> {
   const [viewer, target] = await Promise.all([memberRow(rideId, viewerId), memberRow(rideId, targetId)])
   if (!target || !canSetPerm(viewer, target)) return false
   await db
@@ -211,6 +206,31 @@ export async function setPerm(
 export async function membershipOf(rideId: number, viewerId: number | null): Promise<MemberFields | null> {
   if (viewerId === null) return null
   return memberRow(rideId, viewerId)
+}
+
+/**
+ * The viewer's row, or a synthesized one for the ride's creator.
+ *
+ * **THE OWNER IS A MEMBER AND `seedOwner()` GUARANTEES A ROW, so the fallback
+ * here is a belt on top of braces rather than the mechanism.** It exists because
+ * the cost of being wrong is asymmetric: a creating path that forgot to seed
+ * would otherwise lock the owner out of their own builder, and the failure would
+ * look like a permissions bug rather than a missing insert.
+ *
+ * ONE IMPLEMENTATION, because there are now two callers that must not disagree —
+ * `/builder/:id` deciding whether to admit a rider, and the viewer deciding what
+ * to offer them a link to. Two copies of this and the button starts promising
+ * what the page refuses, which is the whole failure builderLabel() is written to
+ * prevent.
+ */
+export async function memberOrOwner(
+  ride: { id: number; ownerId: number },
+  viewerId: number | null,
+): Promise<MemberFields | null> {
+  const row = await membershipOf(ride.id, viewerId)
+  if (row) return row
+  if (viewerId === null || ride.ownerId !== viewerId) return null
+  return { riderId: viewerId, role: 'owner', perm: DEFAULT_PERM, rsvp: 'going' }
 }
 
 /** Answer for yourself, and nobody else — see canRsvp. */

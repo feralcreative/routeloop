@@ -32,7 +32,7 @@ import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canClone } from '../access/policy'
-import { membershipOf, seedOwner } from '../members/service'
+import { memberOrOwner, seedOwner } from '../members/service'
 import {
   canAdminister,
   canEditAsMember,
@@ -311,11 +311,10 @@ async function builderRide(
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
   if (!ride) return undefined
-  const row = await membershipOf(ride.id, userId)
-  const member: MemberFields | null =
-    row ??
-    (ride.ownerId === userId ? { riderId: userId, role: 'owner', perm: DEFAULT_PERM, rsvp: 'going' } : null)
-  return { ride, member }
+  // ONE IMPLEMENTATION, shared with the viewer's builder link — see
+  // memberOrOwner. The synthesized owner row used to live here; two copies of it
+  // is how the link starts offering what this gate refuses.
+  return { ride, member: await memberOrOwner(ride, userId) }
 }
 
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
@@ -824,12 +823,13 @@ ${
                     ['csv', 'CSV'],
                   ] as const
                 )
-                .map(
-                  ([f, label]) =>
-                    `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
-                    ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
-                )
-                .join('\n              ')}
+                  .map(
+                    ([f, label]) =>
+                      `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
+                      ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
+                  )
+                  .join('\n              ')
+              }
               <li>
                 <a data-export="routeloop.json" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/routeloop.json?dl` : '#'}">Routeloop JSON</a>
                 <span class="field-hint">Everything, including what the other four cannot carry.</span>
