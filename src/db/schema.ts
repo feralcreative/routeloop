@@ -817,6 +817,23 @@ export const rides = pgTable(
     // half-finish; a place purge is one statement.
     purgeStartedAt: timestamp('purge_started_at'),
 
+    // WHAT A SAVE IS CHECKED AGAINST, so two riders in one builder cannot
+    // silently overwrite each other. Bumped in the same transaction as every
+    // write; a PUT carrying an older value is refused with a 409.
+    //
+    // A COUNTER RATHER THAN `updated_at`, although the timestamp is already here
+    // and looks like it would do. Two saves inside the same millisecond are
+    // indistinguishable by it — not hypothetical when the autosave fires on a
+    // 3-second idle and two people are working — and it would make correctness
+    // depend on the database's clock resolution rather than on something the
+    // database guarantees to be monotonic.
+    //
+    // It covers the RIDE-level fields only: title, description, visibility, the
+    // subgroups and the anchors. Days are merged per uid and carry their own
+    // hash, because refusing a whole save because somebody renamed day 4 is what
+    // makes concurrent editing unusable rather than safe.
+    rev: bigint('rev', { mode: 'number' }).notNull().default(0),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

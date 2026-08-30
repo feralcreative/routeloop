@@ -395,6 +395,18 @@
     // day.points.length would be the bottom row, which is always there anyway.
     insertAt: null,
     rideId: window.TB.rideId || null,
+    // WHAT THIS BUILDER'S WORK IS BASED ON. Sent with every save and compared
+    // server-side; a mismatch means somebody else wrote to this ride since it
+    // was loaded, and the save is refused rather than applied.
+    //
+    // Null on a ride that has never been loaded from the server — a brand-new
+    // one, or a session that predates this — and the server reads a missing rev
+    // as unchecked, which is the same behavior the builder had before.
+    rev: null,
+    // Set when a save is refused as stale. It STOPS THE AUTOSAVE LOOP: a retry
+    // is not a recovery here, it is a second attempt to overwrite whatever the
+    // other rider just wrote. Cleared only by reloading the ride.
+    conflict: false,
     // The public slug, for the Riders tab's link out to the roster page. Null
     // until the first save mints one — showViewLink() is where it lands, because
     // that is already the one place a slug reaches this file.
@@ -734,6 +746,9 @@
     clearTimeout(ceilingTimer);
     idleTimer = ceilingTimer = null;
     if (!state.dirty) return;
+    // Every path back into a save goes through here, so one check covers the
+    // idle timer, the ceiling timer, the retry timer and an explicit flush.
+    if (state.conflict) return;
     // Coalesce rather than queue: two overlapping PUTs of the same ride would
     // only race to write the same thing. Nothing is recorded here — save()
     // re-queues itself from the editSeq comparison if this flush's request
@@ -789,6 +804,11 @@
     saving: "Saving…",
     saved: "Saved",
     error: "Not saved",
+    // Deliberately says what to DO, not what went wrong. A rider seeing this has
+    // work in front of them that the server has refused, and the only safe move
+    // is to reload and redo it — which is worth saying plainly rather than
+    // leaving them pressing a save that is never going to be attempted again.
+    conflict: "Someone else edited this ride—reload to see their changes",
   };
 
   function setSaveStatus(name, text) {
@@ -803,7 +823,7 @@
     // Only the states a rider needs told about reach the live region. The
     // routine dirty/saving/saved cycle runs several times a minute and
     // announcing it would make the panel unusable with a screen reader on.
-    if (name === "error" || name === "blocked") {
+    if (name === "error" || name === "blocked" || name === "conflict") {
       $("save-announce").textContent = text || SAVE_TEXT[name] || "";
     } else if (name === "saved") {
       $("save-announce").textContent = "";
@@ -5100,6 +5120,9 @@
 
   function payload() {
     return {
+      // The revision this edit is based on. Read at serialize time, like every
+      // other field here — see the editSeq comment for why that instant matters.
+      rev: state.rev,
       // FALLS BACK HERE TOO, not only in the field's blur handler. A draft
       // restored from before the default existed carries an empty title, and
       // fields.title is min(1) server-side — so an empty string 400s the whole
@@ -5172,7 +5195,26 @@
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      // A STALE SAVE IS NOT AN ERROR TO RETRY, AND THIS IS THE WHOLE POINT OF
+      // HANDLING IT SEPARATELY. The catch below re-arms a timer, which for any
+      // other failure is right — but here the request was REFUSED because
+      // somebody else wrote to this ride, so trying again is a second attempt
+      // to overwrite them, on a loop, every fifteen seconds.
+      //
+      // Nothing local is thrown away: state.days still holds this rider's work
+      // and the localStorage draft still holds the crash copy. The ride is left
+      // dirty on purpose, so it is visibly unsaved rather than quietly lost.
+      if (res.status === 409) {
+        state.conflict = true;
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        setSaveStatus("conflict");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "save failed (" + res.status + ")");
+      // Straight back out on the next save. Dropping this is how the SECOND
+      // save of a session 409s against a ride nobody else has touched.
+      if (typeof data.rev === "number") state.rev = data.rev;
       if (!state.rideId) {
         state.rideId = data.id;
         history.replaceState(null, "", "/builder/" + data.id);
@@ -5293,6 +5335,11 @@
       trunkSubgroup: ride.trunkSubgroup ?? null,
       timeAnchor: ride.timeAnchor || "departure",
     };
+    // `?? null` because rev 0 is a real, current revision — a ride nobody has
+    // saved since the column landed — and `||` would send it as null and turn
+    // the check off for exactly the rides that have never been contested.
+    state.rev = ride.rev ?? null;
+    state.conflict = false;
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
     state.days = (ride.days || []).map((r, i) => ({

@@ -1789,6 +1789,19 @@
         background: $kml;
       }
     }
+
+    // A CONFLICT READS AS AN ERROR BECAUSE IT IS ONE, from the rider's side:
+    // work is in front of them that the server has refused and will go on
+    // refusing. It shares `error`'s weight rather than `blocked`'s, which is the
+    // gentler state for "you have not finished yet" — nothing here clears on its
+    // own, and the autosave has deliberately stopped trying.
+    &[data-state="conflict"] {
+      color: $kml;
+      font-weight: 600;
+      .save-dot {
+        background: $kml;
+      }
+    }
   }
 
   // The public page, revealed by the first successful save and never hidden

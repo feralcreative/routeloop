@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import {
@@ -61,9 +61,24 @@ export const builderRoutes = new Hono<AuthEnv>()
 // A native ride is DB rows, not files — caps bound the rows since byte quota
 // does not apply. 8 MB JSON backstop over the structural caps.
 const BODY_LIMIT = 8 * 1024 * 1024
+/**
+ * `rev` RIDES ALONGSIDE THE PAYLOAD RATHER THAN INSIDE IT, and deliberately.
+ *
+ * `ridePayload` is shared with the native JSON import — a file on disk, which
+ * has no opinion about who else is editing — so a concurrency token has no
+ * business in that schema. Zod strips unknown keys, so it would be silently
+ * dropped there anyway, which is the worst of both: the guard would appear to
+ * be wired and would check nothing.
+ *
+ * Optional, and see drizzle/0024 for why that is not laziness: during the
+ * blue/green overlap the OLD builder posts no `rev` at all, and requiring it
+ * would refuse every one of those saves.
+ */
+const revField = z.coerce.number().int().nonnegative().optional()
+
 async function parseRideBody(
   c: Context<AuthEnv>,
-): Promise<{ data: RidePayload; error?: never } | { data?: never; error: string }> {
+): Promise<{ data: RidePayload; rev?: number; error?: never } | { data?: never; error: string }> {
   let raw: unknown
   try {
     raw = await c.req.json()
@@ -73,7 +88,8 @@ async function parseRideBody(
   const parsed = ridePayload.safeParse(raw)
   if (!parsed.success) return { error: firstIssue(parsed.error) }
   normalize(parsed.data)
-  return { data: parsed.data }
+  const rev = revField.safeParse((raw as { rev?: unknown } | null)?.rev)
+  return { data: parsed.data, rev: rev.success ? rev.data : undefined }
 }
 
 // --- API -------------------------------------------------------------------
@@ -330,11 +346,23 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   const body = await parseRideBody(c)
   if (!body.data) return c.json({ error: body.error }, 400)
   const p = body.data
+  const p_rev = body.rev
 
-  await db.transaction(async (tx) => {
-    await tx
+  // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION.
+  //
+  // Read-then-write outside one is the race it exists to close: two saves both
+  // read rev 7, both find it current, and both write. `for update` on the row
+  // makes the second wait for the first to commit and then see rev 8.
+  //
+  // A missing `rev` means unchecked — see revField. That is the expand/contract
+  // half of this, not an oversight.
+  const result = await db.transaction(async (tx) => {
+    const [cur] = await tx.select({ rev: rides.rev }).from(rides).where(eq(rides.id, ride.id)).for('update')
+    if (p_rev !== undefined && cur && cur.rev !== p_rev) return { stale: cur.rev }
+    const [written] = await tx
       .update(rides)
       .set({
+        rev: sql`${rides.rev} + 1`,
         title: p.title,
         description: p.description || null,
         // VISIBILITY IS AN OWNER POWER AND THIS IS THE GATE. Edit means the
@@ -349,14 +377,29 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
         updatedAt: new Date(),
       })
       .where(eq(rides.id, ride.id))
+      // THE NEW REV COMES BACK FROM THE WRITE, never from arithmetic on what
+      // this request read at the top. `ride.rev` was loaded before the lock, so
+      // computing `+ 1` from it hands the client a number the row may not hold
+      // — and the client sends it on the NEXT save, which then 409s against a
+      // ride nobody else touched.
+      .returning({ rev: rides.rev })
     // Full replace: routes cascade to points and legs.
     await tx.delete(daysTable).where(eq(daysTable.rideId, ride.id))
     // `preserve` for a non-owner — see DetailsMode in ride-graph.ts. Their
     // payload carries no details because they were never sent any, and a
     // reconciling write would read that as the rider clearing every one.
     await insertRideGraph(tx, ride.id, p, isOwner ? 'reconcile' : 'preserve')
+    return { rev: written.rev }
   })
-  return c.json({ id: ride.id, slug: ride.slug })
+
+  // 409 CARRYING THE CURRENT STATE, so the builder can show what it collided
+  // with rather than only that it did. The rider's own work is still in their
+  // browser and untouched — nothing was written — which is the whole point of
+  // refusing rather than merging at this level.
+  if ('stale' in result) {
+    return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
+  }
+  return c.json({ id: ride.id, slug: ride.slug, rev: result.rev })
 })
 
 // Member load for the builder — the same shape PUT accepts, vias included.
@@ -390,6 +433,11 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
   const out = {
     id: ride.id,
     slug: ride.slug,
+    // OUT AND STRAIGHT BACK ON THE NEXT SAVE, like every uid in this payload,
+    // and the same class of failure if it is dropped: the PUT stops checking,
+    // silently, and two riders are back to overwriting each other with nothing
+    // raised on either screen.
+    rev: ride.rev,
     source: ride.source,
     title: ride.title,
     description: ride.description ?? '',
