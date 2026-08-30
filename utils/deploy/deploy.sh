@@ -173,6 +173,8 @@ APP_ORIGIN="https://${DOMAIN}"
 # check_ssh_key and get_ssh_cmd live in lib.sh; both scripts carried identical
 # copies before blue/green gave them a third thing to agree about.
 check_ssh_key
+# Skipped on a dry run, which touches the NAS not at all.
+[ -n "${DRY_RUN:-}" ] || check_ssh_reachable
 SSH_CMD=$(get_ssh_cmd)
 
 # ----------------------------------------------------------- env labels ------
