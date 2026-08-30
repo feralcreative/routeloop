@@ -54,7 +54,7 @@ jobs:
     environment: stage
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
@@ -65,7 +65,7 @@ jobs:
       # there is no QEMU in the picture and the build is the same speed it is on
       # a laptop.
       - name: Sign in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
