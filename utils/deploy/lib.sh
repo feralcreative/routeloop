@@ -21,6 +21,11 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 check_ssh_key() {
+  # A LEADING ~ IS EXPANDED BY HAND, because nothing else will. Tilde expansion
+  # happens when the shell PARSES a word, so a `~` that arrives inside a
+  # variable — from .env, or from a CI env block — stays a literal character and
+  # the -f test fails against a file that exists. It cost the first CI deploy.
+  case "${SSH_KEY_PATH:-}" in "~/"*) SSH_KEY_PATH="$HOME/${SSH_KEY_PATH#\~/}" ;; esac
   if [ -n "${SSH_KEY_PATH:-}" ] && [ -f "$SSH_KEY_PATH" ]; then return; fi
   if [ -f "$HOME/.ssh/id_ed25519" ]; then SSH_KEY_PATH="$HOME/.ssh/id_ed25519"; return; fi
   if [ -f "$HOME/.ssh/id_rsa" ];      then SSH_KEY_PATH="$HOME/.ssh/id_rsa";      return; fi
