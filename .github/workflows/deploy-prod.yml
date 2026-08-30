@@ -1,0 +1,116 @@
+# Deploy to production (routeloop.app).
+#
+# THE BUTTON IS THE ONLY TRIGGER, AND THAT IS PERMANENT. Stage deploys itself on
+# every merge to main because a broken stage costs nothing; production holds real
+# rider accounts, so what stands between a merge and a deploy is a person
+# deciding to deploy. There is no `push:` below and one should never be added.
+#
+# WHY THIS EXISTS AT ALL, given that prod.sh already works from a laptop: the
+# deploy BUILDS the image and pushes it to GHCR, which is several hundred
+# megabytes UP whatever connection the laptop is on. The NAS then pulls it, which
+# costs the laptop nothing. Moving the build to a runner moves the only expensive
+# half of the deploy off the developer's uplink entirely — the reason this was
+# written on 2026-08-29, from a rented house on cable.
+#
+# **IT HOLDS NO APPLICATION SECRETS.** Same design as the stage workflow: no Maps
+# key, no Google OAuth secret, no SMTP password, no PROD_DB_PASSWORD.
+# `DEPLOY_SKIP_ENV=1` makes deploy.sh VERIFY the server's .env against
+# REMOTE_ENV_KEYS rather than compose it, so a release that needs a key the
+# server does not have fails here, loudly, instead of starting a container that
+# passes its healthcheck and cannot sign anybody in. A changed value is
+# `utils/deploy/deploy-utils.sh push-env` from a machine that has it, run BEFORE
+# the release that needs it.
+#
+# NO `ref` INPUT, DELIBERATELY. deploy.sh refuses a prod deploy that is not on
+# main, and `actions/checkout` leaves a detached HEAD for anything that is not a
+# branch — so a tag or a SHA would be refused by that gate after a five-minute
+# build. Production deploys main. **Rolling back is not a deploy**: it is
+# `utils/deploy/deploy-utils.sh cutover blue|green`, which repoints the proxy at
+# the color still holding the previous build and takes about ten seconds.
+#
+# There is no approval gate. Ziad's call, 2026-08-29: he is the only developer,
+# so a required reviewer would be him approving himself. What actually stops a
+# stranger deploying is that dispatching a workflow needs write access to this
+# repository. Turning one on later is a setting on the `prod` environment and
+# needs no change to this file.
+name: Deploy prod
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  # Against itself only. A terminal deploy is serialized by the lock inside
+  # deploy.sh, which lives on the NAS because the two racers are different
+  # machines. That lock is per-environment (it sits under the domain's deploy
+  # path), so this never contends with a stage deploy.
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # For pushing the image to GHCR under this repository's namespace.
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
+          # run without a SHA. Depth 1 carries both.
+          fetch-depth: 1
+
+      - name: Sign in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `latest` rather than pinned — see the note in deploy-stage.yml. If this
+      # step starts hanging having "succeeded", suspect a cloudflared regression
+      # in headless service-token auth and pin a known-good version.
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Configure SSH through Cloudflare Access
+        env:
+          SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
+          SSH_HOSTNAME: ${{ secrets.NAS_SSH_HOSTNAME }}
+          KNOWN_HOSTS: ${{ secrets.NAS_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/nas && chmod 600 ~/.ssh/nas
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host $SSH_HOSTNAME
+            ProxyCommand cloudflared access ssh --hostname %h
+            IdentityFile ~/.ssh/nas
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy
+        env:
+          # In the environment, never on the ProxyCommand line — a token passed
+          # as a flag is a token in the process list.
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          DEPLOY_SKIP_ENV: '1'
+          # A runner has no TTY. deploy.sh refuses to treat a missing answer as
+          # consent, so the prompt has to be waived explicitly — pressing Run
+          # Workflow is the deliberate act it was asking for.
+          DEPLOY_CONFIRM: 'yes'
+          DEPLOY_LOCK_OWNER: 'github-actions run ${{ github.run_id }}'
+        # Assigned here rather than in `env:` above: a YAML env value is passed
+        # through literally, so `~/.ssh/nas` arrives as those nine characters and
+        # never expands. The shell expands $HOME.
+        run: SSH_KEY_PATH="$HOME/.ssh/nas" bash utils/deploy/prod.sh
