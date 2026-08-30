@@ -120,8 +120,12 @@ jobs:
           # The two values deploy.sh needs from .env that are NOT application
           # secrets. Everything else it would normally read is deliberately
           # absent — see DEPLOY_SKIP_ENV.
-          SSH_KEY_PATH: ~/.ssh/nas
           DEPLOY_SKIP_ENV: '1'
           DEPLOY_CONFIRM: 'yes'
           DEPLOY_LOCK_OWNER: 'github-actions run ${{ github.run_id }}'
-        run: bash utils/deploy/stage.sh
+        # SSH_KEY_PATH IS SET HERE AND NOT IN `env:` ABOVE. A YAML env value is
+        # passed through literally — nothing tilde-expands it — so `~/.ssh/nas`
+        # arrived as those exact nine characters and `[ -f "$SSH_KEY_PATH" ]`
+        # was false against a file that was sitting right there. Assigning it in
+        # the run line lets the shell expand $HOME first.
+        run: SSH_KEY_PATH="$HOME/.ssh/nas" bash utils/deploy/stage.sh
