@@ -45,6 +45,38 @@ get_scp_cmd() {
 
 NAS_SSH_HOST="${NAS_USER}@${NAS_HOST}"
 
+# ONE ROUND TRIP BEFORE ANYTHING ELSE, SO A CONNECTION PROBLEM IS REPORTED AS A
+# CONNECTION PROBLEM. Without it the first thing to touch the NAS is the deploy
+# lock, and its failure path reads as contention — so an unreachable host was
+# reported as "Another deploy holds the lock on stage", with no holder recorded.
+# That sent the first CI run after the env fix looking for a stuck lock that did
+# not exist.
+#
+# The host-key case gets its own paragraph because the trap is not obvious: ssh
+# looks a host up in known_hosts under the name AND PORT it was given, and a
+# non-default port makes that key BRACKETED — `[host]:33725`. An entry generated
+# with a portless `ssh-keyscan host` is filed under the bare name and never
+# matches, which fails identically to a key that is genuinely wrong.
+check_ssh_reachable() {
+  local err
+  if err=$($(get_ssh_cmd) -o BatchMode=yes -o ConnectTimeout=15 "$NAS_SSH_HOST" true 2>&1); then
+    return 0
+  fi
+  log_error "Cannot reach ${NAS_SSH_HOST} on port ${NAS_SSH_PORT} over SSH."
+  [ -n "$err" ] && log_error "  ssh said: ${err%%$'\n'*}"
+  case "$err" in
+    *"Host key verification failed"*)
+      log_error ""
+      log_error "The host key is not in known_hosts under the name ssh looks it up by."
+      log_error "Port ${NAS_SSH_PORT} is not 22, so that name is BRACKETED and an entry"
+      log_error "written for the bare hostname never matches. Regenerate it WITH the port:"
+      log_error "  ssh-keyscan -p ${NAS_SSH_PORT} ${NAS_HOST}"
+      log_error "In CI that is the NAS_SSH_KNOWN_HOSTS repository secret."
+      ;;
+  esac
+  exit 1
+}
+
 # Run one command on the NAS. Every remote call in both scripts goes through
 # this, so there is one place that knows how to reach the host.
 nas() { $(get_ssh_cmd) "$NAS_SSH_HOST" "$@"; }
@@ -86,6 +118,14 @@ acquire_deploy_lock() {
   # A first deploy onto a fresh path needs the parent, though, or the lock fails
   # for a reason that has nothing to do with contention.
   if ! nas "mkdir -p '${NAS_DEPLOY_PATH}' && mkdir '${dir}' 2>/dev/null"; then
+    # A FAILED mkdir IS NOT PROOF OF CONTENTION. It is equally what an
+    # unreachable host looks like, and reporting that as a held lock sends
+    # somebody to `unlock` a lock that was never taken.
+    if ! nas true >/dev/null 2>&1; then
+      log_error "Cannot reach the NAS over SSH, so the lock was never tested."
+      log_error "This is a connection failure, NOT a held lock — do not run unlock."
+      return 1
+    fi
     local held; held=$(nas "cat '${dir}/holder' 2>/dev/null" || true)
     log_error "Another deploy holds the lock on ${DEPLOY_ENV}."
     log_error "  ${held:-<no holder recorded>}"
