@@ -57,6 +57,23 @@ That is what lets CI deploy without holding a single application secret. The con
 There is a lock, held as a directory at `<NAS_DEPLOY_PATH>/.deploy.lock`. It is on the NAS because the two things that can race are different machines. It is taken before the build, so a second deploy fails in a second rather than after a five-minute build, and it never expires on its own. `deploy-utils.sh unlock` prints who holds it before breaking it.
 
 
+## Deploying from GitHub
+
+Two workflows, and the difference between them is the whole policy.
+
+| | Trigger | Calls | Environment |
+| --- | --- | --- | --- |
+| `deploy-stage.yml` | **every push to `main`**, plus a button | `utils/deploy/stage.sh` | `stage` |
+| `deploy-prod.yml` | **a button, and only ever a button** | `utils/deploy/prod.sh` | `prod` |
+
+Stage deploys itself because a failed stage deploy changes nothing that is serving—it fails before the cutover—and because an environment that always holds what `main` holds is only useful if nobody has to remember to put it there. Production holds real rider accounts, so what stands between a merge and a deploy is a person deciding to deploy. **No `push:` trigger belongs in `deploy-prod.yml`.**
+
+**The reason to prefer a workflow over a terminal is bandwidth, not ceremony.** The deploy builds the image and pushes several hundred megabytes to GHCR; the NAS then pulls it over its own connection. Run from a laptop, that upload is on the laptop's uplink, which matters a great deal on a bad one. Run from a runner, it costs the developer nothing. That is why both environments have a workflow rather than only stage.
+
+The prod workflow takes **no `ref` input**: `deploy.sh` refuses a prod deploy that is not on `main`, and `actions/checkout` leaves a detached HEAD for anything that is not a branch, so a tag or a SHA would be rejected by that gate after a full build. Production deploys `main`. **Rolling back is not a deploy**—it is `deploy-utils.sh cutover blue|green`, which repoints the proxy at the color still holding the previous build and takes about ten seconds.
+
+Neither workflow holds an application secret; see the section above. Neither has an approval gate—Ziad is the only developer, so a required reviewer would be him approving himself, and what actually stops a stranger deploying is that dispatching a workflow needs write access to the repository. Turning one on is a setting on the `stage` or `prod` environment and needs no change to either file.
+
 ## Running a deploy
 
 ```bash
@@ -66,6 +83,8 @@ utils/deploy/prod.sh                # prod
 ```
 
 Both wrappers set `DEPLOY_ENV` and exec `utils/deploy/deploy.sh`, which gates on a clean tree and being on `main` unless `--force`.
+
+From a terminal, as above, or from the Actions tab—see the previous section. Both paths run the same scripts on purpose; two deploy paths that drift is a failure this repository has hit more than once.
 
 `utils/deploy/deploy-utils.sh` carries the operational subcommands: `colors`, `cutover`, `status`, `logs`, `db-logs`, `restart`, `restart-proxy`, `restart-db`, `stop`, `start`, `shell`, `psql`, `migrate`, `schema-state`, `db-baseline`, `db-backup`, `backup`, `db-clone <src> <dst>`, `db-restore`. `db-clone`'s dump-and-load path has never actually been exercised end to end. **Every dump lands in `data/`**—`db-backup`, `backup`, and the safety dump `db-clone` takes before it drops anything. The root was a bad default for files nobody reviews: `*.sql.gz` and `*.tar.gz` are gitignored, so a stray one is invisible rather than untidy, and these hold rider PII.
 

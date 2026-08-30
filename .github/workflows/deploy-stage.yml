@@ -1,11 +1,16 @@
 # Deploy to stage.
 #
-# WORKFLOW_DISPATCH ONLY, FOR NOW. It is a button before it is a trigger: the
-# whole path — Cloudflare Access, the registry pull on the NAS, the env
-# verification — wants to be run by a person watching it several times before
-# anything fires it automatically. Adding `push: branches: [main]` below is the
-# one-line change that makes it automatic, and it should not be made until this
-# has been boring for a while.
+# EVERY MERGE TO MAIN DEPLOYS HERE, AUTOMATICALLY. That is the point of stage:
+# it is the environment that always holds what main holds, so nobody has to
+# remember to put it there. The button stays alongside the trigger, for
+# redeploying a branch before it merges — which is what the `ref` input is for.
+#
+# It was dispatch-only for two days after it was written, on the reasoning that
+# a new deploy path should be watched by a person a few times first. That was
+# over-cautious: a failed stage deploy changes nothing that is serving, because
+# it fails before the cutover, and the deploy path itself was already proven from
+# a terminal. **Production is the opposite and stays a button forever** — see
+# deploy-prod.yml.
 #
 # **THIS WORKFLOW HOLDS NO APPLICATION SECRETS, AND THAT IS THE DESIGN.** It
 # never learns a Maps key, the Google OAuth secret, the SMTP password or the
@@ -25,6 +30,8 @@
 name: Deploy stage
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -56,6 +63,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # EMPTY ON A PUSH, AND THAT IS CORRECT. `inputs.ref` does not exist for
+          # a push event, and actions/checkout reads an empty `ref` as "the ref
+          # that triggered this run" — which is main. Defaulting it to 'main'
+          # here instead would be the same value by a longer route, and wrong the
+          # day this workflow is given a second branch to watch.
           ref: ${{ inputs.ref }}
           # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
           # run without a SHA. Depth 1 carries both.
