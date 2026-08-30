@@ -502,12 +502,51 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
 //
 // The gate is `view`, not `edit`: the read-only builder is what a view-, comment-
 // or suggest-level rider gets, and it loads through here like any other.
+// The day behind a change notice. `view` is the floor, like the ride GET it
+// borrows: a comment- or suggest-level rider watching a day change is exactly
+// who this is for.
+builderRoutes.get('/api/rides/:id/day/:uid', requireActiveApi, async (c) => {
+  const user = currentUser(c)
+  const found = await builderRide(user.id, c.req.param('id'))
+  if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
+  // detailsForViewer is owner-only and blind to visibility, so a non-owner's
+  // copy of this day carries no confirmation numbers — the same boundary the
+  // ride GET goes through, reached the same way rather than re-decided here.
+  const day = await loadDayPayload(found.ride, user, c.req.param('uid'))
+  if (!day) return c.json({ error: 'not found' }, 404)
+  return c.json({ day })
+})
+
 builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
   if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
   return c.json(await loadRidePayload(found.ride, user))
 })
+
+/**
+ * ONE DAY, for a builder catching up on somebody else's save.
+ *
+ * A change notice carries a day uid and its new hash; this is what the client
+ * fetches to act on it. A refetch of the whole ride would be the obvious
+ * alternative and is not viable at editing speed: the body limit is 8 MB, the
+ * ceilings are 31 days and 400 points, and leg geometry dominates — so a save
+ * every three seconds would move megabytes per notice, per watcher.
+ *
+ * Broadcasting the day over SSE instead has the same problem pointed the other
+ * way, and would put a rider's stop details into a channel every member of the
+ * ride is subscribed to.
+ *
+ * Built by picking out of loadRidePayload rather than by a query of its own.
+ * That is deliberate and costs a little work on a rare path: a second day
+ * serializer would drift from the first, and the drift would surface as days
+ * quietly losing fields only when they arrive over the live channel — which is
+ * the hardest possible place to notice it.
+ */
+export async function loadDayPayload(ride: RideRow, viewer: { id: number } | null, uid: string) {
+  const full = (await loadRidePayload(ride, viewer)) as { days: Array<{ uid?: string }> }
+  return full.days.find((d) => d.uid === uid) ?? null
+}
 
 export async function loadRidePayload(ride: RideRow, viewer: { id: number } | null) {
   // NOT owner-only by construction any more. This used to reach detailsForOwner

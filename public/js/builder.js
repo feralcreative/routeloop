@@ -811,6 +811,41 @@
   // One state name in, one fixed-footprint readout out. The width is reserved in
   // CSS for the longest string here, because #save-status was on the epic's list
   // of variable-length readouts that reflow whatever sits beside them.
+  // One payload day, in this file's own shape.
+  //
+  // EXTRACTED SO THE LIVE REFRESH CANNOT DRIFT FROM THE LOAD. A day arriving over
+  // the live channel is the same thing as a day arriving in the initial load, and
+  // two mappings of it would diverge — quietly, and only for days that came in
+  // over the channel, which is the hardest place to notice a missing field.
+  function dayFromPayload(r, i) {
+    return {
+      // `|| uid()` rather than assuming one is there: a ride saved before this
+      // shipped has none in flight, and the server repairs a null anyway — but
+      // a day carrying undefined here would send undefined straight back and
+      // churn its uid on every save, losing its votes each time.
+      uid: r.uid || uid(),
+      // `?? null` rather than `|| null` for symmetry with altGroup below —
+      // there is no falsy uid, but the two fields are read the same way and one
+      // of them written differently is a thing somebody has to check.
+      subgroupUid: r.subgroupUid ?? null,
+      title: r.title || "",
+      color: r.color || DAY_COLORS[(i || 0) % DAY_COLORS.length],
+      startAt: r.startAt || null,
+      endAt: r.endAt || null,
+      endManual: false,
+      // The other half of payload()'s round-trip. Omitting these is how a
+      // rider's alternate grouping works perfectly until they reload the page
+      // and then is silently gone, with the ride's mileage jumping to match —
+      // `?? null` rather than `|| null` because 0 is a real group id.
+      altGroup: r.altGroup ?? null,
+      altActive: r.altActive ?? true,
+      // One ordered list. A payload from before 2026-08-23 cannot reach this —
+      // loadRidePayload is the only source and it was changed with the schema.
+      points: r.points || [],
+      legs: r.legs || [],
+    };
+  }
+
   // --- The live channel -----------------------------------------------------
   //
   // Who else is in this ride, what they are working on, and when a day changes
@@ -931,21 +966,106 @@
 
   // What another rider's save means for this builder.
   //
-  // Days this rider does not hold are simply out of date on screen; days they DO
-  // hold are the contested case and the save path already refuses those. So the
-  // honest answer here is to say the ride has moved on, rather than to silently
-  // patch state under a rider mid-edit. Stage 4 (#219) replaces this with a
-  // per-day fetch that updates what is safe to update.
-  function onRemoteSave(msg) {
-    const held = new Set(state.days.map((d) => d.uid));
-    const changedHere = (msg.days || []).some((d) => held.has(d.uid) && state.dayBase[d.uid] !== d.hash);
-    if (!changedHere) return;
-    if (state.dirty) {
-      // Their work and ours overlap and ours is unsaved. Say so and stop trying.
-      state.conflict = true;
-      setSaveStatus("conflict");
-    } else {
-      setSaveStatus("stale");
+  // A day is refreshed in place when it is SAFE to refresh: this rider is not
+  // editing it and has nothing unsaved that touches it. Anything else is left
+  // alone and reported, because patching state under a rider mid-edit is its own
+  // kind of data loss — the one where nothing is deleted and the thing they were
+  // looking at simply changes.
+  //
+  // Fetched one day at a time rather than by reloading the ride. A big ride's
+  // payload is megabytes and the autosave fires every three seconds; see
+  // loadDayPayload for the whole argument.
+  async function onRemoteSave(msg) {
+    const changed = (msg.days || []).filter((d) => state.dayBase[d.uid] !== d.hash);
+    if (changed.length === 0) return;
+
+    const mine = state.days[state.active] && state.days[state.active].uid;
+    const refreshable = [];
+    let blocked = false;
+
+    // A REFRESH RE-RENDERS THE WHOLE DAY LIST, AND THAT EATS A FOCUSED FIELD.
+    // Same defect as #188 and the places.js one it was mirrored from: rebuilding
+    // the list under a rider destroys the input they are typing in and drops
+    // focus to <body>. state.dirty does not cover it — `change` fires on BLUR,
+    // so a rider mid-word is still clean. So if the caret is anywhere in the day
+    // list, nothing is taken and the panel just says it is behind.
+    const focused = document.activeElement;
+    const typing = focused && focused.closest && focused.closest("#day-list");
+    for (const d of changed) {
+      const at = state.days.findIndex((x) => x.uid === d.uid);
+      // A day this builder has never seen. It cannot be spliced meaningfully —
+      // there is no position for it — so it is a reload, not a refresh.
+      if (at === -1) {
+        blocked = true;
+        continue;
+      }
+      // The day under the rider's hands, or unsaved work anywhere. Either way
+      // this builder holds something the server has not got.
+      if (d.uid === mine || state.dirty || typing) {
+        blocked = true;
+        continue;
+      }
+      refreshable.push({ uid: d.uid, at: at, hash: d.hash });
+    }
+
+    for (const r of refreshable) {
+      try {
+        const res = await fetch("/api/rides/" + state.rideId + "/day/" + encodeURIComponent(r.uid));
+        if (!res.ok) {
+          blocked = true;
+          continue;
+        }
+        const body = await res.json();
+        if (!body.day) {
+          blocked = true;
+          continue;
+        }
+        // Re-read the index: an await happened, and a render or another refresh
+        // may have moved the day. Splicing at a stale index replaces the wrong
+        // one, which is exactly the silent corruption this whole sprint is about.
+        const at = state.days.findIndex((x) => x.uid === r.uid);
+        if (at === -1) {
+          blocked = true;
+          continue;
+        }
+        // Still not mid-edit, and still clean. Both can have changed while the
+        // fetch was in flight.
+        const nowMine = state.days[state.active] && state.days[state.active].uid;
+        if (state.dirty || r.uid === nowMine) {
+          blocked = true;
+          continue;
+        }
+        state.days[at] = dayFromPayload(body.day, at);
+        state.days[at].endManual = inferEndManual(state.days[at]);
+        // Rebase, or the next save sends this day with the hash it had BEFORE
+        // the refresh and the merge reads it as contested.
+        if (r.hash) state.dayBase[r.uid] = r.hash;
+      } catch (e) {
+        blocked = true;
+      }
+    }
+
+    if (refreshable.length > 0) {
+      // The render half of renderEverything, without the three form inputs it
+      // also writes. Those belong to the ride rather than to a day, and nothing
+      // here changed them — rewriting a field the rider may be in is the defect
+      // above, arriving by another route.
+      rebuildLayers();
+      renderMarkers();
+      renderDays();
+      refreshDerived();
+    }
+
+    // Something changed that could not be taken safely. Say so rather than
+    // leaving the panel quietly behind — but do NOT stop the autosave unless
+    // this rider has work at stake, because a stale VIEW is not a stale WRITE.
+    if (blocked) {
+      if (state.dirty) {
+        state.conflict = true;
+        setSaveStatus("conflict");
+      } else {
+        setSaveStatus("stale");
+      }
     }
   }
 
@@ -5549,32 +5669,7 @@
     }
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
-    state.days = (ride.days || []).map((r, i) => ({
-      // `|| uid()` rather than assuming one is there: a ride saved before this
-      // shipped has none in flight, and the server repairs a null anyway — but
-      // a day carrying undefined here would send undefined straight back and
-      // churn its uid on every save, losing its votes each time.
-      uid: r.uid || uid(),
-      // `?? null` rather than `|| null` for symmetry with altGroup below —
-      // there is no falsy uid, but the two fields are read the same way and one
-      // of them written differently is a thing somebody has to check.
-      subgroupUid: r.subgroupUid ?? null,
-      title: r.title || "",
-      color: r.color || DAY_COLORS[i % DAY_COLORS.length],
-      startAt: r.startAt || null,
-      endAt: r.endAt || null,
-      endManual: false,
-      // The other half of payload()'s round-trip. Omitting these is how a
-      // rider's alternate grouping works perfectly until they reload the page
-      // and then is silently gone, with the ride's mileage jumping to match —
-      // `?? null` rather than `|| null` because 0 is a real group id.
-      altGroup: r.altGroup ?? null,
-      altActive: r.altActive ?? true,
-      // One ordered list. A payload from before 2026-08-23 cannot reach this —
-      // loadRidePayload is the only source and it was changed with the schema.
-      points: r.points || [],
-      legs: r.legs || [],
-    }));
+    state.days = (ride.days || []).map(dayFromPayload);
     state.days.forEach(fillMissingLegs);
     // Nothing has changed the day yet, so a stored end that matches what the
     // day derives is one we wrote — anything else the rider chose themselves.
