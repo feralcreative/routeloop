@@ -249,7 +249,13 @@ IMAGE_MOVING="${IMAGE_REPO}:${IMAGE_TAG}"
 
 if [ "$DEPLOY_ENV" = "prod" ] && [ -z "${FORCE:-}" ]; then
   if [ -n "$(git status --porcelain)" ]; then
-    log_error "Working tree is dirty. Commit/stash, or pass --force."; exit 1
+    # NAME THE FILES. "Dirty" alone sent the first CI prod deploy looking for
+    # an uncommitted edit on a tree actions/checkout had just created — the
+    # culprit was a cloudflared .deb the workflow had downloaded into the repo
+    # root, which one line of output would have identified immediately.
+    log_error "Working tree is dirty. Commit/stash, or pass --force."
+    git status --porcelain | sed 's/^/    /' >&2
+    exit 1
   fi
   if [ "$GIT_BRANCH" != "main" ]; then
     log_error "Not on 'main' (current: $GIT_BRANCH). Switch or pass --force."; exit 1

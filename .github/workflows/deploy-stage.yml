@@ -91,10 +91,16 @@ jobs:
       # that is the first thing to suspect, and pinning a known-good version is
       # the fix. See cloudflare/cloudflared#1673.
       - name: Install cloudflared
+        # INTO A TEMP DIRECTORY, NOT THE CHECKOUT. A bare `-o cloudflared.deb`
+        # lands in the repo root, where `git status --porcelain` sees it as an
+        # untracked file — and deploy.sh's clean-tree gate then refuses the
+        # deploy. That gate is prod-only, so this passed on stage every time and
+        # failed the first prod run with "Working tree is dirty" on a tree that
+        # actions/checkout had just made.
         run: |
-          curl -fsSL -o cloudflared.deb \
+          curl -fsSL -o "$RUNNER_TEMP/cloudflared.deb" \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared.deb
+          sudo dpkg -i "$RUNNER_TEMP/cloudflared.deb"
 
       # NO INBOUND PORT IS OPENED ANYWHERE. cloudflared dials out to the edge and
       # the NAS's own tunnel dials out to meet it; Access decides whether this
