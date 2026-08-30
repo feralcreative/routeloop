@@ -1,0 +1,14 @@
+-- SAFE IN ONE DEPLOY, and NO BACKFILL — the null is the correct value.
+--
+-- A nullable column is on the additive list in AGENTS.md, so the old code
+-- serving against this schema during the blue/green overlap is unaffected: it
+-- never writes this and never reads it.
+--
+-- Deliberately NOT backfilled, unlike drizzle/0023's original_stored_at. There
+-- is no honest value to write: the hash covers a day's whole content, so it
+-- could only be produced by loading every point and every leg of every day of
+-- every ride, and a WRONG hash here is worse than none. Null means UNKNOWN, and
+-- mergeDays() takes the client's version on an unknown — which is exactly the
+-- behavior these rides had before this column existed. Each day acquires its
+-- hash on the next save of its ride, and until then loses nothing.
+ALTER TABLE "days" ADD COLUMN "content_hash" varchar(32);

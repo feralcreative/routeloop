@@ -403,6 +403,15 @@
     // one, or a session that predates this — and the server reads a missing rev
     // as unchecked, which is the same behavior the builder had before.
     rev: null,
+    // What each day looked like when this builder last saw it, as {uid: hash}.
+    // Echoed with every save so the server can merge per day instead of
+    // refusing the whole ride because somebody renamed day 4.
+    //
+    // THE WHOLE SET, not a field on each day in state.days. A day this rider
+    // DELETED is absent from the payload, and its base hash is the only thing
+    // that distinguishes "I deleted this" from "somebody else added this while
+    // I was working" — which need opposite answers.
+    dayBase: {},
     // Set when a save is refused as stale. It STOPS THE AUTOSAVE LOOP: a retry
     // is not a recovery here, it is a second attempt to overwrite whatever the
     // other rider just wrote. Cleared only by reloading the ride.
@@ -5123,6 +5132,7 @@
       // The revision this edit is based on. Read at serialize time, like every
       // other field here — see the editSeq comment for why that instant matters.
       rev: state.rev,
+      dayBase: state.dayBase,
       // FALLS BACK HERE TOO, not only in the field's blur handler. A draft
       // restored from before the default existed carries an empty title, and
       // fields.title is min(1) server-side — so an empty string 400s the whole
@@ -5215,6 +5225,45 @@
       // Straight back out on the next save. Dropping this is how the SECOND
       // save of a session 409s against a ride nobody else has touched.
       if (typeof data.rev === "number") state.rev = data.rev;
+      // REBASE ON WHAT WAS ACTUALLY STORED, BUT ONLY FOR DAYS THIS BUILDER
+      // HOLDS. Without the rebase, the second save of a session is based on
+      // hashes the first one invalidated and every day reads as contested.
+      // Without the FILTER, it is worse than that: the server's map includes
+      // days another rider has just added, this builder has never seen them, and
+      // a uid in dayBase that is missing from the payload is exactly how the
+      // merge is told "the rider deleted this". The next autosave would erase
+      // the other rider's new days, three seconds later, silently.
+      if (data.dayBase) {
+        const held = new Set(state.days.map((d) => d.uid));
+        const next = {};
+        for (const uid in data.dayBase) if (held.has(uid)) next[uid] = data.dayBase[uid];
+        state.dayBase = next;
+      }
+
+      // THIS BUILDER IS NOW STALE, AND SAVING AGAIN WOULD UNDO SOMEBODY.
+      //
+      // `superseded` means a day this rider edited was kept from the database
+      // instead — so state.days still holds their rejected version, and the
+      // rebase above has just made its base match. Left alone, the very next
+      // autosave would send that version with a base the server accepts, and it
+      // would win: the merge would have delayed the clobber by three seconds
+      // rather than prevented it.
+      //
+      // `adopted` means another rider added days this builder has never seen.
+      // Nothing is lost by saving again, but the panel is showing a ride that
+      // is missing days, which is its own kind of wrong.
+      //
+      // Both stop the loop and ask for a reload. Two riders on DIFFERENT days
+      // reach neither — which is the whole point of merging per day, and why
+      // this is rare rather than routine.
+      const clashed = (data.superseded || []).length + (data.adopted || []).length;
+      if (clashed > 0) {
+        state.conflict = true;
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        setSaveStatus("conflict");
+        return;
+      }
       if (!state.rideId) {
         state.rideId = data.id;
         history.replaceState(null, "", "/builder/" + data.id);
@@ -5340,6 +5389,13 @@
     // the check off for exactly the rides that have never been contested.
     state.rev = ride.rev ?? null;
     state.conflict = false;
+    // Built from what the SERVER sent, never computed here. The hash is the
+    // server's own record of what it stored; a second implementation in this
+    // file would drift and every day would read as contested.
+    state.dayBase = {};
+    for (const r of ride.days || []) {
+      if (r.uid && r.contentHash) state.dayBase[r.uid] = r.contentHash;
+    }
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
     state.days = (ride.days || []).map((r, i) => ({

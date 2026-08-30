@@ -7,6 +7,7 @@ import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { mergeDays, storedUidsNeeded, type MergeResult } from '../maps/day-merge'
 import { db } from '../db/index'
 import {
   rides,
@@ -76,9 +77,17 @@ const BODY_LIMIT = 8 * 1024 * 1024
  */
 const revField = z.coerce.number().int().nonnegative().optional()
 
+/** Every day uid the client held when it loaded, and the hash it saw. The WHOLE
+ *  set, not a field on each day it still has — a day the rider deleted is absent
+ *  from the payload and would carry nothing, and that is precisely the case
+ *  mergeDays has to tell apart from a day somebody else added. */
+const baseField = z.record(z.string().max(12), z.string().max(32)).optional()
+
 async function parseRideBody(
   c: Context<AuthEnv>,
-): Promise<{ data: RidePayload; rev?: number; error?: never } | { data?: never; error: string }> {
+): Promise<
+  { data: RidePayload; rev?: number; base?: Record<string, string>; error?: never } | { data?: never; error: string }
+> {
   let raw: unknown
   try {
     raw = await c.req.json()
@@ -89,7 +98,12 @@ async function parseRideBody(
   if (!parsed.success) return { error: firstIssue(parsed.error) }
   normalize(parsed.data)
   const rev = revField.safeParse((raw as { rev?: unknown } | null)?.rev)
-  return { data: parsed.data, rev: rev.success ? rev.data : undefined }
+  const base = baseField.safeParse((raw as { dayBase?: unknown } | null)?.dayBase)
+  return {
+    data: parsed.data,
+    rev: rev.success ? rev.data : undefined,
+    base: base.success ? base.data : undefined,
+  }
 }
 
 // --- API -------------------------------------------------------------------
@@ -347,6 +361,7 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   if (!body.data) return c.json({ error: body.error }, 400)
   const p = body.data
   const p_rev = body.rev
+  const p_base = body.base
 
   // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION.
   //
@@ -359,6 +374,54 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   const result = await db.transaction(async (tx) => {
     const [cur] = await tx.select({ rev: rides.rev }).from(rides).where(eq(rides.id, ride.id)).for('update')
     if (p_rev !== undefined && cur && cur.rev !== p_rev) return { stale: cur.rev }
+
+    // THE PER-DAY MERGE, AND THE ORDER OF THESE THREE STEPS IS THE WHOLE THING.
+    //
+    // The merged set has to be complete BEFORE insertRideGraph runs, because
+    // that function reconciles votes, comments and point details against the uid
+    // set of the payload it is given — reconcileVotes, demoteOrphanComments and
+    // writePointDetails all do. Hand it one rider's partial day list and it
+    // deletes the other rider's votes and orphans their comments, silently,
+    // with nothing raised anywhere.
+    //
+    // The lock above is what makes reading here safe: no second save can land
+    // between this select and the write below.
+    let merge: MergeResult | null = null
+    if (p_base !== undefined) {
+      const storedDays = await tx
+        .select({ uid: daysTable.uid, hash: daysTable.contentHash })
+        .from(daysTable)
+        .where(eq(daysTable.rideId, ride.id))
+      merge = mergeDays(
+        storedDays,
+        p.days.map((d) => d.uid ?? ''),
+        p_base,
+      )
+      const needed = storedUidsNeeded(merge)
+      if (needed.length > 0) {
+        // ONLY ON THE CONFLICT PATH, which is normally never taken. Reusing
+        // loadRidePayload rather than writing a second day serializer is
+        // deliberate: two of those would drift, and the drift would show up as
+        // days quietly losing fields when they lose a merge.
+        //
+        // The OWNER's payload, whoever is saving — details are stripped for a
+        // non-owner and re-inserting a stripped day would delete them. The
+        // non-owner save writes details in `preserve` mode for the same reason.
+        const current = (await loadRidePayload(ride, { id: ride.ownerId })) as {
+          days: Array<Record<string, unknown>>
+        }
+        const byUid = new Map(current.days.map((d) => [d.uid as string, d]))
+        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
+        p.days = merge.decisions
+          .map((dec) => (dec.take === 'incoming' ? sent.get(dec.uid) : byUid.get(dec.uid)))
+          .filter(Boolean) as typeof p.days
+      } else {
+        // Nothing contested. Reorder only, so a day another rider deleted is not
+        // resurrected by this save.
+        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
+        p.days = merge.decisions.map((dec) => sent.get(dec.uid)).filter(Boolean) as typeof p.days
+      }
+    }
     const [written] = await tx
       .update(rides)
       .set({
@@ -389,7 +452,13 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     // payload carries no details because they were never sent any, and a
     // reconciling write would read that as the rider clearing every one.
     await insertRideGraph(tx, ride.id, p, isOwner ? 'reconcile' : 'preserve')
-    return { rev: written.rev }
+    // Read back AFTER the write, so the client's next save is based on what is
+    // actually stored rather than on what this request believed it wrote.
+    const after = await tx
+      .select({ uid: daysTable.uid, hash: daysTable.contentHash })
+      .from(daysTable)
+      .where(eq(daysTable.rideId, ride.id))
+    return { rev: written.rev, merge, after }
   })
 
   // 409 CARRYING THE CURRENT STATE, so the builder can show what it collided
@@ -399,7 +468,19 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   if ('stale' in result) {
     return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
   }
-  return c.json({ id: ride.id, slug: ride.slug, rev: result.rev })
+  // dayBase goes straight back out so the builder can rebase without a reload.
+  // Without it the SECOND save of a session is based on hashes the first save
+  // invalidated, and every day reads as contested.
+  return c.json({
+    id: ride.id,
+    slug: ride.slug,
+    rev: result.rev,
+    dayBase: Object.fromEntries(result.after.filter((d) => d.hash !== null).map((d) => [d.uid, d.hash as string])),
+    // Named so the rider can be told which of their days did not land, rather
+    // than watching them revert on the next render with no explanation.
+    superseded: result.merge?.superseded ?? [],
+    adopted: result.merge?.adopted ?? [],
+  })
 })
 
 // Member load for the builder — the same shape PUT accepts, vias included.
@@ -462,6 +543,17 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
       // and every vote cast on that alternate is reconciled away as belonging
       // to a day that no longer exists. Nothing would raise anything.
       uid: r.uid,
+      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. dayRevision() runs in
+      // exactly one place — the write, in insertRideGraph — and this hands back
+      // what it stored. Recomputing would mean the write shape and this read
+      // shape had to stay identical field for field forever, and the first time
+      // they drifted every day would conflict with itself on every save, on
+      // rides nobody else had touched, with nothing to point at.
+      //
+      // Null for a day written before the column existed. mergeDays() reads that
+      // as unknown and takes the client's version, which is what these rides did
+      // before any of this.
+      contentHash: r.contentHash,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,

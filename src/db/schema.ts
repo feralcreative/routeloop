@@ -958,6 +958,23 @@ export const days = pgTable(
     // every dashboard figure stays correct on the day it lands. Contrast
     // twistiness_dpm above, which needed utils/backfill-twistiness.ts.
     altActive: boolean('alt_active').notNull().default(true),
+    // WHAT THIS DAY CONTAINED WHEN IT WAS LAST WRITTEN — see
+    // src/maps/day-revision.ts. It is what lets a save merge per day instead of
+    // refusing whole, so two riders on different days of one ride never collide.
+    //
+    // STORED RATHER THAN COMPUTED ON READ, and that is the point of the column:
+    // the merge needs one cheap `select uid, content_hash` to decide, where
+    // recomputing would mean loading every point and every leg of every day on
+    // every save — roughly 2N queries on a 31-day ride, at a 3-second autosave
+    // cadence. Only the days that actually conflict are then loaded in full,
+    // which is normally none of them.
+    //
+    // NULLABLE, and null means UNKNOWN rather than changed. Every day written
+    // before this column existed carries one, and mergeDays() takes the client's
+    // version on an unknown — so the first save of an old ride behaves exactly
+    // as it did before. Refusing on a null would have made this migration an
+    // outage instead of an addition.
+    contentHash: varchar('content_hash', { length: 32 }),
   },
   (t) => [
     uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position),
