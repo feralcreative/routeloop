@@ -29,6 +29,34 @@ stage.tankbag.app      → localhost:16687  (same container, 301s away)
 
 `www.routeloop.app` has a DNS record but no tunnel route, so it returns a bare Cloudflare 404. The app already 301s `www` to the apex in `LEGACY_HOSTS`; it just never receives the request.
 
+## The image travels through a registry
+
+Changed 2026-08-29. `deploy.sh` builds locally, pushes to `ghcr.io/feralcreative/routeloop` tagged with the commit, and the NAS pulls it over its own outbound connection. It used to `docker save | gzip` and stream a few hundred MB down the SSH connection, which is fine over a LAN and a poor fit for a tunnel.
+
+**The tag is the commit.** `IMAGE_REPO` in `deploy.config` is the repository; `deploy.sh` composes `IMAGE_NAME` once `GIT_SHA` is known, because `deploy.config` is sourced too early to know it. A moving `:prod` / `:stage` tag is pushed alongside so `docker images` on the NAS is legible, but nothing reads it—the compose file is always given the immutable one.
+
+A dirty tree (only reachable with `--force`) is tagged `<sha>-dirty-<timestamp>`, so an emergency deploy of uncommitted work cannot occupy the name of the real commit.
+
+**Registry credentials are optional on both sides.** A GHCR package created by a first push is private even when its repository is public, so:
+
+| Package | To push | To pull on the NAS |
+| --- | --- | --- |
+| private | `GHCR_TOKEN` (`write:packages`) | `NAS_GHCR_TOKEN` (`read:packages`) |
+| public | `GHCR_TOKEN` | nothing |
+
+Both logins are skipped when the token is unset, so changing the package's visibility is a decision made in GitHub's UI and a line deleted from `.env`, not a code change.
+
+## Who writes the server's .env
+
+`deploy.sh` normally composes it from about twenty-five values in your local `.env`. `DEPLOY_SKIP_ENV=1` makes a run **verify** it instead—every key in `REMOTE_ENV_KEYS` must already be present and non-empty—and rewrite only `IMAGE_NAME`, `APP_VERSION` and `BUILD_SHA`, which the deploy is the source of.
+
+That is what lets CI deploy without holding a single application secret. The consequence to plan around: **a new required key has to reach the server before the release that needs it**, with `deploy-utils.sh push-env`, or that release's CI deploy will refuse. Refusing is the correct behavior—the alternative is a container that starts, passes its healthcheck, and cannot do the thing the key is for.
+
+## One deploy at a time
+
+There is a lock, held as a directory at `<NAS_DEPLOY_PATH>/.deploy.lock`. It is on the NAS because the two things that can race are different machines. It is taken before the build, so a second deploy fails in a second rather than after a five-minute build, and it never expires on its own. `deploy-utils.sh unlock` prints who holds it before breaking it.
+
+
 ## Running a deploy
 
 ```bash

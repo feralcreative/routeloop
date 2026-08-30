@@ -1,0 +1,127 @@
+# Deploy to stage.
+#
+# WORKFLOW_DISPATCH ONLY, FOR NOW. It is a button before it is a trigger: the
+# whole path — Cloudflare Access, the registry pull on the NAS, the env
+# verification — wants to be run by a person watching it several times before
+# anything fires it automatically. Adding `push: branches: [main]` below is the
+# one-line change that makes it automatic, and it should not be made until this
+# has been boring for a while.
+#
+# **THIS WORKFLOW HOLDS NO APPLICATION SECRETS, AND THAT IS THE DESIGN.** It
+# never learns a Maps key, the Google OAuth secret, the SMTP password or the
+# database password. `DEPLOY_SKIP_ENV=1` makes deploy.sh VERIFY the server's
+# .env rather than compose it — so a release needing a key the server does not
+# have fails loudly here instead of starting a container that passes its
+# healthcheck and cannot sign anybody in. When a value does change, it is
+# `utils/deploy/deploy-utils.sh push-env` from a machine that has it.
+#
+# What it does hold is two credentials, both narrow and both revocable in one
+# click: an SSH key for the NAS, and a Cloudflare Access service token that gets
+# it to the SSH port without a single inbound port being opened.
+#
+# It calls utils/deploy/stage.sh rather than reimplementing any of it. Two
+# deploy paths that drift is the failure this repository has been bitten by
+# more than once.
+name: Deploy stage
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to deploy'
+        required: false
+        default: main
+
+concurrency:
+  # Serializes this workflow against itself. It does NOT serialize against a
+  # deploy someone runs from a terminal — that is what the lock inside
+  # deploy.sh is for, and it lives on the NAS because the two racers are
+  # different machines.
+  group: deploy-stage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # For pushing the image to GHCR under this repository's namespace.
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # `environment` is what gives you a required-reviewers gate later without
+    # touching this file: turn it on for `stage` in Settings and every run waits
+    # for an approval. It also scopes the secrets below to this environment.
+    environment: stage
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
+          # run without a SHA. Depth 1 carries both.
+          fetch-depth: 1
+
+      # Native amd64: DOCKER_PLATFORM is linux/amd64 and so is this runner, so
+      # there is no QEMU in the picture and the build is the same speed it is on
+      # a laptop.
+      - name: Sign in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `latest` rather than pinned, which is a live trade-off worth knowing about:
+      # cloudflared 2026.6.0 shipped a regression where `access ssh` IGNORED
+      # headless service-token credentials and fell through to interactive
+      # browser auth — which on a runner is a hang, not an error. It was fixed
+      # in a later release. If this step starts timing out having "succeeded",
+      # that is the first thing to suspect, and pinning a known-good version is
+      # the fix. See cloudflare/cloudflared#1673.
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      # NO INBOUND PORT IS OPENED ANYWHERE. cloudflared dials out to the edge and
+      # the NAS's own tunnel dials out to meet it; Access decides whether this
+      # runner is allowed through, on the strength of a service token that can be
+      # revoked without touching the NAS.
+      - name: Configure SSH through Cloudflare Access
+        env:
+          SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
+          SSH_HOSTNAME: ${{ secrets.NAS_SSH_HOSTNAME }}
+          KNOWN_HOSTS: ${{ secrets.NAS_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/nas && chmod 600 ~/.ssh/nas
+          # StrictHostKeyChecking stays ON and the host key is pinned. `accept-new`
+          # on a host reached through a proxy trusts whatever answers first, which
+          # is the one thing Access is here to make not matter.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host $SSH_HOSTNAME
+            ProxyCommand cloudflared access ssh --hostname %h
+            IdentityFile ~/.ssh/nas
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy
+        env:
+          # THE SERVICE TOKEN GOES IN THE ENVIRONMENT, NOT ON THE ProxyCommand
+          # LINE. cloudflared reads these two for headless auth, and a token
+          # passed as a flag is a token in the process list of every other
+          # process on the runner. Same reason deploy.sh uses --password-stdin.
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          # The two values deploy.sh needs from .env that are NOT application
+          # secrets. Everything else it would normally read is deliberately
+          # absent — see DEPLOY_SKIP_ENV.
+          SSH_KEY_PATH: ~/.ssh/nas
+          DEPLOY_SKIP_ENV: '1'
+          DEPLOY_CONFIRM: 'yes'
+          DEPLOY_LOCK_OWNER: 'github-actions run ${{ github.run_id }}'
+        run: bash utils/deploy/stage.sh

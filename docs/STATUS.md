@@ -1,12 +1,28 @@
 # Status and handoff
 
 **Updated:** 2026-08-29
-**Branch:** `feat/ui-nav-sprint`, committed, not pushed. **2,140 tests across 83 files** (2 skipped, 2,142 total)
+**Branch:** `feat/registry-deploy`, committed, not pushed. `feat/ui-nav-sprint` merged as #195. **2,140 tests across 83 files** (2 skipped, 2,142 total)
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## The deploy moves to a registry—2026-08-29
+
+**Not deployed, not merged.** Branch `feat/registry-deploy`. Steps 1–3 of the plan in `_PLANS/registry-deploy-map.md`; the workflow exists but has never run.
+
+**The image is pushed and pulled instead of piped over SSH.** `docker save | gzip` down the SSH connection was a few hundred MB per deploy, which is fine over a LAN and a poor fit for the tunnel. **The tag is the commit**, which turns the health gate's SHA assertion from the only guard against a silent no-op deploy into a belt beside a brace—Compose cannot run the old image when the name does not resolve to it.
+
+**`DEPLOY_SKIP_ENV=1` is what keeps application secrets out of CI.** A run with it set verifies the server's `.env` rather than composing it, and rewrites only the three keys the deploy is the source of. `deploy-utils.sh push-env` is the other half. **The consequence to plan around: a new required key must reach the server BEFORE the release that needs it**, or that release's CI deploy correctly refuses.
+
+**There is a deploy lock, on the NAS, held as a `mkdir`.** There was none at all before, which was survivable only while one person at one terminal could start a deploy.
+
+**The Cloudflare side is built and proven, 2026-08-29.** `nas-ssh.feralcreative.co` is a new ingress rule on the `feral-nas` tunnel pointing at `ssh://localhost:33725`, with a proxied CNAME, an Access application, and a policy scoped to one service token. Verified by probe: no credentials gets **403**, the service token gets **502**—which is the success signal against an SSH origin, since Access passed the request through and the tunnel then handed HTTP to something that does not speak it. All five repository secrets are set.
+
+**A correction that came out of doing it, because it invalidates an argument recorded above.** SSH to the NAS was never behind the tunnel: `nas.feralcreative.co` is an UNPROXIED CNAME to a Synology DDNS name that resolves to a home IP, and port 33725 answers from the public internet today. External 22 does not, whatever the router is meant to be doing. So CI could always have reached the NAS directly, and the reason to finish this changed from *"CI needs a way in"* to *"this lets 33725 be closed"*—which only pays off if it actually gets closed. Until it is, the tunnel is a second door beside an open one.
+
+**What is still Ziad's to do:** add the CI public key to `~/.ssh/authorized_keys` on the NAS (a 1Password agent that will not sign non-interactively is why this could not be done from here), run `push-env` for stage, then a `--dry-run` and a real `stage.sh` from a terminal before the button is ever pressed. **The deploy path itself has still never run.**
 
 ## The UI and nav sprint—2026-08-29
 
