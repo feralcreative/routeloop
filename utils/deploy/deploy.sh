@@ -306,6 +306,20 @@ DB_VOLUME_NAME"
 
 REMOTE_ENV=$(mktemp)
 trap 'rm -f "$REMOTE_ENV"' EXIT
+
+# COMPOSED ONLY WHEN THIS RUN IS THE ONE WRITING IT, and the mktemp above stays
+# OUTSIDE the guard because two traps below name $REMOTE_ENV unconditionally.
+#
+# Under DEPLOY_SKIP_ENV the values below were never read out of a local .env —
+# that is the entire point of the flag — so composing the file anyway walked
+# into `set -u` on the first name without a `:-` default and killed the deploy
+# at GMAPS_KEY, thirteen seconds in. It was invisible until stage started
+# deploying itself, because every earlier CI run had failed further up.
+#
+# Defaulting all of them would be the wrong fix: it would generate a file full
+# of empty strings, and the only thing stopping THAT from being written is one
+# `if` further down. Not building it at all is what makes the skip mean skip.
+if [ -n "$WRITE_REMOTE_ENV" ]; then
 printf '%s\n' \
   "# Written by utils/deploy/deploy.sh — do not edit by hand." \
   "COMPOSE_PROJECT_NAME=${PROJECT_NAME}-${DEPLOY_ENV}" \
@@ -356,6 +370,7 @@ for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL; do
     exit 1
   fi
 done
+fi
 
 
 # --------------------------------------------------------------- env only ----
@@ -369,6 +384,14 @@ done
 # file and then start containers from it, and two writers interleaving would
 # produce a file that is neither.
 if [ -n "${ENV_ONLY:-}" ]; then
+  # The two flags are opposites and the combination destroys data: push-env's
+  # whole job is to WRITE this file, and with the skip set there is nothing
+  # composed to write — so it would truncate a good server .env to nothing.
+  if [ -z "$WRITE_REMOTE_ENV" ]; then
+    log_error "push-env cannot run with DEPLOY_SKIP_ENV=1 — there is nothing to write."
+    log_error "Run it from a machine that has the values in its .env."
+    exit 1
+  fi
   if [ -n "${DRY_RUN:-}" ]; then
     log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and stop."
     exit 0
@@ -389,7 +412,11 @@ if [ -n "${DRY_RUN:-}" ]; then
   log_info "Would push it to ${IMAGE_REPO}, and ${IMAGE_MOVING} beside it"
   log_info "Would have the NAS pull ${IMAGE_NAME} over its own connection"
   log_info "Would copy ${COMPOSE_SRC} to ${NAS_SSH_HOST}:${NAS_DEPLOY_PATH}"
-  log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and restart the stack"
+  if [ -n "$WRITE_REMOTE_ENV" ]; then
+    log_info "Would write ${NAS_DEPLOY_PATH}/.env (chmod 600) and restart the stack"
+  else
+    log_info "Would VERIFY ${NAS_DEPLOY_PATH}/.env against REMOTE_ENV_KEYS and restart the stack"
+  fi
   log_info "Would converge db and proxy, then run the one-shot migrate service"
   log_info "Would deploy the idle color, gate it on /healthz reporting ${GIT_SHA},"
   log_info "  cut the proxy over, verify the origin, and drain the old color"
