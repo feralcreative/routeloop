@@ -57,7 +57,7 @@ jobs:
     environment: prod
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
@@ -65,7 +65,7 @@ jobs:
           fetch-depth: 1
 
       - name: Sign in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -75,10 +75,16 @@ jobs:
       # step starts hanging having "succeeded", suspect a cloudflared regression
       # in headless service-token auth and pin a known-good version.
       - name: Install cloudflared
+        # INTO A TEMP DIRECTORY, NOT THE CHECKOUT. A bare `-o cloudflared.deb`
+        # lands in the repo root, where `git status --porcelain` sees it as an
+        # untracked file — and deploy.sh's clean-tree gate then refuses the
+        # deploy. That gate is prod-only, so this passed on stage every time and
+        # failed the first prod run with "Working tree is dirty" on a tree that
+        # actions/checkout had just made.
         run: |
-          curl -fsSL -o cloudflared.deb \
+          curl -fsSL -o "$RUNNER_TEMP/cloudflared.deb" \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared.deb
+          sudo dpkg -i "$RUNNER_TEMP/cloudflared.deb"
 
       - name: Configure SSH through Cloudflare Access
         env:
