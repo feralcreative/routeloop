@@ -20,3 +20,16 @@ updates:
       include: scope
     labels:
       - 'area:ops'
+    # ONE PR PER RUN, NOT ONE PER ACTION. The first run opened three — checkout,
+    # setup-node and docker/login-action, two of them three majors behind — which
+    # is a fair sample of what an ungrouped config produces every month.
+    #
+    # Grouping is the right trade HERE and would not be everywhere: these are
+    # four or five pinned actions that move together and are validated by the
+    # same CI run, so reviewing them as one diff loses nothing. The argument
+    # against grouping — that one bad bump makes the whole PR unmergeable — is
+    # weak at this size and would not be for npm, which is why npm is still not
+    # in this file at all.
+    groups:
+      actions:
+        patterns: ['*']
