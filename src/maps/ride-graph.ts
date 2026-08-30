@@ -18,6 +18,7 @@ import { twistiness } from './twist'
 import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
+import { dayRevision } from './day-revision'
 import { reconcileVotes } from '../votes/service'
 import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
@@ -340,6 +341,22 @@ export async function insertRideGraph(
     const legDistM = r.legs.map((l) => l.distanceM)
     const track = r.legs.flatMap((l) => l.geometry) as Track
     const twist = twistiness(track)
+    // POINT UIDS ARE SETTLED BEFORE THE DAY IS WRITTEN, because the day's hash
+    // covers them. Settling after would hash a freshly-created day with a list
+    // of empty uids, and the next load would return the real ones — a day that
+    // conflicts with itself, permanently, on a ride nobody else has touched.
+    //
+
+    // SETTLED BEFORE THE DAY IS WRITTEN, because the day's hash covers the point
+    // uids. Settling after would hash a freshly-created day with a list of empty
+    // ones, and the next load would return the real ones — a day that conflicts
+    // with itself, permanently, on a ride nobody else has touched.
+    //
+    // One settle over the whole day. The unique index is per day across both
+    // kinds, so the lists could never have been settled separately without
+    // risking a POI and a stop sharing a uid.
+    const withUids = ensureUids(r.points)
+
     const [day] = await tx
       .insert(daysTable)
       .values({
@@ -367,6 +384,14 @@ export async function insertRideGraph(
         // totals exclude it.
         altGroup: r.altGroup,
         altActive: r.altActive,
+        // THE ONLY PLACE A DAY IS HASHED. loadRidePayload returns this column
+        // VERBATIM rather than recomputing from the rows it read, and that is
+        // what makes the whole scheme safe: if the read recomputed, the write
+        // shape and the read shape would have to stay identical field for field
+        // forever, and the first divergence would make every day conflict with
+        // itself on every save with nothing to point at. Stored once, echoed
+        // back, compared to itself.
+        contentHash: dayRevision({ ...r, uid: r.uid, points: withUids }),
       })
       .returning()
 
@@ -374,11 +399,6 @@ export async function insertRideGraph(
     // how far into the day `points[i]` sits.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
-    // One settle over the whole day. The unique index is per day across both
-    // kinds, so the lists could never have been settled separately without
-    // risking a POI and a stop sharing a uid.
-    const withUids = ensureUids(r.points)
-
     // ONE ALGORITHM FOR BOTH KINDS, where there used to be two. A stop's
     // distance was the prefix sum of the legs before it and a POI's was its
     // projection onto the concatenated track, because a POI sat beside the route

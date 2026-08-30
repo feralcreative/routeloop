@@ -5,8 +5,10 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { mergeDays, storedUidsNeeded, type MergeResult } from '../maps/day-merge'
+import { publish } from '../live/hub'
 import { db } from '../db/index'
 import {
   rides,
@@ -32,7 +34,7 @@ import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canClone } from '../access/policy'
-import { membershipOf, seedOwner } from '../members/service'
+import { memberOrOwner, seedOwner } from '../members/service'
 import {
   canAdminister,
   canEditAsMember,
@@ -61,9 +63,32 @@ export const builderRoutes = new Hono<AuthEnv>()
 // A native ride is DB rows, not files — caps bound the rows since byte quota
 // does not apply. 8 MB JSON backstop over the structural caps.
 const BODY_LIMIT = 8 * 1024 * 1024
+/**
+ * `rev` RIDES ALONGSIDE THE PAYLOAD RATHER THAN INSIDE IT, and deliberately.
+ *
+ * `ridePayload` is shared with the native JSON import — a file on disk, which
+ * has no opinion about who else is editing — so a concurrency token has no
+ * business in that schema. Zod strips unknown keys, so it would be silently
+ * dropped there anyway, which is the worst of both: the guard would appear to
+ * be wired and would check nothing.
+ *
+ * Optional, and see drizzle/0024 for why that is not laziness: during the
+ * blue/green overlap the OLD builder posts no `rev` at all, and requiring it
+ * would refuse every one of those saves.
+ */
+const revField = z.coerce.number().int().nonnegative().optional()
+
+/** Every day uid the client held when it loaded, and the hash it saw. The WHOLE
+ *  set, not a field on each day it still has — a day the rider deleted is absent
+ *  from the payload and would carry nothing, and that is precisely the case
+ *  mergeDays has to tell apart from a day somebody else added. */
+const baseField = z.record(z.string().max(12), z.string().max(32)).optional()
+
 async function parseRideBody(
   c: Context<AuthEnv>,
-): Promise<{ data: RidePayload; error?: never } | { data?: never; error: string }> {
+): Promise<
+  { data: RidePayload; rev?: number; base?: Record<string, string>; error?: never } | { data?: never; error: string }
+> {
   let raw: unknown
   try {
     raw = await c.req.json()
@@ -73,7 +98,13 @@ async function parseRideBody(
   const parsed = ridePayload.safeParse(raw)
   if (!parsed.success) return { error: firstIssue(parsed.error) }
   normalize(parsed.data)
-  return { data: parsed.data }
+  const rev = revField.safeParse((raw as { rev?: unknown } | null)?.rev)
+  const base = baseField.safeParse((raw as { dayBase?: unknown } | null)?.dayBase)
+  return {
+    data: parsed.data,
+    rev: rev.success ? rev.data : undefined,
+    base: base.success ? base.data : undefined,
+  }
 }
 
 // --- API -------------------------------------------------------------------
@@ -311,11 +342,10 @@ async function builderRide(
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
   if (!ride) return undefined
-  const row = await membershipOf(ride.id, userId)
-  const member: MemberFields | null =
-    row ??
-    (ride.ownerId === userId ? { riderId: userId, role: 'owner', perm: DEFAULT_PERM, rsvp: 'going' } : null)
-  return { ride, member }
+  // ONE IMPLEMENTATION, shared with the viewer's builder link — see
+  // memberOrOwner. The synthesized owner row used to live here; two copies of it
+  // is how the link starts offering what this gate refuses.
+  return { ride, member: await memberOrOwner(ride, userId) }
 }
 
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
@@ -331,11 +361,72 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   const body = await parseRideBody(c)
   if (!body.data) return c.json({ error: body.error }, 400)
   const p = body.data
+  const p_rev = body.rev
+  const p_base = body.base
 
-  await db.transaction(async (tx) => {
-    await tx
+  // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION.
+  //
+  // Read-then-write outside one is the race it exists to close: two saves both
+  // read rev 7, both find it current, and both write. `for update` on the row
+  // makes the second wait for the first to commit and then see rev 8.
+  //
+  // A missing `rev` means unchecked — see revField. That is the expand/contract
+  // half of this, not an oversight.
+  const result = await db.transaction(async (tx) => {
+    const [cur] = await tx.select({ rev: rides.rev }).from(rides).where(eq(rides.id, ride.id)).for('update')
+    if (p_rev !== undefined && cur && cur.rev !== p_rev) return { stale: cur.rev }
+
+    // THE PER-DAY MERGE, AND THE ORDER OF THESE THREE STEPS IS THE WHOLE THING.
+    //
+    // The merged set has to be complete BEFORE insertRideGraph runs, because
+    // that function reconciles votes, comments and point details against the uid
+    // set of the payload it is given — reconcileVotes, demoteOrphanComments and
+    // writePointDetails all do. Hand it one rider's partial day list and it
+    // deletes the other rider's votes and orphans their comments, silently,
+    // with nothing raised anywhere.
+    //
+    // The lock above is what makes reading here safe: no second save can land
+    // between this select and the write below.
+    let merge: MergeResult | null = null
+    if (p_base !== undefined) {
+      const storedDays = await tx
+        .select({ uid: daysTable.uid, hash: daysTable.contentHash })
+        .from(daysTable)
+        .where(eq(daysTable.rideId, ride.id))
+      merge = mergeDays(
+        storedDays,
+        p.days.map((d) => d.uid ?? ''),
+        p_base,
+      )
+      const needed = storedUidsNeeded(merge)
+      if (needed.length > 0) {
+        // ONLY ON THE CONFLICT PATH, which is normally never taken. Reusing
+        // loadRidePayload rather than writing a second day serializer is
+        // deliberate: two of those would drift, and the drift would show up as
+        // days quietly losing fields when they lose a merge.
+        //
+        // The OWNER's payload, whoever is saving — details are stripped for a
+        // non-owner and re-inserting a stripped day would delete them. The
+        // non-owner save writes details in `preserve` mode for the same reason.
+        const current = (await loadRidePayload(ride, { id: ride.ownerId })) as {
+          days: Array<Record<string, unknown>>
+        }
+        const byUid = new Map(current.days.map((d) => [d.uid as string, d]))
+        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
+        p.days = merge.decisions
+          .map((dec) => (dec.take === 'incoming' ? sent.get(dec.uid) : byUid.get(dec.uid)))
+          .filter(Boolean) as typeof p.days
+      } else {
+        // Nothing contested. Reorder only, so a day another rider deleted is not
+        // resurrected by this save.
+        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
+        p.days = merge.decisions.map((dec) => sent.get(dec.uid)).filter(Boolean) as typeof p.days
+      }
+    }
+    const [written] = await tx
       .update(rides)
       .set({
+        rev: sql`${rides.rev} + 1`,
         title: p.title,
         description: p.description || null,
         // VISIBILITY IS AN OWNER POWER AND THIS IS THE GATE. Edit means the
@@ -350,26 +441,112 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
         updatedAt: new Date(),
       })
       .where(eq(rides.id, ride.id))
+      // THE NEW REV COMES BACK FROM THE WRITE, never from arithmetic on what
+      // this request read at the top. `ride.rev` was loaded before the lock, so
+      // computing `+ 1` from it hands the client a number the row may not hold
+      // — and the client sends it on the NEXT save, which then 409s against a
+      // ride nobody else touched.
+      .returning({ rev: rides.rev })
     // Full replace: routes cascade to points and legs.
     await tx.delete(daysTable).where(eq(daysTable.rideId, ride.id))
     // `preserve` for a non-owner — see DetailsMode in ride-graph.ts. Their
     // payload carries no details because they were never sent any, and a
     // reconciling write would read that as the rider clearing every one.
     await insertRideGraph(tx, ride.id, p, isOwner ? 'reconcile' : 'preserve')
+    // Read back AFTER the write, so the client's next save is based on what is
+    // actually stored rather than on what this request believed it wrote.
+    const after = await tx
+      .select({ uid: daysTable.uid, hash: daysTable.contentHash })
+      .from(daysTable)
+      .where(eq(daysTable.rideId, ride.id))
+    return { rev: written.rev, merge, after }
   })
-  return c.json({ id: ride.id, slug: ride.slug })
+
+  // 409 CARRYING THE CURRENT STATE, so the builder can show what it collided
+  // with rather than only that it did. The rider's own work is still in their
+  // browser and untouched — nothing was written — which is the whole point of
+  // refusing rather than merging at this level.
+  if ('stale' in result) {
+    return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
+  }
+  // TELL THE ROOM WHAT CHANGED. Fire-and-forget and deliberately after the
+  // transaction: a live notification is not worth failing a save for, and a
+  // publish inside the transaction would announce a write that could still roll
+  // back.
+  //
+  // `by` rather than excluding the saver's connections: a rider can have the
+  // ride open in two tabs, and the second one needs telling as much as anybody
+  // else. The client ignores events carrying its own rider id.
+  publish(ride.id, 'days', {
+    by: user.id,
+    rev: result.rev,
+    days: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
+  })
+
+  // dayBase goes straight back out so the builder can rebase without a reload.
+  // Without it the SECOND save of a session is based on hashes the first save
+  // invalidated, and every day reads as contested.
+  return c.json({
+    id: ride.id,
+    slug: ride.slug,
+    rev: result.rev,
+    dayBase: Object.fromEntries(result.after.filter((d) => d.hash !== null).map((d) => [d.uid, d.hash as string])),
+    // Named so the rider can be told which of their days did not land, rather
+    // than watching them revert on the next render with no explanation.
+    superseded: result.merge?.superseded ?? [],
+    adopted: result.merge?.adopted ?? [],
+  })
 })
 
 // Member load for the builder — the same shape PUT accepts, vias included.
 //
 // The gate is `view`, not `edit`: the read-only builder is what a view-, comment-
 // or suggest-level rider gets, and it loads through here like any other.
+// The day behind a change notice. `view` is the floor, like the ride GET it
+// borrows: a comment- or suggest-level rider watching a day change is exactly
+// who this is for.
+builderRoutes.get('/api/rides/:id/day/:uid', requireActiveApi, async (c) => {
+  const user = currentUser(c)
+  const found = await builderRide(user.id, c.req.param('id'))
+  if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
+  // detailsForViewer is owner-only and blind to visibility, so a non-owner's
+  // copy of this day carries no confirmation numbers — the same boundary the
+  // ride GET goes through, reached the same way rather than re-decided here.
+  const day = await loadDayPayload(found.ride, user, c.req.param('uid'))
+  if (!day) return c.json({ error: 'not found' }, 404)
+  return c.json({ day })
+})
+
 builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
   if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
   return c.json(await loadRidePayload(found.ride, user))
 })
+
+/**
+ * ONE DAY, for a builder catching up on somebody else's save.
+ *
+ * A change notice carries a day uid and its new hash; this is what the client
+ * fetches to act on it. A refetch of the whole ride would be the obvious
+ * alternative and is not viable at editing speed: the body limit is 8 MB, the
+ * ceilings are 31 days and 400 points, and leg geometry dominates — so a save
+ * every three seconds would move megabytes per notice, per watcher.
+ *
+ * Broadcasting the day over SSE instead has the same problem pointed the other
+ * way, and would put a rider's stop details into a channel every member of the
+ * ride is subscribed to.
+ *
+ * Built by picking out of loadRidePayload rather than by a query of its own.
+ * That is deliberate and costs a little work on a rare path: a second day
+ * serializer would drift from the first, and the drift would surface as days
+ * quietly losing fields only when they arrive over the live channel — which is
+ * the hardest possible place to notice it.
+ */
+export async function loadDayPayload(ride: RideRow, viewer: { id: number } | null, uid: string) {
+  const full = (await loadRidePayload(ride, viewer)) as { days: Array<{ uid?: string }> }
+  return full.days.find((d) => d.uid === uid) ?? null
+}
 
 export async function loadRidePayload(ride: RideRow, viewer: { id: number } | null) {
   // NOT owner-only by construction any more. This used to reach detailsForOwner
@@ -391,6 +568,11 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
   const out = {
     id: ride.id,
     slug: ride.slug,
+    // OUT AND STRAIGHT BACK ON THE NEXT SAVE, like every uid in this payload,
+    // and the same class of failure if it is dropped: the PUT stops checking,
+    // silently, and two riders are back to overwriting each other with nothing
+    // raised on either screen.
+    rev: ride.rev,
     source: ride.source,
     title: ride.title,
     description: ride.description ?? '',
@@ -415,6 +597,17 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
       // and every vote cast on that alternate is reconciled away as belonging
       // to a day that no longer exists. Nothing would raise anything.
       uid: r.uid,
+      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. dayRevision() runs in
+      // exactly one place — the write, in insertRideGraph — and this hands back
+      // what it stored. Recomputing would mean the write shape and this read
+      // shape had to stay identical field for field forever, and the first time
+      // they drifted every day would conflict with itself on every save, on
+      // rides nobody else had touched, with nothing to point at.
+      //
+      // Null for a day written before the column existed. mergeDays() reads that
+      // as unknown and takes the client's version, which is what these rides did
+      // before any of this.
+      contentHash: r.contentHash,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
@@ -824,12 +1017,13 @@ ${
                     ['csv', 'CSV'],
                   ] as const
                 )
-                .map(
-                  ([f, label]) =>
-                    `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
-                    ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
-                )
-                .join('\n              ')}
+                  .map(
+                    ([f, label]) =>
+                      `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
+                      ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
+                  )
+                  .join('\n              ')
+              }
               <li>
                 <a data-export="routeloop.json" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/routeloop.json?dl` : '#'}">Routeloop JSON</a>
                 <span class="field-hint">Everything, including what the other four cannot carry.</span>
@@ -925,6 +1119,14 @@ ${
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
           </span>
+          <!-- WHO ELSE IS IN THIS RIDE. Server-rendered empty and hidden: the
+               list only ever arrives over the live channel, and a rider with no
+               channel—a dropped connection, a draining container, JavaScript
+               that failed to reach the endpoint—must see nothing rather than
+               an empty strip that looks broken. aria-live is polite because
+               somebody arriving is worth knowing about and never worth
+               interrupting whatever the rider is doing. -->
+          <span id="live-presence" class="live-presence" role="status" aria-live="polite" hidden></span>
           <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
         </div>`
 
@@ -973,6 +1175,10 @@ ${
       canEdit: standing.canEdit,
       isOwner: standing.isOwner,
       perm: standing.perm,
+      // The viewer's own id, so the live channel can tell its own events and its
+      // own presence row apart from everybody else's without a second request.
+      // Not a secret: it is this rider's id, told to this rider.
+      riderId: user.id,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but

@@ -169,6 +169,20 @@
       "when": 1788015337626,
       "tag": "0023_unknown_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788111801840,
+      "tag": "0024_public_the_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788112581288,
+      "tag": "0025_mighty_may_parker",
+      "breakpoints": true
     }
   ]
 }

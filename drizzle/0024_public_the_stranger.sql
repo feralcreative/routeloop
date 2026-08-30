@@ -1,0 +1,13 @@
+-- SAFE IN ONE DEPLOY, which is the whole reason it is shaped this way.
+--
+-- A nullable column or one with a default is on the additive list in AGENTS.md:
+-- from the moment `migrate` finishes until the old color drains, the OLD code is
+-- serving against the NEW schema. It never writes `rev` and never reads it, and
+-- the default answers for every row it inserts.
+--
+-- The other half of the same discipline is in the PUT: `rev` is OPTIONAL on the
+-- way in. During that same overlap the old builder is still posting payloads
+-- with no `rev` at all, and requiring it would 409 every one of those saves —
+-- turning a guard against silent data loss into a guarantee of it. A missing
+-- `rev` means unchecked, exactly as it did before this column existed.
+ALTER TABLE "rides" ADD COLUMN "rev" bigint DEFAULT 0 NOT NULL;

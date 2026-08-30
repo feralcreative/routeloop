@@ -49,7 +49,9 @@ import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { settingsRoutes } from './routes/settings'
 import { accountRoutes } from './routes/account'
-import { canEditRide } from './routes/maps'
+import { builderLabel } from './members/policy'
+import { memberOrOwner } from './members/service'
+import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
 import { asset } from './views/assets'
@@ -229,6 +231,7 @@ app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', rosterRoutes)
 app.route('/', commentRoutes)
+app.route('/', liveRoutes)
 app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
@@ -257,14 +260,24 @@ app.get('/m/:slug', async (c) => {
   // the common path costs no query.
   const grants = await grantsFor(m, viewer)
   const clonable = canClone(m, viewer, grants)
-  // Whether to offer the roster. `grants.isMember` is false for the owner —
-  // grantsFor short-circuits on them — so the owner is added back explicitly
-  // rather than by making grantsFor answer a question it was not asked.
-  const onRoster = Boolean(viewer && (viewer.id === m.ownerId || grants.isMember))
+  // THE ROSTER AND THE BUILDER LINK BOTH COME OFF THIS ROW, AND grantsFor()
+  // CANNOT ANSWER EITHER. It short-circuits to `{}` for a public or unlisted
+  // ride — correctly, since neither needs a grant to be READ — so `isMember` is
+  // undefined for a member of a public ride, and reading it as false was hiding
+  // the roster link from exactly those riders. That was the same root cause as
+  // the missing builder link (#212), found while fixing it.
+  //
+  // memberOrOwner() rather than membershipOf(), so this and `/builder/:id`
+  // resolve the viewer's standing through one implementation and cannot start
+  // disagreeing about who is on the roster.
+  const member = await memberOrOwner(m, viewer?.id ?? null)
+  const onRoster = member !== null
+  const label = builderLabel(member)
+  const builderLink = label ? { href: `/builder/${m.id}`, label } : null
   // One shell for both sources. ride.json has served them identically since the
   // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
-  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c)))
+  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c), builderLink))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -653,7 +666,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 // ride a slider that does nothing. It goes away with main.js in Phase 4.
 function viewerPanel(
   m: RideRow,
-  editUrl: string | null = null,
+  builderLink: BuilderLink | null = null,
   clonable = false,
   signedIn = false,
   rosterUrl: string | null = null,
@@ -665,13 +678,21 @@ function viewerPanel(
         <div class="details">
           {m.description && <p class="description">{m.description}</p>}
           {/*
-            Only rendered for a rider who can actually open the builder on this
-            ride — see canEditRide. A viewer who cannot edit is shown nothing
-            rather than a disabled control, since there is no action to enable.
+            Rendered for any MEMBER, not only an owner, and the label is what
+            that rider can actually do — see builderLabel in members/policy.ts.
+            `/builder/:id` admits everyone from `view` upward and turns its
+            writes off below `edit`, because comments and suggestions both hang
+            off the row list and the stop details; a below-edit rider genuinely
+            belongs there. What must never happen is this link promising an edit
+            the page then refuses, which is why the wording comes off the ladder
+            rather than being written here.
+
+            A rider who is not on the roster is shown nothing rather than a
+            disabled control, since there is no action to enable.
           */}
-          {editUrl && (
-            <a class="panel-edit" href={editUrl}>
-              Edit this ride
+          {builderLink && (
+            <a class="panel-edit" href={builderLink.href}>
+              {builderLink.label}
             </a>
           )}
           {/*
@@ -717,7 +738,19 @@ function viewerPanel(
 const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
 
 // The viewer shell, for every ride regardless of source.
-function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster: boolean, units: Units): string {
+/** Where the panel's builder link points and what it says, or null for a rider
+ *  who is not on the roster. Resolved in the route because it needs the
+ *  database — see memberOrOwner. */
+export type BuilderLink = { href: string; label: string }
+
+function viewHtml(
+  m: RideRow,
+  user: UserRow | null,
+  clonable: boolean,
+  onRoster: boolean,
+  units: Units,
+  builderLink: BuilderLink | null,
+): string {
   return page({
     title: m.title,
     user,
@@ -727,7 +760,7 @@ function viewHtml(m: RideRow, user: UserRow | null, clonable: boolean, onRoster:
     feedbackArea: 'map',
     body: `  <div id="map"></div>\n\n  ${viewerPanel(
       m,
-      canEditRide(m, user) ? `/builder/${m.id}` : null,
+      builderLink,
       clonable,
       Boolean(user),
       onRoster ? `/m/${m.slug}/riders` : null,

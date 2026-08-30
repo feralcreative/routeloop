@@ -395,6 +395,27 @@
     // day.points.length would be the bottom row, which is always there anyway.
     insertAt: null,
     rideId: window.TB.rideId || null,
+    // WHAT THIS BUILDER'S WORK IS BASED ON. Sent with every save and compared
+    // server-side; a mismatch means somebody else wrote to this ride since it
+    // was loaded, and the save is refused rather than applied.
+    //
+    // Null on a ride that has never been loaded from the server — a brand-new
+    // one, or a session that predates this — and the server reads a missing rev
+    // as unchecked, which is the same behavior the builder had before.
+    rev: null,
+    // What each day looked like when this builder last saw it, as {uid: hash}.
+    // Echoed with every save so the server can merge per day instead of
+    // refusing the whole ride because somebody renamed day 4.
+    //
+    // THE WHOLE SET, not a field on each day in state.days. A day this rider
+    // DELETED is absent from the payload, and its base hash is the only thing
+    // that distinguishes "I deleted this" from "somebody else added this while
+    // I was working" — which need opposite answers.
+    dayBase: {},
+    // Set when a save is refused as stale. It STOPS THE AUTOSAVE LOOP: a retry
+    // is not a recovery here, it is a second attempt to overwrite whatever the
+    // other rider just wrote. Cleared only by reloading the ride.
+    conflict: false,
     // The public slug, for the Riders tab's link out to the roster page. Null
     // until the first save mints one — showViewLink() is where it lands, because
     // that is already the one place a slug reaches this file.
@@ -505,6 +526,10 @@
     applyFocus();
     renderRailDays();
     renderTotals();
+    // The active day IS what this rider is working on, so it is the claim. Every
+    // row and section handler already calls setActive before doing anything
+    // else, which is why the claim needs no second set of hooks.
+    LIVE.claim(state.days[next] && state.days[next].uid);
   }
 
   // Reads the day off whatever was clicked. Every .day-section and every
@@ -734,6 +759,9 @@
     clearTimeout(ceilingTimer);
     idleTimer = ceilingTimer = null;
     if (!state.dirty) return;
+    // Every path back into a save goes through here, so one check covers the
+    // idle timer, the ceiling timer, the retry timer and an explicit flush.
+    if (state.conflict) return;
     // Coalesce rather than queue: two overlapping PUTs of the same ride would
     // only race to write the same thing. Nothing is recorded here — save()
     // re-queues itself from the editSeq comparison if this flush's request
@@ -783,12 +811,278 @@
   // One state name in, one fixed-footprint readout out. The width is reserved in
   // CSS for the longest string here, because #save-status was on the epic's list
   // of variable-length readouts that reflow whatever sits beside them.
+  // One payload day, in this file's own shape.
+  //
+  // EXTRACTED SO THE LIVE REFRESH CANNOT DRIFT FROM THE LOAD. A day arriving over
+  // the live channel is the same thing as a day arriving in the initial load, and
+  // two mappings of it would diverge — quietly, and only for days that came in
+  // over the channel, which is the hardest place to notice a missing field.
+  function dayFromPayload(r, i) {
+    return {
+      // `|| uid()` rather than assuming one is there: a ride saved before this
+      // shipped has none in flight, and the server repairs a null anyway — but
+      // a day carrying undefined here would send undefined straight back and
+      // churn its uid on every save, losing its votes each time.
+      uid: r.uid || uid(),
+      // `?? null` rather than `|| null` for symmetry with altGroup below —
+      // there is no falsy uid, but the two fields are read the same way and one
+      // of them written differently is a thing somebody has to check.
+      subgroupUid: r.subgroupUid ?? null,
+      title: r.title || "",
+      color: r.color || DAY_COLORS[(i || 0) % DAY_COLORS.length],
+      startAt: r.startAt || null,
+      endAt: r.endAt || null,
+      endManual: false,
+      // The other half of payload()'s round-trip. Omitting these is how a
+      // rider's alternate grouping works perfectly until they reload the page
+      // and then is silently gone, with the ride's mileage jumping to match —
+      // `?? null` rather than `|| null` because 0 is a real group id.
+      altGroup: r.altGroup ?? null,
+      altActive: r.altActive ?? true,
+      // One ordered list. A payload from before 2026-08-23 cannot reach this —
+      // loadRidePayload is the only source and it was changed with the schema.
+      points: r.points || [],
+      legs: r.legs || [],
+    };
+  }
+
+  // --- The live channel -----------------------------------------------------
+  //
+  // Who else is in this ride, what they are working on, and when a day changes
+  // under us. EventSource rather than a socket: everything is one-directional
+  // except the claim, which is an ordinary POST. Server half is
+  // src/routes/live.ts; the registry it talks to is src/live/hub.ts.
+  //
+  // **NOTHING HERE PROTECTS ANY WORK.** A claim is a courtesy that stops two
+  // riders picking up the same day by accident. The day hash checked on every
+  // save is what actually prevents loss, and it needs no connection at all — so
+  // every path below degrades to "no presence shown" rather than to "cannot
+  // edit". A rider whose channel never connects must lose nothing but the view.
+  const LIVE = (function () {
+    let source = null;
+    let claimed = null;
+    let riders = [];
+
+    // A day another rider is holding, as {dayUid: name}. Read by renderDays to
+    // mark the section; empty whenever the channel is not connected, which is
+    // what makes the whole feature invisible rather than broken when it is off.
+    const heldBy = {};
+
+    function rebuildHeld() {
+      for (const k in heldBy) delete heldBy[k];
+      for (const r of riders) {
+        if (r.dayUid && r.riderId !== window.TB.riderId) heldBy[r.dayUid] = r.name;
+      }
+      renderPresence();
+    }
+
+    function renderPresence() {
+      const el = $("live-presence");
+      if (!el) return;
+      const others = riders.filter((r) => r.riderId !== window.TB.riderId);
+      if (others.length === 0) {
+        el.textContent = "";
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      // Names only, and the day they are on if they are on one. The rung is
+      // deliberately not shown: canSeePerms is the owner's business, and a
+      // presence strip is seen by everybody in the ride.
+      el.textContent =
+        others.length === 1
+          ? others[0].name + (others[0].dayUid ? " is editing a day" : " is here")
+          : others.length + " other riders here";
+      el.title = others.map((r) => r.name).join(", ");
+    }
+
+    function connect() {
+      if (!state.rideId || source) return;
+      try {
+        source = new EventSource("/api/rides/" + state.rideId + "/live");
+      } catch (e) {
+        return;
+      }
+      source.addEventListener("presence", (e) => {
+        try {
+          riders = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        rebuildHeld();
+        // Re-assert after a reconnect. The server forgets every claim when the
+        // stream drops, so without this a rider silently stops holding the day
+        // they are visibly working on.
+        if (claimed) send(claimed);
+      });
+      source.addEventListener("days", (e) => {
+        let msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        // Our own save, arriving back. The response already rebased us.
+        if (msg.by === window.TB.riderId) return;
+        onRemoteSave(msg);
+      });
+      // EventSource reconnects on its own, so an error is not something to
+      // handle — closing here would turn a blip into a permanent disconnect.
+    }
+
+    function send(dayUid) {
+      if (!state.rideId) return;
+      fetch("/api/rides/" + state.rideId + "/live/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayUid: dayUid }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          if (d.presence) {
+            riders = d.presence;
+            rebuildHeld();
+          }
+        })
+        .catch(() => {});
+    }
+
+    return {
+      start: connect,
+      claim(dayUid) {
+        const next = dayUid || null;
+        if (next === claimed) return;
+        claimed = next;
+        send(next);
+      },
+      heldBy,
+      stop() {
+        if (source) source.close();
+        source = null;
+      },
+    };
+  })();
+
+  // What another rider's save means for this builder.
+  //
+  // A day is refreshed in place when it is SAFE to refresh: this rider is not
+  // editing it and has nothing unsaved that touches it. Anything else is left
+  // alone and reported, because patching state under a rider mid-edit is its own
+  // kind of data loss — the one where nothing is deleted and the thing they were
+  // looking at simply changes.
+  //
+  // Fetched one day at a time rather than by reloading the ride. A big ride's
+  // payload is megabytes and the autosave fires every three seconds; see
+  // loadDayPayload for the whole argument.
+  async function onRemoteSave(msg) {
+    const changed = (msg.days || []).filter((d) => state.dayBase[d.uid] !== d.hash);
+    if (changed.length === 0) return;
+
+    const mine = state.days[state.active] && state.days[state.active].uid;
+    const refreshable = [];
+    let blocked = false;
+
+    // A REFRESH RE-RENDERS THE WHOLE DAY LIST, AND THAT EATS A FOCUSED FIELD.
+    // Same defect as #188 and the places.js one it was mirrored from: rebuilding
+    // the list under a rider destroys the input they are typing in and drops
+    // focus to <body>. state.dirty does not cover it — `change` fires on BLUR,
+    // so a rider mid-word is still clean. So if the caret is anywhere in the day
+    // list, nothing is taken and the panel just says it is behind.
+    const focused = document.activeElement;
+    const typing = focused && focused.closest && focused.closest("#day-list");
+    for (const d of changed) {
+      const at = state.days.findIndex((x) => x.uid === d.uid);
+      // A day this builder has never seen. It cannot be spliced meaningfully —
+      // there is no position for it — so it is a reload, not a refresh.
+      if (at === -1) {
+        blocked = true;
+        continue;
+      }
+      // The day under the rider's hands, or unsaved work anywhere. Either way
+      // this builder holds something the server has not got.
+      if (d.uid === mine || state.dirty || typing) {
+        blocked = true;
+        continue;
+      }
+      refreshable.push({ uid: d.uid, at: at, hash: d.hash });
+    }
+
+    for (const r of refreshable) {
+      try {
+        const res = await fetch("/api/rides/" + state.rideId + "/day/" + encodeURIComponent(r.uid));
+        if (!res.ok) {
+          blocked = true;
+          continue;
+        }
+        const body = await res.json();
+        if (!body.day) {
+          blocked = true;
+          continue;
+        }
+        // Re-read the index: an await happened, and a render or another refresh
+        // may have moved the day. Splicing at a stale index replaces the wrong
+        // one, which is exactly the silent corruption this whole sprint is about.
+        const at = state.days.findIndex((x) => x.uid === r.uid);
+        if (at === -1) {
+          blocked = true;
+          continue;
+        }
+        // Still not mid-edit, and still clean. Both can have changed while the
+        // fetch was in flight.
+        const nowMine = state.days[state.active] && state.days[state.active].uid;
+        if (state.dirty || r.uid === nowMine) {
+          blocked = true;
+          continue;
+        }
+        state.days[at] = dayFromPayload(body.day, at);
+        state.days[at].endManual = inferEndManual(state.days[at]);
+        // Rebase, or the next save sends this day with the hash it had BEFORE
+        // the refresh and the merge reads it as contested.
+        if (r.hash) state.dayBase[r.uid] = r.hash;
+      } catch (e) {
+        blocked = true;
+      }
+    }
+
+    if (refreshable.length > 0) {
+      // The render half of renderEverything, without the three form inputs it
+      // also writes. Those belong to the ride rather than to a day, and nothing
+      // here changed them — rewriting a field the rider may be in is the defect
+      // above, arriving by another route.
+      rebuildLayers();
+      renderMarkers();
+      renderDays();
+      refreshDerived();
+    }
+
+    // Something changed that could not be taken safely. Say so rather than
+    // leaving the panel quietly behind — but do NOT stop the autosave unless
+    // this rider has work at stake, because a stale VIEW is not a stale WRITE.
+    if (blocked) {
+      if (state.dirty) {
+        state.conflict = true;
+        setSaveStatus("conflict");
+      } else {
+        setSaveStatus("stale");
+      }
+    }
+  }
+
   const SAVE_TEXT = {
     new: "Not saved yet",
     dirty: "Unsaved changes",
     saving: "Saving…",
     saved: "Saved",
     error: "Not saved",
+    // Nothing of this rider's is at risk — they have no unsaved work — but what
+    // is on screen is behind. A softer wording than `conflict` for that reason.
+    stale: "Someone else changed this ride—reload to see it",
+    // Deliberately says what to DO, not what went wrong. A rider seeing this has
+    // work in front of them that the server has refused, and the only safe move
+    // is to reload and redo it — which is worth saying plainly rather than
+    // leaving them pressing a save that is never going to be attempted again.
+    conflict: "Someone else edited this ride—reload to see their changes",
   };
 
   function setSaveStatus(name, text) {
@@ -803,7 +1097,7 @@
     // Only the states a rider needs told about reach the live region. The
     // routine dirty/saving/saved cycle runs several times a minute and
     // announcing it would make the panel unusable with a screen reader on.
-    if (name === "error" || name === "blocked") {
+    if (name === "error" || name === "blocked" || name === "conflict" || name === "stale") {
       $("save-announce").textContent = text || SAVE_TEXT[name] || "";
     } else if (name === "saved") {
       $("save-announce").textContent = "";
@@ -3097,7 +3391,13 @@
           : "This is the route counted in the ride total.") +
         '">' + (ghost ? "alternative" : "riding this") + "</span>";
     return (
-      '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
+      '<section class="day-section' + (shut ? " is-shut" : "") + altClass +
+      // Somebody else is working on this day. A class rather than a disabled
+      // control: the day stays fully editable, because a claim is advisory and
+      // the save path is what actually decides. This says "expect a clash", not
+      // "you may not".
+      (LIVE.heldBy[day.uid] ? " is-held" : "") + '" data-day="' + r + '"' +
+      (LIVE.heldBy[day.uid] ? ' title="' + esc(LIVE.heldBy[day.uid]) + ' is working on this day"' : "") +
       ' style="--day-color:' + esc(day.color) + '">' +
       '<div class="day-head">' +
       // AFTER the grip, never before it: .day-drag's negative margins depend on
@@ -5100,6 +5400,10 @@
 
   function payload() {
     return {
+      // The revision this edit is based on. Read at serialize time, like every
+      // other field here — see the editSeq comment for why that instant matters.
+      rev: state.rev,
+      dayBase: state.dayBase,
       // FALLS BACK HERE TOO, not only in the field's blur handler. A draft
       // restored from before the default existed carries an empty title, and
       // fields.title is min(1) server-side — so an empty string 400s the whole
@@ -5172,7 +5476,65 @@
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      // A STALE SAVE IS NOT AN ERROR TO RETRY, AND THIS IS THE WHOLE POINT OF
+      // HANDLING IT SEPARATELY. The catch below re-arms a timer, which for any
+      // other failure is right — but here the request was REFUSED because
+      // somebody else wrote to this ride, so trying again is a second attempt
+      // to overwrite them, on a loop, every fifteen seconds.
+      //
+      // Nothing local is thrown away: state.days still holds this rider's work
+      // and the localStorage draft still holds the crash copy. The ride is left
+      // dirty on purpose, so it is visibly unsaved rather than quietly lost.
+      if (res.status === 409) {
+        state.conflict = true;
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        setSaveStatus("conflict");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "save failed (" + res.status + ")");
+      // Straight back out on the next save. Dropping this is how the SECOND
+      // save of a session 409s against a ride nobody else has touched.
+      if (typeof data.rev === "number") state.rev = data.rev;
+      // REBASE ON WHAT WAS ACTUALLY STORED, BUT ONLY FOR DAYS THIS BUILDER
+      // HOLDS. Without the rebase, the second save of a session is based on
+      // hashes the first one invalidated and every day reads as contested.
+      // Without the FILTER, it is worse than that: the server's map includes
+      // days another rider has just added, this builder has never seen them, and
+      // a uid in dayBase that is missing from the payload is exactly how the
+      // merge is told "the rider deleted this". The next autosave would erase
+      // the other rider's new days, three seconds later, silently.
+      if (data.dayBase) {
+        const held = new Set(state.days.map((d) => d.uid));
+        const next = {};
+        for (const uid in data.dayBase) if (held.has(uid)) next[uid] = data.dayBase[uid];
+        state.dayBase = next;
+      }
+
+      // THIS BUILDER IS NOW STALE, AND SAVING AGAIN WOULD UNDO SOMEBODY.
+      //
+      // `superseded` means a day this rider edited was kept from the database
+      // instead — so state.days still holds their rejected version, and the
+      // rebase above has just made its base match. Left alone, the very next
+      // autosave would send that version with a base the server accepts, and it
+      // would win: the merge would have delayed the clobber by three seconds
+      // rather than prevented it.
+      //
+      // `adopted` means another rider added days this builder has never seen.
+      // Nothing is lost by saving again, but the panel is showing a ride that
+      // is missing days, which is its own kind of wrong.
+      //
+      // Both stop the loop and ask for a reload. Two riders on DIFFERENT days
+      // reach neither — which is the whole point of merging per day, and why
+      // this is rare rather than routine.
+      const clashed = (data.superseded || []).length + (data.adopted || []).length;
+      if (clashed > 0) {
+        state.conflict = true;
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        setSaveStatus("conflict");
+        return;
+      }
       if (!state.rideId) {
         state.rideId = data.id;
         history.replaceState(null, "", "/builder/" + data.id);
@@ -5293,34 +5655,21 @@
       trunkSubgroup: ride.trunkSubgroup ?? null,
       timeAnchor: ride.timeAnchor || "departure",
     };
+    // `?? null` because rev 0 is a real, current revision — a ride nobody has
+    // saved since the column landed — and `||` would send it as null and turn
+    // the check off for exactly the rides that have never been contested.
+    state.rev = ride.rev ?? null;
+    state.conflict = false;
+    // Built from what the SERVER sent, never computed here. The hash is the
+    // server's own record of what it stored; a second implementation in this
+    // file would drift and every day would read as contested.
+    state.dayBase = {};
+    for (const r of ride.days || []) {
+      if (r.uid && r.contentHash) state.dayBase[r.uid] = r.contentHash;
+    }
     // Every day loads. This used to take days[0] and warn that saving would
     // drop the rest, which made multi-day rides effectively read-only.
-    state.days = (ride.days || []).map((r, i) => ({
-      // `|| uid()` rather than assuming one is there: a ride saved before this
-      // shipped has none in flight, and the server repairs a null anyway — but
-      // a day carrying undefined here would send undefined straight back and
-      // churn its uid on every save, losing its votes each time.
-      uid: r.uid || uid(),
-      // `?? null` rather than `|| null` for symmetry with altGroup below —
-      // there is no falsy uid, but the two fields are read the same way and one
-      // of them written differently is a thing somebody has to check.
-      subgroupUid: r.subgroupUid ?? null,
-      title: r.title || "",
-      color: r.color || DAY_COLORS[i % DAY_COLORS.length],
-      startAt: r.startAt || null,
-      endAt: r.endAt || null,
-      endManual: false,
-      // The other half of payload()'s round-trip. Omitting these is how a
-      // rider's alternate grouping works perfectly until they reload the page
-      // and then is silently gone, with the ride's mileage jumping to match —
-      // `?? null` rather than `|| null` because 0 is a real group id.
-      altGroup: r.altGroup ?? null,
-      altActive: r.altActive ?? true,
-      // One ordered list. A payload from before 2026-08-23 cannot reach this —
-      // loadRidePayload is the only source and it was changed with the schema.
-      points: r.points || [],
-      legs: r.legs || [],
-    }));
+    state.days = (ride.days || []).map(dayFromPayload);
     state.days.forEach(fillMissingLegs);
     // Nothing has changed the day yet, so a stored end that matches what the
     // day derives is one we wrote — anything else the rider chose themselves.
@@ -5776,6 +6125,11 @@
         return toast(e.message, true);
       }
     }
+
+    // AFTER loadExisting, so the first presence event lands on a state that
+    // already knows its days — heldBy is keyed by uid and would otherwise mark
+    // nothing on the first render. Nothing below depends on it connecting.
+    LIVE.start();
 
     // Unlike Mapbox, the map is usable as soon as the constructor resolves —
     // there is no style to wait on, so the `load` handler this replaces is gone.

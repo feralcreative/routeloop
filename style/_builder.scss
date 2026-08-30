@@ -1789,6 +1789,32 @@
         background: $kml;
       }
     }
+
+    // A CONFLICT READS AS AN ERROR BECAUSE IT IS ONE, from the rider's side:
+    // work is in front of them that the server has refused and will go on
+    // refusing. It shares `error`'s weight rather than `blocked`'s, which is the
+    // gentler state for "you have not finished yet" — nothing here clears on its
+    // own, and the autosave has deliberately stopped trying.
+    &[data-state="conflict"] {
+      color: $kml;
+      font-weight: 600;
+      .save-dot {
+        background: $kml;
+      }
+    }
+  }
+
+  // Who else is in the ride. Sits beside the save status because it answers the
+  // same question — is what I am looking at still mine — and because the panel
+  // header is the one strip a rider's eye already returns to.
+  .live-presence {
+    font-size: 0.68em;
+    font-weight: 600;
+    color: $url;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 14ch;
   }
 
   // The public page, revealed by the first successful save and never hidden
@@ -1985,6 +2011,15 @@
   @include still {
     animation: none;
   }
+}
+
+// A DAY SOMEBODY ELSE IS WORKING ON. Deliberately a hint and not a lock: the
+// section stays fully interactive, because a claim is advisory and the day hash
+// on the write is what actually decides a clash. Styling it as disabled would
+// promise an enforcement that does not exist — and would strand a rider whose
+// collaborator closed their laptop without releasing.
+.builder-panel .day-section.is-held > .day-head {
+  box-shadow: inset 3px 0 0 $pending;
 }
 
 @keyframes save-pulse {
