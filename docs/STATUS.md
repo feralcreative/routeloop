@@ -1,12 +1,32 @@
 # Status and handoff
 
-**Updated:** 2026-08-29
-**Branch:** `feat/registry-deploy`, committed, not pushed. `feat/ui-nav-sprint` merged as #195. **2,140 tests across 83 files** (2 skipped, 2,142 total)
+**Updated:** 2026-08-30
+**Branch:** `feat/collaborative-planning`, committed, not pushed. **2,198 tests across 87 files** (2 skipped, 2,200 total)
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## Two riders can plan one ride at once—2026-08-30
+
+**Not deployed, not merged.** Branch `feat/collaborative-planning`, five commits. Closes [#212](https://github.com/feralcreative/routeloop/issues/212), [#216](https://github.com/feralcreative/routeloop/issues/216), [#217](https://github.com/feralcreative/routeloop/issues/217), [#218](https://github.com/feralcreative/routeloop/issues/218) and [#219](https://github.com/feralcreative/routeloop/issues/219), and [#32](https://github.com/feralcreative/routeloop/issues/32) with them.
+
+**It started as a missing button and turned out to be a missing guard.** A ride shared before the permission ladder existed had a correct `ride_members` row—`perm = suggest`—and no way to act on it, because the viewer decided whether to show a link with `canEditRide()`, which is ownership-only. Everything else was already built: `/builder/:id` has been membership-aware since the ladder shipped, and `builder.js` already carried both the comments and the suggestions UI. Fixing the link exposed the real problem, which is that the collaboration the ladder promises did not survive two people using it.
+
+**The builder's `PUT` had no version check of any kind**, and it is driven by an autosave that fires three seconds after the last keystroke. Two riders in one ride meant whoever saved last won wholesale, with nothing raised on either screen. That was reachable in production the moment anybody was promoted to `edit`.
+
+**Two guards, and they cover different things.** `rides.rev` is checked under `for update` and a stale one is refused with a 409—that is the ride-level fields, which have no finer unit. Days are merged per uid against `days.content_hash`, so two riders on different days never collide at all. **Both fields are optional on the way in**, which is the expand/contract discipline: during the blue/green overlap the old builder posts neither, and requiring either would refuse every save from the draining color.
+
+**The merge is three-way and the third leg is the one that looks redundant.** `dayBase` carries every uid the client held, because a day absent from the payload is either one the rider deleted or one somebody else added—and without it, one rider's save deletes every day the other has added. Both migrations are additive and neither is backfilled; `content_hash` is null on every existing day, which reads as unknown and behaves exactly as these rides did before.
+
+**Presence and claims are a courtesy and must never be relied on.** `src/live/hub.ts` is in memory, gone on restart and on a dropped connection. A held day is marked and never disabled, because a lock the server does not enforce must not be drawn as one. What actually protects the work is the hash on the write, which needs no connection at all.
+
+**A correction worth carrying forward.** The comment first written in `src/shutdown.ts`—that an open SSE stream would hold the drain for the full `DRAIN_GRACE_MS`—is intuitive and was **measured false**: with a confirmed-connected stream, SIGTERM to exit is 0.14s with or without `closeAll()` (Node 24.19, Hono `streamSSE`). The hook stays because the behavior should be stated rather than emergent, and because it is what makes a draining container refuse new subscriptions. Recorded in the code and on [#218](https://github.com/feralcreative/routeloop/issues/218) so it is not re-derived wrongly.
+
+**Verified against the local database, not by inspection:** a stale `rev` refused and the correct one accepted; a payload with no `rev` still saved; two riders editing different days both survived; the same day refused and named; a day added by one rider survived the other's save; the SSE stream delivered presence, a claim, and a change notice; the per-day endpoint served a day and 404'd an unknown uid.
+
+**What has NOT been done: the browser pass.** Nothing automated covers the map, the builder or the panel, and every check above was made against the API. Two real browsers on one ride is the acceptance test—presence appearing, a held day marked, focus surviving a remote refresh, and the conflict states reading sensibly.
 
 ## The deploy moves to a registry—2026-08-29
 
