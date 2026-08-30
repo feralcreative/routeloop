@@ -5,6 +5,15 @@
 # stops testing what actually ships. This takes effect on the next deploy.
 FROM node:24-alpine
 
+# WHAT LINKS THE GHCR PACKAGE TO THIS REPOSITORY. Without it a package pushed by
+# a personal token is USER-scoped and unlinked, and a workflow's GITHUB_TOKEN —
+# which only ever gets write access to packages the repository owns or has been
+# explicitly granted — is refused with `denied: permission_denied: write_package`
+# after a full build. Granting an existing unlinked package to the repo is a
+# UI-only setting (Package settings, Manage Actions access); this label is what
+# stops the next package needing that step at all.
+LABEL org.opencontainers.image.source="https://github.com/feralcreative/routeloop"
+
 WORKDIR /app
 
 # All deps, not --omit=dev, on purpose: the runtime entrypoint is `tsx` and the
