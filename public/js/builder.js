@@ -526,6 +526,10 @@
     applyFocus();
     renderRailDays();
     renderTotals();
+    // The active day IS what this rider is working on, so it is the claim. Every
+    // row and section handler already calls setActive before doing anything
+    // else, which is why the claim needs no second set of hooks.
+    LIVE.claim(state.days[next] && state.days[next].uid);
   }
 
   // Reads the day off whatever was clicked. Every .day-section and every
@@ -807,12 +811,153 @@
   // One state name in, one fixed-footprint readout out. The width is reserved in
   // CSS for the longest string here, because #save-status was on the epic's list
   // of variable-length readouts that reflow whatever sits beside them.
+  // --- The live channel -----------------------------------------------------
+  //
+  // Who else is in this ride, what they are working on, and when a day changes
+  // under us. EventSource rather than a socket: everything is one-directional
+  // except the claim, which is an ordinary POST. Server half is
+  // src/routes/live.ts; the registry it talks to is src/live/hub.ts.
+  //
+  // **NOTHING HERE PROTECTS ANY WORK.** A claim is a courtesy that stops two
+  // riders picking up the same day by accident. The day hash checked on every
+  // save is what actually prevents loss, and it needs no connection at all — so
+  // every path below degrades to "no presence shown" rather than to "cannot
+  // edit". A rider whose channel never connects must lose nothing but the view.
+  const LIVE = (function () {
+    let source = null;
+    let claimed = null;
+    let riders = [];
+
+    // A day another rider is holding, as {dayUid: name}. Read by renderDays to
+    // mark the section; empty whenever the channel is not connected, which is
+    // what makes the whole feature invisible rather than broken when it is off.
+    const heldBy = {};
+
+    function rebuildHeld() {
+      for (const k in heldBy) delete heldBy[k];
+      for (const r of riders) {
+        if (r.dayUid && r.riderId !== window.TB.riderId) heldBy[r.dayUid] = r.name;
+      }
+      renderPresence();
+    }
+
+    function renderPresence() {
+      const el = $("live-presence");
+      if (!el) return;
+      const others = riders.filter((r) => r.riderId !== window.TB.riderId);
+      if (others.length === 0) {
+        el.textContent = "";
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      // Names only, and the day they are on if they are on one. The rung is
+      // deliberately not shown: canSeePerms is the owner's business, and a
+      // presence strip is seen by everybody in the ride.
+      el.textContent =
+        others.length === 1
+          ? others[0].name + (others[0].dayUid ? " is editing a day" : " is here")
+          : others.length + " other riders here";
+      el.title = others.map((r) => r.name).join(", ");
+    }
+
+    function connect() {
+      if (!state.rideId || source) return;
+      try {
+        source = new EventSource("/api/rides/" + state.rideId + "/live");
+      } catch (e) {
+        return;
+      }
+      source.addEventListener("presence", (e) => {
+        try {
+          riders = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        rebuildHeld();
+        // Re-assert after a reconnect. The server forgets every claim when the
+        // stream drops, so without this a rider silently stops holding the day
+        // they are visibly working on.
+        if (claimed) send(claimed);
+      });
+      source.addEventListener("days", (e) => {
+        let msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        // Our own save, arriving back. The response already rebased us.
+        if (msg.by === window.TB.riderId) return;
+        onRemoteSave(msg);
+      });
+      // EventSource reconnects on its own, so an error is not something to
+      // handle — closing here would turn a blip into a permanent disconnect.
+    }
+
+    function send(dayUid) {
+      if (!state.rideId) return;
+      fetch("/api/rides/" + state.rideId + "/live/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayUid: dayUid }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          if (d.presence) {
+            riders = d.presence;
+            rebuildHeld();
+          }
+        })
+        .catch(() => {});
+    }
+
+    return {
+      start: connect,
+      claim(dayUid) {
+        const next = dayUid || null;
+        if (next === claimed) return;
+        claimed = next;
+        send(next);
+      },
+      heldBy,
+      stop() {
+        if (source) source.close();
+        source = null;
+      },
+    };
+  })();
+
+  // What another rider's save means for this builder.
+  //
+  // Days this rider does not hold are simply out of date on screen; days they DO
+  // hold are the contested case and the save path already refuses those. So the
+  // honest answer here is to say the ride has moved on, rather than to silently
+  // patch state under a rider mid-edit. Stage 4 (#219) replaces this with a
+  // per-day fetch that updates what is safe to update.
+  function onRemoteSave(msg) {
+    const held = new Set(state.days.map((d) => d.uid));
+    const changedHere = (msg.days || []).some((d) => held.has(d.uid) && state.dayBase[d.uid] !== d.hash);
+    if (!changedHere) return;
+    if (state.dirty) {
+      // Their work and ours overlap and ours is unsaved. Say so and stop trying.
+      state.conflict = true;
+      setSaveStatus("conflict");
+    } else {
+      setSaveStatus("stale");
+    }
+  }
+
   const SAVE_TEXT = {
     new: "Not saved yet",
     dirty: "Unsaved changes",
     saving: "Saving…",
     saved: "Saved",
     error: "Not saved",
+    // Nothing of this rider's is at risk — they have no unsaved work — but what
+    // is on screen is behind. A softer wording than `conflict` for that reason.
+    stale: "Someone else changed this ride—reload to see it",
     // Deliberately says what to DO, not what went wrong. A rider seeing this has
     // work in front of them that the server has refused, and the only safe move
     // is to reload and redo it — which is worth saying plainly rather than
@@ -832,7 +977,7 @@
     // Only the states a rider needs told about reach the live region. The
     // routine dirty/saving/saved cycle runs several times a minute and
     // announcing it would make the panel unusable with a screen reader on.
-    if (name === "error" || name === "blocked" || name === "conflict") {
+    if (name === "error" || name === "blocked" || name === "conflict" || name === "stale") {
       $("save-announce").textContent = text || SAVE_TEXT[name] || "";
     } else if (name === "saved") {
       $("save-announce").textContent = "";
@@ -3126,7 +3271,13 @@
           : "This is the route counted in the ride total.") +
         '">' + (ghost ? "alternative" : "riding this") + "</span>";
     return (
-      '<section class="day-section' + (shut ? " is-shut" : "") + altClass + '" data-day="' + r + '"' +
+      '<section class="day-section' + (shut ? " is-shut" : "") + altClass +
+      // Somebody else is working on this day. A class rather than a disabled
+      // control: the day stays fully editable, because a claim is advisory and
+      // the save path is what actually decides. This says "expect a clash", not
+      // "you may not".
+      (LIVE.heldBy[day.uid] ? " is-held" : "") + '" data-day="' + r + '"' +
+      (LIVE.heldBy[day.uid] ? ' title="' + esc(LIVE.heldBy[day.uid]) + ' is working on this day"' : "") +
       ' style="--day-color:' + esc(day.color) + '">' +
       '<div class="day-head">' +
       // AFTER the grip, never before it: .day-drag's negative margins depend on
@@ -5879,6 +6030,11 @@
         return toast(e.message, true);
       }
     }
+
+    // AFTER loadExisting, so the first presence event lands on a state that
+    // already knows its days — heldBy is keyed by uid and would otherwise mark
+    // nothing on the first render. Nothing below depends on it connecting.
+    LIVE.start();
 
     // Unlike Mapbox, the map is usable as soon as the constructor resolves —
     // there is no style to wait on, so the `load` handler this replaces is gone.

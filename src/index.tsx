@@ -51,6 +51,7 @@ import { settingsRoutes } from './routes/settings'
 import { accountRoutes } from './routes/account'
 import { builderLabel } from './members/policy'
 import { memberOrOwner } from './members/service'
+import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
 import { asset } from './views/assets'
@@ -230,6 +231,7 @@ app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', rosterRoutes)
 app.route('/', commentRoutes)
+app.route('/', liveRoutes)
 app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)

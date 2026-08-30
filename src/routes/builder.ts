@@ -8,6 +8,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { mergeDays, storedUidsNeeded, type MergeResult } from '../maps/day-merge'
+import { publish } from '../live/hub'
 import { db } from '../db/index'
 import {
   rides,
@@ -468,6 +469,20 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   if ('stale' in result) {
     return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
   }
+  // TELL THE ROOM WHAT CHANGED. Fire-and-forget and deliberately after the
+  // transaction: a live notification is not worth failing a save for, and a
+  // publish inside the transaction would announce a write that could still roll
+  // back.
+  //
+  // `by` rather than excluding the saver's connections: a rider can have the
+  // ride open in two tabs, and the second one needs telling as much as anybody
+  // else. The client ignores events carrying its own rider id.
+  publish(ride.id, 'days', {
+    by: user.id,
+    rev: result.rev,
+    days: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
+  })
+
   // dayBase goes straight back out so the builder can rebase without a reload.
   // Without it the SECOND save of a session is based on hashes the first save
   // invalidated, and every day reads as contested.
@@ -1065,6 +1080,14 @@ ${
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
           </span>
+          <!-- WHO ELSE IS IN THIS RIDE. Server-rendered empty and hidden: the
+               list only ever arrives over the live channel, and a rider with no
+               channel—a dropped connection, a draining container, JavaScript
+               that failed to reach the endpoint—must see nothing rather than
+               an empty strip that looks broken. aria-live is polite because
+               somebody arriving is worth knowing about and never worth
+               interrupting whatever the rider is doing. -->
+          <span id="live-presence" class="live-presence" role="status" aria-live="polite" hidden></span>
           <a id="view-link" class="view-link is-empty" href="#" target="_blank" rel="noopener">View</a>
         </div>`
 
@@ -1113,6 +1136,10 @@ ${
       canEdit: standing.canEdit,
       isOwner: standing.isOwner,
       perm: standing.perm,
+      // The viewer's own id, so the live channel can tell its own events and its
+      // own presence row apart from everybody else's without a second request.
+      // Not a secret: it is this rider's id, told to this rider.
+      riderId: user.id,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but
