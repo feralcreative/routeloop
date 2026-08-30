@@ -54,7 +54,7 @@ jobs:
     environment: stage
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
