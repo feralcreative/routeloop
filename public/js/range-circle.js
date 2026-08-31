@@ -21,9 +21,13 @@
 // rider approaches it, and past it there is no ring at all. Same radius rule,
 // and it behaves because the thing it points at holds still.
 //
-// THE CONSEQUENCE TO STATE RATHER THAN TREAT AS A BUG: a day the rider never
-// runs dry on shows NO RING. There is no point to draw to, which is the honest
-// answer — nothing about the fuel on that day needs watching.
+// THE RING'S TARGET AND THE WALL'S ARE TWO DIFFERENT QUESTIONS, which is why
+// there are two functions. fuelReachM() is how far the tank gets the rider,
+// CAPPED at the end of the day; dryDistanceM() is where they run out, and null
+// when they do not run out at all. Drawing the ring from the second was a real
+// defect: past a rider's LAST refuel the tank outlasts the day, so there was no
+// dry point, so there was no ring — for the rest of the day, with the refuel
+// working perfectly the whole time.
 //
 // NO RANGE MEANS NO RING. Null is not zero and it is not a default: a ring
 // drawn for a rider whose bike has no range on file implies somebody checked
@@ -94,6 +98,30 @@
   }
 
   /**
+   * The furthest point along the day the tank reaches: the dry point, or the
+   * end of the day when the fuel outlasts it. The ring's edge.
+   *
+   * CAPPED AT THE DAY RATHER THAN NULL PAST IT, and that cap is a FIX rather
+   * than a refinement. dryDistanceM() returns null once the tank outlasts the
+   * day — correctly, because there is no dry point on the route to mark — and
+   * the ring was drawn from that, so it vanished for good the moment a rider
+   * passed their LAST refuel. Reported from a test ride with the pump set a few
+   * miles past empty: the ring shrank to nothing, the rider rode through the
+   * pump, and it never came back. The refuel was detected the whole time; there
+   * was simply nothing left to point at.
+   *
+   * So the ring points at the end of the day instead, which is a true statement
+   * — that is as far as this fuel has to get them — and the wall is what says
+   * whether they make it. A ring with no wall inside it means the day is
+   * covered.
+   */
+  function fuelReachM(day, distM, cum, fuelRole, rangeM) {
+    if (distM == null || !cum || !cum.length) return null;
+    if (!(rangeM > 0)) return null;
+    return Math.min(lastFillM(day, distM, cum, fuelRole) + rangeM, cum[cum.length - 1]);
+  }
+
+  /**
    * How far into the day the tank runs dry, or null when it does not run dry
    * before the day ends.
    *
@@ -115,6 +143,7 @@
   window.TBRange = {
     distanceAtMoment: distanceAtMoment,
     lastFillM: lastFillM,
+    fuelReachM: fuelReachM,
     dryDistanceM: dryDistanceM,
     isRefuel: isRefuel,
   };

@@ -77,6 +77,43 @@ describe('where the rider is', () => {
   })
 })
 
+describe('how far the fuel reaches', () => {
+  // THE DEFECT THIS EXISTS FOR. Reported from a test ride with the pump set a
+  // few miles past empty: the ring shrank to nothing, the rider rode through
+  // the pump, and it never came back. The refuel was detected the whole time —
+  // the new dry point simply landed past the end of the day, so there was
+  // nothing left to point at and the ring was drawn from that.
+  it('comes back after a refuel whose tank then outlasts the day', () => {
+    const d: Day = {
+      points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
+      legs: [leg(105), leg(45)],
+    }
+    const c = cum(d)
+    // Before the pump: the ring reaches the dry point at 100.
+    expect(round(R.fuelReachM(d, mi(50), c, 'gas', mi(100)))).toBe(100)
+    // Past it: 105 + 100 is beyond the day, so it reaches the day's end.
+    expect(round(R.fuelReachM(d, mi(110), c, 'gas', mi(100)))).toBe(150)
+    // ...and there is no wall, because the rider does not run out.
+    expect(R.dryDistanceM(d, mi(110), c, 'gas', mi(100))).toBeNull()
+  })
+
+  it('is the dry point when the tank runs out first', () => {
+    const d = day()
+    expect(round(R.fuelReachM(d, mi(120), cum(d), 'gas', mi(120)))).toBe(220)
+  })
+
+  it('never reaches past the end of the day', () => {
+    const d = day()
+    expect(round(R.fuelReachM(d, mi(10), cum(d), 'gas', mi(9999)))).toBe(240)
+  })
+
+  it('is null when no range is known', () => {
+    const d = day()
+    expect(R.fuelReachM(d, mi(20), cum(d), 'gas', null)).toBeNull()
+    expect(R.fuelReachM(d, null, cum(d), 'gas', mi(120))).toBeNull()
+  })
+})
+
 describe('where the tank runs dry', () => {
   it('is the last fill plus the range', () => {
     const d = day()

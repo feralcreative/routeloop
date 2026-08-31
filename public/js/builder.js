@@ -1497,30 +1497,34 @@
 
     // Null is the ordinary case, not the edge one: a rider with no bike on file
     // has no range. The dot is still where they would be.
-    const dryAt = RANGE.dryDistanceM(day, distM, cum, fuelRole(), rangeM());
+    const role = fuelRole();
+    const range = rangeM();
+    const reach = RANGE.fuelReachM(day, distM, cum, role, range);
+    const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
     setMomentOverlay(
       state.map,
       here,
       dryPt,
-      ringRadius(here, dryPt, distM, dryAt),
+      ringRadius(here, track, distM, reach),
       dryAt == null ? null : bearingAtDistance(track, dryAt),
     );
   }
 
   /**
-   * The ring's radius: the straight line from the rider to the point they run
-   * dry, so its edge passes through that point and it collapses to nothing as
-   * they arrive there.
+   * The ring's radius: the straight line from the rider to the furthest point
+   * on the route their fuel reaches, so its edge is a PLACE rather than a
+   * number and it collapses to nothing as they arrive there.
    *
-   * NOTHING ONCE THE RIDER IS PAST IT. The dry point stays on the map — it is a
-   * fact about the day — but a ring drawn back to it would GROW as the rider
-   * carried on, which is the defect that sank the first version of this. Past
-   * empty there is no distance left to draw.
+   * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
+   * day the rider runs dry on and they are not on a day they do not — see
+   * fuelReachM(), and note that drawing this from the wall is what made the
+   * ring disappear for good after a rider's last refuel.
    */
-  function ringRadius(here, dryPt, distM, dryAt) {
-    if (!state.ringOn || !dryPt || dryAt == null || dryAt <= distM) return null;
-    return haversineM(here, dryPt);
+  function ringRadius(here, track, distM, reachM) {
+    if (!state.ringOn || reachM == null || reachM <= distM) return null;
+    const at = pointAtDistance(track, reachM);
+    return at ? haversineM(here, at) : null;
   }
 
   function clearMarkers() {
