@@ -39,8 +39,8 @@
   const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
   const { pointAtDistance, haversineM } = window.TBShape;
   const DIST = window.TBDistance;
-  // Where the rider would be at a scrubbed moment, and what the circle around
-  // them reaches to. See public/js/range-circle.js.
+  // Where the rider would be at a scrubbed moment, and how much fuel is left
+  // there. See public/js/range-circle.js.
   const RANGE = window.TBRange;
 
   // Only the label lookup — the viewer reads stored figures rather than
@@ -58,6 +58,11 @@
     map: null,
     ride: null,
     arrowsOn: true,
+    // #229's fuel ring, on or off. Session-only: it is how this reader is
+    // reading the map right now, not a fact about the ride. On by default,
+    // because it is the answer the scrubber was given a range for — a reader
+    // who finds a 300-mile circle in the way turns it off.
+    ringOn: true,
     // per day: { visible, markers: [{ marker, el }] } — the element is kept
     // alongside the marker because dimming and hiding are CSS on our own DOM,
     // not map state.
@@ -205,7 +210,7 @@
     const range = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
     const role = r.fuelType === "electric" ? "charge" : "gas";
 
-    const left = RANGE.remainingM(day, distM, cum, role, range);
+    const left = state.ringOn ? RANGE.remainingM(day, distM, cum, role, range) : null;
     const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     setMomentOverlay(state.map, here, dryAt == null ? null : pointAtDistance(track, dryAt), left);
   }
@@ -226,6 +231,7 @@
     // disabled — unlike the builder, a viewer cannot fix it by typing a date.
     wrap.hidden = !span;
     if (!span) return;
+    renderRingToggle();
 
     const slider = document.getElementById("time-slider");
     const readout = document.getElementById("time-readout");
@@ -272,6 +278,37 @@
       paintFocus();
       renderTimeline();
     });
+    // Repaints rather than re-rendering the timeline: the ring is a map
+    // overlay, and nothing in the bar's readout depends on it.
+    document.getElementById("range-ring")?.addEventListener("click", () => {
+      state.ringOn = !state.ringOn;
+      renderRingToggle();
+      paintFocus();
+    });
+  }
+
+  // #229's fuel ring toggle. Mirrors renderRingToggle() in builder.js; the two
+  // surfaces hold the flag in their own state and there is nothing to share but
+  // four lines of labeling.
+  //
+  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT — a reader who is not on the
+  // roster gets no range at all, and neither does a member whose group has no
+  // bike on file. A control that switches nothing on is worse than no control.
+  //
+  // Note this makes the button's presence a signal, unlike the ring's absence,
+  // which is deliberately not one. Both states it distinguishes are "we have a
+  // range for this ride", so it still says nothing about who is on the roster
+  // beyond what the reader already knows by being on it or not.
+  function renderRingToggle() {
+    const btn = document.getElementById("range-ring");
+    if (!btn) return;
+    const r = window.TB.range || {};
+    btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
+    if (btn.hidden) return;
+    btn.textContent = state.ringOn ? "Fuel on" : "Fuel off";
+    btn.title = state.ringOn ? "Hide the fuel ring" : "Show how much fuel is left";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(state.ringOn));
   }
 
   function dlButton(href, label, download, title) {

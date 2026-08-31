@@ -92,8 +92,8 @@
   // geometry; the searching and the spending live below.
   const CORRIDOR = window.TBCorridor;
 
-  // Where the rider would be at a scrubbed moment, and what the circle around
-  // them reaches to. See public/js/range-circle.js.
+  // Where the rider would be at a scrubbed moment, and how much fuel is left
+  // there. See public/js/range-circle.js.
   const RANGE = window.TBRange;
 
   /** Meters as the rider's own unit, rounded to a whole one. Distances in the
@@ -503,6 +503,11 @@
     //
     // Session-only and shared across days, like timeScope: it is how the rider
     // is searching right now, not a fact about any day.
+    // #229's fuel ring, on or off. Session-only and ride-wide, like timeScope:
+    // it is how the rider is READING the map right now, not a fact about the
+    // ride. On by default, because it is the answer the scrubber was given a
+    // range for — a rider who finds a 300-mile circle in the way turns it off.
+    ringOn: true,
     corridorOn: false,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
@@ -1493,7 +1498,7 @@
     // has no range. The dot is still where they would be.
     const role = fuelRole();
     const range = rangeM();
-    const left = RANGE.remainingM(day, distM, cum, role, range);
+    const left = state.ringOn ? RANGE.remainingM(day, distM, cum, role, range) : null;
     const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     setMomentOverlay(state.map, here, dryAt == null ? null : pointAtDistance(track, dryAt), left);
   }
@@ -3815,6 +3820,7 @@
     const readout = $("time-readout");
     const span = timelineSpan();
     renderTimeScope();
+    renderRingToggle();
 
     // The slider's value is epoch seconds, which is what a screen reader would
     // otherwise read out. aria-valuetext replaces that with the same sentence
@@ -3949,6 +3955,25 @@
     // same slider is a control that does nothing. Hidden rather than disabled:
     // it is in a one-line bar where a dead button is pure noise.
     btn.hidden = state.days.length < 2;
+  }
+
+  // #229's fuel ring toggle. Mirrored by the same function in viewer.js, which
+  // is the whole of the duplication — the two surfaces hold the flag in their
+  // own state and there is nothing to share but four lines of labeling.
+  //
+  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT. A rider with no bike on file
+  // has no range, so the toggle would switch nothing on and nothing off, and a
+  // control that does nothing is worse than no control — the same reason the
+  // scope button hides on a one-day ride.
+  function renderRingToggle() {
+    const btn = $("range-ring");
+    if (!btn) return;
+    btn.hidden = rangeM() == null;
+    if (btn.hidden) return;
+    btn.textContent = state.ringOn ? "Fuel on" : "Fuel off";
+    btn.title = state.ringOn ? "Hide the fuel ring" : "Show how much fuel is left";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(state.ringOn));
   }
 
   // Every day's times, because every day's fields are on screen. It was one set
@@ -6271,6 +6296,14 @@
   function wireDays() {
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
     $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "day" ? "ride" : "day"));
+    // Repaints rather than re-rendering: the ring is a map overlay, so nothing
+    // in the panel changes and rebuilding the day list would cost a rider the
+    // field they are typing in — the #188 shape, reached from a map control.
+    $("range-ring")?.addEventListener("click", () => {
+      state.ringOn = !state.ringOn;
+      renderRingToggle();
+      applyFocus();
+    });
     $("rail-days").addEventListener("click", (e) => {
       const btn = e.target.closest(".rail-day");
       if (!btn) return;

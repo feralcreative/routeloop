@@ -481,6 +481,16 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
         ) : (
           ''
         )}
+        {/* BOTH SURFACES, unlike the scope button, because the fuel ring is on
+            both and it is the one overlay big enough to be in the way — a
+            300-mile tank draws a circle wider than the viewport at most useful
+            zooms. Turning it off leaves the dot and the dry marker, which are
+            small and answer a different question.
+
+            Ships hidden with no label. paintMoment() shows it only once there
+            is a ring to talk about: a rider with no bike on file has no range,
+            and a control that toggles nothing is worse than no control. */}
+        <button type="button" class="time-scope" id="range-ring" aria-pressed="true" hidden></button>
       </div>
       <input
         id="time-slider"
