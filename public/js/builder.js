@@ -492,15 +492,13 @@
     // minute, not a preference about it, and a remembered one would put a rider
     // back in ride scope weeks later with no memory of asking for it.
     timeScope: "day",
-    // #50's slider. HOW FAR OFF THE ROUTE the rider will go, in MILES — always
-    // miles, whatever unit they read, because the value is compared against
-    // meters through one conversion and storing it in the display unit would
-    // change its meaning when the preference changed.
+    // #50's search scope. FALSE means a category chip searches near the day's
+    // last point; TRUE means it searches along the day's whole line and keeps
+    // what falls inside CORRIDOR_MI of it.
     //
     // Session-only and shared across days, like timeScope: it is how the rider
     // is searching right now, not a fact about any day.
     corridorOn: false,
-    corridorMi: 10,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
     // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a day's "+ Stop"
@@ -4428,6 +4426,21 @@
     { role: "hotel", label: "Lodging", query: "hotel" },
   ];
 
+  // HOW FAR OFF THE ROUTE IS WORTH IT, in MILES — always miles, whatever unit
+  // the rider reads, because the value is compared against meters through one
+  // conversion and holding it in the display unit would change its meaning the
+  // moment the preference changed.
+  //
+  // A CONSTANT AND NOT A CONTROL, as of 2026-08-31. It shipped as a slider
+  // beside the toggle and the pair was rejected on sight: the corridor width is
+  // a preference and not a per-search decision, and asking for it every time
+  // put two controls in front of a question the rider had already answered by
+  // tapping a chip. Fifteen miles is about twenty minutes there and back on the
+  // kind of road that has a station on it, which is the most a detour for fuel
+  // is worth. If it ever needs to move it belongs in ride preferences, once,
+  // not under every day.
+  const CORRIDOR_MI = 15;
+
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
@@ -4442,35 +4455,44 @@
           esc(c.label) + "</button>",
       ).join("") +
       "</div>" +
-      corridorHtml(r)
+      // ONCE PER DAY, ON THE DAY'S OWN BOTTOM ROW — never on an insert slot.
+      // The scope is one session-wide flag, so a copy in every add-row meant a
+      // six-point day drawing seven of them and a handler hand-syncing the lot
+      // on every change. One control cannot disagree with itself.
+      (at == null ? corridorHtml(r) : "")
     );
   }
 
   /**
-   * #50's slider: how far off the route the rider will go.
+   * #50's search scope: near the last point, or along the whole day.
    *
-   * OFF BY DEFAULT, so the chips keep answering the question they always have —
-   * what is near where I have got to. Turning it on changes the question to what
-   * is reachable along the whole day, which is the one a rider asks when they
-   * are looking for the gap where fuel goes rather than for the next stop.
+   * TWO NAMED STATES, NOT A CHECKBOX AND A SLIDER. Both are always on screen,
+   * so the control says what it does rather than what it is currently not
+   * doing — a checkbox labelled "Along the day" leaves the rider to work out
+   * that unchecking it means something else, and never says what.
    *
-   * The slider is disabled rather than hidden while the toggle is off: it is
-   * what explains what the toggle is FOR, and a control that appears on click is
-   * a control nobody discovers.
+   * NEAR HERE IS THE DEFAULT, so the chips keep answering the question they
+   * always have: what is near where I have got to. The other scope is the one a
+   * rider asks when they are hunting the gap where fuel goes rather than the
+   * next stop, and it is a different question rather than a wider version of
+   * the same one.
+   *
+   * The width it searches is CORRIDOR_MI and there is no control for it — see
+   * the constant.
    */
   function corridorHtml(r) {
     const on = state.corridorOn;
-    const mi = state.corridorMi;
+    const opt = (along, label, title) =>
+      '<button type="button" class="scope-btn' + (on === along ? " is-on" : "") + '"' +
+      ' data-day="' + r + '" data-along="' + (along ? "1" : "0") + '"' +
+      ' aria-pressed="' + (on === along ? "true" : "false") + '" title="' + esc(title) + '">' +
+      esc(label) + "</button>";
+    const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
     return (
-      '<div class="add-corridor' + (on ? " is-on" : "") + '">' +
-      '<label class="corridor-toggle"><input type="checkbox" class="corridor-on" data-day="' + r + '"' +
-      (on ? " checked" : "") + "> Along the day</label>" +
-      '<input type="range" class="corridor-range" data-day="' + r + '" min="1" max="50" step="1" value="' +
-      mi + '"' + (on ? "" : " disabled") +
-      ' aria-label="How far off the route to look" title="How far off the route to look">' +
-      '<span class="corridor-readout">' +
-      esc(Math.round(window.TBUnits.distanceFromMiles(mi, UNITS)) + " " + distUnit) +
-      " off</span></div>"
+      '<div class="add-corridor" role="group" aria-label="Where to search">' +
+      opt(false, "Near here", "Search near this day's last point") +
+      opt(true, "Along the day", "Search the whole day, within " + width + " of the route") +
+      "</div>"
     );
   }
 
@@ -5706,34 +5728,31 @@
     // The field is left empty on purpose. Filling it with "gas station" would
     // look like the rider typed it and would then be re-searched on the next
     // keystroke, spending a second call to get the same answer.
-    // The corridor toggle and its slider. Re-rendering the day would destroy the
-    // slider mid-drag and drop focus — the #188 defect — so both patch their own
-    // row in place and nothing else moves. Neither marks the ride dirty: how a
-    // rider is searching is not a change to the ride.
-    host.addEventListener("input", (e) => {
-      const range = e.target.closest(".corridor-range");
-      if (!range) return;
-      state.corridorMi = Number(range.value);
-      const box = range.closest(".add-corridor");
-      const out = box && box.querySelector(".corridor-readout");
-      if (out) {
-        out.textContent = Math.round(window.TBUnits.distanceFromMiles(state.corridorMi, UNITS)) + " " + distUnit + " off";
-      }
-    });
-
-    host.addEventListener("change", (e) => {
-      const box = e.target.closest(".corridor-on");
-      if (!box) return;
-      state.corridorOn = box.checked;
-      // Every day carries its own copy of this control, so they all have to
-      // agree — a rider who switched it on at day 3 and scrolled to day 1 must
-      // not find it off there.
-      document.querySelectorAll(".add-corridor").forEach((el) => {
-        el.classList.toggle("is-on", state.corridorOn);
-        const cb = el.querySelector(".corridor-on");
-        const rg = el.querySelector(".corridor-range");
-        if (cb) cb.checked = state.corridorOn;
-        if (rg) rg.disabled = !state.corridorOn;
+    // The search scope. PATCHED IN PLACE, NEVER RE-RENDERED: rebuilding the day
+    // list here would destroy whatever the rider has in the add-row's field and
+    // drop focus to <body> — the #188 defect, reached from a control that has
+    // nothing to do with the day's contents. It also does not mark the ride
+    // dirty: how a rider is searching is not a change to the ride.
+    //
+    // The flag is session-wide, so every day's control is repainted rather than
+    // only the one that was clicked. A rider who switched to Along the day at
+    // day 3 and scrolled to day 1 must not find Near here lit there.
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest(".scope-btn");
+      if (!btn) return;
+      state.corridorOn = btn.dataset.along === "1";
+      document.querySelectorAll(".scope-btn").forEach((el) => {
+        const on = (el.dataset.along === "1") === state.corridorOn;
+        el.classList.toggle("is-on", on);
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      // The chips' tooltips name the scope, so they go stale otherwise.
+      document.querySelectorAll(".add-chips .chip").forEach((el) => {
+        const spec = CHIPS.find((c) => c.role === el.dataset.chip);
+        if (!spec) return;
+        el.title =
+          "Find " + spec.label.toLowerCase() +
+          (state.corridorOn ? " anywhere along this day" : " near this day's last point");
       });
     });
 
@@ -5764,7 +5783,7 @@
           // The corridor test decides, not the bias radius — see
           // corridorSearchArgs. Each survivor carries its own detour so the list
           // can be read as an answer to "how far off?" rather than a ranking.
-          nearby = CORRIDOR.withinCorridor(raw, args.track, state.corridorMi * window.TBUnits.METERS_PER_MILE).map(
+          nearby = CORRIDOR.withinCorridor(raw, args.track, CORRIDOR_MI * window.TBUnits.METERS_PER_MILE).map(
             (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
           );
         } else {
@@ -5776,7 +5795,7 @@
           noticeHtml(
             state.corridorOn
               ? "No " + spec.label.toLowerCase() + " within " +
-                Math.round(window.TBUnits.distanceFromMiles(state.corridorMi, UNITS)) + " " + distUnit +
+                Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
                 " of this day"
               : "No " + spec.label.toLowerCase() + " found near this day",
           );
