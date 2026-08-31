@@ -140,11 +140,39 @@
     return dry <= cum[cum.length - 1] ? dry : null;
   }
 
+  /**
+   * The stretch the rider cannot make on the fuel they have: from where the
+   * tank runs out to where they can next fill up. `{ from, to }` in meters
+   * along the day, or null when there is no such stretch.
+   *
+   * TO THE END OF THE DAY WHEN THERE IS NO PUMP AFTER IT, because that is the
+   * honest answer — they do not make it, and the whole remainder is the part
+   * they cannot ride. A stretch that stopped at the dry point would say the
+   * problem was a point rather than a distance.
+   *
+   * It moves as the rider refuels, because `dryDistanceM()` does: passing a
+   * pump pushes the dry point forward and the stretch with it, or removes both.
+   */
+  function dryStretch(day, distM, cum, fuelRole, rangeM) {
+    var from = dryDistanceM(day, distM, cum, fuelRole, rangeM);
+    if (from == null) return null;
+    var points = pointsOf(day);
+    var to = cum[cum.length - 1];
+    for (var i = 0; i < points.length; i++) {
+      if (isRefuel(points[i], fuelRole) && cum[i] > from) {
+        to = cum[i];
+        break;
+      }
+    }
+    return to > from ? { from: from, to: to } : null;
+  }
+
   window.TBRange = {
     distanceAtMoment: distanceAtMoment,
     lastFillM: lastFillM,
     fuelReachM: fuelReachM,
     dryDistanceM: dryDistanceM,
+    dryStretch: dryStretch,
     isRefuel: isRefuel,
   };
 })(typeof window !== "undefined" ? window : this);

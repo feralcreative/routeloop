@@ -281,3 +281,54 @@ describe('bearingAtDistance', () => {
     expect(S.bearingAtDistance(null, 0)).toBeNull()
   })
 })
+
+// The stretch between two distances along a track, for #229's dry stretch —
+// the bit of road from where the tank runs out to where the next pump is.
+describe('sliceBetween', () => {
+  // A due-north line from 37N to 39N, roughly 222km.
+  const line: [number, number][] = [
+    [-122, 37],
+    [-122, 38],
+    [-122, 39],
+  ]
+  const DEG = 111195
+
+  it('interpolates both ends rather than snapping to a vertex', () => {
+    const path = S.sliceBetween(line, DEG * 0.25, DEG * 0.75)
+    expect(path[0][1]).toBeCloseTo(37.25, 2)
+    expect(path[path.length - 1][1]).toBeCloseTo(37.75, 2)
+  })
+
+  // Snapping would move a wall by up to one segment, which on a sparse imported
+  // track is miles.
+  it('keeps the vertices strictly inside the span', () => {
+    const path = S.sliceBetween(line, DEG * 0.5, DEG * 1.5)
+    expect(path).toHaveLength(3)
+    expect(path[1][1]).toBeCloseTo(38, 3)
+  })
+
+  it('does not double a vertex sitting exactly on an end', () => {
+    const path = S.sliceBetween(line, 0, DEG)
+    expect(path).toHaveLength(2)
+  })
+
+  it('clamps to the end of the track', () => {
+    const path = S.sliceBetween(line, DEG * 1.5, 9e9)
+    expect(path[path.length - 1][1]).toBeCloseTo(39, 2)
+  })
+
+  // A polyline needs two points; a one-point path renders nothing, so the null
+  // keeps that check in one place.
+  it('is null when there is nothing to draw', () => {
+    expect(S.sliceBetween(line, DEG, DEG)).toBeNull()
+    expect(S.sliceBetween(line, DEG, DEG * 0.5)).toBeNull()
+    expect(S.sliceBetween(line, null, DEG)).toBeNull()
+    expect(S.sliceBetween([[-122, 37]], 0, 100)).toBeNull()
+    expect(S.sliceBetween(null, 0, 100)).toBeNull()
+  })
+
+  it('never returns a vertex of the track itself', () => {
+    const path = S.sliceBetween(line, 0, DEG * 2)
+    expect(path[1]).not.toBe(line[1])
+  })
+})

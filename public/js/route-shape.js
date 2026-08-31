@@ -140,6 +140,36 @@
   }
 
   /**
+   * The stretch of `track` between two distances along it, as its own path.
+   *
+   * BOTH ENDS ARE INTERPOLATED rather than snapped to the nearest vertex. The
+   * distances this is called with are fuel arithmetic — where a tank runs out,
+   * where the next pump is — and snapping would move a wall by up to the length
+   * of one segment, which on a sparse imported track is miles.
+   *
+   * Returns a path of at least two points, or null when there is nothing to
+   * draw: an empty track, or a span with no length. A caller drawing a polyline
+   * needs two points and a one-point path renders nothing, so the null is what
+   * keeps that check in one place.
+   */
+  function sliceBetween(track, fromM, toM) {
+    if (!track || track.length < 2) return null;
+    if (fromM == null || toM == null || !(toM > fromM)) return null;
+    var out = [pointAtDistance(track, fromM)];
+    var acc = 0;
+    for (var i = 1; i < track.length; i++) {
+      var seg = haversineM(track[i - 1], track[i]);
+      acc += seg;
+      // Strictly inside, so the interpolated ends are never doubled by a vertex
+      // that happens to sit exactly on one of them.
+      if (acc > fromM && acc < toM) out.push(track[i].slice());
+      if (acc >= toM) break;
+    }
+    out.push(pointAtDistance(track, toM));
+    return out.length >= 2 ? out : null;
+  }
+
+  /**
    * Which way the road is heading at `targetM` along the track, in degrees
    * clockwise from north. Null when the track has no direction to report.
    *
@@ -198,5 +228,5 @@
 
   // haversineM is exported so range-circle.js can measure the straight line
   // between two points on a track without keeping a fourth copy of the formula.
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, haversineM };
+  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, sliceBetween, haversineM };
 })(typeof window !== "undefined" ? window : this);

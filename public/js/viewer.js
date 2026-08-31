@@ -37,7 +37,7 @@
   // Shared with the builder so a ride resolves to the same leg at the same
   // moment in both. See ride-time.js.
   const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
-  const { pointAtDistance, bearingAtDistance, haversineM } = window.TBShape;
+  const { pointAtDistance, bearingAtDistance, sliceBetween, haversineM } = window.TBShape;
   const DIST = window.TBDistance;
   // Where the rider would be at a scrubbed moment, and how much fuel is left
   // there. See public/js/range-circle.js.
@@ -213,12 +213,16 @@
     const reach = RANGE.fuelReachM(day, distM, cum, role, range);
     const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
+    // The stretch the rider cannot make, from the wall to the next pump — one
+    // statement with the wall, so it is drawn on the same condition.
+    const gap = RANGE.dryStretch(day, distM, cum, role, range);
     setMomentOverlay(
       state.map,
       here,
       dryPt,
       ringRadius(here, track, distM, reach),
       dryAt == null ? null : bearingAtDistance(track, dryAt),
+      gap && sliceBetween(track, gap.from, gap.to),
     );
   }
 

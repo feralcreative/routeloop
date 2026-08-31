@@ -501,8 +501,11 @@
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   const RING = () => cssVar("--brand", "#1565c0");
+  // $stop, the palette's stop-sign red. NOT $signal, which is the blue of a go
+  // light here — see the note on .tb-moment-target in style/_map.scss.
+  const WALL = () => cssVar("--stop", "#cc0000");
 
-  const moments = new WeakMap(); // map -> { dot, circle, target }
+  const moments = new WeakMap(); // map -> { dot, circle, target, stretch }
 
   function momentOf(map) {
     let m = moments.get(map);
@@ -523,6 +526,23 @@
           fillOpacity: 0.07,
         }),
         target: new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 }),
+        // THE STRETCH THE RIDER CANNOT MAKE, from the wall to the next pump.
+        //
+        // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
+        // drag preview is 4, and this has to sit between them: above the
+        // highlight, because a rider who scrubs INTO the dry stretch would
+        // otherwise have the bright day-colored highlight paint over the one
+        // thing on screen telling them they cannot ride it; and below the drag
+        // preview, which is the line following their pointer and must never be
+        // obscured while they are holding it.
+        stretch: new Maps.Polyline({
+          map,
+          zIndex: 3.5,
+          clickable: false,
+          visible: false,
+          strokeWeight: 6,
+          strokeOpacity: 0.95,
+        }),
       };
       m.dot.map = null;
       m.target.map = null;
@@ -545,10 +565,11 @@
   /**
    * Draw the moment, or clear it with a null `at`.
    *
-   * `at` and `dry` are [lng, lat]; `radiusM` is the straight line between them,
-   * and `dryBearing` is the road's heading there in degrees clockwise from
-   * north. All four are computed by the caller — this file draws and decides
-   * nothing.
+   * `at` and `dry` are [lng, lat]; `radiusM` is the straight line to the
+   * furthest point the fuel reaches; `dryBearing` is the road's heading at the
+   * wall in degrees clockwise from north; `dryPath` is the stretch from the
+   * wall to the next pump. All of it is computed by the caller — this file
+   * draws and decides nothing.
    *
    * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
    * than three setters: a ring left behind around a dot that has moved on is a
@@ -560,12 +581,13 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dry, radiusM, dryBearing) {
+  function setMomentOverlay(map, at, dry, radiusM, dryBearing, dryPath) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
       m.target.map = null;
       m.circle.setVisible(false);
+      m.stretch.setVisible(false);
       return;
     }
     m.dot.position = toLatLng(at);
@@ -594,6 +616,17 @@
       m.target.map = map;
     } else {
       m.target.map = null;
+    }
+
+    // Drawn on the same condition as the wall and in the same red, because they
+    // are one statement: the bar is where the fuel runs out and this is what it
+    // runs out ACROSS.
+    if (dryPath && dryPath.length > 1) {
+      m.stretch.setOptions({ strokeColor: WALL() });
+      m.stretch.setPath(dryPath.map(toLatLng));
+      m.stretch.setVisible(true);
+    } else {
+      m.stretch.setVisible(false);
     }
   }
 

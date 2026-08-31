@@ -170,3 +170,43 @@ describe('which points refuel', () => {
     expect(R.isRefuel(stop('S', ['gas']), null)).toBe(false)
   })
 })
+
+describe('the stretch that cannot be ridden', () => {
+  // 110 miles of range and the pump five miles past empty — the case that was
+  // reported. The red runs from the wall to the pump, not from the wall to
+  // nowhere.
+  it('runs from the wall to the next pump', () => {
+    const d: Day = {
+      points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
+      legs: [leg(115), leg(60)],
+    }
+    const c = cum(d)
+    const s = R.dryStretch(d, mi(60), c, 'gas', mi(110))
+    expect(round(s.from)).toBe(110)
+    expect(round(s.to)).toBe(115)
+  })
+
+  // They do not make it, and the whole remainder is the part they cannot ride.
+  // Stopping at the dry point would say the problem was a point rather than a
+  // distance.
+  it('runs to the end of the day when no pump follows', () => {
+    const d: Day = { points: [stop('Home'), stop('End')], legs: [leg(300)] }
+    const s = R.dryStretch(d, 0, cum(d), 'gas', mi(110))
+    expect(round(s.from)).toBe(110)
+    expect(round(s.to)).toBe(300)
+  })
+
+  it('goes when the rider refuels', () => {
+    const d: Day = {
+      points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
+      legs: [leg(115), leg(60)],
+    }
+    expect(R.dryStretch(d, mi(115), cum(d), 'gas', mi(110))).toBeNull()
+  })
+
+  it('is null on a day the tank covers, and when no range is known', () => {
+    const d = day()
+    expect(R.dryStretch(d, mi(10), cum(d), 'gas', mi(9999))).toBeNull()
+    expect(R.dryStretch(d, mi(10), cum(d), 'gas', null)).toBeNull()
+  })
+})

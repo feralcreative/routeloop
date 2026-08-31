@@ -67,8 +67,8 @@
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
-  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, haversineM } =
-    window.TBShape;
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance } = window.TBShape;
+  const { bearingAtDistance, sliceBetween, haversineM } = window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -1502,12 +1502,16 @@
     const reach = RANGE.fuelReachM(day, distM, cum, role, range);
     const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
+    // The stretch the rider cannot make, from the wall to the next pump — one
+    // statement with the wall, so it is drawn on the same condition.
+    const gap = RANGE.dryStretch(day, distM, cum, role, range);
     setMomentOverlay(
       state.map,
       here,
       dryPt,
       ringRadius(here, track, distM, reach),
       dryAt == null ? null : bearingAtDistance(track, dryAt),
+      gap && sliceBetween(track, gap.from, gap.to),
     );
   }
 
