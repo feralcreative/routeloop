@@ -499,9 +499,41 @@ $fb-line: palette.light("neutral-88");
 
 // Over a map the dock still has to clear the zoom and basemap controls stacked
 // down the right edge, which is what the old unconditional 72px was for.
+//
+// AND THE TIMELINE, AT EVERY WIDTH. The bar is fixed along the bottom edge of
+// the map and runs out to --map-control-gutter on the right; the dock sits 72px
+// in from that same edge, so the two overlapped by about 45px — landing the
+// shield squarely on the last of the slider's travel, which is the end of the
+// ride and the part hardest to grab back. Reported as #221, on a desktop, and
+// the reason it was never caught is that the ≤767px block below has cleared the
+// bar since the day the sheet layout landed. This is that rule for every other
+// width, where there is no sheet and the bar is the only thing to clear.
+//
+// --fb-fab-timeline-clear is 0px until the bar is actually on screen, so a ride
+// with no dates gets the base number exactly: .map-timeline ships [hidden] and
+// renderTimeline() unhides it only once the ride has a span. :has() rather than
+// a class, so nothing has to remember to keep the two in step.
+//
+// The phone block redeclares BOTH the variable and `bottom`, and does it later
+// in the file, so this is a base that block overrides rather than a rule
+// fighting it. Note it declares the variable WITHOUT --panel-inset, because
+// there the term is stacked on the sheet's own height rather than on the map's
+// bottom edge — keep the two spellings distinct if you touch either.
+html.map-page {
+  --fb-fab-timeline-clear: 0px;
+}
+
+html.map-page:has(.map-timeline:not([hidden])) {
+  --fb-fab-timeline-clear: calc(var(--panel-inset) + var(--timeline-height));
+}
+
 .map-page .fab-dock {
   right: calc(env(safe-area-inset-right, 0px) + 72px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px + var(--fb-fab-timeline-clear));
+  // Rides with the bar rather than jumping when a rider types the first date.
+  // Same duration and easing as the drawer slide in _map.scss and as the phone
+  // rule below; keep the three in step.
+  transition: bottom 0.34s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fab-launcher {

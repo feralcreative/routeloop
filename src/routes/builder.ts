@@ -1153,7 +1153,7 @@ ${
       // The rail keeps a dot per day, but as a jump-to rather than a picker:
       // clicking one scrolls that day's section into view and makes it active.
       rail: `<div class="rail-days" id="rail-days"></div>`,
-    })}\n\n  ${rideTimeline()}`,
+    })}\n\n  ${rideTimeline({ scopeToggle: true })}`,
     tb: {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,

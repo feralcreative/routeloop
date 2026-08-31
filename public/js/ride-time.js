@@ -80,6 +80,25 @@
     return Number.isNaN(end) ? start + dayElapsedS(day) : end;
   }
 
+  // One day's extent, which is what the builder's timeline scrubs by default.
+  //
+  // A LOSING ALTERNATE HAS ONE HERE AND HAS NONE IN rideSpan, and the difference
+  // is deliberate. rideSpan answers "how long is this ride", so a day the rider
+  // decided against must not stretch it. This answers "what am I looking at",
+  // and a rider who has clicked into an alternate to work on it is looking at
+  // exactly that day — refusing it a span would hide the timeline on the one day
+  // they are editing.
+  //
+  // Same null contract as rideSpan: an undated day, or one whose end does not
+  // come after its start, has no span rather than a zero-width one. A slider
+  // whose min equals its max is a control that cannot move.
+  function daySpan(day) {
+    const from = dayStartS(day);
+    if (from == null) return null;
+    const to = dayEndS(day);
+    return to == null || to <= from ? null : { from, to };
+  }
+
   // The ride's whole extent. Undated days sit outside it rather than stretching
   // it — a rider who has dated day 2 only gets a timeline over day 2.
   function rideSpan(days) {
@@ -210,6 +229,7 @@
     dayEndS,
     isLosingAlt,
     daySchedule,
+    daySpan,
     rideSpan,
     activeAt,
     activeAtMoment,

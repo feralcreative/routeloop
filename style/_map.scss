@@ -237,9 +237,21 @@
 // the sheet's minimum distance from the top of the screen.
 //
 // --timeline-height is the timeline bar's whole footprint, declared rather than
-// measured because the phone layout stacks the panel on top of the bar and has
-// to reserve the room before either exists. It is a fixed number on purpose:
-// the readout inside it is single-line and ellipsized, so the bar cannot grow.
+// measured because the things that have to clear the bar — the phone sheet's
+// stacking, the feedback dock at every width — reserve the room before the bar
+// exists. It is a fixed number on purpose: the readout inside it is single-line
+// and ellipsized, so the bar cannot grow.
+//
+// **IT IS A RESERVE, SO IT HAS TO BE THE LARGER OF THE TWO BARS AND IT WAS NOT.**
+// It read 3.4em from the day the bar moved out of the panel, and the root font
+// size here is 14px, so it was declaring 47.6px against a builder bar measured
+// in Chrome at 51px — under by three and a half pixels, silently, with the only
+// symptom being that everything clearing it cleared it by that much less. The
+// scope button (#222) took the builder's bar to 55px and made it worse. 4em is
+// 56px, which covers the builder; the viewer's bar has no button and is 46px,
+// and one variable serving both has to cover the taller one. **Measure the bar
+// in the BUILDER if you change anything inside it** — the viewer will pass a
+// number the builder overruns.
 //
 // --map-control-gutter is the strip Google's own zoom and recenter buttons own
 // at RIGHT_BOTTOM. Nothing of ours may cross it.
@@ -273,7 +285,7 @@ html.map-page {
   // 56px rail leaves 24px — so each band applies it and the rail declines.
   --drawer-pad: 16px;
   --panel-top-clearance: 120px;
-  --timeline-height: 3.4em;
+  --timeline-height: 4em;
   --map-control-gutter: 3.4em;
   --map-credit-height: 2em;
 }
@@ -891,15 +903,82 @@ table.day-table {
 // stop name would wrap and change the bar's height several times a second while
 // the rider drags — so it ellipsizes instead, and min-height reserves the line
 // even while it is empty.
+// The readout and, on the builder, the scope button. One row, so the button
+// costs the bar no height at all — which is what lets --timeline-height stay the
+// declared 3.4em that the phone layout and the feedback dock both reserve
+// sight unseen.
+.time-head {
+  display: flex;
+  // Center, not baseline. The button is a pill with a min-height floor, so its
+  // text baseline sits wherever that box puts it — aligning to it drags the row
+  // taller by the difference and the readout ends up off-center in its own bar.
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.1em;
+}
+
 .time-readout {
   min-height: 1.2em;
-  margin-bottom: 0.1em;
+  // Takes the row and yields it: the readout is the part that ellipsizes, so it
+  // has to be allowed to shrink below its content. `min-width: 0` is what makes
+  // that true inside a flex row — without it the flex base is the text's own
+  // width and a long stop name pushes the button off the end instead.
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.8em;
   font-weight: 600;
   color: $text;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+// Widens the slider from the active day to the whole ride, and back.
+//
+// A quiet text button rather than a segmented control or a switch. It is one
+// binary in a bar whose whole job is the slider under it, and the two states are
+// named in the label — see renderTimeScope() in builder.js, which labels it with
+// what pressing it will DO rather than with what the slider currently is.
+.time-scope {
+  flex: none;
+  // 24px is WCAG 2.2 SC 2.5.8 (Target Size, Minimum, AA), and it is declared in
+  // PIXELS on purpose. Every other length here is em, which is the right unit
+  // for type — but the floor it has to clear is an absolute number, and an em
+  // box sized to hit 24px at one root font size silently drops under it at
+  // another. Measured at 22px when this was padding alone.
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15em 0.6em;
+  border: 1px solid $grey;
+  border-radius: 999px;
+  background: transparent;
+  color: $text-l30;
+  font: inherit;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: $text;
+    border-color: $brand;
+  }
+
+  // Pressed is ride scope, the non-default. Marked because it is the state a
+  // rider can otherwise forget they are in — the slider looks the same, it just
+  // covers more — and a day's worth of travel being four pixels is exactly the
+  // complaint that got it built.
+  &[aria-pressed="true"] {
+    color: $brand;
+    border-color: $brand;
+  }
+
+  &[hidden] {
+    display: none;
+  }
 }
 
 //@ Phone — the drawer stops being a drawer and becomes a bottom sheet

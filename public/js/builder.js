@@ -48,7 +48,9 @@
     dayStoppedS,
     dayElapsedS,
     dayStartS,
+    daySpan,
     rideSpan,
+    activeAt,
     activeAtMoment,
     fmtMoment,
   } = window.TBTime;
@@ -453,6 +455,26 @@
     // day's start), so there is one model and two ways to drive it. Null falls
     // back to plain day focus, which is what an undated ride always uses.
     moment: null,
+    // WHAT THE TIMELINE SPANS: "day" (the active day) or "ride" (all of it).
+    //
+    // Day by default, and that is the fix for two reports at once. #222: a slider
+    // stretched over a 72-hour ride spends most of its travel on the overnights,
+    // when nobody is riding and there is nothing to see — an hour of Saturday
+    // afternoon came out at a few pixels, which is not a thing a touchpad can
+    // land on, and it is exactly the resolution you need to work out where lunch
+    // goes. #214: the lit day was whichever one the MOMENT fell in, so clicking
+    // into day 3 to edit it left day 3 dimmed at DIM_OPACITY behind whichever
+    // day the timeline happened to be parked on. Scoped to the active day the
+    // two cannot disagree, so that stops being a case to handle.
+    //
+    // Ride scope is still there behind the button in the bar, because scrubbing
+    // the whole ride is a real thing to want — it is just not what you are doing
+    // while you build one. Ziad's call, 2026-08-30.
+    //
+    // Session-only, deliberately: it is a way of looking at the ride for a
+    // minute, not a preference about it, and a remembered one would put a rider
+    // back in ride scope weeks later with no memory of asking for it.
+    timeScope: "day",
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
     // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a day's "+ Stop"
@@ -522,7 +544,26 @@
     const next = Math.max(0, Math.min(state.days.length - 1, r | 0));
     if (state.active === next) return;
     state.active = next;
+    // THE MOMENT FOLLOWS THE DAY, and in day scope it has to: the slider is
+    // about to be re-ranged onto this day, and a moment left over from the last
+    // one is off the end of its own travel. Snapping to the day's opening is the
+    // only defensible landing — it is where goToDay() has always put it.
+    //
+    // A moment already inside the new day is kept, so clicking between two rows
+    // of the same day never moves anything (setActive returns early anyway) and
+    // coming back to a day whose span still contains the moment leaves it alone.
+    //
+    // Ride scope is deliberately NOT clamped. Its whole job is to look across
+    // the ride, and yanking the thumb to day 3 because the rider clicked into a
+    // stop's name field is the jump the split between this and goToDay() exists
+    // to avoid.
+    if (state.timeScope === "day" && state.moment != null) {
+      const span = daySpan(state.days[next]);
+      if (!span) state.moment = null;
+      else if (state.moment < span.from || state.moment > span.to) state.moment = span.from;
+    }
     markActiveSection();
+    renderTimeline();
     applyFocus();
     renderRailDays();
     renderTotals();
@@ -1331,9 +1372,29 @@
   function applyFocus() {
     if (!state.map) return;
     const a = activeNow();
-    const lit = a ? a.dayIndex : focusedIndex();
+    // THE DAY BEING EDITED IS THE LIT ONE. ALWAYS. It used to be the day the
+    // MOMENT fell in — `a ? a.dayIndex : focusedIndex()` — which is the same
+    // answer right up until the two disagree, and they disagree the moment a
+    // rider scrubs the timeline and then clicks into a different day to work on
+    // it. What they got was the day they were editing dimmed to DIM_OPACITY
+    // behind the one the slider was parked on. That was #214.
+    //
+    // In day scope the two cannot disagree at all: the slider spans the active
+    // day, so activeNow().dayIndex IS this. The rule matters in ride scope,
+    // where the slider deliberately does not move when a rider clicks a row —
+    // moving it would yank the view out from under them, which is the whole
+    // reason setActive and goToDay are two functions.
+    //
+    // The consequence, stated rather than treated as a bug: a moment in the
+    // overnight gap no longer dims every day. It used to, on the reasoning that
+    // "nobody is riding right now" honestly looks like nothing lit. But this is
+    // an editor — something is always being edited, a map click always has to
+    // land somewhere — so the honest picture is the day the rider is working on.
+    // The readout still says "between days", and the leg highlight still goes,
+    // which is where "nobody is riding" actually belongs.
+    const lit = focusedIndex();
     state.days.forEach((day, r) => {
-      const dim = a ? r !== lit : lit !== null && r !== lit;
+      const dim = lit !== null && r !== lit;
       const ghost = day.altGroup != null && !day.altActive;
       setRouteDim(state.map, r, dim);
       // Set every pass rather than once when a day is grouped: rebuildLayers()
@@ -1352,7 +1413,15 @@
 
     // The engine drops the highlight whenever a track is repathed, so this is a
     // re-apply rather than a set — see clearLegHighlight in map-common.js.
-    const leg = a && a.dayIndex != null && a.legIndex != null ? state.days[a.dayIndex].legs[a.legIndex] : null;
+    //
+    // ONLY ON THE LIT DAY. In ride scope the moment can sit on a day the rider
+    // is not editing, and a bright leg drawn across a day dimmed to 0.25 reads
+    // as neither highlighted nor dimmed — the viewer's paintFocus() drops the
+    // highlight on a hover for the same reason. So the highlight answers "where
+    // is the rider at this moment" only while that moment is on the day in
+    // front of you; otherwise there is nothing to point at and it goes.
+    const onLitDay = a && a.dayIndex != null && a.dayIndex === lit;
+    const leg = onLitDay && a.legIndex != null ? state.days[a.dayIndex].legs[a.legIndex] : null;
     if (!leg) {
       clearLegHighlight(state.map);
       return;
@@ -3593,13 +3662,45 @@
   // distances in or the timeline put every POI at the start of its day. Points sit
   // on leg boundaries now, so the schedule reads the order straight off the array
   // and needs nothing passed to it.
-  const activeNow = () => (state.moment == null ? null : activeAtMoment(state.days, state.moment));
+  // What the timeline currently spans. The two scopes and nothing else — every
+  // caller goes through this rather than choosing between daySpan and rideSpan
+  // itself, so a third scope would be one edit here.
+  function timelineSpan() {
+    if (state.timeScope === "ride") return rideSpan(state.days);
+    const day = state.days[activeIndex()];
+    return day ? daySpan(day) : null;
+  }
+
+  // Where the moment falls: which day, and which leg or point within it.
+  //
+  // IN DAY SCOPE THE DAY IS ALREADY KNOWN, so the moment resolves against it
+  // directly instead of being searched for across the ride. That is not just
+  // cheaper — activeAtMoment SKIPS LOSING ALTERNATES, correctly, because two
+  // alternates for the same Thursday cover the same hours and it has to pick
+  // one. A rider who has clicked into an alternate to work on it would get back
+  // dayIndex null (or worse, the winning day's index) and watch the day they are
+  // editing dim itself. Asking about a day we already hold cannot go wrong that
+  // way.
+  //
+  // The clamp matters on one frame only: renderTimeline re-ranges the slider
+  // when the active day changes, and this can be read in between.
+  const activeNow = () => {
+    if (state.moment == null) return null;
+    if (state.timeScope === "ride") return activeAtMoment(state.days, state.moment);
+    const r = activeIndex();
+    const day = r == null ? null : state.days[r];
+    const span = day && daySpan(day);
+    if (!span) return null;
+    const at = activeAt(day, Math.min(Math.max(state.moment, span.from), span.to) - span.from);
+    return { dayIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex };
+  };
 
   function renderTimeline() {
     const wrap = $("ride-timeline");
     const slider = $("time-slider");
     const readout = $("time-readout");
-    const span = rideSpan(state.days);
+    const span = timelineSpan();
+    renderTimeScope();
 
     // The slider's value is epoch seconds, which is what a screen reader would
     // otherwise read out. aria-valuetext replaces that with the same sentence
@@ -3621,6 +3722,15 @@
     // field that fixes it, which is where it should have been all along. This is
     // the only branch that can leave the bar hidden, so the two have to stay in
     // step.
+    //
+    // IN DAY SCOPE THAT NOW MEANS THE ACTIVE DAY'S DATES, NOT THE RIDE'S, so the
+    // bar comes and goes as a rider clicks between a dated day and an undated
+    // one. That is the honest reading — there is nothing to scrub through on a
+    // day with no clock — and #day-times-note, the hint that says so, is already
+    // sitting under the Starts field of exactly the day they are on. The cost to
+    // state rather than treat as a bug: the scope button goes with the bar, so
+    // reaching ride scope from an undated day means clicking into a dated one
+    // first.
     wrap.hidden = !span;
     slider.disabled = !span;
     if (!span) {
@@ -3639,7 +3749,21 @@
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
     }
-    const a = activeAtMoment(state.days, state.moment);
+    // activeNow(), not activeAtMoment(), because in day scope the moment has to
+    // be resolved against the active day rather than searched for — see the
+    // header there for the losing-alternate hole that closes.
+    //
+    // THIS CAPTIONS THE SLIDER, NOT THE MAP, and in ride scope those are two
+    // questions with two right answers. The thumb is where the rider left it;
+    // the lit day is the one they are editing (see applyFocus). Scrub to Day 1
+    // and then click into Day 3 and the line still says Day 1, correctly — it is
+    // describing the moment sitting directly under it. In day scope the slider
+    // spans the active day, so the two cannot come apart at all.
+    const a = activeNow();
+    if (!a) {
+      say(fmtMoment(state.moment));
+      return;
+    }
     let what;
     if (a.dayIndex == null) {
       what = "between days";
@@ -3661,12 +3785,56 @@
   // the two controls can never show different days.
   function setMoment(momentS) {
     state.moment = momentS;
-    const a = activeAtMoment(state.days, momentS);
-    // A moment between days leaves the active day where it was — there is no day
-    // to move it to, and snapping it somewhere arbitrary would be a lie.
-    if (a.dayIndex != null) setActive(a.dayIndex);
+    // Only in ride scope. In day scope the slider cannot leave the active day —
+    // that IS its range — so there is never another day to move to, and asking
+    // activeAtMoment would reintroduce the losing-alternate hole activeNow()
+    // exists to close.
+    if (state.timeScope === "ride") {
+      const a = activeAtMoment(state.days, momentS);
+      // A moment between days leaves the active day where it was — there is no
+      // day to move it to, and snapping it somewhere arbitrary would be a lie.
+      if (a.dayIndex != null) setActive(a.dayIndex);
+    }
     applyFocus();
     refreshDerived();
+  }
+
+  // Flips between scrubbing the active day and scrubbing the whole ride.
+  //
+  // The moment is carried across rather than reset. Going day → ride it is
+  // already a real instant inside the ride, so it simply stops being clamped;
+  // going ride → day it may be in an overnight gap or on another day, and
+  // setActive's clamp cannot help because the active day is not changing — so
+  // this does the clamping itself, to the same rule.
+  function setTimeScope(scope) {
+    if (state.timeScope === scope) return;
+    state.timeScope = scope;
+    if (scope === "day" && state.moment != null) {
+      const span = timelineSpan();
+      if (!span) state.moment = null;
+      else state.moment = Math.min(Math.max(state.moment, span.from), span.to);
+    }
+    renderTimeline();
+    applyFocus();
+    refreshDerived();
+  }
+
+  // The bar's own button. Says what clicking it will DO rather than what the
+  // slider currently is — a two-state control labeled with its current state
+  // reads as a status line, and riders press it expecting to get what it says.
+  function renderTimeScope() {
+    const btn = $("time-scope");
+    if (!btn) return;
+    const toRide = state.timeScope === "day";
+    btn.textContent = toRide ? "Whole ride" : "This day";
+    btn.title = toRide ? "Scrub the whole ride" : "Scrub the day you are working on";
+    btn.setAttribute("aria-label", btn.title);
+    // Pressed means "the wider view is on", which is the non-default state.
+    btn.setAttribute("aria-pressed", String(!toRide));
+    // Nothing to widen to on a single-day ride, and a button that returns the
+    // same slider is a control that does nothing. Hidden rather than disabled:
+    // it is in a one-line bar where a dead button is pure noise.
+    btn.hidden = state.days.length < 2;
   }
 
   // Every day's times, because every day's fields are on screen. It was one set
@@ -4420,10 +4588,17 @@
         // is a real shape the importer and the first-point rule both create.
         point.kind = point.roles.length ? "stop" : "poi";
 
-        // Re-rendered rather than patched. The kind decides the row's number and
-        // stops are numbered in sequence, so promoting one renumbers every row
-        // below it — an in-place patch would leave the rest of the day wrong.
-        // state.rolesOpen is what keeps the grid open across it.
+        // ONE PICK CLOSES IT. It used to stay open — state.rolesOpen survives a
+        // re-render, which is what made that possible — on the reasoning that a
+        // point may carry up to four categories and picking two in a row should
+        // not cost two trips to the icon. Reported as #213: every rider read the
+        // grid staying put as the click not having registered, and went looking
+        // for the way out. A second category is one more click on an icon that
+        // is still right there; a control that will not close is a fault.
+        //
+        // Cleared BEFORE the render rather than after, so the row is built once
+        // in its final state.
+        state.rolesOpen = null;
         renderDayList(r);
         renderMarkers();
         refreshDerived();
@@ -5713,6 +5888,7 @@
   // the panel went from one visible day to all of them.
   function wireDays() {
     $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
+    $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "day" ? "ride" : "day"));
     $("rail-days").addEventListener("click", (e) => {
       const btn = e.target.closest(".rail-day");
       if (!btn) return;
