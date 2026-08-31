@@ -51,6 +51,7 @@ import { settingsRoutes } from './routes/settings'
 import { accountRoutes } from './routes/account'
 import { builderLabel } from './members/policy'
 import { memberOrOwner } from './members/service'
+import { groupRange } from './bikes/group-range'
 import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
@@ -277,7 +278,21 @@ app.get('/m/:slug', async (c) => {
   // One shell for both sources. ride.json has served them identically since the
   // timeline work added per-leg spans — an imported ride is one day with one
   // leg — so the ported engine renders it without special-casing.
-  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c), builderLink))
+  // THE RANGE IS FOR MEMBERS ONLY, AND IT IS TRIMMED TO TWO FIELDS.
+  //
+  // A roster is gated on membership rather than on visibility — who is coming
+  // is a fact about people, and a share link is permission to see a route — so
+  // GroupRange's `riderName` and `bikeLabel` must not reach a stranger holding
+  // a public ride's URL. They are dropped here rather than gated downstream:
+  // what the viewer's range circle needs is a number and a fuel type, and the
+  // two identifying fields have no use on that surface at all.
+  //
+  // Null for a non-member means no circle, which is the same answer a member
+  // with no bike on file gets. Nothing on the page distinguishes them, so the
+  // absence of a circle never reports whether somebody is on the roster.
+  const full = onRoster ? await groupRange(m.id) : null
+  const range = full ? { miles: full.miles, fuelType: full.fuelType } : null
+  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c), builderLink, range))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -743,6 +758,10 @@ const VIEWER_NOSCRIPT = 'JavaScript is required to view the map.'
  *  database — see memberOrOwner. */
 export type BuilderLink = { href: string; label: string }
 
+/** What the viewer is told about the group's tank: a number and what it drinks,
+ *  and deliberately not whose it is. See the call site for why. */
+export type ViewerRange = { miles: number | null; fuelType: 'gas' | 'electric' | null } | null
+
 function viewHtml(
   m: RideRow,
   user: UserRow | null,
@@ -750,6 +769,7 @@ function viewHtml(
   onRoster: boolean,
   units: Units,
   builderLink: BuilderLink | null,
+  range: ViewerRange,
 ): string {
   return page({
     title: m.title,
@@ -772,12 +792,16 @@ function viewHtml(
       roles: ROLE_META,
       dayColors: DAY_COLORS,
       units,
+      range,
     },
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/alts.js')}" defer></script>
+  <script src="${asset('/js/route-shape.js')}" defer></script>
+  <script src="${asset('/js/day-distance.js')}" defer></script>
+  <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })
 }

@@ -150,5 +150,7 @@
     return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
   }
 
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance };
+  // haversineM is exported so range-circle.js can measure the straight line
+  // between two points on a track without keeping a fourth copy of the formula.
+  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, haversineM };
 })(typeof window !== "undefined" ? window : this);

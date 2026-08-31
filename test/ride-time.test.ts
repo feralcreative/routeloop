@@ -73,20 +73,44 @@ describe('walking a day', () => {
   const walk = (minutes: number) => T.activeAt(day(), minutes * 60)
 
   it('starts on the first leg', () => {
-    expect(walk(0)).toEqual({ legIndex: 0, pointIndex: null })
+    expect(walk(0)).toEqual({ legIndex: 0, pointIndex: null, legFraction: 0 })
   })
 
   it('is parked at the point once the leg is done', () => {
-    expect(walk(60)).toEqual({ legIndex: null, pointIndex: 1 })
-    expect(walk(119)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(walk(60)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
+    expect(walk(119)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
   })
 
   it('rides again when the dwell ends', () => {
-    expect(walk(180)).toEqual({ legIndex: 1, pointIndex: null })
+    expect(walk(180)).toEqual({ legIndex: 1, pointIndex: null, legFraction: 0 })
   })
 
   it('parks at the final point past the end of the day', () => {
-    expect(walk(999)).toEqual({ legIndex: null, pointIndex: 2 })
+    expect(walk(999)).toEqual({ legIndex: null, pointIndex: 2, legFraction: null })
+  })
+
+  // WITHOUT THIS THE DOT CAN ONLY SIT ON A LEG'S ENDS. Leg 0 is an hour long,
+  // so half an hour in is halfway along it — which is what puts the rider
+  // somewhere on the road rather than jumping them from stop to stop.
+  it('reports how far through the leg it is', () => {
+    expect(walk(0).legFraction).toBe(0)
+    expect(walk(30).legFraction).toBeCloseTo(0.5, 6)
+    expect(walk(45).legFraction).toBeCloseTo(0.75, 6)
+  })
+
+  // FRACTION OF TIME, NOT OF DISTANCE. Time is the axis the scrubber moves
+  // along, so a dot placed by it keeps step with the clock beside it; placing
+  // it by distance would have it lag or race on any leg whose speed is not
+  // constant, which is every real one.
+  it('measures the fraction against the leg’s own duration', () => {
+    // Leg 1 is half an hour and starts at minute 180, after the two-hour lunch.
+    expect(walk(180).legFraction).toBe(0)
+    expect(walk(195).legFraction).toBeCloseTo(0.5, 6)
+  })
+
+  it('has no fraction while parked at a point', () => {
+    expect(walk(60).legFraction).toBeNull()
+    expect(walk(999).legFraction).toBeNull()
   })
 
   it('reports no leg at all while parked', () => {
@@ -122,6 +146,7 @@ describe('placing a moment across days', () => {
       dayIndex: null,
       legIndex: null,
       pointIndex: null,
+      legFraction: null,
     })
   })
 })
@@ -273,8 +298,8 @@ describe('a POI is on the road', () => {
   it('holds between the legs either side of it, never inside one', () => {
     const r = withPoi(30)
     expect(T.activeAt(r, 1799).legIndex).toBe(0)
-    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, pointIndex: 1 })
-    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
+    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
     // ...and then the NEXT leg, not the rest of the one it interrupted.
     expect(T.activeAt(r, 3600).legIndex).toBe(1)
   })

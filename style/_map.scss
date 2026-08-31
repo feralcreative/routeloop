@@ -1133,6 +1133,61 @@ table.day-table {
 // on the point and every child below can be positioned from the center with the
 // negative margins the legacy viewer used. Sizing the wrapper to its contents
 // instead would hang each marker above and to the right of its own coordinates.
+// The scrubbed moment: where the rider would be, and the point the range circle
+// reaches to. Drawn by setMoment() in map-common.js.
+//
+// ZERO-SIZED WRAPPERS, like .tb-marker and for the same reason: an
+// AdvancedMarkerElement anchors its content at bottom-center, so a box with no
+// size puts the anchor exactly on the coordinate and the negative margins do
+// the centering. Give either of these a width and it drifts off the road.
+.tb-moment-dot,
+.tb-moment-target {
+  position: relative;
+  width: 0;
+  height: 0;
+  // Neither is a control and neither answers a click. The route underneath is
+  // draggable to shape, and a dot that swallowed the pointer would put a dead
+  // spot on the line wherever the scrubber happened to be parked.
+  pointer-events: none;
+}
+
+.tb-moment-dot::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: $brand;
+  // A white keyline, because the dot sits ON the day's own line and a route
+  // colored anywhere near the dot would otherwise swallow it.
+  border: 2px solid $white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+// The point the circle reaches: a hollow ring rather than a filled dot, so it
+// reads as a place on the route rather than as another stop. The circle's edge
+// passes through it, which is the whole claim being made.
+.tb-moment-target::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: $white;
+  border: 3px solid $brand;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+// Running dry is a problem with the plan; reaching the next pump is the plan
+// working. They must not look alike — see setMoment().
+.tb-moment-target.is-dry::after {
+  border-color: $warning;
+}
+
 .tb-marker {
   position: relative;
   width: 0;

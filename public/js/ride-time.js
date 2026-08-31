@@ -171,11 +171,31 @@
   // off-by-one trap the isLosingAlt comment above warns about, one level down: a
   // caller holding the ordered list had to filter it the same way to read the
   // answer, and a single index into the list they already have cannot drift.
+  //
+  // `legFraction` is HOW FAR THROUGH THAT LEG, 0..1, and null at a point. It is
+  // what lets a caller put the rider somewhere on the road rather than only on
+  // one of its ends: distance into the day is the legs before this one plus
+  // this fraction of it, which is a coordinate through pointAtDistance(). A
+  // caller that only wants the leg ignores it and reads the same shape it read
+  // before, which is why it is an added field rather than a new function.
+  //
+  // Fraction of TIME, not of distance, and the two differ on a leg whose speed
+  // is not constant — which is every real one. Time is the axis the scrubber
+  // moves along, so it is the honest one here: an hour into a two-hour leg puts
+  // the dot at the halfway mark, and the alternative would have the dot lag or
+  // race the clock the rider is reading beside it.
   function activeAt(day, offsetS) {
-    const none = { legIndex: null, pointIndex: null };
+    const none = { legIndex: null, pointIndex: null, legFraction: null };
     for (const seg of daySchedule(day)) {
       if (offsetS < seg.end) {
-        if (seg.kind === "leg") return { ...none, legIndex: seg.index };
+        if (seg.kind === "leg") {
+          const span = seg.end - seg.start;
+          // A zero-length segment never satisfies the test above, so `span` is
+          // positive here; the guard is for a malformed schedule rather than a
+          // real one, and 0 is the only answer such a leg has.
+          const t = span > 0 ? (offsetS - seg.start) / span : 0;
+          return { ...none, legIndex: seg.index, legFraction: Math.max(0, Math.min(1, t)) };
+        }
         return { ...none, pointIndex: seg.index };
       }
     }
@@ -196,9 +216,9 @@
       if (start == null) continue;
       if (momentS < start || momentS > dayEndS(day)) continue;
       const a = activeAt(day, momentS - start);
-      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex };
+      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex, legFraction: a.legFraction };
     }
-    return { dayIndex: null, legIndex: null, pointIndex: null };
+    return { dayIndex: null, legIndex: null, pointIndex: null, legFraction: null };
   }
 
   // UTC, because a day's clock is a WALL CLOCK at the departure point and is

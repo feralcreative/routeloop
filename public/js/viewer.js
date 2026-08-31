@@ -24,6 +24,7 @@
     setRouteDim,
     setRouteGhost,
     setLegHighlight,
+    setMomentOverlay,
     clearLegHighlight,
     addMarker,
     markerElement,
@@ -36,6 +37,11 @@
   // Shared with the builder so a ride resolves to the same leg at the same
   // moment in both. See ride-time.js.
   const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
+  const { pointAtDistance, haversineM } = window.TBShape;
+  const DIST = window.TBDistance;
+  // Where the rider would be at a scrubbed moment, and what the circle around
+  // them reaches to. See public/js/range-circle.js.
+  const RANGE = window.TBRange;
 
   // Only the label lookup — the viewer reads stored figures rather than
   // computing them, so it never touches window.TBTwist.twistiness itself.
@@ -166,6 +172,44 @@
     const leg = day && active.legIndex != null ? day.legs[active.legIndex] : null;
     if (leg) setLegHighlight(state.map, active.dayIndex, leg.startIndex, leg.endIndex);
     else clearLegHighlight(state.map);
+
+    // A HOVER SUPPRESSES THE DOT, exactly as it suppresses the highlight above,
+    // and for the same reason: hovering a legend row asks "which day is this",
+    // which is not a question about where anybody would be at any moment.
+    paintMoment(hovering ? null : active);
+  }
+
+  /**
+   * Where the rider would be at the scrubbed moment, and the circle around them.
+   *
+   * THE RADIUS IS THE STRAIGHT LINE TO A POINT ON THE ROUTE, never the
+   * remaining range — see the header of public/js/range-circle.js. This mirrors
+   * paintMoment() in builder.js; the two differ only in where the day's track
+   * and the range come from, which is why the arithmetic is in a shared module
+   * rather than written twice.
+   */
+  function paintMoment(active) {
+    const day = active && active.dayIndex != null ? state.ride.days[active.dayIndex] : null;
+    const track = day && day.track;
+    if (!track || !track.length) return setMomentOverlay(state.map, null);
+
+    const cum = DIST.cumulativeM(day);
+    const distM = RANGE.distanceAtMoment(day, active, cum);
+    if (distM == null) return setMomentOverlay(state.map, null);
+    const here = pointAtDistance(track, distM);
+    if (!here) return setMomentOverlay(state.map, null);
+
+    // Null for a reader who is not on the roster, and for a member whose group
+    // has no bike on file. Both mean no circle, and nothing on the page tells
+    // the two apart — see the call site in src/index.tsx.
+    const r = window.TB.range || {};
+    const rangeM = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
+    const fuelRole = r.fuelType === "electric" ? "charge" : "gas";
+
+    const target = RANGE.fuelTargetAt(day, distM, cum, fuelRole, rangeM);
+    if (!target) return setMomentOverlay(state.map, here, null, 0, null);
+    const at = pointAtDistance(track, target.distM);
+    setMomentOverlay(state.map, here, at, at ? haversineM(here, at) : 0, target.kind);
   }
 
   function highlight(i) {

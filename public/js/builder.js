@@ -25,6 +25,7 @@
     setRouteDim,
     setRouteGhost,
     setLegHighlight,
+    setMomentOverlay,
     clearLegHighlight,
     onRouteShapeDrag,
     consumeShapeClick,
@@ -66,7 +67,7 @@
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
-  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance } = window.TBShape;
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, haversineM } = window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -90,6 +91,10 @@
   // How far off the day's line a place is — see public/js/corridor.js. Pure
   // geometry; the searching and the spending live below.
   const CORRIDOR = window.TBCorridor;
+
+  // Where the rider would be at a scrubbed moment, and what the circle around
+  // them reaches to. See public/js/range-circle.js.
+  const RANGE = window.TBRange;
 
   /** Meters as the rider's own unit, rounded to a whole one. Distances in the
    *  panel are read at a glance against a tank, so a decimal is noise. */
@@ -1445,6 +1450,16 @@
     // is the rider at this moment" only while that moment is on the day in
     // front of you; otherwise there is nothing to point at and it goes.
     const onLitDay = a && a.dayIndex != null && a.dayIndex === lit;
+
+    // WHERE THE RIDER WOULD BE, drawn on WHATEVER DAY THE MOMENT FALLS ON —
+    // deliberately not gated on onLitDay the way the leg highlight below is.
+    // The highlight is a stretch of the day's own line, so drawing it bright
+    // across a day dimmed to 0.35 reads as neither state. A dot is a discrete
+    // overlay above every route, so it has no such ambiguity, and suppressing
+    // it off the lit day would make ride scope — whose entire purpose is
+    // scrubbing the whole ride — show nothing for most of its travel.
+    paintMoment(a);
+
     const leg = onLitDay && a.legIndex != null ? state.days[a.dayIndex].legs[a.legIndex] : null;
     if (!leg) {
       clearLegHighlight(state.map);
@@ -1453,6 +1468,35 @@
     const span = trackAndSpans(a.dayIndex).spans[a.legIndex];
     if (span) setLegHighlight(state.map, a.dayIndex, span.startIndex, span.endIndex);
     else clearLegHighlight(state.map);
+  }
+
+  /**
+   * The moment dot and the range circle around it.
+   *
+   * THE RADIUS IS THE STRAIGHT LINE TO A POINT ON THE ROUTE, never the
+   * remaining range — see the header of public/js/range-circle.js for why that
+   * distinction is the whole feature. This function only measures the line and
+   * hands it to the map; the target is chosen there.
+   */
+  function paintMoment(a) {
+    const day = a && a.dayIndex != null ? state.days[a.dayIndex] : null;
+    if (!day) return setMomentOverlay(state.map, null);
+    const track = fullTrack(a.dayIndex);
+    if (!track.length) return setMomentOverlay(state.map, null);
+
+    const cum = DIST.cumulativeM(day);
+    const distM = RANGE.distanceAtMoment(day, a, cum);
+    if (distM == null) return setMomentOverlay(state.map, null);
+    const here = pointAtDistance(track, distM);
+    if (!here) return setMomentOverlay(state.map, null);
+
+    // A null target is the ordinary case, not the edge one: a rider with no
+    // bike on file has no range, and a day that ends before the tank does has
+    // nothing to point at. The dot is still where they would be.
+    const target = RANGE.fuelTargetAt(day, distM, cum, fuelRole(), rangeM());
+    if (!target) return setMomentOverlay(state.map, here, null, 0, null);
+    const at = pointAtDistance(track, target.distM);
+    setMomentOverlay(state.map, here, at, at ? haversineM(here, at) : 0, target.kind);
   }
 
   function clearMarkers() {
@@ -3763,7 +3807,7 @@
     const span = day && daySpan(day);
     if (!span) return null;
     const at = activeAt(day, Math.min(Math.max(state.moment, span.from), span.to) - span.from);
-    return { dayIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex };
+    return { dayIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex, legFraction: at.legFraction };
   };
 
   function renderTimeline() {

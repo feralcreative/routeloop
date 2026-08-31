@@ -470,6 +470,117 @@
     line.setVisible(true);
   }
 
+  // --- The scrubbed moment --------------------------------------------------
+
+  // WHERE THE RIDER WOULD BE, and how far the circle around them reaches.
+  //
+  // Three overlays that move together and are therefore one function: a dot on
+  // the road at the scrubbed moment, a circle around it, and a marker on the
+  // point that circle reaches to. Splitting them into three setters would let a
+  // caller leave one of them behind — a circle around a dot that has moved on
+  // is a claim about nowhere.
+  //
+  // THE RADIUS IS COMPUTED BY THE CALLER and passed in meters. This file draws;
+  // range-circle.js decides. That split is what keeps the arithmetic testable,
+  // and it is the same arrangement route-shape.js has with the drag handles.
+  //
+  // A google.maps.Circle rather than a styled marker, because the radius is in
+  // METERS and has to stay in meters: a fixed-pixel ring would grow and shrink
+  // with the zoom and mean nothing at any of them.
+  // A google.maps overlay takes a real color string, not a var() — the API
+  // resolves nothing — so the tokens are read out of the compiled stylesheet
+  // the same way dashboard.js reads its chart colors. Read lazily rather than
+  // at load, because the theme can change under a page that is already open.
+  //
+  // $warning for dry, matching .row-dist-dry: nothing has failed and nothing is
+  // broken, the rider is being told to put a fuel stop in. The reachable case
+  // gets the app's own blue rather than a green, which would read as a grade.
+  const cssVar = (name, fallback) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const MOMENT_DRY = () => cssVar("--warning", "#b26a00");
+  const MOMENT_FUEL = () => cssVar("--brand", "#1565c0");
+
+  const moments = new WeakMap(); // map -> { dot, circle, target }
+
+  function momentOf(map) {
+    let m = moments.get(map);
+    if (!m) {
+      const dot = document.createElement("div");
+      dot.className = "tb-moment-dot";
+      m = {
+        dot: new Marker.AdvancedMarkerElement({ map, content: dot, zIndex: 6 }),
+        circle: new Maps.Circle({
+          map,
+          // Below the route lines, so a circle drawn over a day never obscures
+          // the road it is a statement about.
+          zIndex: 1,
+          clickable: false,
+          visible: false,
+          strokeWeight: 2,
+          strokeOpacity: 0.9,
+          fillOpacity: 0.07,
+        }),
+        target: new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 }),
+      };
+      m.dot.map = null;
+      m.target.map = null;
+      moments.set(map, m);
+    }
+    return m;
+  }
+
+  function targetEl() {
+    const el = document.createElement("div");
+    el.className = "tb-moment-target";
+    return el;
+  }
+
+  /**
+   * Draw the moment, or clear it with a null `at`.
+   *
+   * `at` and `target` are [lng, lat]; `radiusM` is the straight line between
+   * them, which the caller has already measured. `kind` is "dry" or "fuel" and
+   * decides only how it is painted — running dry is a problem with the plan and
+   * reaching the next pump is the plan working, so they must not look alike.
+   *
+   * A NULL TARGET STILL DRAWS THE DOT. Where the rider is does not depend on
+   * whether anything is known about their tank, and a bike with no range on
+   * file is the common case rather than the edge one.
+   *
+   * NOT `setMoment`. builder.js already owns that name for the timeline's own
+   * setter — the one that moves the scrubber — and the two would collide in a
+   * plain destructure. They are also genuinely different things: one sets WHEN,
+   * this one draws WHERE that lands on the map.
+   */
+  function setMomentOverlay(map, at, target, radiusM, kind) {
+    const m = momentOf(map);
+    if (!at) {
+      m.dot.map = null;
+      m.target.map = null;
+      m.circle.setVisible(false);
+      return;
+    }
+    m.dot.position = toLatLng(at);
+    m.dot.map = map;
+
+    const dry = kind === "dry";
+    if (target && radiusM > 0) {
+      m.circle.setOptions({
+        center: toLatLng(at),
+        radius: radiusM,
+        strokeColor: dry ? MOMENT_DRY() : MOMENT_FUEL(),
+        fillColor: dry ? MOMENT_DRY() : MOMENT_FUEL(),
+      });
+      m.circle.setVisible(true);
+      m.target.content.className = "tb-moment-target" + (dry ? " is-dry" : "");
+      m.target.position = toLatLng(target);
+      m.target.map = map;
+    } else {
+      m.circle.setVisible(false);
+      m.target.map = null;
+    }
+  }
+
   // --- Drag to shape --------------------------------------------------------
 
   // Pulling the route line onto the road the rider actually meant.
@@ -1030,6 +1141,7 @@
     popupHtml,
     attachPopup,
     stopMileages,
+    setMomentOverlay,
     iconSvg,
     initPanelToggle,
   };
