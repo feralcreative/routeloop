@@ -807,15 +807,37 @@
     return Places;
   }
 
+  /**
+   * RESTRICTED TO WHAT IS ON SCREEN. Ziad's call, 2026-08-31.
+   *
+   * It was a bias until then, on the recorded reasoning that "a rider planning
+   * from home still wants to find the far end of the ride" — which is true and
+   * is not what a bias delivers. A bias only reorders: the list still fills
+   * with a Shell in Ohio while the rider is looking at Oregon, and by a long
+   * way the common act is adding a point to the stretch of road on screen.
+   *
+   * A FALLBACK TO THE BIASED SEARCH WAS TRIED AND REMOVED THE SAME HOUR, and it
+   * is recorded because it reads as obviously kind and is not. Retrying
+   * unrestricted whenever the viewport had nothing turned "no matches here"
+   * into a list from three states away: zoomed into the Bay Area, "shell"
+   * returned Shelley ID, Shell Lake WI and Shell Knob MO. It served a specific
+   * name like "Dunsmuir Lodge" well and a generic word terribly, and telling
+   * those apart needs a guess about what the rider meant.
+   *
+   * So the rule is plain and the empty case SAYS SO rather than being papered
+   * over — the caller names the viewport in its no-matches line, which makes
+   * zooming out the obvious next move. That is how the far end of the ride
+   * stays reachable: one gesture, and the rider is the one who chose it.
+   */
   async function searchPlaces(map, input) {
     const { AutocompleteSuggestion, AutocompleteSessionToken } = await placesLib();
     if (!sessionToken) sessionToken = new AutocompleteSessionToken();
 
     const request = { input, sessionToken };
-    // Bias, not restrict: a rider planning from home still wants to find the
-    // far end of the ride.
+    // Null before the map has settled, and an unrestricted search is the right
+    // behavior then: there is no viewport yet to be outside of.
     const bounds = mapBounds(map);
-    if (bounds) request.locationBias = bounds;
+    if (bounds) request.locationRestriction = bounds;
 
     const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
     return suggestions

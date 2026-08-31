@@ -5723,7 +5723,11 @@
             nearbyResultsHtml(nearby) +
             // SAID OUT LOUD, not left as an empty box. "Nothing matched" and
             // "the search broke" were pixel-identical before this.
-            (nothing ? noticeHtml("No matches for “" + q + "”") : "") +
+            // NAMES THE VIEWPORT, because the search is restricted to it and a
+            // rider who is told only "no matches" has no reason to think
+            // zooming out would help. See searchPlaces() in map-common.js for
+            // why there is no automatic fallback to widen it for them.
+            (nothing ? noticeHtml("No matches for “" + q + "” on screen. Zoom out to search wider.") : "") +
             // One half down while the other answered: the results still show,
             // with a line saying what is missing. Silently returning half an
             // answer is how a broken category search would go unnoticed for a
