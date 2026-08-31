@@ -1637,6 +1637,44 @@
       font-size: 0.7em;
       color: $url;
     }
+
+    // HOW FAR IN, AND HOW FAR ON THIS TANK (#220).
+    //
+    // Quiet by default and on its own line under the row's controls. It is
+    // reference rather than an action — the rider is scanning down a day for the
+    // gap where fuel has to go — so it must not compete with the name field it
+    // sits under.
+    //
+    // A FIXED HEIGHT IS NOT NEEDED and would be wrong: the readout is absent
+    // entirely on the first point of every day and on any row with no distance
+    // yet, so reserving the line would put an empty band under every day's first
+    // stop. The rows below simply sit closer.
+    .row-dist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 0.6em;
+      margin: 0.15em 0 0 1.6em;
+      font-size: 0.7em;
+      font-variant-numeric: tabular-nums;
+      color: $neutral-50;
+    }
+
+    // The tank figure is the one being scanned for, so it is the one that is not
+    // grey. It appears only once it differs from the distance into the day —
+    // see distReadoutHtml — so when it is here it is saying something new.
+    .row-dist-fuel {
+      color: $neutral-36;
+      font-weight: 600;
+    }
+
+    // Past the binding range. $warning rather than $signal: nothing is broken
+    // and nothing has failed — the rider is being told to put a fuel stop in,
+    // which is a thing to notice rather than an error to fix.
+    .row-dist-dry {
+      color: $warning;
+      font-weight: 600;
+      cursor: help;
+    }
   }
 
   // Save and Discard are gone — the builder autosaves — so what is left is

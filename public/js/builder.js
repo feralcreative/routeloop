@@ -77,6 +77,15 @@
   // src/views/units.ts and is pinned to it by test/units-client.test.ts.
   const UNITS = window.TBUnits ? window.TBUnits.toUnits(window.TB.units) : "imperial";
   const distUnit = window.TBUnits ? window.TBUnits.distanceUnit(UNITS) : "mi";
+
+  // Cumulative and since-refuel distance — see public/js/day-distance.js. Pure,
+  // meters throughout, and it formats nothing: the unit is the rider's, applied
+  // here at the point of display.
+  const DIST = window.TBDistance;
+
+  /** Meters as the rider's own unit, rounded to a whole one. Distances in the
+   *  panel are read at a glance against a tank, so a decimal is noise. */
+  const fmtDist = (m) => Math.round(window.TBUnits.distanceFrom(m, UNITS)) + " " + distUnit;
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
   // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
   // whole list, plus a separate ceiling on how many of them may be routing
@@ -3964,9 +3973,60 @@
   // data-day is what makes every handler below day-agnostic: pointOf() reads the
   // point out of that day, and any interaction with the row makes that day active
   // so the shared edit functions land in the right place.
+  /**
+   * How far into the day this point is, and how far it is on the current tank.
+   *
+   * #220, and the planner's own words for why: "to know when to add fuel stops I
+   * need to know how many miles since the start, and how many since the last
+   * fuel stop."
+   *
+   * NOTHING ON THE FIRST POINT. Zero miles into a day it has not started is a
+   * row of noise on every day in the ride, and the day header already says the
+   * day's total.
+   *
+   * THE SINCE-FUEL FIGURE IS SHOWN ONLY WHEN IT DIFFERS from the distance into
+   * the day. Before the first fuel stop the two are the same number and printing
+   * it twice reads as a rendering fault; after one they diverge and both are
+   * worth knowing.
+   *
+   * The dry marker is the point the group's binding range runs out at, and it is
+   * absent entirely when no range is on file — never a zero, never a guess. See
+   * firstDryPoint in day-distance.js.
+   */
+  function distReadoutHtml(point, i, dist) {
+    if (!dist || i <= 0) return "";
+    const into = dist.cum[i];
+    if (!(into > 0)) return "";
+    const since = dist.since[i];
+    const dry = dist.dryAt === i;
+    const range = window.TB.range || {};
+    const parts = ['<span class="row-dist-into">' + esc(fmtDist(into)) + " in</span>"];
+    // Rounded before comparing, or two figures a mile apart print identically
+    // and the row looks like it is repeating itself.
+    //
+    // AND NEVER ZERO. At a fuel stop `since` resets to 0 by design — the tank is
+    // full and the row is answering how far the NEXT one is — so the pair here
+    // differs and would print "0 mi on this tank" under every fuel stop in the
+    // ride. True, and noise.
+    if (Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
+      parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this tank</span>");
+    }
+    if (dry) {
+      // Names WHOSE tank, because on a group ride the binding range belongs to
+      // somebody in particular and "you will run out" is the wrong sentence to
+      // show the rider with the big tank. See groupRange().
+      const whose = range.riderName ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike") : "the smallest tank";
+      parts.push(
+        '<span class="row-dist-dry" title="Past ' + whose + ' (' + esc(String(range.miles)) +
+          ' mi). Add a fuel stop before here.">out of range</span>',
+      );
+    }
+    return '<div class="row-dist"' + (dry ? ' data-dry="1"' : "") + ">" + parts.join("") + "</div>";
+  }
+
   // `n` is the row's stop number, or null for a POI — worked out by orderedRows()
   // because it counts stops only and `i` indexes the whole list.
-  function pointRowHtml(kind, point, i, dayIndex, n) {
+  function pointRowHtml(kind, point, i, dayIndex, n, dist) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
@@ -4021,6 +4081,7 @@
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
       (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
+      distReadoutHtml(point, i, dist) +
       '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
@@ -4139,6 +4200,36 @@
     }));
   }
 
+  // WHICH CATEGORY PUTS FUEL BACK IN, from the bike the plan is built around.
+  // `gas` when nothing is known, because it is what all but a handful of bikes
+  // take and the alternative is showing no fuel figures at all to every rider
+  // who has not filled in a paddock.
+  const fuelRole = () => (window.TB.range && window.TB.range.fuelType === "electric" ? "charge" : "gas");
+
+  // The group's binding range in meters, or null when nobody on the ride has one
+  // on file. NULL MUST STAY NULL all the way to the renderer — a fuel warning
+  // built on an invented number is worse than none because it looks like one.
+  function rangeM() {
+    const mi = window.TB.range && window.TB.range.miles;
+    // window.TB.range.miles is always MILES, whatever the rider's preference —
+    // it comes off usable_range_m through metersToMiles server-side. Converting
+    // it with the display unit here would read a metric rider's 300 km tank as
+    // 300 miles.
+    return typeof mi === "number" && mi > 0 ? mi * window.TBUnits.METERS_PER_MILE : null;
+  }
+
+  // Everything the rows of one day need to say how far in they are. Computed
+  // once per render rather than per row: each of these walks the whole day, so
+  // doing it inside pointRowHtml would make a 400-point day quadratic.
+  function dayDistances(day) {
+    const role = fuelRole();
+    return {
+      cum: DIST.cumulativeM(day),
+      since: DIST.sinceRefuelM(day, role),
+      dryAt: DIST.firstDryPoint(day, role, rangeM()),
+    };
+  }
+
   // One day's rows. Takes the day index rather than reading the active one,
   // because every day's list is on screen and any of them can need redrawing.
   function renderDayList(r) {
@@ -4147,6 +4238,7 @@
     const day = state.days[r];
     if (!day) return;
     const open = state.insertAt && state.insertAt.day === r ? state.insertAt.at : null;
+    const dist = dayDistances(day);
     list.innerHTML =
       orderedRows(day)
         .map(
@@ -4156,7 +4248,7 @@
             // the last row is the bottom add-row, which is always present, so no
             // slot is rendered for it.
             (open === row.i ? addRowHtml(r, day, row.i) : insertSlotHtml(r, row.i)) +
-            pointRowHtml(row.kind, row.point, row.i, r, row.n),
+            pointRowHtml(row.kind, row.point, row.i, r, row.n, dist),
         )
         .join("") + addRowHtml(r, day);
     hydrateIcons(list);

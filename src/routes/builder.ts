@@ -43,6 +43,7 @@ import {
   type MemberFields,
 } from '../members/policy'
 import { subgroupsOf } from '../subgroups/service'
+import { groupRange, ownRange, type GroupRange } from '../bikes/group-range'
 import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
@@ -718,8 +719,10 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
 
 builderRoutes.get('/builder', requireActive, async (c) => {
   const user = currentUser(c)
-  const [home, prefs] = await Promise.all([homeSeed(user.id), builderPrefs(user.id)])
-  return c.html(builderHtml(null, user, home, prefs))
+  // ownRange, not groupRange: a ride that does not exist has no roster to ask.
+  // See the note on ownRange for why the two are deliberately separate.
+  const [home, prefs, range] = await Promise.all([homeSeed(user.id), builderPrefs(user.id), ownRange(user.id)])
+  return c.html(builderHtml(null, user, home, prefs, null, undefined, range))
 })
 
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -731,14 +734,23 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // viewer is a dead end and the redirect would only have to be built twice.
   if (!found || !canViewAsMember(found.member)) return c.text('Not found', 404)
   const { ride, member } = found
+  const [prefs, range] = await Promise.all([builderPrefs(user.id), groupRange(ride.id)])
   return c.html(
-    builderHtml(ride.id, user, null, await builderPrefs(user.id), ride.slug, {
-      canEdit: canEditAsMember(member),
-      isOwner: canAdminister(member),
-      // A rider always knows their OWN rung — it is what the banner says. It is
-      // everyone else's that is the owner's business; see canSeePerms.
-      perm: member?.role === 'owner' ? null : (member?.perm ?? null),
-    }),
+    builderHtml(
+      ride.id,
+      user,
+      null,
+      prefs,
+      ride.slug,
+      {
+        canEdit: canEditAsMember(member),
+        isOwner: canAdminister(member),
+        // A rider always knows their OWN rung — it is what the banner says. It
+        // is everyone else's that is the owner's business; see canSeePerms.
+        perm: member?.role === 'owner' ? null : (member?.perm ?? null),
+      },
+      range,
+    ),
   )
 })
 
@@ -763,6 +775,9 @@ function builderHtml(
   // roster to link to — and no ride, so nothing to be on.
   slug: string | null = null,
   standing: BuilderStanding = OWNS_IT,
+  // Null-ranged by default so a caller that has not worked it out yet renders a
+  // page with no fuel warning, rather than one claiming a range of zero.
+  range: GroupRange = { miles: null, riderName: null, bikeLabel: null, unknown: 0, riders: 0, fuelType: null },
 ): string {
   // The day slider is a focus control, not a navigation one: every day stays
   // drawn on the map at all times and the slider only changes which one is
@@ -1193,6 +1208,16 @@ ${
       // own presence row apart from everybody else's without a second request.
       // Not a secret: it is this rider's id, told to this rider.
       riderId: user.id,
+      // WHAT THE DAY HAS TO BE PLANNED AROUND (#220), and it is the GROUP's
+      // binding range rather than the planner's own bike. A fuel plan built on
+      // a 220-mile tank strands the rider who brought 120 — #52's whole point,
+      // and groupRange() has answered it for the roster page since that shipped.
+      // The builder is where it was missing.
+      //
+      // `miles` is null when nothing on the ride has a range on file, and every
+      // reader must render NOTHING rather than a zero: a fuel warning built on
+      // an invented number is worse than no warning because it looks like one.
+      range,
     },
     // SortableJS drives drag-to-reorder on the stop list. Pinned to an exact
     // version with an SRI hash and crossorigin, so jsdelivr serving anything but
@@ -1219,6 +1244,7 @@ ${
   <script src="${asset('/js/alts.js')}" defer></script>
   <script src="${asset('/js/place-query.js')}" defer></script>
   <script src="${asset('/js/day-clock.js')}" defer></script>
+  <script src="${asset('/js/day-distance.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }
