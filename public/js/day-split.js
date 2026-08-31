@@ -97,6 +97,12 @@
 
     var second = Object.assign({}, day, {
       uid: mintUid(),
+      // NOT THE TITLE. Object.assign would hand the new day the old one's name,
+      // and two days both called "Napa to Reno" is worse than one called nothing
+      // — the rider cannot tell which is which in the rail, the day list or a
+      // vote. Empty is what addDay() produces and it falls back to "Day N",
+      // which is at least true.
+      title: "",
       points: [carried].concat(points.slice(i + 1)),
       legs: legs.slice(i),
       // A SPLIT NEVER INHERITS AN ALT GROUPING. Two alternates are two answers

@@ -83,6 +83,10 @@
   // here at the point of display.
   const DIST = window.TBDistance;
 
+  // Cutting a day in two — see public/js/day-split.js. Pure, and the uid minter
+  // is passed in, so the identity a carried point gets is this file's to mint.
+  const SPLIT = window.TBSplit;
+
   /** Meters as the rider's own unit, rounded to a whole one. Distances in the
    *  panel are read at a glance against a tank, so a decimal is noise. */
   const fmtDist = (m) => Math.round(window.TBUnits.distanceFrom(m, UNITS)) + " " + distUnit;
@@ -1943,6 +1947,53 @@
     rebuildLayers();
     renderMarkers();
     markDirty();
+  }
+
+  /**
+   * Cut the day in two at point i, and drop the new day in right after it.
+   *
+   * #49, and #54's mechanic. The arithmetic — which legs go where, what the
+   * carried point keeps — is day-split.js; everything here is the part that
+   * needs the rest of the ride: a color that is not the one above it, a clock
+   * seeded off the day it now follows, and the layer rebuild that a changed day
+   * count forces.
+   *
+   * MAX_DAYS IS CHECKED BEFORE beginEdit, like every other guard here, so a
+   * refused split pushes no undo step.
+   */
+  function splitDayHere(r, i) {
+    const day = state.days[r];
+    if (!day) return;
+    if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    if (!SPLIT.canSplitAt(day, i)) {
+      return toast("A day has to keep at least one leg on each side of a split", true);
+    }
+
+    beginEdit("split day");
+    const cut = SPLIT.splitDayAt(day, i, uid);
+
+    // A COLOR THAT IS NOT ITS NEIGHBOUR'S. Seeding off state.days.length the way
+    // addDay does would hand the new day the same hue as an existing one once
+    // days have been deleted, and two adjacent days in one color is the one case
+    // the palette exists to prevent.
+    const used = new Set(state.days.map((d) => d.color));
+    cut.second.color = DAY_COLORS.find((c) => !used.has(c)) || DAY_COLORS[state.days.length % DAY_COLORS.length];
+
+    // The second day begins the morning after the first one ends, and the first
+    // one's end has just changed — it lost every leg past the cut — so it is
+    // resynced before being read. A day the rider never dated seeds nothing.
+    state.days.splice(r, 1, cut.first, cut.second);
+    syncEnd(cut.first);
+    if (cut.first.startAt) cut.second.startAt = nextMorningAfter(cut.first.endAt);
+
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    // The rider's attention is on the new day: they asked where one ended, and
+    // what they want to see is what now follows it.
+    goToDay(r + 1);
   }
 
   function deleteDay() {
@@ -3974,6 +4025,36 @@
   // point out of that day, and any interaction with the row makes that day active
   // so the shared edit functions land in the right place.
   /**
+   * "End the day here?" on a mid-day point tagged as somewhere you sleep.
+   *
+   * #54 asks for the day to end there outright. It OFFERS instead, Ziad's call
+   * 2026-08-31, because the tag cannot tell the two cases apart: a hotel you are
+   * sleeping at and a hotel you happen to ride past are the same `hotel` role,
+   * and the aggressive reading cuts a rider's day in half for noting a landmark.
+   * The cost of offering is one dismissed prompt; the cost of not offering is a
+   * ride reorganised behind somebody's back.
+   *
+   * NOT SHOWN ON THE LAST POINT OF A DAY, which is where lodging normally goes —
+   * the day already ends there and there is nothing to cut. That is also what
+   * stops this appearing on essentially every day of a well-planned ride.
+   *
+   * It is a button rather than a toast: a toast disappears, and this is an offer
+   * about a specific row that should wait until the rider has decided.
+   */
+  function lodgingOfferHtml(point, i, dayIndex) {
+    const day = state.days[dayIndex];
+    if (!day || !SPLIT.canSplitAt(day, i)) return "";
+    const roles = point.roles || [];
+    if (!LODGING_ROLES.some((r) => roles.indexOf(r) >= 0)) return "";
+    return (
+      '<div class="row-lodging-offer">' +
+      '<button type="button" class="row-split-offer" data-day="' + dayIndex + '" data-i="' + i + '">' +
+      "Sleeping here? End the day" +
+      "</button></div>"
+    );
+  }
+
+  /**
    * How far into the day this point is, and how far it is on the current tank.
    *
    * #220, and the planner's own words for why: "to know when to add fuel stops I
@@ -4082,6 +4163,7 @@
       (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
       distReadoutHtml(point, i, dist) +
+      lodgingOfferHtml(point, i, dayIndex) +
       '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
@@ -4608,6 +4690,7 @@
         if (act === "promote") return setPointKind(i, "stop");
         if (act === "demote") return setPointKind(i, "poi");
         if (act === "select") return startSelect("point");
+        if (act === "split") return splitDayHere(Number(row.dataset.day), i);
         return;
       }
       if (btn.classList.contains("detail-link-add")) {
@@ -4629,6 +4712,9 @@
         row.querySelector(".row-details").innerHTML = detailsHtml(point, row.dataset.kind, i);
         markDirty();
         return;
+      }
+      if (btn.classList.contains("row-split-offer")) {
+        return splitDayHere(Number(btn.dataset.day), Number(btn.dataset.i));
       }
       if (btn.classList.contains("row-roles-btn")) {
         closeRowMenu();
@@ -4748,6 +4834,11 @@
     // churns on every PUT and cannot be referenced. The comment survives the
     // point being deleted, demoting to ride level rather than going with it.
     { act: "comment", label: "Comment on this stop" },
+    // #49. Shown on every interior point and DISABLED on the two ends rather
+    // than hidden, because "why can I not split here" is worth answering in
+    // place — splitting at the first or last point would leave a day with one
+    // point and no legs, which the API refuses and payload() drops whole.
+    { act: "split", label: "End the day here" },
     { act: "up", label: "Move up" },
     { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
@@ -4825,7 +4916,8 @@
       off:
         (m.act === "up" && i === 0) ||
         (m.act === "down" && i === last) ||
-        (m.act === "demote" && stopsOf(day).length <= 1),
+        (m.act === "demote" && stopsOf(day).length <= 1) ||
+        (m.act === "split" && !SPLIT.canSplitAt(day, i)),
     }));
     openMenu(row, btn, items);
   }

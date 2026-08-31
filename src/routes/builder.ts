@@ -1245,6 +1245,7 @@ ${
   <script src="${asset('/js/place-query.js')}" defer></script>
   <script src="${asset('/js/day-clock.js')}" defer></script>
   <script src="${asset('/js/day-distance.js')}" defer></script>
+  <script src="${asset('/js/day-split.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,
   })
 }

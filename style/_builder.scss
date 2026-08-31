@@ -1675,6 +1675,32 @@
       font-weight: 600;
       cursor: help;
     }
+
+    // #54's offer, on a mid-day point tagged as somewhere to sleep. An OFFER and
+    // not a state, so it reads as a suggestion rather than as something already
+    // decided — see lodgingOfferHtml for why the day is not simply cut.
+    .row-lodging-offer {
+      margin: 0.2em 0 0.1em 1.6em;
+    }
+
+    .row-split-offer {
+      padding: 0.2em 0.6em;
+      border: 1px dashed $grey;
+      border-radius: 999px;
+      background: transparent;
+      color: $text-l30;
+      font: inherit;
+      font-size: 0.7em;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        border-style: solid;
+        border-color: $brand;
+        color: $brand;
+      }
+    }
   }
 
   // Save and Discard are gone — the builder autosaves — so what is left is

@@ -161,6 +161,15 @@ describe('the cut itself', () => {
     expect(d).toEqual(before)
   })
 
+  // Object.assign would hand the new day the old one's name, and two days both
+  // called "Napa to Reno" is worse than one called nothing — the rider cannot
+  // tell them apart in the rail, the day list, or a vote.
+  it('does not hand the old day’s title to the new one', () => {
+    const r = S.splitDayAt(day(), 2, mint)
+    expect(r.first.title).toBe('A long one')
+    expect(r.second.title).toBe('')
+  })
+
   it('keeps the ride-level facts on the first half', () => {
     const d = day()
     const r = S.splitDayAt(d, 2, mint)
