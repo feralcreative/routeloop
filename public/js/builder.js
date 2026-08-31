@@ -621,7 +621,7 @@
     refreshDerived();
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
-    $("ride-visibility").value = state.meta.visibility;
+    setFieldValue("ride-visibility", state.meta.visibility);
     // Undo can shorten the name as easily as lengthen it, and the field will not
     // notice either on its own.
     fitTitle();
@@ -657,6 +657,21 @@
         toast("This ride is too big to keep a recovery copy—save often", true);
       }
     }, 2000);
+  }
+
+  // Sets a field that MAY NOT EXIST. The visibility select is rendered for the
+  // owner and for nobody else — deliberately, because the PUT ignores the field
+  // from a non-owner and a select that silently does nothing is worse than no
+  // select — so every read and write of it has to tolerate its absence.
+  //
+  // This is not hypothetical politeness: an unguarded `.addEventListener` on it
+  // threw during init(), which unwound before the ride was ever loaded, and a
+  // member opening a shared ride got a blank map called "Untitled". It was
+  // unreachable until the viewer started linking non-owners into the builder,
+  // and reachable the moment it did.
+  function setFieldValue(id, value) {
+    const el = $(id);
+    if (el) el.value = value;
   }
 
   function markDirty() {
@@ -5679,7 +5694,7 @@
     if (state.days.length === 0) state.days = [newDay()];
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
-    $("ride-visibility").value = state.meta.visibility;
+    setFieldValue("ride-visibility", state.meta.visibility);
     fitTitle();
     // What was just loaded IS what the server holds, so the panel opens on
     // "Saved" rather than on the "Not saved yet" a new ride starts at.
@@ -5947,7 +5962,10 @@
       state.meta.description = e.target.value;
       markDirty();
     });
-    $("ride-visibility").addEventListener("change", (e) => {
+    // Owner-only, and absent for everybody else — see setFieldValue. Optional
+    // chaining rather than a hoisted guard so the shape matches the other
+    // wirings around it.
+    $("ride-visibility")?.addEventListener("change", (e) => {
       beginEdit("change visibility");
       state.meta.visibility = e.target.value;
       markDirty();
