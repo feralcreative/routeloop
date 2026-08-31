@@ -1,27 +1,29 @@
 // Where the rider is at a scrubbed moment, and how much fuel is left there.
 //
-// **THE RADIUS IS THE FUEL IN THE TANK: the bike's range minus the miles
-// ridden since the last fill.** Ziad's call, 2026-08-31. It shrinks
-// continuously as the rider scrubs forward, resets to full at every fuel stop,
-// and on a day with no fuel stop planned it shrinks to nothing exactly at the
-// binding bike's max range — which is the moment worth seeing, and the reason
-// the ring exists at all.
+// **THE RING'S EDGE PASSES THROUGH THE POINT THE RIDER RUNS DRY.** Ziad's call,
+// 2026-08-31. The dry point is found on the ROAD — the last fill's mileage plus
+// the binding bike's range, walked along the day's own polyline — and the
+// radius is then the straight line from the rider to it. So the ring is not a
+// range number drawn as a circle, which would overclaim on any road that bends;
+// its edge is a place, and it collapses to nothing exactly as the rider arrives
+// there.
 //
 // THE RANGE IS THE SHORTEST TANK IN THE GROUP, not the planner's own. That is
 // what groupRange() already answers and what #52 was for: the ride is bounded
 // by the bike that has to stop first.
 //
-// A REJECTED VERSION IS WORTH RECORDING, because it looks more rigorous and is
-// worse to use. The radius was briefly the straight-line distance from the
-// rider to the point they run dry, on the reasoning that a plain range circle
-// overclaims — roads bend, so a rider cannot actually reach the edge of a
-// circle drawn at their remaining range. True, but it made the ring a
-// measurement of the ROAD'S shape rather than of the TANK: on a twisty day it
-// collapsed while the tank was still half full, it grew again once the rider
-// passed the dry point, and it jumped between targets. Nobody reading it could
-// tell what it was counting. A ring that means "this much fuel, as the crow
-// flies" is a claim a rider can hold in their head, and the dry marker on the
-// route is what says where that lands on the actual road.
+// THE HISTORY IS WORTH KEEPING because this shape was tried, rejected, and
+// arrived at again, and the difference between the two attempts is the whole
+// lesson. The first version made the ring chase a MOVING target: it jumped to
+// the next fuel stop whenever one came before the dry point, and once the rider
+// passed the dry point it kept the target and GREW. Nothing about it could be
+// read. The target is now only ever the dry point, it never moves while the
+// rider approaches it, and past it there is no ring at all. Same radius rule,
+// and it behaves because the thing it points at holds still.
+//
+// THE CONSEQUENCE TO STATE RATHER THAN TREAT AS A BUG: a day the rider never
+// runs dry on shows NO RING. There is no point to draw to, which is the honest
+// answer — nothing about the fuel on that day needs watching.
 //
 // NO RANGE MEANS NO RING. Null is not zero and it is not a default: a ring
 // drawn for a rider whose bike has no range on file implies somebody checked
@@ -92,27 +94,6 @@
   }
 
   /**
-   * The fuel left at `distM` into the day, in meters of range. The ring's
-   * radius, and null when there is no ring to draw.
-   *
-   * NULL RATHER THAN ZERO WHEN NO RANGE IS KNOWN, and the two must not collapse
-   * into one: zero means the tank is empty, which is a fact worth drawing
-   * nothing for, and null means nobody measured it, which is a different reason
-   * to draw nothing. A caller that treats them alike will eventually treat one
-   * of them as a number.
-   *
-   * Clamped at zero rather than going negative. Past the point they run dry the
-   * rider is not carrying negative fuel; the ring is simply gone, and the dry
-   * marker is what still says where it happened.
-   */
-  function remainingM(day, distM, cum, fuelRole, rangeM) {
-    if (distM == null || !cum || !cum.length) return null;
-    if (!(rangeM > 0)) return null;
-    var since = distM - lastFillM(day, distM, cum, fuelRole);
-    return Math.max(0, rangeM - since);
-  }
-
-  /**
    * How far into the day the tank runs dry, or null when it does not run dry
    * before the day ends.
    *
@@ -134,7 +115,6 @@
   window.TBRange = {
     distanceAtMoment: distanceAtMoment,
     lastFillM: lastFillM,
-    remainingM: remainingM,
     dryDistanceM: dryDistanceM,
     isRefuel: isRefuel,
   };

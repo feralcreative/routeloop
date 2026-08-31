@@ -77,58 +77,6 @@ describe('where the rider is', () => {
   })
 })
 
-describe('fuel left in the tank', () => {
-  // THE RING IS THE TANK. 300 miles of range, 120 miles in, on a day whose only
-  // pump is at 100 — so the last fill was 100 and 20 miles have been burned.
-  it('is the range minus the miles since the last fill', () => {
-    const d = day()
-    expect(round(R.remainingM(d, mi(120), cum(d), 'gas', mi(300)))).toBe(280)
-  })
-
-  // The whole point of the ring on a day with nothing planned: it shrinks
-  // steadily and is gone exactly at the binding bike's max range.
-  it('shrinks steadily and reaches zero at max range with no fuel stop planned', () => {
-    const d: Day = {
-      points: [stop('Home'), stop('Nowhere'), stop('End')],
-      legs: [leg(100), leg(140)],
-    }
-    const at = (m: number) => round(R.remainingM(d, mi(m), cum(d), 'gas', mi(150)))
-    expect(at(0)).toBe(150)
-    expect(at(50)).toBe(100)
-    expect(at(100)).toBe(50)
-    expect(at(150)).toBe(0)
-  })
-
-  it('refills to the whole range at a fuel stop', () => {
-    const d = day()
-    expect(round(R.remainingM(d, mi(99), cum(d), 'gas', mi(150)))).toBe(51)
-    expect(round(R.remainingM(d, mi(100), cum(d), 'gas', mi(150)))).toBe(150)
-  })
-
-  // Past dry the rider is not carrying negative fuel. The ring is simply gone.
-  it('clamps at zero rather than going negative', () => {
-    const d = day()
-    expect(R.remainingM(d, mi(230), cum(d), 'gas', mi(50))).toBe(0)
-  })
-
-  // gas and charge are the same event on two kinds of machine. An electric
-  // rider passing a Chevron has refuelled nothing.
-  it('ignores a pump the binding bike cannot use', () => {
-    const d = day()
-    expect(round(R.remainingM(d, mi(120), cum(d), 'charge', mi(300)))).toBe(180)
-  })
-
-  // NULL IS NOT ZERO, and collapsing them would eventually make one a number.
-  // Zero means the tank is empty; null means nobody measured it.
-  it('is null when no range is known, never zero', () => {
-    const d = day()
-    expect(R.remainingM(d, mi(20), cum(d), 'gas', null)).toBeNull()
-    expect(R.remainingM(d, mi(20), cum(d), 'gas', 0)).toBeNull()
-    expect(R.remainingM(d, mi(20), cum(d), 'gas', -5)).toBeNull()
-    expect(R.remainingM(d, null, cum(d), 'gas', mi(120))).toBeNull()
-  })
-})
-
 describe('where the tank runs dry', () => {
   it('is the last fill plus the range', () => {
     const d = day()

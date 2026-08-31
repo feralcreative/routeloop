@@ -1496,11 +1496,24 @@
 
     // Null is the ordinary case, not the edge one: a rider with no bike on file
     // has no range. The dot is still where they would be.
-    const role = fuelRole();
-    const range = rangeM();
-    const left = state.ringOn ? RANGE.remainingM(day, distM, cum, role, range) : null;
-    const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
-    setMomentOverlay(state.map, here, dryAt == null ? null : pointAtDistance(track, dryAt), left);
+    const dryAt = RANGE.dryDistanceM(day, distM, cum, fuelRole(), rangeM());
+    const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
+    setMomentOverlay(state.map, here, dryPt, ringRadius(here, dryPt, distM, dryAt));
+  }
+
+  /**
+   * The ring's radius: the straight line from the rider to the point they run
+   * dry, so its edge passes through that point and it collapses to nothing as
+   * they arrive there.
+   *
+   * NOTHING ONCE THE RIDER IS PAST IT. The dry point stays on the map — it is a
+   * fact about the day — but a ring drawn back to it would GROW as the rider
+   * carried on, which is the defect that sank the first version of this. Past
+   * empty there is no distance left to draw.
+   */
+  function ringRadius(here, dryPt, distM, dryAt) {
+    if (!state.ringOn || !dryPt || dryAt == null || dryAt <= distM) return null;
+    return haversineM(here, dryPt);
   }
 
   function clearMarkers() {
