@@ -306,6 +306,16 @@ echo ""
 # the verifier checks for exactly these, so a key added to the release and not to
 # the server cannot slip through on a CI deploy that does not write the file.
 # Two lists would have drifted the first time anybody added a variable.
+#
+# ADDING A NAME HERE MAKES IT MANDATORY, SO PUSH THE VALUE FIRST. The verifier
+# below refuses the deploy when a key on this list is missing from the server's
+# .env — and it greps for `^KEY=.`, so an EMPTY value does not satisfy it
+# either. Under DEPLOY_SKIP_ENV, which is every CI deploy, this run has no way
+# to supply one. So the order is: put the value in the local .env, run
+# `utils/deploy/deploy-utils.sh push-env` for each environment, and only then
+# add the name here. Reversed, the next CI deploy fails after a full build.
+# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are the current example — see the
+# block for them in .env.example.
 REMOTE_ENV_KEYS="COMPOSE_PROJECT_NAME IMAGE_NAME DB_CONTAINER_NAME HOST_PORT ALIAS_HOST_PORT
 APP_UID APP_GID GMAPS_KEY GMAPS_SERVER_KEY GMAPS_MAP_ID DB_PASSWORD APP_ORIGIN
 GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET APP_VERSION BUILD_SHA DRAIN_GRACE_MS
