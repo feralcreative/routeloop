@@ -459,12 +459,29 @@ export function panelShell(o: {
 // The ids are the contract. builder.js and viewer.js both reach #time-slider and
 // #time-readout by getElementById and neither walks up from them, which is the
 // entire reason this move cost almost no JS.
-export function rideTimeline(): string {
+export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
   return (
     <div class="map-timeline" id="ride-timeline" hidden>
       {/* Readout above the slider: the bar is wide and short, so the label reads
           as a caption for the track rather than as a stray line of map text. */}
-      <div class="time-readout" id="time-readout"></div>
+      <div class="time-head">
+        <div class="time-readout" id="time-readout"></div>
+        {/* BUILDER ONLY, and the argument is what makes that explicit rather
+            than a class the viewer has to remember not to style. The builder's
+            slider spans the day being edited (see state.timeScope in
+            builder.js) and this widens it to the ride; the viewer's spans the
+            ride already, because reading a ride is not editing one and there is
+            no active day there to scope to.
+
+            Ships with no label and hidden: renderTimeScope() fills both in, and
+            leaves it hidden on a one-day ride where the two scopes are the same
+            slider. */}
+        {opts.scopeToggle ? (
+          <button type="button" class="time-scope" id="time-scope" aria-pressed="false" hidden></button>
+        ) : (
+          ''
+        )}
+      </div>
       <input
         id="time-slider"
         class="time-slider"

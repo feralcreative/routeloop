@@ -153,6 +153,48 @@ describe('trip span', () => {
   })
 })
 
+// What the builder's timeline scrubs by default, since #222: a slider stretched
+// over a 72-hour ride spends most of its travel on the overnights, and an hour
+// of Saturday afternoon comes out too narrow to land on.
+describe('day span', () => {
+  it('is the day’s own extent', () => {
+    const d = day()
+    expect(T.daySpan(d)).toEqual({ from: T.dayStartS(d), to: T.dayEndS(d) })
+  })
+
+  it('never reaches past the day it was asked about', () => {
+    const d = day()
+    const next = { ...day(), startAt: at('2026-08-02T09:00') }
+    expect(T.daySpan(d)).toEqual(T.daySpan({ ...d }))
+    expect(T.daySpan(d)!.to).toBeLessThan(T.dayStartS(next))
+  })
+
+  it('is nothing at all for an undated day', () => {
+    expect(T.daySpan({ startAt: null, endAt: null, points: [stop('X')], legs: [] })).toBeNull()
+  })
+
+  // A slider whose min equals its max is a control that cannot move, so the bar
+  // hides rather than rendering one — same contract rideSpan has always had.
+  it('is nothing for a dated day with nothing in it', () => {
+    expect(T.daySpan({ startAt: at('2026-08-01T09:00'), endAt: null, points: [], legs: [] })).toBeNull()
+  })
+
+  it('falls back to elapsed when the day has a start but no stored end', () => {
+    const d = day()
+    expect(T.daySpan(d)!.to).toBe(T.dayStartS(d) + T.dayElapsedS(d))
+  })
+
+  // THE DELIBERATE DISAGREEMENT WITH rideSpan. A day the rider decided against
+  // must not stretch the ride — but a rider who has clicked into that alternate
+  // to work on it is looking at exactly that day, and refusing it a span would
+  // hide the timeline on the one day they are editing.
+  it('gives a losing alternate a span, where the ride span gives it none', () => {
+    const ghost = { ...day(), altGroup: 0, altActive: false }
+    expect(T.rideSpan([ghost])).toBeNull()
+    expect(T.daySpan(ghost)).toEqual({ from: T.dayStartS(ghost), to: T.dayEndS(ghost) })
+  })
+})
+
 // Two alternates for the same day cover the same hours. Without the skip the
 // timeline puts the rider on both and returns whichever the array lists first.
 describe('a losing alternate is not on the schedule', () => {
