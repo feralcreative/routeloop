@@ -37,7 +37,7 @@
   // Shared with the builder so a ride resolves to the same leg at the same
   // moment in both. See ride-time.js.
   const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
-  const { pointAtDistance, haversineM } = window.TBShape;
+  const { pointAtDistance, bearingAtDistance, haversineM } = window.TBShape;
   const DIST = window.TBDistance;
   // Where the rider would be at a scrubbed moment, and how much fuel is left
   // there. See public/js/range-circle.js.
@@ -212,7 +212,13 @@
 
     const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
     const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
-    setMomentOverlay(state.map, here, dryPt, ringRadius(here, dryPt, distM, dryAt));
+    setMomentOverlay(
+      state.map,
+      here,
+      dryPt,
+      ringRadius(here, dryPt, distM, dryAt),
+      dryAt == null ? null : bearingAtDistance(track, dryAt),
+    );
   }
 
   /**

@@ -531,17 +531,24 @@
     return m;
   }
 
+  // A BAR ACROSS THE ROAD, rotated to sit perpendicular to it — a tiny brick
+  // wall at the point the tank runs out. The rotation goes on an inner element
+  // rather than on the marker's own content root, because AdvancedMarkerElement
+  // manages the transform of what it is given and ours would be overwritten.
   function targetEl() {
     const el = document.createElement("div");
     el.className = "tb-moment-target";
+    el.appendChild(document.createElement("i"));
     return el;
   }
 
   /**
    * Draw the moment, or clear it with a null `at`.
    *
-   * `at` and `dry` are [lng, lat]; `radiusM` is the FUEL LEFT in the tank,
-   * which range-circle.js computed. This file draws; it decides nothing.
+   * `at` and `dry` are [lng, lat]; `radiusM` is the straight line between them,
+   * and `dryBearing` is the road's heading there in degrees clockwise from
+   * north. All four are computed by the caller — this file draws and decides
+   * nothing.
    *
    * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
    * than three setters: a ring left behind around a dot that has moved on is a
@@ -553,7 +560,7 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dry, radiusM) {
+  function setMomentOverlay(map, at, dry, radiusM, dryBearing) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
@@ -577,6 +584,13 @@
     // cost of the bends.
     if (dry) {
       m.target.position = toLatLng(dry);
+      // PERPENDICULAR TO THE ROAD. The bar is authored horizontal, which is
+      // screen bearing 90, and CSS rotate() turns clockwise from there — so to
+      // put it across a road heading `dryBearing` the rotation is exactly that
+      // bearing, not bearing plus ninety. Null leaves it horizontal, which is
+      // the honest fallback for a track with no direction to report.
+      const bar = m.target.content.firstElementChild;
+      if (bar) bar.style.transform = dryBearing == null ? "" : "rotate(" + dryBearing + "deg)";
       m.target.map = map;
     } else {
       m.target.map = null;

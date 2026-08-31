@@ -67,7 +67,8 @@
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
-  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, haversineM } = window.TBShape;
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, haversineM } =
+    window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -1498,7 +1499,13 @@
     // has no range. The dot is still where they would be.
     const dryAt = RANGE.dryDistanceM(day, distM, cum, fuelRole(), rangeM());
     const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
-    setMomentOverlay(state.map, here, dryPt, ringRadius(here, dryPt, distM, dryAt));
+    setMomentOverlay(
+      state.map,
+      here,
+      dryPt,
+      ringRadius(here, dryPt, distM, dryAt),
+      dryAt == null ? null : bearingAtDistance(track, dryAt),
+    );
   }
 
   /**

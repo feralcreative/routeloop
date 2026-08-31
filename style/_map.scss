@@ -1166,25 +1166,40 @@ table.day-table {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-// WHERE THE TANK RUNS DRY: a hollow ring rather than a filled dot, so it reads
-// as a place on the route rather than as another stop.
+// WHERE THE TANK RUNS DRY: a short red bar laid ACROSS the road, like a wall.
+// Ziad's call, 2026-08-31, replacing a hollow ring — a dot on a line reads as
+// another stop, and this is the opposite of a stop, it is the place the ride
+// cannot continue past.
 //
-// It is INDEPENDENT of the fuel ring, not its edge. The ring says how much fuel
-// is left as the crow flies; this says where that runs out on the road actually
-// being ridden, so the gap between them is the cost of the bends. $warning to
-// match .row-dist-dry: nothing has failed, the rider is being told to put a
-// fuel stop in.
-.tb-moment-target::after {
-  content: "";
+// $stop rather than $warning: the amber diamond means "put a fuel stop in" and
+// is what .row-dist-dry already says in the day list. A wall across the road is
+// not advice, so it takes the palette's stop-sign red. NOT $signal — that is
+// the blue of a signal head's go light in this palette, which is the opposite
+// of what a wall means and is exactly the mistake this comment exists to stop
+// somebody repeating.
+//
+// FIXED PIXELS, NOT METERS. A polyline drawn in real distance would be
+// invisible at low zoom and a mile wide at high zoom; a wall is a symbol and
+// should stay the same size at every scale.
+//
+// The <i> exists so the rotation has something of its own to sit on:
+// AdvancedMarkerElement manages the transform of the content root it is handed,
+// and a transform set there is overwritten. Rotated by setMomentOverlay() to
+// the road's heading — see the note there for why the angle is the bearing
+// itself rather than the bearing plus ninety.
+.tb-moment-target > i {
   position: absolute;
-  width: 16px;
-  height: 16px;
-  margin: -8px 0 0 -8px;
+  display: block;
+  width: 22px;
+  height: 5px;
+  margin: -2.5px 0 0 -11px;
   box-sizing: border-box;
-  border-radius: 50%;
-  background: $white;
-  border: 3px solid $warning;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  background: $stop;
+  // A white keyline, because the bar sits ON the day's own line and a route
+  // colored anywhere near it would otherwise swallow it.
+  border: 1px solid $white;
+  border-radius: 1px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .tb-marker {
