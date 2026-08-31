@@ -1683,6 +1683,56 @@
       margin: 0.2em 0 0.1em 1.6em;
     }
 
+    // #50's corridor control, under the category chips. Searching near a ROUTE
+    // rather than near a POINT, with the slider saying how far off is worth it.
+    //
+    // The slider is disabled rather than hidden while the toggle is off: it is
+    // what explains what the toggle is for, and a control that only appears once
+    // you click something is a control nobody discovers.
+    .add-corridor {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-top: 0.4em;
+      font-size: 0.72em;
+      color: $neutral-50;
+
+      &.is-on {
+        color: $text-l30;
+      }
+    }
+
+    .corridor-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.3em;
+      flex: none;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .corridor-range {
+      // Takes the middle and yields it. min-width: 0 is what lets a flex item
+      // shrink below its intrinsic size — without it the slider holds its
+      // default width and pushes the readout off a 380px drawer.
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      accent-color: $brand;
+      cursor: pointer;
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
+    }
+
+    .corridor-readout {
+      flex: none;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
     .row-split-offer {
       padding: 0.2em 0.6em;
       border: 1px dashed $grey;
@@ -1952,6 +2002,17 @@
     .hit-ctx {
       color: $text-l35;
       font-size: 0.85em;
+    }
+
+    // How far off the route this one is (#50). Present only on a corridor
+    // search, and the loudest thing in the row after the name — it is what the
+    // rider is choosing on, and the list is already sorted by it.
+    .hit-off {
+      color: $brand;
+      font-size: 0.85em;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
   }
 

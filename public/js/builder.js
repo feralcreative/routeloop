@@ -66,7 +66,7 @@
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
-  const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance } = window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -86,6 +86,10 @@
   // Cutting a day in two — see public/js/day-split.js. Pure, and the uid minter
   // is passed in, so the identity a carried point gets is this file's to mint.
   const SPLIT = window.TBSplit;
+
+  // How far off the day's line a place is — see public/js/corridor.js. Pure
+  // geometry; the searching and the spending live below.
+  const CORRIDOR = window.TBCorridor;
 
   /** Meters as the rider's own unit, rounded to a whole one. Distances in the
    *  panel are read at a glance against a tank, so a decimal is noise. */
@@ -488,6 +492,15 @@
     // minute, not a preference about it, and a remembered one would put a rider
     // back in ride scope weeks later with no memory of asking for it.
     timeScope: "day",
+    // #50's slider. HOW FAR OFF THE ROUTE the rider will go, in MILES — always
+    // miles, whatever unit they read, because the value is compared against
+    // meters through one conversion and storing it in the display unit would
+    // change its meaning when the preference changed.
+    //
+    // Session-only and shared across days, like timeScope: it is how the rider
+    // is searching right now, not a fact about any day.
+    corridorOn: false,
+    corridorMi: 10,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
     // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a day's "+ Stop"
@@ -4418,15 +4431,46 @@
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
+    const along = state.corridorOn;
     return (
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
           '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="Find ' + esc(c.label.toLowerCase()) + ' near this day\'s last point">' +
+          ' title="Find ' + esc(c.label.toLowerCase()) +
+          (along ? " anywhere along this day" : " near this day's last point") + '">' +
           esc(c.label) + "</button>",
       ).join("") +
-      "</div>"
+      "</div>" +
+      corridorHtml(r)
+    );
+  }
+
+  /**
+   * #50's slider: how far off the route the rider will go.
+   *
+   * OFF BY DEFAULT, so the chips keep answering the question they always have —
+   * what is near where I have got to. Turning it on changes the question to what
+   * is reachable along the whole day, which is the one a rider asks when they
+   * are looking for the gap where fuel goes rather than for the next stop.
+   *
+   * The slider is disabled rather than hidden while the toggle is off: it is
+   * what explains what the toggle is FOR, and a control that appears on click is
+   * a control nobody discovers.
+   */
+  function corridorHtml(r) {
+    const on = state.corridorOn;
+    const mi = state.corridorMi;
+    return (
+      '<div class="add-corridor' + (on ? " is-on" : "") + '">' +
+      '<label class="corridor-toggle"><input type="checkbox" class="corridor-on" data-day="' + r + '"' +
+      (on ? " checked" : "") + "> Along the day</label>" +
+      '<input type="range" class="corridor-range" data-day="' + r + '" min="1" max="50" step="1" value="' +
+      mi + '"' + (on ? "" : " disabled") +
+      ' aria-label="How far off the route to look" title="How far off the route to look">' +
+      '<span class="corridor-readout">' +
+      esc(Math.round(window.TBUnits.distanceFromMiles(mi, UNITS)) + " " + distUnit) +
+      " off</span></div>"
     );
   }
 
@@ -5320,11 +5364,47 @@
       return mapCenter(state.map);
     }
 
-    async function nearbySearch(query, near) {
+    /**
+     * ONE TEXT SEARCH FOR THE WHOLE DAY, biased at its midpoint, then filtered
+     * to the corridor here in the browser. Ziad's call, 2026-08-31, and it is a
+     * cost decision rather than a technical one: walking the line and searching
+     * every ten miles is the accurate version and costs about thirty billed
+     * calls per slider move on a three-hundred-mile day, on the pricier SKU.
+     *
+     * WHAT THAT BUYS AND WHAT IT COSTS. One call, cached, for any day of any
+     * length — against a result set Google biases toward one point, so a long
+     * day gets a set thinned toward its middle. `wide` asks for the API's
+     * twenty rather than the dropdown's eight, which is the same call and the
+     * same money and is most of what makes this usable at all.
+     *
+     * The bias radius covers half the day so the circle reaches both ends,
+     * clamped to the 50 km the endpoint accepts. A bias is not a filter — Text
+     * Search returns things outside it — so the corridor test below is what
+     * actually decides, and the radius only steers the ranking.
+     */
+    function corridorSearchArgs(r) {
+      const day = state.days[r];
+      const track = day ? fullTrack(r) : [];
+      const totalM = day ? DIST.totalM(day) : 0;
+      const mid = track.length ? pointAtDistance(track, totalM / 2) : anchorFor(r);
+      return {
+        track: track,
+        near: mid,
+        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2) || 25000)),
+      };
+    }
+
+    async function nearbySearch(query, near, opts) {
+      const body = near ? { query: query, near: near } : { query: query };
+      // A corridor search asks for the wider result set and a bias radius that
+      // covers the day rather than the default town-sized one. Both are the same
+      // single billed call — see MAX_CORRIDOR_RESULTS in src/routes/routing.ts.
+      if (opts && opts.wide) body.wide = true;
+      if (opts && opts.radiusM) body.radiusM = opts.radiusM;
       const res = await fetch("/api/places/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(near ? { query: query, near: near } : { query: query }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -5347,6 +5427,12 @@
           .map(
             (h, i) =>
               '<li class="hit-nearby" data-nearby="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+              // THE NUMBER THE RIDER IS DECIDING ON, when there is one. A
+              // corridor search annotates each hit with its detour; a plain
+              // near-a-point search has nothing to say here and renders none.
+              (typeof h.offRouteM === "number"
+                ? '<span class="hit-off">' + esc(fmtDist(h.offRouteM)) + " off</span> "
+                : "") +
               '<span class="hit-ctx">' + esc(h.address) + "</span></li>",
           )
           .join("")
@@ -5620,6 +5706,37 @@
     // The field is left empty on purpose. Filling it with "gas station" would
     // look like the rider typed it and would then be re-searched on the next
     // keystroke, spending a second call to get the same answer.
+    // The corridor toggle and its slider. Re-rendering the day would destroy the
+    // slider mid-drag and drop focus — the #188 defect — so both patch their own
+    // row in place and nothing else moves. Neither marks the ride dirty: how a
+    // rider is searching is not a change to the ride.
+    host.addEventListener("input", (e) => {
+      const range = e.target.closest(".corridor-range");
+      if (!range) return;
+      state.corridorMi = Number(range.value);
+      const box = range.closest(".add-corridor");
+      const out = box && box.querySelector(".corridor-readout");
+      if (out) {
+        out.textContent = Math.round(window.TBUnits.distanceFromMiles(state.corridorMi, UNITS)) + " " + distUnit + " off";
+      }
+    });
+
+    host.addEventListener("change", (e) => {
+      const box = e.target.closest(".corridor-on");
+      if (!box) return;
+      state.corridorOn = box.checked;
+      // Every day carries its own copy of this control, so they all have to
+      // agree — a rider who switched it on at day 3 and scrolled to day 1 must
+      // not find it off there.
+      document.querySelectorAll(".add-corridor").forEach((el) => {
+        el.classList.toggle("is-on", state.corridorOn);
+        const cb = el.querySelector(".corridor-on");
+        const rg = el.querySelector(".corridor-range");
+        if (cb) cb.checked = state.corridorOn;
+        if (rg) rg.disabled = !state.corridorOn;
+      });
+    });
+
     host.addEventListener("click", async (e) => {
       const chip = e.target.closest(".chip");
       if (!chip || chip.disabled) return;
@@ -5639,11 +5756,30 @@
       results.hidden = false;
       if (input) placeResults(input, results);
       try {
-        const nearby = await nearbySearch(spec.query, anchorFor(r));
+        let nearby;
+        if (state.corridorOn) {
+          const args = corridorSearchArgs(r);
+          const raw = await nearbySearch(spec.query, args.near, { wide: true, radiusM: args.radiusM });
+          if (mine !== searchSeq) return;
+          // The corridor test decides, not the bias radius — see
+          // corridorSearchArgs. Each survivor carries its own detour so the list
+          // can be read as an answer to "how far off?" rather than a ranking.
+          nearby = CORRIDOR.withinCorridor(raw, args.track, state.corridorMi * window.TBUnits.METERS_PER_MILE).map(
+            (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+          );
+        } else {
+          nearby = await nearbySearch(spec.query, anchorFor(r));
+        }
         if (mine !== searchSeq) return;
         results.innerHTML =
           nearbyResultsHtml(nearby) ||
-          noticeHtml("No " + spec.label.toLowerCase() + " found near this day");
+          noticeHtml(
+            state.corridorOn
+              ? "No " + spec.label.toLowerCase() + " within " +
+                Math.round(window.TBUnits.distanceFromMiles(state.corridorMi, UNITS)) + " " + distUnit +
+                " of this day"
+              : "No " + spec.label.toLowerCase() + " found near this day",
+          );
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);

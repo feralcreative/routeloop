@@ -361,6 +361,18 @@ const PLACES_FIELD_MASK = 'places.displayName,places.formattedAddress,places.loc
 // rider will read four.
 const MAX_PLACE_RESULTS = 8
 
+// A CORRIDOR SEARCH IS NOT A DROPDOWN, so it asks for the twenty. #50 filters
+// what comes back to a band either side of the day's line and throws most of it
+// away — eight results biased at one point routinely survives as two, which
+// reads as "there is nowhere" rather than "we only looked in one place".
+//
+// **THIS COSTS NOTHING EXTRA, and that is the belief the change rests on rather
+// than something measured here: Text Search (New) is billed per REQUEST, not per
+// result, so twenty and eight are the same call and the same money.** Worth
+// confirming against a real bill before leaning on it further. Twenty is the
+// API's own ceiling.
+const MAX_CORRIDOR_RESULTS = 20
+
 // Used only when `near` is supplied and no radius is. Wide enough to cover a
 // town and its outskirts, narrow enough that "coffee" anchored to a stop does
 // not answer with the next county.
@@ -372,6 +384,9 @@ const placeSearchRequest = z.object({
   query: z.string().trim().min(2).max(200),
   near: coord.optional(),
   radiusM: z.number().int().min(500).max(50_000).optional(),
+  // Opt-in, so every existing caller keeps the eight-result dropdown it was
+  // written for and only the corridor search asks for the wider set.
+  wide: z.boolean().optional(),
 })
 
 type PlaceHit = { name: string; address: string; lngLat: LngLat; type: string | null }
@@ -398,13 +413,23 @@ routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requi
     return c.json({ error: 'a search query is required' }, 400)
   }
 
-  const { query, near, radiusM } = parsed.data
-  const key = [query.toLowerCase().replace(/\s+/g, ' '), near ? near.map(round6).join(',') : '', radiusM ?? '']
-    .join('|')
+  const { query, near, radiusM, wide } = parsed.data
+  // `wide` is part of the cache key: the narrow and the wide answer to the same
+  // query are different lists, and serving one for the other would give a
+  // corridor search eight results because a dropdown asked first.
+  const key = [
+    query.toLowerCase().replace(/\s+/g, ' '),
+    near ? near.map(round6).join(',') : '',
+    radiusM ?? '',
+    wide ? 'w' : '',
+  ].join('|')
   const cached = placesCache.get(key)
   if (cached) return c.json({ places: cached })
 
-  const body: Record<string, unknown> = { textQuery: query, maxResultCount: MAX_PLACE_RESULTS }
+  const body: Record<string, unknown> = {
+    textQuery: query,
+    maxResultCount: wide ? MAX_CORRIDOR_RESULTS : MAX_PLACE_RESULTS,
+  }
   if (near) {
     body.locationBias = {
       circle: {
