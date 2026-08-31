@@ -23,6 +23,16 @@ If you are a new contributor, jump to [Working in this repo](#working-in-this-re
 
 When an entry here is edited, the GitHub issue it maps to usually says the same stale thing—the issue was written from the entry. This table is the running list of edits whose matching issue has **not** been made yet. Delete a row once the issue is updated.
 
+### 2026-08-30: one new item, from a rider who does not have a fuel tank
+
+| What changed | Where |
+| --- | --- |
+| **New**: find a stop that refuels, feeds and entertains near the end of range. Raised by an electric-motorcycle rider and deliberately scoped **fuel-type agnostic**—a gas rider has the same problem with a shorter stop | item 33 |
+| **Recorded**: `evChargeAmenitySummary` is Enterprise + Atmosphere, **$40/1000 with a 1,000-call free cap**—the priciest thing this app would touch. The design fetches it only when a rider opens a candidate | item 33 |
+| **Recorded**: Nearby Search (New) **cannot filter on EV options**; Text Search (New) takes `evOptions` with `connectorTypes` and `minimumChargingRateKw`. Verified against Google's docs 2026-08-30 | item 33 |
+
+**Item 33 has no GitHub issue.** It is the only entry added since the 2026-08-24 audit filed the previous eleven.
+
 ### 2026-08-24: an audit, and eight commits this file had never heard of
 
 **Read this before trusting any status line above.** The roadmap was audited against the code on 2026-08-24 and was behind by one whole phase plus a branch of work. Three things were corrected here and three issues were edited on GitHub the same day.
@@ -1154,6 +1164,44 @@ Three of the four move together because they are one component. That is a reason
 **Touches.** `src/routes/home.tsx`, `style/_dashboard.scss`, new `src/maps/role-colors.ts`, a small inline-SVG helper in `src/views/`. No schema, no queries, no new assets.
 
 **Status.** planned—small and self-contained. **Issue: [#139](https://github.com/feralcreative/routeloop/issues/139)**, filed 2026-08-24. Related to item 30 ([#136](https://github.com/feralcreative/routeloop/issues/136)), the other "make the dashboard less flat" item; the two touch the same file and are worth doing in one pass.
+
+### 33. Find a stop that does more than one job
+
+**Goal.** Near the end of a tank or a battery, find somewhere to stop that refuels *and* feeds you *and* gives you something to do while you wait. Raised 2026-08-30 by a rider on an electric motorcycle: pick a general area at the tail end of range, then find the stop with the most at your fingertips.
+
+**Fuel-type agnostic, decided 2026-08-30.** It arrived as an EV request and the EV case is the sharper one—a charge is 30–45 minutes of standing still, so "what else is here" is the difference between a break and a wait. But a gas rider has the same problem with a five-minute stop, item 7 already stores range in meters for both, and `fuelTypeEnum` is already `['gas', 'electric']`. The shared machinery is the whole feature; the EV-specific part is two request filters and a longer dwell radius.
+
+**This is already the data model, and that is the happy part.** `points.roles` is a `waypoint_role[]` capped at four by the database, and the taxonomy already contains `gas`, `charge`, `food`, `coffee`, `view`, `grocery` and `break`. **A stop that does more than one job is a point with more than one role**—nothing new to model, and item 32's role chart already draws the payoff.
+
+**The search area costs nothing, because the data is already stored.** `points.dist_from_start_m` is server-computed, `route_legs.geometry` holds the polyline, and item 7 stores range in meters. So "the stretch of route between 75% and 95% of remaining range" is arithmetic on rows already in Postgres—no API call to decide *where* to look. Search that band as a corridor polygon along the route, not a circle around a midpoint: a circle at the range limit includes a large area the rider would have to backtrack to reach.
+
+**Three questions, three different APIs, and they cost wildly different amounts.**
+
+| Question | API | Free/month | Then |
+| --- | --- | --- | --- |
+| Which area has the most going on? | **Places Aggregate**, `INSIGHT_COUNT` over a polygon | 5,000 | $10/1000 |
+| Which specific stops are in it? | **Text Search (New)**, `evOptions` for EV | 10,000 at Essentials | $2.27/1000 |
+| What is actually at this one? | `evChargeAmenitySummary` | **1,000** | **$40/1000** |
+
+**Nearby Search cannot filter on EV and Text Search can.** Nearby Search (New) will *return* `evChargeOptions` and `evChargeAmenitySummary` but offers no EV filter—only `includedTypes`—so filtering would mean fetching everything at the Enterprise + Atmosphere rate and discarding most of it. Text Search (New) takes `evOptions` with `connectorTypes` and `minimumChargingRateKw`, which is what keeps a rider off a 3 kW outlet that would take all night. Use Text Search. Verified against Google's docs 2026-08-30.
+
+**The cost rule: cheap calls build the list, the expensive field is fetched only on a tap.** Decided 2026-08-30. `evChargeAmenitySummary` is Enterprise + Atmosphere—**$40/1000 with a 1,000-call free cap**, the most expensive thing this app would touch by a wide margin. Fetching it for five candidates costs about 20¢ per search and exhausts the free tier in roughly 200 searches across all riders. Fetching it for the one candidate a rider opens makes the same allowance cover about a thousand real decisions. Same shape as item 28: never buy the expensive thing until someone looks at it.
+
+**Cache aggressively—chargers and restaurants do not move.** Key by area cell plus filter set, with a long TTL. This is the single largest cost lever in the item and it should be designed in rather than added when a bill arrives.
+
+**The summary is written by Gemini and Google requires you to say so.** The field carries `disclosureText` ("Summarized with Gemini", localized) and `flagContentUri` for reporting bad content. Both have to be rendered. That means AI-written prose appears inside an app whose voice is otherwise deliberate and dry—worth deciding consciously rather than discovering in review. The `overview` subfield is guaranteed; `coffee`, `restaurant` and `store` are not, and each `ContentBlock` also carries references to the related places for follow-up calls.
+
+**Ranking is diversity, not count.** Six fast-food outlets in one lot is a worse stop than one café, one diner and a park, and a naive count ranks it higher. Weight distinct categories over raw quantity. **And check opening hours against the estimated arrival time**, which the ride timeline can already supply—arriving at 9pm to a closed everything is the failure this feature exists to prevent, and it is the one a count-based score will walk straight into.
+
+**Open questions.**
+
+- **Where it lives in the builder.** A panel action on a day, a map affordance at the range ring, or part of the stop search. Interacts with item 6 (saved places) and item 11 (rich stop details).
+- **Whether range rings ship first.** Item 7 still lists "fuel/charge range rings" as unbuilt, and this feature is much easier to explain when the rider can already see where their range runs out.
+- **Which Places tier the non-EV path uses.** Essentials is cheap and has 10,000 free but carries fewer fields; whether a gas stop needs anything above it is unsettled.
+
+**Touches.** New Places client under `src/maps/`, `src/bikes/policy.ts` (range band arithmetic), `src/routes/builder.ts`, `public/js/builder.js`, a cache table or store. Related: [#31](https://github.com/feralcreative/routeloop/issues/31) EV counterpart, which is the battery-and-consumption half and a prerequisite for the EV range band.
+
+**Status.** planned—raised 2026-08-30. **Not a beta blocker**, and it introduces the first Places spend beyond autocomplete, so it wants the quota alert from "The road to beta" in place first.
 
 ## Idea backlog (unscheduled)
 

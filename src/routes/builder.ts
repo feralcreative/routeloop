@@ -32,7 +32,6 @@ import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
-import { turnstileEnabled, verifyTurnstile } from '../maps/turnstile'
 import { canClone } from '../access/policy'
 import { memberOrOwner, seedOwner } from '../members/service'
 import {
@@ -111,17 +110,32 @@ async function parseRideBody(
 
 const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'payload too large' }, 413) })
 
+// **THERE IS DELIBERATELY NO TURNSTILE GATE HERE, AND THE ONE THAT USED TO BE
+// WAS A LANDMINE.** Ziad's call, 2026-08-30, closing #132.
+//
+// It checked an `X-Turnstile-Token` header that NOTHING SENDS — every fetch in
+// builder.js sets `Content-Type` and nothing else — while `turnstileEnabled()`
+// is one flag over the whole app. So setting `TURNSTILE_SECRET_KEY` to arm the
+// upload pipeline, which is the thing it was written for and which does work,
+// would have made "Plan a ride" 403 for everybody. Dark code that breaks the
+// app the day a flag is flipped is worse than no code.
+//
+// Removed rather than fixed, because Turnstile answers "is this a human" and
+// this route already asks a HARDER question: `requireActiveApi` means an
+// account Ziad personally approved, and `requireSameOrigin` means the request
+// came from the site. A bot holding both is not stopped by a checkbox. The
+// import path is the one that earns it — it opens files strangers hand it and
+// writes them to disk against a quota — and it keeps its gate.
+//
+// Note the blast radius was narrower than it looked, which is why nobody hit
+// it: only CREATE was gated. The autosave `PUT /api/rides/:id` and the clone
+// never were, so an existing ride would have gone on saving.
+//
+// If a bot check is ever wanted here, the answer is rate limiting (#16), not a
+// widget: a token is single-use and expires in five minutes, so it cannot ride
+// on an autosave that fires every three seconds.
 builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
-
-  // Same bot gate as import: enforced once Turnstile keys are set. The token
-  // rides in the X-Turnstile-Token header for JSON requests.
-  if (turnstileEnabled()) {
-    const token = c.req.header('X-Turnstile-Token') ?? ''
-    if (!(await verifyTurnstile(token, c.req.header('CF-Connecting-IP')))) {
-      return c.json({ error: 'bot check failed—reload and try again' }, 403)
-    }
-  }
 
   const body = await parseRideBody(c)
   if (!body.data) return c.json({ error: body.error }, 400)
