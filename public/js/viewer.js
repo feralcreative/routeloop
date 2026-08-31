@@ -180,10 +180,9 @@
   }
 
   /**
-   * Where the rider would be at the scrubbed moment, and the circle around them.
+   * The moment dot, the fuel ring around it, and where the tank runs dry.
    *
-   * THE RADIUS IS THE STRAIGHT LINE TO A POINT ON THE ROUTE, never the
-   * remaining range — see the header of public/js/range-circle.js. This mirrors
+   * THE RING'S RADIUS IS THE FUEL LEFT — see public/js/range-circle.js. Mirrors
    * paintMoment() in builder.js; the two differ only in where the day's track
    * and the range come from, which is why the arithmetic is in a shared module
    * rather than written twice.
@@ -200,16 +199,15 @@
     if (!here) return setMomentOverlay(state.map, null);
 
     // Null for a reader who is not on the roster, and for a member whose group
-    // has no bike on file. Both mean no circle, and nothing on the page tells
-    // the two apart — see the call site in src/index.tsx.
+    // has no bike on file. Both mean no ring, and nothing on the page tells the
+    // two apart — see the call site in src/index.tsx.
     const r = window.TB.range || {};
-    const rangeM = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
-    const fuelRole = r.fuelType === "electric" ? "charge" : "gas";
+    const range = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
+    const role = r.fuelType === "electric" ? "charge" : "gas";
 
-    const target = RANGE.fuelTargetAt(day, distM, cum, fuelRole, rangeM);
-    if (!target) return setMomentOverlay(state.map, here, null, 0, null);
-    const at = pointAtDistance(track, target.distM);
-    setMomentOverlay(state.map, here, at, at ? haversineM(here, at) : 0, target.kind);
+    const left = RANGE.remainingM(day, distM, cum, role, range);
+    const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
+    setMomentOverlay(state.map, here, dryAt == null ? null : pointAtDistance(track, dryAt), left);
   }
 
   function highlight(i) {

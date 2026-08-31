@@ -1166,9 +1166,14 @@ table.day-table {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-// The point the circle reaches: a hollow ring rather than a filled dot, so it
-// reads as a place on the route rather than as another stop. The circle's edge
-// passes through it, which is the whole claim being made.
+// WHERE THE TANK RUNS DRY: a hollow ring rather than a filled dot, so it reads
+// as a place on the route rather than as another stop.
+//
+// It is INDEPENDENT of the fuel ring, not its edge. The ring says how much fuel
+// is left as the crow flies; this says where that runs out on the road actually
+// being ridden, so the gap between them is the cost of the bends. $warning to
+// match .row-dist-dry: nothing has failed, the rider is being told to put a
+// fuel stop in.
 .tb-moment-target::after {
   content: "";
   position: absolute;
@@ -1178,14 +1183,8 @@ table.day-table {
   box-sizing: border-box;
   border-radius: 50%;
   background: $white;
-  border: 3px solid $brand;
+  border: 3px solid $warning;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-
-// Running dry is a problem with the plan; reaching the next pump is the plan
-// working. They must not look alike — see setMoment().
-.tb-moment-target.is-dry::after {
-  border-color: $warning;
 }
 
 .tb-marker {

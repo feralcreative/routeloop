@@ -1471,12 +1471,11 @@
   }
 
   /**
-   * The moment dot and the range circle around it.
+   * The moment dot, the fuel ring around it, and where the tank runs dry.
    *
-   * THE RADIUS IS THE STRAIGHT LINE TO A POINT ON THE ROUTE, never the
-   * remaining range — see the header of public/js/range-circle.js for why that
-   * distinction is the whole feature. This function only measures the line and
-   * hands it to the map; the target is chosen there.
+   * THE RING'S RADIUS IS THE FUEL LEFT — the bike's range minus the miles
+   * ridden since the last fill — so it shrinks as the rider scrubs, refills at
+   * every pump, and is gone at max range. See public/js/range-circle.js.
    */
   function paintMoment(a) {
     const day = a && a.dayIndex != null ? state.days[a.dayIndex] : null;
@@ -1490,13 +1489,13 @@
     const here = pointAtDistance(track, distM);
     if (!here) return setMomentOverlay(state.map, null);
 
-    // A null target is the ordinary case, not the edge one: a rider with no
-    // bike on file has no range, and a day that ends before the tank does has
-    // nothing to point at. The dot is still where they would be.
-    const target = RANGE.fuelTargetAt(day, distM, cum, fuelRole(), rangeM());
-    if (!target) return setMomentOverlay(state.map, here, null, 0, null);
-    const at = pointAtDistance(track, target.distM);
-    setMomentOverlay(state.map, here, at, at ? haversineM(here, at) : 0, target.kind);
+    // Null is the ordinary case, not the edge one: a rider with no bike on file
+    // has no range. The dot is still where they would be.
+    const role = fuelRole();
+    const range = rangeM();
+    const left = RANGE.remainingM(day, distM, cum, role, range);
+    const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
+    setMomentOverlay(state.map, here, dryAt == null ? null : pointAtDistance(track, dryAt), left);
   }
 
   function clearMarkers() {

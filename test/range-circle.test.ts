@@ -77,105 +77,101 @@ describe('where the rider is', () => {
   })
 })
 
-describe('what the circle reaches to', () => {
-  // 300 miles of range, filled at mile 100. Dry at 400, past the day's 240, and
-  // there is no pump after Shell — so nothing to point at and nothing wrong.
-  it('is nothing when the day ends before the tank does', () => {
+describe('fuel left in the tank', () => {
+  // THE RING IS THE TANK. 300 miles of range, 120 miles in, on a day whose only
+  // pump is at 100 — so the last fill was 100 and 20 miles have been burned.
+  it('is the range minus the miles since the last fill', () => {
     const d = day()
-    expect(R.fuelTargetAt(d, mi(120), cum(d), 'gas', mi(300))).toBeNull()
+    expect(round(R.remainingM(d, mi(120), cum(d), 'gas', mi(300)))).toBe(280)
   })
 
-  // 120 miles of range, filled at 100, so dry at 220 — inside the day, and no
-  // pump before it. This is the warning.
-  it('is the dry point when the tank runs out first', () => {
-    const d = day()
-    const t = R.fuelTargetAt(d, mi(120), cum(d), 'gas', mi(120))
-    expect(t.kind).toBe('dry')
-    expect(round(t.distM)).toBe(220)
-  })
-
-  it('is the next pump when one comes first', () => {
-    const d = day()
-    const t = R.fuelTargetAt(d, mi(20), cum(d), 'gas', mi(300))
-    expect(t.kind).toBe('fuel')
-    expect(round(t.distM)).toBe(100)
-  })
-
-  // A zero-radius circle says nothing, and the question standing at a pump is
-  // what comes after it.
-  it('looks past a pump the rider is standing on', () => {
+  // The whole point of the ring on a day with nothing planned: it shrinks
+  // steadily and is gone exactly at the binding bike's max range.
+  it('shrinks steadily and reaches zero at max range with no fuel stop planned', () => {
     const d: Day = {
-      points: [stop('Home'), stop('Shell', ['gas']), stop('Arco', ['gas']), stop('End')],
-      legs: [leg(100), leg(90), leg(70)],
+      points: [stop('Home'), stop('Nowhere'), stop('End')],
+      legs: [leg(100), leg(140)],
     }
-    const t = R.fuelTargetAt(d, mi(100), cum(d), 'gas', mi(300))
-    expect(t.kind).toBe('fuel')
-    expect(round(t.distM)).toBe(190)
+    const at = (m: number) => round(R.remainingM(d, mi(m), cum(d), 'gas', mi(150)))
+    expect(at(0)).toBe(150)
+    expect(at(50)).toBe(100)
+    expect(at(100)).toBe(50)
+    expect(at(150)).toBe(0)
   })
 
-  // The tank refills at every pump passed, so the dry point moves forward with
-  // the rider rather than being fixed from the start of the day.
-  it('measures dry from the last pump passed, not from the day’s start', () => {
+  it('refills to the whole range at a fuel stop', () => {
     const d = day()
-    // Before Shell: dry at 150 with a 150-mile tank.
-    expect(round(R.fuelTargetAt(d, mi(10), cum(d), 'gas', mi(150)).distM)).toBe(100)
-    // After Shell: filled at 100, so dry at 250 — past the day.
-    expect(R.fuelTargetAt(d, mi(120), cum(d), 'gas', mi(150))).toBeNull()
+    expect(round(R.remainingM(d, mi(99), cum(d), 'gas', mi(150)))).toBe(51)
+    expect(round(R.remainingM(d, mi(100), cum(d), 'gas', mi(150)))).toBe(150)
+  })
+
+  // Past dry the rider is not carrying negative fuel. The ring is simply gone.
+  it('clamps at zero rather than going negative', () => {
+    const d = day()
+    expect(R.remainingM(d, mi(230), cum(d), 'gas', mi(50))).toBe(0)
   })
 
   // gas and charge are the same event on two kinds of machine. An electric
-  // rider passing a Chevron has refuelled nothing, so their dry point is
-  // measured from the start of the day.
+  // rider passing a Chevron has refuelled nothing.
   it('ignores a pump the binding bike cannot use', () => {
     const d = day()
-    const t = R.fuelTargetAt(d, mi(120), cum(d), 'charge', mi(150))
-    expect(t.kind).toBe('dry')
-    expect(round(t.distM)).toBe(150)
+    expect(round(R.remainingM(d, mi(120), cum(d), 'charge', mi(300)))).toBe(180)
   })
 
-  it('prefers the pump when it and the dry point coincide', () => {
+  // NULL IS NOT ZERO, and collapsing them would eventually make one a number.
+  // Zero means the tank is empty; null means nobody measured it.
+  it('is null when no range is known, never zero', () => {
     const d = day()
-    // Filled at 0, 100 miles of range, dry exactly at Shell.
-    expect(R.fuelTargetAt(d, mi(10), cum(d), 'gas', mi(100)).kind).toBe('fuel')
+    expect(R.remainingM(d, mi(20), cum(d), 'gas', null)).toBeNull()
+    expect(R.remainingM(d, mi(20), cum(d), 'gas', 0)).toBeNull()
+    expect(R.remainingM(d, mi(20), cum(d), 'gas', -5)).toBeNull()
+    expect(R.remainingM(d, null, cum(d), 'gas', mi(120))).toBeNull()
   })
+})
 
-  // NULL IS NOT A DEFAULT. A circle drawn for a bike with no range on file
-  // implies somebody checked the rider could make it. Nobody did.
-  it('is nothing when no range is known', () => {
+describe('where the tank runs dry', () => {
+  it('is the last fill plus the range', () => {
     const d = day()
-    expect(R.fuelTargetAt(d, mi(20), cum(d), 'gas', null)).toBeNull()
-    expect(R.fuelTargetAt(d, mi(20), cum(d), 'gas', 0)).toBeNull()
-    expect(R.fuelTargetAt(d, mi(20), cum(d), 'gas', -5)).toBeNull()
+    expect(round(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(120)))).toBe(220)
   })
 
-  it('is nothing when there is no position to measure from', () => {
+  it('is null when the day ends before the tank does', () => {
     const d = day()
-    expect(R.fuelTargetAt(d, null, cum(d), 'gas', mi(120))).toBeNull()
+    expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(300))).toBeNull()
   })
 
-  // THE DEFECT THIS REPLACED A WRONG TEST FOR. An earlier version dropped a dry
-  // point once the rider was past it, on the reasoning that a target behind you
-  // is not a target. Measured on ride 15 — a 259-mile day on a 120-mile tank —
-  // the warning showed for the first 46% of the day and then vanished, so the
-  // map went quiet at exactly the moment the plan was worst.
-  it('keeps pointing at the dry point after the rider passes it', () => {
+  it('moves forward with each fill the rider passes', () => {
     const d = day()
-    const t = R.fuelTargetAt(d, mi(200), cum(d), 'gas', mi(120))
-    expect(t.kind).toBe('dry')
-    expect(round(t.distM)).toBe(220)
+    // Before Shell: dry at 150 on a 150-mile tank.
+    expect(round(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(150)))).toBe(150)
+    // After Shell, filled at 100: dry at 250, past the day's 240.
+    expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(150))).toBeNull()
   })
 
-  // Looks backwards and is not: a station the rider cannot reach on this tank
-  // is not the answer to anything. Where they ran out is.
-  it('prefers a dry point behind the rider to a pump they cannot reach', () => {
-    const d: Day = {
-      points: [stop('Home'), stop('Nowhere'), stop('Arco', ['gas']), stop('End')],
-      legs: [leg(100), leg(80), leg(60)],
-    }
-    // 50 miles of range and no fill: dry at 50, the pump at 180, rider at 120.
-    const t = R.fuelTargetAt(d, mi(120), cum(d), 'gas', mi(50))
-    expect(t.kind).toBe('dry')
-    expect(round(t.distM)).toBe(50)
+  // It is a fact about the day, not about where the rider is. Dropping it once
+  // passed made the map go quiet at exactly the moment the plan was worst.
+  it('stays put once the rider is past it', () => {
+    const d = day()
+    expect(round(R.dryDistanceM(d, mi(200), cum(d), 'gas', mi(120)))).toBe(220)
+  })
+
+  it('is null when no range is known', () => {
+    const d = day()
+    expect(R.dryDistanceM(d, mi(20), cum(d), 'gas', null)).toBeNull()
+  })
+})
+
+describe('the last fill', () => {
+  it('is the start of the day before any pump', () => {
+    const d = day()
+    expect(R.lastFillM(d, mi(50), cum(d), 'gas')).toBe(0)
+  })
+
+  // Standing at the pump the tank is full, matching the reading sinceRefuelM()
+  // gives that row in the day list.
+  it('counts a pump the rider is standing on', () => {
+    const d = day()
+    expect(round(R.lastFillM(d, mi(100), cum(d), 'gas'))).toBe(100)
   })
 })
 
