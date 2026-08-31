@@ -302,20 +302,33 @@ echo ""
 # Composed here, above the dry-run exit, so `--dry-run` exercises the guard
 # below. A check that only runs during a real deploy is one nobody can test.
 # Supplies every ${VAR} in docker-compose.yml. Contains secrets → mode 600.
-# EVERY KEY THE CONTAINER NEEDS, NAMED ONCE. The writer below fills these in and
-# the verifier checks for exactly these, so a key added to the release and not to
-# the server cannot slip through on a CI deploy that does not write the file.
-# Two lists would have drifted the first time anybody added a variable.
+# **EVERY KEY THE RELEASE REQUIRES — NOT EVERY KEY THAT GETS SENT, WHICH IS
+# WHAT THIS COMMENT CLAIMED UNTIL 2026-08-30.** It read "named once" and "two
+# lists would have drifted", and there have always been two: this one, and the
+# `printf` allow-list below that actually composes the file. They had already
+# diverged — OWNER_EMAIL and PURGE_ACCOUNTS are written and are not named here.
 #
-# ADDING A NAME HERE MAKES IT MANDATORY, SO PUSH THE VALUE FIRST. The verifier
-# below refuses the deploy when a key on this list is missing from the server's
-# .env — and it greps for `^KEY=.`, so an EMPTY value does not satisfy it
-# either. Under DEPLOY_SKIP_ENV, which is every CI deploy, this run has no way
-# to supply one. So the order is: put the value in the local .env, run
-# `utils/deploy/deploy-utils.sh push-env` for each environment, and only then
-# add the name here. Reversed, the next CI deploy fails after a full build.
-# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are the current example — see the
-# block for them in .env.example.
+# The divergence is the right shape, so it is written down rather than removed.
+# The two lists answer different questions:
+#
+#   the printf block  what gets SENT. An OPTIONAL key belongs there alone, with
+#                     a `:-` default, so a laptop deploy carries it and an unset
+#                     one composes to empty rather than killing the run under
+#                     `set -u`.
+#   REMOTE_ENV_KEYS   what is REQUIRED. Naming a key here turns its absence into
+#                     a loud failure instead of a silent misconfiguration.
+#
+# **SO ADDING A NAME HERE MAKES IT MANDATORY, AND THE VALUE HAS TO REACH THE
+# SERVER FIRST.** The verifier below refuses the deploy when a key on this list
+# is missing from the server's .env, and it greps for `^KEY=.` — an EMPTY value
+# does not satisfy it either. Under DEPLOY_SKIP_ENV, which is every CI deploy,
+# this run has no way to supply one, and stage deploys itself on every push to
+# main. So the order is: value into the local .env, `deploy-utils.sh push-env`
+# for each environment, and only then the name here. Reversed, the next CI
+# deploy fails after a full build.
+#
+# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are in the printf block and
+# deliberately NOT here, for exactly that reason.
 REMOTE_ENV_KEYS="COMPOSE_PROJECT_NAME IMAGE_NAME DB_CONTAINER_NAME HOST_PORT ALIAS_HOST_PORT
 APP_UID APP_GID GMAPS_KEY GMAPS_SERVER_KEY GMAPS_MAP_ID DB_PASSWORD APP_ORIGIN
 GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET APP_VERSION BUILD_SHA DRAIN_GRACE_MS
@@ -363,6 +376,8 @@ printf '%s\n' \
   "APP_VERSION=${APP_VERSION}" \
   "BUILD_SHA=${GIT_SHA}" \
   "PURGE_ACCOUNTS=${PURGE_ACCOUNTS:-}" \
+  "TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}" \
+  "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}" \
   "DRAIN_GRACE_MS=${DRAIN_GRACE_MS:-10000}" \
   "BLUE_CONTAINER_NAME=${BLUE_CONTAINER_NAME}" \
   "GREEN_CONTAINER_NAME=${GREEN_CONTAINER_NAME}" \

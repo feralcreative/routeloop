@@ -114,6 +114,14 @@ services:
       # stay comfortably under stop_grace_period below, or the runtime SIGKILLs
       # mid-drain and this number reads as though it did something.
       DRAIN_GRACE_MS: ${DRAIN_GRACE_MS}
+      # Cloudflare Turnstile, the bot check on the FILE UPLOAD and nothing else
+      # — see the note above POST /api/rides in src/routes/builder.ts for why
+      # ride creation deliberately has none. The secret is the switch:
+      # turnstileEnabled() is `SECRET.length > 0`, so an empty value here leaves
+      # every check passing rather than failing closed. The site key is public
+      # and ships in page source; only the secret is a secret.
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: blue
     volumes:
@@ -183,6 +191,14 @@ services:
       # stay comfortably under stop_grace_period below, or the runtime SIGKILLs
       # mid-drain and this number reads as though it did something.
       DRAIN_GRACE_MS: ${DRAIN_GRACE_MS}
+      # Cloudflare Turnstile, the bot check on the FILE UPLOAD and nothing else
+      # — see the note above POST /api/rides in src/routes/builder.ts for why
+      # ride creation deliberately has none. The secret is the switch:
+      # turnstileEnabled() is `SECRET.length > 0`, so an empty value here leaves
+      # every check passing rather than failing closed. The site key is public
+      # and ships in page source; only the secret is a secret.
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: green
     volumes:
