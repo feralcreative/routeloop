@@ -682,9 +682,11 @@
         map,
         content: targetEl(),
         zIndex: 5,
-        // The letter alone does not say what it stands for, and there is no
-        // legend on the map to carry it.
-        title: "Out of fuel here",
+        // NOT gmpClickable. It would make the marker reachable, and it also
+        // exposes <gmp-advanced-marker> as a BUTTON — a control a screen reader
+        // announces and a keyboard can activate, which here does nothing at
+        // all. `pointer-events: auto` on the disc is enough on its own: Google
+        // sets `none` on the container, and a descendant may re-enable it.
       });
     }
     return m.targets[i];
@@ -698,9 +700,34 @@
   function targetEl() {
     const el = document.createElement("div");
     el.className = "tb-moment-target";
+    // THE DISC IS A REAL CHILD, NOT A PSEUDO-ELEMENT. The wrapper has to stay
+    // 0x0 — AdvancedMarkerElement anchors its content at bottom-center, so a
+    // sized wrapper drifts off the point, the same rule .tb-marker follows — but
+    // a 0x0 box is not a hover target and not something an accessibility tree
+    // treats as visible. The child carries the size, the letter, the name, and
+    // the hover.
     const glyph = document.createElement("i");
+    glyph.className = "tb-moment-disc";
     glyph.textContent = "E";
+    glyph.setAttribute("role", "img");
+    glyph.setAttribute("aria-label", "Out of fuel here");
     el.appendChild(glyph);
+    // A TOOLTIP OF OUR OWN, NOT `title`. The native one waits about a second,
+    // renders in the OS style at the pointer, and cannot be styled — on a map
+    // that is slow enough to miss and quiet enough to ignore. This one is CSS
+    // on hover, so it appears instantly and reads as part of the map.
+    //
+    // It is why `.tb-moment-target` takes pointer events where `.tb-moment-dot`
+    // does not: the disc has to be hoverable. The cost is six small dead spots
+    // for drag-to-shape, one per wall, which is the same cost every other
+    // marker on the map already imposes.
+    const tip = document.createElement("span");
+    tip.className = "tb-moment-tip";
+    tip.textContent = "Empty";
+    // The disc's aria-label already says this, and better. Left readable, the
+    // tooltip joins the marker's accessible name as "Out of fuel here Empty".
+    tip.setAttribute("aria-hidden", "true");
+    el.appendChild(tip);
     return el;
   }
 
