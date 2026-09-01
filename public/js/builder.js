@@ -73,7 +73,7 @@
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
   const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance } = window.TBShape;
-  const { bearingAtDistance, sliceBetween, haversineM } = window.TBShape;
+  const { bearingAtDistance, sliceBetween, circlePath, haversineM } = window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -1514,26 +1514,30 @@
       state.map,
       here,
       dryPt,
-      ringRadius(here, track, distM, reach),
+      ringPath(here, track, distM, reach),
       dryAt == null ? null : bearingAtDistance(track, dryAt),
       gap && sliceBetween(track, gap.from, gap.to),
     );
   }
 
   /**
-   * The ring's radius: the straight line from the rider to the furthest point
-   * on the route their fuel reaches, so its edge is a PLACE rather than a
-   * number and it collapses to nothing as they arrive there.
+   * The ring itself, as a closed path: a circle around the rider whose radius
+   * is the straight line to the furthest point on the route their fuel reaches,
+   * so its edge is a PLACE rather than a number and it collapses to nothing as
+   * they arrive there.
+   *
+   * A PATH RATHER THAN A RADIUS because the edge is dotted, and a dotted edge
+   * has to be a polyline — google.maps.Circle has no dash support at all.
    *
    * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
    * day the rider runs dry on and they are not on a day they do not — see
    * fuelReachM(), and note that drawing this from the wall is what made the
    * ring disappear for good after a rider's last refuel.
    */
-  function ringRadius(here, track, distM, reachM) {
+  function ringPath(here, track, distM, reachM) {
     if (!state.ringOn || reachM == null || reachM <= distM) return null;
     const at = pointAtDistance(track, reachM);
-    return at ? haversineM(here, at) : null;
+    return at ? circlePath(here, haversineM(here, at)) : null;
   }
 
   function clearMarkers() {

@@ -534,11 +534,30 @@
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   const RING = () => cssVar("--brand", "#1565c0");
+
+  // Small round dots rather than dashes: the ring is the quietest thing on the
+  // map and a dashed edge reads as a route, which is what every other dashed
+  // line here means — see dashIcons() and the ghosted-day treatment.
+  function ringDots(color) {
+    return [
+      {
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 1.3,
+          fillColor: color,
+          fillOpacity: 0.85,
+          strokeOpacity: 0,
+        },
+        offset: "0",
+        repeat: "9px",
+      },
+    ];
+  }
   // $stop, the palette's stop-sign red. NOT $signal, which is the blue of a go
   // light here — see the note on .tb-moment-target in style/_map.scss.
   const WALL = () => cssVar("--stop", "#cc0000");
 
-  const moments = new WeakMap(); // map -> { dot, circle, target, stretch }
+  const moments = new WeakMap(); // map -> { dot, circle, ringLine, target, stretch }
 
   function momentOf(map) {
     let m = moments.get(map);
@@ -547,16 +566,34 @@
       dot.className = "tb-moment-dot";
       m = {
         dot: new Marker.AdvancedMarkerElement({ map, content: dot, zIndex: 6 }),
-        circle: new Maps.Circle({
+        // THE FILL ONLY, and a Polygon rather than a Circle. Circle cannot draw
+        // a dashed or dotted edge — it has strokeWeight, strokeColor and
+        // strokeOpacity and nothing else — so the edge is the polyline below,
+        // which carries repeating icons the way a ghosted day does. Once the
+        // edge is a path, the fill may as well take the same one: two overlays
+        // built from one array cannot disagree about where the ring is.
+        //
+        // Below the route lines, so a ring drawn over a day never obscures the
+        // road it is a statement about.
+        circle: new Maps.Polygon({
           map,
-          // Below the route lines, so a circle drawn over a day never obscures
-          // the road it is a statement about.
           zIndex: 1,
           clickable: false,
           visible: false,
-          strokeWeight: 2,
-          strokeOpacity: 0.9,
-          fillOpacity: 0.07,
+          strokeWeight: 0,
+          strokeOpacity: 0,
+          fillOpacity: 0.05,
+        }),
+        // The ring's edge, drawn as dots. Same zIndex as the fill: they are one
+        // object and nothing should ever come between them.
+        ringLine: new Maps.Polyline({
+          map,
+          zIndex: 1,
+          clickable: false,
+          visible: false,
+          // The stroke itself is transparent and the DOTS are the icons — the
+          // same mechanism dashIcons() uses. See ringDots().
+          strokeOpacity: 0,
         }),
         target: new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 }),
         // THE STRETCH THE RIDER CANNOT MAKE, from the wall to the next pump.
@@ -598,11 +635,11 @@
   /**
    * Draw the moment, or clear it with a null `at`.
    *
-   * `at` and `dry` are [lng, lat]; `radiusM` is the straight line to the
-   * furthest point the fuel reaches; `dryBearing` is the road's heading at the
-   * wall in degrees clockwise from north; `dryPath` is the stretch from the
-   * wall to the next pump. All of it is computed by the caller — this file
-   * draws and decides nothing.
+   * `at` and `dry` are [lng, lat]; `ringPath` is the fuel ring's own closed
+   * path; `dryBearing` is the road's heading at the wall in degrees clockwise
+   * from north; `dryPath` is the stretch from the wall to the next pump. All of
+   * it is computed by the caller — this file draws and decides nothing, which
+   * is why the ring arrives as a path rather than as a radius.
    *
    * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
    * than three setters: a ring left behind around a dot that has moved on is a
@@ -614,23 +651,30 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dry, radiusM, dryBearing, dryPath) {
+  function setMomentOverlay(map, at, dry, ringPath, dryBearing, dryPath) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
       m.target.map = null;
       m.circle.setVisible(false);
+      m.ringLine.setVisible(false);
       m.stretch.setVisible(false);
       return;
     }
     m.dot.position = toLatLng(at);
     m.dot.map = map;
 
-    if (radiusM > 0) {
-      m.circle.setOptions({ center: toLatLng(at), radius: radiusM, strokeColor: RING(), fillColor: RING() });
+    if (ringPath && ringPath.length > 2) {
+      const path = ringPath.map(toLatLng);
+      m.circle.setOptions({ fillColor: RING() });
+      m.circle.setPath(path);
       m.circle.setVisible(true);
+      m.ringLine.setOptions({ icons: ringDots(RING()) });
+      m.ringLine.setPath(path);
+      m.ringLine.setVisible(true);
     } else {
       m.circle.setVisible(false);
+      m.ringLine.setVisible(false);
     }
 
     // Independent of the ring, and drawn whenever the day holds one. The ring

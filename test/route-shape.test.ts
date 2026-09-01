@@ -332,3 +332,43 @@ describe('sliceBetween', () => {
     expect(path[1]).not.toBe(line[1])
   })
 })
+
+// A ring of points at a fixed distance, for #229's fuel ring — drawn as a
+// polyline because google.maps.Circle has no dash support at all, so a dotted
+// edge cannot be a Circle.
+describe('circlePath', () => {
+  const centre: [number, number] = [-122, 38]
+
+  it('puts every point exactly the radius away', () => {
+    for (const r of [1000, 50_000, 200_000]) {
+      const ds = S.circlePath(centre, r).map((p: [number, number]) => S.haversineM(centre, p))
+      expect(Math.min(...ds)).toBeCloseTo(r, 0)
+      expect(Math.max(...ds)).toBeCloseTo(r, 0)
+    }
+  })
+
+  // Geodesic, not a flat ellipse: a degree of longitude is half a degree of
+  // latitude at 60N, and a ring built by adding degrees would be an oval.
+  it('stays a true ring at high latitude', () => {
+    const arctic: [number, number] = [-122, 68]
+    const ds = S.circlePath(arctic, 100_000).map((p: [number, number]) => S.haversineM(arctic, p))
+    expect(Math.max(...ds) - Math.min(...ds)).toBeLessThan(1)
+  })
+
+  it('closes itself so the caller does not have to', () => {
+    const p = S.circlePath(centre, 10_000)
+    expect(p[0][0]).toBeCloseTo(p[p.length - 1][0], 9)
+    expect(p[0][1]).toBeCloseTo(p[p.length - 1][1], 9)
+  })
+
+  it('takes a step count and defaults to a smooth one', () => {
+    expect(S.circlePath(centre, 10_000)).toHaveLength(73)
+    expect(S.circlePath(centre, 10_000, 8)).toHaveLength(9)
+  })
+
+  it('is null when there is no ring to draw', () => {
+    expect(S.circlePath(centre, 0)).toBeNull()
+    expect(S.circlePath(centre, -5)).toBeNull()
+    expect(S.circlePath(null, 100)).toBeNull()
+  })
+})

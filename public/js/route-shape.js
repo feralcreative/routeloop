@@ -215,6 +215,40 @@
     return (deg + 360) % 360;
   }
 
+  /**
+   * A closed ring of points `radiusM` from `center`, as a path.
+   *
+   * FOR DRAWING A CIRCLE AS A POLYLINE, which is the only way to get a dashed
+   * or dotted one: google.maps.Circle has strokeWeight, strokeColor and
+   * strokeOpacity and no dash support at all, while a Polyline can carry
+   * repeating icons — the same mechanism dashIcons() uses for a ghosted day.
+   *
+   * Geodesic rather than a flat ellipse, so it stays a true constant-distance
+   * ring at any latitude. The last point repeats the first, so the caller draws
+   * it without having to close it.
+   */
+  function circlePath(center, radiusM, steps) {
+    if (!center || !(radiusM > 0)) return null;
+    var n = steps || 72;
+    var rad = Math.PI / 180;
+    var R = 6371008.8;
+    var d = radiusM / R;
+    var lat1 = center[1] * rad;
+    var lng1 = center[0] * rad;
+    var sinLat1 = Math.sin(lat1);
+    var cosLat1 = Math.cos(lat1);
+    var out = [];
+    for (var i = 0; i <= n; i++) {
+      var brg = ((i % n) / n) * 2 * Math.PI;
+      var lat2 = Math.asin(sinLat1 * Math.cos(d) + cosLat1 * Math.sin(d) * Math.cos(brg));
+      var lng2 =
+        lng1 +
+        Math.atan2(Math.sin(brg) * Math.sin(d) * cosLat1, Math.cos(d) - sinLat1 * Math.sin(lat2));
+      out.push([lng2 / rad, lat2 / rad]);
+    }
+    return out;
+  }
+
   // Mirrors haversineTrack() in builder.js and the constant in twist.js. Both
   // use the IUGG mean radius; keep the three in step.
   function haversineM(a, b) {
@@ -228,5 +262,5 @@
 
   // haversineM is exported so range-circle.js can measure the straight line
   // between two points on a track without keeping a fourth copy of the formula.
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, sliceBetween, haversineM };
+  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, sliceBetween, circlePath, haversineM };
 })(typeof window !== "undefined" ? window : this);
