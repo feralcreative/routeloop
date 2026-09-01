@@ -1,12 +1,35 @@
 # Status and handoff
 
-**Updated:** 2026-08-30
-**Branch:** `feat/collaborative-planning`, committed, not pushed. **2,198 tests across 87 files** (2 skipped, 2,200 total)
+**Updated:** 2026-08-31
+**Branch:** `feat/fuel-food-sleep`, committed, not pushed. **2,319 tests across 91 files** (2 skipped, 2,321 total)
+**Closes, when it merges:** [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50) and [#54](https://github.com/feralcreative/routeloop/issues/54). [#229](https://github.com/feralcreative/routeloop/issues/229) was raised out loud and closed during the sprint. **[#220](https://github.com/feralcreative/routeloop/issues/220) stays OPEN**—its fuel half is done and its food-and-rest half is a later sprint.
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## Fuel range on the map—2026-08-31
+
+**Not deployed, not merged.** Branch `feat/fuel-food-sleep`, 31 commits. Closes [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50), [#54](https://github.com/feralcreative/routeloop/issues/54) and [#229](https://github.com/feralcreative/routeloop/issues/229). **[#220](https://github.com/feralcreative/routeloop/issues/220) is deliberately left open**: the fuel half is finished and the food-and-rest half has not been started.
+
+**Most of it was wiring rather than inventing.** `bikes.usable_range_m` and `groupRange()` were already there from #11 and #52 and had exactly one reader, the roster page. The day list now counts distance-in and distance-on-this-tank from them, and the map draws the rest.
+
+**The map answers where the fuel runs out, at every interval.** `dryDistancesM()` walks the whole day and returns one distance per tankful, refilling at each pump the current tank can reach and treating each wall as a notional stop—so a 798-mile day with one station shows all six places fuel has to go, not just the first. A red disc with a white **E** marks each, the route goes red-and-white hazard tape from the first wall to the next pump, and a dotted red ring around the rider collapses to nothing exactly as they reach the point they run dry.
+
+**Six designs were tried and five rejected, and the rejections are recorded in the code because each reads as obviously right.** The ring was a plain range circle (overclaims on any road that bends), then the straight line to a MOVING target that jumped between pumps and grew once passed (unreadable), before landing on the straight line to a target that holds still. The wall was a hollow ring (reads as another stop), then a bar laid perpendicular to the road—whose angle was correct and still looked wrong, because a broadly northbound route runs genuinely east-west for a mile here and there. Smoothing the heading over a wider chord was measured and trades one wrongness for another. A sign is read upright and has no angle to get wrong.
+
+**Three real defects were found by using it rather than by reading it.** The ring vanished for good past a rider's last refuel, because it was drawn from `dryDistanceM()`, which correctly returns null once the tank outlasts the day. The wall was declared one mile past the pump the rider actually stops at, because the walk only knew about fills BEHIND them. And the whole overlay was invisible until somebody happened to drag the slider, because `state.moment` is null until then. Each is now a test.
+
+**#50 shipped twice.** First as a checkbox beside a 1–50 mile slider, which was rejected on sight: a checkbox never says what unchecking it does, and the corridor width is a preference rather than a per-search decision. It is `On screen | Along the day` with a fixed 15 miles, rendered once per day. The typed search is now RESTRICTED to the visible map rather than biased toward it, and a fallback to the biased search when the viewport had nothing was tried and removed the same hour—zoomed into the Bay Area, "shell" came back Shelley ID, Shell Lake WI and Shell Knob MO.
+
+**The whole-ride scrubber skips the overnights.** On ride 15—nine days, 102.9 wall-clock hours, 37.8 of them riding—63% of the slider's travel was nights in hotels, showing "between days" and an empty map.
+
+**`#cc0000` came out of `DAY_COLORS`.** It is the exact value of `$stop`, so a day assigned it drew its whole route in the color that now means "you cannot ride this". Rides colored before this keep what they were given; the palette is what is offered, not what is enforced.
+
+**Verified in a real browser on both surfaces**, which is the part nothing automated covers: the markers, the ring and the hazard stretch on load and while scrubbing, the `Range` toggle clearing all three and restoring them, the legend-hover suppression in the viewer, and the tooltip appearing on hover. The Places calls were checked by intercepting the request rather than spending them.
+
+**What has NOT been done:** the food and rest half of #220. `bikes.comfort_range_m` is stored and unread—that is #27's rest cadence—and nothing yet says when a rider is due to eat or due to stop.
 
 ## Two riders can plan one ride at once—2026-08-30
 
