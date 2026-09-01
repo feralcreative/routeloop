@@ -1166,8 +1166,12 @@ table.day-table {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-// WHERE THE TANK RUNS DRY: a no-entry sign — a red disc with a white bar
-// across it, which is the actual sign for "you cannot proceed".
+// WHERE THE TANK RUNS DRY: a red disc with a white E on it, for empty.
+//
+// NOT A NO-ENTRY SIGN. It was one for a build, and a red disc with a white BAR
+// is the international sign for a road CLOSURE — which this is not. The road is
+// open; the rider has no fuel to reach it on. Ziad's call, 2026-08-31. The
+// letter is what tells the two apart without a legend.
 //
 // IT DOES NOT ROTATE. It replaced a red bar laid perpendicular to the road,
 // whose angle was correct and still looked wrong: a broadly northbound route
@@ -1194,22 +1198,29 @@ table.day-table {
   border-radius: 50%;
   background: $stop;
   // A white ring, because the sign sits ON the dry stretch, which is drawn in
-  // this same red — without it the disc would vanish into the road it marks.
+  // this same red and would otherwise swallow it.
   border: 2px solid $white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
-// The bar across the disc. Centred on the same origin, so it lands over the
-// middle of it whatever the disc's size.
+// The E. Centred on the same origin as the disc, so it stays in the middle of
+// it whatever the disc's size.
 .tb-moment-target > i {
   position: absolute;
-  display: block;
-  width: 11px;
-  height: 3px;
-  margin: -1.5px 0 0 -5.5px;
-  border-radius: 1px;
-  background: $white;
-  // Above the disc's own ::after, which shares this stacking context.
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  // <i> is italic by default and this is a sign face, not emphasis.
+  font-style: normal;
+  font-weight: 700;
+  font-size: 12px;
+  // 1, so the glyph's own box does not push it off the disc's centre.
+  line-height: 1;
+  color: $white;
+  // The disc's box-shadow would otherwise fall across the letter.
   z-index: 1;
 }
 

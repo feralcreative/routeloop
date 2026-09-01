@@ -656,8 +656,12 @@
     return m;
   }
 
-  // A NO-ENTRY SIGN at the point the tank runs out: a red disc with a white bar
-  // across it, which is the actual sign for "you cannot proceed".
+  // WHERE THE TANK RUNS OUT: a red disc with a white E on it, for empty.
+  //
+  // NOT A NO-ENTRY SIGN, which is what it was for one build. A red disc with a
+  // white BAR is the international sign for a road CLOSURE, and this is not one
+  // — the road is open, the rider simply has no fuel to reach it on. Ziad's
+  // call, 2026-08-31. The letter is what tells the two apart without a legend.
   //
   // IT DOES NOT ROTATE, and that is the whole reason it replaced a bar laid
   // perpendicular to the road. The bar's angle was correct and still looked
@@ -669,12 +673,19 @@
   // 621, where the bar would then visibly not be square to the road in front of
   // it. A sign is meant to be read upright, so it has no angle to get wrong.
   //
-  // The `<i>` is the white bar, a child rather than a border so the two can be
-  // sized independently.
+  // The `<i>` carries the letter rather than the disc carrying it as text, so
+  // the two can be sized and positioned independently.
   /** The i-th wall marker, created on first use. */
   function wallMarker(m, map, i) {
     if (!m.targets[i]) {
-      m.targets[i] = new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 });
+      m.targets[i] = new Marker.AdvancedMarkerElement({
+        map,
+        content: targetEl(),
+        zIndex: 5,
+        // The letter alone does not say what it stands for, and there is no
+        // legend on the map to carry it.
+        title: "Out of fuel here",
+      });
     }
     return m.targets[i];
   }
@@ -687,7 +698,9 @@
   function targetEl() {
     const el = document.createElement("div");
     el.className = "tb-moment-target";
-    el.appendChild(document.createElement("i"));
+    const glyph = document.createElement("i");
+    glyph.textContent = "E";
+    el.appendChild(glyph);
     return el;
   }
 
