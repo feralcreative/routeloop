@@ -1166,40 +1166,51 @@ table.day-table {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-// WHERE THE TANK RUNS DRY: a short red bar laid ACROSS the road, like a wall.
-// Ziad's call, 2026-08-31, replacing a hollow ring — a dot on a line reads as
-// another stop, and this is the opposite of a stop, it is the place the ride
-// cannot continue past.
+// WHERE THE TANK RUNS DRY: a no-entry sign — a red disc with a white bar
+// across it, which is the actual sign for "you cannot proceed".
+//
+// IT DOES NOT ROTATE. It replaced a red bar laid perpendicular to the road,
+// whose angle was correct and still looked wrong: a broadly northbound route
+// runs genuinely east-west for a mile here and there, so a wall landing on one
+// of those stretches stood vertical against a northbound ride. Smoothing the
+// heading over a wider chord was measured and trades one wrongness for another.
+// A sign is read upright and has no angle to get wrong. See targetEl() in
+// map-common.js.
 //
 // $stop rather than $warning: the amber diamond means "put a fuel stop in" and
-// is what .row-dist-dry already says in the day list. A wall across the road is
-// not advice, so it takes the palette's stop-sign red. NOT $signal — that is
-// the blue of a signal head's go light in this palette, which is the opposite
-// of what a wall means and is exactly the mistake this comment exists to stop
-// somebody repeating.
+// is what .row-dist-dry says in the day list. This is not advice. NOT $signal
+// either — that is the blue of a go light in this palette.
 //
-// FIXED PIXELS, NOT METERS. A polyline drawn in real distance would be
-// invisible at low zoom and a mile wide at high zoom; a wall is a symbol and
-// should stay the same size at every scale.
-//
-// The <i> exists so the rotation has something of its own to sit on:
-// AdvancedMarkerElement manages the transform of the content root it is handed,
-// and a transform set there is overwritten. Rotated by setMomentOverlay() to
-// the road's heading — see the note there for why the angle is the bearing
-// itself rather than the bearing plus ninety.
+// FIXED PIXELS, NOT METERS. A sign is a symbol and should stay the same size at
+// every zoom; drawn in real distance it would be invisible at low zoom and a
+// mile wide at high zoom.
+.tb-moment-target::after {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: $stop;
+  // A white ring, because the sign sits ON the dry stretch, which is drawn in
+  // this same red — without it the disc would vanish into the road it marks.
+  border: 2px solid $white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+// The bar across the disc. Centred on the same origin, so it lands over the
+// middle of it whatever the disc's size.
 .tb-moment-target > i {
   position: absolute;
   display: block;
-  width: 22px;
-  height: 5px;
-  margin: -2.5px 0 0 -11px;
-  box-sizing: border-box;
-  background: $stop;
-  // A white keyline, because the bar sits ON the day's own line and a route
-  // colored anywhere near it would otherwise swallow it.
-  border: 1px solid $white;
+  width: 11px;
+  height: 3px;
+  margin: -1.5px 0 0 -5.5px;
   border-radius: 1px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  background: $white;
+  // Above the disc's own ::after, which shares this stacking context.
+  z-index: 1;
 }
 
 .tb-marker {

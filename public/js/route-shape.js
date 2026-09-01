@@ -170,52 +170,6 @@
   }
 
   /**
-   * Which way the road is heading at `targetM` along the track, in degrees
-   * clockwise from north. Null when the track has no direction to report.
-   *
-   * FOR ORIENTING SOMETHING DRAWN ACROSS THE ROAD — #229's dry marker is a bar
-   * perpendicular to it, and a bar at a fixed angle on a road that bends reads
-   * as a mistake rather than as a wall.
-   *
-   * SCREEN DEGREES, NOT A TRUE AZIMUTH, and the difference does not matter
-   * here. This is the equirectangular bearing — the longitude delta scaled by
-   * cos(lat) — which is what a conformal projection like the map's own Mercator
-   * actually draws, so a CSS `rotate()` of this value lands the bar where the
-   * road is. A great-circle forward azimuth would be more correct about the
-   * globe and less correct about the picture.
-   *
-   * ZERO-LENGTH SEGMENTS ARE SKIPPED. Two points in the same place is a shape
-   * this app produces deliberately — duplicating a point does it — and such a
-   * segment has no direction at all. atan2(0, 0) is 0, which is not "no
-   * heading", it is "due north", and a bar drawn from it would be confidently
-   * wrong.
-   */
-  function bearingAtDistance(track, targetM) {
-    if (!track || track.length < 2) return null;
-    var acc = 0;
-    var last = null;
-    for (var i = 1; i < track.length; i++) {
-      var seg = haversineM(track[i - 1], track[i]);
-      if (seg > 0) {
-        last = segmentBearing(track[i - 1], track[i]);
-        if (acc + seg >= targetM) return last;
-      }
-      acc += seg;
-    }
-    // Past the end, or asked for a distance beyond the track: the last real
-    // heading is the answer, and null only if the whole track is degenerate.
-    return last;
-  }
-
-  function segmentBearing(a, b) {
-    var rad = Math.PI / 180;
-    var x = (b[0] - a[0]) * Math.cos(((a[1] + b[1]) / 2) * rad);
-    var y = b[1] - a[1];
-    var deg = Math.atan2(x, y) / rad;
-    return (deg + 360) % 360;
-  }
-
-  /**
    * A closed ring of points `radiusM` from `center`, as a path.
    *
    * FOR DRAWING A CIRCLE AS A POLYLINE, which is the only way to get a dashed
@@ -262,5 +216,5 @@
 
   // haversineM is exported so range-circle.js can measure the straight line
   // between two points on a track without keeping a fourth copy of the formula.
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, bearingAtDistance, sliceBetween, circlePath, haversineM };
+  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, sliceBetween, circlePath, haversineM };
 })(typeof window !== "undefined" ? window : this);

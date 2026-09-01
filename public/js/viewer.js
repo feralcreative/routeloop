@@ -38,7 +38,7 @@
   // moment in both. See ride-time.js.
   const { rideSpan, rideSegments, segmentsTotalS, momentAtOffset, offsetAtMoment, activeAtMoment, fmtMoment } =
     window.TBTime;
-  const { pointAtDistance, bearingAtDistance, sliceBetween, circlePath, haversineM } = window.TBShape;
+  const { pointAtDistance, sliceBetween, circlePath, haversineM } = window.TBShape;
   const DIST = window.TBDistance;
   // Where the rider would be at a scrubbed moment, and how much fuel is left
   // there. See public/js/range-circle.js.
@@ -212,12 +212,10 @@
     const role = r.fuelType === "electric" ? "charge" : "gas";
 
     const reach = RANGE.fuelReachM(day, distM, cum, role, range);
-    // ONE WALL PER TANKFUL, not just the next one — see dryDistancesM(). Each
-    // carries the road's heading there so the bar lies across it rather than at
-    // a fixed angle, which on a bending road reads as a mistake.
+    // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
     const walls = RANGE.dryDistancesM(day, distM, cum, role, range)
-      .map((d) => ({ at: pointAtDistance(track, d), bearing: bearingAtDistance(track, d) }))
-      .filter((w) => w.at);
+      .map((d) => pointAtDistance(track, d))
+      .filter(Boolean);
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
     const gap = RANGE.dryStretch(day, distM, cum, role, range);

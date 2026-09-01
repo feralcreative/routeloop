@@ -625,10 +625,21 @@
     return m;
   }
 
-  // A BAR ACROSS THE ROAD, rotated to sit perpendicular to it — a tiny brick
-  // wall at the point the tank runs out. The rotation goes on an inner element
-  // rather than on the marker's own content root, because AdvancedMarkerElement
-  // manages the transform of what it is given and ours would be overwritten.
+  // A NO-ENTRY SIGN at the point the tank runs out: a red disc with a white bar
+  // across it, which is the actual sign for "you cannot proceed".
+  //
+  // IT DOES NOT ROTATE, and that is the whole reason it replaced a bar laid
+  // perpendicular to the road. The bar's angle was correct and still looked
+  // wrong: a route heading broadly north runs genuinely east-west for a mile
+  // here and there, so a wall landing on one of those stretches stood vertical
+  // against a northbound ride. Smoothing the heading over a wider chord was
+  // measured and trades one wrongness for another — on day 2 of ride 32 a
+  // five-mile window fixed the wall at mile 291 and broke the ones at 181 and
+  // 621, where the bar would then visibly not be square to the road in front of
+  // it. A sign is meant to be read upright, so it has no angle to get wrong.
+  //
+  // The `<i>` is the white bar, a child rather than a border so the two can be
+  // sized independently.
   /** The i-th wall marker, created on first use. */
   function wallMarker(m, map, i) {
     if (!m.targets[i]) {
@@ -652,8 +663,8 @@
   /**
    * Draw the moment, or clear it with a null `at`.
    *
-   * `at` is [lng, lat]; `dryWalls` is one `{ at, bearing }` per point the tank
-   * runs out, in order; `ringPath` is the fuel ring's own closed path;
+   * `at` is [lng, lat]; `dryWalls` is one [lng, lat] per point the tank runs
+   * out, in order; `ringPath` is the fuel ring's own closed path;
    * `dryPath` is the stretch from the first wall to the next pump. All of it is
    * computed by the caller — this file draws and decides nothing, which is why
    * the ring arrives as a path rather than as a radius.
@@ -698,18 +709,11 @@
     // is how much fuel is left as the crow flies; this is where that runs out
     // on the road the rider is actually on, and the gap between them is the
     // cost of the bends.
-    // ONE BAR PER WALL. PERPENDICULAR TO THE ROAD: the bar is authored
-    // horizontal, which is screen bearing 90, and CSS rotate() turns clockwise
-    // from there — so to lay it across a road heading `bearing` the rotation is
-    // exactly that bearing, not bearing plus ninety. A null bearing leaves it
-    // horizontal, which is the honest fallback for a track with no direction to
-    // report.
+    // ONE SIGN PER WALL, and no angle to compute — see targetEl().
     const walls = dryWalls || [];
     walls.forEach((w, i) => {
       const marker = wallMarker(m, map, i);
-      marker.position = toLatLng(w.at);
-      const bar = marker.content.firstElementChild;
-      if (bar) bar.style.transform = w.bearing == null ? "" : "rotate(" + w.bearing + "deg)";
+      marker.position = toLatLng(w);
       marker.map = map;
     });
     hideWalls(m, walls.length);
