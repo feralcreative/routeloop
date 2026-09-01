@@ -125,12 +125,23 @@ describe('where the tank runs dry', () => {
     expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(300))).toBeNull()
   })
 
-  it('moves forward with each fill the rider passes', () => {
+  // THIS TEST USED TO ASSERT THE BUG. It expected "dry at 150" for a rider ten
+  // miles into the day, because dryDistanceM() read only the fill BEHIND them —
+  // ignoring that they stop at Shell at 100 and set off again full. Fixed
+  // 2026-08-31; the answer is the same before and after that pump because
+  // reaching it was never in doubt.
+  it('is the same before and after a fill the rider is going to make', () => {
     const d = day()
-    // Before Shell: dry at 150 on a 150-mile tank.
-    expect(round(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(150)))).toBe(150)
-    // After Shell, filled at 100: dry at 250, past the day's 240.
+    // 150-mile tank, Shell at 100: filled there, dry at 250 and the day is 240.
+    expect(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(150))).toBeNull()
     expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(150))).toBeNull()
+  })
+
+  it('is measured from a fill the rider cannot reach only if they reach it', () => {
+    const d = day()
+    // An 80-mile tank cannot get to Shell at 100, so the ride stops at 80 and
+    // the pump beyond it changes nothing.
+    expect(round(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(80)))).toBe(80)
   })
 
   // It is a fact about the day, not about where the rider is. Dropping it once
@@ -168,6 +179,65 @@ describe('which points refuel', () => {
     expect(R.isRefuel(stop('S'), 'gas')).toBe(false)
     expect(R.isRefuel(null, 'gas')).toBe(false)
     expect(R.isRefuel(stop('S', ['gas']), null)).toBe(false)
+  })
+})
+
+describe('pumps the rider has not reached yet', () => {
+  // THE REPORTED DEFECT, with the real ride's numbers. Home at 0 tagged gas, a
+  // station at 108.6, the hotel at 209.7, on a 110-mile tank. dryDistanceM()
+  // read only the fill BEHIND the rider, so it answered "dry at 110" — a mile
+  // and a half past the pump they stop at — and the route went red from there
+  // to the end of a day they finish with nine miles in hand. The day list said
+  // "101 mi on this tank" at the hotel the whole time.
+  const testRide = (): Day => ({
+    points: [stop('Home', ['start', 'home', 'gas']), stop('Hopland', ['gas']), stop('Benbow', ['hotel', 'food'])],
+    legs: [leg(108.6), leg(101.1)],
+  })
+
+  it('counts a fill the rider has yet to make', () => {
+    const d = testRide()
+    const c = cum(d)
+    for (const at of [0, 50, 108.6, 150, 209]) {
+      expect(R.dryDistanceM(d, mi(at), c, 'gas', mi(110))).toBeNull()
+      expect(R.dryStretch(d, mi(at), c, 'gas', mi(110))).toBeNull()
+    }
+  })
+
+  // The ring is the tank they are ON and must still reset at the pump, which is
+  // why it is a separate function from the wall.
+  it('still resets the ring at that pump', () => {
+    const d = testRide()
+    const c = cum(d)
+    expect(round(R.fuelReachM(d, mi(50), c, 'gas', mi(110)))).toBe(110)
+    expect(round(R.fuelReachM(d, mi(120), c, 'gas', mi(110)))).toBe(210)
+  })
+
+  // The first pump out of reach is where the ride stops, and the walk must
+  // break there rather than skipping on to a later one it cannot get to.
+  it('stops at the first pump it cannot reach', () => {
+    const d: Day = {
+      points: [stop('Home', ['gas']), stop('Far', ['gas']), stop('Further', ['gas']), stop('End')],
+      legs: [leg(200), leg(50), leg(50)],
+    }
+    // 110-mile tank: Far at 200 is out of reach, so dry at 110 despite two
+    // pumps sitting beyond it.
+    expect(round(R.dryDistanceM(d, 0, cum(d), 'gas', mi(110)))).toBe(110)
+  })
+
+  it('chains through several fills it can reach', () => {
+    const d: Day = {
+      points: [stop('Home', ['gas']), stop('A', ['gas']), stop('B', ['gas']), stop('End')],
+      legs: [leg(100), leg(100), leg(100)],
+    }
+    // Filled at 0, 100 and 200 on a 110-mile tank, so dry at 310 — past the
+    // day's 300, which means the day is covered.
+    expect(R.dryDistanceM(d, 0, cum(d), 'gas', mi(110))).toBeNull()
+  })
+
+  it('ignores a pump the binding bike cannot use when walking forward', () => {
+    const d = testRide()
+    // An electric bike passes both petrol pumps having refuelled nothing.
+    expect(round(R.dryDistanceM(d, 0, cum(d), 'charge', mi(110)))).toBe(110)
   })
 })
 

@@ -116,6 +116,11 @@
    * covered.
    */
   function fuelReachM(day, distM, cum, fuelRole, rangeM) {
+    // THE TANK THE RIDER IS ON, not the one they run out of — deliberately NOT
+    // dryDistanceM(). The ring answers "how far does this fill get me", so it
+    // must reset at the next pump rather than looking past it; the wall answers
+    // "where does the ride stop", which is a different question and is why the
+    // two are separate functions.
     if (distM == null || !cum || !cum.length) return null;
     if (!(rangeM > 0)) return null;
     return Math.min(lastFillM(day, distM, cum, fuelRole) + rangeM, cum[cum.length - 1]);
@@ -134,7 +139,30 @@
   function dryDistanceM(day, distM, cum, fuelRole, rangeM) {
     if (distM == null || !cum || !cum.length) return null;
     if (!(rangeM > 0)) return null;
-    var dry = lastFillM(day, distM, cum, fuelRole) + rangeM;
+
+    // WALK FORWARD THROUGH THE PUMPS STILL AHEAD, because the tank the rider is
+    // on now is not the tank they run out of.
+    //
+    // This read `lastFillM() + rangeM` and nothing else until 2026-08-31, so it
+    // only ever knew about fills BEHIND the rider. Reported on a real ride:
+    // Home at 0 tagged gas, a station at 108.6, the hotel at 209.7, on a
+    // 110-mile tank. It answered "dry at 110" — one and a half miles past the
+    // pump the rider stops at — and the route went red from there to the end of
+    // a day they complete with nine miles in hand. The day list said so at the
+    // same time, reading "101 mi on this tank" at the hotel.
+    //
+    // Each pump within reach of the current tank refills it and becomes the new
+    // origin; the first one that is NOT within reach is where the ride actually
+    // stops, and the loop breaks rather than skipping to a pump beyond it.
+    var points = pointsOf(day);
+    var tank = lastFillM(day, distM, cum, fuelRole);
+    for (var i = 0; i < points.length; i++) {
+      if (!isRefuel(points[i], fuelRole) || cum[i] <= tank) continue;
+      if (cum[i] > tank + rangeM) break;
+      tank = cum[i];
+    }
+
+    var dry = tank + rangeM;
     // cum is index-aligned with the points and a day has one fewer leg than it
     // has points, so the last entry already IS the whole day.
     return dry <= cum[cum.length - 1] ? dry : null;
