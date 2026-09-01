@@ -25,6 +25,7 @@
     setRouteDim,
     setRouteGhost,
     setLegHighlight,
+    setMomentOverlay,
     clearLegHighlight,
     onRouteShapeDrag,
     consumeShapeClick,
@@ -33,6 +34,7 @@
     onMarkerDragEnd,
     searchPlaces,
     mapCenter,
+    viewportCircle,
     markerElement,
     initPanelToggle,
   } = window.TBMap;
@@ -50,6 +52,10 @@
     dayStartS,
     daySpan,
     rideSpan,
+    rideSegments,
+    segmentsTotalS,
+    momentAtOffset,
+    offsetAtMoment,
     activeAt,
     activeAtMoment,
     fmtMoment,
@@ -66,7 +72,8 @@
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
-  const { legAtVertex, nearestVertexIndex, viaInsertIndex } = window.TBShape;
+  const { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance } = window.TBShape;
+  const { sliceBetween, circlePath, haversineM } = window.TBShape;
 
   // Turning a SortableJS drop into a position in day.points — see drag-index.js.
   const DRAG = window.TBDragIndex;
@@ -77,6 +84,27 @@
   // src/views/units.ts and is pinned to it by test/units-client.test.ts.
   const UNITS = window.TBUnits ? window.TBUnits.toUnits(window.TB.units) : "imperial";
   const distUnit = window.TBUnits ? window.TBUnits.distanceUnit(UNITS) : "mi";
+
+  // Cumulative and since-refuel distance — see public/js/day-distance.js. Pure,
+  // meters throughout, and it formats nothing: the unit is the rider's, applied
+  // here at the point of display.
+  const DIST = window.TBDistance;
+
+  // Cutting a day in two — see public/js/day-split.js. Pure, and the uid minter
+  // is passed in, so the identity a carried point gets is this file's to mint.
+  const SPLIT = window.TBSplit;
+
+  // How far off the day's line a place is — see public/js/corridor.js. Pure
+  // geometry; the searching and the spending live below.
+  const CORRIDOR = window.TBCorridor;
+
+  // Where the rider would be at a scrubbed moment, and how much fuel is left
+  // there. See public/js/range-circle.js.
+  const RANGE = window.TBRange;
+
+  /** Meters as the rider's own unit, rounded to a whole one. Distances in the
+   *  panel are read at a glance against a tank, so a decimal is noise. */
+  const fmtDist = (m) => Math.round(window.TBUnits.distanceFrom(m, UNITS)) + " " + distUnit;
   const MAX_DAYS = 31; // matches MAX_DAYS in src/routes/rides.ts
   // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
   // whole list, plus a separate ceiling on how many of them may be routing
@@ -475,6 +503,18 @@
     // minute, not a preference about it, and a remembered one would put a rider
     // back in ride scope weeks later with no memory of asking for it.
     timeScope: "day",
+    // #50's search scope. FALSE means a category chip searches near the day's
+    // last point; TRUE means it searches along the day's whole line and keeps
+    // what falls inside CORRIDOR_MI of it.
+    //
+    // Session-only and shared across days, like timeScope: it is how the rider
+    // is searching right now, not a fact about any day.
+    // #229's fuel ring, on or off. Session-only and ride-wide, like timeScope:
+    // it is how the rider is READING the map right now, not a fact about the
+    // ride. On by default, because it is the answer the scrubber was given a
+    // range for — a rider who finds a 300-mile circle in the way turns it off.
+    ringOn: true,
+    corridorOn: false,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
     // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a day's "+ Stop"
@@ -1421,6 +1461,16 @@
     // is the rider at this moment" only while that moment is on the day in
     // front of you; otherwise there is nothing to point at and it goes.
     const onLitDay = a && a.dayIndex != null && a.dayIndex === lit;
+
+    // WHERE THE RIDER WOULD BE, drawn on WHATEVER DAY THE MOMENT FALLS ON —
+    // deliberately not gated on onLitDay the way the leg highlight below is.
+    // The highlight is a stretch of the day's own line, so drawing it bright
+    // across a day dimmed to 0.35 reads as neither state. A dot is a discrete
+    // overlay above every route, so it has no such ambiguity, and suppressing
+    // it off the lit day would make ride scope — whose entire purpose is
+    // scrubbing the whole ride — show nothing for most of its travel.
+    paintMoment(a);
+
     const leg = onLitDay && a.legIndex != null ? state.days[a.dayIndex].legs[a.legIndex] : null;
     if (!leg) {
       clearLegHighlight(state.map);
@@ -1429,6 +1479,92 @@
     const span = trackAndSpans(a.dayIndex).spans[a.legIndex];
     if (span) setLegHighlight(state.map, a.dayIndex, span.startIndex, span.endIndex);
     else clearLegHighlight(state.map);
+  }
+
+  /**
+   * The moment dot, the fuel ring around it, and where the tank runs dry.
+   *
+   * THE RING'S RADIUS IS THE FUEL LEFT — the bike's range minus the miles
+   * ridden since the last fill — so it shrinks as the rider scrubs, refills at
+   * every pump, and is gone at max range. See public/js/range-circle.js.
+   */
+  function paintMoment(a) {
+    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE DAY.
+    //
+    // `state.moment` is null until a rider drags, so activeNow() returns null
+    // and this used to draw nothing — the ring, the E markers and the closed
+    // stretch were all invisible on load and only appeared once somebody
+    // happened to scrub. That hid the whole feature behind a gesture nobody was
+    // told to make. Ziad's call, 2026-08-31.
+    //
+    // The start of the day is the honest default: a full tank at the first
+    // point is where the rider actually begins, so the walls it produces are
+    // the ones the plan has. `state.moment` is deliberately NOT seeded instead
+    // — the readout's "from – to" line and the absent leg highlight are the
+    // correct rendering of "no moment chosen", and this only decides where to
+    // draw the overlay.
+    const at = a || { dayIndex: focusedIndex(), pointIndex: 0, legIndex: null, legFraction: null };
+    const day = at.dayIndex != null ? state.days[at.dayIndex] : null;
+    if (!day) return setMomentOverlay(state.map, null);
+    a = at;
+    const track = fullTrack(a.dayIndex);
+    if (!track.length) return setMomentOverlay(state.map, null);
+
+    const cum = DIST.cumulativeM(day);
+    const distM = RANGE.distanceAtMoment(day, a, cum);
+    if (distM == null) return setMomentOverlay(state.map, null);
+    const here = pointAtDistance(track, distM);
+    if (!here) return setMomentOverlay(state.map, null);
+
+    // Null is the ordinary case, not the edge one: a rider with no bike on file
+    // has no range. The dot is still where they would be.
+    const role = fuelRole();
+    const range = rangeM();
+    // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
+    // until 2026-08-31, so turning it off left the E markers and the closed
+    // stretch on the map — most of the red, and the half a rider is turning off
+    // when they want the route back. Everything range-derived is behind it now;
+    // the moment dot is not, because where the rider is is not a fuel fact.
+    const on = state.ringOn;
+    const reach = on ? RANGE.fuelReachM(day, distM, cum, role, range) : null;
+    // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
+    const walls = on
+      ? RANGE.dryDistancesM(day, distM, cum, role, range)
+          .map((d) => pointAtDistance(track, d))
+          .filter(Boolean)
+      : [];
+    // The stretch the rider cannot make, from the wall to the next pump — one
+    // statement with the wall, so it is drawn on the same condition.
+    const gap = on ? RANGE.dryStretch(day, distM, cum, role, range) : null;
+    setMomentOverlay(
+      state.map,
+      here,
+      walls,
+      ringPath(here, track, distM, reach),
+      gap && sliceBetween(track, gap.from, gap.to),
+    );
+  }
+
+  /**
+   * The ring itself, as a closed path: a circle around the rider whose radius
+   * is the straight line to the furthest point on the route their fuel reaches,
+   * so its edge is a PLACE rather than a number and it collapses to nothing as
+   * they arrive there.
+   *
+   * A PATH RATHER THAN A RADIUS because the edge is dotted, and a dotted edge
+   * has to be a polyline — google.maps.Circle has no dash support at all.
+   *
+   * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
+   * day the rider runs dry on and they are not on a day they do not — see
+   * fuelReachM(), and note that drawing this from the wall is what made the
+   * ring disappear for good after a rider's last refuel.
+   */
+  function ringPath(here, track, distM, reachM) {
+    // No `state.ringOn` check here: `reachM` is already null when the overlay is
+    // off, and one switch read in two places is one that can be half-flipped.
+    if (reachM == null || reachM <= distM) return null;
+    const at = pointAtDistance(track, reachM);
+    return at ? circlePath(here, haversineM(here, at)) : null;
   }
 
   function clearMarkers() {
@@ -1934,6 +2070,53 @@
     rebuildLayers();
     renderMarkers();
     markDirty();
+  }
+
+  /**
+   * Cut the day in two at point i, and drop the new day in right after it.
+   *
+   * #49, and #54's mechanic. The arithmetic — which legs go where, what the
+   * carried point keeps — is day-split.js; everything here is the part that
+   * needs the rest of the ride: a color that is not the one above it, a clock
+   * seeded off the day it now follows, and the layer rebuild that a changed day
+   * count forces.
+   *
+   * MAX_DAYS IS CHECKED BEFORE beginEdit, like every other guard here, so a
+   * refused split pushes no undo step.
+   */
+  function splitDayHere(r, i) {
+    const day = state.days[r];
+    if (!day) return;
+    if (state.days.length >= MAX_DAYS) return toast("Day limit reached (" + MAX_DAYS + ")", true);
+    if (!SPLIT.canSplitAt(day, i)) {
+      return toast("A day has to keep at least one leg on each side of a split", true);
+    }
+
+    beginEdit("split day");
+    const cut = SPLIT.splitDayAt(day, i, uid);
+
+    // A COLOR THAT IS NOT ITS NEIGHBOUR'S. Seeding off state.days.length the way
+    // addDay does would hand the new day the same hue as an existing one once
+    // days have been deleted, and two adjacent days in one color is the one case
+    // the palette exists to prevent.
+    const used = new Set(state.days.map((d) => d.color));
+    cut.second.color = DAY_COLORS.find((c) => !used.has(c)) || DAY_COLORS[state.days.length % DAY_COLORS.length];
+
+    // The second day begins the morning after the first one ends, and the first
+    // one's end has just changed — it lost every leg past the cut — so it is
+    // resynced before being read. A day the rider never dated seeds nothing.
+    state.days.splice(r, 1, cut.first, cut.second);
+    syncEnd(cut.first);
+    if (cut.first.startAt) cut.second.startAt = nextMorningAfter(cut.first.endAt);
+
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    // The rider's attention is on the new day: they asked where one ended, and
+    // what they want to see is what now follows it.
+    goToDay(r + 1);
   }
 
   function deleteDay() {
@@ -3671,6 +3854,28 @@
     return day ? daySpan(day) : null;
   }
 
+  /**
+   * THE RIDE-SCOPE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK, so the
+   * overnights between days consume none of it.
+   *
+   * rideSpan() is first-departure to last-arrival, so on a nine-day ride most
+   * of the slider's travel was nights in hotels: the rider spent more of the
+   * drag in "between days", with nothing on the map, than on the road. In ride
+   * scope the value is now an OFFSET into the concatenated day spans and these
+   * two convert it; in day scope there are no gaps to skip and the value stays
+   * the epoch second it always was.
+   *
+   * `state.moment` is an epoch second in BOTH scopes. Nothing downstream
+   * changes — activeNow, fmtMoment, paintMoment all still read wall clock — and
+   * the compression lives entirely between the slider and that field.
+   */
+  const rideSegs = () => rideSegments(state.days);
+
+  function momentFromSlider(v) {
+    if (state.timeScope !== "ride") return v;
+    return momentAtOffset(rideSegs(), v);
+  }
+
   // Where the moment falls: which day, and which leg or point within it.
   //
   // IN DAY SCOPE THE DAY IS ALREADY KNOWN, so the moment resolves against it
@@ -3692,7 +3897,7 @@
     const span = day && daySpan(day);
     if (!span) return null;
     const at = activeAt(day, Math.min(Math.max(state.moment, span.from), span.to) - span.from);
-    return { dayIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex };
+    return { dayIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex, legFraction: at.legFraction };
   };
 
   function renderTimeline() {
@@ -3701,6 +3906,7 @@
     const readout = $("time-readout");
     const span = timelineSpan();
     renderTimeScope();
+    renderRingToggle();
 
     // The slider's value is epoch seconds, which is what a screen reader would
     // otherwise read out. aria-valuetext replaces that with the same sentence
@@ -3741,9 +3947,18 @@
       return;
     }
 
-    slider.min = String(span.from);
-    slider.max = String(span.to);
-    slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
+    if (state.timeScope === "ride") {
+      // Zero to total riding seconds. The overnights are not on the track at
+      // all, so there is no position on it that means "between days".
+      const segs = rideSegs();
+      slider.min = "0";
+      slider.max = String(segmentsTotalS(segs));
+      slider.value = String(state.moment == null ? 0 : offsetAtMoment(segs, state.moment));
+    } else {
+      slider.min = String(span.from);
+      slider.max = String(span.to);
+      slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
+    }
 
     if (state.moment == null) {
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
@@ -3825,16 +4040,42 @@
   function renderTimeScope() {
     const btn = $("time-scope");
     if (!btn) return;
-    const toRide = state.timeScope === "day";
-    btn.textContent = toRide ? "Whole ride" : "This day";
-    btn.title = toRide ? "Scrub the whole ride" : "Scrub the day you are working on";
+    // THE LABEL IS THE STATE, NOT THE ACTION. It read "Whole ride" while in day
+    // scope — naming what a click would DO — and a rider glancing at it saw the
+    // word "ride" and believed they were scrubbing the ride. Ziad's call,
+    // 2026-08-31. It now says which scope is on, and the color says it twice:
+    // Day is filled, Ride is not.
+    const onDay = state.timeScope === "day";
+    btn.textContent = onDay ? "Day" : "Ride";
+    btn.title = onDay ? "Scrubbing this day. Switch to the whole ride" : "Scrubbing the whole ride. Switch to this day";
     btn.setAttribute("aria-label", btn.title);
-    // Pressed means "the wider view is on", which is the non-default state.
-    btn.setAttribute("aria-pressed", String(!toRide));
+    // Pressed is the DEFAULT here, which is unusual and deliberate: it tracks
+    // the label rather than the non-default state, so the filled look and the
+    // word always agree.
+    btn.setAttribute("aria-pressed", String(onDay));
     // Nothing to widen to on a single-day ride, and a button that returns the
     // same slider is a control that does nothing. Hidden rather than disabled:
     // it is in a one-line bar where a dead button is pure noise.
     btn.hidden = state.days.length < 2;
+  }
+
+  // #229's fuel ring toggle. Mirrored by the same function in viewer.js, which
+  // is the whole of the duplication — the two surfaces hold the flag in their
+  // own state and there is nothing to share but four lines of labeling.
+  //
+  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT. A rider with no bike on file
+  // has no range, so the toggle would switch nothing on and nothing off, and a
+  // control that does nothing is worse than no control — the same reason the
+  // scope button hides on a one-day ride.
+  function renderRingToggle() {
+    const btn = $("range-ring");
+    if (!btn) return;
+    btn.hidden = rangeM() == null;
+    if (btn.hidden) return;
+    btn.textContent = "Range";
+    btn.title = state.ringOn ? "Hide the fuel range" : "Show the fuel range";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(state.ringOn));
   }
 
   // Every day's times, because every day's fields are on screen. It was one set
@@ -3964,9 +4205,90 @@
   // data-day is what makes every handler below day-agnostic: pointOf() reads the
   // point out of that day, and any interaction with the row makes that day active
   // so the shared edit functions land in the right place.
+  /**
+   * "End the day here?" on a mid-day point tagged as somewhere you sleep.
+   *
+   * #54 asks for the day to end there outright. It OFFERS instead, Ziad's call
+   * 2026-08-31, because the tag cannot tell the two cases apart: a hotel you are
+   * sleeping at and a hotel you happen to ride past are the same `hotel` role,
+   * and the aggressive reading cuts a rider's day in half for noting a landmark.
+   * The cost of offering is one dismissed prompt; the cost of not offering is a
+   * ride reorganised behind somebody's back.
+   *
+   * NOT SHOWN ON THE LAST POINT OF A DAY, which is where lodging normally goes —
+   * the day already ends there and there is nothing to cut. That is also what
+   * stops this appearing on essentially every day of a well-planned ride.
+   *
+   * It is a button rather than a toast: a toast disappears, and this is an offer
+   * about a specific row that should wait until the rider has decided.
+   */
+  function lodgingOfferHtml(point, i, dayIndex) {
+    const day = state.days[dayIndex];
+    if (!day || !SPLIT.canSplitAt(day, i)) return "";
+    const roles = point.roles || [];
+    if (!LODGING_ROLES.some((r) => roles.indexOf(r) >= 0)) return "";
+    return (
+      '<div class="row-lodging-offer">' +
+      '<button type="button" class="row-split-offer" data-day="' + dayIndex + '" data-i="' + i + '">' +
+      "Sleeping here? End the day" +
+      "</button></div>"
+    );
+  }
+
+  /**
+   * How far into the day this point is, and how far it is on the current tank.
+   *
+   * #220, and the planner's own words for why: "to know when to add fuel stops I
+   * need to know how many miles since the start, and how many since the last
+   * fuel stop."
+   *
+   * NOTHING ON THE FIRST POINT. Zero miles into a day it has not started is a
+   * row of noise on every day in the ride, and the day header already says the
+   * day's total.
+   *
+   * THE SINCE-FUEL FIGURE IS SHOWN ONLY WHEN IT DIFFERS from the distance into
+   * the day. Before the first fuel stop the two are the same number and printing
+   * it twice reads as a rendering fault; after one they diverge and both are
+   * worth knowing.
+   *
+   * The dry marker is the point the group's binding range runs out at, and it is
+   * absent entirely when no range is on file — never a zero, never a guess. See
+   * firstDryPoint in day-distance.js.
+   */
+  function distReadoutHtml(point, i, dist) {
+    if (!dist || i <= 0) return "";
+    const into = dist.cum[i];
+    if (!(into > 0)) return "";
+    const since = dist.since[i];
+    const dry = dist.dryAt === i;
+    const range = window.TB.range || {};
+    const parts = ['<span class="row-dist-into">' + esc(fmtDist(into)) + " in</span>"];
+    // Rounded before comparing, or two figures a mile apart print identically
+    // and the row looks like it is repeating itself.
+    //
+    // AND NEVER ZERO. At a fuel stop `since` resets to 0 by design — the tank is
+    // full and the row is answering how far the NEXT one is — so the pair here
+    // differs and would print "0 mi on this tank" under every fuel stop in the
+    // ride. True, and noise.
+    if (Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
+      parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this tank</span>");
+    }
+    if (dry) {
+      // Names WHOSE tank, because on a group ride the binding range belongs to
+      // somebody in particular and "you will run out" is the wrong sentence to
+      // show the rider with the big tank. See groupRange().
+      const whose = range.riderName ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike") : "the smallest tank";
+      parts.push(
+        '<span class="row-dist-dry" title="Past ' + whose + ' (' + esc(String(range.miles)) +
+          ' mi). Add a fuel stop before here.">out of range</span>',
+      );
+    }
+    return '<div class="row-dist"' + (dry ? ' data-dry="1"' : "") + ">" + parts.join("") + "</div>";
+  }
+
   // `n` is the row's stop number, or null for a POI — worked out by orderedRows()
   // because it counts stops only and `i` indexes the whole list.
-  function pointRowHtml(kind, point, i, dayIndex, n) {
+  function pointRowHtml(kind, point, i, dayIndex, n, dist) {
     const isStop = kind === "stop";
     return (
       '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
@@ -4021,6 +4343,8 @@
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
       (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
+      distReadoutHtml(point, i, dist) +
+      lodgingOfferHtml(point, i, dayIndex) +
       '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
       '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
       (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
@@ -4139,6 +4463,36 @@
     }));
   }
 
+  // WHICH CATEGORY PUTS FUEL BACK IN, from the bike the plan is built around.
+  // `gas` when nothing is known, because it is what all but a handful of bikes
+  // take and the alternative is showing no fuel figures at all to every rider
+  // who has not filled in a paddock.
+  const fuelRole = () => (window.TB.range && window.TB.range.fuelType === "electric" ? "charge" : "gas");
+
+  // The group's binding range in meters, or null when nobody on the ride has one
+  // on file. NULL MUST STAY NULL all the way to the renderer — a fuel warning
+  // built on an invented number is worse than none because it looks like one.
+  function rangeM() {
+    const mi = window.TB.range && window.TB.range.miles;
+    // window.TB.range.miles is always MILES, whatever the rider's preference —
+    // it comes off usable_range_m through metersToMiles server-side. Converting
+    // it with the display unit here would read a metric rider's 300 km tank as
+    // 300 miles.
+    return typeof mi === "number" && mi > 0 ? mi * window.TBUnits.METERS_PER_MILE : null;
+  }
+
+  // Everything the rows of one day need to say how far in they are. Computed
+  // once per render rather than per row: each of these walks the whole day, so
+  // doing it inside pointRowHtml would make a 400-point day quadratic.
+  function dayDistances(day) {
+    const role = fuelRole();
+    return {
+      cum: DIST.cumulativeM(day),
+      since: DIST.sinceRefuelM(day, role),
+      dryAt: DIST.firstDryPoint(day, role, rangeM()),
+    };
+  }
+
   // One day's rows. Takes the day index rather than reading the active one,
   // because every day's list is on screen and any of them can need redrawing.
   function renderDayList(r) {
@@ -4147,6 +4501,7 @@
     const day = state.days[r];
     if (!day) return;
     const open = state.insertAt && state.insertAt.day === r ? state.insertAt.at : null;
+    const dist = dayDistances(day);
     list.innerHTML =
       orderedRows(day)
         .map(
@@ -4156,7 +4511,7 @@
             // the last row is the bottom add-row, which is always present, so no
             // slot is rendered for it.
             (open === row.i ? addRowHtml(r, day, row.i) : insertSlotHtml(r, row.i)) +
-            pointRowHtml(row.kind, row.point, row.i, r, row.n),
+            pointRowHtml(row.kind, row.point, row.i, r, row.n, dist),
         )
         .join("") + addRowHtml(r, day);
     hydrateIcons(list);
@@ -4241,17 +4596,72 @@
     { role: "hotel", label: "Lodging", query: "hotel" },
   ];
 
+  // HOW FAR OFF THE ROUTE IS WORTH IT, in MILES — always miles, whatever unit
+  // the rider reads, because the value is compared against meters through one
+  // conversion and holding it in the display unit would change its meaning the
+  // moment the preference changed.
+  //
+  // A CONSTANT AND NOT A CONTROL, as of 2026-08-31. It shipped as a slider
+  // beside the toggle and the pair was rejected on sight: the corridor width is
+  // a preference and not a per-search decision, and asking for it every time
+  // put two controls in front of a question the rider had already answered by
+  // tapping a chip. Fifteen miles is about twenty minutes there and back on the
+  // kind of road that has a station on it, which is the most a detour for fuel
+  // is worth. If it ever needs to move it belongs in ride preferences, once,
+  // not under every day.
+  const CORRIDOR_MI = 15;
+
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
+    const along = state.corridorOn;
     return (
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
           '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="Find ' + esc(c.label.toLowerCase()) + ' near this day\'s last point">' +
+          ' title="Find ' + esc(c.label.toLowerCase()) +
+          (along ? " anywhere along this day" : " on the part of the map you can see") + '">' +
           esc(c.label) + "</button>",
       ).join("") +
+      "</div>" +
+      // ONCE PER DAY, ON THE DAY'S OWN BOTTOM ROW — never on an insert slot.
+      // The scope is one session-wide flag, so a copy in every add-row meant a
+      // six-point day drawing seven of them and a handler hand-syncing the lot
+      // on every change. One control cannot disagree with itself.
+      (at == null ? corridorHtml(r) : "")
+    );
+  }
+
+  /**
+   * #50's search scope: near the last point, or along the whole day.
+   *
+   * TWO NAMED STATES, NOT A CHECKBOX AND A SLIDER. Both are always on screen,
+   * so the control says what it does rather than what it is currently not
+   * doing — a checkbox labelled "Along the day" leaves the rider to work out
+   * that unchecking it means something else, and never says what.
+   *
+   * NEAR HERE IS THE DEFAULT, so the chips keep answering the question they
+   * always have: what is near where I have got to. The other scope is the one a
+   * rider asks when they are hunting the gap where fuel goes rather than the
+   * next stop, and it is a different question rather than a wider version of
+   * the same one.
+   *
+   * The width it searches is CORRIDOR_MI and there is no control for it — see
+   * the constant.
+   */
+  function corridorHtml(r) {
+    const on = state.corridorOn;
+    const opt = (along, label, title) =>
+      '<button type="button" class="scope-btn' + (on === along ? " is-on" : "") + '"' +
+      ' data-day="' + r + '" data-along="' + (along ? "1" : "0") + '"' +
+      ' aria-pressed="' + (on === along ? "true" : "false") + '" title="' + esc(title) + '">' +
+      esc(label) + "</button>";
+    const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
+    return (
+      '<div class="add-corridor" role="group" aria-label="Where to search">' +
+      opt(false, "On screen", "Search the part of the map you can see") +
+      opt(true, "Along the day", "Search the whole day, within " + width + " of the route") +
       "</div>"
     );
   }
@@ -4516,6 +4926,7 @@
         if (act === "promote") return setPointKind(i, "stop");
         if (act === "demote") return setPointKind(i, "poi");
         if (act === "select") return startSelect("point");
+        if (act === "split") return splitDayHere(Number(row.dataset.day), i);
         return;
       }
       if (btn.classList.contains("detail-link-add")) {
@@ -4537,6 +4948,9 @@
         row.querySelector(".row-details").innerHTML = detailsHtml(point, row.dataset.kind, i);
         markDirty();
         return;
+      }
+      if (btn.classList.contains("row-split-offer")) {
+        return splitDayHere(Number(btn.dataset.day), Number(btn.dataset.i));
       }
       if (btn.classList.contains("row-roles-btn")) {
         closeRowMenu();
@@ -4656,6 +5070,11 @@
     // churns on every PUT and cannot be referenced. The comment survives the
     // point being deleted, demoting to ride level rather than going with it.
     { act: "comment", label: "Comment on this stop" },
+    // #49. Shown on every interior point and DISABLED on the two ends rather
+    // than hidden, because "why can I not split here" is worth answering in
+    // place — splitting at the first or last point would leave a day with one
+    // point and no legs, which the API refuses and payload() drops whole.
+    { act: "split", label: "End the day here" },
     { act: "up", label: "Move up" },
     { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
@@ -4733,7 +5152,8 @@
       off:
         (m.act === "up" && i === 0) ||
         (m.act === "down" && i === last) ||
-        (m.act === "demote" && stopsOf(day).length <= 1),
+        (m.act === "demote" && stopsOf(day).length <= 1) ||
+        (m.act === "split" && !SPLIT.canSplitAt(day, i)),
     }));
     openMenu(row, btn, items);
   }
@@ -5129,18 +5549,83 @@
     // A typed query that names a place ("gas station in oakdale ca") does not
     // come through here: Text Search reads the place out of the text itself, so
     // sending an anchor as well would fight it.
-    function anchorFor(r) {
-      const day = state.days[r];
-      const last = day && day.points.length ? day.points[day.points.length - 1] : null;
-      if (last) return [last.lng, last.lat];
-      return mapCenter(state.map);
+    /**
+     * Where a "near" search looks: WHAT IS ON SCREEN.
+     *
+     * It anchored on the day's LAST POINT until 2026-08-31, with the map's
+     * center only as a fallback for an empty day — so panning changed nothing,
+     * and a rider looking at Redding who tapped Coffee got results around a
+     * hotel three hundred miles down the route. The last point is a place they
+     * can neither see nor move; the viewport is the one anchor they control.
+     *
+     * Null before the map has settled, and the proxy is happy with no anchor at
+     * all — Text Search falls back to its own global ranking, which is the
+     * right answer when there is not yet a viewport to prefer.
+     */
+    function viewportAnchor() {
+      return viewportCircle(state.map);
     }
 
-    async function nearbySearch(query, near) {
+    /**
+     * ONE TEXT SEARCH FOR THE WHOLE DAY, biased at its midpoint, then filtered
+     * to the corridor here in the browser. Ziad's call, 2026-08-31, and it is a
+     * cost decision rather than a technical one: walking the line and searching
+     * every ten miles is the accurate version and costs about thirty billed
+     * calls per slider move on a three-hundred-mile day, on the pricier SKU.
+     *
+     * WHAT THAT BUYS AND WHAT IT COSTS. One call, cached, for any day of any
+     * length — against a result set Google biases toward one point, so a long
+     * day gets a set thinned toward its middle. `wide` asks for the API's
+     * twenty rather than the dropdown's eight, which is the same call and the
+     * same money and is most of what makes this usable at all.
+     *
+     * The bias radius covers half the day so the circle reaches both ends,
+     * clamped to the 50 km the endpoint accepts. A bias is not a filter — Text
+     * Search returns things outside it — so the corridor test below is what
+     * actually decides, and the radius only steers the ranking.
+     */
+    function corridorSearchArgs(r) {
+      const day = state.days[r];
+      const track = day ? fullTrack(r) : [];
+      const totalM = day ? DIST.totalM(day) : 0;
+      // The day's own midpoint, and the viewport only when the day has no line
+      // yet — this is the ALONG THE DAY scope, so the day is the subject and
+      // the screen is the fallback rather than the other way round.
+      const view = viewportAnchor();
+      const mid = track.length ? pointAtDistance(track, totalM / 2) : view && view.near;
+      return {
+        track: track,
+        near: mid,
+        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2) || 25000)),
+      };
+    }
+
+    /**
+     * The anchor arguments for a typed category query, spread into
+     * nearbySearch.
+     *
+     * NO ANCHOR WHEN THE TEXT NAMES A PLACE. Text Search reads "gas station in
+     * oakdale ca" itself, and biasing to the viewport as well would pull the
+     * answer back to wherever the rider happens to be looking — which is the
+     * one case where the screen is NOT what they meant.
+     */
+    function namedOrViewport(q) {
+      if (/\b(in|near|around|close to|by)\b/.test(q)) return [null];
+      const view = viewportAnchor();
+      return view ? [view.near, { radiusM: view.radiusM }] : [null];
+    }
+
+    async function nearbySearch(query, near, opts) {
+      const body = near ? { query: query, near: near } : { query: query };
+      // A corridor search asks for the wider result set and a bias radius that
+      // covers the day rather than the default town-sized one. Both are the same
+      // single billed call — see MAX_CORRIDOR_RESULTS in src/routes/routing.ts.
+      if (opts && opts.wide) body.wide = true;
+      if (opts && opts.radiusM) body.radiusM = opts.radiusM;
       const res = await fetch("/api/places/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(near ? { query: query, near: near } : { query: query }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -5163,6 +5648,12 @@
           .map(
             (h, i) =>
               '<li class="hit-nearby" data-nearby="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+              // THE NUMBER THE RIDER IS DECIDING ON, when there is one. A
+              // corridor search annotates each hit with its detour; a plain
+              // near-a-point search has nothing to say here and renders none.
+              (typeof h.offRouteM === "number"
+                ? '<span class="hit-off">' + esc(fmtDist(h.offRouteM)) + " off</span> "
+                : "") +
               '<span class="hit-ctx">' + esc(h.address) + "</span></li>",
           )
           .join("")
@@ -5301,7 +5792,7 @@
             // No anchor when the text names a place: Text Search reads it out of
             // the query, and biasing to the rider's current position as well
             // would pull the answer back home.
-            cat ? nearbySearch(cat.text, /\b(in|near|around|close to|by)\b/.test(q) ? null : anchorFor(day)) : [],
+            cat ? nearbySearch(cat.text, ...namedOrViewport(q)) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
@@ -5335,7 +5826,11 @@
             nearbyResultsHtml(nearby) +
             // SAID OUT LOUD, not left as an empty box. "Nothing matched" and
             // "the search broke" were pixel-identical before this.
-            (nothing ? noticeHtml("No matches for “" + q + "”") : "") +
+            // NAMES THE VIEWPORT, because the search is restricted to it and a
+            // rider who is told only "no matches" has no reason to think
+            // zooming out would help. See searchPlaces() in map-common.js for
+            // why there is no automatic fallback to widen it for them.
+            (nothing ? noticeHtml("No matches for “" + q + "” on screen. Zoom out to search wider.") : "") +
             // One half down while the other answered: the results still show,
             // with a line saying what is missing. Silently returning half an
             // answer is how a broken category search would go unnoticed for a
@@ -5436,6 +5931,34 @@
     // The field is left empty on purpose. Filling it with "gas station" would
     // look like the rider typed it and would then be re-searched on the next
     // keystroke, spending a second call to get the same answer.
+    // The search scope. PATCHED IN PLACE, NEVER RE-RENDERED: rebuilding the day
+    // list here would destroy whatever the rider has in the add-row's field and
+    // drop focus to <body> — the #188 defect, reached from a control that has
+    // nothing to do with the day's contents. It also does not mark the ride
+    // dirty: how a rider is searching is not a change to the ride.
+    //
+    // The flag is session-wide, so every day's control is repainted rather than
+    // only the one that was clicked. A rider who switched to Along the day at
+    // day 3 and scrolled to day 1 must not find Near here lit there.
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest(".scope-btn");
+      if (!btn) return;
+      state.corridorOn = btn.dataset.along === "1";
+      document.querySelectorAll(".scope-btn").forEach((el) => {
+        const on = (el.dataset.along === "1") === state.corridorOn;
+        el.classList.toggle("is-on", on);
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      // The chips' tooltips name the scope, so they go stale otherwise.
+      document.querySelectorAll(".add-chips .chip").forEach((el) => {
+        const spec = CHIPS.find((c) => c.role === el.dataset.chip);
+        if (!spec) return;
+        el.title =
+          "Find " + spec.label.toLowerCase() +
+          (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
+      });
+    });
+
     host.addEventListener("click", async (e) => {
       const chip = e.target.closest(".chip");
       if (!chip || chip.disabled) return;
@@ -5455,11 +5978,31 @@
       results.hidden = false;
       if (input) placeResults(input, results);
       try {
-        const nearby = await nearbySearch(spec.query, anchorFor(r));
+        let nearby;
+        if (state.corridorOn) {
+          const args = corridorSearchArgs(r);
+          const raw = await nearbySearch(spec.query, args.near, { wide: true, radiusM: args.radiusM });
+          if (mine !== searchSeq) return;
+          // The corridor test decides, not the bias radius — see
+          // corridorSearchArgs. Each survivor carries its own detour so the list
+          // can be read as an answer to "how far off?" rather than a ranking.
+          nearby = CORRIDOR.withinCorridor(raw, args.track, CORRIDOR_MI * window.TBUnits.METERS_PER_MILE).map(
+            (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+          );
+        } else {
+          const view = viewportAnchor();
+          nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
+        }
         if (mine !== searchSeq) return;
         results.innerHTML =
           nearbyResultsHtml(nearby) ||
-          noticeHtml("No " + spec.label.toLowerCase() + " found near this day");
+          noticeHtml(
+            state.corridorOn
+              ? "No " + spec.label.toLowerCase() + " within " +
+                Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
+                " of this day"
+              : "No " + spec.label.toLowerCase() + " on screen. Pan or zoom out to look wider.",
+          );
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);
@@ -5887,8 +6430,16 @@
   // what let the ~15 shared edit functions below keep reading editIndex() when
   // the panel went from one visible day to all of them.
   function wireDays() {
-    $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
+    $("time-slider").addEventListener("input", (e) => setMoment(momentFromSlider(Number(e.target.value))));
     $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "day" ? "ride" : "day"));
+    // Repaints rather than re-rendering: the ring is a map overlay, so nothing
+    // in the panel changes and rebuilding the day list would cost a rider the
+    // field they are typing in — the #188 shape, reached from a map control.
+    $("range-ring")?.addEventListener("click", () => {
+      state.ringOn = !state.ringOn;
+      renderRingToggle();
+      applyFocus();
+    });
     $("rail-days").addEventListener("click", (e) => {
       const btn = e.target.closest(".rail-day");
       if (!btn) return;

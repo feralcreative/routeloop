@@ -73,20 +73,44 @@ describe('walking a day', () => {
   const walk = (minutes: number) => T.activeAt(day(), minutes * 60)
 
   it('starts on the first leg', () => {
-    expect(walk(0)).toEqual({ legIndex: 0, pointIndex: null })
+    expect(walk(0)).toEqual({ legIndex: 0, pointIndex: null, legFraction: 0 })
   })
 
   it('is parked at the point once the leg is done', () => {
-    expect(walk(60)).toEqual({ legIndex: null, pointIndex: 1 })
-    expect(walk(119)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(walk(60)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
+    expect(walk(119)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
   })
 
   it('rides again when the dwell ends', () => {
-    expect(walk(180)).toEqual({ legIndex: 1, pointIndex: null })
+    expect(walk(180)).toEqual({ legIndex: 1, pointIndex: null, legFraction: 0 })
   })
 
   it('parks at the final point past the end of the day', () => {
-    expect(walk(999)).toEqual({ legIndex: null, pointIndex: 2 })
+    expect(walk(999)).toEqual({ legIndex: null, pointIndex: 2, legFraction: null })
+  })
+
+  // WITHOUT THIS THE DOT CAN ONLY SIT ON A LEG'S ENDS. Leg 0 is an hour long,
+  // so half an hour in is halfway along it — which is what puts the rider
+  // somewhere on the road rather than jumping them from stop to stop.
+  it('reports how far through the leg it is', () => {
+    expect(walk(0).legFraction).toBe(0)
+    expect(walk(30).legFraction).toBeCloseTo(0.5, 6)
+    expect(walk(45).legFraction).toBeCloseTo(0.75, 6)
+  })
+
+  // FRACTION OF TIME, NOT OF DISTANCE. Time is the axis the scrubber moves
+  // along, so a dot placed by it keeps step with the clock beside it; placing
+  // it by distance would have it lag or race on any leg whose speed is not
+  // constant, which is every real one.
+  it('measures the fraction against the leg’s own duration', () => {
+    // Leg 1 is half an hour and starts at minute 180, after the two-hour lunch.
+    expect(walk(180).legFraction).toBe(0)
+    expect(walk(195).legFraction).toBeCloseTo(0.5, 6)
+  })
+
+  it('has no fraction while parked at a point', () => {
+    expect(walk(60).legFraction).toBeNull()
+    expect(walk(999).legFraction).toBeNull()
   })
 
   it('reports no leg at all while parked', () => {
@@ -122,6 +146,7 @@ describe('placing a moment across days', () => {
       dayIndex: null,
       legIndex: null,
       pointIndex: null,
+      legFraction: null,
     })
   })
 })
@@ -273,8 +298,8 @@ describe('a POI is on the road', () => {
   it('holds between the legs either side of it, never inside one', () => {
     const r = withPoi(30)
     expect(T.activeAt(r, 1799).legIndex).toBe(0)
-    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, pointIndex: 1 })
-    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, pointIndex: 1 })
+    expect(T.activeAt(r, 1800)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
+    expect(T.activeAt(r, 3599)).toEqual({ legIndex: null, pointIndex: 1, legFraction: null })
     // ...and then the NEXT leg, not the rest of the one it interrupted.
     expect(T.activeAt(r, 3600).legIndex).toBe(1)
   })
@@ -381,5 +406,113 @@ describe('a day with fewer legs than its points imply', () => {
     const segs = T.daySchedule(truncated)
     const total = segs.length ? segs[segs.length - 1].end : 0
     expect(total).toBeCloseTo(T.dayElapsedS(truncated), 6)
+  })
+})
+
+// The ride-scope slider's own axis: riding hours with the overnights removed.
+//
+// rideSpan() is first-departure to last-arrival, so on a nine-day ride most of
+// the slider's travel was nights in hotels — the rider spent more of the drag
+// in "between days", with nothing on the map, than on the road.
+describe('the compressed ride axis', () => {
+  const secs = (iso: string) => Math.floor(new Date(iso).getTime() / 1000)
+  const dated = (from: string, to: string): Route => ({
+    startAt: at(from),
+    endAt: at(to),
+    points: [stop('A'), stop('B')],
+    legs: [leg(3600)],
+  })
+
+  const twoDays = () => [dated('2026-08-01T09:00', '2026-08-01T17:00'), dated('2026-08-02T09:00', '2026-08-02T17:00')]
+
+  it('is one segment per day, with the overnight left out', () => {
+    const segs = T.rideSegments(twoDays())
+    expect(segs).toHaveLength(2)
+    expect(T.segmentsTotalS(segs)).toBe(16 * 3600)
+  })
+
+  // The whole point: the last second of day 1 and the first of day 2 are
+  // adjacent on the slider, with the sixteen-hour night consuming none of it.
+  it('steps straight from one day’s end to the next day’s start', () => {
+    const segs = T.rideSegments(twoDays())
+    expect(T.momentAtOffset(segs, 8 * 3600 - 1)).toBe(secs('2026-08-01T16:59:59'))
+    expect(T.momentAtOffset(segs, 8 * 3600)).toBe(secs('2026-08-02T09:00'))
+  })
+
+  // ONE OFFSET, TWO INSTANTS, and the later day wins. The next day's start is a
+  // real time the rider typed into its Starts field; the previous day's final
+  // second is visually identical to its second-to-last. Taken the other way the
+  // round trip breaks, and with the slider's 60-second step every day after the
+  // first became unreachable at its own departure time.
+  it('gives the shared boundary to the day that is starting', () => {
+    const segs = T.rideSegments(twoDays())
+    expect(T.offsetAtMoment(segs, secs('2026-08-02T09:00'))).toBe(8 * 3600)
+    expect(T.momentAtOffset(segs, 8 * 3600)).toBe(secs('2026-08-02T09:00'))
+  })
+
+  it('round-trips a moment through the axis', () => {
+    const segs = T.rideSegments(twoDays())
+    for (const iso of ['2026-08-01T09:00', '2026-08-01T13:00', '2026-08-02T09:00', '2026-08-02T16:59']) {
+      const m = secs(iso)
+      expect(T.momentAtOffset(segs, T.offsetAtMoment(segs, m))).toBe(m)
+    }
+  })
+
+  // OVERLAPS ARE MERGED, NOT CONCATENATED. Real rides have days sharing a date
+  // — alternates for one Thursday, a subgroup's feeder beside the trunk — and
+  // activeAtMoment resolves a moment to the FIRST day covering it. Two slider
+  // positions meaning the same instant would resolve to the same day, so the
+  // second copy is travel the rider cannot use.
+  it('merges days that share wall-clock hours', () => {
+    const segs = T.rideSegments([
+      dated('2026-08-01T09:00', '2026-08-01T17:00'),
+      dated('2026-08-01T09:00', '2026-08-01T17:00'),
+    ])
+    expect(segs).toHaveLength(1)
+    expect(T.segmentsTotalS(segs)).toBe(8 * 3600)
+  })
+
+  it('joins a day that starts exactly when the previous one ends', () => {
+    const segs = T.rideSegments([
+      dated('2026-08-01T09:00', '2026-08-01T17:00'),
+      dated('2026-08-01T17:00', '2026-08-01T21:00'),
+    ])
+    expect(segs).toHaveLength(1)
+    expect(T.segmentsTotalS(segs)).toBe(12 * 3600)
+  })
+
+  it('takes the days in clock order, whatever order they are stored in', () => {
+    const [first, second] = twoDays()
+    const segs = T.rideSegments([second, first])
+    expect(segs[0].from).toBe(secs('2026-08-01T09:00'))
+  })
+
+  // The ride's length must not include a day the rider decided against —
+  // matching rideSpan() rather than daySpan().
+  it('leaves a losing alternate out', () => {
+    const [a, b] = twoDays()
+    const segs = T.rideSegments([a, { ...b, altGroup: 1, altActive: false }])
+    expect(segs).toHaveLength(1)
+  })
+
+  // A gap has no travel of its own, so rounding forward would jump a rider who
+  // has just clicked into the next day back to the previous one's last second.
+  it('puts a moment inside an overnight at the start of the gap', () => {
+    const segs = T.rideSegments(twoDays())
+    expect(T.offsetAtMoment(segs, secs('2026-08-01T23:00'))).toBe(8 * 3600)
+  })
+
+  it('clamps outside the ride rather than running off either end', () => {
+    const segs = T.rideSegments(twoDays())
+    expect(T.momentAtOffset(segs, -500)).toBe(secs('2026-08-01T09:00'))
+    expect(T.momentAtOffset(segs, 9e9)).toBe(secs('2026-08-02T17:00'))
+    expect(T.offsetAtMoment(segs, secs('2020-01-01T00:00'))).toBe(0)
+    expect(T.offsetAtMoment(segs, secs('2030-01-01T00:00'))).toBe(16 * 3600)
+  })
+
+  it('is empty for a ride nobody has dated', () => {
+    expect(T.rideSegments([{ startAt: null, endAt: null, points: [stop('A')], legs: [] }])).toEqual([])
+    expect(T.segmentsTotalS([])).toBe(0)
+    expect(T.momentAtOffset([], 0)).toBeNull()
   })
 })

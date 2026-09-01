@@ -250,7 +250,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <input type="hidden" name="homeLat" id="f-homeLat" value={v.homeLat == null ? '' : String(v.homeLat)} />
           <input type="hidden" name="homeLng" id="f-homeLng" value={v.homeLng == null ? '' : String(v.homeLng)} />
           <p class="field-hint" id="geocode-status" role="status"></p>
-          <Check name="addHomeToRides" label="Start new rides at my home address" values={v} />
+          <Check name="addHomeToRides" label="Start new private/friends-only rides at my home address" values={v} />
         </fieldset>
 
         <fieldset>

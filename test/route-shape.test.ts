@@ -215,3 +215,94 @@ describe('pointAtDistance', () => {
     expect(p).not.toBe(EAST[0])
   })
 })
+
+// The stretch between two distances along a track, for #229's dry stretch —
+// the bit of road from where the tank runs out to where the next pump is.
+describe('sliceBetween', () => {
+  // A due-north line from 37N to 39N, roughly 222km.
+  const line: [number, number][] = [
+    [-122, 37],
+    [-122, 38],
+    [-122, 39],
+  ]
+  const DEG = 111195
+
+  it('interpolates both ends rather than snapping to a vertex', () => {
+    const path = S.sliceBetween(line, DEG * 0.25, DEG * 0.75)
+    expect(path[0][1]).toBeCloseTo(37.25, 2)
+    expect(path[path.length - 1][1]).toBeCloseTo(37.75, 2)
+  })
+
+  // Snapping would move a wall by up to one segment, which on a sparse imported
+  // track is miles.
+  it('keeps the vertices strictly inside the span', () => {
+    const path = S.sliceBetween(line, DEG * 0.5, DEG * 1.5)
+    expect(path).toHaveLength(3)
+    expect(path[1][1]).toBeCloseTo(38, 3)
+  })
+
+  it('does not double a vertex sitting exactly on an end', () => {
+    const path = S.sliceBetween(line, 0, DEG)
+    expect(path).toHaveLength(2)
+  })
+
+  it('clamps to the end of the track', () => {
+    const path = S.sliceBetween(line, DEG * 1.5, 9e9)
+    expect(path[path.length - 1][1]).toBeCloseTo(39, 2)
+  })
+
+  // A polyline needs two points; a one-point path renders nothing, so the null
+  // keeps that check in one place.
+  it('is null when there is nothing to draw', () => {
+    expect(S.sliceBetween(line, DEG, DEG)).toBeNull()
+    expect(S.sliceBetween(line, DEG, DEG * 0.5)).toBeNull()
+    expect(S.sliceBetween(line, null, DEG)).toBeNull()
+    expect(S.sliceBetween([[-122, 37]], 0, 100)).toBeNull()
+    expect(S.sliceBetween(null, 0, 100)).toBeNull()
+  })
+
+  it('never returns a vertex of the track itself', () => {
+    const path = S.sliceBetween(line, 0, DEG * 2)
+    expect(path[1]).not.toBe(line[1])
+  })
+})
+
+// A ring of points at a fixed distance, for #229's fuel ring — drawn as a
+// polyline because google.maps.Circle has no dash support at all, so a dotted
+// edge cannot be a Circle.
+describe('circlePath', () => {
+  const centre: [number, number] = [-122, 38]
+
+  it('puts every point exactly the radius away', () => {
+    for (const r of [1000, 50_000, 200_000]) {
+      const ds = S.circlePath(centre, r).map((p: [number, number]) => S.haversineM(centre, p))
+      expect(Math.min(...ds)).toBeCloseTo(r, 0)
+      expect(Math.max(...ds)).toBeCloseTo(r, 0)
+    }
+  })
+
+  // Geodesic, not a flat ellipse: a degree of longitude is half a degree of
+  // latitude at 60N, and a ring built by adding degrees would be an oval.
+  it('stays a true ring at high latitude', () => {
+    const arctic: [number, number] = [-122, 68]
+    const ds = S.circlePath(arctic, 100_000).map((p: [number, number]) => S.haversineM(arctic, p))
+    expect(Math.max(...ds) - Math.min(...ds)).toBeLessThan(1)
+  })
+
+  it('closes itself so the caller does not have to', () => {
+    const p = S.circlePath(centre, 10_000)
+    expect(p[0][0]).toBeCloseTo(p[p.length - 1][0], 9)
+    expect(p[0][1]).toBeCloseTo(p[p.length - 1][1], 9)
+  })
+
+  it('takes a step count and defaults to a smooth one', () => {
+    expect(S.circlePath(centre, 10_000)).toHaveLength(73)
+    expect(S.circlePath(centre, 10_000, 8)).toHaveLength(9)
+  })
+
+  it('is null when there is no ring to draw', () => {
+    expect(S.circlePath(centre, 0)).toBeNull()
+    expect(S.circlePath(centre, -5)).toBeNull()
+    expect(S.circlePath(null, 100)).toBeNull()
+  })
+})

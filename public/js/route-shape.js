@@ -139,6 +139,70 @@
     return track[track.length - 1].slice();
   }
 
+  /**
+   * The stretch of `track` between two distances along it, as its own path.
+   *
+   * BOTH ENDS ARE INTERPOLATED rather than snapped to the nearest vertex. The
+   * distances this is called with are fuel arithmetic — where a tank runs out,
+   * where the next pump is — and snapping would move a wall by up to the length
+   * of one segment, which on a sparse imported track is miles.
+   *
+   * Returns a path of at least two points, or null when there is nothing to
+   * draw: an empty track, or a span with no length. A caller drawing a polyline
+   * needs two points and a one-point path renders nothing, so the null is what
+   * keeps that check in one place.
+   */
+  function sliceBetween(track, fromM, toM) {
+    if (!track || track.length < 2) return null;
+    if (fromM == null || toM == null || !(toM > fromM)) return null;
+    var out = [pointAtDistance(track, fromM)];
+    var acc = 0;
+    for (var i = 1; i < track.length; i++) {
+      var seg = haversineM(track[i - 1], track[i]);
+      acc += seg;
+      // Strictly inside, so the interpolated ends are never doubled by a vertex
+      // that happens to sit exactly on one of them.
+      if (acc > fromM && acc < toM) out.push(track[i].slice());
+      if (acc >= toM) break;
+    }
+    out.push(pointAtDistance(track, toM));
+    return out.length >= 2 ? out : null;
+  }
+
+  /**
+   * A closed ring of points `radiusM` from `center`, as a path.
+   *
+   * FOR DRAWING A CIRCLE AS A POLYLINE, which is the only way to get a dashed
+   * or dotted one: google.maps.Circle has strokeWeight, strokeColor and
+   * strokeOpacity and no dash support at all, while a Polyline can carry
+   * repeating icons — the same mechanism dashIcons() uses for a ghosted day.
+   *
+   * Geodesic rather than a flat ellipse, so it stays a true constant-distance
+   * ring at any latitude. The last point repeats the first, so the caller draws
+   * it without having to close it.
+   */
+  function circlePath(center, radiusM, steps) {
+    if (!center || !(radiusM > 0)) return null;
+    var n = steps || 72;
+    var rad = Math.PI / 180;
+    var R = 6371008.8;
+    var d = radiusM / R;
+    var lat1 = center[1] * rad;
+    var lng1 = center[0] * rad;
+    var sinLat1 = Math.sin(lat1);
+    var cosLat1 = Math.cos(lat1);
+    var out = [];
+    for (var i = 0; i <= n; i++) {
+      var brg = ((i % n) / n) * 2 * Math.PI;
+      var lat2 = Math.asin(sinLat1 * Math.cos(d) + cosLat1 * Math.sin(d) * Math.cos(brg));
+      var lng2 =
+        lng1 +
+        Math.atan2(Math.sin(brg) * Math.sin(d) * cosLat1, Math.cos(d) - sinLat1 * Math.sin(lat2));
+      out.push([lng2 / rad, lat2 / rad]);
+    }
+    return out;
+  }
+
   // Mirrors haversineTrack() in builder.js and the constant in twist.js. Both
   // use the IUGG mean radius; keep the three in step.
   function haversineM(a, b) {
@@ -150,5 +214,7 @@
     return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
   }
 
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance };
+  // haversineM is exported so range-circle.js can measure the straight line
+  // between two points on a track without keeping a fourth copy of the formula.
+  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, sliceBetween, circlePath, haversineM };
 })(typeof window !== "undefined" ? window : this);

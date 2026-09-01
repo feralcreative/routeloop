@@ -24,6 +24,7 @@
     setRouteDim,
     setRouteGhost,
     setLegHighlight,
+    setMomentOverlay,
     clearLegHighlight,
     addMarker,
     markerElement,
@@ -35,7 +36,13 @@
 
   // Shared with the builder so a ride resolves to the same leg at the same
   // moment in both. See ride-time.js.
-  const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
+  const { rideSpan, rideSegments, segmentsTotalS, momentAtOffset, offsetAtMoment, activeAtMoment, fmtMoment } =
+    window.TBTime;
+  const { pointAtDistance, sliceBetween, circlePath, haversineM } = window.TBShape;
+  const DIST = window.TBDistance;
+  // Where the rider would be at a scrubbed moment, and how much fuel is left
+  // there. See public/js/range-circle.js.
+  const RANGE = window.TBRange;
 
   // Only the label lookup — the viewer reads stored figures rather than
   // computing them, so it never touches window.TBTwist.twistiness itself.
@@ -52,6 +59,11 @@
     map: null,
     ride: null,
     arrowsOn: true,
+    // #229's fuel ring, on or off. Session-only: it is how this reader is
+    // reading the map right now, not a fact about the ride. On by default,
+    // because it is the answer the scrubber was given a range for — a reader
+    // who finds a 300-mile circle in the way turns it off.
+    ringOn: true,
     // per day: { visible, markers: [{ marker, el }] } — the element is kept
     // alongside the marker because dimming and hiding are CSS on our own DOM,
     // not map state.
@@ -166,6 +178,95 @@
     const leg = day && active.legIndex != null ? day.legs[active.legIndex] : null;
     if (leg) setLegHighlight(state.map, active.dayIndex, leg.startIndex, leg.endIndex);
     else clearLegHighlight(state.map);
+
+    // A HOVER SUPPRESSES THE DOT, exactly as it suppresses the highlight above,
+    // and for the same reason: hovering a legend row asks "which day is this",
+    // which is not a question about where anybody would be at any moment.
+    //
+    // CLEARED HERE RATHER THAN BY PASSING NULL: null now means "no moment
+    // chosen", which paintMoment draws at the start of the first day, and that
+    // is the opposite of suppression.
+    if (hovering) setMomentOverlay(state.map, null);
+    else paintMoment(active);
+  }
+
+  /**
+   * The moment dot, the fuel ring around it, and where the tank runs dry.
+   *
+   * THE RING'S RADIUS IS THE FUEL LEFT — see public/js/range-circle.js. Mirrors
+   * paintMoment() in builder.js; the two differ only in where the day's track
+   * and the range come from, which is why the arithmetic is in a shared module
+   * rather than written twice.
+   */
+  function paintMoment(active) {
+    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE FIRST DAY — see
+    // the note on paintMoment() in builder.js. `state.moment` is null until a
+    // reader drags, and drawing nothing until then hid the range ring, the E
+    // markers and the closed stretch behind a gesture nobody was told to make.
+    const at = active || { dayIndex: 0, pointIndex: 0, legIndex: null, legFraction: null };
+    const day = at.dayIndex != null ? state.ride.days[at.dayIndex] : null;
+    active = at;
+    const track = day && day.track;
+    if (!track || !track.length) return setMomentOverlay(state.map, null);
+
+    const cum = DIST.cumulativeM(day);
+    const distM = RANGE.distanceAtMoment(day, active, cum);
+    if (distM == null) return setMomentOverlay(state.map, null);
+    const here = pointAtDistance(track, distM);
+    if (!here) return setMomentOverlay(state.map, null);
+
+    // Null for a reader who is not on the roster, and for a member whose group
+    // has no bike on file. Both mean no ring, and nothing on the page tells the
+    // two apart — see the call site in src/index.tsx.
+    const r = window.TB.range || {};
+    const range = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
+    const role = r.fuelType === "electric" ? "charge" : "gas";
+
+    // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
+    // until 2026-08-31, so turning it off left the E markers and the closed
+    // stretch on the map — most of the red, and the half a rider is turning off
+    // when they want the route back. Everything range-derived is behind it now;
+    // the moment dot is not, because where the rider is is not a fuel fact.
+    const on = state.ringOn;
+    const reach = on ? RANGE.fuelReachM(day, distM, cum, role, range) : null;
+    // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
+    const walls = on
+      ? RANGE.dryDistancesM(day, distM, cum, role, range)
+          .map((d) => pointAtDistance(track, d))
+          .filter(Boolean)
+      : [];
+    // The stretch the rider cannot make, from the wall to the next pump — one
+    // statement with the wall, so it is drawn on the same condition.
+    const gap = on ? RANGE.dryStretch(day, distM, cum, role, range) : null;
+    setMomentOverlay(
+      state.map,
+      here,
+      walls,
+      ringPath(here, track, distM, reach),
+      gap && sliceBetween(track, gap.from, gap.to),
+    );
+  }
+
+  /**
+   * The ring itself, as a closed path: a circle around the rider whose radius
+   * is the straight line to the furthest point on the route their fuel reaches,
+   * so its edge is a PLACE rather than a number and it collapses to nothing as
+   * they arrive there.
+   *
+   * A PATH RATHER THAN A RADIUS because the edge is dotted, and a dotted edge
+   * has to be a polyline — google.maps.Circle has no dash support at all.
+   *
+   * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
+   * day the rider runs dry on and they are not on a day they do not — see
+   * fuelReachM(), and note that drawing this from the wall is what made the
+   * ring disappear for good after a rider's last refuel.
+   */
+  function ringPath(here, track, distM, reachM) {
+    // No `state.ringOn` check here: `reachM` is already null when the overlay is
+    // off, and one switch read in two places is one that can be half-flipped.
+    if (reachM == null || reachM <= distM) return null;
+    const at = pointAtDistance(track, reachM);
+    return at ? circlePath(here, haversineM(here, at)) : null;
   }
 
   function highlight(i) {
@@ -184,12 +285,21 @@
     // disabled — unlike the builder, a viewer cannot fix it by typing a date.
     wrap.hidden = !span;
     if (!span) return;
+    renderRingToggle();
 
     const slider = document.getElementById("time-slider");
     const readout = document.getElementById("time-readout");
-    slider.min = String(span.from);
-    slider.max = String(span.to);
-    slider.value = String(state.moment == null ? span.from : state.moment);
+    // THE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK. rideSpan() is
+    // first-departure to last-arrival, so on a multi-day ride most of the
+    // travel was nights in hotels — the reader spent more of the drag in
+    // "between days", with nothing on the map, than on the road. The value is
+    // an OFFSET into the concatenated day spans; `state.moment` stays an epoch
+    // second, because everything downstream reads wall clock. See
+    // rideSegments() in ride-time.js.
+    const segs = rideSegments(state.ride.days);
+    slider.min = "0";
+    slider.max = String(segmentsTotalS(segs));
+    slider.value = String(state.moment == null ? 0 : offsetAtMoment(segs, state.moment));
 
     // The slider's value is epoch seconds, which is what a screen reader would
     // otherwise read out. aria-valuetext replaces that with the same sentence
@@ -226,10 +336,41 @@
     const slider = document.getElementById("time-slider");
     if (!slider) return;
     slider.addEventListener("input", () => {
-      state.moment = Number(slider.value);
+      state.moment = momentAtOffset(rideSegments(state.ride.days), Number(slider.value));
       paintFocus();
       renderTimeline();
     });
+    // Repaints rather than re-rendering the timeline: the ring is a map
+    // overlay, and nothing in the bar's readout depends on it.
+    document.getElementById("range-ring")?.addEventListener("click", () => {
+      state.ringOn = !state.ringOn;
+      renderRingToggle();
+      paintFocus();
+    });
+  }
+
+  // #229's fuel ring toggle. Mirrors renderRingToggle() in builder.js; the two
+  // surfaces hold the flag in their own state and there is nothing to share but
+  // four lines of labeling.
+  //
+  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT — a reader who is not on the
+  // roster gets no range at all, and neither does a member whose group has no
+  // bike on file. A control that switches nothing on is worse than no control.
+  //
+  // Note this makes the button's presence a signal, unlike the ring's absence,
+  // which is deliberately not one. Both states it distinguishes are "we have a
+  // range for this ride", so it still says nothing about who is on the roster
+  // beyond what the reader already knows by being on it or not.
+  function renderRingToggle() {
+    const btn = document.getElementById("range-ring");
+    if (!btn) return;
+    const r = window.TB.range || {};
+    btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
+    if (btn.hidden) return;
+    btn.textContent = "Range";
+    btn.title = state.ringOn ? "Hide the fuel range" : "Show the fuel range";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(state.ringOn));
   }
 
   function dlButton(href, label, download, title) {

@@ -9,9 +9,20 @@
 // The copy in builder.js was the only one until the importer needed to color
 // the days of a folder import too, and two copies of a palette drift the moment
 // one gains a color.
+//
+// NO RED IN HERE, AND THAT IS RESERVED RATHER THAN AN OVERSIGHT. Ziad's call,
+// 2026-08-31. `#cc0000` was the second entry and it is the exact value of
+// `$stop` — the same red the fuel wall and the unrideable stretch are drawn in
+// (#229), so a day assigned it drew its whole route in the color that means
+// "you cannot ride this". A rider has no way to tell those apart, and the one
+// that carries a warning has to win.
+//
+// Removing an entry reshuffles every day after it, which costs nothing: the
+// color is stored per day, so only days colored from now on are affected.
+// **Rides created before this keep the red they were given** — the palette is
+// what is offered, not what is enforced.
 export const DAY_COLORS = [
   '#0066cc',
-  '#cc0000',
   '#8800dd',
   '#ff6f00',
   '#dd00dd',

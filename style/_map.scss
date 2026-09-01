@@ -967,17 +967,75 @@ table.day-table {
     border-color: $brand;
   }
 
-  // Pressed is ride scope, the non-default. Marked because it is the state a
-  // rider can otherwise forget they are in — the slider looks the same, it just
-  // covers more — and a day's worth of travel being four pixels is exactly the
-  // complaint that got it built.
+  // FILLED IS ON. Both buttons in this bar carry their own STATE as their label
+  // rather than the action a click performs, so the fill has to agree with the
+  // word: Day is filled and Ride is not, Range is filled when the ring is
+  // showing. An outline for "on" and an outline for "off" would leave the word
+  // doing all the work, which is what made the old pair unreadable at a glance.
   &[aria-pressed="true"] {
-    color: $brand;
+    background: $brand;
+    border-color: $brand;
+    color: $white;
+  }
+
+  // Hover must not repaint a filled button back to an outline — the base rule's
+  // hover only touches color and border, so it is stated again here.
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    color: $white;
     border-color: $brand;
   }
 
   &[hidden] {
     display: none;
+  }
+}
+
+// The scope toggle keeps the brand blue in BOTH states, so "Ride" is the same
+// control unfilled rather than a greyed-out one. The base rule's neutral border
+// and text would read as disabled next to a filled sibling.
+#time-scope {
+  border-color: $brand;
+  color: $brand;
+
+  &:hover,
+  &:focus-visible {
+    color: $brand;
+    border-color: $brand;
+  }
+
+  // RESTATED HERE, and it is not redundant: an id selector outranks
+  // `.time-scope[aria-pressed="true"]`, so without this the rule above wins and
+  // the filled state renders brand text on a brand fill — invisible. Same
+  // reason #range-ring repeats its own pressed block.
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    background: $brand;
+    border-color: $brand;
+    color: $white;
+  }
+}
+
+// The range ring's toggle is RED, not brand blue, because the thing it shows is
+// the fuel warning — the E markers and the closed-road stretch are $stop, and a
+// blue control for a red overlay reads as two features.
+#range-ring {
+  border-color: $stop;
+  color: $stop;
+
+  &:hover,
+  &:focus-visible {
+    color: $stop;
+    border-color: $stop;
+  }
+
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    background: $stop;
+    border-color: $stop;
+    color: $white;
   }
 }
 
@@ -1133,6 +1191,148 @@ table.day-table {
 // on the point and every child below can be positioned from the center with the
 // negative margins the legacy viewer used. Sizing the wrapper to its contents
 // instead would hang each marker above and to the right of its own coordinates.
+// The scrubbed moment: where the rider would be, and the point the range circle
+// reaches to. Drawn by setMoment() in map-common.js.
+//
+// ZERO-SIZED WRAPPERS, like .tb-marker and for the same reason: an
+// AdvancedMarkerElement anchors its content at bottom-center, so a box with no
+// size puts the anchor exactly on the coordinate and the negative margins do
+// the centering. Give either of these a width and it drifts off the road.
+.tb-moment-dot,
+.tb-moment-target {
+  position: relative;
+  width: 0;
+  height: 0;
+  // The moment dot answers nothing and must not swallow the pointer: the route
+  // underneath is draggable to shape, and a dot that took the pointer would put
+  // a dead spot on the line wherever the scrubber happened to be parked.
+  pointer-events: none;
+}
+
+// THE WALL IS THE EXCEPTION, because it carries a hover tooltip. Six small dead
+// spots for drag-to-shape, one per wall, which is the same cost every other
+// marker on the map already imposes.
+.tb-moment-target,
+.tb-moment-disc {
+  // Google sets `pointer-events: none` on the container of a marker that is not
+  // gmpClickable; a DESCENDANT may re-enable it, which is what makes the disc
+  // hoverable without turning the marker into a button. Six small dead spots
+  // for drag-to-shape, one per wall — the same cost every other marker on the
+  // map already imposes.
+  pointer-events: auto;
+}
+
+.tb-moment-dot::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: $brand;
+  // A white keyline, because the dot sits ON the day's own line and a route
+  // colored anywhere near the dot would otherwise swallow it.
+  border: 2px solid $white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+// WHERE THE TANK RUNS DRY: a red disc with a white E on it, for empty.
+//
+// NOT A NO-ENTRY SIGN. It was one for a build, and a red disc with a white BAR
+// is the international sign for a road CLOSURE — which this is not. The road is
+// open; the rider has no fuel to reach it on. Ziad's call, 2026-08-31. The
+// letter is what tells the two apart without a legend.
+//
+// IT DOES NOT ROTATE. It replaced a red bar laid perpendicular to the road,
+// whose angle was correct and still looked wrong: a broadly northbound route
+// runs genuinely east-west for a mile here and there, so a wall landing on one
+// of those stretches stood vertical against a northbound ride. Smoothing the
+// heading over a wider chord was measured and trades one wrongness for another.
+// A sign is read upright and has no angle to get wrong. See targetEl() in
+// map-common.js.
+//
+// $stop rather than $warning: the amber diamond means "put a fuel stop in" and
+// is what .row-dist-dry says in the day list. This is not advice. NOT $signal
+// either — that is the blue of a go light in this palette.
+//
+// FIXED PIXELS, NOT METERS. A sign is a symbol and should stay the same size at
+// every zoom; drawn in real distance it would be invisible at low zoom and a
+// mile wide at high zoom.
+.tb-moment-disc {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: $stop;
+  // A white ring, because the sign sits ON the dry stretch, which is drawn in
+  // this same red and would otherwise swallow it.
+  border: 2px solid $white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  // <i> is italic by default and this is a sign face, not emphasis.
+  font-style: normal;
+  font-weight: 700;
+  font-size: 12px;
+  // 1, so the glyph's own box does not push it off the disc's centre.
+  line-height: 1;
+  color: $white;
+  cursor: default;
+}
+
+// "Empty", on hover or focus. NOT the native `title` tooltip, which waits about
+// a second, renders in the OS style at the pointer and cannot be styled — on a
+// map that is slow enough to miss and quiet enough to ignore. This appears
+// instantly.
+//
+// $tarmac rather than $stop: the disc it sits on is already red, and a red pill
+// immediately above a red disc reads as one blob rather than as a label.
+.tb-moment-tip {
+  position: absolute;
+  left: 0;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  background: $tarmac;
+  color: $white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  // `display` rather than opacity, so it is out of the accessibility tree and
+  // never a stray label read beside the disc's own aria-label.
+  display: none;
+  // Above the disc, which shares this stacking context.
+  z-index: 2;
+}
+
+// The pointer, pinned under the middle of the pill.
+.tb-moment-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: $tarmac;
+}
+
+// HOVER ONLY, and that is a deliberate stopping point rather than a gap. Making
+// it focusable needs `gmpClickable`, which exposes the marker as a BUTTON that
+// does nothing — a control announced to a screen reader and activatable by a
+// keyboard, for a label. The disc's own aria-label carries the same fact and
+// says it better ("Out of fuel here"), and the day list already flags the row.
+// Nothing here is the only way to learn it.
+.tb-moment-target:hover .tb-moment-tip {
+  display: block;
+}
+
 .tb-marker {
   position: relative;
   width: 0;

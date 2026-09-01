@@ -88,6 +88,18 @@ export type GroupRange = {
   unknown: number
   /** Riders coming, counted. */
   riders: number
+  /**
+   * What the binding bike drinks, or null alongside a null range.
+   *
+   * IT IS NOT COSMETIC AND IT IS NOT THE GROUP'S. `gas` and `charge` are the
+   * same event seen from two kinds of machine — an electric rider passing a
+   * Chevron has refuelled nothing — so anything measuring distance-since-refuel
+   * has to know which category resets the count. The BINDING bike's is the one
+   * that matters because it is the bike the plan is built around; a mixed group
+   * where the smallest tank is electric plans around chargers, correctly, and
+   * the gas riders have the easier day.
+   */
+  fuelType: BikeRow['fuelType'] | null
 }
 
 /**
@@ -100,7 +112,37 @@ export type GroupRange = {
  * knows.
  */
 export async function groupRange(rideId: number): Promise<GroupRange> {
-  const riding = await bikesOnRide(rideId)
+  return rangeOver(await bikesOnRide(rideId))
+}
+
+/**
+ * The range to plan around before a ride HAS a roster.
+ *
+ * A ride being created has no `ride_members` rows — `seedOwner` runs inside the
+ * insert transaction, so until the first save there is nobody to ask — and
+ * `bikesOnRide` correctly answers with an empty list. That is the right answer
+ * to "who is coming" and the wrong one for the builder, where a planner is
+ * sitting there with a bike in the garage and a day to fill.
+ *
+ * Their default bike is the honest stand-in. It is deliberately NOT merged into
+ * groupRange(): the moment the ride exists the roster is the better answer, and
+ * it may well be a smaller number than this one — which is the whole point of
+ * #52. A planner who sees 220 miles here and 120 after inviting somebody has
+ * been told something true both times.
+ */
+export async function ownRange(ownerId: number): Promise<GroupRange> {
+  const [bike] = await db
+    .select()
+    .from(bikes)
+    .where(and(eq(bikes.ownerId, ownerId), eq(bikes.isDefault, true)))
+    .limit(1)
+  const [me] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, ownerId)).limit(1)
+  return rangeOver([{ riderId: ownerId, riderName: me?.name ?? 'You', bike: bike ?? null }])
+}
+
+/** The reduction both of the above share. Separate so the two callers cannot
+ *  drift about what an unknown range means or how a figure is rounded. */
+function rangeOver(riding: RidingBike[]): GroupRange {
   const withRange = riding.filter((r) => r.bike?.usableRangeM != null)
   const worst = bindingRange(withRange.map((r) => r.bike!))
   const owner = worst ? (withRange.find((r) => r.bike!.id === worst.id) ?? null) : null
@@ -113,6 +155,7 @@ export async function groupRange(rideId: number): Promise<GroupRange> {
     bikeLabel: worst ? bikeLabel(worst) : null,
     unknown: riding.length - withRange.length,
     riders: riding.length,
+    fuelType: worst?.fuelType ?? null,
   }
 }
 

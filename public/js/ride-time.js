@@ -171,17 +171,129 @@
   // off-by-one trap the isLosingAlt comment above warns about, one level down: a
   // caller holding the ordered list had to filter it the same way to read the
   // answer, and a single index into the list they already have cannot drift.
+  //
+  // `legFraction` is HOW FAR THROUGH THAT LEG, 0..1, and null at a point. It is
+  // what lets a caller put the rider somewhere on the road rather than only on
+  // one of its ends: distance into the day is the legs before this one plus
+  // this fraction of it, which is a coordinate through pointAtDistance(). A
+  // caller that only wants the leg ignores it and reads the same shape it read
+  // before, which is why it is an added field rather than a new function.
+  //
+  // Fraction of TIME, not of distance, and the two differ on a leg whose speed
+  // is not constant — which is every real one. Time is the axis the scrubber
+  // moves along, so it is the honest one here: an hour into a two-hour leg puts
+  // the dot at the halfway mark, and the alternative would have the dot lag or
+  // race the clock the rider is reading beside it.
   function activeAt(day, offsetS) {
-    const none = { legIndex: null, pointIndex: null };
+    const none = { legIndex: null, pointIndex: null, legFraction: null };
     for (const seg of daySchedule(day)) {
       if (offsetS < seg.end) {
-        if (seg.kind === "leg") return { ...none, legIndex: seg.index };
+        if (seg.kind === "leg") {
+          const span = seg.end - seg.start;
+          // A zero-length segment never satisfies the test above, so `span` is
+          // positive here; the guard is for a malformed schedule rather than a
+          // real one, and 0 is the only answer such a leg has.
+          const t = span > 0 ? (offsetS - seg.start) / span : 0;
+          return { ...none, legIndex: seg.index, legFraction: Math.max(0, Math.min(1, t)) };
+        }
         return { ...none, pointIndex: seg.index };
       }
     }
     // Past the end of the day: parked at the final point.
     const n = pointsOf(day).length;
     return { ...none, pointIndex: n ? n - 1 : null };
+  }
+
+  /**
+   * The ride's riding hours as a set of disjoint wall-clock intervals — every
+   * day's span, with the overnights between them left out.
+   *
+   * WHAT THE RIDE-SCOPE SLIDER TRAVELS. rideSpan() is first-departure to
+   * last-arrival, so on a nine-day ride most of the slider's travel is nights
+   * in hotels: a rider dragging it spends more of the gesture in "between days"
+   * than on the road, and the map shows nothing for all of it.
+   *
+   * OVERLAPS ARE MERGED, NOT CONCATENATED, and that is the subtle half. Real
+   * rides have days sharing a date — four alternates for one Thursday, or a
+   * subgroup's feeder running alongside the trunk — and activeAtMoment()
+   * resolves a wall-clock moment to the FIRST day covering it. Concatenating
+   * overlapping spans would give the slider two positions that mean the same
+   * instant and therefore resolve to the same day, so the second copy would be
+   * unreachable travel showing a day the rider is not scrubbing. Merging keeps
+   * one position per instant, which is exactly what the resolver can answer.
+   *
+   * Losing alternates are dropped, matching rideSpan() rather than daySpan():
+   * the ride's length must not include a day the rider decided against.
+   */
+  function rideSegments(days) {
+    const spans = [];
+    for (const day of days || []) {
+      if (isLosingAlt(day)) continue;
+      const s = daySpan(day);
+      if (s) spans.push(s);
+    }
+    spans.sort((a, b) => a.from - b.from);
+    const out = [];
+    for (const s of spans) {
+      const last = out[out.length - 1];
+      // `<=` rather than `<`, so a day starting exactly when the previous one
+      // ends joins it instead of leaving a zero-length gap the slider would
+      // have to step over.
+      if (last && s.from <= last.to) last.to = Math.max(last.to, s.to);
+      else out.push({ from: s.from, to: s.to });
+    }
+    return out;
+  }
+
+  /** Total riding time across the segments, which is the slider's range. */
+  const segmentsTotalS = (segs) => (segs || []).reduce((a, s) => a + (s.to - s.from), 0);
+
+  /**
+   * The wall-clock moment `offsetS` into the segments, skipping the gaps.
+   *
+   * The slider's value is an OFFSET in ride scope and an epoch second in day
+   * scope, but `state.moment` is always an epoch second — everything
+   * downstream, activeAtMoment and fmtMoment included, reads wall clock. This
+   * and offsetAtMoment are the only conversion, and they are here rather than
+   * in each client so the builder and the viewer cannot disagree about where a
+   * given drag lands.
+   */
+  function momentAtOffset(segs, offsetS) {
+    if (!segs || !segs.length) return null;
+    let o = Math.max(0, offsetS);
+    for (const s of segs) {
+      const len = s.to - s.from;
+      // STRICTLY LESS, so the boundary offset belongs to the LATER day.
+      //
+      // One offset means two instants there — the end of day N and the start of
+      // day N+1 — and only one can win. The next day's start wins because it is
+      // a real, labeled time the rider typed into the Starts field, while day
+      // N's final second is visually identical to its second-to-last. Taken the
+      // other way the round trip through offsetAtMoment breaks, and with the
+      // slider's 60-second step every day after the first became unreachable at
+      // its own departure time.
+      //
+      // A zero-length day consumes no travel, correctly: `o < 0` is never true.
+      if (o < len) return s.from + o;
+      o -= len;
+    }
+    return segs[segs.length - 1].to;
+  }
+
+  /**
+   * Where a moment sits on that compressed axis. A moment inside an overnight
+   * lands at the START of the gap rather than the end of it: the gap has no
+   * travel of its own, and rounding forward would jump a rider who has just
+   * clicked into the next day back to the previous one's last second.
+   */
+  function offsetAtMoment(segs, momentS) {
+    let acc = 0;
+    for (const s of segs || []) {
+      if (momentS < s.from) return acc;
+      if (momentS <= s.to) return acc + (momentS - s.from);
+      acc += s.to - s.from;
+    }
+    return acc;
   }
 
   // Which day and leg a moment falls in. A moment in the gap between two days —
@@ -196,9 +308,9 @@
       if (start == null) continue;
       if (momentS < start || momentS > dayEndS(day)) continue;
       const a = activeAt(day, momentS - start);
-      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex };
+      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex, legFraction: a.legFraction };
     }
-    return { dayIndex: null, legIndex: null, pointIndex: null };
+    return { dayIndex: null, legIndex: null, pointIndex: null, legFraction: null };
   }
 
   // UTC, because a day's clock is a WALL CLOCK at the departure point and is
@@ -231,6 +343,10 @@
     daySchedule,
     daySpan,
     rideSpan,
+    rideSegments,
+    segmentsTotalS,
+    momentAtOffset,
+    offsetAtMoment,
     activeAt,
     activeAtMoment,
     fmtMoment,

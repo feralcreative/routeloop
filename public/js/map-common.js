@@ -205,6 +205,39 @@
     return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
+  /**
+   * What the rider can actually see, as a circle: `{ near, radiusM }`, or null
+   * before the map has settled.
+   *
+   * THE SEARCH ANCHOR. Every "near" search used to anchor on the day's LAST
+   * POINT, which is a place the rider can neither see nor move — so panning the
+   * map changed nothing and a search for coffee while looking at Redding
+   * answered around a hotel three hundred miles away. The viewport is the one
+   * anchor they control.
+   *
+   * Radius is HALF THE DIAGONAL, so the circle covers the corners rather than
+   * only the middle of the screen, clamped to the 500m–50km the Places proxy
+   * accepts. A bias is not a filter — Text Search still returns things outside
+   * it — so this steers the ranking rather than drawing a boundary.
+   */
+  function viewportCircle(map) {
+    const b = mapBounds(map);
+    if (!b) return null;
+    const diag = haversineM([b.west, b.south], [b.east, b.north]);
+    return {
+      near: [(b.west + b.east) / 2, (b.south + b.north) / 2],
+      radiusM: Math.max(500, Math.min(50000, Math.round(diag / 2))),
+    };
+  }
+
+  function haversineM(a, b) {
+    const rad = Math.PI / 180;
+    const dLat = (b[1] - a[1]) * rad;
+    const dLng = (b[0] - a[0]) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
+  }
+
   // Where the map is looking, as [lng, lat], or null before it has settled.
   //
   // Here rather than in builder.js because this file is the only one that names
@@ -470,6 +503,311 @@
     line.setVisible(true);
   }
 
+  // --- The scrubbed moment --------------------------------------------------
+
+  // WHERE THE RIDER WOULD BE, HOW MUCH FUEL IS LEFT, AND WHERE IT RUNS OUT.
+  //
+  // Three overlays that move together and are therefore one function: a dot on
+  // the road at the scrubbed moment, a ring around it whose radius is the fuel
+  // still in the tank, and a marker where that fuel runs out on the road.
+  // Splitting them into three setters would let a caller leave one behind — a
+  // ring around a dot that has moved on is a claim about nowhere.
+  //
+  // THE RADIUS IS COMPUTED BY THE CALLER and passed in meters. This file draws;
+  // range-circle.js decides. That split is what keeps the arithmetic testable,
+  // and it is the same arrangement route-shape.js has with the drag handles.
+  //
+  // A google.maps.Circle rather than a styled marker, because the radius is in
+  // METERS and has to stay in meters: a fixed-pixel ring would grow and shrink
+  // with the zoom and mean nothing at any of them. It is also what makes the
+  // ring shrink at all — the radius IS the remaining fuel, so the drawing needs
+  // no animation and no idea of how fast it should go.
+
+  // A google.maps overlay takes a real color string, not a var() — the API
+  // resolves nothing — so the tokens are read out of the compiled stylesheet
+  // the same way dashboard.js reads its chart colors. Read lazily rather than
+  // at load, because the theme can change under a page that is already open.
+  //
+  // EVERYTHING IN THE FUEL OVERLAY IS $stop RED — the ring, the E markers, the
+  // closed stretch and the Range button that toggles them. Ziad's call,
+  // 2026-08-31. The ring was brand blue on the reasoning that a distance is a
+  // quantity rather than a verdict, which is true of the number and false of
+  // the picture: a blue circle drawn around red markers on a red road reads as
+  // a second, unrelated feature.
+  //
+  // THE MOMENT DOT STAYS BLUE, and that is the line. It marks where the rider
+  // is, which is not a warning and is the one thing here that would still be
+  // drawn if the group had no bike on file.
+  const cssVar = (name, fallback) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const RING = () => cssVar("--stop", "#cc0000");
+
+  // Small round dots rather than dashes: the ring is the quietest thing on the
+  // map and a dashed edge reads as a route, which is what every other dashed
+  // line here means — see dashIcons() and the ghosted-day treatment.
+  function ringDots(color) {
+    return [
+      {
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 1.3,
+          fillColor: color,
+          fillOpacity: 0.85,
+          strokeOpacity: 0,
+        },
+        offset: "0",
+        repeat: "5px",
+      },
+    ];
+  }
+  // The same red. Kept as its own name because the two are read by different
+  // overlays and only one of them is a distance — see RING() above.
+  const WALL = () => cssVar("--stop", "#cc0000");
+
+  // The unrideable stretch: a SOLID red line with WHITE dashes on it, which is
+  // hazard tape rather than a road.
+  //
+  // WHY NOT DASH THE RED ITSELF. That was tried and reported as "dashed AND
+  // solid underneath", and the report was right: a day is drawn as ONE polyline
+  // (see route-shape.js and the note in AGENTS.md), so there is no way to blank
+  // the span of it the stretch covers. Gapping the red just let the day's own
+  // color through, and the eye read the continuous line beneath rather than the
+  // gaps. Painting over it opaquely is the only way to make the road look
+  // closed, so the dashes go ON the red instead of being made of it.
+  //
+  // White, not the day's color: the whole point is that the day's line has been
+  // covered, and tinting the dashes with it would put it straight back.
+  function dryDashes() {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: cssVar("--white", "#ffffff"),
+          strokeOpacity: 0.95,
+          strokeWeight: 6,
+          scale: 2.5,
+        },
+        offset: "0",
+        repeat: "16px",
+      },
+    ];
+  }
+
+  const moments = new WeakMap(); // map -> { dot, circle, ringLine, targets, stretch }
+
+  function momentOf(map) {
+    let m = moments.get(map);
+    if (!m) {
+      const dot = document.createElement("div");
+      dot.className = "tb-moment-dot";
+      m = {
+        dot: new Marker.AdvancedMarkerElement({ map, content: dot, zIndex: 6 }),
+        // THE FILL ONLY, and a Polygon rather than a Circle. Circle cannot draw
+        // a dashed or dotted edge — it has strokeWeight, strokeColor and
+        // strokeOpacity and nothing else — so the edge is the polyline below,
+        // which carries repeating icons the way a ghosted day does. Once the
+        // edge is a path, the fill may as well take the same one: two overlays
+        // built from one array cannot disagree about where the ring is.
+        //
+        // Below the route lines, so a ring drawn over a day never obscures the
+        // road it is a statement about.
+        circle: new Maps.Polygon({
+          map,
+          zIndex: 1,
+          clickable: false,
+          visible: false,
+          strokeWeight: 0,
+          strokeOpacity: 0,
+          fillOpacity: 0.05,
+        }),
+        // The ring's edge, drawn as dots. Same zIndex as the fill: they are one
+        // object and nothing should ever come between them.
+        ringLine: new Maps.Polyline({
+          map,
+          zIndex: 1,
+          clickable: false,
+          visible: false,
+          // The stroke itself is transparent and the DOTS are the icons — the
+          // same mechanism dashIcons() uses. See ringDots().
+          strokeOpacity: 0,
+        }),
+        // A POOL, not one marker. There is a wall for every tankful the day
+        // needs (#220), so a 700-mile day with no pumps draws six or seven.
+        // Grown on demand by wallMarkers() and never shrunk — the spares are
+        // detached rather than destroyed, because a rider scrubbing back and
+        // forth would otherwise rebuild them on every frame.
+        targets: [],
+        // THE STRETCH THE RIDER CANNOT MAKE, from the wall to the next pump.
+        //
+        // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
+        // drag preview is 4, and this has to sit between them: above the
+        // highlight, because a rider who scrubs INTO the dry stretch would
+        // otherwise have the bright day-colored highlight paint over the one
+        // thing on screen telling them they cannot ride it; and below the drag
+        // preview, which is the line following their pointer and must never be
+        // obscured while they are holding it.
+        stretch: new Maps.Polyline({
+          map,
+          // Opaque, unlike dashIcons()' host line: here the stroke is the red
+          // road and the icons are white dashes ON it. See dryDashes().
+          strokeOpacity: 1,
+          strokeWeight: 6,
+          zIndex: 3.5,
+          clickable: false,
+          visible: false,
+        }),
+      };
+      m.dot.map = null;
+      moments.set(map, m);
+    }
+    return m;
+  }
+
+  // WHERE THE TANK RUNS OUT: a red disc with a white E on it, for empty.
+  //
+  // NOT A NO-ENTRY SIGN, which is what it was for one build. A red disc with a
+  // white BAR is the international sign for a road CLOSURE, and this is not one
+  // — the road is open, the rider simply has no fuel to reach it on. Ziad's
+  // call, 2026-08-31. The letter is what tells the two apart without a legend.
+  //
+  // IT DOES NOT ROTATE, and that is the whole reason it replaced a bar laid
+  // perpendicular to the road. The bar's angle was correct and still looked
+  // wrong: a route heading broadly north runs genuinely east-west for a mile
+  // here and there, so a wall landing on one of those stretches stood vertical
+  // against a northbound ride. Smoothing the heading over a wider chord was
+  // measured and trades one wrongness for another — on day 2 of ride 32 a
+  // five-mile window fixed the wall at mile 291 and broke the ones at 181 and
+  // 621, where the bar would then visibly not be square to the road in front of
+  // it. A sign is meant to be read upright, so it has no angle to get wrong.
+  //
+  // The `<i>` carries the letter rather than the disc carrying it as text, so
+  // the two can be sized and positioned independently.
+  /** The i-th wall marker, created on first use. */
+  function wallMarker(m, map, i) {
+    if (!m.targets[i]) {
+      m.targets[i] = new Marker.AdvancedMarkerElement({
+        map,
+        content: targetEl(),
+        zIndex: 5,
+        // NOT gmpClickable. It would make the marker reachable, and it also
+        // exposes <gmp-advanced-marker> as a BUTTON — a control a screen reader
+        // announces and a keyboard can activate, which here does nothing at
+        // all. `pointer-events: auto` on the disc is enough on its own: Google
+        // sets `none` on the container, and a descendant may re-enable it.
+      });
+    }
+    return m.targets[i];
+  }
+
+  /** Detach every wall marker from `from` onward. */
+  function hideWalls(m, from) {
+    for (let i = from; i < m.targets.length; i++) m.targets[i].map = null;
+  }
+
+  function targetEl() {
+    const el = document.createElement("div");
+    el.className = "tb-moment-target";
+    // THE DISC IS A REAL CHILD, NOT A PSEUDO-ELEMENT. The wrapper has to stay
+    // 0x0 — AdvancedMarkerElement anchors its content at bottom-center, so a
+    // sized wrapper drifts off the point, the same rule .tb-marker follows — but
+    // a 0x0 box is not a hover target and not something an accessibility tree
+    // treats as visible. The child carries the size, the letter, the name, and
+    // the hover.
+    const glyph = document.createElement("i");
+    glyph.className = "tb-moment-disc";
+    glyph.textContent = "E";
+    glyph.setAttribute("role", "img");
+    glyph.setAttribute("aria-label", "Out of fuel here");
+    el.appendChild(glyph);
+    // A TOOLTIP OF OUR OWN, NOT `title`. The native one waits about a second,
+    // renders in the OS style at the pointer, and cannot be styled — on a map
+    // that is slow enough to miss and quiet enough to ignore. This one is CSS
+    // on hover, so it appears instantly and reads as part of the map.
+    //
+    // It is why `.tb-moment-target` takes pointer events where `.tb-moment-dot`
+    // does not: the disc has to be hoverable. The cost is six small dead spots
+    // for drag-to-shape, one per wall, which is the same cost every other
+    // marker on the map already imposes.
+    const tip = document.createElement("span");
+    tip.className = "tb-moment-tip";
+    tip.textContent = "Empty";
+    // The disc's aria-label already says this, and better. Left readable, the
+    // tooltip joins the marker's accessible name as "Out of fuel here Empty".
+    tip.setAttribute("aria-hidden", "true");
+    el.appendChild(tip);
+    return el;
+  }
+
+  /**
+   * Draw the moment, or clear it with a null `at`.
+   *
+   * `at` is [lng, lat]; `dryWalls` is one [lng, lat] per point the tank runs
+   * out, in order; `ringPath` is the fuel ring's own closed path;
+   * `dryPath` is the stretch from the first wall to the next pump. All of it is
+   * computed by the caller — this file draws and decides nothing, which is why
+   * the ring arrives as a path rather than as a radius.
+   *
+   * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
+   * than three setters: a ring left behind around a dot that has moved on is a
+   * claim about nowhere.
+   *
+   * A NULL RADIUS STILL DRAWS THE DOT. Where the rider would be does not depend
+   * on whether anything is known about their tank, and a bike with no range on
+   * file is the common case rather than the edge one. A radius of ZERO also
+   * draws no ring, and it is a different fact — the tank is empty rather than
+   * unmeasured — which is why range-circle.js keeps the two apart.
+   */
+  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath) {
+    const m = momentOf(map);
+    if (!at) {
+      m.dot.map = null;
+      hideWalls(m, 0);
+      m.circle.setVisible(false);
+      m.ringLine.setVisible(false);
+      m.stretch.setVisible(false);
+      return;
+    }
+    m.dot.position = toLatLng(at);
+    m.dot.map = map;
+
+    if (ringPath && ringPath.length > 2) {
+      const path = ringPath.map(toLatLng);
+      m.circle.setOptions({ fillColor: RING() });
+      m.circle.setPath(path);
+      m.circle.setVisible(true);
+      m.ringLine.setOptions({ icons: ringDots(RING()) });
+      m.ringLine.setPath(path);
+      m.ringLine.setVisible(true);
+    } else {
+      m.circle.setVisible(false);
+      m.ringLine.setVisible(false);
+    }
+
+    // Independent of the ring, and drawn whenever the day holds one. The ring
+    // is how much fuel is left as the crow flies; this is where that runs out
+    // on the road the rider is actually on, and the gap between them is the
+    // cost of the bends.
+    // ONE SIGN PER WALL, and no angle to compute — see targetEl().
+    const walls = dryWalls || [];
+    walls.forEach((w, i) => {
+      const marker = wallMarker(m, map, i);
+      marker.position = toLatLng(w);
+      marker.map = map;
+    });
+    hideWalls(m, walls.length);
+
+    // Drawn on the same condition as the wall and in the same red, because they
+    // are one statement: the bar is where the fuel runs out and this is what it
+    // runs out ACROSS.
+    if (dryPath && dryPath.length > 1) {
+      m.stretch.setOptions({ strokeColor: WALL(), icons: dryDashes() });
+      m.stretch.setPath(dryPath.map(toLatLng));
+      m.stretch.setVisible(true);
+    } else {
+      m.stretch.setVisible(false);
+    }
+  }
+
   // --- Drag to shape --------------------------------------------------------
 
   // Pulling the route line onto the road the rider actually meant.
@@ -647,15 +985,37 @@
     return Places;
   }
 
+  /**
+   * RESTRICTED TO WHAT IS ON SCREEN. Ziad's call, 2026-08-31.
+   *
+   * It was a bias until then, on the recorded reasoning that "a rider planning
+   * from home still wants to find the far end of the ride" — which is true and
+   * is not what a bias delivers. A bias only reorders: the list still fills
+   * with a Shell in Ohio while the rider is looking at Oregon, and by a long
+   * way the common act is adding a point to the stretch of road on screen.
+   *
+   * A FALLBACK TO THE BIASED SEARCH WAS TRIED AND REMOVED THE SAME HOUR, and it
+   * is recorded because it reads as obviously kind and is not. Retrying
+   * unrestricted whenever the viewport had nothing turned "no matches here"
+   * into a list from three states away: zoomed into the Bay Area, "shell"
+   * returned Shelley ID, Shell Lake WI and Shell Knob MO. It served a specific
+   * name like "Dunsmuir Lodge" well and a generic word terribly, and telling
+   * those apart needs a guess about what the rider meant.
+   *
+   * So the rule is plain and the empty case SAYS SO rather than being papered
+   * over — the caller names the viewport in its no-matches line, which makes
+   * zooming out the obvious next move. That is how the far end of the ride
+   * stays reachable: one gesture, and the rider is the one who chose it.
+   */
   async function searchPlaces(map, input) {
     const { AutocompleteSuggestion, AutocompleteSessionToken } = await placesLib();
     if (!sessionToken) sessionToken = new AutocompleteSessionToken();
 
     const request = { input, sessionToken };
-    // Bias, not restrict: a rider planning from home still wants to find the
-    // far end of the ride.
+    // Null before the map has settled, and an unrestricted search is the right
+    // behavior then: there is no viewport yet to be outside of.
     const bounds = mapBounds(map);
-    if (bounds) request.locationBias = bounds;
+    if (bounds) request.locationRestriction = bounds;
 
     const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
     return suggestions
@@ -1026,10 +1386,12 @@
     onMarkerDragEnd,
     searchPlaces,
     mapCenter,
+    viewportCircle,
     markerElement,
     popupHtml,
     attachPopup,
     stopMileages,
+    setMomentOverlay,
     iconSvg,
     initPanelToggle,
   };

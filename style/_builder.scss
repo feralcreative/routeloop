@@ -1637,6 +1637,135 @@
       font-size: 0.7em;
       color: $url;
     }
+
+    // HOW FAR IN, AND HOW FAR ON THIS TANK (#220).
+    //
+    // Quiet by default and on its own line under the row's controls. It is
+    // reference rather than an action — the rider is scanning down a day for the
+    // gap where fuel has to go — so it must not compete with the name field it
+    // sits under.
+    //
+    // A FIXED HEIGHT IS NOT NEEDED and would be wrong: the readout is absent
+    // entirely on the first point of every day and on any row with no distance
+    // yet, so reserving the line would put an empty band under every day's first
+    // stop. The rows below simply sit closer.
+    .row-dist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 0.6em;
+      margin: 0.15em 0 0 1.6em;
+      font-size: 0.7em;
+      font-variant-numeric: tabular-nums;
+      color: $neutral-50;
+    }
+
+    // The tank figure is the one being scanned for, so it is the one that is not
+    // grey. It appears only once it differs from the distance into the day —
+    // see distReadoutHtml — so when it is here it is saying something new.
+    .row-dist-fuel {
+      color: $neutral-36;
+      font-weight: 600;
+    }
+
+    // Past the binding range. $warning rather than $signal: nothing is broken
+    // and nothing has failed — the rider is being told to put a fuel stop in,
+    // which is a thing to notice rather than an error to fix.
+    .row-dist-dry {
+      color: $warning;
+      font-weight: 600;
+      cursor: help;
+    }
+
+    // #54's offer, on a mid-day point tagged as somewhere to sleep. An OFFER and
+    // not a state, so it reads as a suggestion rather than as something already
+    // decided — see lodgingOfferHtml for why the day is not simply cut.
+    .row-lodging-offer {
+      margin: 0.2em 0 0.1em 1.6em;
+    }
+
+    // #50's search scope, under the category chips: near the day's last point,
+    // or along its whole line. A two-state segmented control, and it replaced a
+    // checkbox plus a range slider on 2026-08-31 — see corridorHtml() in
+    // builder.js for why both halves are named rather than one being implied.
+    //
+    // ONE PILL, TWO SEGMENTS, no gap between them. The shared border is what
+    // makes it read as a choice between two things rather than as two buttons
+    // that happen to sit together.
+    .add-corridor {
+      display: inline-flex;
+      align-items: stretch;
+      margin-top: 0.4em;
+      border: 1px solid $grey;
+      border-radius: 999px;
+      // The children paint their own lit background right up to this radius, so
+      // the corners have to be clipped or the fill squares them off.
+      overflow: hidden;
+    }
+
+    .scope-btn {
+      // No global border-box reset in this stylesheet — see AGENTS.md. Without
+      // this the padding sits outside the width and the pill renders wider than
+      // it declares.
+      box-sizing: border-box;
+      // SC 2.5.8 wants 24px of target and this is a text control in a 380px
+      // drawer, so the floor is in pixels: an em floor shrinks with the 0.72em
+      // type and lands at about 17.
+      min-height: 24px;
+      padding: 0.1em 0.7em;
+      border: 0;
+      background: transparent;
+      color: $neutral-50;
+      font: inherit;
+      font-size: 0.72em;
+      font-weight: 600;
+      line-height: 1.6;
+      white-space: nowrap;
+      cursor: pointer;
+
+      + .scope-btn {
+        border-left: 1px solid $grey;
+      }
+
+      &:hover {
+        color: $text-l30;
+      }
+
+      // QUIET, NOT BRAND-FILLED. This shipped as a solid $brand segment and it
+      // was louder than the category chips above it, which inverts the
+      // hierarchy — a chip is the action and this only says where the action
+      // looks. Same treatment .page-tab gives an active tab: a weight and a
+      // color change, not a block of paint.
+      &.is-on {
+        background: $neutral-94;
+        color: $text;
+      }
+
+      // Inside the pill's own clipped corners an outset ring is cut off, so it
+      // goes inward.
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: -3px;
+      }
+    }
+
+    .row-split-offer {
+      padding: 0.2em 0.6em;
+      border: 1px dashed $grey;
+      border-radius: 999px;
+      background: transparent;
+      color: $text-l30;
+      font: inherit;
+      font-size: 0.7em;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        border-style: solid;
+        border-color: $brand;
+        color: $brand;
+      }
+    }
   }
 
   // Save and Discard are gone — the builder autosaves — so what is left is
@@ -1888,6 +2017,17 @@
     .hit-ctx {
       color: $text-l35;
       font-size: 0.85em;
+    }
+
+    // How far off the route this one is (#50). Present only on a corridor
+    // search, and the loudest thing in the row after the name — it is what the
+    // rider is choosing on, and the list is already sorted by it.
+    .hit-off {
+      color: $brand;
+      font-size: 0.85em;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
   }
 
