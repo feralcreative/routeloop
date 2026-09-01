@@ -36,7 +36,8 @@
 
   // Shared with the builder so a ride resolves to the same leg at the same
   // moment in both. See ride-time.js.
-  const { rideSpan, activeAtMoment, fmtMoment } = window.TBTime;
+  const { rideSpan, rideSegments, segmentsTotalS, momentAtOffset, offsetAtMoment, activeAtMoment, fmtMoment } =
+    window.TBTime;
   const { pointAtDistance, bearingAtDistance, sliceBetween, haversineM } = window.TBShape;
   const DIST = window.TBDistance;
   // Where the rider would be at a scrubbed moment, and how much fuel is left
@@ -262,9 +263,17 @@
 
     const slider = document.getElementById("time-slider");
     const readout = document.getElementById("time-readout");
-    slider.min = String(span.from);
-    slider.max = String(span.to);
-    slider.value = String(state.moment == null ? span.from : state.moment);
+    // THE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK. rideSpan() is
+    // first-departure to last-arrival, so on a multi-day ride most of the
+    // travel was nights in hotels — the reader spent more of the drag in
+    // "between days", with nothing on the map, than on the road. The value is
+    // an OFFSET into the concatenated day spans; `state.moment` stays an epoch
+    // second, because everything downstream reads wall clock. See
+    // rideSegments() in ride-time.js.
+    const segs = rideSegments(state.ride.days);
+    slider.min = "0";
+    slider.max = String(segmentsTotalS(segs));
+    slider.value = String(state.moment == null ? 0 : offsetAtMoment(segs, state.moment));
 
     // The slider's value is epoch seconds, which is what a screen reader would
     // otherwise read out. aria-valuetext replaces that with the same sentence
@@ -301,7 +310,7 @@
     const slider = document.getElementById("time-slider");
     if (!slider) return;
     slider.addEventListener("input", () => {
-      state.moment = Number(slider.value);
+      state.moment = momentAtOffset(rideSegments(state.ride.days), Number(slider.value));
       paintFocus();
       renderTimeline();
     });

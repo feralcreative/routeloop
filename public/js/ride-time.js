@@ -204,6 +204,98 @@
     return { ...none, pointIndex: n ? n - 1 : null };
   }
 
+  /**
+   * The ride's riding hours as a set of disjoint wall-clock intervals — every
+   * day's span, with the overnights between them left out.
+   *
+   * WHAT THE RIDE-SCOPE SLIDER TRAVELS. rideSpan() is first-departure to
+   * last-arrival, so on a nine-day ride most of the slider's travel is nights
+   * in hotels: a rider dragging it spends more of the gesture in "between days"
+   * than on the road, and the map shows nothing for all of it.
+   *
+   * OVERLAPS ARE MERGED, NOT CONCATENATED, and that is the subtle half. Real
+   * rides have days sharing a date — four alternates for one Thursday, or a
+   * subgroup's feeder running alongside the trunk — and activeAtMoment()
+   * resolves a wall-clock moment to the FIRST day covering it. Concatenating
+   * overlapping spans would give the slider two positions that mean the same
+   * instant and therefore resolve to the same day, so the second copy would be
+   * unreachable travel showing a day the rider is not scrubbing. Merging keeps
+   * one position per instant, which is exactly what the resolver can answer.
+   *
+   * Losing alternates are dropped, matching rideSpan() rather than daySpan():
+   * the ride's length must not include a day the rider decided against.
+   */
+  function rideSegments(days) {
+    const spans = [];
+    for (const day of days || []) {
+      if (isLosingAlt(day)) continue;
+      const s = daySpan(day);
+      if (s) spans.push(s);
+    }
+    spans.sort((a, b) => a.from - b.from);
+    const out = [];
+    for (const s of spans) {
+      const last = out[out.length - 1];
+      // `<=` rather than `<`, so a day starting exactly when the previous one
+      // ends joins it instead of leaving a zero-length gap the slider would
+      // have to step over.
+      if (last && s.from <= last.to) last.to = Math.max(last.to, s.to);
+      else out.push({ from: s.from, to: s.to });
+    }
+    return out;
+  }
+
+  /** Total riding time across the segments, which is the slider's range. */
+  const segmentsTotalS = (segs) => (segs || []).reduce((a, s) => a + (s.to - s.from), 0);
+
+  /**
+   * The wall-clock moment `offsetS` into the segments, skipping the gaps.
+   *
+   * The slider's value is an OFFSET in ride scope and an epoch second in day
+   * scope, but `state.moment` is always an epoch second — everything
+   * downstream, activeAtMoment and fmtMoment included, reads wall clock. This
+   * and offsetAtMoment are the only conversion, and they are here rather than
+   * in each client so the builder and the viewer cannot disagree about where a
+   * given drag lands.
+   */
+  function momentAtOffset(segs, offsetS) {
+    if (!segs || !segs.length) return null;
+    let o = Math.max(0, offsetS);
+    for (const s of segs) {
+      const len = s.to - s.from;
+      // STRICTLY LESS, so the boundary offset belongs to the LATER day.
+      //
+      // One offset means two instants there — the end of day N and the start of
+      // day N+1 — and only one can win. The next day's start wins because it is
+      // a real, labeled time the rider typed into the Starts field, while day
+      // N's final second is visually identical to its second-to-last. Taken the
+      // other way the round trip through offsetAtMoment breaks, and with the
+      // slider's 60-second step every day after the first became unreachable at
+      // its own departure time.
+      //
+      // A zero-length day consumes no travel, correctly: `o < 0` is never true.
+      if (o < len) return s.from + o;
+      o -= len;
+    }
+    return segs[segs.length - 1].to;
+  }
+
+  /**
+   * Where a moment sits on that compressed axis. A moment inside an overnight
+   * lands at the START of the gap rather than the end of it: the gap has no
+   * travel of its own, and rounding forward would jump a rider who has just
+   * clicked into the next day back to the previous one's last second.
+   */
+  function offsetAtMoment(segs, momentS) {
+    let acc = 0;
+    for (const s of segs || []) {
+      if (momentS < s.from) return acc;
+      if (momentS <= s.to) return acc + (momentS - s.from);
+      acc += s.to - s.from;
+    }
+    return acc;
+  }
+
   // Which day and leg a moment falls in. A moment in the gap between two days —
   // the overnight — belongs to neither, and returns nulls rather than being
   // rounded into the nearest day.
@@ -251,6 +343,10 @@
     daySchedule,
     daySpan,
     rideSpan,
+    rideSegments,
+    segmentsTotalS,
+    momentAtOffset,
+    offsetAtMoment,
     activeAt,
     activeAtMoment,
     fmtMoment,

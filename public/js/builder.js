@@ -52,6 +52,10 @@
     dayStartS,
     daySpan,
     rideSpan,
+    rideSegments,
+    segmentsTotalS,
+    momentAtOffset,
+    offsetAtMoment,
     activeAt,
     activeAtMoment,
     fmtMoment,
@@ -3819,6 +3823,28 @@
     return day ? daySpan(day) : null;
   }
 
+  /**
+   * THE RIDE-SCOPE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK, so the
+   * overnights between days consume none of it.
+   *
+   * rideSpan() is first-departure to last-arrival, so on a nine-day ride most
+   * of the slider's travel was nights in hotels: the rider spent more of the
+   * drag in "between days", with nothing on the map, than on the road. In ride
+   * scope the value is now an OFFSET into the concatenated day spans and these
+   * two convert it; in day scope there are no gaps to skip and the value stays
+   * the epoch second it always was.
+   *
+   * `state.moment` is an epoch second in BOTH scopes. Nothing downstream
+   * changes — activeNow, fmtMoment, paintMoment all still read wall clock — and
+   * the compression lives entirely between the slider and that field.
+   */
+  const rideSegs = () => rideSegments(state.days);
+
+  function momentFromSlider(v) {
+    if (state.timeScope !== "ride") return v;
+    return momentAtOffset(rideSegs(), v);
+  }
+
   // Where the moment falls: which day, and which leg or point within it.
   //
   // IN DAY SCOPE THE DAY IS ALREADY KNOWN, so the moment resolves against it
@@ -3890,9 +3916,18 @@
       return;
     }
 
-    slider.min = String(span.from);
-    slider.max = String(span.to);
-    slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
+    if (state.timeScope === "ride") {
+      // Zero to total riding seconds. The overnights are not on the track at
+      // all, so there is no position on it that means "between days".
+      const segs = rideSegs();
+      slider.min = "0";
+      slider.max = String(segmentsTotalS(segs));
+      slider.value = String(state.moment == null ? 0 : offsetAtMoment(segs, state.moment));
+    } else {
+      slider.min = String(span.from);
+      slider.max = String(span.to);
+      slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
+    }
 
     if (state.moment == null) {
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
@@ -6357,7 +6392,7 @@
   // what let the ~15 shared edit functions below keep reading editIndex() when
   // the panel went from one visible day to all of them.
   function wireDays() {
-    $("time-slider").addEventListener("input", (e) => setMoment(Number(e.target.value)));
+    $("time-slider").addEventListener("input", (e) => setMoment(momentFromSlider(Number(e.target.value))));
     $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "day" ? "ride" : "day"));
     // Repaints rather than re-rendering: the ring is a map overlay, so nothing
     // in the panel changes and rebuilding the day list would cost a rider the
