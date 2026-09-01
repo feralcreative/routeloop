@@ -557,25 +557,31 @@
   // light here — see the note on .tb-moment-target in style/_map.scss.
   const WALL = () => cssVar("--stop", "#cc0000");
 
-  // The unrideable stretch, dashed. A dash already means "not the road you are
-  // riding" here — dashIcons() ghosts a losing alternate with one — and that is
-  // the right family for a stretch the fuel does not reach. The two do not
-  // collide: a ghost is day-colored and faded to GHOST_OPACITY, this is $stop
-  // red at full strength.
+  // The unrideable stretch: a SOLID red line with WHITE dashes on it, which is
+  // hazard tape rather than a road.
   //
-  // Solid was the first version and read as a route somebody had chosen.
-  function dryDashes(color) {
+  // WHY NOT DASH THE RED ITSELF. That was tried and reported as "dashed AND
+  // solid underneath", and the report was right: a day is drawn as ONE polyline
+  // (see route-shape.js and the note in AGENTS.md), so there is no way to blank
+  // the span of it the stretch covers. Gapping the red just let the day's own
+  // color through, and the eye read the continuous line beneath rather than the
+  // gaps. Painting over it opaquely is the only way to make the road look
+  // closed, so the dashes go ON the red instead of being made of it.
+  //
+  // White, not the day's color: the whole point is that the day's line has been
+  // covered, and tinting the dashes with it would put it straight back.
+  function dryDashes() {
     return [
       {
         icon: {
           path: "M 0,-1 0,1",
-          strokeColor: color,
-          strokeOpacity: 1,
+          strokeColor: cssVar("--white", "#ffffff"),
+          strokeOpacity: 0.95,
           strokeWeight: 6,
-          scale: 3,
+          scale: 2.5,
         },
         offset: "0",
-        repeat: "18px",
+        repeat: "16px",
       },
     ];
   }
@@ -635,10 +641,10 @@
         // obscured while they are holding it.
         stretch: new Maps.Polyline({
           map,
-          // The stroke itself is transparent and the DASHES are the icons —
-          // see dryDashes(), and dashIcons() for the same mechanism on a
-          // ghosted day.
-          strokeOpacity: 0,
+          // Opaque, unlike dashIcons()' host line: here the stroke is the red
+          // road and the icons are white dashes ON it. See dryDashes().
+          strokeOpacity: 1,
+          strokeWeight: 6,
           zIndex: 3.5,
           clickable: false,
           visible: false,
@@ -747,7 +753,7 @@
     // are one statement: the bar is where the fuel runs out and this is what it
     // runs out ACROSS.
     if (dryPath && dryPath.length > 1) {
-      m.stretch.setOptions({ icons: dryDashes(WALL()) });
+      m.stretch.setOptions({ strokeColor: WALL(), icons: dryDashes() });
       m.stretch.setPath(dryPath.map(toLatLng));
       m.stretch.setVisible(true);
     } else {
