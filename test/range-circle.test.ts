@@ -280,3 +280,59 @@ describe('the stretch that cannot be ridden', () => {
     expect(R.dryStretch(d, mi(10), cum(d), 'gas', null)).toBeNull()
   })
 })
+
+describe('every point the tank runs out', () => {
+  // ONE WALL PER TANKFUL. #220 is about knowing where fuel stops have to go,
+  // and a single marker only ever answers that for the first one — on a
+  // 700-mile day a rider needs to see all six, not be told about the first and
+  // left to divide.
+  it('marks each range interval across a day with no pumps', () => {
+    const d: Day = { points: [stop('Benbow'), stop('Vancouver')], legs: [leg(797.7)] }
+    expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(110)).map(round)).toEqual([110, 220, 330, 440, 550, 660, 770])
+  })
+
+  // A wall is a notional refuel: the rider has to stop there, so the tank after
+  // it starts there. That is what makes the intervals read as "you need fuel
+  // roughly here, here and here".
+  it('starts each tank from the wall before it', () => {
+    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(100)).map(round)).toEqual([100, 200])
+  })
+
+  it('is empty on a day the tank covers', () => {
+    const d: Day = {
+      points: [stop('Home', ['gas']), stop('Hopland', ['gas']), stop('Benbow')],
+      legs: [leg(108.6), leg(101.1)],
+    }
+    expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(110))).toEqual([])
+  })
+
+  // A real pump resets the count the same way a wall does, so the first wall
+  // after one is a full range beyond IT rather than beyond the day's start.
+  it('counts from a real pump the rider reaches', () => {
+    const d: Day = { points: [stop('A'), stop('Gas', ['gas']), stop('B')], legs: [leg(90), leg(210)] }
+    expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(110)).map(round)).toEqual([200])
+  })
+
+  it('never puts a wall past the end of the day', () => {
+    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    const total = 250
+    for (const w of R.dryDistancesM(d, 0, cum(d), 'gas', mi(100))) {
+      expect(w / MI).toBeLessThanOrEqual(total)
+    }
+  })
+
+  it('is empty when no range is known', () => {
+    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    expect(R.dryDistancesM(d, 0, cum(d), 'gas', null)).toEqual([])
+    expect(R.dryDistancesM(d, null, cum(d), 'gas', mi(100))).toEqual([])
+  })
+
+  // The red stretch and the ring both key off the first one, so the two must
+  // not be able to drift apart.
+  it('agrees with dryDistanceM on the first wall', () => {
+    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    const all = R.dryDistancesM(d, 0, cum(d), 'gas', mi(100))
+    expect(R.dryDistanceM(d, 0, cum(d), 'gas', mi(100))).toBe(all[0])
+  })
+})

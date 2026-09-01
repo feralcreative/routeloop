@@ -1505,17 +1505,20 @@
     const role = fuelRole();
     const range = rangeM();
     const reach = RANGE.fuelReachM(day, distM, cum, role, range);
-    const dryAt = RANGE.dryDistanceM(day, distM, cum, role, range);
-    const dryPt = dryAt == null ? null : pointAtDistance(track, dryAt);
+    // ONE WALL PER TANKFUL, not just the next one — see dryDistancesM(). Each
+    // carries the road's heading there so the bar lies across it rather than at
+    // a fixed angle, which on a bending road reads as a mistake.
+    const walls = RANGE.dryDistancesM(day, distM, cum, role, range)
+      .map((d) => ({ at: pointAtDistance(track, d), bearing: bearingAtDistance(track, d) }))
+      .filter((w) => w.at);
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
     const gap = RANGE.dryStretch(day, distM, cum, role, range);
     setMomentOverlay(
       state.map,
       here,
-      dryPt,
+      walls,
       ringPath(here, track, distM, reach),
-      dryAt == null ? null : bearingAtDistance(track, dryAt),
       gap && sliceBetween(track, gap.from, gap.to),
     );
   }

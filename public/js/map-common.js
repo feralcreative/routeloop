@@ -557,7 +557,7 @@
   // light here — see the note on .tb-moment-target in style/_map.scss.
   const WALL = () => cssVar("--stop", "#cc0000");
 
-  const moments = new WeakMap(); // map -> { dot, circle, ringLine, target, stretch }
+  const moments = new WeakMap(); // map -> { dot, circle, ringLine, targets, stretch }
 
   function momentOf(map) {
     let m = moments.get(map);
@@ -595,7 +595,12 @@
           // same mechanism dashIcons() uses. See ringDots().
           strokeOpacity: 0,
         }),
-        target: new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 }),
+        // A POOL, not one marker. There is a wall for every tankful the day
+        // needs (#220), so a 700-mile day with no pumps draws six or seven.
+        // Grown on demand by wallMarkers() and never shrunk — the spares are
+        // detached rather than destroyed, because a rider scrubbing back and
+        // forth would otherwise rebuild them on every frame.
+        targets: [],
         // THE STRETCH THE RIDER CANNOT MAKE, from the wall to the next pump.
         //
         // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
@@ -615,7 +620,6 @@
         }),
       };
       m.dot.map = null;
-      m.target.map = null;
       moments.set(map, m);
     }
     return m;
@@ -625,6 +629,19 @@
   // wall at the point the tank runs out. The rotation goes on an inner element
   // rather than on the marker's own content root, because AdvancedMarkerElement
   // manages the transform of what it is given and ours would be overwritten.
+  /** The i-th wall marker, created on first use. */
+  function wallMarker(m, map, i) {
+    if (!m.targets[i]) {
+      m.targets[i] = new Marker.AdvancedMarkerElement({ map, content: targetEl(), zIndex: 5 });
+    }
+    return m.targets[i];
+  }
+
+  /** Detach every wall marker from `from` onward. */
+  function hideWalls(m, from) {
+    for (let i = from; i < m.targets.length; i++) m.targets[i].map = null;
+  }
+
   function targetEl() {
     const el = document.createElement("div");
     el.className = "tb-moment-target";
@@ -635,11 +652,11 @@
   /**
    * Draw the moment, or clear it with a null `at`.
    *
-   * `at` and `dry` are [lng, lat]; `ringPath` is the fuel ring's own closed
-   * path; `dryBearing` is the road's heading at the wall in degrees clockwise
-   * from north; `dryPath` is the stretch from the wall to the next pump. All of
-   * it is computed by the caller — this file draws and decides nothing, which
-   * is why the ring arrives as a path rather than as a radius.
+   * `at` is [lng, lat]; `dryWalls` is one `{ at, bearing }` per point the tank
+   * runs out, in order; `ringPath` is the fuel ring's own closed path;
+   * `dryPath` is the stretch from the first wall to the next pump. All of it is
+   * computed by the caller — this file draws and decides nothing, which is why
+   * the ring arrives as a path rather than as a radius.
    *
    * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
    * than three setters: a ring left behind around a dot that has moved on is a
@@ -651,11 +668,11 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dry, ringPath, dryBearing, dryPath) {
+  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
-      m.target.map = null;
+      hideWalls(m, 0);
       m.circle.setVisible(false);
       m.ringLine.setVisible(false);
       m.stretch.setVisible(false);
@@ -681,19 +698,21 @@
     // is how much fuel is left as the crow flies; this is where that runs out
     // on the road the rider is actually on, and the gap between them is the
     // cost of the bends.
-    if (dry) {
-      m.target.position = toLatLng(dry);
-      // PERPENDICULAR TO THE ROAD. The bar is authored horizontal, which is
-      // screen bearing 90, and CSS rotate() turns clockwise from there — so to
-      // put it across a road heading `dryBearing` the rotation is exactly that
-      // bearing, not bearing plus ninety. Null leaves it horizontal, which is
-      // the honest fallback for a track with no direction to report.
-      const bar = m.target.content.firstElementChild;
-      if (bar) bar.style.transform = dryBearing == null ? "" : "rotate(" + dryBearing + "deg)";
-      m.target.map = map;
-    } else {
-      m.target.map = null;
-    }
+    // ONE BAR PER WALL. PERPENDICULAR TO THE ROAD: the bar is authored
+    // horizontal, which is screen bearing 90, and CSS rotate() turns clockwise
+    // from there — so to lay it across a road heading `bearing` the rotation is
+    // exactly that bearing, not bearing plus ninety. A null bearing leaves it
+    // horizontal, which is the honest fallback for a track with no direction to
+    // report.
+    const walls = dryWalls || [];
+    walls.forEach((w, i) => {
+      const marker = wallMarker(m, map, i);
+      marker.position = toLatLng(w.at);
+      const bar = marker.content.firstElementChild;
+      if (bar) bar.style.transform = w.bearing == null ? "" : "rotate(" + w.bearing + "deg)";
+      marker.map = map;
+    });
+    hideWalls(m, walls.length);
 
     // Drawn on the same condition as the wall and in the same red, because they
     // are one statement: the bar is where the fuel runs out and this is what it

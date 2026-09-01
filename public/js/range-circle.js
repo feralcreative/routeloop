@@ -127,45 +127,67 @@
   }
 
   /**
-   * How far into the day the tank runs dry, or null when it does not run dry
-   * before the day ends.
+   * EVERY point along the day where the tank would run out, in order.
    *
-   * The ring's radius no longer reaches this point — that was the rejected
-   * version — so it is a second, independent fact: the ring says how much fuel
-   * is left as the crow flies, and this says where that runs out on the road
-   * the rider is actually on. The gap between them IS the cost of the bends,
-   * which is worth being able to see rather than worth hiding inside a factor.
+   * ONE WALL PER TANKFUL, not just the next one. #220 is about knowing where
+   * fuel stops have to go, and a single marker only ever answers that for the
+   * first one — on a 700-mile day with no pumps a rider needs to see all six,
+   * not be told about the first and left to divide.
+   *
+   * The walk refills at two kinds of place. A PUMP the current tank can reach
+   * is a real fill and becomes the new origin. A WALL is a notional one: the
+   * rider has to stop there, so the tank after it starts there, and the next
+   * wall is a full range beyond. That is what makes the intervals read as "you
+   * need fuel roughly here, here and here" rather than as one fact repeated.
+   *
+   * It terminates because `tank` advances by at least `rangeM` on every pass —
+   * a wall is always `tank + rangeM` — so the list is bounded by the day's
+   * length over the range.
+   *
+   * Empty rather than null for no range, no position, or a day the tank covers:
+   * a caller draws one marker per entry and an empty list is no markers, which
+   * is the same code path as every other day.
    */
-  function dryDistanceM(day, distM, cum, fuelRole, rangeM) {
-    if (distM == null || !cum || !cum.length) return null;
-    if (!(rangeM > 0)) return null;
+  function dryDistancesM(day, distM, cum, fuelRole, rangeM) {
+    if (distM == null || !cum || !cum.length) return [];
+    if (!(rangeM > 0)) return [];
 
-    // WALK FORWARD THROUGH THE PUMPS STILL AHEAD, because the tank the rider is
-    // on now is not the tank they run out of.
-    //
-    // This read `lastFillM() + rangeM` and nothing else until 2026-08-31, so it
-    // only ever knew about fills BEHIND the rider. Reported on a real ride:
-    // Home at 0 tagged gas, a station at 108.6, the hotel at 209.7, on a
-    // 110-mile tank. It answered "dry at 110" — one and a half miles past the
-    // pump the rider stops at — and the route went red from there to the end of
-    // a day they complete with nine miles in hand. The day list said so at the
-    // same time, reading "101 mi on this tank" at the hotel.
-    //
-    // Each pump within reach of the current tank refills it and becomes the new
-    // origin; the first one that is NOT within reach is where the ride actually
-    // stops, and the loop breaks rather than skipping to a pump beyond it.
     var points = pointsOf(day);
-    var tank = lastFillM(day, distM, cum, fuelRole);
+    var total = cum[cum.length - 1];
+
+    // Ascending, because `cum` is and the points are in order.
+    var pumps = [];
     for (var i = 0; i < points.length; i++) {
-      if (!isRefuel(points[i], fuelRole) || cum[i] <= tank) continue;
-      if (cum[i] > tank + rangeM) break;
-      tank = cum[i];
+      if (isRefuel(points[i], fuelRole)) pumps.push(cum[i]);
     }
 
-    var dry = tank + rangeM;
-    // cum is index-aligned with the points and a day has one fewer leg than it
-    // has points, so the last entry already IS the whole day.
-    return dry <= cum[cum.length - 1] ? dry : null;
+    var out = [];
+    var tank = lastFillM(day, distM, cum, fuelRole);
+    var p = 0;
+    for (;;) {
+      while (p < pumps.length && pumps[p] <= tank) p++;
+      // Each pump within reach refills and becomes the new origin. The first
+      // one out of reach is where the ride actually stops, and the loop leaves
+      // it alone rather than skipping to one beyond it.
+      while (p < pumps.length && pumps[p] <= tank + rangeM) {
+        tank = pumps[p];
+        p++;
+      }
+      var dry = tank + rangeM;
+      if (dry > total) break;
+      out.push(dry);
+      tank = dry;
+    }
+    return out;
+  }
+
+  /**
+   * The FIRST point the tank runs dry, or null when it does not run dry before
+   * the day ends. What the red stretch starts from — see dryStretch().
+   */
+  function dryDistanceM(day, distM, cum, fuelRole, rangeM) {
+    var all = dryDistancesM(day, distM, cum, fuelRole, rangeM);
+    return all.length ? all[0] : null;
   }
 
   /**
@@ -200,6 +222,7 @@
     lastFillM: lastFillM,
     fuelReachM: fuelReachM,
     dryDistanceM: dryDistanceM,
+    dryDistancesM: dryDistancesM,
     dryStretch: dryStretch,
     isRefuel: isRefuel,
   };
