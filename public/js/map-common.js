@@ -549,7 +549,7 @@
           strokeOpacity: 0,
         },
         offset: "0",
-        repeat: "9px",
+        repeat: "5px",
       },
     ];
   }
