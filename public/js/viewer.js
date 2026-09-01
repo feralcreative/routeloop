@@ -222,14 +222,22 @@
     const range = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
     const role = r.fuelType === "electric" ? "charge" : "gas";
 
-    const reach = RANGE.fuelReachM(day, distM, cum, role, range);
+    // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
+    // until 2026-08-31, so turning it off left the E markers and the closed
+    // stretch on the map — most of the red, and the half a rider is turning off
+    // when they want the route back. Everything range-derived is behind it now;
+    // the moment dot is not, because where the rider is is not a fuel fact.
+    const on = state.ringOn;
+    const reach = on ? RANGE.fuelReachM(day, distM, cum, role, range) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
-    const walls = RANGE.dryDistancesM(day, distM, cum, role, range)
-      .map((d) => pointAtDistance(track, d))
-      .filter(Boolean);
+    const walls = on
+      ? RANGE.dryDistancesM(day, distM, cum, role, range)
+          .map((d) => pointAtDistance(track, d))
+          .filter(Boolean)
+      : [];
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
-    const gap = RANGE.dryStretch(day, distM, cum, role, range);
+    const gap = on ? RANGE.dryStretch(day, distM, cum, role, range) : null;
     setMomentOverlay(
       state.map,
       here,
@@ -358,7 +366,7 @@
     btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
     if (btn.hidden) return;
     btn.textContent = "Range";
-    btn.title = state.ringOn ? "Hide the range ring" : "Show how much fuel is left";
+    btn.title = state.ringOn ? "Hide the fuel range" : "Show the fuel range";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }
