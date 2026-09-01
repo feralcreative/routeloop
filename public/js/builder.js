@@ -1560,7 +1560,9 @@
    * ring disappear for good after a rider's last refuel.
    */
   function ringPath(here, track, distM, reachM) {
-    if (!state.ringOn || reachM == null || reachM <= distM) return null;
+    // No `state.ringOn` check here: `reachM` is already null when the overlay is
+    // off, and one switch read in two places is one that can be half-flipped.
+    if (reachM == null || reachM <= distM) return null;
     const at = pointAtDistance(track, reachM);
     return at ? circlePath(here, haversineM(here, at)) : null;
   }
