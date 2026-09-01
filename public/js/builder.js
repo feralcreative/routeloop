@@ -4014,12 +4014,19 @@
   function renderTimeScope() {
     const btn = $("time-scope");
     if (!btn) return;
-    const toRide = state.timeScope === "day";
-    btn.textContent = toRide ? "Whole ride" : "This day";
-    btn.title = toRide ? "Scrub the whole ride" : "Scrub the day you are working on";
+    // THE LABEL IS THE STATE, NOT THE ACTION. It read "Whole ride" while in day
+    // scope — naming what a click would DO — and a rider glancing at it saw the
+    // word "ride" and believed they were scrubbing the ride. Ziad's call,
+    // 2026-08-31. It now says which scope is on, and the color says it twice:
+    // Day is filled, Ride is not.
+    const onDay = state.timeScope === "day";
+    btn.textContent = onDay ? "Day" : "Ride";
+    btn.title = onDay ? "Scrubbing this day. Switch to the whole ride" : "Scrubbing the whole ride. Switch to this day";
     btn.setAttribute("aria-label", btn.title);
-    // Pressed means "the wider view is on", which is the non-default state.
-    btn.setAttribute("aria-pressed", String(!toRide));
+    // Pressed is the DEFAULT here, which is unusual and deliberate: it tracks
+    // the label rather than the non-default state, so the filled look and the
+    // word always agree.
+    btn.setAttribute("aria-pressed", String(onDay));
     // Nothing to widen to on a single-day ride, and a button that returns the
     // same slider is a control that does nothing. Hidden rather than disabled:
     // it is in a one-line bar where a dead button is pure noise.
@@ -4039,8 +4046,8 @@
     if (!btn) return;
     btn.hidden = rangeM() == null;
     if (btn.hidden) return;
-    btn.textContent = state.ringOn ? "Fuel on" : "Fuel off";
-    btn.title = state.ringOn ? "Hide the fuel ring" : "Show how much fuel is left";
+    btn.textContent = "Range";
+    btn.title = state.ringOn ? "Hide the range ring" : "Show how much fuel is left";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }

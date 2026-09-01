@@ -967,17 +967,75 @@ table.day-table {
     border-color: $brand;
   }
 
-  // Pressed is ride scope, the non-default. Marked because it is the state a
-  // rider can otherwise forget they are in — the slider looks the same, it just
-  // covers more — and a day's worth of travel being four pixels is exactly the
-  // complaint that got it built.
+  // FILLED IS ON. Both buttons in this bar carry their own STATE as their label
+  // rather than the action a click performs, so the fill has to agree with the
+  // word: Day is filled and Ride is not, Range is filled when the ring is
+  // showing. An outline for "on" and an outline for "off" would leave the word
+  // doing all the work, which is what made the old pair unreadable at a glance.
   &[aria-pressed="true"] {
-    color: $brand;
+    background: $brand;
+    border-color: $brand;
+    color: $white;
+  }
+
+  // Hover must not repaint a filled button back to an outline — the base rule's
+  // hover only touches color and border, so it is stated again here.
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    color: $white;
     border-color: $brand;
   }
 
   &[hidden] {
     display: none;
+  }
+}
+
+// The scope toggle keeps the brand blue in BOTH states, so "Ride" is the same
+// control unfilled rather than a greyed-out one. The base rule's neutral border
+// and text would read as disabled next to a filled sibling.
+#time-scope {
+  border-color: $brand;
+  color: $brand;
+
+  &:hover,
+  &:focus-visible {
+    color: $brand;
+    border-color: $brand;
+  }
+
+  // RESTATED HERE, and it is not redundant: an id selector outranks
+  // `.time-scope[aria-pressed="true"]`, so without this the rule above wins and
+  // the filled state renders brand text on a brand fill — invisible. Same
+  // reason #range-ring repeats its own pressed block.
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    background: $brand;
+    border-color: $brand;
+    color: $white;
+  }
+}
+
+// The range ring's toggle is RED, not brand blue, because the thing it shows is
+// the fuel warning — the E markers and the closed-road stretch are $stop, and a
+// blue control for a red overlay reads as two features.
+#range-ring {
+  border-color: $stop;
+  color: $stop;
+
+  &:hover,
+  &:focus-visible {
+    color: $stop;
+    border-color: $stop;
+  }
+
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    background: $stop;
+    border-color: $stop;
+    color: $white;
   }
 }
 

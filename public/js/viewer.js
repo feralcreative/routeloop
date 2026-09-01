@@ -346,8 +346,8 @@
     const r = window.TB.range || {};
     btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
     if (btn.hidden) return;
-    btn.textContent = state.ringOn ? "Fuel on" : "Fuel off";
-    btn.title = state.ringOn ? "Hide the fuel ring" : "Show how much fuel is left";
+    btn.textContent = "Range";
+    btn.title = state.ringOn ? "Hide the range ring" : "Show how much fuel is left";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }
