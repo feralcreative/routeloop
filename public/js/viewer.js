@@ -182,7 +182,12 @@
     // A HOVER SUPPRESSES THE DOT, exactly as it suppresses the highlight above,
     // and for the same reason: hovering a legend row asks "which day is this",
     // which is not a question about where anybody would be at any moment.
-    paintMoment(hovering ? null : active);
+    //
+    // CLEARED HERE RATHER THAN BY PASSING NULL: null now means "no moment
+    // chosen", which paintMoment draws at the start of the first day, and that
+    // is the opposite of suppression.
+    if (hovering) setMomentOverlay(state.map, null);
+    else paintMoment(active);
   }
 
   /**
@@ -194,7 +199,13 @@
    * rather than written twice.
    */
   function paintMoment(active) {
-    const day = active && active.dayIndex != null ? state.ride.days[active.dayIndex] : null;
+    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE FIRST DAY — see
+    // the note on paintMoment() in builder.js. `state.moment` is null until a
+    // reader drags, and drawing nothing until then hid the range ring, the E
+    // markers and the closed stretch behind a gesture nobody was told to make.
+    const at = active || { dayIndex: 0, pointIndex: 0, legIndex: null, legFraction: null };
+    const day = at.dayIndex != null ? state.ride.days[at.dayIndex] : null;
+    active = at;
     const track = day && day.track;
     if (!track || !track.length) return setMomentOverlay(state.map, null);
 

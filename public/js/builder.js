@@ -1489,8 +1489,24 @@
    * every pump, and is gone at max range. See public/js/range-circle.js.
    */
   function paintMoment(a) {
-    const day = a && a.dayIndex != null ? state.days[a.dayIndex] : null;
+    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE DAY.
+    //
+    // `state.moment` is null until a rider drags, so activeNow() returns null
+    // and this used to draw nothing — the ring, the E markers and the closed
+    // stretch were all invisible on load and only appeared once somebody
+    // happened to scrub. That hid the whole feature behind a gesture nobody was
+    // told to make. Ziad's call, 2026-08-31.
+    //
+    // The start of the day is the honest default: a full tank at the first
+    // point is where the rider actually begins, so the walls it produces are
+    // the ones the plan has. `state.moment` is deliberately NOT seeded instead
+    // — the readout's "from – to" line and the absent leg highlight are the
+    // correct rendering of "no moment chosen", and this only decides where to
+    // draw the overlay.
+    const at = a || { dayIndex: focusedIndex(), pointIndex: 0, legIndex: null, legFraction: null };
+    const day = at.dayIndex != null ? state.days[at.dayIndex] : null;
     if (!day) return setMomentOverlay(state.map, null);
+    a = at;
     const track = fullTrack(a.dayIndex);
     if (!track.length) return setMomentOverlay(state.map, null);
 
