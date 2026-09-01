@@ -557,6 +557,29 @@
   // light here — see the note on .tb-moment-target in style/_map.scss.
   const WALL = () => cssVar("--stop", "#cc0000");
 
+  // The unrideable stretch, dashed. A dash already means "not the road you are
+  // riding" here — dashIcons() ghosts a losing alternate with one — and that is
+  // the right family for a stretch the fuel does not reach. The two do not
+  // collide: a ghost is day-colored and faded to GHOST_OPACITY, this is $stop
+  // red at full strength.
+  //
+  // Solid was the first version and read as a route somebody had chosen.
+  function dryDashes(color) {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: color,
+          strokeOpacity: 1,
+          strokeWeight: 6,
+          scale: 3,
+        },
+        offset: "0",
+        repeat: "18px",
+      },
+    ];
+  }
+
   const moments = new WeakMap(); // map -> { dot, circle, ringLine, targets, stretch }
 
   function momentOf(map) {
@@ -612,11 +635,13 @@
         // obscured while they are holding it.
         stretch: new Maps.Polyline({
           map,
+          // The stroke itself is transparent and the DASHES are the icons —
+          // see dryDashes(), and dashIcons() for the same mechanism on a
+          // ghosted day.
+          strokeOpacity: 0,
           zIndex: 3.5,
           clickable: false,
           visible: false,
-          strokeWeight: 6,
-          strokeOpacity: 0.95,
         }),
       };
       m.dot.map = null;
@@ -722,7 +747,7 @@
     // are one statement: the bar is where the fuel runs out and this is what it
     // runs out ACROSS.
     if (dryPath && dryPath.length > 1) {
-      m.stretch.setOptions({ strokeColor: WALL() });
+      m.stretch.setOptions({ icons: dryDashes(WALL()) });
       m.stretch.setPath(dryPath.map(toLatLng));
       m.stretch.setVisible(true);
     } else {
