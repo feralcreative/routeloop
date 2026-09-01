@@ -528,12 +528,19 @@
   // the same way dashboard.js reads its chart colors. Read lazily rather than
   // at load, because the theme can change under a page that is already open.
   //
-  // The ring is the app's own blue: it is a quantity rather than a verdict, and
-  // a red or green ring would read as one. The dry marker carries $warning in
-  // CSS instead, matching .row-dist-dry.
+  // EVERYTHING IN THE FUEL OVERLAY IS $stop RED — the ring, the E markers, the
+  // closed stretch and the Range button that toggles them. Ziad's call,
+  // 2026-08-31. The ring was brand blue on the reasoning that a distance is a
+  // quantity rather than a verdict, which is true of the number and false of
+  // the picture: a blue circle drawn around red markers on a red road reads as
+  // a second, unrelated feature.
+  //
+  // THE MOMENT DOT STAYS BLUE, and that is the line. It marks where the rider
+  // is, which is not a warning and is the one thing here that would still be
+  // drawn if the group had no bike on file.
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-  const RING = () => cssVar("--brand", "#1565c0");
+  const RING = () => cssVar("--stop", "#cc0000");
 
   // Small round dots rather than dashes: the ring is the quietest thing on the
   // map and a dashed edge reads as a route, which is what every other dashed
@@ -553,8 +560,8 @@
       },
     ];
   }
-  // $stop, the palette's stop-sign red. NOT $signal, which is the blue of a go
-  // light here — see the note on .tb-moment-target in style/_map.scss.
+  // The same red. Kept as its own name because the two are read by different
+  // overlays and only one of them is a distance — see RING() above.
   const WALL = () => cssVar("--stop", "#cc0000");
 
   // The unrideable stretch: a SOLID red line with WHITE dashes on it, which is
