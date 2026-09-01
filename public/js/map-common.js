@@ -205,6 +205,39 @@
     return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
+  /**
+   * What the rider can actually see, as a circle: `{ near, radiusM }`, or null
+   * before the map has settled.
+   *
+   * THE SEARCH ANCHOR. Every "near" search used to anchor on the day's LAST
+   * POINT, which is a place the rider can neither see nor move — so panning the
+   * map changed nothing and a search for coffee while looking at Redding
+   * answered around a hotel three hundred miles away. The viewport is the one
+   * anchor they control.
+   *
+   * Radius is HALF THE DIAGONAL, so the circle covers the corners rather than
+   * only the middle of the screen, clamped to the 500m–50km the Places proxy
+   * accepts. A bias is not a filter — Text Search still returns things outside
+   * it — so this steers the ranking rather than drawing a boundary.
+   */
+  function viewportCircle(map) {
+    const b = mapBounds(map);
+    if (!b) return null;
+    const diag = haversineM([b.west, b.south], [b.east, b.north]);
+    return {
+      near: [(b.west + b.east) / 2, (b.south + b.north) / 2],
+      radiusM: Math.max(500, Math.min(50000, Math.round(diag / 2))),
+    };
+  }
+
+  function haversineM(a, b) {
+    const rad = Math.PI / 180;
+    const dLat = (b[1] - a[1]) * rad;
+    const dLng = (b[0] - a[0]) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
+  }
+
   // Where the map is looking, as [lng, lat], or null before it has settled.
   //
   // Here rather than in builder.js because this file is the only one that names
@@ -1208,6 +1241,7 @@
     onMarkerDragEnd,
     searchPlaces,
     mapCenter,
+    viewportCircle,
     markerElement,
     popupHtml,
     attachPopup,

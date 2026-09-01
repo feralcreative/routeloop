@@ -34,6 +34,7 @@
     onMarkerDragEnd,
     searchPlaces,
     mapCenter,
+    viewportCircle,
     markerElement,
     initPanelToggle,
   } = window.TBMap;
@@ -4547,7 +4548,7 @@
         (c) =>
           '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
           ' title="Find ' + esc(c.label.toLowerCase()) +
-          (along ? " anywhere along this day" : " near this day's last point") + '">' +
+          (along ? " anywhere along this day" : " on the part of the map you can see") + '">' +
           esc(c.label) + "</button>",
       ).join("") +
       "</div>" +
@@ -4586,7 +4587,7 @@
     const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
     return (
       '<div class="add-corridor" role="group" aria-label="Where to search">' +
-      opt(false, "Near here", "Search near this day's last point") +
+      opt(false, "On screen", "Search the part of the map you can see") +
       opt(true, "Along the day", "Search the whole day, within " + width + " of the route") +
       "</div>"
     );
@@ -5475,11 +5476,21 @@
     // A typed query that names a place ("gas station in oakdale ca") does not
     // come through here: Text Search reads the place out of the text itself, so
     // sending an anchor as well would fight it.
-    function anchorFor(r) {
-      const day = state.days[r];
-      const last = day && day.points.length ? day.points[day.points.length - 1] : null;
-      if (last) return [last.lng, last.lat];
-      return mapCenter(state.map);
+    /**
+     * Where a "near" search looks: WHAT IS ON SCREEN.
+     *
+     * It anchored on the day's LAST POINT until 2026-08-31, with the map's
+     * center only as a fallback for an empty day — so panning changed nothing,
+     * and a rider looking at Redding who tapped Coffee got results around a
+     * hotel three hundred miles down the route. The last point is a place they
+     * can neither see nor move; the viewport is the one anchor they control.
+     *
+     * Null before the map has settled, and the proxy is happy with no anchor at
+     * all — Text Search falls back to its own global ranking, which is the
+     * right answer when there is not yet a viewport to prefer.
+     */
+    function viewportAnchor() {
+      return viewportCircle(state.map);
     }
 
     /**
@@ -5504,12 +5515,31 @@
       const day = state.days[r];
       const track = day ? fullTrack(r) : [];
       const totalM = day ? DIST.totalM(day) : 0;
-      const mid = track.length ? pointAtDistance(track, totalM / 2) : anchorFor(r);
+      // The day's own midpoint, and the viewport only when the day has no line
+      // yet — this is the ALONG THE DAY scope, so the day is the subject and
+      // the screen is the fallback rather than the other way round.
+      const view = viewportAnchor();
+      const mid = track.length ? pointAtDistance(track, totalM / 2) : view && view.near;
       return {
         track: track,
         near: mid,
         radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2) || 25000)),
       };
+    }
+
+    /**
+     * The anchor arguments for a typed category query, spread into
+     * nearbySearch.
+     *
+     * NO ANCHOR WHEN THE TEXT NAMES A PLACE. Text Search reads "gas station in
+     * oakdale ca" itself, and biasing to the viewport as well would pull the
+     * answer back to wherever the rider happens to be looking — which is the
+     * one case where the screen is NOT what they meant.
+     */
+    function namedOrViewport(q) {
+      if (/\b(in|near|around|close to|by)\b/.test(q)) return [null];
+      const view = viewportAnchor();
+      return view ? [view.near, { radiusM: view.radiusM }] : [null];
     }
 
     async function nearbySearch(query, near, opts) {
@@ -5689,7 +5719,7 @@
             // No anchor when the text names a place: Text Search reads it out of
             // the query, and biasing to the rider's current position as well
             // would pull the answer back home.
-            cat ? nearbySearch(cat.text, /\b(in|near|around|close to|by)\b/.test(q) ? null : anchorFor(day)) : [],
+            cat ? nearbySearch(cat.text, ...namedOrViewport(q)) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
@@ -5852,7 +5882,7 @@
         if (!spec) return;
         el.title =
           "Find " + spec.label.toLowerCase() +
-          (state.corridorOn ? " anywhere along this day" : " near this day's last point");
+          (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
       });
     });
 
@@ -5887,7 +5917,8 @@
             (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
           );
         } else {
-          nearby = await nearbySearch(spec.query, anchorFor(r));
+          const view = viewportAnchor();
+          nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
         }
         if (mine !== searchSeq) return;
         results.innerHTML =
@@ -5897,7 +5928,7 @@
               ? "No " + spec.label.toLowerCase() + " within " +
                 Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
                 " of this day"
-              : "No " + spec.label.toLowerCase() + " found near this day",
+              : "No " + spec.label.toLowerCase() + " on screen. Pan or zoom out to look wider.",
           );
         results.hidden = false;
         if (input) placeResults(input, results);
