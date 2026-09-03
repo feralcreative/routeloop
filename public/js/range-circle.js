@@ -158,7 +158,7 @@
    * this. The ring became a GAUGE, and a gauge that is red at a full tank is
    * telling the rider nothing they can act on.
    *
-   * GREEN THROUGH THE FIRST HALF, amber past it, red from three quarters. The
+   * GREEN THROUGH THE FIRST HALF, orange past it, red from three quarters. The
    * boundaries go to the calmer color: at exactly half a tank a rider has half a
    * tank, which is not yet a thing to worry about.
    *
@@ -171,7 +171,13 @@
     // fraction; "stop" is the safe answer rather than the expected one.
     if (used == null) return "stop";
     if (used <= 0.5) return "go";
-    if (used < 0.75) return "warning";
+    // $detour RATHER THAN $warning, and that is a legibility fix rather than a
+    // preference. $warning is #ffac00 — an amber that holds up as a text color
+    // on a white card and washes out badly as a thin dotted ring over map tiles,
+    // which are pale and busy in exactly that part of the spectrum. $detour is
+    // #f56100, the orange of a highway detour sign, which is what a rider is
+    // being told to start looking for. Reported as hard to see, 2026-09-02.
+    if (used < 0.75) return "detour";
     return "stop";
   }
 

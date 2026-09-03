@@ -389,9 +389,11 @@ describe('the ring tone', () => {
     expect(R.ringTone(0.5)).toBe('go')
   })
 
-  it('is amber past half and red from three quarters', () => {
-    expect(R.ringTone(0.51)).toBe('warning')
-    expect(R.ringTone(0.74)).toBe('warning')
+  // $detour, not $warning: the amber is tuned to be read as text on a white
+  // card and washes out as a thin dotted ring over map tiles.
+  it('is orange past half and red from three quarters', () => {
+    expect(R.ringTone(0.51)).toBe('detour')
+    expect(R.ringTone(0.74)).toBe('detour')
     expect(R.ringTone(0.75)).toBe('stop')
     expect(R.ringTone(1)).toBe('stop')
   })

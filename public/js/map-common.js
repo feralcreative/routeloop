@@ -548,7 +548,7 @@
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   // THE RING IS A GAUGE AND TAKES ITS COLOR FROM THE TANK. Ziad's call,
-  // 2026-09-02: green through the first half, amber past it, red from three
+  // 2026-09-02: green through the first half, orange past it, red from three
   // quarters. range-circle.js decides WHICH by name and this resolves it against
   // the live palette, so the six themes keep working and this file spends no
   // opinion on which red.
@@ -557,7 +557,11 @@
   // else in the fuel overlay stays $stop — the E markers, the closed stretch and
   // the Range button are VERDICTS, and a verdict has one color. The ring is the
   // only part of it that is a quantity.
-  const RING_TONES = { go: "#41ae4d", warning: "#ffac00", stop: "#cc0000" };
+  // Fallbacks only — cssVar() reads the live palette first, and every one of
+  // these is themed. The middle band is $detour rather than $warning because a
+  // thin dotted ring over map tiles needs the orange of a detour sign, not an
+  // amber tuned to be read as text on a white card.
+  const RING_TONES = { go: "#41ae4d", detour: "#f56100", stop: "#cc0000" };
   const RING = (tone) => {
     const name = RING_TONES[tone] ? tone : "stop";
     return cssVar("--" + name, RING_TONES[name]);
