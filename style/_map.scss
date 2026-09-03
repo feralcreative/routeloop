@@ -1689,3 +1689,48 @@ body.is-arming #map div {
     z-index: 1;
   }
 }
+
+// THE NAME, ON HOVER. Mirrors .tb-moment-tip deliberately: two tooltips on one
+// map that look different read as two features.
+.tb-hit-tip {
+  position: absolute;
+  left: 0;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  background: $tarmac;
+  color: $white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  // Long enough to hold a business name and a detour without running off the
+  // map, and ellipsized past that rather than wrapping — a two-line tooltip
+  // covers the dots either side of the one being read.
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  // `display` rather than opacity, so it is out of the accessibility tree.
+  display: none;
+  z-index: 2;
+}
+
+.tb-hit-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: $tarmac;
+}
+
+// ON THE WRAPPER, NOT ON THE DOT. The tip is a SIBLING of the button, so
+// `.tb-hit-dot:hover + .tb-hit-tip` would work — but the dot grows to 1.35x when
+// its row is hovered, and a tip anchored to the button would then move with it.
+// Hanging the rule off the 0x0 wrapper keeps the tip still.
+.tb-hit:hover .tb-hit-tip {
+  display: block;
+}

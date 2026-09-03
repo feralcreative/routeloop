@@ -5951,9 +5951,10 @@
     /**
      * Paint one numbered dot per result and couple it to its row, both ways.
      *
-     * A NUMBER RATHER THAN A NAME ON THE MAP. Twelve labels overlapping each
-     * other is less readable than no labels at all; the dropdown beside it
-     * carries every name in full, and the number is what ties the two together.
+     * A NUMBER RATHER THAN A NAME ON THE MAP, with the name on hover. Painting
+     * every name at once is what would be unreadable — twelve labels overlapping
+     * each other — so the dot carries the number that ties it to its row and the
+     * name arrives when the rider points at it.
      *
      * The row highlight is a class rather than a scroll: a list that jumps under
      * the pointer while the pointer is what is driving it fights the rider.
@@ -5963,7 +5964,15 @@
       const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
       setSearchPreview(
         state.map,
-        hits.map((h) => ({ lngLat: h.lngLat, name: h.name })),
+        // THE SAME TWO FACTS THE ROW SHOWS, in the same words: the name, and the
+        // detour when the search was a corridor one. Built here rather than in
+        // map-common.js so that file stays out of miles-versus-kilometres —
+        // fmtDist() is already the one place that decision is made.
+        hits.map((h) => ({
+          lngLat: h.lngLat,
+          name: h.name,
+          tip: typeof h.offRouteM === "number" ? h.name + " · " + fmtDist(h.offRouteM) + " off" : h.name,
+        })),
         (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
         // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's
         // handler does. That handler mints the point with its category role,

@@ -1422,6 +1422,17 @@
     // marker's container and only a descendant may re-enable it.
     dot.addEventListener("pointerenter", () => p.onHover && p.onHover(i));
     dot.addEventListener("pointerleave", () => p.onHover && p.onHover(null));
+    // A TOOLTIP OF OUR OWN, NOT `title`. Same reasoning as the fuel wall's: the
+    // native one waits about a second, renders in the OS style at the pointer,
+    // and cannot be styled — on a map that is slow enough to miss. This one is
+    // CSS on :hover, so it appears instantly and reads as part of the map.
+    //
+    // aria-hidden, because the button's own accessible name already says it and
+    // a readable tip would join it as "Add Shell Shell, 3 mi off route".
+    const tip = document.createElement("span");
+    tip.className = "tb-hit-tip";
+    tip.setAttribute("aria-hidden", "true");
+    el.appendChild(tip);
     dot.addEventListener("click", (e) => {
       // The map is listening for clicks to drop a point, and this one is not
       // that — without this a press would add the searched place AND a bare
@@ -1458,11 +1469,16 @@
       p.pins[i].map = map;
       const dot = p.pins[i].content.firstChild;
       dot.classList.remove("is-lit");
-      // The name is the button's accessible name rather than a tooltip: twelve
-      // tooltips fighting for the same corner of the map is noise, and the
-      // dropdown beside it already carries every name in full. No role — it is
-      // a button and announcing it as an image would take the press away.
+      // No role — it is a button, and announcing it as an image would take the
+      // press away from anyone using a screen reader.
       dot.setAttribute("aria-label", "Add " + (list[i].name || "result " + (i + 1)));
+      // ON HOVER, ONE AT A TIME. Painting every name on the map at once is the
+      // thing that would be unreadable — twelve labels overlapping each other —
+      // which is why the dot carries a NUMBER and the name arrives only when the
+      // rider asks for it by pointing. `tip` is built by the caller so this file
+      // stays out of miles-versus-kilometres.
+      const tip = p.pins[i].content.lastChild;
+      tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
     }
     for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
   }
