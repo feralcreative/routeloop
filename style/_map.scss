@@ -1628,3 +1628,52 @@ body.is-arming #map div {
 .day-row.is-theirs {
   opacity: 0.55;
 }
+
+// A SEARCH RESULT, WHILE THE DROPDOWN IS OPEN. Numbered, because twelve names
+// overlapping each other on a map is less readable than no names at all — the
+// dropdown beside it carries every name in full and the number is what ties a
+// dot to its row.
+//
+// 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
+// content at bottom-center, so a sized wrapper puts the anchor off the point.
+.tb-hit {
+  width: 0;
+  height: 0;
+}
+
+.tb-hit-dot {
+  box-sizing: border-box;
+  position: absolute;
+  // Half its own size up and left, which centres it on the anchor.
+  left: -11px;
+  bottom: -11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid $white;
+  border-radius: 50%;
+  background: $brand;
+  color: $white;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  // Google sets pointer-events: none on a non-clickable marker's container, and
+  // a DESCENDANT may re-enable it — the same mechanism .tb-moment-disc uses, and
+  // the reason the hover listeners go on this element rather than the wrapper.
+  pointer-events: auto;
+  cursor: pointer;
+  // A candidate is not a decision, so this is deliberately not $stop or any
+  // other verdict color — it is the brand, the same as anything else the app is
+  // offering rather than warning about.
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  &.is-lit {
+    // GROWS RATHER THAN CHANGING COLOR. A dot that recolors on hover reads as a
+    // different KIND of result; one that grows reads as the same result, closer.
+    transform: scale(1.35);
+    z-index: 1;
+  }
+}

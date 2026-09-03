@@ -2095,6 +2095,19 @@
     }
   }
 
+  // THE OTHER HALF OF THE MAP PREVIEW. Hovering a dot lights its row and
+  // hovering a row lights its dot, so a rider can work in either direction —
+  // read a name and find it on the map, or spot a good position and find out
+  // what is there.
+  //
+  // A BACKGROUND RATHER THAN A SCROLL. The row is highlighted where it sits; a
+  // list that jumps to the hovered item while the pointer is what is driving it
+  // fights the rider, and on a twelve-result list every dot would shove the
+  // dropdown around.
+  li.hit-nearby.is-lit {
+    background: $neutral-94;
+  }
+
   // A rider's own saved place, above the Google predictions. Marked rather than
   // left to blend in: it costs nothing to pick, it arrives with roles and
   // contact details attached, and it is the one row in the list the rider

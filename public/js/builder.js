@@ -26,6 +26,8 @@
     setRouteGhost,
     setLegHighlight,
     setMomentOverlay,
+    setSearchPreview,
+    highlightSearchPreview,
     clearLegHighlight,
     onRouteShapeDrag,
     consumeShapeClick,
@@ -5654,6 +5656,11 @@
 
   function hideSearchResults() {
     if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
+    // THE DOTS LIVE EXACTLY AS LONG AS THE DROPDOWN. Every path that closes it
+    // comes through here — picking a result, clicking away, scrolling the panel,
+    // starting a new search — so there is one place to clear them and no way to
+    // leave a dozen candidates painted over a route the rider has moved on from.
+    if (state.map) setSearchPreview(state.map, []);
   }
 
   function wireSearch() {
@@ -5941,6 +5948,30 @@
     // wins over the place's own type — the rider said "gas", so a convenience
     // store that came back among the stations is still the answer to a question
     // about fuel. roleForType() fills in only when nothing was asked for.
+    /**
+     * Paint one numbered dot per result and couple it to its row, both ways.
+     *
+     * A NUMBER RATHER THAN A NAME ON THE MAP. Twelve labels overlapping each
+     * other is less readable than no labels at all; the dropdown beside it
+     * carries every name in full, and the number is what ties the two together.
+     *
+     * The row highlight is a class rather than a scroll: a list that jumps under
+     * the pointer while the pointer is what is driving it fights the rider.
+     */
+    function showPreview(host, hits) {
+      if (!state.map) return;
+      const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
+      setSearchPreview(
+        state.map,
+        hits.map((h) => ({ lngLat: h.lngLat, name: h.name })),
+        (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
+      );
+      rows.forEach((li, j) => {
+        li.addEventListener("pointerenter", () => highlightSearchPreview(state.map, j));
+        li.addEventListener("pointerleave", () => highlightSearchPreview(state.map, null));
+      });
+    }
+
     function wireNearbyResults(host, hits, role) {
       host.querySelectorAll("li.hit-nearby").forEach((li) => {
         li.addEventListener("click", () => {
@@ -6118,6 +6149,13 @@
           placeResults(input, results);
           wireSavedResults(results, savedNow);
           wireNearbyResults(results, nearby, cat && cat.role);
+          // ONLY THE CATEGORY BLOCK GETS DOTS HERE, and that is a limit rather
+          // than an oversight: a `hit-google` name match carries no coordinates
+          // until it is picked, because Place Details bills per call and
+          // resolving five to draw five dots would cost five times as much for a
+          // rider who is going to choose one. The numbering follows the nearby
+          // rows, which sit under their own heading.
+          showPreview(results, nearby);
           results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills
@@ -6288,6 +6326,7 @@
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);
+        showPreview(results, nearby);
       } catch (err) {
         console.warn("[builder] chip search:", err.status || "", err.message);
         if (mine !== searchSeq) return;

@@ -1372,6 +1372,92 @@
     });
   }
 
+  // --- Search result preview ------------------------------------------------
+  //
+  // WHERE THE CANDIDATES ACTUALLY ARE. The category search answers with names
+  // and a "3 mi off" number, which is enough to rank them and not enough to
+  // choose one: a rider picking a fuel stop wants to see which side of the river
+  // it is on and whether it is before or after the pass. Ziad's call,
+  // 2026-09-02, asked while looking at a dropdown of Oregon gas stations.
+  //
+  // TRANSIENT AND POOLED. These live exactly as long as the dropdown, so they
+  // are detached rather than destroyed — a rider retyping a query would
+  // otherwise rebuild a dozen markers per keystroke. Same arrangement as the
+  // fuel walls above.
+  const previews = new Map();
+
+  function previewOf(map) {
+    let p = previews.get(map);
+    if (!p) {
+      p = { pins: [], onHover: null };
+      previews.set(map, p);
+    }
+    return p;
+  }
+
+  function previewEl(p, i) {
+    const el = document.createElement("div");
+    // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
+    // content at bottom-center, so a sized wrapper puts the anchor off the
+    // point. The child carries the size and the hover.
+    el.className = "tb-hit";
+    const dot = document.createElement("i");
+    dot.className = "tb-hit-dot";
+    dot.textContent = String(i + 1);
+    el.appendChild(dot);
+    // Hover in BOTH directions is the point of the feature — a dot with no way
+    // back to its row is a dot you cannot identify. The listeners go on the
+    // child, because Google sets pointer-events: none on a non-clickable
+    // marker's container and only a descendant may re-enable it.
+    dot.addEventListener("pointerenter", () => p.onHover && p.onHover(i));
+    dot.addEventListener("pointerleave", () => p.onHover && p.onHover(null));
+    return el;
+  }
+
+  /**
+   * Draw one numbered dot per search result, or clear them with an empty list.
+   *
+   * `items` is [{ lngLat, name }] in the order the dropdown shows them, so the
+   * number on a dot is the row it belongs to. `onHover(i | null)` fires when the
+   * pointer enters or leaves a dot.
+   */
+  function setSearchPreview(map, items, onHover) {
+    const p = previewOf(map);
+    p.onHover = onHover || null;
+    const list = items || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!p.pins[i]) {
+        p.pins[i] = new Marker.AdvancedMarkerElement({
+          map,
+          content: previewEl(p, i),
+          // Above the route and the fuel walls: these are the thing being chosen
+          // right now, and they are gone the moment the dropdown closes.
+          zIndex: 6,
+        });
+      }
+      p.pins[i].position = toLatLng(list[i].lngLat);
+      p.pins[i].map = map;
+      const dot = p.pins[i].content.firstChild;
+      dot.classList.remove("is-lit");
+      // The name rides along as the accessible label rather than as a tooltip:
+      // twelve tooltips fighting for the same corner of the map is noise, and
+      // the dropdown beside it already carries every name in full.
+      dot.setAttribute("role", "img");
+      dot.setAttribute("aria-label", list[i].name || "Result " + (i + 1));
+    }
+    for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
+  }
+
+  /** Lift one preview dot, or none with a null index. */
+  function highlightSearchPreview(map, i) {
+    const p = previews.get(map);
+    if (!p) return;
+    p.pins.forEach((pin, j) => {
+      if (!pin.content) return;
+      pin.content.firstChild.classList.toggle("is-lit", j === i);
+    });
+  }
+
   window.TBMap = {
     esc,
     initMap,
@@ -1399,6 +1485,8 @@
     attachPopup,
     stopMileages,
     setMomentOverlay,
+    setSearchPreview,
+    highlightSearchPreview,
     iconSvg,
     initPanelToggle,
   };
