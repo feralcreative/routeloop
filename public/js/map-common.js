@@ -547,7 +547,21 @@
   // drawn if the group had no bike on file.
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-  const RING = () => cssVar("--stop", "#cc0000");
+  // THE RING IS A GAUGE AND TAKES ITS COLOR FROM THE TANK. Ziad's call,
+  // 2026-09-02: green through the first half, amber past it, red from three
+  // quarters. range-circle.js decides WHICH by name and this resolves it against
+  // the live palette, so the six themes keep working and this file spends no
+  // opinion on which red.
+  //
+  // NOTE THIS REFINES THE 2026-08-31 CALL RATHER THAN REVERSING IT. Everything
+  // else in the fuel overlay stays $stop — the E markers, the closed stretch and
+  // the Range button are VERDICTS, and a verdict has one color. The ring is the
+  // only part of it that is a quantity.
+  const RING_TONES = { go: "#41ae4d", warning: "#ffac00", stop: "#cc0000" };
+  const RING = (tone) => {
+    const name = RING_TONES[tone] ? tone : "stop";
+    return cssVar("--" + name, RING_TONES[name]);
+  };
 
   // Small round dots rather than dashes: the ring is the quietest thing on the
   // map and a dashed edge reads as a route, which is what every other dashed
@@ -764,7 +778,7 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath) {
+  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath, ringTone) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
@@ -779,10 +793,15 @@
 
     if (ringPath && ringPath.length > 2) {
       const path = ringPath.map(toLatLng);
-      m.circle.setOptions({ fillColor: RING() });
+      // Both re-read on every paint rather than being set once at construction:
+      // the tone changes as the tank drains, and the two halves of the ring have
+      // to change together or the dotted edge and the wash disagree about how
+      // much fuel is left.
+      const tone = RING(ringTone);
+      m.circle.setOptions({ fillColor: tone });
       m.circle.setPath(path);
       m.circle.setVisible(true);
-      m.ringLine.setOptions({ icons: ringDots(RING()) });
+      m.ringLine.setOptions({ icons: ringDots(tone) });
       m.ringLine.setPath(path);
       m.ringLine.setVisible(true);
     } else {

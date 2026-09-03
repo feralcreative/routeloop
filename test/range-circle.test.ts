@@ -336,3 +336,68 @@ describe('every point the tank runs out', () => {
     expect(R.dryDistanceM(d, 0, cum(d), 'gas', mi(100))).toBe(all[0])
   })
 })
+
+// WHAT COLOR THE RING IS, as a function of how much of the tank is gone (#s
+// raised 2026-09-02). Green through the first half, amber past it, red from
+// three quarters — the ring is the one part of the fuel overlay that reports a
+// quantity, where the E markers and the closed stretch report a verdict.
+describe('how much of the tank is gone', () => {
+  const RANGE_M = 100_000
+
+  // A day with a pump at 40km, so the tank resets there.
+  const day = {
+    points: [{ roles: [] }, { roles: ['gas'] }, { roles: [] }],
+    legs: [{ distanceM: 40_000 }, { distanceM: 120_000 }],
+  }
+  const cum = [0, 40_000, 160_000]
+
+  it('is null when nothing can say, which is not zero', () => {
+    expect(R.tankUsed(day, null, cum, 'gas', RANGE_M)).toBeNull()
+    // No bike on file is the common case, not the edge one. Zero would claim a
+    // full tank, which is a claim nobody made.
+    expect(R.tankUsed(day, 20_000, cum, 'gas', null)).toBeNull()
+    expect(R.tankUsed(day, 20_000, cum, 'gas', 0)).toBeNull()
+  })
+
+  it('measures from the start of the day before any pump', () => {
+    expect(R.tankUsed(day, 25_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.25, 5)
+  })
+
+  // THE TANK, NOT THE DAY. A rider who fills at 40km is back to a full tank on
+  // the far side of it, however far into the ride they are.
+  it('resets at a pump the rider has passed', () => {
+    expect(R.tankUsed(day, 40_000, cum, 'gas', RANGE_M)).toBe(0)
+    expect(R.tankUsed(day, 90_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.5, 5)
+  })
+
+  it('does not count a pump for a bike that does not drink from it', () => {
+    // charge and gas are the same event seen from two kinds of machine.
+    expect(R.tankUsed(day, 90_000, cum, 'charge', RANGE_M)).toBeCloseTo(0.9, 5)
+  })
+
+  it('caps at one rather than reporting a fraction nothing reads', () => {
+    expect(R.tankUsed(day, 160_000, cum, 'gas', RANGE_M)).toBe(1)
+  })
+})
+
+describe('the ring tone', () => {
+  it('is green through the first half of the tank', () => {
+    expect(R.ringTone(0)).toBe('go')
+    expect(R.ringTone(0.25)).toBe('go')
+    // THE BOUNDARY GOES TO THE CALMER COLOR: at exactly half a tank the rider
+    // has half a tank, which is not yet a thing to worry about.
+    expect(R.ringTone(0.5)).toBe('go')
+  })
+
+  it('is amber past half and red from three quarters', () => {
+    expect(R.ringTone(0.51)).toBe('warning')
+    expect(R.ringTone(0.74)).toBe('warning')
+    expect(R.ringTone(0.75)).toBe('stop')
+    expect(R.ringTone(1)).toBe('stop')
+  })
+
+  it('falls back to red when there is no fraction', () => {
+    expect(R.ringTone(null)).toBe('stop')
+    expect(R.ringTone(undefined)).toBe('stop')
+  })
+})

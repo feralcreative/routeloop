@@ -127,6 +127,55 @@
   }
 
   /**
+   * How much of the CURRENT tank has been burned at this moment, 0..1.
+   *
+   * THE TANK, NOT THE DAY — the same distinction fuelReachM() makes and for the
+   * same reason: this resets at every pump the rider actually stops at, so it
+   * answers "how much fuel is in the bike right now" rather than "how far
+   * through the ride are you". A rider who fills at halfway is back to a full
+   * green ring on the far side of it.
+   *
+   * Null when nothing can say: no moment, no range on file. That is not zero —
+   * zero is a full tank, which is a claim, and no bike on file is the common
+   * case rather than the edge one.
+   */
+  function tankUsed(day, distM, cum, fuelRole, rangeM) {
+    if (distM == null || !cum || !cum.length) return null;
+    if (!(rangeM > 0)) return null;
+    var burned = distM - lastFillM(day, distM, cum, fuelRole);
+    if (!(burned > 0)) return 0;
+    // Capped, because past the dry point the ring has no radius to draw anyway
+    // and a fraction over 1 would only be a number nothing reads.
+    return Math.min(1, burned / rangeM);
+  }
+
+  /**
+   * What color the ring takes at that fraction: "go", "warning" or "stop".
+   *
+   * Ziad's call, 2026-09-02, and it REFINES the 2026-08-31 decision that the
+   * whole fuel overlay is $stop red rather than reversing it. The E markers and
+   * the closed stretch stay red because they are verdicts — you cannot ride
+   * this. The ring became a GAUGE, and a gauge that is red at a full tank is
+   * telling the rider nothing they can act on.
+   *
+   * GREEN THROUGH THE FIRST HALF, amber past it, red from three quarters. The
+   * boundaries go to the calmer color: at exactly half a tank a rider has half a
+   * tank, which is not yet a thing to worry about.
+   *
+   * A NAME RATHER THAN A COLOR, so this file spends no opinion on which red —
+   * map-common.js resolves it against the live palette, which is what keeps the
+   * six themes working.
+   */
+  function ringTone(used) {
+    // No range on file draws no ring at all, so this is only reached with a real
+    // fraction; "stop" is the safe answer rather than the expected one.
+    if (used == null) return "stop";
+    if (used <= 0.5) return "go";
+    if (used < 0.75) return "warning";
+    return "stop";
+  }
+
+  /**
    * EVERY point along the day where the tank would run out, in order.
    *
    * ONE WALL PER TANKFUL, not just the next one. #220 is about knowing where
@@ -224,6 +273,8 @@
     dryDistanceM: dryDistanceM,
     dryDistancesM: dryDistancesM,
     dryStretch: dryStretch,
+    tankUsed: tankUsed,
+    ringTone: ringTone,
     isRefuel: isRefuel,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -1559,6 +1559,11 @@
       walls,
       ringPath(here, track, distM, reach),
       gap && sliceBetween(track, gap.from, gap.to),
+      // GREEN THROUGH THE FIRST HALF OF THE TANK, amber past it, red from three
+      // quarters — the ring is the one part of the fuel overlay that is a
+      // quantity rather than a verdict. Computed even when the overlay is off,
+      // which costs nothing and keeps the tone right the instant it comes back.
+      RANGE.ringTone(RANGE.tankUsed(day, distM, cum, role, range)),
     );
   }
 
