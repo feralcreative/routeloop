@@ -436,3 +436,66 @@ body.modal-open {
   color: $neutral-50;
   font-size: 0.85rem;
 }
+
+// A FAILURE, SAID PROPERLY (#233).
+//
+// The save readout is a fixed box that ellipsizes, so a server message longer
+// than a few words reached the rider as its first fragment and nothing else —
+// reported as "a Costco sample of an error message", which is exactly what it
+// was. This is where the whole thing goes.
+//
+// A REAL <dialog>. showModal() brings the focus trap, Escape to close, inertness
+// for the rest of the page and a ::backdrop, none of which is worth
+// reimplementing on a div. The one thing it does NOT bring is a default width,
+// which is why that is set here.
+.tb-error {
+  box-sizing: border-box;
+  width: min(92vw, 34rem);
+  padding: 1.4em 1.5em;
+  border: 0;
+  border-radius: 10px;
+  background: $white;
+  color: $text;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.4);
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+  }
+}
+
+.tb-error-title {
+  margin: 0 0 0.5em;
+  font-size: 1.15em;
+  line-height: 1.25;
+}
+
+// THE MESSAGE ITSELF, AND IT MUST WRAP RATHER THAN TRUNCATE — the whole point of
+// this dialog. A server message can carry a long path, which has no spaces to
+// break at, so it breaks anywhere instead of pushing the box wider than the
+// screen. Monospace because some of them are identifiers.
+.tb-error-body {
+  margin: 0 0 0.7em;
+  padding: 0.6em 0.7em;
+  border-radius: 6px;
+  background: $neutral-96;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+// WHAT IS AT RISK, which is the question a rider actually has when a save fails.
+// Quieter than the message, because it is reassurance rather than the fact.
+.tb-error-note {
+  margin: 0 0 1.1em;
+  font-size: 0.88em;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.tb-error-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5em;
+}

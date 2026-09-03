@@ -1159,6 +1159,13 @@ ${
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
           </span>
+          <!-- #233. THE WAY BACK INTO A DISMISSED ERROR, and a real button
+               rather than a click handler on the readout above—that span is
+               aria-hidden, so a keyboard could never reach it and a screen
+               reader would never announce it. Hidden until something has gone
+               wrong; builder.js unhides it, because the readout can only ever
+               show the first few words of a message. -->
+          <button type="button" id="save-detail" class="save-detail" hidden>Details</button>
           <!-- WHO ELSE IS IN THIS RIDE. Server-rendered empty and hidden: the
                list only ever arrives over the live channel, and a rider with no
                channel—a dropped connection, a draining container, JavaScript

@@ -1321,9 +1321,33 @@
     // routine dirty/saving/saved cycle runs several times a minute and
     // announcing it would make the panel unusable with a screen reader on.
     if (name === "error" || name === "blocked" || name === "conflict" || name === "stale") {
-      $("save-announce").textContent = text || SAVE_TEXT[name] || "";
-    } else if (name === "saved") {
-      $("save-announce").textContent = "";
+      $("save-announce").textContent = msg;
+      // #233. THE READOUT IS NOT ENOUGH ON ITS OWN. It is a fixed box that
+      // ellipsizes, so a server message longer than a few words reached the
+      // rider as its first fragment and nothing else — the full text was in a
+      // `title` nobody hovers.
+      //
+      // ONCE PER DISTINCT MESSAGE. The autosave retries on a timer and a failing
+      // save tends to keep failing, so a dialog per attempt would be worse than
+      // the truncation it fixes. `lastErrorSeen` is cleared on the next clean
+      // save, so a genuinely new failure always gets shown.
+      if (msg !== lastErrorSeen) {
+        lastErrorSeen = msg;
+        showErrorDialog(name, msg);
+      }
+      // A way back IN, because a dismissed dialog is otherwise unrecoverable and
+      // the box still cannot show the message.
+      const d = $("save-detail");
+      if (d) d.hidden = false;
+    } else {
+      const d = $("save-detail");
+      if (d) d.hidden = true;
+      if (name === "saved") {
+        $("save-announce").textContent = "";
+        // A clean save is what makes the NEXT failure new again.
+        lastErrorSeen = null;
+        closeErrorDialog();
+      }
     }
   }
 
@@ -7281,6 +7305,18 @@
     // Leaving a field ends the run of keystrokes, so the next edit is its own
     // undo step rather than folding into the last word typed.
     document.addEventListener("focusout", () => history_.breakCoalesce());
+
+    // THE WAY BACK INTO A DISMISSED ERROR. The readout can only ever show the
+    // first few words of one, so without this a rider who dismissed the dialog
+    // has no way to read the rest of the message their ride failed on.
+    const detail = $("save-detail");
+    if (detail) {
+      detail.addEventListener("click", () => {
+        const st = $("save-status");
+        showErrorDialog(st.dataset.state || "error", st.querySelector(".save-text").textContent);
+      });
+    }
+
     renderHistoryButtons();
   }
 
