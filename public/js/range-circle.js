@@ -171,13 +171,15 @@
     // fraction; "stop" is the safe answer rather than the expected one.
     if (used == null) return "stop";
     if (used <= 0.5) return "go";
-    // $detour RATHER THAN $warning, and that is a legibility fix rather than a
-    // preference. $warning is #ffac00 — an amber that holds up as a text color
-    // on a white card and washes out badly as a thin dotted ring over map tiles,
-    // which are pale and busy in exactly that part of the spectrum. $detour is
-    // #f56100, the orange of a highway detour sign, which is what a rider is
-    // being told to start looking for. Reported as hard to see, 2026-09-02.
-    if (used < 0.75) return "detour";
+    // $fuel-low, WHICH IS A TOKEN OF ITS OWN BECAUSE BOTH NEIGHBOURS WERE TRIED
+    // AND BOTH WERE WRONG. $warning (#ffac00) is an amber tuned to be read as
+    // text on a white card and washes out as a thin dotted ring over pale busy
+    // map tiles; $detour (#f56100) fixed that and read as too red for "you have
+    // half a tank left", which is advice rather than a verdict. $fuel-low is
+    // mixed halfway between them in _palette.scss, so it follows all three sign
+    // palettes instead of sitting still while its neighbours move. Ziad's call,
+    // 2026-09-02, after seeing both on the map.
+    if (used < 0.75) return "fuel-low";
     return "stop";
   }
 

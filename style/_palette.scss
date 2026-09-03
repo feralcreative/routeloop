@@ -31,6 +31,7 @@
 @use "sass:color";
 @use "sass:map";
 @use "sass:math";
+@use "sass:string";
 
 // --- The neutral ramp, which is the scheme axis ------------------------------
 //
@@ -71,6 +72,21 @@ $-neutrals-dark: (
 // Stylized rather than converted from the federal spec — see the long note in
 // _tokens.scss for why a faithful conversion lands almost black. Do not
 // "correct" one of these toward a published value.
+/// A color as a plain hex string.
+///
+/// SASS EMITS `rgb(98.03%, 52.74%, 0%)` FOR ANYTHING IT COMPUTED, and a token
+/// read back out of the stylesheet by JavaScript has to be a value its consumer
+/// parses. `map-common.js` hands these straight to google.maps as fillColor and
+/// strokeColor, and every authored token there is a hex — so a computed one must
+/// be too, rather than being the one value in the set with a different shape.
+/// It is also what `parsePalette()` in src/views/tokens.ts reads.
+///
+/// ie-hex-str() gives #AARRGGBB; the alpha is dropped, which is safe because
+/// every sign field is opaque.
+@function -hex($c) {
+  @return string.unquote("#" + string.slice(color.ie-hex-str($c), 4));
+}
+
 $-signs-default: (
   "interstate": #266149, "speed": #efefef, "stop": #cc0000, "detour": #f56100,
   "warning": #ffac00, "yield": #ffdd00, "go": #41ae4d, "disabled": #0a539c,
@@ -273,6 +289,20 @@ $-signs-colorblind: (
 
     "interstate": $interstate, "speed": map.get($s, "speed"), "stop": $stop,
     "detour": map.get($s, "detour"), "warning": $warning, "yield": map.get($s, "yield"),
+
+    // HALFWAY BETWEEN THE DETOUR ORANGE AND THE WARNING AMBER, for the range
+    // ring's middle band and nothing else so far. Ziad's call, 2026-09-02, after
+    // both neighbours were tried on the map: $warning washed out over pale busy
+    // tiles and $detour read as too red for "you have half a tank".
+    //
+    // MIXED RATHER THAN PICKED, so it follows all three sign palettes on its own
+    // — the colorblind and high-contrast themes move $detour and $warning, and a
+    // hand-chosen hex here would sit still while its neighbours moved and end up
+    // the odd one out in exactly the themes that can least afford it.
+    //
+    // It is a FIELD color on a map overlay, never text, so it is deliberately
+    // absent from the ink-pairing tables below: nothing is printed on it.
+    "fuel-low": -hex(color.mix(map.get($s, "detour"), $warning, 50%)),
     "go": $go, "disabled": $disabled, "recreation": map.get($s, "recreation"),
     "tarmac": map.get($s, "tarmac"), "concrete": map.get($n, 57),
 

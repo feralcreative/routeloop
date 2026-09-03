@@ -558,10 +558,10 @@
   // the Range button are VERDICTS, and a verdict has one color. The ring is the
   // only part of it that is a quantity.
   // Fallbacks only — cssVar() reads the live palette first, and every one of
-  // these is themed. The middle band is $detour rather than $warning because a
-  // thin dotted ring over map tiles needs the orange of a detour sign, not an
-  // amber tuned to be read as text on a white card.
-  const RING_TONES = { go: "#41ae4d", detour: "#f56100", stop: "#cc0000" };
+  // these is themed. The middle band is its own token, $fuel-low, mixed halfway
+  // between the detour orange and the warning amber: one washed out over map
+  // tiles and the other read as a verdict rather than as advice.
+  const RING_TONES = { go: "#41ae4d", "fuel-low": "#fa8700", stop: "#cc0000" };
   const RING = (tone) => {
     const name = RING_TONES[tone] ? tone : "stop";
     return cssVar("--" + name, RING_TONES[name]);
