@@ -182,7 +182,7 @@
     var cap = maxSamples > 0 ? Math.floor(maxSamples) : 1;
     var n = Math.max(1, Math.min(cap, Math.ceil(totalM / (2 * corridorM))));
     var step = totalM / n;
-    // Half a span reaches the neighbouring samples; the corridor width on top of
+    // Half a span reaches the neighboring samples; the corridor width on top of
     // that reaches the places the filter is about to accept. Clamped to the
     // 500m–50km the proxy accepts, so a very long or very short span still asks
     // a question the endpoint will answer.

@@ -147,6 +147,29 @@
   // opens the editor. `details: null` rather than an empty object so that
   // "nothing filled in" is one representation rather than two, matching what the
   // server stores and what loadRidePayload sends back.
+  /**
+   * A DAY MUST KEEP A STOP, and this is the one place that rule is applied.
+   *
+   * `daySchema` refuses a day with no stop and `payload()` cannot send one, so a
+   * day that loses its last stop is a day the rider can no longer save — with a
+   * server message that names an array index and is ellipsized to nothing in the
+   * status box. #233.
+   *
+   * It was five hand-written copies of the same line until 2026-09-03, and
+   * addDay() was the one that did not have it: a new day is seeded with the
+   * previous day's last point, that seed was pushed as a bare object with no
+   * `kind` at all, and `kind` defaults to `poi` — so every day added after the
+   * first had no stop, and addPoint() does not promote anything on a day that is
+   * already non-empty. Every save of that ride then failed with
+   * `days.1: a day needs at least one stop`, forever.
+   *
+   * Returns the day so it can be used inline.
+   */
+  function ensureDayHasStop(day) {
+    if (day && day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+    return day;
+  }
+
   function newPoint(lng, lat, name) {
     return {
       // THE BASELINE TYPE. Ziad's call, 2026-08-23: a point is a POI until it is
@@ -843,6 +866,20 @@
     // points still cannot save, and that one is real: the API requires at least
     // one stop per day and there would be nothing to store.
     if (!state.days.some((r) => r.points.length > 0)) return "Needs a stop";
+    // A DAY WITH POINTS BUT NO STOP IS THE #233 SHAPE, AND IT IS CAUGHT HERE SO
+    // THE MESSAGE CAN NAME THE DAY. The server refuses it as
+    // `days.1: a day needs at least one stop` — an array index a rider has no
+    // way to count to, in a box that ellipsizes it to nothing.
+    //
+    // ensureDayHasStop() means the builder can no longer CREATE this shape, so
+    // in practice this fires for a ride that was already broken: a recovery
+    // draft written before that fix, or a ride saved by an older client. It is
+    // worth keeping for the same reason the API's refine is — a check that
+    // cannot fire costs nothing, and this one could not fire for two weeks.
+    const noStop = state.days.find((r) => r.points.length > 0 && stopsOf(r).length === 0);
+    if (noStop) {
+      return dayLabel(state.days.indexOf(noStop)) + " has no stop—give a point a category, or make one a stop";
+    }
     return null;
   }
 
@@ -1190,6 +1227,86 @@
     // leaving them pressing a save that is never going to be attempted again.
     conflict: "Someone else edited this ride—reload to see their changes",
   };
+
+  // --- Errors that need saying properly -------------------------------------
+  //
+  // #233. A save failure went to the status readout and nowhere else: a fixed
+  // box that ellipsizes, with the whole message only in a `title` tooltip. The
+  // server's own wording makes that worse — `days.1: a day needs at least one
+  // stop` is an array index a rider cannot count to, and what actually reached
+  // the screen was "days.1: a day n…". Reported as "a Costco sample of an error
+  // message", which is exactly right.
+  //
+  // ONCE PER DISTINCT MESSAGE, NOT ONCE PER ATTEMPT. The autosave retries on a
+  // timer and a failing save tends to keep failing, so a dialog per attempt
+  // would be far worse than the ellipsized box — it is the same reason the
+  // existing code sends this to the status line rather than to a toast. The
+  // memory resets on the next clean save, so a NEW failure is always shown.
+  let lastErrorSeen = null;
+
+  const ERROR_TITLES = {
+    error: "This ride did not save",
+    conflict: "Someone else edited this ride",
+    stale: "Someone else changed this ride",
+    blocked: "This ride cannot be saved yet",
+  };
+
+  function errorDialog() {
+    let el = $("tb-error");
+    if (el) return el;
+    el = document.createElement("dialog");
+    el.id = "tb-error";
+    el.className = "tb-error";
+    el.innerHTML =
+      '<h2 class="tb-error-title"></h2>' +
+      '<p class="tb-error-body"></p>' +
+      '<p class="tb-error-note"></p>' +
+      '<div class="tb-error-acts">' +
+      '<button type="button" class="btn-quiet tb-error-reload">Reload the page</button>' +
+      '<button type="button" class="btn-quiet tb-error-close">Dismiss</button>' +
+      "</div>";
+    document.body.appendChild(el);
+    el.querySelector(".tb-error-close").addEventListener("click", () => closeErrorDialog());
+    el.querySelector(".tb-error-reload").addEventListener("click", () => location.reload());
+    return el;
+  }
+
+  function closeErrorDialog() {
+    const el = $("tb-error");
+    if (!el) return;
+    if (typeof el.close === "function" && el.open) el.close();
+    else el.removeAttribute("open");
+  }
+
+  /**
+   * Show a failure in full, at a size that can hold it.
+   *
+   * `kind` picks the heading; `text` is the message as it will be read. The
+   * Reload button is offered only where reloading is the actual remedy — on a
+   * plain save error the work is still in the panel and in the recovery draft,
+   * and reloading is the one thing that would lose it.
+   */
+  function showErrorDialog(kind, text) {
+    const el = errorDialog();
+    el.dataset.kind = kind;
+    el.querySelector(".tb-error-title").textContent = ERROR_TITLES[kind] || ERROR_TITLES.error;
+    el.querySelector(".tb-error-body").textContent = text || SAVE_TEXT[kind] || "";
+    // WHAT IS AT RISK, WHICH IS THE QUESTION A RIDER ACTUALLY HAS. A save error
+    // is alarming and usually harmless — the retry clears most of them — and
+    // saying so is the difference between a dialog that helps and one that only
+    // interrupts.
+    el.querySelector(".tb-error-note").textContent =
+      kind === "conflict" || kind === "stale"
+        ? "Reload to see their version. Anything you have changed since will need doing again."
+        : "Your work is still here and a recovery copy is saved in this browser. Routeloop will keep trying.";
+    const reload = el.querySelector(".tb-error-reload");
+    reload.hidden = !(kind === "conflict" || kind === "stale");
+    if (typeof el.showModal === "function") {
+      if (!el.open) el.showModal();
+    } else {
+      el.setAttribute("open", "");
+    }
+  }
 
   function setSaveStatus(name, text) {
     const el = $("save-status");
@@ -2067,14 +2184,17 @@
     const lastPts = prev ? prev.points : [];
     const last = lastPts[lastPts.length - 1];
     if (last) {
-      day.points.push({
-        lat: last.lat,
-        lng: last.lng,
-        name: last.name,
-        description: "",
-        roles: [],
-        durationMin: null,
-      });
+      // THROUGH newPoint(), NOT AS A BARE OBJECT LITERAL. This was a hand-built
+      // object written on 2026-08-15, before points had a `kind` at all — so it
+      // was correct when it landed and became wrong silently on 2026-08-23 when
+      // the stop/POI split made `kind` default to `poi`. It also carried no
+      // `uid`, which ensureUids() then minted fresh on every save, so nothing
+      // could reference this point across one.
+      day.points.push(newPoint(last.lng, last.lat, last.name));
+      // The day's first point is a stop, exactly as it is when a rider drops one
+      // on an empty day. Without this the seeded day has no stop, adding more
+      // points never promotes anything, and the ride cannot be saved at all.
+      ensureDayHasStop(day);
     }
 
     // And it begins the morning after the last one finished. Syncing the
@@ -2117,7 +2237,7 @@
     beginEdit("split day");
     const cut = SPLIT.splitDayAt(day, i, uid);
 
-    // A COLOR THAT IS NOT ITS NEIGHBOUR'S. Seeding off state.days.length the way
+    // A COLOR THAT IS NOT ITS NEIGHBOR'S. Seeding off state.days.length the way
     // addDay does would hand the new day the same hue as an existing one once
     // days have been deleted, and two adjacent days in one color is the one case
     // the palette exists to prevent.
@@ -2490,7 +2610,7 @@
       // first survivor is promoted, the same rule addPoint applies to a day's
       // first point and the cross-day drag applies to a day that has just lost
       // its only anchor.
-      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+      ensureDayHasStop(day);
       // Legs are rebuilt wholesale rather than repaired around each removal —
       // with several gone at once there is no "the leg either side" to bridge.
       // Unconditional now: losing any point of either kind changes the road.
@@ -2530,7 +2650,7 @@
       });
       // Same rule as the bulk delete: moving every stop out of a day leaves one
       // the save refuses, so the first point left behind becomes the anchor.
-      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+      ensureDayHasStop(day);
       day.legs = [];
       state.legSeq[r] = [];
     }
@@ -2538,7 +2658,7 @@
     // came off in the opposite order to the one they were in.
     moved.reverse().forEach(({ pt }) => dst.points.push(pt));
     // And the destination, which can be a day whose points all arrived as POIs.
-    if (dst.points.length > 0 && stopsOf(dst).length === 0) dst.points[0].kind = "stop";
+    ensureDayHasStop(dst);
     dst.legs = [];
     state.legSeq[toDay] = [];
     const touched = new Set([...byDay.keys(), toDay]);
@@ -4375,7 +4495,7 @@
    * sleeping at and a hotel you happen to ride past are the same `hotel` role,
    * and the aggressive reading cuts a rider's day in half for noting a landmark.
    * The cost of offering is one dismissed prompt; the cost of not offering is a
-   * ride reorganised behind somebody's back.
+   * ride reorganized behind somebody's back.
    *
    * NOT SHOWN ON THE LAST POINT OF A DAY, which is where lodging normally goes —
    * the day already ends there and there is nothing to cut. That is also what
@@ -5603,13 +5723,9 @@
     pt.distFromStartMi = null;
     dst.points.splice(at, 0, pt);
 
-    // A DAY MUST KEEP A STOP. Dragging the last one out would leave a day the
-    // save refuses and payload() drops whole, so the first survivor is promoted
-    // in its place — the same rule addPoint applies to a day's first point,
-    // applied to a day that has just lost its only anchor.
-    if (kind === "stop" && stopsOf(src).length === 0 && src.points.length > 0) {
-      src.points[0].kind = "stop";
-    }
+    // A DAY MUST KEEP A STOP — see ensureDayHasStop(). Dragging the last one out
+    // would leave a day the save refuses and payload() drops whole.
+    ensureDayHasStop(src);
 
     src.legs = [];
     dst.legs = [];

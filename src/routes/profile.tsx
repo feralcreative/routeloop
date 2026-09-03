@@ -257,7 +257,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Public starting point</legend>
           <p class="field-hint">
             Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you
-            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket car park.
+            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket parking lot.
             Somewhere you can actually meet people is ideal.
           </p>
           <p class="field-hint">

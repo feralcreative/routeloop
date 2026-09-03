@@ -1054,7 +1054,7 @@
     cursor: pointer;
 
     // The two halves of the broken line. They grow to fill whatever the glyph in
-    // the middle does not take, so the break is centred at any panel width and
+    // the middle does not take, so the break is centered at any panel width and
     // nothing has to know how wide a "+" is.
     &::before,
     &::after {
@@ -2355,7 +2355,7 @@
   }
 
   .sg-color {
-    // Matches .day-color's box so the two colour wells in the panel read as the
+    // Matches .day-color's box so the two color wells in the panel read as the
     // same control at two levels.
     width: 1.6rem;
     height: 1.6rem;

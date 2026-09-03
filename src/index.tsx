@@ -739,7 +739,7 @@ function viewerPanel(
           )}
           {/*
             #226. A <details> rather than a dialog, and that is what makes it
-            work with JavaScript off — a rider standing in a car park on one bar
+            work with JavaScript off — a rider standing at a meeting point on one bar
             of signal is exactly who needs this, and showModal() would need the
             page's scripts to have arrived. The open state is drawn as a card
             over the map in _map.scss; nothing here decides that.

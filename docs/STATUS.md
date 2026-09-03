@@ -26,13 +26,13 @@
 
 **#28 asks Google for the alternates it already computes and keeps the twistiest**, scored by `twist.ts`. No second router and no extra request. It scores on `dpm` rather than `bestDpm`—the twistiest 20-mile window is the right number to show a rider and the wrong one to pick a leg by. Alternates are only requested on a leg with no via points, because Routes does not return them otherwise, so a leg the rider shaped by hand keeps the road they shaped.
 
-**The range ring became a gauge.** Green through the first half of the tank, `$fuel-low` past it, red from three quarters. That refines the 2026-08-31 call rather than reversing it: the E markers and the closed stretch are verdicts and keep one color; the ring is the only part reporting a quantity, and a gauge that is red at a full tank tells a rider nothing they can act on. The middle band is its own mixed token because **both** neighbours were tried on the map—`$warning` washed out over pale tiles and `$detour` read as too red for half a tank.
+**The range ring became a gauge.** Green through the first half of the tank, `$fuel-low` past it, red from three quarters. That refines the 2026-08-31 call rather than reversing it: the E markers and the closed stretch are verdicts and keep one color; the ring is the only part reporting a quantity, and a gauge that is red at a full tank tells a rider nothing they can act on. The middle band is its own mixed token because **both** neighbors were tried on the map—`$warning` washed out over pale tiles and `$detour` read as too red for half a tank.
 
 **#40 was mostly already done.** Undo and redo were bound; what was missing is cmd/ctrl+S, which calls `preventDefault` unconditionally so the browser's own Save Page dialog never lands over a ride, and ctrl+Y for redo on Windows.
 
-**#226 is a `<details>`, so it opens with no JavaScript**—a rider on one bar of signal in a gravel car park is exactly who needs it. Black on white regardless of theme, because plenty of phone cameras will not read an inverted code.
+**#226 is a `<details>`, so it opens with no JavaScript**—a rider on one bar of signal in a gravel meeting point is exactly who needs it. Black on white regardless of theme, because plenty of phone cameras will not read an inverted code.
 
-**Not verified in a browser by the agent.** Every item here was reasoned and tested rather than seen, apart from the parts Ziad checked live during the sprint: the leg-scoped search, the result dots, and the ring colours. **#29's Avoid and Prefer toggles have never been used**, and they re-route every leg of a day when pressed. The `/api/route` request carrying `prefs` has been read, not sent.
+**Not verified in a browser by the agent.** Every item here was reasoned and tested rather than seen, apart from the parts Ziad checked live during the sprint: the leg-scoped search, the result dots, and the ring colors. **#29's Avoid and Prefer toggles have never been used**, and they re-route every leg of a day when pressed. The `/api/route` request carrying `prefs` has been read, not sent.
 
 ## Fuel range on the map—2026-08-31
 
@@ -639,7 +639,7 @@ Never put a raw U+00A0 in source. It is invisible in a diff, so a stray one is u
 
 Every hit was verified as prose, a comment, or a test name before anything was written—no identifiers, no data keys, nothing in `drizzle/` or `utils/deploy/sql/`, and the SCSS token `$grey` untouched because AGENTS.md sanctions it. Case preserved, including three all-caps comment headers.
 
-**Three things were deliberately left in British spelling, and a future sweep must leave them alone**, because in each the spelling *is* the subject: the `` `color`, not `colour` `` example inside the rule statement in AGENTS.md, the ROADMAP row whose entire content is `"colours" → "colors"`, and the verbatim quotations from MyRoute-app's forum and support docs in [myrouteapp-formats.md](myrouteapp-formats.md), whose surrounding prose was corrected.
+**Three things were deliberately left in British spelling, and a future sweep must leave them alone**, because in each the spelling *is* the subject: the `` `color`, not `color` `` example inside the rule statement in AGENTS.md, the ROADMAP row whose entire content is `"colors" → "colors"`, and the verbatim quotations from MyRoute-app's forum and support docs in [myrouteapp-formats.md](myrouteapp-formats.md), whose surrounding prose was corrected.
 
 ### What is owed, and one thing to know about the history
 

@@ -85,10 +85,10 @@ body.modal-open {
 // wide as its own caption — so with captions running from "Signal" to
 // "Vampires MC" the discs end up at four different distances from each other
 // while the boxes look correctly spaced. Equal-width grid tracks put every disc
-// on the same centre-to-centre pitch no matter what is written under it.
+// on the same center-to-center pitch no matter what is written under it.
 .modal-links {
   list-style: none;
-  // Centred at a width that suits four marks rather than filling the modal, so
+  // Centered at a width that suits four marks rather than filling the modal, so
   // the row still reads as a group and does not spread to the corners when a
   // link is missing.
   margin: 0 auto 1.5rem;
