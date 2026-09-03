@@ -137,3 +137,49 @@ describe('filtering to the corridor', () => {
     expect(C.withinCorridor(null, straight, 10 * MI)).toEqual([])
   })
 })
+
+// #232. Every test above builds its fixtures as a loose {lng, lat} pair, which
+// is a shape the app does not send: `/api/places/search` normalizes a hit to
+// {name, address, lngLat, type} and that object goes to withinCorridor()
+// untouched. placeLngLat() read only the loose pair, so it returned null for
+// every real result, the filter dropped all of them, and ALONG THE DAY answered
+// "no gas within 15 mi of this day" on every day of every ride from the moment
+// #50 shipped. The arithmetic was right the whole time, which is why it read as
+// a radius or a routing problem.
+//
+// These use the PROXY's shape deliberately. A fixture written to suit the
+// helper is what let the defect through in the first place.
+describe('the shape the places proxy actually sends', () => {
+  /** Exactly what `/api/places/search` returns for one hit. */
+  const hit = (lng: number, lat: number, name = 'X') => ({
+    name,
+    address: '1 Somewhere Rd',
+    lngLat: [lng, lat] as [number, number],
+    type: 'gas_station',
+  })
+
+  it('reads a position out of lngLat', () => {
+    expect(C.placeLngLat(hit(-122, 38))).toEqual([-122, 38])
+  })
+
+  it('still reads a loose lng/lat pair, which saved places and points use', () => {
+    expect(C.placeLngLat({ lng: -122, lat: 38 })).toEqual([-122, 38])
+  })
+
+  it('keeps a station sitting on the road instead of dropping every result', () => {
+    const onRoad = hit(-122, 38, 'the 76 on the route')
+    const wayOff = hit(-121, 38, 'two counties over')
+    const got = C.withinCorridor([onRoad, wayOff], straight, 15 * MI)
+    expect(got.map((g: any) => g.place.name)).toEqual(['the 76 on the route'])
+    expect(got[0].offRouteM).toBeCloseTo(0, 0)
+  })
+
+  it('skips a hit whose lngLat is malformed rather than landing it at null island', () => {
+    const broken = [
+      { name: 'short pair', lngLat: [-122] },
+      { name: 'bad types', lngLat: ['x', 38] },
+      hit(-122, 38, 'good'),
+    ]
+    expect(C.withinCorridor(broken, straight, 10 * MI).map((g: any) => g.place.name)).toEqual(['good'])
+  })
+})

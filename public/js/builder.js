@@ -5997,10 +5997,15 @@
         results.innerHTML =
           nearbyResultsHtml(nearby) ||
           noticeHtml(
+            // "within 15 mi of this day" named a distance from a DAY, which is
+            // not a thing a rider can picture — reported as unreadable in #232.
+            // It is the day's ROUTE the corridor is measured from, and the line
+            // names the other scope by its own label so the way out is the
+            // control that is already on screen.
             state.corridorOn
               ? "No " + spec.label.toLowerCase() + " within " +
                 Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
-                " of this day"
+                " of this day's route. Switch to On screen to search a spot you can see."
               : "No " + spec.label.toLowerCase() + " on screen. Pan or zoom out to look wider.",
           );
         results.hidden = false;

@@ -114,14 +114,40 @@
     return out;
   }
 
-  /** A place's position, from whichever shape it arrived in. The Places proxy
-   *  normalizes to {lng, lat}; a saved place carries the same pair. Returns null
-   *  rather than guessing, so a malformed row is skipped instead of landing at
-   *  null island. */
+  /**
+   * A place's position, from whichever shape it arrived in. Returns null rather
+   * than guessing, so a malformed row is skipped instead of landing at null
+   * island.
+   *
+   * **`lngLat` IS THE SHAPE THE APP ACTUALLY SENDS, AND READING ONLY {lng, lat}
+   * SILENTLY EMPTIED EVERY CORRIDOR SEARCH.** #232. `/api/places/search`
+   * normalizes a hit to `{name, address, lngLat, type}` and every other reader
+   * in builder.js takes `h.lngLat` — this function was the one place that
+   * expected a loose `{lng, lat}` pair, which nothing produces. So placeLngLat()
+   * returned null for every result, withinCorridor() skipped all of them, and
+   * ALONG THE DAY answered \"no gas within 15 mi of this day\" on a route that is
+   * lined with gas stations. It failed on every day of every ride from the day
+   * #50 shipped, and looked like a routing or a radius problem because the
+   * arithmetic underneath it is correct. The unit test missed it for the reason
+   * these are always missed: its fixture built the shape the helper wanted
+   * rather than the shape the caller sends.
+   *
+   * Both spellings are accepted rather than the loose pair being dropped — a
+   * saved place and a builder point are plain {lng, lat} objects, and a helper
+   * that reads a position should not care which of the app's two spellings it
+   * was handed.
+   */
   function placeLngLat(p) {
     if (!p) return null;
-    var lng = p.lng;
-    var lat = p.lat;
+    var pair = p.lngLat;
+    if (pair && typeof pair.length === "number" && pair.length >= 2) {
+      return finitePair(pair[0], pair[1]);
+    }
+    return finitePair(p.lng, p.lat);
+  }
+
+  /** A [lng, lat] pair, or null if either half is not a real number. */
+  function finitePair(lng, lat) {
     if (typeof lng !== "number" || typeof lat !== "number") return null;
     if (!isFinite(lng) || !isFinite(lat)) return null;
     return [lng, lat];
