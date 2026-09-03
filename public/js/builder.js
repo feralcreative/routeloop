@@ -7073,6 +7073,16 @@
   }
 
   // Undo/redo controls and the recovery prompt.
+  /** Is the pointer of a keystroke inside something a rider is typing in?
+   *  Shared by the shortcuts below, which each want a different answer about
+   *  what to do next but the same answer about this. */
+  function isTypingTarget(t) {
+    if (!t || !t.tagName) return false;
+    if (t.isContentEditable) return true;
+    if (t.tagName === "TEXTAREA") return true;
+    return t.tagName === "INPUT" && t.type !== "range" && t.type !== "color" && t.type !== "checkbox";
+  }
+
   function wireHistory() {
     $("undo").addEventListener("click", () => applyUndo("undo"));
     $("redo").addEventListener("click", () => applyUndo("redo"));
@@ -7091,6 +7101,41 @@
       if (native) return;
       e.preventDefault();
       applyUndo(e.shiftKey ? "redo" : "undo");
+    });
+
+    // CTRL+Y IS REDO TOO, and only on the ctrl side. It is the Windows and Linux
+    // convention where shift+cmd+Z is the Mac one, and a rider who learned one
+    // does not discover the other by guessing. Not bound to the meta key: cmd+Y
+    // is taken on macOS and stealing it would be worse than not offering it.
+    document.addEventListener("keydown", (e) => {
+      if (!e.ctrlKey || e.metaKey || e.key.toLowerCase() !== "y") return;
+      if (isTypingTarget(e.target)) return;
+      e.preventDefault();
+      applyUndo("redo");
+    });
+
+    // CMD/CTRL+S SAVES NOW instead of waiting for the autosave. #40.
+    //
+    // IT MUST preventDefault UNCONDITIONALLY, including when there is nothing to
+    // save: the browser's own Save Page dialog is what happens otherwise, and a
+    // rider who pressed it out of habit gets a file picker over their ride. That
+    // is the whole reason to bind it — the autosave already covers the saving.
+    //
+    // Bound wherever focus is, text fields included, because it is not an edit:
+    // a rider halfway through typing a stop name and reaching for cmd+S means
+    // the ride, and no input has its own competing Save.
+    document.addEventListener("keydown", (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+      if (e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      if (!CAN_EDIT) return;
+      // Ends the run of keystrokes first, or the field being typed in is not yet
+      // part of what gets written — `change` fires on blur and cmd+S does not
+      // blur anything.
+      const el = document.activeElement;
+      if (el && typeof el.blur === "function" && isTypingTarget(el)) el.blur();
+      if (!state.dirty) return toast("Already saved");
+      flushNow();
     });
 
     // Leaving a field ends the run of keystrokes, so the next edit is its own
