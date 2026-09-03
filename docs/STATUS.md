@@ -1,14 +1,32 @@
 # Status and handoff
 
-**Updated:** 2026-09-02
-**Branch:** `feat/builder-routing-options`, committed, not pushed. **2,355 tests across 92 files** (2 skipped, 2,357 total)
-**Closes, when it merges:** [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned during the sprint.
+**Updated:** 2026-09-03
+**Branch:** `feat/builder-routing-options`, committed, not pushed. **2,360 tests across 93 files** (2 skipped, 2,362 total)
+**Closes, when it merges:** [#232](https://github.com/feralcreative/routeloop/issues/232), [#233](https://github.com/feralcreative/routeloop/issues/233), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned during the sprint.
 **Closes, when it merges:** [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50) and [#54](https://github.com/feralcreative/routeloop/issues/54). [#229](https://github.com/feralcreative/routeloop/issues/229) was raised out loud and closed during the sprint. **[#220](https://github.com/feralcreative/routeloop/issues/220) stays OPEN**—its fuel half is done and its food-and-rest half is a later sprint.
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## Errors you can read, and the day that would not save—2026-09-03
+
+**Not deployed, not merged.** Same branch. Closes [#233](https://github.com/feralcreative/routeloop/issues/233), which was two bugs in one report.
+
+**THE SECOND DAY OF EVERY RIDE HAD NO STOP, AND THE CAUSE IS THE INTERESTING PART.** `addDay()` seeds a new day with the previous day's last point so the rider does not re-search for a place already on the map. That seed was a bare object literal written on 2026-08-15—before points had a `kind` at all. It was correct when it landed and became wrong **silently** on 2026-08-23, when the stop/POI split made `kind` default to `poi`. `addPoint()` only promotes on an EMPTY day, so nothing ever promoted it, and every save of that ride failed with `days.1: a day needs at least one stop` for as long as the ride existed. The "a day must keep a stop" repair was five hand-written copies of one line and addDay was the one without it; it is `ensureDayHasStop()` now.
+
+**The reporter's guess was wrong and worth recording.** He read the truncated message as "each day needs a unique name" and concluded the day title was a unique id within the ride. It is not—two days may share a title, and the write path was proven to accept exactly the reported shape (two days called Friday in two different subgroups) before anything was changed. That is what a message cut off at four words costs.
+
+**Errors get a window now.** The save readout is a fixed box that ellipsizes with the full text only in a `title` nobody hovers. There is a modal, shown **once per distinct message rather than once per attempt**—the autosave retries on a timer and a failing save tends to keep failing, so a dialog per attempt would be worse than the truncation. A Details button reopens a dismissed one, and it is a real `<button>` rather than a click on the readout, which is `aria-hidden`.
+
+**`firstIssue()` names the day.** `days.1` is an index a rider cannot count to; it reads `day 2: a day needs at least one stop`.
+
+**The third symptom—clicking View and finding one day—was the same bug from the other end.** The ride on the server was whatever the last successful save left, and there had not been one. Nothing was lost that had ever been stored.
+
+**American English swept through the tree** after "car park" reached the release notes: colour, neighbour, centre, recognise, organise, licence. `tyres` stays in `place-query.js`, which is a search synonym so a rider who types it still matches.
+
+**Not verified in a browser by the agent.** The root cause was proven by running the reported payload through the schema and the write path directly, and the fix is covered by tests—but the dialog, the Details button and the seeded day have not been seen on screen.
 
 ## Builder routing options—2026-09-02
 

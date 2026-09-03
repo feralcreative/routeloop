@@ -53,6 +53,26 @@
 </p>
 
 <section class="rn-release">
+  <h3>3 September 2026 — errors you can actually read</h3>
+  <ul>
+    <li>
+      <strong>Fixed: the second day of a ride could not be saved.</strong> A new day starts where the last one ended,
+      and that carried-over point was not being counted as a stop — so the ride failed to save, every time, until you
+      gave one of its points a category by hand. If a ride of yours has been refusing to save, this was why, and it
+      should now save on its own.
+    </li>
+    <li>
+      When something goes wrong, you get a window that holds the whole message instead of a few words cut off at the
+      bottom of the panel. It also tells you whether your work is at risk — usually it is not, because a copy is kept in
+      your browser and Routeloop keeps retrying.
+    </li>
+    <li>
+      Errors name the day rather than a number. "Day 2 needs at least one stop", not "days.1".
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
   <h3>2 September 2026 — routing options, and a QR code for the meeting point</h3>
   <ul>
     <li>
