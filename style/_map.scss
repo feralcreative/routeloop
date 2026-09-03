@@ -1734,3 +1734,104 @@ body.is-arming #map div {
 .tb-hit:hover .tb-hit-tip {
   display: block;
 }
+
+// SHARE A RIDE BY HOLDING UP A PHONE (#226).
+//
+// THE CASE IS A CAR PARK, NOT A DESKTOP. You turn up to a ride, half the group
+// has not seen the route, and the way to hand it to six people at once is to
+// show them a code. So the open state is a card over the map at a size someone
+// can scan from arm's length, not a thumbnail in the drawer.
+//
+// A <details>, so it opens with no JavaScript at all — a rider on one bar of
+// signal in a gravel lot is exactly who needs this, and a dialog would need the
+// page's scripts to have arrived first.
+.qr-share {
+  margin-top: 0.6em;
+
+  > summary {
+    display: inline-block;
+    padding: 0.5em 0.9em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    color: $text;
+    font-weight: 600;
+    cursor: pointer;
+    // The disclosure triangle reads as "expand a section", and this opens a
+    // panel over the map — closer to a button than to an accordion.
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 2px;
+    }
+  }
+
+  &[open] > summary {
+    background: $neutral-94;
+  }
+}
+
+// FIXED, CENTRED, AND OVER EVERYTHING. Inside the drawer it would be capped at
+// the drawer's width, which on a phone is most of the screen and on a desktop is
+// 380px — and the desktop case is the one where somebody is holding a laptop up
+// for a group.
+.qr-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  padding: 1.2em;
+  border-radius: 12px;
+  // WHITE REGARDLESS OF THEME, and this is not an oversight. A camera reads a QR
+  // by contrast, and while the spec's decoders handle an inverted code plenty of
+  // phone cameras do not — a dark-theme rider holding up a white-on-black code
+  // to a stranger's phone is the moment this must not be the interesting choice.
+  // src/maps/qr.ts paints the modules black on white for the same reason.
+  background: #ffffff;
+  color: #111111;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+}
+
+.qr-code {
+  // AS BIG AS THE SMALLER SCREEN DIMENSION ALLOWS, capped so it does not become
+  // silly on a monitor. A code has to survive being read at an angle across a
+  // couple of feet, which is a question about physical size rather than pixels.
+  width: min(74vw, 74vh, 340px);
+  height: min(74vw, 74vh, 340px);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// THE LINK IN WORDS, UNDER THE CODE. A QR is unreadable to anyone who cannot
+// point a camera at it — no camera, a cracked lens, a rider who would rather
+// type it — and reading the URL out is the fallback that always works.
+.qr-url {
+  margin: 0;
+  font-size: 0.85em;
+  font-weight: 600;
+  // A URL has no spaces to break at, so it breaks anywhere rather than pushing
+  // the card wider than the screen.
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.qr-hint {
+  margin: 0;
+  font-size: 0.78em;
+  opacity: 0.7;
+  text-align: center;
+}

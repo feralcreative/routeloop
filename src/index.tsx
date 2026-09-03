@@ -57,7 +57,9 @@ import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
-import { APP_COLOR, DRAIN_GRACE_MS, GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
+import { raw } from 'hono/html'
+import { shareQr } from './maps/qr'
+import { APP_COLOR, APP_ORIGIN, DRAIN_GRACE_MS, GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
 import { health } from './health'
 import { installShutdown, isDraining } from './shutdown'
 import { APP_VERSION, BUILD_SHA } from './version'
@@ -292,7 +294,11 @@ app.get('/m/:slug', async (c) => {
   // absence of a circle never reports whether somebody is on the roster.
   const full = onRoster ? await groupRange(m.id) : null
   const range = full ? { miles: full.miles, fuelType: full.fuelType } : null
-  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c), builderLink, range))
+  // GENERATED PER REQUEST RATHER THAN STORED. It is a few milliseconds of pure
+  // computation over a string this route already holds, where a column would be
+  // one more thing to invalidate when a slug changes — and a slug can change.
+  const qrSvg = await shareQr(`${APP_ORIGIN}/m/${m.slug}`)
+  return c.html(viewHtml(m, viewer, clonable, onRoster, await unitsFor(c), builderLink, range, qrSvg))
 })
 
 // The normalized public contract: everything the viewer needs, for both
@@ -685,6 +691,7 @@ function viewerPanel(
   clonable = false,
   signedIn = false,
   rosterUrl: string | null = null,
+  qrSvg: string | null = null,
 ): string {
   return panelShell({
     title: m.title,
@@ -730,6 +737,27 @@ function viewerPanel(
               Riders and the vote
             </a>
           )}
+          {/*
+            #226. A <details> rather than a dialog, and that is what makes it
+            work with JavaScript off — a rider standing in a car park on one bar
+            of signal is exactly who needs this, and showModal() would need the
+            page's scripts to have arrived. The open state is drawn as a card
+            over the map in _map.scss; nothing here decides that.
+
+            The link is printed under the code as well. A QR is unreadable to
+            anyone who cannot point a camera at it, and reading the URL out is
+            the fallback that always works.
+          */}
+          {qrSvg && (
+            <details class="qr-share">
+              <summary>Show a QR code</summary>
+              <div class="qr-card">
+                <div class="qr-code">{raw(qrSvg)}</div>
+                <p class="qr-url">{`${APP_ORIGIN}/m/${m.slug}`}</p>
+                <p class="qr-hint">Point a camera at this to open the ride.</p>
+              </div>
+            </details>
+          )}
         </div>
         {/*
           The timeline used to sit here, between the details and the day table.
@@ -770,6 +798,7 @@ function viewHtml(
   units: Units,
   builderLink: BuilderLink | null,
   range: ViewerRange,
+  qrSvg: string | null,
 ): string {
   return page({
     title: m.title,
@@ -784,6 +813,7 @@ function viewHtml(
       clonable,
       Boolean(user),
       onRoster ? `/m/${m.slug}/riders` : null,
+      qrSvg,
     )}\n\n  ${rideTimeline()}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
