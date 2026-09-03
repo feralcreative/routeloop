@@ -224,9 +224,16 @@
     const b = mapBounds(map);
     if (!b) return null;
     const diag = haversineM([b.west, b.south], [b.east, b.north]);
+    const half = Math.round(diag / 2);
     return {
       near: [(b.west + b.east) / 2, (b.south + b.north) / 2],
-      radiusM: Math.max(500, Math.min(50000, Math.round(diag / 2))),
+      radiusM: Math.max(500, Math.min(50000, half)),
+      // THE UNCLAMPED HALF-DIAGONAL, so a caller can tell whether the circle it
+      // was handed actually covers the screen. On a ride fitted from Oakland to
+      // Vancouver this is 641km and the radius above is 50 — a bubble in the
+      // middle of Oregon that contains none of the road the rider is looking at.
+      // Without this the clamp is invisible and the anchor looks reasonable.
+      spanM: half,
     };
   }
 
@@ -540,7 +547,25 @@
   // drawn if the group had no bike on file.
   const cssVar = (name, fallback) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-  const RING = () => cssVar("--stop", "#cc0000");
+  // THE RING IS A GAUGE AND TAKES ITS COLOR FROM THE TANK. Ziad's call,
+  // 2026-09-02: green through the first half, orange past it, red from three
+  // quarters. range-circle.js decides WHICH by name and this resolves it against
+  // the live palette, so the six themes keep working and this file spends no
+  // opinion on which red.
+  //
+  // NOTE THIS REFINES THE 2026-08-31 CALL RATHER THAN REVERSING IT. Everything
+  // else in the fuel overlay stays $stop — the E markers, the closed stretch and
+  // the Range button are VERDICTS, and a verdict has one color. The ring is the
+  // only part of it that is a quantity.
+  // Fallbacks only — cssVar() reads the live palette first, and every one of
+  // these is themed. The middle band is its own token, $fuel-low, mixed halfway
+  // between the detour orange and the warning amber: one washed out over map
+  // tiles and the other read as a verdict rather than as advice.
+  const RING_TONES = { go: "#41ae4d", "fuel-low": "#fa8700", stop: "#cc0000" };
+  const RING = (tone) => {
+    const name = RING_TONES[tone] ? tone : "stop";
+    return cssVar("--" + name, RING_TONES[name]);
+  };
 
   // Small round dots rather than dashes: the ring is the quietest thing on the
   // map and a dashed edge reads as a route, which is what every other dashed
@@ -757,7 +782,7 @@
    * draws no ring, and it is a different fact — the tank is empty rather than
    * unmeasured — which is why range-circle.js keeps the two apart.
    */
-  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath) {
+  function setMomentOverlay(map, at, dryWalls, ringPath, dryPath, ringTone) {
     const m = momentOf(map);
     if (!at) {
       m.dot.map = null;
@@ -772,10 +797,15 @@
 
     if (ringPath && ringPath.length > 2) {
       const path = ringPath.map(toLatLng);
-      m.circle.setOptions({ fillColor: RING() });
+      // Both re-read on every paint rather than being set once at construction:
+      // the tone changes as the tank drains, and the two halves of the ring have
+      // to change together or the dotted edge and the wash disagree about how
+      // much fuel is left.
+      const tone = RING(ringTone);
+      m.circle.setOptions({ fillColor: tone });
       m.circle.setPath(path);
       m.circle.setVisible(true);
-      m.ringLine.setOptions({ icons: ringDots(RING()) });
+      m.ringLine.setOptions({ icons: ringDots(tone) });
       m.ringLine.setPath(path);
       m.ringLine.setVisible(true);
     } else {
@@ -1365,6 +1395,127 @@
     });
   }
 
+  // --- Search result preview ------------------------------------------------
+  //
+  // WHERE THE CANDIDATES ACTUALLY ARE. The category search answers with names
+  // and a "3 mi off" number, which is enough to rank them and not enough to
+  // choose one: a rider picking a fuel stop wants to see which side of the river
+  // it is on and whether it is before or after the pass. Ziad's call,
+  // 2026-09-02, asked while looking at a dropdown of Oregon gas stations.
+  //
+  // TRANSIENT AND POOLED. These live exactly as long as the dropdown, so they
+  // are detached rather than destroyed — a rider retyping a query would
+  // otherwise rebuild a dozen markers per keystroke. Same arrangement as the
+  // fuel walls above.
+  const previews = new Map();
+
+  function previewOf(map) {
+    let p = previews.get(map);
+    if (!p) {
+      p = { pins: [], onHover: null, onPick: null };
+      previews.set(map, p);
+    }
+    return p;
+  }
+
+  function previewEl(p, i) {
+    const el = document.createElement("div");
+    // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
+    // content at bottom-center, so a sized wrapper puts the anchor off the
+    // point. The child carries the size, the hover and the click.
+    el.className = "tb-hit";
+    // A REAL <button>, NOT AN <i>. It shipped as an <i> for one build and the
+    // dots could be hovered and not pressed — which is the obvious thing to try,
+    // since a dot on a map that lights up when you point at it is a control by
+    // every convention there is. A button is also the only version a keyboard
+    // can reach.
+    //
+    // NOTE THIS IS NOT THE gmpClickable CASE. That was tried on the fuel wall
+    // and reverted because it exposes <gmp-advanced-marker> itself as a button
+    // that does nothing; here the button is ours, it is a descendant, and
+    // pressing it does the same thing as pressing the row.
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "tb-hit-dot";
+    dot.textContent = String(i + 1);
+    el.appendChild(dot);
+    // Hover in BOTH directions is half the point of the feature — a dot with no
+    // way back to its row is a dot you cannot identify. The listeners go on the
+    // child, because Google sets pointer-events: none on a non-clickable
+    // marker's container and only a descendant may re-enable it.
+    dot.addEventListener("pointerenter", () => p.onHover && p.onHover(i));
+    dot.addEventListener("pointerleave", () => p.onHover && p.onHover(null));
+    // A TOOLTIP OF OUR OWN, NOT `title`. Same reasoning as the fuel wall's: the
+    // native one waits about a second, renders in the OS style at the pointer,
+    // and cannot be styled — on a map that is slow enough to miss. This one is
+    // CSS on :hover, so it appears instantly and reads as part of the map.
+    //
+    // aria-hidden, because the button's own accessible name already says it and
+    // a readable tip would join it as "Add Shell Shell, 3 mi off route".
+    const tip = document.createElement("span");
+    tip.className = "tb-hit-tip";
+    tip.setAttribute("aria-hidden", "true");
+    el.appendChild(tip);
+    dot.addEventListener("click", (e) => {
+      // The map is listening for clicks to drop a point, and this one is not
+      // that — without this a press would add the searched place AND a bare
+      // point wherever the dot happened to be.
+      e.stopPropagation();
+      if (p.onPick) p.onPick(i);
+    });
+    return el;
+  }
+
+  /**
+   * Draw one numbered dot per search result, or clear them with an empty list.
+   *
+   * `items` is [{ lngLat, name }] in the order the dropdown shows them, so the
+   * number on a dot is the row it belongs to. `onHover(i | null)` fires when the
+   * pointer enters or leaves a dot.
+   */
+  function setSearchPreview(map, items, onHover, onPick) {
+    const p = previewOf(map);
+    p.onHover = onHover || null;
+    p.onPick = onPick || null;
+    const list = items || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!p.pins[i]) {
+        p.pins[i] = new Marker.AdvancedMarkerElement({
+          map,
+          content: previewEl(p, i),
+          // Above the route and the fuel walls: these are the thing being chosen
+          // right now, and they are gone the moment the dropdown closes.
+          zIndex: 6,
+        });
+      }
+      p.pins[i].position = toLatLng(list[i].lngLat);
+      p.pins[i].map = map;
+      const dot = p.pins[i].content.firstChild;
+      dot.classList.remove("is-lit");
+      // No role — it is a button, and announcing it as an image would take the
+      // press away from anyone using a screen reader.
+      dot.setAttribute("aria-label", "Add " + (list[i].name || "result " + (i + 1)));
+      // ON HOVER, ONE AT A TIME. Painting every name on the map at once is the
+      // thing that would be unreadable — twelve labels overlapping each other —
+      // which is why the dot carries a NUMBER and the name arrives only when the
+      // rider asks for it by pointing. `tip` is built by the caller so this file
+      // stays out of miles-versus-kilometres.
+      const tip = p.pins[i].content.lastChild;
+      tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
+    }
+    for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
+  }
+
+  /** Lift one preview dot, or none with a null index. */
+  function highlightSearchPreview(map, i) {
+    const p = previews.get(map);
+    if (!p) return;
+    p.pins.forEach((pin, j) => {
+      if (!pin.content) return;
+      pin.content.firstChild.classList.toggle("is-lit", j === i);
+    });
+  }
+
   window.TBMap = {
     esc,
     initMap,
@@ -1392,6 +1543,8 @@
     attachPopup,
     stopMileages,
     setMomentOverlay,
+    setSearchPreview,
+    highlightSearchPreview,
     iconSvg,
     initPanelToggle,
   };

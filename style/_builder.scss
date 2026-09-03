@@ -747,6 +747,83 @@
     opacity: 0.7;
   }
 
+  // WHAT THIS DAY ASKS OF THE ROUTER (#29). Under the times rather than in the
+  // head: it belongs to the day's settings, and the head is already carrying the
+  // color, the title and two menus in a 380px drawer.
+  .day-prefs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3em;
+    margin: 0 0 0.3em;
+
+    // TWO GROUPS, TIGHTER TO EACH OTHER THAN TO WHAT SURROUNDS THEM. Avoid and
+    // Prefer are one question asked twice, so the pair reads as a block; four
+    // toggles under one "Avoid" would have read as "avoid twisty roads", which
+    // is the opposite of what the last one does.
+    + .day-prefs {
+      margin-top: -0.1em;
+      margin-bottom: 0.4em;
+    }
+  }
+
+  .day-prefs-lede {
+    font-size: 0.72em;
+    font-weight: 600;
+    color: $neutral-50;
+    // The label reads as the first word of each button — "Avoid | Highways" —
+    // so the gap after it is wider than the one between the buttons.
+    margin-right: 0.2em;
+    // Avoid and Prefer are different words of different lengths, and a ragged
+    // left edge on the buttons makes the two rows read as unrelated. In ch so it
+    // tracks the type rather than a guess at its size.
+    min-width: 4.2ch;
+  }
+
+  // QUIET UNTIL SET, like .scope-btn and for the same reason: a row of filled
+  // pills under every day would outweigh the category chips, which are the
+  // action, while this only says how the road is chosen. These are independent
+  // toggles rather than a segmented control, so each gets its own border — there
+  // is no single pill for them to be segments of.
+  .pref-btn {
+    // No global border-box reset in this stylesheet — see AGENTS.md.
+    box-sizing: border-box;
+    // SC 2.5.8 wants 24px of target, and an em floor shrinks with the 0.72em
+    // type and lands around 17 in this drawer.
+    min-height: 24px;
+    padding: 0.1em 0.6em;
+    border: 1px solid $grey;
+    border-radius: 999px;
+    background: transparent;
+    color: $neutral-50;
+    font: inherit;
+    font-size: 0.72em;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      color: $text-l30;
+      border-color: $neutral-50;
+    }
+
+    // Set is a fill, unlike .scope-btn's weight-and-color change: a scope button
+    // is always one of two states and something is always true of it, where this
+    // is off by default and the whole question is which of three are on. A rider
+    // has to be able to answer that at a glance down a list of days.
+    &.is-on {
+      background: $neutral-94;
+      border-color: $neutral-50;
+      color: $text;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+  }
+
   // Deliberately quieter than .btn: discarding is destructive but it is not the
   // action the rider came here for, and two equally weighted buttons beside each
   // other is how the wrong one gets pressed.
@@ -2029,6 +2106,19 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+  }
+
+  // THE OTHER HALF OF THE MAP PREVIEW. Hovering a dot lights its row and
+  // hovering a row lights its dot, so a rider can work in either direction —
+  // read a name and find it on the map, or spot a good position and find out
+  // what is there.
+  //
+  // A BACKGROUND RATHER THAN A SCROLL. The row is highlighted where it sits; a
+  // list that jumps to the hovered item while the pointer is what is driving it
+  // fights the rider, and on a twelve-result list every dot would shove the
+  // dropdown around.
+  li.hit-nearby.is-lit {
+    background: $neutral-94;
   }
 
   // A rider's own saved place, above the Google predictions. Marked rather than

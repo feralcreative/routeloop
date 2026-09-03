@@ -26,6 +26,8 @@
     setRouteGhost,
     setLegHighlight,
     setMomentOverlay,
+    setSearchPreview,
+    highlightSearchPreview,
     clearLegHighlight,
     onRouteShapeDrag,
     consumeShapeClick,
@@ -392,6 +394,10 @@
     // and why the group id is not stable across a save.
     altGroup: null,
     altActive: true,
+    // What this day asks of the router (#29). Null is no preference, which is
+    // what a new day always is — the server normalizes {} to null on save, so
+    // there is only ever one spelling of it in the column.
+    routePrefs: null,
     // One ordered list of both kinds, and legs[i] joins points[i] to points[i+1]
     // whatever kind either end is — see the One ordered list block above.
     points: [],
@@ -935,6 +941,10 @@
       // `?? null` rather than `|| null` because 0 is a real group id.
       altGroup: r.altGroup ?? null,
       altActive: r.altActive ?? true,
+      // Omitting this is how a rider's avoid-highways day quietly goes back on
+      // the interstate: the next save would post no preference and every leg
+      // would re-route to the fast road, on a save made for some other reason.
+      routePrefs: r.routePrefs ?? null,
       // One ordered list. A payload from before 2026-08-23 cannot reach this —
       // loadRidePayload is the only source and it was changed with the schema.
       points: r.points || [],
@@ -1261,11 +1271,18 @@
   // Routes key is IP-restricted, so it cannot be used from a browser. The proxy
   // also caches, which matters because dragging a stop re-requests the same pair
   // on every frame and Routes bills per call. See src/routes/routing.ts.
-  async function directions(a, b, vias) {
+  async function directions(a, b, vias, prefs) {
+    // OMITTED WHEN NOTHING IS SET, rather than sent as an object of falses. The
+    // proxy keys its cache on the preferences, so a day with none has to send
+    // the request it sent before #29 or every already-cached leg misses and
+    // re-bills. prefsBody() is what guarantees that.
+    const body = { origin: a, destination: b, vias: vias || [] };
+    const set = prefsBody(prefs);
+    if (set) body.prefs = set;
     const res = await fetch("/api/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin: a, destination: b, vias: vias || [] }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
@@ -1330,7 +1347,7 @@
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
-    directions(a, b, vias)
+    directions(a, b, vias, day.routePrefs)
       .then((leg) => {
         // The day may have been deleted or reordered while this was in flight.
         if (state.days[r] !== day) return;
@@ -1542,6 +1559,11 @@
       walls,
       ringPath(here, track, distM, reach),
       gap && sliceBetween(track, gap.from, gap.to),
+      // GREEN THROUGH THE FIRST HALF OF THE TANK, amber past it, red from three
+      // quarters — the ring is the one part of the fuel overlay that is a
+      // quantity rather than a verdict. Computed even when the overlay is off,
+      // which costs nothing and keeps the tone right the instant it comes back.
+      RANGE.ringTone(RANGE.tankUsed(day, distM, cum, role, range)),
     );
   }
 
@@ -2153,6 +2175,59 @@
   // router has to answer the question again.
   //
   // That costs one Routes call per leg, which is why a long day asks first.
+  /**
+   * Toggle one routing preference on a day, and re-route it (#29).
+   *
+   * PATCHED IN PLACE, NEVER RE-RENDERED. renderDayList() would destroy whatever
+   * the rider is typing in and drop focus to <body> — #188, reached here from a
+   * control that has nothing to do with the day's contents, exactly as the
+   * corridor scope button could. Only this one button changes, so only this one
+   * button is touched.
+   *
+   * RE-ROUTES EVERY LEG, because that is what the toggle MEANS: the preference
+   * with the old roads still drawn is a lie on the map and a wrong number in
+   * every total. It is the same cost .day-rev already pays, and it asks first at
+   * the same threshold and for the same reason — this bills a Routes call per
+   * leg.
+   */
+  function togglePref(r, btn) {
+    const day = state.days[r];
+    if (!day) return;
+    const key = btn.dataset.pref;
+    if (!key) return;
+
+    const legCount = Math.max(0, day.points.length - 1);
+    const turningOn = !(day.routePrefs && day.routePrefs[key]);
+    if (legCount > 12 && !window.confirm("Changing this re-routes all " + legCount + " legs of this day. Continue?")) {
+      return;
+    }
+
+    beginEdit("routing preference");
+    const next = Object.assign({}, day.routePrefs);
+    if (turningOn) next[key] = true;
+    else delete next[key];
+    // Null rather than {} for an empty set, so the day matches what the server
+    // will store and the two cannot disagree about whether it changed.
+    day.routePrefs = prefsBody(next);
+
+    btn.classList.toggle("is-on", turningOn);
+    btn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+
+    if (legCount) {
+      state.legSeq[r] = [];
+      computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    }
+    markDirty();
+    const label = ROUTE_PREFS.find((p) => p.key === key);
+    toast(
+      (turningOn ? "Avoiding " : "No longer avoiding ") +
+        (label ? label.label.toLowerCase() : "that") +
+        " on " +
+        dayLabel(r) +
+        (legCount ? "—re-routing" : ""),
+    );
+  }
+
   function reverseDay() {
     const r = editIndex();
     if (r == null) return noDayYet();
@@ -3730,6 +3805,7 @@
       ' title="Worked out from the start time and the day\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
       '<span class="day-times-note"></span>' +
       "</div>" +
+      prefsHtml(r, day) +
       // data-duration-format rides on each list, not only on #day-list: the rule
       // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
       // the list itself, so putting it only on the ancestor silently stopped it
@@ -3738,6 +3814,92 @@
       "</div>" +
       "</section>"
     );
+  }
+
+  // WHAT A DAY ASKS OF THE ROUTER (#29) — the three things Routes API v2 can
+  // actually be told. There is no "prefer scenic" here because the router has no
+  // such notion: that is #28, and it works by scoring the alternates Routes
+  // returns rather than by asking for anything.
+  const AVOID_PREFS = [
+    { key: "avoidHighways", label: "Highways", hint: "Route this day off the interstate where there is another way" },
+    { key: "avoidTolls", label: "Tolls", hint: "Avoid toll roads and bridges on this day" },
+    { key: "avoidFerries", label: "Ferries", hint: "Keep this day on roads the bike can ride onto" },
+  ];
+
+  // #28. A SEPARATE GROUP BECAUSE IT IS A DIFFERENT VERB. Four toggles under one
+  // "Avoid" label would have read as "avoid twisty roads", which is the opposite
+  // of what it does — and the two are answered by different mechanisms anyway:
+  // the avoids are Google's routeModifiers, this is us scoring the alternates it
+  // returns and keeping the twistiest.
+  const PREFER_PREFS = [
+    {
+      key: "preferTwisty",
+      label: "Twisty roads",
+      hint: "Compare the routes Google offers for this day and take the twistiest",
+    },
+  ];
+
+  const ROUTE_PREFS = AVOID_PREFS.concat(PREFER_PREFS);
+
+  /**
+   * The set flags, or null when none are — the client half of normalizePrefs()
+   * in src/maps/route-prefs.ts.
+   *
+   * MIRRORED RATHER THAN SHARED, and deliberately not pinned by a test the way
+   * filename.js and twist.js are: the server re-normalizes on every save and is
+   * the authority, so this one only has to keep `{}` out of a request body and
+   * out of the dirty check. If it ever grows a rule the server does not have,
+   * that stops being true and it belongs in a mirrored helper with a test.
+   */
+  function prefsBody(prefs) {
+    if (!prefs) return null;
+    const out = {};
+    ROUTE_PREFS.forEach((p) => {
+      if (prefs[p.key] === true) out[p.key] = true;
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
+  function prefsGroup(r, on, lede, list, label) {
+    return (
+      '<div class="day-prefs" role="group" aria-label="' + esc(label) + '">' +
+      '<span class="day-prefs-lede">' + esc(lede) + "</span>" +
+      list
+        .map(
+          (p) =>
+            '<button type="button" class="pref-btn' + (on[p.key] ? " is-on" : "") + '"' +
+            ' data-day="' + r + '" data-pref="' + p.key + '"' +
+            ' aria-pressed="' + (on[p.key] ? "true" : "false") + '"' +
+            ' title="' + esc(p.hint) + '">' + esc(p.label) + "</button>",
+        )
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function prefsHtml(r, day) {
+    const on = day.routePrefs || {};
+    return (
+      prefsGroup(r, on, "Avoid", AVOID_PREFS, "What to avoid on " + dayLabel(r)) +
+      prefsGroup(r, on, "Prefer", PREFER_PREFS, "What to prefer on " + dayLabel(r))
+    );
+  }
+
+  /**
+   * What to say when a category search found nothing, naming the stretch that
+   * was actually searched.
+   *
+   * THREE CASES BECAUSE THERE ARE THREE SEARCHES, and telling a rider the wrong
+   * one sends them looking in the wrong place — which is the complaint #232 was
+   * filed about. Each line also names the way out, and the way out is always a
+   * control already on screen.
+   */
+  function emptyText(spec, isSlot) {
+    const what = spec.label.toLowerCase();
+    const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
+    if (isSlot) return "No " + what + " within " + width + " of this leg. Add it from the bottom of the day to search wider.";
+    if (state.corridorOn) return "No " + what + " within " + width + " of this day's route.";
+    return "No " + what + " on screen. Pan or zoom out to look wider.";
   }
 
   const daySection = (r) => document.querySelector('.day-section[data-day="' + r + '"]');
@@ -4611,17 +4773,30 @@
   // not under every day.
   const CORRIDOR_MI = 15;
 
+  // The ceiling on how many Places calls one chip tap may spend. Text Search is
+  // billed per request, so this is a money number rather than a performance one:
+  // six covers a 180-mile corridor at full density and thins gracefully beyond
+  // it, which is the right way round — a 700-mile day getting sparse coverage
+  // beats a 700-mile day getting a bill proportional to its length.
+  const MAX_CORRIDOR_SAMPLES = 6;
+
+  /** What a chip promises. A slot chip searches its own leg whichever scope is
+   *  selected, so it names that rather than the scope — see the chip handler. */
+  function chipTitle(c, isSlot) {
+    const what = c.label.toLowerCase();
+    if (isSlot) return "Find " + what + " along this leg";
+    return "Find " + what + (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
+  }
+
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
-    const along = state.corridorOn;
     return (
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
           '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="Find ' + esc(c.label.toLowerCase()) +
-          (along ? " anywhere along this day" : " on the part of the map you can see") + '">' +
+          ' title="' + esc(chipTitle(c, at != null)) + '">' +
           esc(c.label) + "</button>",
       ).join("") +
       "</div>" +
@@ -5510,6 +5685,11 @@
 
   function hideSearchResults() {
     if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
+    // THE DOTS LIVE EXACTLY AS LONG AS THE DROPDOWN. Every path that closes it
+    // comes through here — picking a result, clicking away, scrolling the panel,
+    // starting a new search — so there is one place to clear them and no way to
+    // leave a dozen candidates painted over a route the rider has moved on from.
+    if (state.map) setSearchPreview(state.map, []);
   }
 
   function wireSearch() {
@@ -5567,6 +5747,70 @@
     }
 
     /**
+     * The track of the leg an insert slot sits in, and where to anchor a search
+     * on it. Null when there is no leg to speak of.
+     *
+     * `at` is an INSERTION INDEX, so the new point lands between points[at-1]
+     * and points[at] and the leg being split is legs[at-1]. Inserting at 0 has
+     * no leg before it, so that anchors on the first point itself.
+     *
+     * PREFERS THE ROUTED GEOMETRY AND FALLS BACK TO THE STRAIGHT PAIR, because a
+     * leg that has not come back from the router yet is still a stretch of map
+     * the rider is pointing at — searching the straight line between its ends is
+     * a far better answer than searching the whole ride.
+     */
+    function legAnchor(day, at) {
+      const pts = day.points;
+      if (!pts.length) return null;
+      const j = Math.max(0, Math.min(at, pts.length - 1));
+      const b = pts[j];
+      if (j === 0) {
+        const near = [b.lng, b.lat];
+        return { track: [near], near: near, totalM: 0 };
+      }
+      const a = pts[j - 1];
+      const leg = day.legs[j - 1];
+      const track =
+        leg && leg.geometry && leg.geometry.length >= 2
+          ? leg.geometry
+          : [
+              [a.lng, a.lat],
+              [b.lng, b.lat],
+            ];
+      const totalM = haversineTrack(track);
+      const near = pointAtDistance(track, totalM / 2) || [b.lng, b.lat];
+      return { track: track, near: near, totalM: totalM };
+    }
+
+    /**
+     * The anchor for a search from the day's own bottom add-row.
+     *
+     * ON SCREEN FALLS BACK TO THE DAY WHEN THE SCREEN IS TOO BIG TO SEARCH.
+     * viewportCircle() clamps its radius to the 50km the proxy accepts, so on a
+     * ride fitted from Oakland to Vancouver the anchor is a 50km bubble centered
+     * near Roseburg — 640km of viewport reduced to a circle holding none of the
+     * road, and every suggestion came back from central Oregon. Reported on ride
+     * 32, 2026-09-02. When the clamp bites, the day being edited is the honest
+     * subject: the rider is adding a point to THAT, and it is on screen too.
+     */
+    function screenAnchor(r) {
+      const view = viewportAnchor();
+      if (view && view.spanM <= view.radiusM) return view;
+      const day = state.days[r];
+      const track = day ? fullTrack(r) : [];
+      const totalM = day ? DIST.totalM(day) : 0;
+      if (!track.length || !totalM) return view;
+      const near = pointAtDistance(track, totalM / 2);
+      if (!near) return view;
+      return {
+        near: near,
+        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2))),
+        spanM: Math.round(totalM / 2),
+        widened: true,
+      };
+    }
+
+    /**
      * ONE TEXT SEARCH FOR THE WHOLE DAY, biased at its midpoint, then filtered
      * to the corridor here in the browser. Ziad's call, 2026-08-31, and it is a
      * cost decision rather than a technical one: walking the line and searching
@@ -5588,16 +5832,85 @@
       const day = state.days[r];
       const track = day ? fullTrack(r) : [];
       const totalM = day ? DIST.totalM(day) : 0;
-      // The day's own midpoint, and the viewport only when the day has no line
-      // yet — this is the ALONG THE DAY scope, so the day is the subject and
-      // the screen is the fallback rather than the other way round.
+      // The viewport only when the day has no line yet — this is the ALONG THE
+      // DAY scope, so the day is the subject and the screen is the fallback
+      // rather than the other way round.
+      // A day with no line yet has no corridor, and withinCorridor() lets
+      // everything through on an empty track by design — a rider who has just
+      // dropped their first point and asked for fuel should get Google's answer
+      // rather than an empty list reading as "there is none here".
       const view = viewportAnchor();
-      const mid = track.length ? pointAtDistance(track, totalM / 2) : view && view.near;
-      return {
-        track: track,
-        near: mid,
-        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2) || 25000)),
-      };
+      if (!track.length || !totalM) {
+        return { track: track, totalM: 0, near: view && view.near };
+      }
+
+      // The sampling itself is corridorRun(), which the insert-slot path shares
+      // — the day and one leg are the same question at two scales.
+      return { track: track, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
+    }
+
+    /**
+     * Every place any sample returned, each one once.
+     *
+     * PARTIAL RESULTS BEAT NO RESULTS. One sample failing — a timeout, a 502
+     * from the proxy — must not throw away the five that answered, so the
+     * settled failures are counted and only a total wipeout is reported as an
+     * error. A day covered five-sixths is still a useful list.
+     *
+     * DEDUPED ON POSITION AND NAME, because the samples overlap by design and
+     * the same station sits in two of them. There is no place id in the proxy's
+     * shape to key on — it returns {name, address, lngLat, type} — and the
+     * coordinates are already rounded to six places server-side, so the pair is
+     * stable enough to compare exactly.
+     */
+    /**
+     * A corridor search over one track: sample it, union the answers, keep what
+     * is within CORRIDOR_MI of it.
+     *
+     * TAKES A TRACK RATHER THAN A DAY, which is what lets an insert slot reuse
+     * every rule here for the single leg it sits in. The day and the leg are the
+     * same question asked at two scales.
+     */
+    async function corridorRun(query, track, totalM, fallbackNear) {
+      const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
+      const samples = [];
+      CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES).forEach((sp) => {
+        const at = pointAtDistance(track, sp.atM);
+        if (at) samples.push({ near: at, radiusM: sp.radiusM });
+      });
+      // A ZERO-LENGTH STRETCH IS STILL A PLACE. Inserting above the first point
+      // of a day, or between two points sitting on top of each other, gives a
+      // track with no length for corridorSamples() to divide — and answering
+      // nothing there would be worse than answering about the one point we have.
+      if (!samples.length && fallbackNear) {
+        samples.push({ near: fallbackNear, radiusM: Math.max(500, Math.min(50000, Math.round(corridorM))) });
+      }
+      const raw = await corridorPlaces(query, samples);
+      return CORRIDOR.withinCorridor(raw, track, corridorM).map((hit) =>
+        Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+      );
+    }
+
+    async function corridorPlaces(query, samples) {
+      const settled = await Promise.allSettled(
+        samples.map((s) => nearbySearch(query, s.near, { wide: true, radiusM: s.radiusM })),
+      );
+      const failed = settled.filter((r) => r.status === "rejected");
+      if (samples.length && failed.length === settled.length) throw failed[0].reason;
+      if (failed.length) console.warn("[builder] corridor search:", failed.length, "of", settled.length, "samples failed");
+      const seen = Object.create(null);
+      const out = [];
+      settled.forEach((r) => {
+        if (r.status !== "fulfilled") return;
+        r.value.forEach((p) => {
+          const ll = CORRIDOR.placeLngLat(p);
+          const key = (ll ? ll[0] + "," + ll[1] : "?") + "|" + (p.name || "");
+          if (seen[key]) return;
+          seen[key] = true;
+          out.push(p);
+        });
+      });
+      return out;
     }
 
     /**
@@ -5664,6 +5977,44 @@
     // wins over the place's own type — the rider said "gas", so a convenience
     // store that came back among the stations is still the answer to a question
     // about fuel. roleForType() fills in only when nothing was asked for.
+    /**
+     * Paint one numbered dot per result and couple it to its row, both ways.
+     *
+     * A NUMBER RATHER THAN A NAME ON THE MAP, with the name on hover. Painting
+     * every name at once is what would be unreadable — twelve labels overlapping
+     * each other — so the dot carries the number that ties it to its row and the
+     * name arrives when the rider points at it.
+     *
+     * The row highlight is a class rather than a scroll: a list that jumps under
+     * the pointer while the pointer is what is driving it fights the rider.
+     */
+    function showPreview(host, hits) {
+      if (!state.map) return;
+      const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
+      setSearchPreview(
+        state.map,
+        // THE SAME TWO FACTS THE ROW SHOWS, in the same words: the name, and the
+        // detour when the search was a corridor one. Built here rather than in
+        // map-common.js so that file stays out of miles-versus-kilometres —
+        // fmtDist() is already the one place that decision is made.
+        hits.map((h) => ({
+          lngLat: h.lngLat,
+          name: h.name,
+          tip: typeof h.offRouteM === "number" ? h.name + " · " + fmtDist(h.offRouteM) + " off" : h.name,
+        })),
+        (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
+        // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's
+        // handler does. That handler mints the point with its category role,
+        // reads the open insert slot, pans and moves focus — four things a
+        // second copy would drift from the first time any of them changed.
+        (i) => rows[i] && rows[i].click(),
+      );
+      rows.forEach((li, j) => {
+        li.addEventListener("pointerenter", () => highlightSearchPreview(state.map, j));
+        li.addEventListener("pointerleave", () => highlightSearchPreview(state.map, null));
+      });
+    }
+
     function wireNearbyResults(host, hits, role) {
       host.querySelectorAll("li.hit-nearby").forEach((li) => {
         li.addEventListener("click", () => {
@@ -5841,6 +6192,13 @@
           placeResults(input, results);
           wireSavedResults(results, savedNow);
           wireNearbyResults(results, nearby, cat && cat.role);
+          // ONLY THE CATEGORY BLOCK GETS DOTS HERE, and that is a limit rather
+          // than an oversight: a `hit-google` name match carries no coordinates
+          // until it is picked, because Place Details bills per call and
+          // resolving five to draw five dots would cost five times as much for a
+          // rider who is going to choose one. The numbering follows the nearby
+          // rows, which sit under their own heading.
+          showPreview(results, nearby);
           results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
               // Coordinates are fetched only for the pick — Place Details bills
@@ -5949,13 +6307,14 @@
         el.classList.toggle("is-on", on);
         el.setAttribute("aria-pressed", on ? "true" : "false");
       });
-      // The chips' tooltips name the scope, so they go stale otherwise.
+      // The chips' tooltips name the scope, so they go stale otherwise — but a
+      // SLOT chip's does not, because a slot searches its own leg whichever
+      // scope is selected. Retitling those would have the tooltip promise
+      // something the search does not do.
       document.querySelectorAll(".add-chips .chip").forEach((el) => {
         const spec = CHIPS.find((c) => c.role === el.dataset.chip);
-        if (!spec) return;
-        el.title =
-          "Find " + spec.label.toLowerCase() +
-          (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
+        if (!spec || el.dataset.at != null) return;
+        el.title = chipTitle(spec, false);
       });
     });
 
@@ -5979,33 +6338,38 @@
       if (input) placeResults(input, results);
       try {
         let nearby;
-        if (state.corridorOn) {
+        // A SLOT OUTRANKS THE SCOPE, AND THAT IS THE WHOLE OF #232's SECOND
+        // HALF. Pressing the + between Oakland and Benbow is the rider pointing
+        // at that stretch of road; searching the day, or worse the screen, threw
+        // the one specific thing they said away. So a slot search is always the
+        // leg's corridor, and the Day / On screen control governs only the day's
+        // own bottom add-row. Ziad's call, 2026-09-02.
+        const leg = at == null ? null : legAnchor(state.days[r], at);
+        if (leg) {
+          nearby = await corridorRun(spec.query, leg.track, leg.totalM, leg.near);
+        } else if (state.corridorOn) {
           const args = corridorSearchArgs(r);
-          const raw = await nearbySearch(spec.query, args.near, { wide: true, radiusM: args.radiusM });
-          if (mine !== searchSeq) return;
-          // The corridor test decides, not the bias radius — see
-          // corridorSearchArgs. Each survivor carries its own detour so the list
-          // can be read as an answer to "how far off?" rather than a ranking.
-          nearby = CORRIDOR.withinCorridor(raw, args.track, CORRIDOR_MI * window.TBUnits.METERS_PER_MILE).map(
-            (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
-          );
+          nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
         } else {
-          const view = viewportAnchor();
+          const view = screenAnchor(r);
           nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
         }
         if (mine !== searchSeq) return;
         results.innerHTML =
           nearbyResultsHtml(nearby) ||
           noticeHtml(
-            state.corridorOn
-              ? "No " + spec.label.toLowerCase() + " within " +
-                Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
-                " of this day"
-              : "No " + spec.label.toLowerCase() + " on screen. Pan or zoom out to look wider.",
+            // "within 15 mi of this day" named a distance from a DAY, which is
+            // not a thing a rider can picture — reported as unreadable in #232.
+            // It is a stretch of ROUTE the corridor is measured from, and each
+            // line names the stretch it actually searched, because the three
+            // cases are three different questions and a rider who is told the
+            // wrong one goes looking in the wrong place.
+            emptyText(spec, at != null),
           );
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);
+        showPreview(results, nearby);
       } catch (err) {
         console.warn("[builder] chip search:", err.status || "", err.message);
         if (mine !== searchSeq) return;
@@ -6168,6 +6532,7 @@
           // group with one member, which is exactly the case that dissolves.
           altGroup: r.altGroup,
           altActive: r.altActive,
+          routePrefs: r.routePrefs ?? null,
           points: r.points,
           legs: r.legs,
         })),
@@ -6478,6 +6843,7 @@
         btn.setAttribute("aria-expanded", String(!shut));
         return;
       }
+      if (btn.classList.contains("pref-btn")) return togglePref(r, btn);
       if (btn.classList.contains("day-rev")) return reverseDay();
       if (btn.classList.contains("day-menu-btn")) {
         return toggleDayMenu(sec.querySelector(".day-head"), btn, r);
@@ -6731,6 +7097,16 @@
   }
 
   // Undo/redo controls and the recovery prompt.
+  /** Is the pointer of a keystroke inside something a rider is typing in?
+   *  Shared by the shortcuts below, which each want a different answer about
+   *  what to do next but the same answer about this. */
+  function isTypingTarget(t) {
+    if (!t || !t.tagName) return false;
+    if (t.isContentEditable) return true;
+    if (t.tagName === "TEXTAREA") return true;
+    return t.tagName === "INPUT" && t.type !== "range" && t.type !== "color" && t.type !== "checkbox";
+  }
+
   function wireHistory() {
     $("undo").addEventListener("click", () => applyUndo("undo"));
     $("redo").addEventListener("click", () => applyUndo("redo"));
@@ -6749,6 +7125,41 @@
       if (native) return;
       e.preventDefault();
       applyUndo(e.shiftKey ? "redo" : "undo");
+    });
+
+    // CTRL+Y IS REDO TOO, and only on the ctrl side. It is the Windows and Linux
+    // convention where shift+cmd+Z is the Mac one, and a rider who learned one
+    // does not discover the other by guessing. Not bound to the meta key: cmd+Y
+    // is taken on macOS and stealing it would be worse than not offering it.
+    document.addEventListener("keydown", (e) => {
+      if (!e.ctrlKey || e.metaKey || e.key.toLowerCase() !== "y") return;
+      if (isTypingTarget(e.target)) return;
+      e.preventDefault();
+      applyUndo("redo");
+    });
+
+    // CMD/CTRL+S SAVES NOW instead of waiting for the autosave. #40.
+    //
+    // IT MUST preventDefault UNCONDITIONALLY, including when there is nothing to
+    // save: the browser's own Save Page dialog is what happens otherwise, and a
+    // rider who pressed it out of habit gets a file picker over their ride. That
+    // is the whole reason to bind it — the autosave already covers the saving.
+    //
+    // Bound wherever focus is, text fields included, because it is not an edit:
+    // a rider halfway through typing a stop name and reaching for cmd+S means
+    // the ride, and no input has its own competing Save.
+    document.addEventListener("keydown", (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+      if (e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      if (!CAN_EDIT) return;
+      // Ends the run of keystrokes first, or the field being typed in is not yet
+      // part of what gets written — `change` fires on blur and cmd+S does not
+      // blur anything.
+      const el = document.activeElement;
+      if (el && typeof el.blur === "function" && isTypingTarget(el)) el.blur();
+      if (!state.dirty) return toast("Already saved");
+      flushNow();
     });
 
     // Leaving a field ends the run of keystrokes, so the next edit is its own

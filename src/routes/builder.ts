@@ -253,6 +253,12 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // the losing alternates would become ordinary days.
       altGroup: r.altGroup,
       altActive: r.altActive,
+      // Kept for the same reason the alternate is: what the author asked of the
+      // router is part of the plan being cloned, not incidental state. A day the
+      // author routed off the interstate becomes a day on it the moment this is
+      // dropped, and the clone's mileage would quietly disagree with the
+      // original's for a reason nothing on screen explains.
+      routePrefs: r.routePrefs,
       // ONE ORDERED LIST, and the read above is already ordered by position,
       // so the rider's own sequence clones intact. Both kinds carry a duration,
       // so a clone keeps the POI dwell too — dropping it would quietly shorten
@@ -633,6 +639,11 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
       // This function names every field it carries; nothing is spread.
       altGroup: r.altGroup,
       altActive: r.altActive,
+      // Same rule as the two above, and the same failure if it is omitted: the
+      // builder would send the next save back with no preference on the day and
+      // the router would put the rider straight back on the interstate they
+      // asked to avoid, silently, on a save they made for some other reason.
+      routePrefs: r.routePrefs ?? null,
       // uid and details go out here and are sent straight back by the next
       // save. Omitting either is how a stop's confirmation number silently
       // disappears: without the uid the save mints a new one and orphans the

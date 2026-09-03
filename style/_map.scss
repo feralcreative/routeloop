@@ -1628,3 +1628,210 @@ body.is-arming #map div {
 .day-row.is-theirs {
   opacity: 0.55;
 }
+
+// A SEARCH RESULT, WHILE THE DROPDOWN IS OPEN. Numbered, because twelve names
+// overlapping each other on a map is less readable than no names at all — the
+// dropdown beside it carries every name in full and the number is what ties a
+// dot to its row.
+//
+// 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
+// content at bottom-center, so a sized wrapper puts the anchor off the point.
+.tb-hit {
+  width: 0;
+  height: 0;
+}
+
+.tb-hit-dot {
+  box-sizing: border-box;
+  position: absolute;
+  // It is a <button>, so the UA styles have to go before anything below has an
+  // effect — appearance and padding especially, which otherwise leave the
+  // number off-centre in a rounded rectangle.
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  // Half its own size up and left, which centres it on the anchor.
+  left: -11px;
+  bottom: -11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid $white;
+  border-radius: 50%;
+  background: $brand;
+  color: $white;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  // Google sets pointer-events: none on a non-clickable marker's container, and
+  // a DESCENDANT may re-enable it — the same mechanism .tb-moment-disc uses, and
+  // the reason the hover listeners go on this element rather than the wrapper.
+  pointer-events: auto;
+  cursor: pointer;
+  // A candidate is not a decision, so this is deliberately not $stop or any
+  // other verdict color — it is the brand, the same as anything else the app is
+  // offering rather than warning about.
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+
+  &.is-lit {
+    // GROWS RATHER THAN CHANGING COLOR. A dot that recolors on hover reads as a
+    // different KIND of result; one that grows reads as the same result, closer.
+    transform: scale(1.35);
+    z-index: 1;
+  }
+}
+
+// THE NAME, ON HOVER. Mirrors .tb-moment-tip deliberately: two tooltips on one
+// map that look different read as two features.
+.tb-hit-tip {
+  position: absolute;
+  left: 0;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  background: $tarmac;
+  color: $white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  // Long enough to hold a business name and a detour without running off the
+  // map, and ellipsized past that rather than wrapping — a two-line tooltip
+  // covers the dots either side of the one being read.
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  // `display` rather than opacity, so it is out of the accessibility tree.
+  display: none;
+  z-index: 2;
+}
+
+.tb-hit-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: $tarmac;
+}
+
+// ON THE WRAPPER, NOT ON THE DOT. The tip is a SIBLING of the button, so
+// `.tb-hit-dot:hover + .tb-hit-tip` would work — but the dot grows to 1.35x when
+// its row is hovered, and a tip anchored to the button would then move with it.
+// Hanging the rule off the 0x0 wrapper keeps the tip still.
+.tb-hit:hover .tb-hit-tip {
+  display: block;
+}
+
+// SHARE A RIDE BY HOLDING UP A PHONE (#226).
+//
+// THE CASE IS A CAR PARK, NOT A DESKTOP. You turn up to a ride, half the group
+// has not seen the route, and the way to hand it to six people at once is to
+// show them a code. So the open state is a card over the map at a size someone
+// can scan from arm's length, not a thumbnail in the drawer.
+//
+// A <details>, so it opens with no JavaScript at all — a rider on one bar of
+// signal in a gravel lot is exactly who needs this, and a dialog would need the
+// page's scripts to have arrived first.
+.qr-share {
+  margin-top: 0.6em;
+
+  > summary {
+    display: inline-block;
+    padding: 0.5em 0.9em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    color: $text;
+    font-weight: 600;
+    cursor: pointer;
+    // The disclosure triangle reads as "expand a section", and this opens a
+    // panel over the map — closer to a button than to an accordion.
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 2px;
+    }
+  }
+
+  &[open] > summary {
+    background: $neutral-94;
+  }
+}
+
+// FIXED, CENTRED, AND OVER EVERYTHING. Inside the drawer it would be capped at
+// the drawer's width, which on a phone is most of the screen and on a desktop is
+// 380px — and the desktop case is the one where somebody is holding a laptop up
+// for a group.
+.qr-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  padding: 1.2em;
+  border-radius: 12px;
+  // WHITE REGARDLESS OF THEME, and this is not an oversight. A camera reads a QR
+  // by contrast, and while the spec's decoders handle an inverted code plenty of
+  // phone cameras do not — a dark-theme rider holding up a white-on-black code
+  // to a stranger's phone is the moment this must not be the interesting choice.
+  // src/maps/qr.ts paints the modules black on white for the same reason.
+  background: #ffffff;
+  color: #111111;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+}
+
+.qr-code {
+  // AS BIG AS THE SMALLER SCREEN DIMENSION ALLOWS, capped so it does not become
+  // silly on a monitor. A code has to survive being read at an angle across a
+  // couple of feet, which is a question about physical size rather than pixels.
+  width: min(74vw, 74vh, 340px);
+  height: min(74vw, 74vh, 340px);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// THE LINK IN WORDS, UNDER THE CODE. A QR is unreadable to anyone who cannot
+// point a camera at it — no camera, a cracked lens, a rider who would rather
+// type it — and reading the URL out is the fallback that always works.
+.qr-url {
+  margin: 0;
+  font-size: 0.85em;
+  font-weight: 600;
+  // A URL has no spaces to break at, so it breaks anywhere rather than pushing
+  // the card wider than the screen.
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.qr-hint {
+  margin: 0;
+  font-size: 0.78em;
+  opacity: 0.7;
+  text-align: center;
+}

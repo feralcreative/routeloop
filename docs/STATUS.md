@@ -1,13 +1,38 @@
 # Status and handoff
 
-**Updated:** 2026-08-31
-**Branch:** `feat/fuel-food-sleep`, committed, not pushed. **2,319 tests across 91 files** (2 skipped, 2,321 total)
+**Updated:** 2026-09-02
+**Branch:** `feat/builder-routing-options`, committed, not pushed. **2,355 tests across 92 files** (2 skipped, 2,357 total)
+**Closes, when it merges:** [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned during the sprint.
 **Closes, when it merges:** [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50) and [#54](https://github.com/feralcreative/routeloop/issues/54). [#229](https://github.com/feralcreative/routeloop/issues/229) was raised out loud and closed during the sprint. **[#220](https://github.com/feralcreative/routeloop/issues/220) stays OPEN**—its fuel half is done and its food-and-rest half is a later sprint.
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## Builder routing options—2026-09-02
+
+**Not deployed, not merged.** Branch `feat/builder-routing-options`. Closes [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned: a paved/unpaved preference is not expressible on Routes API v2 at all, and delivering it means a second router.
+
+**#232 had two causes and the first one had been live since #50 shipped.** `placeLngLat()` read a loose `{lng, lat}` pair; `/api/places/search` normalizes every hit to `{name, address, lngLat, type}`. So the corridor filter dropped **every** result and ALONG THE DAY answered "no gas within 15 mi of this day" on every day of every ride for two days, with the arithmetic underneath correct the whole time. The unit test missed it the way these are always missed—its fixture built the shape the helper wanted rather than the shape the caller sends.
+
+**The second cause was that the search ignored which `+` you pressed.** An insert slot knows it sits between Oakland and Benbow and the search threw that away, falling back to the day or, by default, the screen. `viewportCircle()` clamps its radius to the 50km the proxy accepts, so a ride fitted from Oakland to Vancouver anchored a 50km bubble near **Roseburg, Oregon**—641km of viewport collapsed to a circle holding none of the road, and every suggestion came from central Oregon whichever button was pressed. A slot now searches its own leg's corridor whichever scope is selected, and On screen falls back to the day when the clamp bites.
+
+**One Text Search cannot enumerate a long corridor**, so it samples: spaced by the corridor's own diameter, capped at six calls because Text Search bills per request. Past about 180 miles the coverage thins rather than the bill growing with the day, which the tests assert so that raising the cap is a deliberate change to a recorded trade-off.
+
+**Search results are on the map now**, one numbered dot each, cleared when the dropdown closes. Hovering a row lifts its dot and hovering a dot lifts its row; the dot names its place on hover and pressing it presses the row rather than repeating what that handler does. It shipped hover-only for one build, which is the obvious thing to get wrong—a dot that lights up when you point at it is a control by every convention there is.
+
+**#29 is per day rather than per ride**, because a Saturday in the hills and the Monday slog home want opposite answers from the same router. `days.route_prefs` is nullable jsonb, safe in one deploy under expand/contract. There is deliberately no "prefer scenic" flag: the router has no such notion, and that half of the issue is #28.
+
+**#28 asks Google for the alternates it already computes and keeps the twistiest**, scored by `twist.ts`. No second router and no extra request. It scores on `dpm` rather than `bestDpm`—the twistiest 20-mile window is the right number to show a rider and the wrong one to pick a leg by. Alternates are only requested on a leg with no via points, because Routes does not return them otherwise, so a leg the rider shaped by hand keeps the road they shaped.
+
+**The range ring became a gauge.** Green through the first half of the tank, `$fuel-low` past it, red from three quarters. That refines the 2026-08-31 call rather than reversing it: the E markers and the closed stretch are verdicts and keep one color; the ring is the only part reporting a quantity, and a gauge that is red at a full tank tells a rider nothing they can act on. The middle band is its own mixed token because **both** neighbours were tried on the map—`$warning` washed out over pale tiles and `$detour` read as too red for half a tank.
+
+**#40 was mostly already done.** Undo and redo were bound; what was missing is cmd/ctrl+S, which calls `preventDefault` unconditionally so the browser's own Save Page dialog never lands over a ride, and ctrl+Y for redo on Windows.
+
+**#226 is a `<details>`, so it opens with no JavaScript**—a rider on one bar of signal in a gravel car park is exactly who needs it. Black on white regardless of theme, because plenty of phone cameras will not read an inverted code.
+
+**Not verified in a browser by the agent.** Every item here was reasoned and tested rather than seen, apart from the parts Ziad checked live during the sprint: the leg-scoped search, the result dots, and the ring colours. **#29's Avoid and Prefer toggles have never been used**, and they re-route every leg of a day when pressed. The `/api/route` request carrying `prefs` has been read, not sent.
 
 ## Fuel range on the map—2026-08-31
 

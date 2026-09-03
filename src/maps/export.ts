@@ -671,6 +671,20 @@ export async function loadNativeRide(
       endAt: r.endAt?.toISOString() ?? null,
       altGroup: r.altGroup,
       altActive: r.altActive,
+      // What the day asks of the router (#29). Additive and optional on the way
+      // back in like the uid above, so this needs no format-version bump and a
+      // v5 file written before it imports with no preference — which is what
+      // those days meant.
+      //
+      // THE NATIVE JSON IS THE ONLY FORMAT THAT CARRIES IT, AND THERE IS NO
+      // FIDELITY ROW FOR IT ON PURPOSE. ExportDay — the shape every lossy writer
+      // is handed — does not have the field at all, so a row asserting that GPX,
+      // KML, GeoJSON and CSV do not write it would be proving that a value none
+      // of them can see does not appear, which is a tautology dressed as a
+      // guarantee. The real guarantee is structural and one level up: give
+      // ExportDay the field and the matrix becomes the right place to record
+      // what each format then does with it.
+      routePrefs: r.routePrefs ?? null,
       // ONE ORDERED LIST as of format version 4. The read is ordered by
       // position, which every point carries now, so the rider's own sequence is
       // what round-trips — the thing the two-array shape could not express.

@@ -1,0 +1,1 @@
+ALTER TABLE "days" ADD COLUMN "route_prefs" jsonb;
