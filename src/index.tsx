@@ -811,7 +811,10 @@ function viewHtml(
 // always the plain HTTP server — which is the only one of the three that has
 // closeIdleConnections/closeAllConnections, the two methods the drain needs.
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`routeloop dev → http://127.0.0.1:${info.port}`)
+  // localhost with the trailing slash so the terminal renders it as one
+  // clickable link; 127.0.0.1 is what the container healthcheck probes, not
+  // what a person is meant to open.
+  console.log(`routeloop dev → http://localhost:${info.port}/`)
 }) as HttpServer
 
 // Before the sweeps, so a SIGTERM arriving during startup is still caught.

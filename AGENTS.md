@@ -28,6 +28,7 @@ This section outranks everything else in this file and everything in the codebas
 | Generate a migration | `npm run db:generate` (after editing `src/db/schema.ts`) |
 | Baseline a pre-`drizzle/` database | `npm run db:baseline` |
 | Seed | `npx tsx src/db/seed.ts` (one sample ride) or `utils/seed-dev.sh` |
+| Dev server + browser | `npm start` (runs `npm run dev` and opens `http://localhost:6686/` once it answers; `npm run start:no-open` or `OPEN_BROWSER=0` skips the opener) |
 | Dev server | `npm run dev` (SCSS watch + `tsx watch` + live reload, port 6686) |
 | Dev server, no SCSS watcher | `npm run dev:server` |
 | Unit tests | `npm test` |
