@@ -755,7 +755,16 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.3em;
-    margin: 0 0 0.4em;
+    margin: 0 0 0.3em;
+
+    // TWO GROUPS, TIGHTER TO EACH OTHER THAN TO WHAT SURROUNDS THEM. Avoid and
+    // Prefer are one question asked twice, so the pair reads as a block; four
+    // toggles under one "Avoid" would have read as "avoid twisty roads", which
+    // is the opposite of what the last one does.
+    + .day-prefs {
+      margin-top: -0.1em;
+      margin-bottom: 0.4em;
+    }
   }
 
   .day-prefs-lede {
@@ -765,6 +774,10 @@
     // The label reads as the first word of each button — "Avoid | Highways" —
     // so the gap after it is wider than the one between the buttons.
     margin-right: 0.2em;
+    // Avoid and Prefer are different words of different lengths, and a ragged
+    // left edge on the buttons makes the two rows read as unrelated. In ch so it
+    // tracks the type rather than a guess at its size.
+    min-width: 4.2ch;
   }
 
   // QUIET UNTIL SET, like .scope-btn and for the same reason: a row of filled

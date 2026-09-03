@@ -34,13 +34,29 @@ export const routePrefsSchema = z
     avoidHighways: z.boolean().optional(),
     avoidTolls: z.boolean().optional(),
     avoidFerries: z.boolean().optional(),
+    // #28. NOT A ROUTE MODIFIER — see the two lists below. Google has no notion
+    // of a fun road, so this is answered by asking for the alternates it already
+    // computes and scoring them ourselves.
+    preferTwisty: z.boolean().optional(),
   })
   .strict()
 
 export type RoutePrefs = z.infer<typeof routePrefsSchema>
 
-/** The flags, in the fixed order every serialization here uses. */
-const FLAGS = ['avoidHighways', 'avoidTolls', 'avoidFerries'] as const
+/**
+ * TWO LISTS, AND CONFLATING THEM SENDS GOOGLE A FIELD IT REJECTS.
+ *
+ * `AVOID_FLAGS` are the three things Routes API v2's `routeModifiers` actually
+ * accepts. `FLAGS` is everything a day can ask for, which is what normalizing,
+ * hashing and cache-keying have to cover — `preferTwisty` changes the road that
+ * comes back, so it belongs in all three of those and in none of the request's
+ * modifiers.
+ *
+ * The order is fixed because prefsKey() joins it, and a key whose field order
+ * moved would miss every entry written before it moved.
+ */
+const AVOID_FLAGS = ['avoidHighways', 'avoidTolls', 'avoidFerries'] as const
+const FLAGS = [...AVOID_FLAGS, 'preferTwisty'] as const
 
 /**
  * The preferences with nothing set, collapsed to null.
@@ -70,8 +86,19 @@ export function toRouteModifiers(prefs: RoutePrefs | null | undefined): Record<s
   const norm = normalizePrefs(prefs)
   if (!norm) return undefined
   const out: Record<string, boolean> = {}
-  for (const f of FLAGS) if (norm[f]) out[f] = true
-  return out
+  // AVOID_FLAGS, never FLAGS: `preferTwisty` is ours and Routes would reject it.
+  for (const f of AVOID_FLAGS) if (norm[f]) out[f] = true
+  return Object.keys(out).length ? out : undefined
+}
+
+/**
+ * Should this leg be routed by asking for alternates and picking the twistiest?
+ *
+ * Its own function rather than a field read at the call site, so the one place
+ * that decides it is here beside everything else about a day's preferences.
+ */
+export function wantsTwisty(prefs: RoutePrefs | null | undefined): boolean {
+  return normalizePrefs(prefs)?.preferTwisty === true
 }
 
 /**
@@ -97,6 +124,9 @@ export function describePrefs(prefs: RoutePrefs | null | undefined): string {
   if (norm.avoidHighways) words.push('highways')
   if (norm.avoidTolls) words.push('tolls')
   if (norm.avoidFerries) words.push('ferries')
+  // Nothing to avoid, only something to prefer — a real state, and "Avoiding"
+  // with an empty list would be a sentence about nothing.
+  if (!words.length) return norm.preferTwisty ? 'Preferring the twistier road' : ''
   // "Avoiding highways and tolls" — the Oxford comma applies at three.
   const list =
     words.length <= 1
@@ -104,5 +134,5 @@ export function describePrefs(prefs: RoutePrefs | null | undefined): string {
       : words.length === 2
         ? `${words[0]} and ${words[1]}`
         : `${words.slice(0, -1).join(', ')}, and ${words[words.length - 1]}`
-  return `Avoiding ${list}`
+  return norm.preferTwisty ? `Avoiding ${list}, preferring the twistier road` : `Avoiding ${list}`
 }

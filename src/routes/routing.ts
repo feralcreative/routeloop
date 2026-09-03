@@ -10,7 +10,8 @@
 // call.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { prefsKey, routePrefsSchema, toRouteModifiers, type RoutePrefs } from '../maps/route-prefs'
+import { prefsKey, routePrefsSchema, toRouteModifiers, wantsTwisty, type RoutePrefs } from '../maps/route-prefs'
+import { twistiness } from '../maps/twist'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
@@ -69,6 +70,50 @@ function parseDuration(d: unknown): number {
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
+type RawRoute = {
+  polyline?: { geoJsonLinestring?: { coordinates?: unknown } }
+  distanceMeters?: number
+  duration?: unknown
+}
+
+/** A route's coordinates as a Track, or null when it has none worth measuring. */
+function trackOf(route: RawRoute | undefined): LngLat[] | null {
+  const raw = route?.polyline?.geoJsonLinestring?.coordinates
+  if (!Array.isArray(raw)) return null
+  const out: LngLat[] = []
+  for (const p of raw) {
+    if (!Array.isArray(p) || p.length < 2) continue
+    const lng = Number(p[0])
+    const lat = Number(p[1])
+    if (Number.isFinite(lng) && Number.isFinite(lat)) out.push([lng, lat])
+  }
+  return out.length >= 2 ? out : null
+}
+
+/**
+ * The twistiest of the routes Google returned (#28).
+ *
+ * Keeps Google's own order as the tie-break and as the fallback: it returns
+ * these best-first by its own reckoning, so an unscoreable set should come back
+ * exactly as it arrived rather than in some order of ours.
+ */
+function twistiest(routes: RawRoute[]): RawRoute | undefined {
+  if (routes.length <= 1) return routes[0]
+  let best = routes[0]
+  let bestScore = -1
+  for (const r of routes) {
+    const track = trackOf(r)
+    const t = track ? twistiness(track) : null
+    // Strictly greater, so the first of two equal routes wins and Google's order
+    // survives a tie.
+    if (t && t.dpm > bestScore) {
+      bestScore = t.dpm
+      best = r
+    }
+  }
+  return best
+}
+
 // Small bounded cache. Editing a ride re-requests the same leg constantly, and
 // a plain Map with a cap is enough — this is per-process and deliberately not
 // shared state.
@@ -120,6 +165,7 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
   if (hit) return c.json(hit)
 
   const modifiers = toRouteModifiers(prefs)
+  const twisty = wantsTwisty(prefs)
 
   let res: Response
   try {
@@ -144,6 +190,17 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
         // request it sent before this existed — with no `routeModifiers` key at
         // all rather than one holding an object of falses.
         ...(modifiers ? { routeModifiers: modifiers } : {}),
+        // #28. Ask for the alternates Google already computes, then score them
+        // and keep the twistiest — the router has no notion of a fun road, so
+        // this is the only honest way to bias toward one without building a
+        // second router.
+        //
+        // ONLY WITH NO INTERMEDIATES. Routes does not return alternatives for a
+        // request carrying waypoints, so asking for them on a shaped leg spends
+        // nothing and gets one route back. Guarded here rather than trusted,
+        // because a flag that is silently ignored is one nobody notices is doing
+        // nothing.
+        ...(twisty && vias.length === 0 ? { computeAlternativeRoutes: true } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     })
@@ -165,7 +222,20 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
     routes?: { polyline?: { geoJsonLinestring?: { coordinates?: unknown } }; distanceMeters?: number; duration?: unknown }[]
   } | null
 
-  const route = data?.routes?.[0]
+  // THE TWISTIEST OF WHAT CAME BACK, or simply the first when nothing asked for
+  // alternates and when only one arrived.
+  //
+  // SCORED ON dpm RATHER THAN bestDpm, deliberately. bestDpm is the twistiest
+  // 20-mile window, which is the right number to SHOW a rider deciding whether a
+  // day is worth riding — and the wrong one to pick a leg by, because a route
+  // that is superb for five miles and slab for forty would beat one that is good
+  // throughout. Choosing a road is a question about the whole road.
+  //
+  // A ROUTE THAT CANNOT BE SCORED IS NOT DISQUALIFIED, it just cannot win: null
+  // means nothing measured it rather than that the road is straight, and Google
+  // ordered these by its own preference, so falling back to that order is the
+  // honest answer when the scoring has nothing to say.
+  const route = twisty ? twistiest(data?.routes ?? []) : data?.routes?.[0]
   const rawCoords = route?.polyline?.geoJsonLinestring?.coordinates
 
   // An empty `routes` array is how Routes reports "no path", with HTTP 200.

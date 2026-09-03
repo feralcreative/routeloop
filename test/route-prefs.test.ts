@@ -5,7 +5,14 @@
 // costs something real — a spurious save conflict, a cache miss that re-bills a
 // route, a toggle that looks broken.
 import { describe, expect, it } from 'vitest'
-import { describePrefs, normalizePrefs, prefsKey, routePrefsSchema, toRouteModifiers } from '../src/maps/route-prefs'
+import {
+  describePrefs,
+  normalizePrefs,
+  prefsKey,
+  routePrefsSchema,
+  toRouteModifiers,
+  wantsTwisty,
+} from '../src/maps/route-prefs'
 
 describe('normalizing', () => {
   it('collapses every empty spelling to null', () => {
@@ -91,6 +98,45 @@ describe('the rider-facing summary', () => {
     expect(describePrefs({ avoidHighways: true, avoidTolls: true })).toBe('Avoiding highways and tolls')
     expect(describePrefs({ avoidHighways: true, avoidTolls: true, avoidFerries: true })).toBe(
       'Avoiding highways, tolls, and ferries',
+    )
+  })
+})
+
+// #28's flag rides in the same jsonb, which is why that column is jsonb — but it
+// is NOT one of Google's route modifiers, and the two lists exist so that a
+// field Routes would reject can never reach a request.
+describe('the twisty preference', () => {
+  it('never reaches routeModifiers, which Routes would reject', () => {
+    expect(toRouteModifiers({ preferTwisty: true })).toBeUndefined()
+    expect(toRouteModifiers({ preferTwisty: true, avoidTolls: true })).toEqual({ avoidTolls: true })
+  })
+
+  // It changes the road that comes back, so a cached plain route must not be
+  // served for it — the same reason the avoid flags are in the key.
+  it('is part of the cache key', () => {
+    expect(prefsKey({ preferTwisty: true })).not.toBe('')
+    expect(prefsKey({ preferTwisty: true })).not.toBe(prefsKey({ avoidHighways: true }))
+    expect(prefsKey({ preferTwisty: true, avoidTolls: true })).toBe(
+      prefsKey({ avoidTolls: true, preferTwisty: true }),
+    )
+  })
+
+  it('survives normalizing and collapses when false', () => {
+    expect(normalizePrefs({ preferTwisty: true })).toEqual({ preferTwisty: true })
+    expect(normalizePrefs({ preferTwisty: false })).toBeNull()
+  })
+
+  it('is what wantsTwisty answers, and only when actually set', () => {
+    expect(wantsTwisty({ preferTwisty: true })).toBe(true)
+    expect(wantsTwisty({ preferTwisty: false })).toBe(false)
+    expect(wantsTwisty({ avoidTolls: true })).toBe(false)
+    expect(wantsTwisty(null)).toBe(false)
+  })
+
+  it('reads as a sentence on its own and alongside the avoids', () => {
+    expect(describePrefs({ preferTwisty: true })).toBe('Preferring the twistier road')
+    expect(describePrefs({ preferTwisty: true, avoidHighways: true })).toBe(
+      'Avoiding highways, preferring the twistier road',
     )
   })
 })

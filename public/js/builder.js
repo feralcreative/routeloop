@@ -3820,11 +3820,26 @@
   // actually be told. There is no "prefer scenic" here because the router has no
   // such notion: that is #28, and it works by scoring the alternates Routes
   // returns rather than by asking for anything.
-  const ROUTE_PREFS = [
+  const AVOID_PREFS = [
     { key: "avoidHighways", label: "Highways", hint: "Route this day off the interstate where there is another way" },
     { key: "avoidTolls", label: "Tolls", hint: "Avoid toll roads and bridges on this day" },
     { key: "avoidFerries", label: "Ferries", hint: "Keep this day on roads the bike can ride onto" },
   ];
+
+  // #28. A SEPARATE GROUP BECAUSE IT IS A DIFFERENT VERB. Four toggles under one
+  // "Avoid" label would have read as "avoid twisty roads", which is the opposite
+  // of what it does — and the two are answered by different mechanisms anyway:
+  // the avoids are Google's routeModifiers, this is us scoring the alternates it
+  // returns and keeping the twistiest.
+  const PREFER_PREFS = [
+    {
+      key: "preferTwisty",
+      label: "Twisty roads",
+      hint: "Compare the routes Google offers for this day and take the twistiest",
+    },
+  ];
+
+  const ROUTE_PREFS = AVOID_PREFS.concat(PREFER_PREFS);
 
   /**
    * The set flags, or null when none are — the client half of normalizePrefs()
@@ -3845,19 +3860,28 @@
     return Object.keys(out).length ? out : null;
   }
 
+  function prefsGroup(r, on, lede, list, label) {
+    return (
+      '<div class="day-prefs" role="group" aria-label="' + esc(label) + '">' +
+      '<span class="day-prefs-lede">' + esc(lede) + "</span>" +
+      list
+        .map(
+          (p) =>
+            '<button type="button" class="pref-btn' + (on[p.key] ? " is-on" : "") + '"' +
+            ' data-day="' + r + '" data-pref="' + p.key + '"' +
+            ' aria-pressed="' + (on[p.key] ? "true" : "false") + '"' +
+            ' title="' + esc(p.hint) + '">' + esc(p.label) + "</button>",
+        )
+        .join("") +
+      "</div>"
+    );
+  }
+
   function prefsHtml(r, day) {
     const on = day.routePrefs || {};
     return (
-      '<div class="day-prefs" role="group" aria-label="What to avoid on ' + esc(dayLabel(r)) + '">' +
-      '<span class="day-prefs-lede">Avoid</span>' +
-      ROUTE_PREFS.map(
-        (p) =>
-          '<button type="button" class="pref-btn' + (on[p.key] ? " is-on" : "") + '"' +
-          ' data-day="' + r + '" data-pref="' + p.key + '"' +
-          ' aria-pressed="' + (on[p.key] ? "true" : "false") + '"' +
-          ' title="' + esc(p.hint) + '">' + esc(p.label) + "</button>",
-      ).join("") +
-      "</div>"
+      prefsGroup(r, on, "Avoid", AVOID_PREFS, "What to avoid on " + dayLabel(r)) +
+      prefsGroup(r, on, "Prefer", PREFER_PREFS, "What to prefer on " + dayLabel(r))
     );
   }
 
