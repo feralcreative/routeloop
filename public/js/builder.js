@@ -392,6 +392,10 @@
     // and why the group id is not stable across a save.
     altGroup: null,
     altActive: true,
+    // What this day asks of the router (#29). Null is no preference, which is
+    // what a new day always is — the server normalizes {} to null on save, so
+    // there is only ever one spelling of it in the column.
+    routePrefs: null,
     // One ordered list of both kinds, and legs[i] joins points[i] to points[i+1]
     // whatever kind either end is — see the One ordered list block above.
     points: [],
@@ -935,6 +939,10 @@
       // `?? null` rather than `|| null` because 0 is a real group id.
       altGroup: r.altGroup ?? null,
       altActive: r.altActive ?? true,
+      // Omitting this is how a rider's avoid-highways day quietly goes back on
+      // the interstate: the next save would post no preference and every leg
+      // would re-route to the fast road, on a save made for some other reason.
+      routePrefs: r.routePrefs ?? null,
       // One ordered list. A payload from before 2026-08-23 cannot reach this —
       // loadRidePayload is the only source and it was changed with the schema.
       points: r.points || [],
@@ -1261,11 +1269,18 @@
   // Routes key is IP-restricted, so it cannot be used from a browser. The proxy
   // also caches, which matters because dragging a stop re-requests the same pair
   // on every frame and Routes bills per call. See src/routes/routing.ts.
-  async function directions(a, b, vias) {
+  async function directions(a, b, vias, prefs) {
+    // OMITTED WHEN NOTHING IS SET, rather than sent as an object of falses. The
+    // proxy keys its cache on the preferences, so a day with none has to send
+    // the request it sent before #29 or every already-cached leg misses and
+    // re-bills. prefsBody() is what guarantees that.
+    const body = { origin: a, destination: b, vias: vias || [] };
+    const set = prefsBody(prefs);
+    if (set) body.prefs = set;
     const res = await fetch("/api/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin: a, destination: b, vias: vias || [] }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
@@ -1330,7 +1345,7 @@
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
-    directions(a, b, vias)
+    directions(a, b, vias, day.routePrefs)
       .then((leg) => {
         // The day may have been deleted or reordered while this was in flight.
         if (state.days[r] !== day) return;
@@ -2153,6 +2168,59 @@
   // router has to answer the question again.
   //
   // That costs one Routes call per leg, which is why a long day asks first.
+  /**
+   * Toggle one routing preference on a day, and re-route it (#29).
+   *
+   * PATCHED IN PLACE, NEVER RE-RENDERED. renderDayList() would destroy whatever
+   * the rider is typing in and drop focus to <body> — #188, reached here from a
+   * control that has nothing to do with the day's contents, exactly as the
+   * corridor scope button could. Only this one button changes, so only this one
+   * button is touched.
+   *
+   * RE-ROUTES EVERY LEG, because that is what the toggle MEANS: the preference
+   * with the old roads still drawn is a lie on the map and a wrong number in
+   * every total. It is the same cost .day-rev already pays, and it asks first at
+   * the same threshold and for the same reason — this bills a Routes call per
+   * leg.
+   */
+  function togglePref(r, btn) {
+    const day = state.days[r];
+    if (!day) return;
+    const key = btn.dataset.pref;
+    if (!key) return;
+
+    const legCount = Math.max(0, day.points.length - 1);
+    const turningOn = !(day.routePrefs && day.routePrefs[key]);
+    if (legCount > 12 && !window.confirm("Changing this re-routes all " + legCount + " legs of this day. Continue?")) {
+      return;
+    }
+
+    beginEdit("routing preference");
+    const next = Object.assign({}, day.routePrefs);
+    if (turningOn) next[key] = true;
+    else delete next[key];
+    // Null rather than {} for an empty set, so the day matches what the server
+    // will store and the two cannot disagree about whether it changed.
+    day.routePrefs = prefsBody(next);
+
+    btn.classList.toggle("is-on", turningOn);
+    btn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+
+    if (legCount) {
+      state.legSeq[r] = [];
+      computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    }
+    markDirty();
+    const label = ROUTE_PREFS.find((p) => p.key === key);
+    toast(
+      (turningOn ? "Avoiding " : "No longer avoiding ") +
+        (label ? label.label.toLowerCase() : "that") +
+        " on " +
+        dayLabel(r) +
+        (legCount ? "—re-routing" : ""),
+    );
+  }
+
   function reverseDay() {
     const r = editIndex();
     if (r == null) return noDayYet();
@@ -3730,6 +3798,7 @@
       ' title="Worked out from the start time and the day\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
       '<span class="day-times-note"></span>' +
       "</div>" +
+      prefsHtml(r, day) +
       // data-duration-format rides on each list, not only on #day-list: the rule
       // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
       // the list itself, so putting it only on the ancestor silently stopped it
@@ -3737,6 +3806,51 @@
       '<ol class="point-list" data-day="' + r + '" data-duration-format="' + esc(durFormat) + '"></ol>' +
       "</div>" +
       "</section>"
+    );
+  }
+
+  // WHAT A DAY ASKS OF THE ROUTER (#29) — the three things Routes API v2 can
+  // actually be told. There is no "prefer scenic" here because the router has no
+  // such notion: that is #28, and it works by scoring the alternates Routes
+  // returns rather than by asking for anything.
+  const ROUTE_PREFS = [
+    { key: "avoidHighways", label: "Highways", hint: "Route this day off the interstate where there is another way" },
+    { key: "avoidTolls", label: "Tolls", hint: "Avoid toll roads and bridges on this day" },
+    { key: "avoidFerries", label: "Ferries", hint: "Keep this day on roads the bike can ride onto" },
+  ];
+
+  /**
+   * The set flags, or null when none are — the client half of normalizePrefs()
+   * in src/maps/route-prefs.ts.
+   *
+   * MIRRORED RATHER THAN SHARED, and deliberately not pinned by a test the way
+   * filename.js and twist.js are: the server re-normalizes on every save and is
+   * the authority, so this one only has to keep `{}` out of a request body and
+   * out of the dirty check. If it ever grows a rule the server does not have,
+   * that stops being true and it belongs in a mirrored helper with a test.
+   */
+  function prefsBody(prefs) {
+    if (!prefs) return null;
+    const out = {};
+    ROUTE_PREFS.forEach((p) => {
+      if (prefs[p.key] === true) out[p.key] = true;
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
+  function prefsHtml(r, day) {
+    const on = day.routePrefs || {};
+    return (
+      '<div class="day-prefs" role="group" aria-label="What to avoid on ' + esc(dayLabel(r)) + '">' +
+      '<span class="day-prefs-lede">Avoid</span>' +
+      ROUTE_PREFS.map(
+        (p) =>
+          '<button type="button" class="pref-btn' + (on[p.key] ? " is-on" : "") + '"' +
+          ' data-day="' + r + '" data-pref="' + p.key + '"' +
+          ' aria-pressed="' + (on[p.key] ? "true" : "false") + '"' +
+          ' title="' + esc(p.hint) + '">' + esc(p.label) + "</button>",
+      ).join("") +
+      "</div>"
     );
   }
 
@@ -6225,6 +6339,7 @@
           // group with one member, which is exactly the case that dissolves.
           altGroup: r.altGroup,
           altActive: r.altActive,
+          routePrefs: r.routePrefs ?? null,
           points: r.points,
           legs: r.legs,
         })),
@@ -6535,6 +6650,7 @@
         btn.setAttribute("aria-expanded", String(!shut));
         return;
       }
+      if (btn.classList.contains("pref-btn")) return togglePref(r, btn);
       if (btn.classList.contains("day-rev")) return reverseDay();
       if (btn.classList.contains("day-menu-btn")) {
         return toggleDayMenu(sec.querySelector(".day-head"), btn, r);
