@@ -5965,6 +5965,11 @@
         state.map,
         hits.map((h) => ({ lngLat: h.lngLat, name: h.name })),
         (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
+        // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's
+        // handler does. That handler mints the point with its category role,
+        // reads the open insert slot, pans and moves focus — four things a
+        // second copy would drift from the first time any of them changed.
+        (i) => rows[i] && rows[i].click(),
       );
       rows.forEach((li, j) => {
         li.addEventListener("pointerenter", () => highlightSearchPreview(state.map, j));

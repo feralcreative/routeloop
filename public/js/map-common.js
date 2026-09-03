@@ -1389,7 +1389,7 @@
   function previewOf(map) {
     let p = previews.get(map);
     if (!p) {
-      p = { pins: [], onHover: null };
+      p = { pins: [], onHover: null, onPick: null };
       previews.set(map, p);
     }
     return p;
@@ -1399,18 +1399,36 @@
     const el = document.createElement("div");
     // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
     // content at bottom-center, so a sized wrapper puts the anchor off the
-    // point. The child carries the size and the hover.
+    // point. The child carries the size, the hover and the click.
     el.className = "tb-hit";
-    const dot = document.createElement("i");
+    // A REAL <button>, NOT AN <i>. It shipped as an <i> for one build and the
+    // dots could be hovered and not pressed — which is the obvious thing to try,
+    // since a dot on a map that lights up when you point at it is a control by
+    // every convention there is. A button is also the only version a keyboard
+    // can reach.
+    //
+    // NOTE THIS IS NOT THE gmpClickable CASE. That was tried on the fuel wall
+    // and reverted because it exposes <gmp-advanced-marker> itself as a button
+    // that does nothing; here the button is ours, it is a descendant, and
+    // pressing it does the same thing as pressing the row.
+    const dot = document.createElement("button");
+    dot.type = "button";
     dot.className = "tb-hit-dot";
     dot.textContent = String(i + 1);
     el.appendChild(dot);
-    // Hover in BOTH directions is the point of the feature — a dot with no way
-    // back to its row is a dot you cannot identify. The listeners go on the
+    // Hover in BOTH directions is half the point of the feature — a dot with no
+    // way back to its row is a dot you cannot identify. The listeners go on the
     // child, because Google sets pointer-events: none on a non-clickable
     // marker's container and only a descendant may re-enable it.
     dot.addEventListener("pointerenter", () => p.onHover && p.onHover(i));
     dot.addEventListener("pointerleave", () => p.onHover && p.onHover(null));
+    dot.addEventListener("click", (e) => {
+      // The map is listening for clicks to drop a point, and this one is not
+      // that — without this a press would add the searched place AND a bare
+      // point wherever the dot happened to be.
+      e.stopPropagation();
+      if (p.onPick) p.onPick(i);
+    });
     return el;
   }
 
@@ -1421,9 +1439,10 @@
    * number on a dot is the row it belongs to. `onHover(i | null)` fires when the
    * pointer enters or leaves a dot.
    */
-  function setSearchPreview(map, items, onHover) {
+  function setSearchPreview(map, items, onHover, onPick) {
     const p = previewOf(map);
     p.onHover = onHover || null;
+    p.onPick = onPick || null;
     const list = items || [];
     for (let i = 0; i < list.length; i++) {
       if (!p.pins[i]) {
@@ -1439,11 +1458,11 @@
       p.pins[i].map = map;
       const dot = p.pins[i].content.firstChild;
       dot.classList.remove("is-lit");
-      // The name rides along as the accessible label rather than as a tooltip:
-      // twelve tooltips fighting for the same corner of the map is noise, and
-      // the dropdown beside it already carries every name in full.
-      dot.setAttribute("role", "img");
-      dot.setAttribute("aria-label", list[i].name || "Result " + (i + 1));
+      // The name is the button's accessible name rather than a tooltip: twelve
+      // tooltips fighting for the same corner of the map is noise, and the
+      // dropdown beside it already carries every name in full. No role — it is
+      // a button and announcing it as an image would take the press away.
+      dot.setAttribute("aria-label", "Add " + (list[i].name || "result " + (i + 1)));
     }
     for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
   }

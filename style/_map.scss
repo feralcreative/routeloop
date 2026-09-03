@@ -1644,6 +1644,13 @@ body.is-arming #map div {
 .tb-hit-dot {
   box-sizing: border-box;
   position: absolute;
+  // It is a <button>, so the UA styles have to go before anything below has an
+  // effect — appearance and padding especially, which otherwise leave the
+  // number off-centre in a rounded rectangle.
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
   // Half its own size up and left, which centres it on the anchor.
   left: -11px;
   bottom: -11px;
@@ -1669,6 +1676,11 @@ body.is-arming #map div {
   // other verdict color — it is the brand, the same as anything else the app is
   // offering rather than warning about.
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
 
   &.is-lit {
     // GROWS RATHER THAN CHANGING COLOR. A dot that recolors on hover reads as a
