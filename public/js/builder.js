@@ -3854,6 +3854,23 @@
     );
   }
 
+  /**
+   * What to say when a category search found nothing, naming the stretch that
+   * was actually searched.
+   *
+   * THREE CASES BECAUSE THERE ARE THREE SEARCHES, and telling a rider the wrong
+   * one sends them looking in the wrong place — which is the complaint #232 was
+   * filed about. Each line also names the way out, and the way out is always a
+   * control already on screen.
+   */
+  function emptyText(spec, isSlot) {
+    const what = spec.label.toLowerCase();
+    const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
+    if (isSlot) return "No " + what + " within " + width + " of this leg. Add it from the bottom of the day to search wider.";
+    if (state.corridorOn) return "No " + what + " within " + width + " of this day's route.";
+    return "No " + what + " on screen. Pan or zoom out to look wider.";
+  }
+
   const daySection = (r) => document.querySelector('.day-section[data-day="' + r + '"]');
 
   // The active day's own section carries the class; nothing else does. Separate
@@ -4732,17 +4749,23 @@
   // beats a 700-mile day getting a bill proportional to its length.
   const MAX_CORRIDOR_SAMPLES = 6;
 
+  /** What a chip promises. A slot chip searches its own leg whichever scope is
+   *  selected, so it names that rather than the scope — see the chip handler. */
+  function chipTitle(c, isSlot) {
+    const what = c.label.toLowerCase();
+    if (isSlot) return "Find " + what + " along this leg";
+    return "Find " + what + (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
+  }
+
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
-    const along = state.corridorOn;
     return (
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
           '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="Find ' + esc(c.label.toLowerCase()) +
-          (along ? " anywhere along this day" : " on the part of the map you can see") + '">' +
+          ' title="' + esc(chipTitle(c, at != null)) + '">' +
           esc(c.label) + "</button>",
       ).join("") +
       "</div>" +
@@ -5688,6 +5711,70 @@
     }
 
     /**
+     * The track of the leg an insert slot sits in, and where to anchor a search
+     * on it. Null when there is no leg to speak of.
+     *
+     * `at` is an INSERTION INDEX, so the new point lands between points[at-1]
+     * and points[at] and the leg being split is legs[at-1]. Inserting at 0 has
+     * no leg before it, so that anchors on the first point itself.
+     *
+     * PREFERS THE ROUTED GEOMETRY AND FALLS BACK TO THE STRAIGHT PAIR, because a
+     * leg that has not come back from the router yet is still a stretch of map
+     * the rider is pointing at — searching the straight line between its ends is
+     * a far better answer than searching the whole ride.
+     */
+    function legAnchor(day, at) {
+      const pts = day.points;
+      if (!pts.length) return null;
+      const j = Math.max(0, Math.min(at, pts.length - 1));
+      const b = pts[j];
+      if (j === 0) {
+        const near = [b.lng, b.lat];
+        return { track: [near], near: near, totalM: 0 };
+      }
+      const a = pts[j - 1];
+      const leg = day.legs[j - 1];
+      const track =
+        leg && leg.geometry && leg.geometry.length >= 2
+          ? leg.geometry
+          : [
+              [a.lng, a.lat],
+              [b.lng, b.lat],
+            ];
+      const totalM = haversineTrack(track);
+      const near = pointAtDistance(track, totalM / 2) || [b.lng, b.lat];
+      return { track: track, near: near, totalM: totalM };
+    }
+
+    /**
+     * The anchor for a search from the day's own bottom add-row.
+     *
+     * ON SCREEN FALLS BACK TO THE DAY WHEN THE SCREEN IS TOO BIG TO SEARCH.
+     * viewportCircle() clamps its radius to the 50km the proxy accepts, so on a
+     * ride fitted from Oakland to Vancouver the anchor is a 50km bubble centered
+     * near Roseburg — 640km of viewport reduced to a circle holding none of the
+     * road, and every suggestion came back from central Oregon. Reported on ride
+     * 32, 2026-09-02. When the clamp bites, the day being edited is the honest
+     * subject: the rider is adding a point to THAT, and it is on screen too.
+     */
+    function screenAnchor(r) {
+      const view = viewportAnchor();
+      if (view && view.spanM <= view.radiusM) return view;
+      const day = state.days[r];
+      const track = day ? fullTrack(r) : [];
+      const totalM = day ? DIST.totalM(day) : 0;
+      if (!track.length || !totalM) return view;
+      const near = pointAtDistance(track, totalM / 2);
+      if (!near) return view;
+      return {
+        near: near,
+        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2))),
+        spanM: Math.round(totalM / 2),
+        widened: true,
+      };
+    }
+
+    /**
      * ONE TEXT SEARCH FOR THE WHOLE DAY, biased at its midpoint, then filtered
      * to the corridor here in the browser. Ziad's call, 2026-08-31, and it is a
      * cost decision rather than a technical one: walking the line and searching
@@ -5712,22 +5799,18 @@
       // The viewport only when the day has no line yet — this is the ALONG THE
       // DAY scope, so the day is the subject and the screen is the fallback
       // rather than the other way round.
+      // A day with no line yet has no corridor, and withinCorridor() lets
+      // everything through on an empty track by design — a rider who has just
+      // dropped their first point and asked for fuel should get Google's answer
+      // rather than an empty list reading as "there is none here".
       const view = viewportAnchor();
       if (!track.length || !totalM) {
-        return { track: track, samples: view && view.near ? [{ near: view.near, radiusM: view.radiusM }] : [] };
+        return { track: track, totalM: 0, near: view && view.near };
       }
 
-      // Why this samples rather than asking once, and how the spacing is
-      // chosen, is corridorSamples() in corridor.js. The server caches on
-      // query|near|radius|wide, so re-tapping the same chip on an unchanged day
-      // costs nothing at all.
-      const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
-      const samples = [];
-      CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES).forEach((sp) => {
-        const at = pointAtDistance(track, sp.atM);
-        if (at) samples.push({ near: at, radiusM: sp.radiusM });
-      });
-      return { track: track, samples: samples };
+      // The sampling itself is corridorRun(), which the insert-slot path shares
+      // — the day and one leg are the same question at two scales.
+      return { track: track, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
     }
 
     /**
@@ -5744,6 +5827,34 @@
      * coordinates are already rounded to six places server-side, so the pair is
      * stable enough to compare exactly.
      */
+    /**
+     * A corridor search over one track: sample it, union the answers, keep what
+     * is within CORRIDOR_MI of it.
+     *
+     * TAKES A TRACK RATHER THAN A DAY, which is what lets an insert slot reuse
+     * every rule here for the single leg it sits in. The day and the leg are the
+     * same question asked at two scales.
+     */
+    async function corridorRun(query, track, totalM, fallbackNear) {
+      const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
+      const samples = [];
+      CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES).forEach((sp) => {
+        const at = pointAtDistance(track, sp.atM);
+        if (at) samples.push({ near: at, radiusM: sp.radiusM });
+      });
+      // A ZERO-LENGTH STRETCH IS STILL A PLACE. Inserting above the first point
+      // of a day, or between two points sitting on top of each other, gives a
+      // track with no length for corridorSamples() to divide — and answering
+      // nothing there would be worse than answering about the one point we have.
+      if (!samples.length && fallbackNear) {
+        samples.push({ near: fallbackNear, radiusM: Math.max(500, Math.min(50000, Math.round(corridorM))) });
+      }
+      const raw = await corridorPlaces(query, samples);
+      return CORRIDOR.withinCorridor(raw, track, corridorM).map((hit) =>
+        Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+      );
+    }
+
     async function corridorPlaces(query, samples) {
       const settled = await Promise.allSettled(
         samples.map((s) => nearbySearch(query, s.near, { wide: true, radiusM: s.radiusM })),
@@ -6115,13 +6226,14 @@
         el.classList.toggle("is-on", on);
         el.setAttribute("aria-pressed", on ? "true" : "false");
       });
-      // The chips' tooltips name the scope, so they go stale otherwise.
+      // The chips' tooltips name the scope, so they go stale otherwise — but a
+      // SLOT chip's does not, because a slot searches its own leg whichever
+      // scope is selected. Retitling those would have the tooltip promise
+      // something the search does not do.
       document.querySelectorAll(".add-chips .chip").forEach((el) => {
         const spec = CHIPS.find((c) => c.role === el.dataset.chip);
-        if (!spec) return;
-        el.title =
-          "Find " + spec.label.toLowerCase() +
-          (state.corridorOn ? " anywhere along this day" : " on the part of the map you can see");
+        if (!spec || el.dataset.at != null) return;
+        el.title = chipTitle(spec, false);
       });
     });
 
@@ -6145,18 +6257,20 @@
       if (input) placeResults(input, results);
       try {
         let nearby;
-        if (state.corridorOn) {
+        // A SLOT OUTRANKS THE SCOPE, AND THAT IS THE WHOLE OF #232's SECOND
+        // HALF. Pressing the + between Oakland and Benbow is the rider pointing
+        // at that stretch of road; searching the day, or worse the screen, threw
+        // the one specific thing they said away. So a slot search is always the
+        // leg's corridor, and the Day / On screen control governs only the day's
+        // own bottom add-row. Ziad's call, 2026-09-02.
+        const leg = at == null ? null : legAnchor(state.days[r], at);
+        if (leg) {
+          nearby = await corridorRun(spec.query, leg.track, leg.totalM, leg.near);
+        } else if (state.corridorOn) {
           const args = corridorSearchArgs(r);
-          const raw = await corridorPlaces(spec.query, args.samples);
-          if (mine !== searchSeq) return;
-          // The corridor test decides, not the bias radius — see
-          // corridorSearchArgs. Each survivor carries its own detour so the list
-          // can be read as an answer to "how far off?" rather than a ranking.
-          nearby = CORRIDOR.withinCorridor(raw, args.track, CORRIDOR_MI * window.TBUnits.METERS_PER_MILE).map(
-            (hit) => Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
-          );
+          nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
         } else {
-          const view = viewportAnchor();
+          const view = screenAnchor(r);
           nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
         }
         if (mine !== searchSeq) return;
@@ -6165,14 +6279,11 @@
           noticeHtml(
             // "within 15 mi of this day" named a distance from a DAY, which is
             // not a thing a rider can picture — reported as unreadable in #232.
-            // It is the day's ROUTE the corridor is measured from, and the line
-            // names the other scope by its own label so the way out is the
-            // control that is already on screen.
-            state.corridorOn
-              ? "No " + spec.label.toLowerCase() + " within " +
-                Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit +
-                " of this day's route. Switch to On screen to search a spot you can see."
-              : "No " + spec.label.toLowerCase() + " on screen. Pan or zoom out to look wider.",
+            // It is a stretch of ROUTE the corridor is measured from, and each
+            // line names the stretch it actually searched, because the three
+            // cases are three different questions and a rider who is told the
+            // wrong one goes looking in the wrong place.
+            emptyText(spec, at != null),
           );
         results.hidden = false;
         if (input) placeResults(input, results);

@@ -224,9 +224,16 @@
     const b = mapBounds(map);
     if (!b) return null;
     const diag = haversineM([b.west, b.south], [b.east, b.north]);
+    const half = Math.round(diag / 2);
     return {
       near: [(b.west + b.east) / 2, (b.south + b.north) / 2],
-      radiusM: Math.max(500, Math.min(50000, Math.round(diag / 2))),
+      radiusM: Math.max(500, Math.min(50000, half)),
+      // THE UNCLAMPED HALF-DIAGONAL, so a caller can tell whether the circle it
+      // was handed actually covers the screen. On a ride fitted from Oakland to
+      // Vancouver this is 641km and the radius above is 50 — a bubble in the
+      // middle of Oregon that contains none of the road the rider is looking at.
+      // Without this the clamp is invisible and the anchor looks reasonable.
+      spanM: half,
     };
   }
 
