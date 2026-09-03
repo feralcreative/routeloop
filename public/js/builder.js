@@ -1251,23 +1251,45 @@
     blocked: "This ride cannot be saved yet",
   };
 
+  // THE HOUSE MODAL, ON A DIALOG ELEMENT. `.modal` is the box every other modal
+  // in the app is drawn in and `.modal--error` adds only what a <dialog> needs on
+  // top of it — see the note in style/_modal.scss. The inner markup is the house
+  // vocabulary too: `.modal-body` is what colors and spaces the prose, and a
+  // bare `<h2>` is already sized by `.modal`, so neither needs a rule of its own.
+  //
+  // BOTH BUTTONS CARRY `.btn`, WHICH THEY DID NOT. `.btn-quiet` alone is not a
+  // button: the global rule in _survey.scss sets three colors and no padding,
+  // radius or weight, and the one in _builder.scss that DOES set those is nested
+  // inside `.builder-panel` — which this dialog is not, because showModal()
+  // requires it in the top layer and it is appended to <body>. So the pair
+  // rendered as raw UA buttons on every failure.
+  //
+  // Dismiss is the guide sign and Reload is the quiet one, which is deliberately
+  // NOT ranked by which is recommended: Reload is the only irreversible thing in
+  // the dialog, and the panel already refuses to weight two adjacent buttons
+  // equally for exactly this reason. Same shape as the alpha modal's "Got it".
   function errorDialog() {
     let el = $("tb-error");
     if (el) return el;
     el = document.createElement("dialog");
     el.id = "tb-error";
-    el.className = "tb-error";
+    el.className = "modal modal--error";
+    // showModal() gives it role=dialog and aria-modal itself; the heading is the
+    // only thing it cannot work out on its own.
+    el.setAttribute("aria-labelledby", "tb-error-title");
     el.innerHTML =
-      '<h2 class="tb-error-title"></h2>' +
-      '<p class="tb-error-body"></p>' +
-      '<p class="tb-error-note"></p>' +
-      '<div class="tb-error-acts">' +
-      '<button type="button" class="btn-quiet tb-error-reload">Reload the page</button>' +
-      '<button type="button" class="btn-quiet tb-error-close">Dismiss</button>' +
+      '<h2 id="tb-error-title"></h2>' +
+      '<div class="modal-body">' +
+      '<p class="modal-error-msg"></p>' +
+      '<p class="modal-error-note"></p>' +
+      "</div>" +
+      '<div class="modal-error-acts">' +
+      '<button type="button" class="btn btn-quiet" data-error-reload>Reload the page</button>' +
+      '<button type="button" class="btn" data-error-close>Dismiss</button>' +
       "</div>";
     document.body.appendChild(el);
-    el.querySelector(".tb-error-close").addEventListener("click", () => closeErrorDialog());
-    el.querySelector(".tb-error-reload").addEventListener("click", () => location.reload());
+    el.querySelector("[data-error-close]").addEventListener("click", () => closeErrorDialog());
+    el.querySelector("[data-error-reload]").addEventListener("click", () => location.reload());
     return el;
   }
 
@@ -1289,17 +1311,17 @@
   function showErrorDialog(kind, text) {
     const el = errorDialog();
     el.dataset.kind = kind;
-    el.querySelector(".tb-error-title").textContent = ERROR_TITLES[kind] || ERROR_TITLES.error;
-    el.querySelector(".tb-error-body").textContent = text || SAVE_TEXT[kind] || "";
+    el.querySelector("#tb-error-title").textContent = ERROR_TITLES[kind] || ERROR_TITLES.error;
+    el.querySelector(".modal-error-msg").textContent = text || SAVE_TEXT[kind] || "";
     // WHAT IS AT RISK, WHICH IS THE QUESTION A RIDER ACTUALLY HAS. A save error
     // is alarming and usually harmless — the retry clears most of them — and
     // saying so is the difference between a dialog that helps and one that only
     // interrupts.
-    el.querySelector(".tb-error-note").textContent =
+    el.querySelector(".modal-error-note").textContent =
       kind === "conflict" || kind === "stale"
         ? "Reload to see their version. Anything you have changed since will need doing again."
         : "Your work is still here and a recovery copy is saved in this browser. Routeloop will keep trying.";
-    const reload = el.querySelector(".tb-error-reload");
+    const reload = el.querySelector("[data-error-reload]");
     reload.hidden = !(kind === "conflict" || kind === "stale");
     if (typeof el.showModal === "function") {
       if (!el.open) el.showModal();
