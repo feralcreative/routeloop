@@ -183,3 +183,85 @@ describe('the shape the places proxy actually sends', () => {
     expect(C.withinCorridor(broken, straight, 10 * MI).map((g: any) => g.place.name)).toEqual(['good'])
   })
 })
+
+// Where along a day the corridor searches run (#232). Each sample is a BILLED
+// Text Search, so the count is a money number and the spacing is what decides
+// whether a station on the road is ever offered at all.
+describe('sampling a day for corridor searches', () => {
+  const CORRIDOR_M = 15 * MI
+  const CAP = 6
+  const samples = (totalM: number, cap = CAP) => C.corridorSamples(totalM, CORRIDOR_M, cap)
+
+  it('asks once on a day shorter than the corridor is wide', () => {
+    const got = samples(10 * MI)
+    expect(got).toHaveLength(1)
+    // Centered, so a short day is searched from its middle rather than its start.
+    expect(got[0].atM).toBeCloseTo(5 * MI, 0)
+  })
+
+  // A 300-mile day is the #232 report: one call at the midpoint left the whole
+  // route uncovered but the two counties around Willows.
+  it('spreads across a long day instead of clustering at the midpoint', () => {
+    const got = samples(300 * MI)
+    expect(got).toHaveLength(CAP)
+    expect(got[0].atM).toBeCloseTo(25 * MI, 0)
+    expect(got[CAP - 1].atM).toBeCloseTo(275 * MI, 0)
+  })
+
+  it('never spends more than the cap, however long the day', () => {
+    expect(samples(3000 * MI)).toHaveLength(CAP)
+    expect(samples(300 * MI, 3)).toHaveLength(3)
+    expect(samples(300 * MI, 1)).toHaveLength(1)
+  })
+
+  // THE PROPERTY THAT MAKES COVERAGE REAL, and it holds up to the point where
+  // the cap binds: consecutive samples overlap, so no gap as wide as the
+  // corridor sits between them with nothing searching it. Six samples spaced by
+  // the corridor's 30-mile diameter covers 180 miles.
+  it('places every sample within its own radius of its neighbour, up to the cap', () => {
+    ;[40, 120, 180].forEach((mi) => {
+      const got = samples(mi * MI)
+      for (let i = 1; i < got.length; i++) {
+        expect(got[i].atM - got[i - 1].atM).toBeLessThanOrEqual(got[i].radiusM)
+      }
+      expect(got[0].atM).toBeLessThanOrEqual(got[0].radiusM)
+      expect(mi * MI - got[got.length - 1].atM).toBeLessThanOrEqual(got[got.length - 1].radiusM)
+    })
+  })
+
+  // PAST THE CAP THE COVERAGE THINS, AND THAT IS THE DESIGN RATHER THAN A BUG.
+  // The spend is fixed at six calls, so a 300-mile day spaces them 50 miles
+  // apart while the proxy clamps a bias radius at 50km — the samples stop
+  // overlapping and stretches between them are searched only as far as Google's
+  // own ranking reaches. The alternative is a bill proportional to the length of
+  // the day, which was the decision made on 2026-09-02.
+  //
+  // It degrades rather than failing: locationBias REORDERS and never restricts,
+  // so a sample can still answer with a station outside its circle, and the
+  // 15-mile filter is what decides either way. Asserted so that raising the cap
+  // is a deliberate change to a recorded trade-off rather than a silent one.
+  it('thins rather than overlapping once the cap binds', () => {
+    const got = samples(300 * MI)
+    expect(got).toHaveLength(CAP)
+    expect(got[1].atM - got[0].atM).toBeGreaterThan(got[0].radiusM)
+    // The clamp is what does it: the ideal radius here would be about 40 miles.
+    expect(got[0].radiusM).toBe(50000)
+  })
+
+  // The proxy rejects anything outside 500m–50km outright, so a sample built
+  // past either end is a 400 rather than a wide search.
+  it('keeps every radius inside what the places proxy accepts', () => {
+    ;[0.2, 5, 60, 300, 900, 5000].forEach((mi) => {
+      samples(mi * MI).forEach((sp: any) => {
+        expect(sp.radiusM).toBeGreaterThanOrEqual(500)
+        expect(sp.radiusM).toBeLessThanOrEqual(50000)
+      })
+    })
+  })
+
+  it('asks nothing of a day with no distance', () => {
+    expect(samples(0)).toEqual([])
+    expect(samples(-1)).toEqual([])
+    expect(C.corridorSamples(100 * MI, 0, CAP)).toEqual([])
+  })
+})

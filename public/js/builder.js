@@ -4611,6 +4611,13 @@
   // not under every day.
   const CORRIDOR_MI = 15;
 
+  // The ceiling on how many Places calls one chip tap may spend. Text Search is
+  // billed per request, so this is a money number rather than a performance one:
+  // six covers a 180-mile corridor at full density and thins gracefully beyond
+  // it, which is the right way round — a 700-mile day getting sparse coverage
+  // beats a 700-mile day getting a bill proportional to its length.
+  const MAX_CORRIDOR_SAMPLES = 6;
+
   function chipsHtml(r, full, at) {
     if (full) return "";
     const slot = at == null ? "" : ' data-at="' + at + '"';
@@ -5588,16 +5595,61 @@
       const day = state.days[r];
       const track = day ? fullTrack(r) : [];
       const totalM = day ? DIST.totalM(day) : 0;
-      // The day's own midpoint, and the viewport only when the day has no line
-      // yet — this is the ALONG THE DAY scope, so the day is the subject and
-      // the screen is the fallback rather than the other way round.
+      // The viewport only when the day has no line yet — this is the ALONG THE
+      // DAY scope, so the day is the subject and the screen is the fallback
+      // rather than the other way round.
       const view = viewportAnchor();
-      const mid = track.length ? pointAtDistance(track, totalM / 2) : view && view.near;
-      return {
-        track: track,
-        near: mid,
-        radiusM: Math.max(500, Math.min(50000, Math.round(totalM / 2) || 25000)),
-      };
+      if (!track.length || !totalM) {
+        return { track: track, samples: view && view.near ? [{ near: view.near, radiusM: view.radiusM }] : [] };
+      }
+
+      // Why this samples rather than asking once, and how the spacing is
+      // chosen, is corridorSamples() in corridor.js. The server caches on
+      // query|near|radius|wide, so re-tapping the same chip on an unchanged day
+      // costs nothing at all.
+      const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
+      const samples = [];
+      CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES).forEach((sp) => {
+        const at = pointAtDistance(track, sp.atM);
+        if (at) samples.push({ near: at, radiusM: sp.radiusM });
+      });
+      return { track: track, samples: samples };
+    }
+
+    /**
+     * Every place any sample returned, each one once.
+     *
+     * PARTIAL RESULTS BEAT NO RESULTS. One sample failing — a timeout, a 502
+     * from the proxy — must not throw away the five that answered, so the
+     * settled failures are counted and only a total wipeout is reported as an
+     * error. A day covered five-sixths is still a useful list.
+     *
+     * DEDUPED ON POSITION AND NAME, because the samples overlap by design and
+     * the same station sits in two of them. There is no place id in the proxy's
+     * shape to key on — it returns {name, address, lngLat, type} — and the
+     * coordinates are already rounded to six places server-side, so the pair is
+     * stable enough to compare exactly.
+     */
+    async function corridorPlaces(query, samples) {
+      const settled = await Promise.allSettled(
+        samples.map((s) => nearbySearch(query, s.near, { wide: true, radiusM: s.radiusM })),
+      );
+      const failed = settled.filter((r) => r.status === "rejected");
+      if (samples.length && failed.length === settled.length) throw failed[0].reason;
+      if (failed.length) console.warn("[builder] corridor search:", failed.length, "of", settled.length, "samples failed");
+      const seen = Object.create(null);
+      const out = [];
+      settled.forEach((r) => {
+        if (r.status !== "fulfilled") return;
+        r.value.forEach((p) => {
+          const ll = CORRIDOR.placeLngLat(p);
+          const key = (ll ? ll[0] + "," + ll[1] : "?") + "|" + (p.name || "");
+          if (seen[key]) return;
+          seen[key] = true;
+          out.push(p);
+        });
+      });
+      return out;
     }
 
     /**
@@ -5981,7 +6033,7 @@
         let nearby;
         if (state.corridorOn) {
           const args = corridorSearchArgs(r);
-          const raw = await nearbySearch(spec.query, args.near, { wide: true, radiusM: args.radiusM });
+          const raw = await corridorPlaces(spec.query, args.samples);
           if (mine !== searchSeq) return;
           // The corridor test decides, not the bias radius — see
           // corridorSearchArgs. Each survivor carries its own detour so the list

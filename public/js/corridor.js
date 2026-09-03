@@ -153,9 +153,55 @@
     return [lng, lat];
   }
 
+  /**
+   * Where along a day to run a corridor search, and how wide to bias each one.
+   * Returns `[{ atM, radiusM }]`, distances along the track from its start.
+   *
+   * IN HERE RATHER THAN IN THE CLICK HANDLER, for the reason drag-index.js is a
+   * file: it is arithmetic, a test can reach it here and could not reach it
+   * inside builder.js, and the cost of getting it wrong is a billed API call per
+   * sample. Same rule, same reason.
+   *
+   * **ONE CALL CANNOT ENUMERATE A LONG CORRIDOR.** Text Search takes a
+   * locationBias, which REORDERS rather than restricts, and answers with at most
+   * twenty hits. Anchored once at the midpoint of a 300-mile day those twenty
+   * are drawn from an area far larger than the corridor, so the stations
+   * actually on the road can miss the list while the filter works perfectly.
+   *
+   * SPACED BY THE CORRIDOR'S OWN DIAMETER, so consecutive samples overlap rather
+   * than leaving a gap as wide as the thing being looked for. Each sits at the
+   * CENTER of its span, never at distance zero, where half the radius would hang
+   * off the back of the day.
+   *
+   * CAPPED, because Text Search is billed per REQUEST — the cap is the ceiling
+   * on what one chip tap can spend, so a day long enough to reach it gets
+   * coverage that thins rather than a bill that grows with its length.
+   */
+  function corridorSamples(totalM, corridorM, maxSamples) {
+    if (!(totalM > 0) || !(corridorM > 0)) return [];
+    var cap = maxSamples > 0 ? Math.floor(maxSamples) : 1;
+    var n = Math.max(1, Math.min(cap, Math.ceil(totalM / (2 * corridorM))));
+    var step = totalM / n;
+    // Half a span reaches the neighbouring samples; the corridor width on top of
+    // that reaches the places the filter is about to accept. Clamped to the
+    // 500m–50km the proxy accepts, so a very long or very short span still asks
+    // a question the endpoint will answer.
+    //
+    // CEIL RATHER THAN ROUND, because the proxy wants an integer and rounding a
+    // reach DOWN is exactly what opens the gap this radius exists to close. At a
+    // day of precisely 2 × corridorM × cap the two are equal to the meter, and
+    // Math.round took a third of a meter off it — invisible in use and wrong in
+    // the one direction that matters.
+    var radiusM = Math.max(500, Math.min(50000, Math.ceil(step / 2 + corridorM)));
+    var out = [];
+    for (var i = 0; i < n; i++) out.push({ atM: (i + 0.5) * step, radiusM: radiusM });
+    return out;
+  }
+
   window.TBCorridor = {
     offRouteM: offRouteM,
     withinCorridor: withinCorridor,
     placeLngLat: placeLngLat,
+    corridorSamples: corridorSamples,
   };
 })(typeof window !== "undefined" ? window : this);
