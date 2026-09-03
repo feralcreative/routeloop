@@ -371,6 +371,7 @@ The deploy writes the server's `.env` from an explicit allow-list in `utils/depl
 - [docs/database.md](docs/database.md)—tables, enums, and the generate/migrate/baseline workflow. Read before touching `src/db/schema.ts`.
 - [docs/deployment.md](docs/deployment.md)—NAS, Docker, tunnel topology, and the traps each deploy has hit. Read before deploying or changing deploy scripts.
 - [docs/debugging.md](docs/debugging.md)—known failure modes by symptom. Read when something is broken and the cause is not obvious.
+- [docs/verifying-save-errors.md](docs/verifying-save-errors.md)—how to deliberately trigger each variant of the builder's save-error dialog. Manual recipes; nothing automated covers it.
 - [docs/decisions.md](docs/decisions.md)—why the key choices were made and what was rejected. Read before undoing something deliberate.
 - [docs/email.md](docs/email.md)—mail subsystem, templates, dark mode, delivery setup.
 - [docs/google-cloud-setup.md](docs/google-cloud-setup.md)—obtaining and restricting the three Google credentials.
