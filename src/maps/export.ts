@@ -671,6 +671,13 @@ export async function loadNativeRide(
       endAt: r.endAt?.toISOString() ?? null,
       altGroup: r.altGroup,
       altActive: r.altActive,
+      // What the day asks of the router (#29). Additive and optional on the way
+      // back in like the uid above, so this needs no format-version bump and a
+      // v5 file written before it imports with no preference — which is what
+      // those days meant. This is the only format that carries it: GPX, KML,
+      // GeoJSON and CSV have nowhere to put it and test/fidelity.test.ts records
+      // that as a loss rather than leaving it to be discovered.
+      routePrefs: r.routePrefs ?? null,
       // ONE ORDERED LIST as of format version 4. The read is ordered by
       // position, which every point carries now, so the rider's own sequence is
       // what round-trips — the thing the two-array shape could not express.

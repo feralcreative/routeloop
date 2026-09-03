@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import type { RoutePrefs } from '../maps/route-prefs'
 import {
   pgTable,
   pgEnum,
@@ -958,6 +959,24 @@ export const days = pgTable(
     // every dashboard figure stays correct on the day it lands. Contrast
     // twistiness_dpm above, which needed utils/backfill-twistiness.ts.
     altActive: boolean('alt_active').notNull().default(true),
+    // WHAT THIS DAY ASKS OF THE ROUTER — see src/maps/route-prefs.ts, which owns
+    // the shape and the one mapping to Google's `routeModifiers`.
+    //
+    // PER DAY RATHER THAN PER RIDE, Ziad's call 2026-09-02: a Saturday in the
+    // hills and the Monday slog home want opposite answers from the same router,
+    // and a ride-level setting makes the rider choose which day to serve.
+    //
+    // NULLABLE WITH NO DEFAULT, which is what makes this safe in one deploy
+    // under the expand/contract rule: null means no preference, every row that
+    // predates the column already means exactly that, and the release before
+    // this one never writes the field. `{}` is normalized to null on the way in
+    // so one state cannot have two spellings — see normalizePrefs().
+    //
+    // jsonb rather than three booleans because the set grows: #28's twistiness
+    // bias is the next member and would otherwise be a fourth migration. The
+    // shape is not open — routePrefsSchema is `.strict()`, so a hostile save
+    // cannot park arbitrary keys in the row.
+    routePrefs: jsonb('route_prefs').$type<RoutePrefs>(),
     // WHAT THIS DAY CONTAINED WHEN IT WAS LAST WRITTEN — see
     // src/maps/day-revision.ts. It is what lets a save merge per day instead of
     // refusing whole, so two riders on different days of one ride never collide.

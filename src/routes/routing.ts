@@ -10,6 +10,7 @@
 // call.
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { prefsKey, routePrefsSchema, toRouteModifiers, type RoutePrefs } from '../maps/route-prefs'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
@@ -53,6 +54,10 @@ const routeRequest = z.object({
   origin: coord,
   destination: coord,
   vias: z.array(coord).max(MAX_VIAS).optional(),
+  // WHAT THE DAY ASKS OF THE ROUTER (#29). Optional, so a client that predates
+  // it — an open tab mid-edit across the deploy — keeps working and keeps
+  // getting the routes it got yesterday.
+  prefs: routePrefsSchema.nullable().optional(),
 })
 
 // Google returns duration as a string of seconds — "1234s", not 1234.
@@ -72,9 +77,17 @@ const cache = new Map<string, RouteLeg>()
 
 type RouteLeg = { geometry: LngLat[]; distanceM: number; durationS: number }
 
-function cacheKey(origin: LngLat, destination: LngLat, vias: LngLat[]): string {
+function cacheKey(origin: LngLat, destination: LngLat, vias: LngLat[], prefs: RoutePrefs | null | undefined): string {
   const pt = ([lng, lat]: LngLat) => `${round6(lng)},${round6(lat)}`
-  return [origin, ...vias, destination].map(pt).join(';')
+  // THE PREFERENCES ARE PART OF THE REQUEST AND THEREFORE PART OF THE KEY.
+  // Without them an avoid-highways leg and a plain one between the same two
+  // points share an entry, so whichever was asked for first is what both get —
+  // and the toggle reads as broken while the cache behaves exactly as written.
+  // prefsKey() is empty when nothing is set, so every key from before this
+  // feature is byte-identical and no existing entry is invalidated.
+  const key = [origin, ...vias, destination].map(pt).join(';')
+  const p = prefsKey(prefs)
+  return p ? `${key}|${p}` : key
 }
 
 function remember(key: string, leg: RouteLeg): RouteLeg {
@@ -101,9 +114,12 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
   const destination = parsed.data.destination as LngLat
   const vias = (parsed.data.vias ?? []) as LngLat[]
 
-  const key = cacheKey(origin, destination, vias)
+  const prefs = parsed.data.prefs ?? null
+  const key = cacheKey(origin, destination, vias, prefs)
   const hit = cache.get(key)
   if (hit) return c.json(hit)
+
+  const modifiers = toRouteModifiers(prefs)
 
   let res: Response
   try {
@@ -124,6 +140,10 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
         intermediates: vias.map((v) => ({ ...toGoogleWaypoint(v), via: true })),
         travelMode: TRAVEL_MODE,
         polylineEncoding: 'GEO_JSON_LINESTRING',
+        // Spread rather than assigned, so a day with no preferences sends the
+        // request it sent before this existed — with no `routeModifiers` key at
+        // all rather than one holding an object of falses.
+        ...(modifiers ? { routeModifiers: modifiers } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     })

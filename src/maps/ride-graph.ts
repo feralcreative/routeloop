@@ -19,6 +19,7 @@ import { fields } from './fields'
 import { activeDays, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
 import { dayRevision } from './day-revision'
+import { normalizePrefs, routePrefsSchema } from './route-prefs'
 import { reconcileVotes } from '../votes/service'
 import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
@@ -164,6 +165,10 @@ const daySchema = z
       .nullable()
       .default(null),
     altActive: z.boolean().default(true),
+    // WHAT THIS DAY ASKS OF THE ROUTER (#29). Defaults to null like the two
+    // above, so every native JSON file already on a rider's disk and every save
+    // from a tab opened before this shipped stays valid with no version bump.
+    routePrefs: routePrefsSchema.nullable().default(null),
   })
   // LEGS CONNECT CONSECUTIVE POINTS, both kinds. A POI is something the rider
   // will at least ride BY — it is always part of the route, just not necessarily
@@ -384,6 +389,10 @@ export async function insertRideGraph(
         // totals exclude it.
         altGroup: r.altGroup,
         altActive: r.altActive,
+        // Normalized on the way in so `{}` and null cannot both reach the
+        // column — two spellings of one state would make dayRevision() disagree
+        // with itself and manufacture a save conflict nobody caused.
+        routePrefs: normalizePrefs(r.routePrefs),
         // THE ONLY PLACE A DAY IS HASHED. loadRidePayload returns this column
         // VERBATIM rather than recomputing from the rows it read, and that is
         // what makes the whole scheme safe: if the read recomputed, the write
