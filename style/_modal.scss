@@ -518,7 +518,7 @@ body:has(dialog.modal[open]) {
 }
 
 // The buttons land at the trailing edge, which is where this app's other
-// committed dialog puts its own. They wrap rather than shrink: "Reload the page"
+// committed dialog puts its own. They wrap rather than shrink: "Reload"
 // beside "Dismiss" is wider than a narrow phone at the modal's padding, and a
 // squeezed pair of guide signs reads as a mistake.
 .modal-error-acts {
