@@ -147,6 +147,29 @@
   // opens the editor. `details: null` rather than an empty object so that
   // "nothing filled in" is one representation rather than two, matching what the
   // server stores and what loadRidePayload sends back.
+  /**
+   * A DAY MUST KEEP A STOP, and this is the one place that rule is applied.
+   *
+   * `daySchema` refuses a day with no stop and `payload()` cannot send one, so a
+   * day that loses its last stop is a day the rider can no longer save — with a
+   * server message that names an array index and is ellipsized to nothing in the
+   * status box. #233.
+   *
+   * It was five hand-written copies of the same line until 2026-09-03, and
+   * addDay() was the one that did not have it: a new day is seeded with the
+   * previous day's last point, that seed was pushed as a bare object with no
+   * `kind` at all, and `kind` defaults to `poi` — so every day added after the
+   * first had no stop, and addPoint() does not promote anything on a day that is
+   * already non-empty. Every save of that ride then failed with
+   * `days.1: a day needs at least one stop`, forever.
+   *
+   * Returns the day so it can be used inline.
+   */
+  function ensureDayHasStop(day) {
+    if (day && day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+    return day;
+  }
+
   function newPoint(lng, lat, name) {
     return {
       // THE BASELINE TYPE. Ziad's call, 2026-08-23: a point is a POI until it is
@@ -223,9 +246,7 @@
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     return savedPlaces
-      .filter((pl) =>
-        (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle),
-      )
+      .filter((pl) => (pl.name + " " + (pl.groupName || "") + " " + (pl.address || "")).toLowerCase().includes(needle))
       .slice(0, 5);
   }
 
@@ -843,6 +864,20 @@
     // points still cannot save, and that one is real: the API requires at least
     // one stop per day and there would be nothing to store.
     if (!state.days.some((r) => r.points.length > 0)) return "Needs a stop";
+    // A DAY WITH POINTS BUT NO STOP IS THE #233 SHAPE, AND IT IS CAUGHT HERE SO
+    // THE MESSAGE CAN NAME THE DAY. The server refuses it as
+    // `days.1: a day needs at least one stop` — an array index a rider has no
+    // way to count to, in a box that ellipsizes it to nothing.
+    //
+    // ensureDayHasStop() means the builder can no longer CREATE this shape, so
+    // in practice this fires for a ride that was already broken: a recovery
+    // draft written before that fix, or a ride saved by an older client. It is
+    // worth keeping for the same reason the API's refine is — a check that
+    // cannot fire costs nothing, and this one could not fire for two weeks.
+    const noStop = state.days.find((r) => r.points.length > 0 && stopsOf(r).length === 0);
+    if (noStop) {
+      return dayLabel(state.days.indexOf(noStop)) + " has no stop—give a point a category, or make one a stop";
+    }
     return null;
   }
 
@@ -1191,6 +1226,116 @@
     conflict: "Someone else edited this ride—reload to see their changes",
   };
 
+  // --- Errors that need saying properly -------------------------------------
+  //
+  // #233. A save failure went to the status readout and nowhere else: a fixed
+  // box that ellipsizes, with the whole message only in a `title` tooltip. The
+  // server's own wording makes that worse — `days.1: a day needs at least one
+  // stop` is an array index a rider cannot count to, and what actually reached
+  // the screen was "days.1: a day n…". Reported as "a Costco sample of an error
+  // message", which is exactly right.
+  //
+  // ONCE PER DISTINCT MESSAGE, NOT ONCE PER ATTEMPT. The autosave retries on a
+  // timer and a failing save tends to keep failing, so a dialog per attempt
+  // would be far worse than the ellipsized box — it is the same reason the
+  // existing code sends this to the status line rather than to a toast. The
+  // memory resets on the next clean save, so a NEW failure is always shown.
+  let lastErrorSeen = null;
+
+  const ERROR_TITLES = {
+    error: "This ride did not save",
+    conflict: "Someone else edited this ride",
+    stale: "Someone else changed this ride",
+    blocked: "This ride cannot be saved yet",
+  };
+
+  // THE HOUSE MODAL, ON A DIALOG ELEMENT. `.modal` is the box every other modal
+  // in the app is drawn in and `.modal--error` adds only what a <dialog> needs on
+  // top of it — see the note in style/_modal.scss. The inner markup is the house
+  // vocabulary too: `.modal-body` is what colors and spaces the prose, and a
+  // bare `<h2>` is already sized by `.modal`, so neither needs a rule of its own.
+  //
+  // BOTH BUTTONS CARRY `.btn`, WHICH THEY DID NOT. `.btn-quiet` alone is not a
+  // button: the global rule in _survey.scss sets three colors and no padding,
+  // radius or weight, and the one in _builder.scss that DOES set those is nested
+  // inside `.builder-panel` — which this dialog is not, because showModal()
+  // requires it in the top layer and it is appended to <body>. So the pair
+  // rendered as raw UA buttons on every failure.
+  //
+  // TWO SIGNS, TWO CLASSES OF SIGN. Dismiss is the guide sign, the same green
+  // panel as the alpha modal's "Got it" — it is the way out and it costs
+  // nothing. Reload is the amber WARNING sign with a black legend, because it is
+  // the one action in this app that can lose work the rider can still see on
+  // screen: a conflict means somebody else's version is about to replace what is
+  // in the panel. Ziad's call, 2026-09-03.
+  //
+  // So the pair is still not ranked by which is RECOMMENDED, which on a conflict
+  // would be Reload. They are ranked by what each one risks, and the sign
+  // vocabulary is what lets two adjacent buttons both carry weight without
+  // competing — a green "that way" and an amber "careful" are not the same
+  // invitation, where two green ones would be.
+  function errorDialog() {
+    let el = $("tb-error");
+    if (el) return el;
+    el = document.createElement("dialog");
+    el.id = "tb-error";
+    el.className = "modal modal--error";
+    // showModal() gives it role=dialog and aria-modal itself; the heading is the
+    // only thing it cannot work out on its own.
+    el.setAttribute("aria-labelledby", "tb-error-title");
+    el.innerHTML =
+      '<h2 id="tb-error-title"></h2>' +
+      '<div class="modal-body">' +
+      '<p class="modal-error-msg"></p>' +
+      '<p class="modal-error-note"></p>' +
+      "</div>" +
+      '<div class="modal-error-acts">' +
+      '<button type="button" class="btn btn-sign btn-warning" data-error-reload>Reload</button>' +
+      '<button type="button" class="btn" data-error-close>Dismiss</button>' +
+      "</div>";
+    document.body.appendChild(el);
+    el.querySelector("[data-error-close]").addEventListener("click", () => closeErrorDialog());
+    el.querySelector("[data-error-reload]").addEventListener("click", () => location.reload());
+    return el;
+  }
+
+  function closeErrorDialog() {
+    const el = $("tb-error");
+    if (!el) return;
+    if (typeof el.close === "function" && el.open) el.close();
+    else el.removeAttribute("open");
+  }
+
+  /**
+   * Show a failure in full, at a size that can hold it.
+   *
+   * `kind` picks the heading; `text` is the message as it will be read. The
+   * Reload button is offered only where reloading is the actual remedy — on a
+   * plain save error the work is still in the panel and in the recovery draft,
+   * and reloading is the one thing that would lose it.
+   */
+  function showErrorDialog(kind, text) {
+    const el = errorDialog();
+    el.dataset.kind = kind;
+    el.querySelector("#tb-error-title").textContent = ERROR_TITLES[kind] || ERROR_TITLES.error;
+    el.querySelector(".modal-error-msg").textContent = text || SAVE_TEXT[kind] || "";
+    // WHAT IS AT RISK, WHICH IS THE QUESTION A RIDER ACTUALLY HAS. A save error
+    // is alarming and usually harmless — the retry clears most of them — and
+    // saying so is the difference between a dialog that helps and one that only
+    // interrupts.
+    el.querySelector(".modal-error-note").textContent =
+      kind === "conflict" || kind === "stale"
+        ? "Reload to see their version. Anything you have changed since will need doing again."
+        : "Your work is still here and a recovery copy is saved in this browser. Routeloop will keep trying.";
+    const reload = el.querySelector("[data-error-reload]");
+    reload.hidden = !(kind === "conflict" || kind === "stale");
+    if (typeof el.showModal === "function") {
+      if (!el.open) el.showModal();
+    } else {
+      el.setAttribute("open", "");
+    }
+  }
+
   function setSaveStatus(name, text) {
     const el = $("save-status");
     if (!el) return;
@@ -1204,9 +1349,33 @@
     // routine dirty/saving/saved cycle runs several times a minute and
     // announcing it would make the panel unusable with a screen reader on.
     if (name === "error" || name === "blocked" || name === "conflict" || name === "stale") {
-      $("save-announce").textContent = text || SAVE_TEXT[name] || "";
-    } else if (name === "saved") {
-      $("save-announce").textContent = "";
+      $("save-announce").textContent = msg;
+      // #233. THE READOUT IS NOT ENOUGH ON ITS OWN. It is a fixed box that
+      // ellipsizes, so a server message longer than a few words reached the
+      // rider as its first fragment and nothing else — the full text was in a
+      // `title` nobody hovers.
+      //
+      // ONCE PER DISTINCT MESSAGE. The autosave retries on a timer and a failing
+      // save tends to keep failing, so a dialog per attempt would be worse than
+      // the truncation it fixes. `lastErrorSeen` is cleared on the next clean
+      // save, so a genuinely new failure always gets shown.
+      if (msg !== lastErrorSeen) {
+        lastErrorSeen = msg;
+        showErrorDialog(name, msg);
+      }
+      // A way back IN, because a dismissed dialog is otherwise unrecoverable and
+      // the box still cannot show the message.
+      const d = $("save-detail");
+      if (d) d.hidden = false;
+    } else {
+      const d = $("save-detail");
+      if (d) d.hidden = true;
+      if (name === "saved") {
+        $("save-announce").textContent = "";
+        // A clean save is what makes the NEXT failure new again.
+        lastErrorSeen = null;
+        closeErrorDialog();
+      }
     }
   }
 
@@ -1903,11 +2072,7 @@
       day.legs.splice(from, i === 0 || i === pts.length ? 1 : 2);
       state.legSeq[r] = [];
       if (i > 0 && i < pts.length) {
-        day.legs.splice(
-          from,
-          0,
-          straightLeg([pts[i - 1].lng, pts[i - 1].lat], [pts[i].lng, pts[i].lat]),
-        );
+        day.legs.splice(from, 0, straightLeg([pts[i - 1].lng, pts[i - 1].lat], [pts[i].lng, pts[i].lat]));
         computeLeg(r, from);
       }
     }
@@ -2067,14 +2232,17 @@
     const lastPts = prev ? prev.points : [];
     const last = lastPts[lastPts.length - 1];
     if (last) {
-      day.points.push({
-        lat: last.lat,
-        lng: last.lng,
-        name: last.name,
-        description: "",
-        roles: [],
-        durationMin: null,
-      });
+      // THROUGH newPoint(), NOT AS A BARE OBJECT LITERAL. This was a hand-built
+      // object written on 2026-08-15, before points had a `kind` at all — so it
+      // was correct when it landed and became wrong silently on 2026-08-23 when
+      // the stop/POI split made `kind` default to `poi`. It also carried no
+      // `uid`, which ensureUids() then minted fresh on every save, so nothing
+      // could reference this point across one.
+      day.points.push(newPoint(last.lng, last.lat, last.name));
+      // The day's first point is a stop, exactly as it is when a rider drops one
+      // on an empty day. Without this the seeded day has no stop, adding more
+      // points never promotes anything, and the ride cannot be saved at all.
+      ensureDayHasStop(day);
     }
 
     // And it begins the morning after the last one finished. Syncing the
@@ -2117,7 +2285,7 @@
     beginEdit("split day");
     const cut = SPLIT.splitDayAt(day, i, uid);
 
-    // A COLOR THAT IS NOT ITS NEIGHBOUR'S. Seeding off state.days.length the way
+    // A COLOR THAT IS NOT ITS NEIGHBOR'S. Seeding off state.days.length the way
     // addDay does would hand the new day the same hue as an existing one once
     // days have been deleted, and two adjacent days in one color is the one case
     // the palette exists to prevent.
@@ -2215,7 +2383,10 @@
 
     if (legCount) {
       state.legSeq[r] = [];
-      computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+      computeLegsAround(
+        r,
+        Array.from({ length: legCount }, (_, i) => i),
+      );
     }
     markDirty();
     const label = ROUTE_PREFS.find((p) => p.key === key);
@@ -2239,7 +2410,8 @@
     const legCount = Math.max(0, day.points.length - 1);
     // "re-routes", not "re-days" — a find-and-replace during the 2026-08-09
     // routes→days rename caught this string, which a rider reads in a dialog.
-    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?")) return;
+    if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this day. Continue?"))
+      return;
 
     // Every guard and the confirm are behind us, so this is the first point at
     // which the day is certainly going to change.
@@ -2264,7 +2436,10 @@
     renderTrack(r);
     renderMarkers();
     renderList();
-    computeLegsAround(r, Array.from({ length: legCount }, (_, i) => i));
+    computeLegsAround(
+      r,
+      Array.from({ length: legCount }, (_, i) => i),
+    );
     refreshDerived();
     markDirty();
     toast(dayLabel(r) + " reversed");
@@ -2331,8 +2506,12 @@
     // shape the moment it opens as it is once something is ticked.
     const off = n === 0 ? " disabled" : "";
     const dayBtns =
-      '<button type="button" data-sel="group"' + (sel.days.size < 2 ? " disabled" : "") + ">Group as alternatives</button>" +
-      '<button type="button" data-sel="duplicate"' + off + ">Duplicate</button>";
+      '<button type="button" data-sel="group"' +
+      (sel.days.size < 2 ? " disabled" : "") +
+      ">Group as alternatives</button>" +
+      '<button type="button" data-sel="duplicate"' +
+      off +
+      ">Duplicate</button>";
     const pointBtns =
       '<label class="sel-move">Move to <select data-sel="move-to">' +
       '<option value="">day…</option>' +
@@ -2340,11 +2519,19 @@
       "</select></label>";
     bar.hidden = false;
     bar.innerHTML =
-      '<span class="sel-count">' + n + " " + noun + " selected</span>" +
+      '<span class="sel-count">' +
+      n +
+      " " +
+      noun +
+      " selected</span>" +
       '<button type="button" data-sel="all">All</button>' +
-      '<button type="button" data-sel="none"' + off + ">None</button>" +
+      '<button type="button" data-sel="none"' +
+      off +
+      ">None</button>" +
       (isDay ? dayBtns : pointBtns) +
-      '<button type="button" class="is-danger" data-sel="delete"' + off + ">Delete</button>" +
+      '<button type="button" class="is-danger" data-sel="delete"' +
+      off +
+      ">Delete</button>" +
       '<button type="button" data-sel="done">Done</button>';
   }
 
@@ -2409,8 +2596,7 @@
     const rad = Math.PI / 180;
     const dLat = (b.lat - a.lat) * rad;
     const dLng = (b.lng - a.lng) * rad;
-    const h =
-      Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
@@ -2490,7 +2676,7 @@
       // first survivor is promoted, the same rule addPoint applies to a day's
       // first point and the cross-day drag applies to a day that has just lost
       // its only anchor.
-      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+      ensureDayHasStop(day);
       // Legs are rebuilt wholesale rather than repaired around each removal —
       // with several gone at once there is no "the leg either side" to bridge.
       // Unconditional now: losing any point of either kind changes the road.
@@ -2506,7 +2692,10 @@
       const nPts = day ? day.points.length : 0;
       if (day && nPts >= 2 && day.legs.length === 0) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
+        computeLegsAround(
+          r,
+          Array.from({ length: nPts - 1 }, (_, k) => k),
+        );
       }
     });
     refreshDerived();
@@ -2530,7 +2719,7 @@
       });
       // Same rule as the bulk delete: moving every stop out of a day leaves one
       // the save refuses, so the first point left behind becomes the anchor.
-      if (day.points.length > 0 && stopsOf(day).length === 0) day.points[0].kind = "stop";
+      ensureDayHasStop(day);
       day.legs = [];
       state.legSeq[r] = [];
     }
@@ -2538,7 +2727,7 @@
     // came off in the opposite order to the one they were in.
     moved.reverse().forEach(({ pt }) => dst.points.push(pt));
     // And the destination, which can be a day whose points all arrived as POIs.
-    if (dst.points.length > 0 && stopsOf(dst).length === 0) dst.points[0].kind = "stop";
+    ensureDayHasStop(dst);
     dst.legs = [];
     state.legSeq[toDay] = [];
     const touched = new Set([...byDay.keys(), toDay]);
@@ -2551,7 +2740,10 @@
       const nPts = day ? day.points.length : 0;
       if (day && nPts >= 2) {
         fillMissingLegs(day);
-        computeLegsAround(r, Array.from({ length: nPts - 1 }, (_, k) => k));
+        computeLegsAround(
+          r,
+          Array.from({ length: nPts - 1 }, (_, k) => k),
+        );
       }
     });
     refreshDerived();
@@ -2909,13 +3101,25 @@
     const canManage = mine || window.TB.isOwner === true;
     const when = new Date(c.createdAt);
     return (
-      '<li class="comment' + (c.resolvedAt ? " is-resolved" : "") + '" data-cid="' + c.id + '">' +
+      '<li class="comment' +
+      (c.resolvedAt ? " is-resolved" : "") +
+      '" data-cid="' +
+      c.id +
+      '">' +
       '<div class="comment-meta">' +
-      '<strong>' + esc(c.authorName) + "</strong>" +
+      "<strong>" +
+      esc(c.authorName) +
+      "</strong>" +
       (c.pointLabel ? '<span class="comment-on">on ' + esc(c.pointLabel) + "</span>" : "") +
-      '<time datetime="' + esc(c.createdAt) + '">' + esc(when.toLocaleDateString()) + "</time>" +
+      '<time datetime="' +
+      esc(c.createdAt) +
+      '">' +
+      esc(when.toLocaleDateString()) +
+      "</time>" +
       "</div>" +
-      '<p class="comment-body">' + esc(c.body) + "</p>" +
+      '<p class="comment-body">' +
+      esc(c.body) +
+      "</p>" +
       (canManage
         ? '<div class="comment-acts">' +
           '<button type="button" class="linkbtn" data-cact="' +
@@ -3060,11 +3264,21 @@
     }
     const dayNo = state.days.findIndex((d) => d.uid === sg.dayUid);
     return (
-      '<li class="comment suggestion is-' + esc(sg.state) + '" data-sid="' + sg.id + '">' +
+      '<li class="comment suggestion is-' +
+      esc(sg.state) +
+      '" data-sid="' +
+      sg.id +
+      '">' +
       '<div class="comment-meta">' +
-      "<strong>" + esc(sg.authorName) + "</strong>" +
-      '<span class="comment-on">on ' + (dayNo >= 0 ? "day " + (dayNo + 1) : "a day that is gone") + "</span>" +
-      '<span class="suggestion-state">' + esc(SUGGESTION_LABELS[sg.state] || sg.state) + "</span>" +
+      "<strong>" +
+      esc(sg.authorName) +
+      "</strong>" +
+      '<span class="comment-on">on ' +
+      (dayNo >= 0 ? "day " + (dayNo + 1) : "a day that is gone") +
+      "</span>" +
+      '<span class="suggestion-state">' +
+      esc(SUGGESTION_LABELS[sg.state] || sg.state) +
+      "</span>" +
       "</div>" +
       (sg.note ? '<p class="comment-body">' + esc(sg.note) + "</p>" : "") +
       (acts.length ? '<div class="comment-acts">' + acts.join("") + "</div>" : "") +
@@ -3132,7 +3346,9 @@
     if (!res.ok) {
       // 409 is the stale case and is the one worth naming: the day moved under
       // the proposal, so there is nothing safe to apply.
-      throw new Error(res.status === 409 ? "that day has changed since—the suggestion needs redoing" : "that did not work");
+      throw new Error(
+        res.status === 409 ? "that day has changed since—the suggestion needs redoing" : "that did not work",
+      );
     }
     await loadSuggestions(true);
     if (act === "accept") location.reload();
@@ -3373,16 +3589,27 @@
   function daySubgroupHtml(day, r) {
     if (state.meta.subgroups.length === 0) return "";
     return (
-      '<select class="day-subgroup" data-day="' + r + '" title="Which group rides this day"' +
-      ' aria-label="Group for day ' + dayNumber(r) + '">' +
+      '<select class="day-subgroup" data-day="' +
+      r +
+      '" title="Which group rides this day"' +
+      ' aria-label="Group for day ' +
+      dayNumber(r) +
+      '">' +
       // "Everyone" is the null option and it is FIRST, because it is what every
       // day is until somebody says otherwise and what most days stay.
-      '<option value=""' + (day.subgroupUid ? "" : " selected") + ">Everyone</option>" +
+      '<option value=""' +
+      (day.subgroupUid ? "" : " selected") +
+      ">Everyone</option>" +
       state.meta.subgroups
         .map(
           (g) =>
-            '<option value="' + esc(g.uid) + '"' + (day.subgroupUid === g.uid ? " selected" : "") + ">" +
-            esc(g.name) + "</option>",
+            '<option value="' +
+            esc(g.uid) +
+            '"' +
+            (day.subgroupUid === g.uid ? " selected" : "") +
+            ">" +
+            esc(g.name) +
+            "</option>",
         )
         .join("") +
       "</select>"
@@ -3407,12 +3634,22 @@
       groups
         .map(
           (g) =>
-            '<div class="sg-row" data-sg="' + esc(g.uid) + '">' +
-            '<input class="sg-color" type="color" value="' + esc(g.color) + '" aria-label="Color for ' + esc(g.name) + '">' +
-            '<input class="sg-name" type="text" maxlength="80" value="' + esc(g.name) + '" aria-label="Name of this group">' +
+            '<div class="sg-row" data-sg="' +
+            esc(g.uid) +
+            '">' +
+            '<input class="sg-color" type="color" value="' +
+            esc(g.color) +
+            '" aria-label="Color for ' +
+            esc(g.name) +
+            '">' +
+            '<input class="sg-name" type="text" maxlength="80" value="' +
+            esc(g.name) +
+            '" aria-label="Name of this group">' +
             '<button type="button" class="sg-meet" title="Suggest where this group could join the others">Find a meet</button>' +
-            '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' + esc(g.name) + '">×</button>' +
-            '</div>',
+            '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' +
+            esc(g.name) +
+            '">×</button>' +
+            "</div>",
         )
         .join("") +
       // The two axes, and they only appear once there are two groups to solve
@@ -3426,8 +3663,13 @@
           state.meta.subgroups
             .map(
               (g) =>
-                '<option value="' + esc(g.uid) + '"' +
-                (state.meta.primarySubgroup === g.uid ? " selected" : "") + ">" + esc(g.name) + "</option>",
+                '<option value="' +
+                esc(g.uid) +
+                '"' +
+                (state.meta.primarySubgroup === g.uid ? " selected" : "") +
+                ">" +
+                esc(g.name) +
+                "</option>",
             )
             .join("") +
           "</select>" +
@@ -3435,8 +3677,13 @@
           '<select id="sg-when">' +
           ANCHORS.map(
             (a) =>
-              '<option value="' + a.key + '"' + (state.meta.timeAnchor === a.key ? " selected" : "") + ">" +
-              a.label + "</option>",
+              '<option value="' +
+              a.key +
+              '"' +
+              (state.meta.timeAnchor === a.key ? " selected" : "") +
+              ">" +
+              a.label +
+              "</option>",
           ).join("") +
           "</select>" +
           '<p class="sg-anchor-note" id="sg-anchor-note"></p>' +
@@ -3591,18 +3838,30 @@
       return '<p class="sg-note">' + (MEET_REASONS[data.reason] || MEET_REASONS["none-viable"]) + "</p>";
     }
     return (
-      '<p class="sg-note">Where ' + esc(g.name) + " could join:</p>" +
+      '<p class="sg-note">Where ' +
+      esc(g.name) +
+      " could join:</p>" +
       '<ul class="sg-meets">' +
       data.candidates
         .map(
           (c) =>
             "<li>" +
-            '<button type="button" class="sg-take" data-lat="' + c.lat + '" data-lng="' + c.lng + '"' +
-            ' data-sg="' + esc(g.uid) + '">Use this</button>' +
+            '<button type="button" class="sg-take" data-lat="' +
+            c.lat +
+            '" data-lng="' +
+            c.lng +
+            '"' +
+            ' data-sg="' +
+            esc(g.uid) +
+            '">Use this</button>' +
             '<span class="sg-meet-fact">' +
             (c.isFuel ? "a fuel stop" + SEP : "") +
-            "+" + c.divertMi + " mi out of their way" + SEP +
-            c.sharedPct + "% of the shared route still ahead" +
+            "+" +
+            c.divertMi +
+            " mi out of their way" +
+            SEP +
+            c.sharedPct +
+            "% of the shared route still ahead" +
             "</span>" +
             "</li>",
         )
@@ -3655,7 +3914,8 @@
     // the habit that keeps the multi-day paths in this file correct.
     addPoint(lng, lat, name, firstShared, mk(), 0);
     addPoint(lng, lat, name, lastOwn, mk());
-    $("sg-meet-out").innerHTML = '<p class="sg-note">Added to ' + esc(g.name) + "'s last day and to the first shared day.</p>";
+    $("sg-meet-out").innerHTML =
+      '<p class="sg-note">Added to ' + esc(g.name) + "'s last day and to the first shared day.</p>";
   }
 
   const ANCHORS = [
@@ -3678,7 +3938,8 @@
       return;
     }
     el.textContent =
-      esc(longest.name) + " has the farthest to ride. Solving around a group that is closer asks them to leave earlier.";
+      esc(longest.name) +
+      " has the farthest to ride. Solving around a group that is closer asks them to leave earlier.";
   }
 
   // Longest by planned riding time across the days that group rides on its own
@@ -3727,28 +3988,43 @@
     // leaves "an alternative to what?" unanswered.
     const altBadge = !grouped
       ? ""
-      : '<span class="day-alt' + (ghost ? "" : " is-on") + '" title="' +
+      : '<span class="day-alt' +
+        (ghost ? "" : " is-on") +
+        '" title="' +
         (ghost
           ? "Not counted in the ride total. Use the day menu to ride this one instead."
           : "This is the route counted in the ride total.") +
-        '">' + (ghost ? "alternative" : "riding this") + "</span>";
+        '">' +
+        (ghost ? "alternative" : "riding this") +
+        "</span>";
     return (
-      '<section class="day-section' + (shut ? " is-shut" : "") + altClass +
+      '<section class="day-section' +
+      (shut ? " is-shut" : "") +
+      altClass +
       // Somebody else is working on this day. A class rather than a disabled
       // control: the day stays fully editable, because a claim is advisory and
       // the save path is what actually decides. This says "expect a clash", not
       // "you may not".
-      (LIVE.heldBy[day.uid] ? " is-held" : "") + '" data-day="' + r + '"' +
+      (LIVE.heldBy[day.uid] ? " is-held" : "") +
+      '" data-day="' +
+      r +
+      '"' +
       (LIVE.heldBy[day.uid] ? ' title="' + esc(LIVE.heldBy[day.uid]) + ' is working on this day"' : "") +
-      ' style="--day-color:' + esc(day.color) + '">' +
+      ' style="--day-color:' +
+      esc(day.color) +
+      '">' +
       '<div class="day-head">' +
       // AFTER the grip, never before it: .day-drag's negative margins depend on
       // being the first thing in the header, and anything ahead of it breaks the
       // tab that reaches the section's padding edge.
       (state.select?.scope === "day"
-        ? '<input type="checkbox" class="day-pick" data-day="' + r + '"' +
+        ? '<input type="checkbox" class="day-pick" data-day="' +
+          r +
+          '"' +
           (state.select.days.has(r) ? " checked" : "") +
-          ' aria-label="Select ' + esc(dayLabel(r)) + '">'
+          ' aria-label="Select ' +
+          esc(dayLabel(r)) +
+          '">'
         : "") +
       // The day's own drag handle. A separate grip rather than dragging by the
       // header itself: the header holds a color input, a text field and buttons,
@@ -3762,18 +4038,31 @@
       // the grip focusable and giving it arrow keys covers both without spending
       // two more buttons of a 380px header.
       '<button type="button" class="day-drag" title="Drag to reorder, or focus and use the arrow keys"' +
-      ' aria-label="Reorder day ' + dayNumber(r) + ', use the up and down arrow keys"></button>' +
-      '<button type="button" class="day-twirl" aria-expanded="' + (shut ? "false" : "true") +
+      ' aria-label="Reorder day ' +
+      dayNumber(r) +
+      ', use the up and down arrow keys"></button>' +
+      '<button type="button" class="day-twirl" aria-expanded="' +
+      (shut ? "false" : "true") +
       '" title="Show or hide this day\'s stops"><span class="day-twirl-mark" aria-hidden="true"></span></button>' +
       // The ordinal, rendered rather than stored. Reordering re-renders, so it is
       // always the day's real position and there is nothing to keep in sync.
-      '<span class="day-num" aria-hidden="true">' + dayNumber(r) + "</span>" +
-      '<input class="day-color" type="color" value="' + esc(day.color) + '" title="Day color" aria-label="Color for ' + esc(dayLabel(r)) + '">' +
+      '<span class="day-num" aria-hidden="true">' +
+      dayNumber(r) +
+      "</span>" +
+      '<input class="day-color" type="color" value="' +
+      esc(day.color) +
+      '" title="Day color" aria-label="Color for ' +
+      esc(dayLabel(r)) +
+      '">' +
       // The placeholder no longer says "Day N". It used to, which made an empty
       // field look like it already held the name — so the number and the name
       // were indistinguishable until you clicked in.
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
-      ' autocomplete="off" aria-label="Name for day ' + dayNumber(r) + '" value="' + esc(day.title) + '">' +
+      ' autocomplete="off" aria-label="Name for day ' +
+      dayNumber(r) +
+      '" value="' +
+      esc(day.title) +
+      '">' +
       altBadge +
       daySubgroupHtml(day, r) +
       '<span class="day-actions">' +
@@ -3782,7 +4071,8 @@
       // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
       // "rightwards arrow over leftwards arrow" — hence the aria-label.
       '<button type="button" class="day-rev" title="Reverse this day—re-routes every leg" aria-label="Reverse ' +
-      esc(dayLabel(r)) + '"></button>' +
+      esc(dayLabel(r)) +
+      '"></button>' +
       // DELETE MOVED INTO THE MENU, and ⇄ did not. The two were side by side and
       // one of them re-routes every leg while the other throws a day away — both
       // one mis-click from the title field. Reverse is the one a rider reaches
@@ -3793,7 +4083,8 @@
       // U+22EE, the same glyph the row menu uses, so the two read as the same
       // control at two levels.
       '<button type="button" class="day-menu-btn" title="More" aria-label="More actions for ' +
-      esc(dayLabel(r)) + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
+      esc(dayLabel(r)) +
+      '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span>" +
       "</div>" +
       '<div class="day-body">' +
@@ -3810,7 +4101,11 @@
       // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
       // the list itself, so putting it only on the ancestor silently stopped it
       // matching and clipped the field.
-      '<ol class="point-list" data-day="' + r + '" data-duration-format="' + esc(durFormat) + '"></ol>' +
+      '<ol class="point-list" data-day="' +
+      r +
+      '" data-duration-format="' +
+      esc(durFormat) +
+      '"></ol>' +
       "</div>" +
       "</section>"
     );
@@ -3862,15 +4157,31 @@
 
   function prefsGroup(r, on, lede, list, label) {
     return (
-      '<div class="day-prefs" role="group" aria-label="' + esc(label) + '">' +
-      '<span class="day-prefs-lede">' + esc(lede) + "</span>" +
+      '<div class="day-prefs" role="group" aria-label="' +
+      esc(label) +
+      '">' +
+      '<span class="day-prefs-lede">' +
+      esc(lede) +
+      "</span>" +
       list
         .map(
           (p) =>
-            '<button type="button" class="pref-btn' + (on[p.key] ? " is-on" : "") + '"' +
-            ' data-day="' + r + '" data-pref="' + p.key + '"' +
-            ' aria-pressed="' + (on[p.key] ? "true" : "false") + '"' +
-            ' title="' + esc(p.hint) + '">' + esc(p.label) + "</button>",
+            '<button type="button" class="pref-btn' +
+            (on[p.key] ? " is-on" : "") +
+            '"' +
+            ' data-day="' +
+            r +
+            '" data-pref="' +
+            p.key +
+            '"' +
+            ' aria-pressed="' +
+            (on[p.key] ? "true" : "false") +
+            '"' +
+            ' title="' +
+            esc(p.hint) +
+            '">' +
+            esc(p.label) +
+            "</button>",
         )
         .join("") +
       "</div>"
@@ -3897,7 +4208,8 @@
   function emptyText(spec, isSlot) {
     const what = spec.label.toLowerCase();
     const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
-    if (isSlot) return "No " + what + " within " + width + " of this leg. Add it from the bottom of the day to search wider.";
+    if (isSlot)
+      return "No " + what + " within " + width + " of this leg. Add it from the bottom of the day to search wider.";
     if (state.corridorOn) return "No " + what + " within " + width + " of this day's route.";
     return "No " + what + " on screen. Pan or zoom out to look wider.";
   }
@@ -3929,10 +4241,18 @@
     wrap.innerHTML = state.days
       .map(
         (day, r) =>
-          '<button type="button" class="rail-day" data-day="' + r + '"' +
+          '<button type="button" class="rail-day" data-day="' +
+          r +
+          '"' +
           (r === a ? ' aria-current="true"' : "") +
-          ' style="--rail-color:' + esc(day.color) + '"' +
-          ' title="' + esc(dayLabel(r)) + '">' + String(r + 1) + "</button>",
+          ' style="--rail-color:' +
+          esc(day.color) +
+          '"' +
+          ' title="' +
+          esc(dayLabel(r)) +
+          '">' +
+          String(r + 1) +
+          "</button>",
       )
       .join("");
   }
@@ -4303,7 +4623,9 @@
     const meta = window.TB.roles[roles[0]];
     const extra = roles.length - 1;
     return (
-      '<span class="role-chip tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span>' +
+      '<span class="role-chip tb-inline-icon" data-icon="' +
+      esc(meta.icon) +
+      '"></span>' +
       (extra > 0 ? '<span class="role-more">+' + extra + "</span>" : "")
     );
   }
@@ -4326,8 +4648,14 @@
   // seventeen options in words. The dot-kinds link at the top of the panel
   // covers the question that actually needs answering.
   const faqLink = (anchor, what) =>
-    '<a class="faq-link" href="/faq#' + anchor + '" target="_blank" rel="noopener"' +
-    ' title="What is ' + esc(what) + '?" aria-label="What is ' + esc(what) + '? Opens the questions page in a new tab">?</a>';
+    '<a class="faq-link" href="/faq#' +
+    anchor +
+    '" target="_blank" rel="noopener"' +
+    ' title="What is ' +
+    esc(what) +
+    '?" aria-label="What is ' +
+    esc(what) +
+    '? Opens the questions page in a new tab">?</a>';
 
   const rolesAreOpen = (r, i) => !!state.rolesOpen && state.rolesOpen.day === r && state.rolesOpen.i === i;
 
@@ -4337,8 +4665,18 @@
         const meta = window.TB.roles[r];
         const on = (point.roles || []).includes(r);
         return (
-          '<button type="button" class="role-opt' + (on ? " on" : "") + '" data-role="' + r + '" aria-pressed="' + on + '">' +
-          '<span class="tb-inline-icon" data-icon="' + esc(meta.icon) + '"></span><span>' + esc(meta.title) + '</span></button>'
+          '<button type="button" class="role-opt' +
+          (on ? " on" : "") +
+          '" data-role="' +
+          r +
+          '" aria-pressed="' +
+          on +
+          '">' +
+          '<span class="tb-inline-icon" data-icon="' +
+          esc(meta.icon) +
+          '"></span><span>' +
+          esc(meta.title) +
+          "</span></button>"
         );
       })
       .join("");
@@ -4375,7 +4713,7 @@
    * sleeping at and a hotel you happen to ride past are the same `hotel` role,
    * and the aggressive reading cuts a rider's day in half for noting a landmark.
    * The cost of offering is one dismissed prompt; the cost of not offering is a
-   * ride reorganised behind somebody's back.
+   * ride reorganized behind somebody's back.
    *
    * NOT SHOWN ON THE LAST POINT OF A DAY, which is where lodging normally goes —
    * the day already ends there and there is nothing to cut. That is also what
@@ -4391,7 +4729,11 @@
     if (!LODGING_ROLES.some((r) => roles.indexOf(r) >= 0)) return "";
     return (
       '<div class="row-lodging-offer">' +
-      '<button type="button" class="row-split-offer" data-day="' + dayIndex + '" data-i="' + i + '">' +
+      '<button type="button" class="row-split-offer" data-day="' +
+      dayIndex +
+      '" data-i="' +
+      i +
+      '">' +
       "Sleeping here? End the day" +
       "</button></div>"
     );
@@ -4439,9 +4781,14 @@
       // Names WHOSE tank, because on a group ride the binding range belongs to
       // somebody in particular and "you will run out" is the wrong sentence to
       // show the rider with the big tank. See groupRange().
-      const whose = range.riderName ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike") : "the smallest tank";
+      const whose = range.riderName
+        ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike")
+        : "the smallest tank";
       parts.push(
-        '<span class="row-dist-dry" title="Past ' + whose + ' (' + esc(String(range.miles)) +
+        '<span class="row-dist-dry" title="Past ' +
+          whose +
+          " (" +
+          esc(String(range.miles)) +
           ' mi). Add a fuel stop before here.">out of range</span>',
       );
     }
@@ -4453,7 +4800,13 @@
   function pointRowHtml(kind, point, i, dayIndex, n, dist) {
     const isStop = kind === "stop";
     return (
-      '<li class="point-row" data-kind="' + kind + '" data-i="' + i + '" data-day="' + dayIndex + '">' +
+      '<li class="point-row" data-kind="' +
+      kind +
+      '" data-i="' +
+      i +
+      '" data-day="' +
+      dayIndex +
+      '">' +
       '<div class="row-main">' +
       // Both kinds reorder now — a POI has a place in the list of its own, so
       // there is one gesture with one meaning rather than a drag that reordered
@@ -4465,13 +4818,29 @@
       // because ticking is what you are doing rather than reading an order. It
       // comes straight back when select mode ends.
       (state.select?.scope === "point"
-        ? '<input type="checkbox" class="row-pick" data-day="' + dayIndex + '" data-kind="' + kind + '" data-i="' + i + '"' +
+        ? '<input type="checkbox" class="row-pick" data-day="' +
+          dayIndex +
+          '" data-kind="' +
+          kind +
+          '" data-i="' +
+          i +
+          '"' +
           (state.select.points.has(pointKey(dayIndex, kind, i)) ? " checked" : "") +
-          ' aria-label="Select ' + (isStop ? "stop " + n : "POI") + '">'
+          ' aria-label="Select ' +
+          (isStop ? "stop " + n : "POI") +
+          '">'
         : isStop
           ? '<span class="row-num">' + n + "</span>"
           : '<span class="row-num poi-dot"></span>') +
-      '<input class="row-name" name="' + kind + '-name-' + i + '" type="text" maxlength="255" autocomplete="off" placeholder="' + (isStop ? "Stop name" : "POI name") + '" value="' + esc(point.name) + '">' +
+      '<input class="row-name" name="' +
+      kind +
+      "-name-" +
+      i +
+      '" type="text" maxlength="255" autocomplete="off" placeholder="' +
+      (isStop ? "Stop name" : "POI name") +
+      '" value="' +
+      esc(point.name) +
+      '">' +
       // POIs get the same dwell field. Blank means "rode past without stopping",
       // which is the common case and why it stays a placeholder rather than a
       // zero.
@@ -4482,15 +4851,29 @@
       // field. One text input with `inputmode` set from the format gets the
       // phone keyboard right without any of that. The stored value is still an
       // integer count of minutes — TBDuration is only how it is written down.
-      '<input class="row-dur" name="' + kind + '-duration-' + i + '" type="text" autocomplete="off" inputmode="' +
-      DUR.inputMode(durFormat) + '" placeholder="' + esc(DUR.placeholder(durFormat)) + '" title="' +
-      (isStop ? "Stop duration" : "How long you stop here, if you stop") + " (" + esc(DUR.unitName(durFormat)) +
-      ')" value="' + esc(DUR.format(point.durationMin, durFormat)) + '">' +
-      '<button type="button" class="row-roles-btn" title="' + esc(roleTitle(point)) + '" aria-label="Categories">' +
+      '<input class="row-dur" name="' +
+      kind +
+      "-duration-" +
+      i +
+      '" type="text" autocomplete="off" inputmode="' +
+      DUR.inputMode(durFormat) +
+      '" placeholder="' +
+      esc(DUR.placeholder(durFormat)) +
+      '" title="' +
+      (isStop ? "Stop duration" : "How long you stop here, if you stop") +
+      " (" +
+      esc(DUR.unitName(durFormat)) +
+      ')" value="' +
+      esc(DUR.format(point.durationMin, durFormat)) +
+      '">' +
+      '<button type="button" class="row-roles-btn" title="' +
+      esc(roleTitle(point)) +
+      '" aria-label="Categories">' +
       // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn
       // in CSS, so there is nothing to read here. aria-hidden because the button
       // already carries its own label.
-      (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') + "</button>" +
+      (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') +
+      "</button>" +
       '<span class="row-actions">' +
       // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
       // roughly a third of the width, which on a 320px row is width the name
@@ -4503,14 +4886,28 @@
         ? '<span class="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
         : "") +
       '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
-      (isStop ? "stop" : "POI") + '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
+      (isStop ? "stop" : "POI") +
+      '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
       distReadoutHtml(point, i, dist) +
       lodgingOfferHtml(point, i, dayIndex) +
-      '<div class="row-roles"' + (rolesAreOpen(dayIndex, i) ? "" : " hidden") + ">" + rolePickerHtml(point) + "</div>" +
-      '<textarea class="row-desc" name="' + kind + '-notes-' + i + '" maxlength="2000" placeholder="Notes (optional)"' +
-      (point.description ? "" : " hidden") + ">" + esc(point.description) + "</textarea>" +
-      '<div class="row-details" hidden>' + detailsHtml(point, kind, i) + "</div>" +
+      '<div class="row-roles"' +
+      (rolesAreOpen(dayIndex, i) ? "" : " hidden") +
+      ">" +
+      rolePickerHtml(point) +
+      "</div>" +
+      '<textarea class="row-desc" name="' +
+      kind +
+      "-notes-" +
+      i +
+      '" maxlength="2000" placeholder="Notes (optional)"' +
+      (point.description ? "" : " hidden") +
+      ">" +
+      esc(point.description) +
+      "</textarea>" +
+      '<div class="row-details" hidden>' +
+      detailsHtml(point, kind, i) +
+      "</div>" +
       "</li>"
     );
   }
@@ -4553,21 +4950,41 @@
       if (f === "notes" || f === "links") continue;
       const isTime = f === "checkInAt" || f === "checkOutAt";
       out +=
-        '<label class="detail-field"><span>' + esc(DETAIL_LABELS[f]) + "</span>" +
-        '<input type="' + (isTime ? "datetime-local" : f === "phone" ? "tel" : "text") + '"' +
-        ' data-field="' + f + '"' +
-        ' name="' + kind + "-" + f + "-" + i + '"' +
+        '<label class="detail-field"><span>' +
+        esc(DETAIL_LABELS[f]) +
+        "</span>" +
+        '<input type="' +
+        (isTime ? "datetime-local" : f === "phone" ? "tel" : "text") +
+        '"' +
+        ' data-field="' +
+        f +
+        '"' +
+        ' name="' +
+        kind +
+        "-" +
+        f +
+        "-" +
+        i +
+        '"' +
         (isTime ? "" : ' maxlength="' + (f === "confirmation" ? 120 : f === "phone" ? 40 : 300) + '"') +
-        ' autocomplete="off" value="' + esc(isTime ? toLocalInput(d[f]) : d[f] || "") + '"></label>';
+        ' autocomplete="off" value="' +
+        esc(isTime ? toLocalInput(d[f]) : d[f] || "") +
+        '"></label>';
     }
     out += "</div>";
 
     out += '<div class="detail-links">';
     (d.links || []).forEach((l, n) => {
       out +=
-        '<div class="detail-link" data-link="' + n + '">' +
-        '<input type="text" data-field="linkLabel" maxlength="60" placeholder="Label" value="' + esc(l.label || "") + '">' +
-        '<input type="url" data-field="linkUrl" maxlength="500" placeholder="https://" value="' + esc(l.url || "") + '">' +
+        '<div class="detail-link" data-link="' +
+        n +
+        '">' +
+        '<input type="text" data-field="linkLabel" maxlength="60" placeholder="Label" value="' +
+        esc(l.label || "") +
+        '">' +
+        '<input type="url" data-field="linkUrl" maxlength="500" placeholder="https://" value="' +
+        esc(l.url || "") +
+        '">' +
         '<button type="button" class="detail-link-del" aria-label="Remove link">\u00d7</button>' +
         "</div>";
     });
@@ -4579,13 +4996,15 @@
     out +=
       '<label class="detail-field detail-notes"><span>Private notes</span>' +
       '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, where to park, who to ask for">' +
-      esc(d.notes || "") + "</textarea></label>";
+      esc(d.notes || "") +
+      "</textarea></label>";
 
     // Stated on the surface rather than only in the code, because a rider
     // deciding whether to type a door code into a web app is entitled to know
     // where it goes. It is also true — see canSeeDetails in
     // src/maps/point-details.ts.
-    out += '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
+    out +=
+      '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
     return out;
   }
 
@@ -4705,9 +5124,19 @@
   // separators rather than as 30 buttons.
   function insertSlotHtml(r, at) {
     return (
-      '<li class="insert-slot" data-day="' + r + '" data-at="' + at + '">' +
-      '<button type="button" class="insert-btn" data-day="' + r + '" data-at="' + at + '"' +
-      ' title="Add a point here" aria-label="Add a point above point ' + (at + 1) + '">+</button>' +
+      '<li class="insert-slot" data-day="' +
+      r +
+      '" data-at="' +
+      at +
+      '">' +
+      '<button type="button" class="insert-btn" data-day="' +
+      r +
+      '" data-at="' +
+      at +
+      '"' +
+      ' title="Add a point here" aria-label="Add a point above point ' +
+      (at + 1) +
+      '">+</button>' +
       "</li>"
     );
   }
@@ -4720,20 +5149,40 @@
     const full = day.points.length >= MAX_POINTS;
     const slot = at == null ? "" : ' data-at="' + at + '"';
     return (
-      '<li class="add-row' + (at == null ? "" : " is-insert") + '" data-day="' + r + '"' + slot + '>' +
+      '<li class="add-row' +
+      (at == null ? "" : " is-insert") +
+      '" data-day="' +
+      r +
+      '"' +
+      slot +
+      ">" +
       '<span class="add-row-mark" aria-hidden="true">+</span>' +
       '<input class="add-search" type="text" autocomplete="off" spellcheck="false"' +
-      ' placeholder="' + (full ? "Point limit reached" : "Search, or click the map") + '"' +
+      ' placeholder="' +
+      (full ? "Point limit reached" : "Search, or click the map") +
+      '"' +
       (full ? " disabled" : "") +
-      ' aria-label="Add a place to ' + esc(dayLabel(r)) + '">' +
+      ' aria-label="Add a place to ' +
+      esc(dayLabel(r)) +
+      '">' +
       // Arms the next map click for THIS day — see armPlace(). The armed state
       // is derived from state.arm rather than left on the element, because this
       // row is rebuilt on every structural change and a class living only in the
       // DOM would be lost by the next render.
-      '<button type="button" class="add-place-btn' + (isArmed(r, at) ? " is-armed" : "") + '"' +
-      ' data-day="' + r + '"' + slot + (full ? " disabled" : "") +
-      ' aria-pressed="' + (isArmed(r, at) ? "true" : "false") + '"' +
-      ' title="' + (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") + '">' +
+      '<button type="button" class="add-place-btn' +
+      (isArmed(r, at) ? " is-armed" : "") +
+      '"' +
+      ' data-day="' +
+      r +
+      '"' +
+      slot +
+      (full ? " disabled" : "") +
+      ' aria-pressed="' +
+      (isArmed(r, at) ? "true" : "false") +
+      '"' +
+      ' title="' +
+      (full ? "Point limit reached" : "Add a point to " + esc(dayLabel(r)) + " by clicking the map") +
+      '">' +
       "+ Point</button>" +
       chipsHtml(r, full, at) +
       "</li>"
@@ -4795,9 +5244,17 @@
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
       CHIPS.map(
         (c) =>
-          '<button type="button" class="chip" data-day="' + r + '" data-chip="' + c.role + '"' + slot +
-          ' title="' + esc(chipTitle(c, at != null)) + '">' +
-          esc(c.label) + "</button>",
+          '<button type="button" class="chip" data-day="' +
+          r +
+          '" data-chip="' +
+          c.role +
+          '"' +
+          slot +
+          ' title="' +
+          esc(chipTitle(c, at != null)) +
+          '">' +
+          esc(c.label) +
+          "</button>",
       ).join("") +
       "</div>" +
       // ONCE PER DAY, ON THE DAY'S OWN BOTTOM ROW — never on an insert slot.
@@ -4828,10 +5285,21 @@
   function corridorHtml(r) {
     const on = state.corridorOn;
     const opt = (along, label, title) =>
-      '<button type="button" class="scope-btn' + (on === along ? " is-on" : "") + '"' +
-      ' data-day="' + r + '" data-along="' + (along ? "1" : "0") + '"' +
-      ' aria-pressed="' + (on === along ? "true" : "false") + '" title="' + esc(title) + '">' +
-      esc(label) + "</button>";
+      '<button type="button" class="scope-btn' +
+      (on === along ? " is-on" : "") +
+      '"' +
+      ' data-day="' +
+      r +
+      '" data-along="' +
+      (along ? "1" : "0") +
+      '"' +
+      ' aria-pressed="' +
+      (on === along ? "true" : "false") +
+      '" title="' +
+      esc(title) +
+      '">' +
+      esc(label) +
+      "</button>";
     const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
     return (
       '<div class="add-corridor" role="group" aria-label="Where to search">' +
@@ -4926,7 +5394,10 @@
       // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE. The band the label
       // comes from is a threshold in degrees per MILE, so only the number moves —
       // see rollUpTwist() in src/stats/shape.ts.
-      let s = Math.round(window.TBUnits.twistFrom(t.twist.dpm, UNITS)) + window.TBUnits.twistUnit(UNITS) + " of heading change";
+      let s =
+        Math.round(window.TBUnits.twistFrom(t.twist.dpm, UNITS)) +
+        window.TBUnits.twistUnit(UNITS) +
+        " of heading change";
       // Only worth saying when the best stretch is meaningfully better than the
       // day as a whole. On a uniformly twisty day it is the same number twice.
       if (t.twist.bestDpm && t.twist.bestDpm > t.twist.dpm * 1.25) {
@@ -4973,11 +5444,17 @@
     const dayT = r == null ? null : routeTotals(state.days[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
-      '<span class="totals-ride" title="' + esc(twistTitle(ride)) + '">' +
+      '<span class="totals-ride" title="' +
+      esc(twistTitle(ride)) +
+      '">' +
       // The count of days that COUNT, not of sections on screen. A ride with
       // three days and two alternates is a three-day ride, and saying "5 days"
       // beside a mileage that only covers three would make both look wrong.
-      counted.length + " days" + SEP + line(ride, true) + "</span>" +
+      counted.length +
+      " days" +
+      SEP +
+      line(ride, true) +
+      "</span>" +
       // THE DAY LINE IS EMITTED EITHER WAY, empty on "All". It is what reserves
       // its own line, so the block is the same height whichever way the scrubber
       // is set and the controls below it never move. Dropping the span when
@@ -4987,10 +5464,16 @@
       // the name and never the figures — see .totals-day in _builder.scss. A day
       // title runs to 150 characters and an import hands over 31 by default,
       // which would otherwise push the mileage off the line.
-      '<span class="totals-day"' + (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") + ">" +
+      '<span class="totals-day"' +
+      (dayT ? ' title="' + esc(twistTitle(dayT)) + '"' : "") +
+      ">" +
       (dayT
-        ? '<span class="totals-day-name">' + esc(dayLabel(r)) + ":</span>" +
-          '<span class="totals-day-figs">' + line(dayT, false) + "</span>"
+        ? '<span class="totals-day-name">' +
+          esc(dayLabel(r)) +
+          ":</span>" +
+          '<span class="totals-day-figs">' +
+          line(dayT, false) +
+          "</span>"
         : "") +
       "</span>";
   }
@@ -5004,7 +5487,10 @@
       if (!point) return;
       // Keyed by the row and the field, so a run of keystrokes folds into one
       // step and moving to another field starts a new one.
-      beginEdit("edit stop", "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className);
+      beginEdit(
+        "edit stop",
+        "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className,
+      );
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) point.description = e.target.value;
       // The detail fields, all of them, through one branch. `data-field` is what
@@ -5298,8 +5784,16 @@
     menu.innerHTML = items
       .map(
         (m) =>
-          '<button type="button" role="menuitem" class="row-menu-item' + (m.danger ? " is-danger" : "") + '"' +
-          ' data-act="' + m.act + '"' + (m.off ? " disabled" : "") + ">" + esc(m.label) + "</button>",
+          '<button type="button" role="menuitem" class="row-menu-item' +
+          (m.danger ? " is-danger" : "") +
+          '"' +
+          ' data-act="' +
+          m.act +
+          '"' +
+          (m.off ? " disabled" : "") +
+          ">" +
+          esc(m.label) +
+          "</button>",
       )
       .join("");
     host.appendChild(menu);
@@ -5603,13 +6097,9 @@
     pt.distFromStartMi = null;
     dst.points.splice(at, 0, pt);
 
-    // A DAY MUST KEEP A STOP. Dragging the last one out would leave a day the
-    // save refuses and payload() drops whole, so the first survivor is promoted
-    // in its place — the same rule addPoint applies to a day's first point,
-    // applied to a day that has just lost its only anchor.
-    if (kind === "stop" && stopsOf(src).length === 0 && src.points.length > 0) {
-      src.points[0].kind = "stop";
-    }
+    // A DAY MUST KEEP A STOP — see ensureDayHasStop(). Dragging the last one out
+    // would leave a day the save refuses and payload() drops whole.
+    ensureDayHasStop(src);
 
     src.legs = [];
     dst.legs = [];
@@ -5628,7 +6118,10 @@
       const day = state.days[r];
       if (!day) return;
       fillMissingLegs(day);
-      computeLegsAround(r, Array.from({ length: Math.max(0, day.points.length - 1) }, (_, k) => k));
+      computeLegsAround(
+        r,
+        Array.from({ length: Math.max(0, day.points.length - 1) }, (_, k) => k),
+      );
     });
     setActive(toDay);
     refreshDerived();
@@ -5897,7 +6390,8 @@
       );
       const failed = settled.filter((r) => r.status === "rejected");
       if (samples.length && failed.length === settled.length) throw failed[0].reason;
-      if (failed.length) console.warn("[builder] corridor search:", failed.length, "of", settled.length, "samples failed");
+      if (failed.length)
+        console.warn("[builder] corridor search:", failed.length, "of", settled.length, "samples failed");
       const seen = Object.create(null);
       const out = [];
       settled.forEach((r) => {
@@ -5960,14 +6454,20 @@
         hits
           .map(
             (h, i) =>
-              '<li class="hit-nearby" data-nearby="' + i + '"><strong>' + esc(h.name) + "</strong> " +
+              '<li class="hit-nearby" data-nearby="' +
+              i +
+              '"><strong>' +
+              esc(h.name) +
+              "</strong> " +
               // THE NUMBER THE RIDER IS DECIDING ON, when there is one. A
               // corridor search annotates each hit with its detour; a plain
               // near-a-point search has nothing to say here and renders none.
               (typeof h.offRouteM === "number"
                 ? '<span class="hit-off">' + esc(fmtDist(h.offRouteM)) + " off</span> "
                 : "") +
-              '<span class="hit-ctx">' + esc(h.address) + "</span></li>",
+              '<span class="hit-ctx">' +
+              esc(h.address) +
+              "</span></li>",
           )
           .join("")
       );
@@ -6060,9 +6560,15 @@
       return list
         .map(
           (pl, i) =>
-            '<li class="hit-saved" data-saved="' + i + '">' +
-            '<span class="hit-badge">Saved</span> <strong>' + esc(pl.name) + "</strong> " +
-            '<span class="hit-ctx">' + esc(pl.groupName || pl.address || "") + "</span></li>",
+            '<li class="hit-saved" data-saved="' +
+            i +
+            '">' +
+            '<span class="hit-badge">Saved</span> <strong>' +
+            esc(pl.name) +
+            "</strong> " +
+            '<span class="hit-ctx">' +
+            esc(pl.groupName || pl.address || "") +
+            "</span></li>",
         )
         .join("");
     }
@@ -6158,7 +6664,7 @@
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
           results.dataset.day = String(day);
-        results.dataset.at = at == null ? "" : String(at);
+          results.dataset.at = at == null ? "" : String(at);
           // Saved matches keep their place at the top; the predictions are
           // appended under them. Re-derived rather than read off the DOM so a
           // response that arrives after the query changed cannot pair the new
@@ -6170,8 +6676,14 @@
             hits
               .map(
                 (h, i) =>
-                  '<li class="hit-google" data-i="' + i + '"><strong>' + esc(h.name) + "</strong> " +
-                  '<span class="hit-ctx">' + esc(h.context) + "</span></li>",
+                  '<li class="hit-google" data-i="' +
+                  i +
+                  '"><strong>' +
+                  esc(h.name) +
+                  "</strong> " +
+                  '<span class="hit-ctx">' +
+                  esc(h.context) +
+                  "</span></li>",
               )
               .join("") +
             nearbyResultsHtml(nearby) +
@@ -6235,7 +6747,7 @@
           // referrer-restricted key, a pending account or a Places API that was
           // never enabled all presented as an empty dropdown and no explanation.
           results.dataset.day = String(day);
-        results.dataset.at = at == null ? "" : String(at);
+          results.dataset.at = at == null ? "" : String(at);
           results.innerHTML = noticeHtml(searchErrorText(e));
           results.hidden = false;
           placeResults(input, results);
@@ -6980,7 +7492,9 @@
 
     const ok = window.confirm(
       "This ride starts at your home address, and a shared map would show a pin on it.\n\n" +
-        "Replace the start with your public starting point (" + start.label + ")?",
+        "Replace the start with your public starting point (" +
+        start.label +
+        ")?",
     );
     if (!ok) {
       // Asked once per session. Nagging on every visibility change would train
@@ -7165,6 +7679,18 @@
     // Leaving a field ends the run of keystrokes, so the next edit is its own
     // undo step rather than folding into the last word typed.
     document.addEventListener("focusout", () => history_.breakCoalesce());
+
+    // THE WAY BACK INTO A DISMISSED ERROR. The readout can only ever show the
+    // first few words of one, so without this a rider who dismissed the dialog
+    // has no way to read the rest of the message their ride failed on.
+    const detail = $("save-detail");
+    if (detail) {
+      detail.addEventListener("click", () => {
+        const st = $("save-status");
+        showErrorDialog(st.dataset.state || "error", st.querySelector(".save-text").textContent);
+      });
+    }
+
     renderHistoryButtons();
   }
 

@@ -292,12 +292,12 @@ $-signs-colorblind: (
 
     // HALFWAY BETWEEN THE DETOUR ORANGE AND THE WARNING AMBER, for the range
     // ring's middle band and nothing else so far. Ziad's call, 2026-09-02, after
-    // both neighbours were tried on the map: $warning washed out over pale busy
+    // both neighbors were tried on the map: $warning washed out over pale busy
     // tiles and $detour read as too red for "you have half a tank".
     //
     // MIXED RATHER THAN PICKED, so it follows all three sign palettes on its own
     // — the colorblind and high-contrast themes move $detour and $warning, and a
-    // hand-chosen hex here would sit still while its neighbours moved and end up
+    // hand-chosen hex here would sit still while its neighbors moved and end up
     // the odd one out in exactly the themes that can least afford it.
     //
     // It is a FIELD color on a map overlay, never text, so it is deliberately

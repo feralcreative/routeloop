@@ -85,10 +85,10 @@ body.modal-open {
 // wide as its own caption — so with captions running from "Signal" to
 // "Vampires MC" the discs end up at four different distances from each other
 // while the boxes look correctly spaced. Equal-width grid tracks put every disc
-// on the same centre-to-centre pitch no matter what is written under it.
+// on the same center-to-center pitch no matter what is written under it.
 .modal-links {
   list-style: none;
-  // Centred at a width that suits four marks rather than filling the modal, so
+  // Centered at a width that suits four marks rather than filling the modal, so
   // the row still reads as a group and does not spread to the corners when a
   // link is missing.
   margin: 0 auto 1.5rem;
@@ -435,4 +435,96 @@ body.modal-open {
   line-height: 1.55;
   color: $neutral-50;
   font-size: 0.85rem;
+}
+
+// A FAILURE, SAID PROPERLY (#233).
+//
+// The save readout is a fixed box that ellipsizes, so a server message longer
+// than a few words reached the rider as its first fragment and nothing else —
+// reported as "a Costco sample of an error message", which is exactly what it
+// was. This is where the whole thing goes.
+//
+// A REAL <dialog>, AND IT WEARS THE HOUSE `.modal`. showModal() brings the focus
+// trap, Escape to close, inertness for the rest of the page and a ::backdrop,
+// none of which is worth reimplementing on a div — so this is the one modal in
+// the app that is not a `.modal-backdrop` wrapper driven by site.js. What it
+// must not also be is a second LOOK: it takes `.modal` for the box and adds only
+// what a dialog element needs on top, exactly the way `.modal--notes` does for
+// the release notes. It had its own width, its own radius, its own shadow and
+// its own padding until 2026-09-03, all of them close to the modal's and none of
+// them equal to it, which is the specific way a dialog reads as borrowed from
+// another site.
+.modal--error {
+  // The UA stylesheet gives a dialog `border: solid` and centers it with
+  // `margin: auto` against `inset: 0`. `.modal` supplies the whole rest of the
+  // box, so that border is the only thing left to undo.
+  border: 0;
+  // Wider than the 460px announcement, for the same reason `.modal--notes` is:
+  // a server message can carry a path, and this is something to read rather
+  // than something to acknowledge.
+  max-width: 32rem;
+  // Left, like `.modal--notes`. A wrapped message centered line by line is
+  // harder to get through, and the heading and the buttons both want an edge to
+  // sit against.
+  text-align: left;
+
+  // Matches `.modal-backdrop`. A ::backdrop cannot BE that element, so the value
+  // is necessarily a second copy — keep the two in step.
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+// site.js sets `body.modal-open` for the div modals, and showModal() has no such
+// hook: a native dialog makes the page inert but leaves it SCROLLABLE, so a
+// trackpad still moves the ride around behind the dialog. Same lock, declared
+// rather than scripted, because there is no JavaScript that needs to know.
+body:has(dialog.modal[open]) {
+  overflow: hidden;
+}
+
+// THE MESSAGE ITSELF, AND IT MUST WRAP RATHER THAN TRUNCATE — the whole point of
+// the dialog. Same tinted-aside vocabulary as `.rn-note`, deliberately: that is
+// the app's existing "here is the detail" panel and a save failure did not need
+// a second one invented for it. The hairline is what keeps it legible, exactly
+// as it does there.
+//
+// IT IS NOT MONOSPACED. firstIssue() hands this prose now — `day 2: a day needs
+// at least one stop` — and setting a rider's own sentence in a code face tells
+// them a program failed rather than that their ride needs a stop. A path with no
+// spaces in it still has to break somewhere, so it breaks anywhere rather than
+// pushing the box wider than the screen.
+.modal-error-msg {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid $neutral-88;
+  border-radius: 8px;
+  background: $neutral-96;
+  color: $text;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+// WHAT IS AT RISK, which is the question a rider actually has when a save fails.
+// Quieter than the message, because it is reassurance rather than the fact —
+// `.modal-body` is already doing that half, so only the size differs.
+.modal-error-note {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+// The buttons land at the trailing edge, which is where this app's other
+// committed dialog puts its own. They wrap rather than shrink: "Reload"
+// beside "Dismiss" is wider than a narrow phone at the modal's padding, and a
+// squeezed pair of guide signs reads as a mistake.
+.modal-error-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
 }

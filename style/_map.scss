@@ -1278,7 +1278,7 @@ table.day-table {
   font-style: normal;
   font-weight: 700;
   font-size: 12px;
-  // 1, so the glyph's own box does not push it off the disc's centre.
+  // 1, so the glyph's own box does not push it off the disc's center.
   line-height: 1;
   color: $white;
   cursor: default;
@@ -1646,12 +1646,12 @@ body.is-arming #map div {
   position: absolute;
   // It is a <button>, so the UA styles have to go before anything below has an
   // effect — appearance and padding especially, which otherwise leave the
-  // number off-centre in a rounded rectangle.
+  // number off-center in a rounded rectangle.
   appearance: none;
   padding: 0;
   margin: 0;
   font-family: inherit;
-  // Half its own size up and left, which centres it on the anchor.
+  // Half its own size up and left, which centers it on the anchor.
   left: -11px;
   bottom: -11px;
   display: flex;
@@ -1737,14 +1737,14 @@ body.is-arming #map div {
 
 // SHARE A RIDE BY HOLDING UP A PHONE (#226).
 //
-// THE CASE IS A CAR PARK, NOT A DESKTOP. You turn up to a ride, half the group
+// THE CASE IS A MEETING POINT, NOT A DESKTOP. You turn up to a ride, half the group
 // has not seen the route, and the way to hand it to six people at once is to
 // show them a code. So the open state is a card over the map at a size someone
 // can scan from arm's length, not a thumbnail in the drawer.
 //
 // A <details>, so it opens with no JavaScript at all — a rider on one bar of
-// signal in a gravel lot is exactly who needs this, and a dialog would need the
-// page's scripts to have arrived first.
+// signal at a gravel meeting point is exactly who needs this, and a dialog
+// would need the page's scripts to have arrived first.
 .qr-share {
   margin-top: 0.6em;
 
@@ -1775,7 +1775,7 @@ body.is-arming #map div {
   }
 }
 
-// FIXED, CENTRED, AND OVER EVERYTHING. Inside the drawer it would be capped at
+// FIXED, CENTERED, AND OVER EVERYTHING. Inside the drawer it would be capped at
 // the drawer's width, which on a phone is most of the screen and on a desktop is
 // 380px — and the desktop case is the one where somebody is holding a laptop up
 // for a group.

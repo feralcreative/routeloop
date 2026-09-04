@@ -824,6 +824,46 @@
     }
   }
 
+  // #233. THE READOUT CANNOT HOLD A MESSAGE, so this is how a rider gets back to
+  // one they dismissed. Hidden unless something has gone wrong, and a real
+  // button rather than a click on .save-status, which is aria-hidden.
+  //
+  // IT TAKES .btn-icon'S IDIOM, because it stands in the same row as the undo
+  // pair and a control that does not is a control from somewhere else. Same 6px
+  // corner, same hairline, and the same hover — border and legend to $brand
+  // rather than a lit background, which is what this had and is a gesture the
+  // panel uses nowhere.
+  //
+  // The HEIGHT is stretched rather than declared. .btn-icon is 2.1em square at
+  // its own 1.05em, so matching it with a number here means 2.205em restated in
+  // whatever this element's font-size happens to be — arithmetic that is wrong
+  // the moment either value moves. .builder-actions is a flex row, so
+  // align-self: stretch simply asks for the height of the tallest thing in it.
+  .save-detail {
+    box-sizing: border-box;
+    align-self: stretch;
+    padding: 0 0.7em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: none;
+    color: $text;
+    font: inherit;
+    font-size: 0.9em;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      border-color: $brand;
+      color: $brand;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+  }
+
   // Deliberately quieter than .btn: discarding is destructive but it is not the
   // action the rider came here for, and two equally weighted buttons beside each
   // other is how the wrong one gets pressed.
@@ -1054,7 +1094,7 @@
     cursor: pointer;
 
     // The two halves of the broken line. They grow to fill whatever the glyph in
-    // the middle does not take, so the break is centred at any panel width and
+    // the middle does not take, so the break is centered at any panel width and
     // nothing has to know how wide a "+" is.
     &::before,
     &::after {
@@ -2355,7 +2395,7 @@
   }
 
   .sg-color {
-    // Matches .day-color's box so the two colour wells in the panel read as the
+    // Matches .day-color's box so the two color wells in the panel read as the
     // same control at two levels.
     width: 1.6rem;
     height: 1.6rem;

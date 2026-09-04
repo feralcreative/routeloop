@@ -1,6 +1,6 @@
 // A ride's share link as a scannable code (#226).
 //
-// THE CASE THIS IS FOR IS A CAR PARK, NOT A DESKTOP. Ziad's call, 2026-09-02:
+// THE CASE THIS IS FOR IS A MEETING POINT, NOT A DESKTOP. Ziad's call, 2026-09-02:
 // you turn up to a ride, half the group has not seen the route, and the way to
 // hand it to six people at once is to hold up a phone. Everything below follows
 // from that — it is rendered large, it is rendered on white, and it needs no
@@ -30,8 +30,8 @@ const LIGHT = '#ffffff'
  * L makes the smallest code and gives up the redundancy that lets a camera read
  * it at an angle, off a screen, with a thumb over one corner — which is every
  * real scan here. H would survive more and makes the modules smaller at the same
- * physical size, which is the wrong trade when the code is being read across a
- * car park rather than off a sticker.
+ * physical size, which is the wrong trade when the code is being read from a
+ * few feet away rather than off a sticker.
  */
 const LEVEL = 'M' as const
 
