@@ -112,6 +112,19 @@ function prefix(track: Track): number[] {
  * meet, then follow the trunk) and (ride straight to where everyone is going).
  * Measuring against zero would rank the trunk's own start best every time, which
  * is not a meeting point, it is the whole ride.
+ *
+ * ALL THREE LEGS OF THAT COMPARISON ARE STRAIGHT LINES, AND MIXING IN THE ROAD
+ * DISTANCE IS THE BUG #239 WAS HALF OF. The remainder used to be measured ALONG
+ * THE TRUNK while `directM` was a straight line, so every bend in the road after
+ * the candidate was charged to the joining group as though they had chosen it:
+ * on Los Gatos → Shasta Lake, a trunk of ordinary sinuosity 1.15, that invented
+ * 13 miles of divert at Tracy and 9 at Sacramento. Since the budget is 25, it
+ * pushed every proposal LATE — the module's own `minSharedFraction` cheat,
+ * reintroduced by arithmetic after being closed by a constraint — and on a
+ * twistier trunk it rejects the whole route. Straight lines on both sides make
+ * the divert a real dogleg cost and, by the triangle inequality, never negative.
+ * `sharedFraction` below is the one term that genuinely wants the road distance:
+ * it asks how much of the ROUTE is left, not how far away anything is.
  */
 function scoreCandidate(
   at: [number, number],
@@ -128,8 +141,9 @@ function scoreCandidate(
 
   const toMeetM = haversineM(origin[1], origin[0], at[1], at[0])
   const remainingM = totalM - alongM
+  const remainingDirectM = haversineM(at[1], at[0], trunkEnd[1], trunkEnd[0])
   const directM = haversineM(origin[1], origin[0], trunkEnd[1], trunkEnd[0])
-  const divertM = toMeetM + remainingM - directM
+  const divertM = toMeetM + remainingDirectM - directM
 
   if (divertM > opts.maxDivertMi * METERS_PER_MILE) return null
 

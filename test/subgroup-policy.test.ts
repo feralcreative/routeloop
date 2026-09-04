@@ -12,6 +12,7 @@ import {
   junctions,
   neverConverges,
   strandOf,
+  trunkDaysFor,
   type StrandDay,
 } from '../src/subgroups/policy'
 
@@ -118,5 +119,49 @@ describe('neverConverges', () => {
     expect(neverConverges(ride(null, null))).toBe(false)
     // Nor one subgroup, which cannot converge with anybody by definition.
     expect(neverConverges(ride(SEA, SEA))).toBe(false)
+  })
+})
+
+// #239. The spine a meeting point is proposed on, which is the shared days when
+// there are any and the named group's own days when there are not.
+describe('trunkDaysFor', () => {
+  it('is the shared days whenever the ride has some', () => {
+    // And the trunk group is ignored outright when it does — a shared day is
+    // road everybody already rides, which is what joining means.
+    const days = ride(SEA, SF, null, null)
+    expect(trunkDaysFor(days, SF, SEA)).toEqual({
+      days: [
+        { position: 2, subgroupId: null },
+        { position: 3, subgroupId: null },
+      ],
+      reason: null,
+    })
+  })
+
+  // THE CASE #239 WAS FILED FOR. Two groups riding to the same destination
+  // share no day, because the road they would ride together is the thing being
+  // proposed. Before this the route stopped here and told the planner to leave a
+  // day on Everyone.
+  it('falls back to the trunk group’s own days when nothing is shared', () => {
+    expect(trunkDaysFor(ride(SEA, SF), SF, SEA)).toEqual({
+      days: [{ position: 0, subgroupId: SEA }],
+      reason: null,
+    })
+  })
+
+  it('asks rather than picking when no trunk group is set', () => {
+    // Not "use the longest" and not "use the primary": whose road everybody
+    // bends around is the planner's call, the same as primary_subgroup_id.
+    expect(trunkDaysFor(ride(SEA, SF), SF, null)).toEqual({ days: [], reason: 'no-trunk-group' })
+  })
+
+  it('refuses to propose that a group join itself', () => {
+    expect(trunkDaysFor(ride(SEA, SF), SEA, SEA)).toEqual({ days: [], reason: 'is-trunk' })
+  })
+
+  it('has nothing to offer when the trunk group has no day', () => {
+    // A group named as the spine before anybody planned its route. Its own
+    // reason, because the fix is different: plan that group a day.
+    expect(trunkDaysFor(ride(SF, SAC), SF, SEA)).toEqual({ days: [], reason: 'no-trunk' })
   })
 })

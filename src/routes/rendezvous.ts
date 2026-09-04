@@ -15,6 +15,7 @@ import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '
 import { ownRide } from './maps'
 import { proposeRendezvous, divertMi, type FuelCandidate } from '../subgroups/rendezvous'
 import { subgroupsOf } from '../subgroups/service'
+import { trunkDaysFor } from '../subgroups/policy'
 import { activeDays } from '../maps/alts'
 import type { Track } from '../maps/kml'
 
@@ -35,16 +36,13 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position),
   )
 
-  // THE TRUNK IS THE SHARED DAYS, concatenated in order. Not "the primary
-  // group's route" — that is `rides.trunk_subgroup_id` and a different question,
-  // used when there is no shared day at all because the ride starts at the meet.
-  // Here there is one, and it is what the joining group is joining.
-  const trunkDays = all.filter((d) => d.subgroupId === null)
-  if (trunkDays.length === 0) {
-    // A real answer rather than an error: a ride whose groups never converge has
-    // nowhere to propose, and the builder says so.
-    return c.json({ candidates: [], reason: 'no-trunk' })
-  }
+  // THE TRUNK IS THE SHARED DAYS, and where there are none it is the days of the
+  // group the planner named as the one everybody joins — #239, and the first
+  // thing ever to read `rides.trunk_subgroup_id`. The rule is `trunkDaysFor` in
+  // ../subgroups/policy.ts, where it is testable with no database; this file
+  // only says which ride and which group.
+  const { days: trunkDays, reason: noTrunk } = trunkDaysFor(all, group.id, ride.trunkSubgroupId)
+  if (noTrunk) return c.json({ candidates: [], reason: noTrunk })
 
   const trunk: Track = []
   for (const d of trunkDays) {

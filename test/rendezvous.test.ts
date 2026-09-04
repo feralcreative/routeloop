@@ -50,6 +50,51 @@ describe('proposeRendezvous', () => {
     expect(out[0].divertM).toBeGreaterThanOrEqual(0)
   })
 
+  // #239, AND THE REASON EVERY TEST ABOVE MISSED IT. The trunk they run on is a
+  // straight line of latitude, so its road length and its straight-line length
+  // are the same number and the two ways of measuring the remainder cannot be
+  // told apart. Real roads bend. The divert used to add the remainder ALONG THE
+  // TRUNK to a straight-line direct, so every curve after the candidate was
+  // billed to the joining group as a detour they had chosen — on a trunk of
+  // ordinary sinuosity that is tens of miles against a 25-mile budget, and the
+  // whole route gets refused.
+  const zigzag = (fromLng: number, toLng: number, lat = 40, amp = 0.35): Track => {
+    const out: Track = []
+    let i = 0
+    for (let lng = fromLng; lng <= toLng + 1e-9; lng += 0.05, i++) {
+      out.push([Math.round(lng * 1e6) / 1e6, lat + (i % 2 === 0 ? amp : -amp)])
+    }
+    return out
+  }
+
+  it('does not bill the trunk’s own bends to the joining group', () => {
+    const bent = zigzag(-122, -117)
+    // The same origin as the straight case: a little south of the trunk, a
+    // third of the way along. Joining here is nearly free either way — the
+    // group is going east regardless — and it is the ROAD that wanders, not
+    // them.
+    const out = proposeRendezvous(bent, [-120.5, 39.5])
+    expect(out.length).toBeGreaterThan(0)
+    expect(divertMi(out[0])).toBeLessThan(15)
+  })
+
+  it('never reports a negative divert, on any trunk', () => {
+    // The dogleg cost of going via a point instead of straight past it, which
+    // the triangle inequality puts at or above zero. A mixed-metric formula has
+    // no such floor and can hand a rider a meeting point that saves them miles.
+    for (const trunk of [TRUNK, zigzag(-122, -117)]) {
+      for (const origin of [
+        [-120, 39.6],
+        [-121.8, 39.0],
+        [-119, 40.2],
+      ] as [number, number][]) {
+        for (const r of proposeRendezvous(trunk, origin)) {
+          expect(r.divertM).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
+  })
+
   it('prefers joining at a shallow angle over arriving perpendicular', () => {
     // Well to the south-west, so the shallowest approach is a point further
     // east rather than the nearest one due north.

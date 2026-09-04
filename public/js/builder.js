@@ -3686,6 +3686,38 @@
               "</option>",
           ).join("") +
           "</select>" +
+          // WHOSE ROAD IS THE SPINE, asked ONLY when there is no shared day —
+          // #239. With a day on Everyone the trunk is that day and there is
+          // nothing to choose, so the control would be a question whose answer
+          // is ignored. Without one it is the whole reason Find a meet can
+          // answer at all.
+          //
+          // It is a SECOND select rather than a mode of "Solve everyone around"
+          // because the two come apart: Sacramento joining Oakland's run makes
+          // them the same group, San Francisco and Seattle meeting in eastern
+          // Oregon makes them different. See rides.trunk_subgroup_id.
+          (state.days.some((d) => !d.subgroupUid)
+            ? ""
+            : '<div class="sg-trunk">' +
+              '<label for="sg-trunk">No shared days—others join</label>' +
+              '<select id="sg-trunk">' +
+              // No default, deliberately. The app must not pick whose route
+              // everybody else bends around; see renderAnchorNote and #67.
+              '<option value="">Choose a group…</option>' +
+              state.meta.subgroups
+                .map(
+                  (g) =>
+                    '<option value="' +
+                    esc(g.uid) +
+                    '"' +
+                    (state.meta.trunkSubgroup === g.uid ? " selected" : "") +
+                    ">" +
+                    esc(g.name) +
+                    "</option>",
+                )
+                .join("") +
+              "</select>" +
+              "</div>") +
           '<p class="sg-anchor-note" id="sg-anchor-note"></p>' +
           "</div>") +
       '<div class="sg-meet-out" id="sg-meet-out"></div>';
@@ -3746,6 +3778,12 @@
         beginEdit("change the primary group");
         state.meta.primarySubgroup = e.target.value;
         renderAnchorNote();
+        markDirty();
+      } else if (e.target.id === "sg-trunk") {
+        beginEdit("change whose route is the spine");
+        // "" is the Choose a group… option and is a real value: null means
+        // nobody has answered, which is what `no-trunk-group` reports.
+        state.meta.trunkSubgroup = e.target.value || null;
         markDirty();
       } else if (e.target.id === "sg-when") {
         beginEdit("change what is pinned");
@@ -3825,7 +3863,13 @@
   }
 
   const MEET_REASONS = {
-    "no-trunk": "There are no shared days yet. Leave at least one day on Everyone and try again.",
+    "no-trunk": "The group everyone else joins has no day of its own yet.",
+    // NOT "leave a day on Everyone", which is what this said until #239. A ride
+    // whose groups converge at the destination has no shared day by
+    // construction, so that advice asked the planner to plan the thing they had
+    // pressed the button to be told. The answer is upstairs in the panel.
+    "no-trunk-group": "Choose whose route the others join, above, and try again.",
+    "is-trunk": "This is the group everyone else joins—pick one of the others.",
     "no-days": "Give this group a day of its own first, starting where they start.",
     // A REAL ANSWER, not a failure. Two groups on opposite sides of a route
     // running away from both of them have nowhere sensible to meet, and

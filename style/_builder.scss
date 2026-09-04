@@ -2447,6 +2447,20 @@
   }
 }
 
+// Whose route is the spine, on its own line. It shares the anchor block's flex
+// row rather than sitting outside it because it is the same kind of question —
+// one setting solved across every group — but its label is a sentence and
+// letting it flow inline after "and pin their" reads as one run-on control.
+// Only rendered when the ride has no shared day; see renderSubgroups and #239.
+.sg-trunk {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
 // The fairness warning. Amber rather than red: choosing a nearer group is a
 // decision the planner is allowed to make, and #67 asks only that the
 // consequence be visible beside the choice.
