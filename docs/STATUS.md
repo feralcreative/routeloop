@@ -1,8 +1,9 @@
 # Status and handoff
 
-**Updated:** 2026-09-02
-**Branch:** `feat/builder-routing-options`, committed, not pushed. **2,355 tests across 92 files** (2 skipped, 2,357 total)
-**Closes, when it merges:** [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned during the sprint.
+**Updated:** 2026-09-03
+**Branch:** `fix/save-errors-and-day-seed`, pushed, no PR yet. Note the four commits were made on `main` by mistake after [#238](https://github.com/feralcreative/routeloop/pull/238) merged and were moved onto this branch afterwards, so anything comparing against `main` reads correctly but the reflog does not. **2,360 tests across 93 files** (2 skipped, 2,362 total)
+**Merged 2026-09-03 as [#238](https://github.com/feralcreative/routeloop/pull/238):** the builder routing sprint, closing [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226), plus [#234](https://github.com/feralcreative/routeloop/issues/234)–[#237](https://github.com/feralcreative/routeloop/issues/237) filed retroactively. [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned.
+**Closes, when the next PR merges:** [#233](https://github.com/feralcreative/routeloop/issues/233).
 **Closes, when it merges:** [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50) and [#54](https://github.com/feralcreative/routeloop/issues/54). [#229](https://github.com/feralcreative/routeloop/issues/229) was raised out loud and closed during the sprint. **[#220](https://github.com/feralcreative/routeloop/issues/220) stays OPEN**—its fuel half is done and its food-and-rest half is a later sprint.
 **Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
 **Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
@@ -10,9 +11,27 @@
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
 
+## Errors you can read, and the day that would not save—2026-09-03
+
+**Not deployed, not merged.** Branch `fix/save-errors-and-day-seed`. Closes [#233](https://github.com/feralcreative/routeloop/issues/233), which was two bugs in one report.
+
+**THE SECOND DAY OF EVERY RIDE HAD NO STOP, AND THE CAUSE IS THE INTERESTING PART.** `addDay()` seeds a new day with the previous day's last point so the rider does not re-search for a place already on the map. That seed was a bare object literal written on 2026-08-15—before points had a `kind` at all. It was correct when it landed and became wrong **silently** on 2026-08-23, when the stop/POI split made `kind` default to `poi`. `addPoint()` only promotes on an EMPTY day, so nothing ever promoted it, and every save of that ride failed with `days.1: a day needs at least one stop` for as long as the ride existed. The "a day must keep a stop" repair was five hand-written copies of one line and addDay was the one without it; it is `ensureDayHasStop()` now.
+
+**The reporter's guess was wrong and worth recording.** He read the truncated message as "each day needs a unique name" and concluded the day title was a unique id within the ride. It is not—two days may share a title, and the write path was proven to accept exactly the reported shape (two days called Friday in two different subgroups) before anything was changed. That is what a message cut off at four words costs.
+
+**Errors get a window now.** The save readout is a fixed box that ellipsizes with the full text only in a `title` nobody hovers. There is a modal, shown **once per distinct message rather than once per attempt**—the autosave retries on a timer and a failing save tends to keep failing, so a dialog per attempt would be worse than the truncation. A Details button reopens a dismissed one, and it is a real `<button>` rather than a click on the readout, which is `aria-hidden`.
+
+**`firstIssue()` names the day.** `days.1` is an index a rider cannot count to; it reads `day 2: a day needs at least one stop`.
+
+**The third symptom—clicking View and finding one day—was the same bug from the other end.** The ride on the server was whatever the last successful save left, and there had not been one. Nothing was lost that had ever been stored.
+
+**American English swept through the tree** after "car park" reached the release notes: colour, neighbour, centre, recognise, organise, licence. `tyres` stays in `place-query.js`, which is a search synonym so a rider who types it still matches.
+
+**Not verified in a browser by the agent.** The root cause was proven by running the reported payload through the schema and the write path directly, and the fix is covered by tests—but the dialog, the Details button and the seeded day have not been seen on screen.
+
 ## Builder routing options—2026-09-02
 
-**Not deployed, not merged.** Branch `feat/builder-routing-options`. Closes [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned: a paved/unpaved preference is not expressible on Routes API v2 at all, and delivering it means a second router.
+**Merged 2026-09-03 as [#238](https://github.com/feralcreative/routeloop/pull/238). Not deployed.** Branch `feat/builder-routing-options`. Closes [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226). [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned: a paved/unpaved preference is not expressible on Routes API v2 at all, and delivering it means a second router.
 
 **#232 had two causes and the first one had been live since #50 shipped.** `placeLngLat()` read a loose `{lng, lat}` pair; `/api/places/search` normalizes every hit to `{name, address, lngLat, type}`. So the corridor filter dropped **every** result and ALONG THE DAY answered "no gas within 15 mi of this day" on every day of every ride for two days, with the arithmetic underneath correct the whole time. The unit test missed it the way these are always missed—its fixture built the shape the helper wanted rather than the shape the caller sends.
 
@@ -26,13 +45,13 @@
 
 **#28 asks Google for the alternates it already computes and keeps the twistiest**, scored by `twist.ts`. No second router and no extra request. It scores on `dpm` rather than `bestDpm`—the twistiest 20-mile window is the right number to show a rider and the wrong one to pick a leg by. Alternates are only requested on a leg with no via points, because Routes does not return them otherwise, so a leg the rider shaped by hand keeps the road they shaped.
 
-**The range ring became a gauge.** Green through the first half of the tank, `$fuel-low` past it, red from three quarters. That refines the 2026-08-31 call rather than reversing it: the E markers and the closed stretch are verdicts and keep one color; the ring is the only part reporting a quantity, and a gauge that is red at a full tank tells a rider nothing they can act on. The middle band is its own mixed token because **both** neighbours were tried on the map—`$warning` washed out over pale tiles and `$detour` read as too red for half a tank.
+**The range ring became a gauge.** Green through the first half of the tank, `$fuel-low` past it, red from three quarters. That refines the 2026-08-31 call rather than reversing it: the E markers and the closed stretch are verdicts and keep one color; the ring is the only part reporting a quantity, and a gauge that is red at a full tank tells a rider nothing they can act on. The middle band is its own mixed token because **both** neighbors were tried on the map—`$warning` washed out over pale tiles and `$detour` read as too red for half a tank.
 
 **#40 was mostly already done.** Undo and redo were bound; what was missing is cmd/ctrl+S, which calls `preventDefault` unconditionally so the browser's own Save Page dialog never lands over a ride, and ctrl+Y for redo on Windows.
 
-**#226 is a `<details>`, so it opens with no JavaScript**—a rider on one bar of signal in a gravel car park is exactly who needs it. Black on white regardless of theme, because plenty of phone cameras will not read an inverted code.
+**#226 is a `<details>`, so it opens with no JavaScript**—a rider on one bar of signal in a gravel meeting point is exactly who needs it. Black on white regardless of theme, because plenty of phone cameras will not read an inverted code.
 
-**Not verified in a browser by the agent.** Every item here was reasoned and tested rather than seen, apart from the parts Ziad checked live during the sprint: the leg-scoped search, the result dots, and the ring colours. **#29's Avoid and Prefer toggles have never been used**, and they re-route every leg of a day when pressed. The `/api/route` request carrying `prefs` has been read, not sent.
+**Not verified in a browser by the agent.** Every item here was reasoned and tested rather than seen, apart from the parts Ziad checked live during the sprint: the leg-scoped search, the result dots, and the ring colors. **#29's Avoid and Prefer toggles have never been used**, and they re-route every leg of a day when pressed. The `/api/route` request carrying `prefs` has been read, not sent.
 
 ## Fuel range on the map—2026-08-31
 
@@ -639,7 +658,7 @@ Never put a raw U+00A0 in source. It is invisible in a diff, so a stray one is u
 
 Every hit was verified as prose, a comment, or a test name before anything was written—no identifiers, no data keys, nothing in `drizzle/` or `utils/deploy/sql/`, and the SCSS token `$grey` untouched because AGENTS.md sanctions it. Case preserved, including three all-caps comment headers.
 
-**Three things were deliberately left in British spelling, and a future sweep must leave them alone**, because in each the spelling *is* the subject: the `` `color`, not `colour` `` example inside the rule statement in AGENTS.md, the ROADMAP row whose entire content is `"colours" → "colors"`, and the verbatim quotations from MyRoute-app's forum and support docs in [myrouteapp-formats.md](myrouteapp-formats.md), whose surrounding prose was corrected.
+**Three things were deliberately left in British spelling, and a future sweep must leave them alone**, because in each the spelling *is* the subject: the `` `color`, not `color` `` example inside the rule statement in AGENTS.md, the ROADMAP row whose entire content is `"colors" → "colors"`, and the verbatim quotations from MyRoute-app's forum and support docs in [myrouteapp-formats.md](myrouteapp-formats.md), whose surrounding prose was corrected.
 
 ### What is owed, and one thing to know about the history
 

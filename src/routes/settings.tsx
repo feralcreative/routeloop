@@ -340,7 +340,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
 settingsRoutes.post('/settings/duration-format', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const body = await c.req.parseBody()
-  // Anything unrecognised lands on the default rather than 400ing. The only way
+  // Anything unrecognized lands on the default rather than 400ing. The only way
   // to send a bad value here is to hand-craft the request, and the honest answer
   // to that is the same as the answer to a missing profile row.
   const durationFormat = toDurationFormat(body.durationFormat)
@@ -373,7 +373,7 @@ settingsRoutes.post('/settings/duration-format', requireActive, requireSameOrigi
 settingsRoutes.post('/settings/date-format', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const body = await c.req.parseBody()
-  // Same contract as the duration handler: anything unrecognised lands on the
+  // Same contract as the duration handler: anything unrecognized lands on the
   // default rather than 400ing, because the only way to send a bad value is to
   // hand-craft the request.
   const dateFormat = toDateFormat(body.dateFormat)

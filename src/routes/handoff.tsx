@@ -157,7 +157,7 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
               </li>
               <li>
                 Stops arrive as pins rather than names. The coordinates are exact; Google only shows a name for a place
-                it recognises.
+                it recognizes.
               </li>
               <li>
                 Your own Maps settings still apply. Avoid highways or avoid tolls will move the route regardless of what

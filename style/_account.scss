@@ -299,7 +299,7 @@
   }
 
   // $interstate-text rather than $go. $go is the green traffic SIGNAL — a field
-  // colour, and _tokens.scss records it as too light for white ink and dark
+  // color, and _tokens.scss records it as too light for white ink and dark
   // enough only for black. This is text on a white card, which is the case the
   // -text derivations exist for, and that one is measured at AA in all six
   // palettes by test/palette-contrast.test.ts.
@@ -368,7 +368,7 @@
 // --- Avatar (#99) ------------------------------------------------------------
 //
 // STORED SQUARE, SHOWN ROUND. Nothing circular is written to disk — a round
-// image would mean baking a background colour into the corners, and the corners
+// image would mean baking a background color into the corners, and the corners
 // would then be wrong on every surface with a different background. The radius
 // lives here, the same way `.nav-avatar` already carries its own.
 .avatar-now {

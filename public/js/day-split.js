@@ -67,7 +67,7 @@
    * dashboard's category chart, the roadbook's numbered rows, the fuel math in
    * day-distance.js, which would read the copy as a second refuelling stop. What
    * the copy keeps is where it is and what it is called, which is what a rider
-   * needs to recognise where their morning starts.
+   * needs to recognize where their morning starts.
    *
    * `kind` is forced to "stop" on the copy. Every day needs at least one, the
    * schema refuses a day of nothing but POIs, and the first point of a day is a

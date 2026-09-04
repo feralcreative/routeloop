@@ -489,8 +489,16 @@ $octagon: polygon(
 //                     accessible-parking symbol. Follow, which is neither a
 //                     direction nor a request: it is unilateral, instant and
 //                     reversible.
+//   .btn-warning      $warning, amber, and the only one of the four with a BLACK
+//                     legend and a black keyline. The warning class — the
+//                     rectangular advisory panel rather than the diamond, which
+//                     is a shape a legend of more than one word does not fit.
+//                     Reloading out of the save-failure dialog: the one action
+//                     in this app that can lose work a rider can still see, and
+//                     a warning sign is exactly what that is for. Ziad's call,
+//                     2026-09-03.
 //
-// ALL THREE DROP THE ARROW, and that is the same decision as the field rather
+// ALL FOUR DROP THE ARROW, and that is the same decision as the field rather
 // than a second one: a guide sign's whole grammar is "that way", and none of
 // these points anywhere.
 //
@@ -507,8 +515,33 @@ $octagon: polygon(
 // 0.35rem so the legend and the arrow are not evenly spaced from the edges — a
 // real sign's legend sits closer to its arrow than to its border. With no arrow
 // that asymmetry has nothing to describe and reads as a centering bug.
-@mixin sign-field($field) {
+//
+// `$dark-ink` FLIPS TWO THINGS AT ONCE, AND THEY ARE NOT TWO DECISIONS. A
+// black-legend field takes black for its keyline as well as its legend — a real
+// warning sign has a black border, not a white one — and it must get LIGHTER on
+// hover rather than darker, which is the trap the ink-pairing note in
+// _tokens.scss spells out: darkening raises contrast under white ink and lowers
+// it under black. Both follow from which ink the field carries, so both hang off
+// the one argument and a caller cannot set one and forget the other.
+@mixin sign-field($field, $dark-ink: false) {
+  // $white and not $ink-light, deliberately, because that is what the base rule
+  // above already bakes into its keyline and this mixin's whole job is to
+  // restate that ring in a new field color. The two differ under a dark scheme —
+  // see the note on "PAGE SURFACES, not legends" in _palette.scss — so the
+  // white-legend signs are arguably wrong there and were before this parameter
+  // existed. Changing it belongs with the base rule and every button that reads
+  // it, not here.
+  //
+  // @if rather than the if() function: Dart Sass deprecates that syntax
+  // ([if-function]) because both arms are evaluated whichever one is returned.
+  $ink: $white;
+
+  @if $dark-ink {
+    $ink: $ink-dark;
+  }
+
   background: $field;
+  color: $ink;
   padding: calc(0.75rem + 0.1em) 1.4rem calc(0.75rem - 0.1em);
   gap: 0;
 
@@ -519,7 +552,7 @@ $octagon: polygon(
   // border. It looked like a rendering fault rather than a color choice.
   box-shadow:
     inset 0 0 0 3px $field,
-    inset 0 0 0 5px $white;
+    inset 0 0 0 5px $ink;
 
   &::before {
     content: none;
@@ -534,12 +567,19 @@ $octagon: polygon(
   // browser does the arithmetic instead, in the same oklab space _palette.scss
   // derives in.
   &:hover {
+    // 14% white against 12% black: a lightening mix of the same nominal size
+    // reads as a smaller change than a darkening one, so the two are matched by
+    // eye rather than by number.
     $lit: color-mix(in oklab, $field, black 12%);
+
+    @if $dark-ink {
+      $lit: color-mix(in oklab, $field, white 14%);
+    }
 
     background: $lit;
     box-shadow:
       inset 0 0 0 3px $lit,
-      inset 0 0 0 5px $white;
+      inset 0 0 0 5px $ink;
   }
 }
 
@@ -553,6 +593,10 @@ $octagon: polygon(
 
 .btn.btn-sign.btn-services {
   @include sign-field($disabled);
+}
+
+.btn.btn-sign.btn-warning {
+  @include sign-field($warning, $dark-ink: true);
 }
 
 .btn.btn-sign.btn-stop {

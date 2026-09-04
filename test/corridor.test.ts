@@ -218,7 +218,7 @@ describe('sampling a day for corridor searches', () => {
   // the cap binds: consecutive samples overlap, so no gap as wide as the
   // corridor sits between them with nothing searching it. Six samples spaced by
   // the corridor's 30-mile diameter covers 180 miles.
-  it('places every sample within its own radius of its neighbour, up to the cap', () => {
+  it('places every sample within its own radius of its neighbor, up to the cap', () => {
     ;[40, 120, 180].forEach((mi) => {
       const got = samples(mi * MI)
       for (let i = 1; i < got.length; i++) {

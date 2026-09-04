@@ -103,7 +103,7 @@ describe('entryBaseName', () => {
 })
 
 describe('isArchiveCruft', () => {
-  it('recognises what macOS Compress adds', () => {
+  it('recognizes what macOS Compress adds', () => {
     expect(isArchiveCruft('__MACOSX/._routeloop_r_d01.gpx')).toBe(true)
     expect(isArchiveCruft('folder/._routeloop_r_d01.gpx')).toBe(true)
     expect(isArchiveCruft('.DS_Store')).toBe(true)

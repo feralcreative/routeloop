@@ -171,13 +171,13 @@
     // fraction; "stop" is the safe answer rather than the expected one.
     if (used == null) return "stop";
     if (used <= 0.5) return "go";
-    // $fuel-low, WHICH IS A TOKEN OF ITS OWN BECAUSE BOTH NEIGHBOURS WERE TRIED
+    // $fuel-low, WHICH IS A TOKEN OF ITS OWN BECAUSE BOTH NEIGHBORS WERE TRIED
     // AND BOTH WERE WRONG. $warning (#ffac00) is an amber tuned to be read as
     // text on a white card and washes out as a thin dotted ring over pale busy
     // map tiles; $detour (#f56100) fixed that and read as too red for "you have
     // half a tank left", which is advice rather than a verdict. $fuel-low is
     // mixed halfway between them in _palette.scss, so it follows all three sign
-    // palettes instead of sitting still while its neighbours move. Ziad's call,
+    // palettes instead of sitting still while its neighbors move. Ziad's call,
     // 2026-09-02, after seeing both on the map.
     if (used < 0.75) return "fuel-low";
     return "stop";

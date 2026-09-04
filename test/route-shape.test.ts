@@ -271,11 +271,11 @@ describe('sliceBetween', () => {
 // polyline because google.maps.Circle has no dash support at all, so a dotted
 // edge cannot be a Circle.
 describe('circlePath', () => {
-  const centre: [number, number] = [-122, 38]
+  const center: [number, number] = [-122, 38]
 
   it('puts every point exactly the radius away', () => {
     for (const r of [1000, 50_000, 200_000]) {
-      const ds = S.circlePath(centre, r).map((p: [number, number]) => S.haversineM(centre, p))
+      const ds = S.circlePath(center, r).map((p: [number, number]) => S.haversineM(center, p))
       expect(Math.min(...ds)).toBeCloseTo(r, 0)
       expect(Math.max(...ds)).toBeCloseTo(r, 0)
     }
@@ -290,19 +290,19 @@ describe('circlePath', () => {
   })
 
   it('closes itself so the caller does not have to', () => {
-    const p = S.circlePath(centre, 10_000)
+    const p = S.circlePath(center, 10_000)
     expect(p[0][0]).toBeCloseTo(p[p.length - 1][0], 9)
     expect(p[0][1]).toBeCloseTo(p[p.length - 1][1], 9)
   })
 
   it('takes a step count and defaults to a smooth one', () => {
-    expect(S.circlePath(centre, 10_000)).toHaveLength(73)
-    expect(S.circlePath(centre, 10_000, 8)).toHaveLength(9)
+    expect(S.circlePath(center, 10_000)).toHaveLength(73)
+    expect(S.circlePath(center, 10_000, 8)).toHaveLength(9)
   })
 
   it('is null when there is no ring to draw', () => {
-    expect(S.circlePath(centre, 0)).toBeNull()
-    expect(S.circlePath(centre, -5)).toBeNull()
+    expect(S.circlePath(center, 0)).toBeNull()
+    expect(S.circlePath(center, -5)).toBeNull()
     expect(S.circlePath(null, 100)).toBeNull()
   })
 })
