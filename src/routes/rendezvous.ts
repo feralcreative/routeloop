@@ -244,6 +244,11 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
       // `score` is deliberately not sent: it is unitless and putting one in
       // front of somebody invites them to compare two of them.
       worstDivertMi: worstDivertMi(m),
+      // METERS ALONG THE MAIN GROUP'S STRAND, which is what lets the builder put
+      // the point where it belongs in the order rather than at the end of the
+      // list. Unrounded miles would lose the precision a leg lookup needs, and
+      // this is never shown to a rider — every number they read is a mile.
+      alongM: Math.round(m.alongM),
       sharedPct: Math.round(m.sharedFraction * 100),
       isFuel: m.isFuel,
       // Empty for a bare point on the road, which has neither.

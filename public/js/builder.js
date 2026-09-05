@@ -4248,6 +4248,8 @@
             c.lat +
             '" data-lng="' +
             c.lng +
+            '" data-along="' +
+            c.alongM +
             '"' +
             // The name rides along on the button rather than being looked up
             // again when it is pressed: the row is what the rider chose, and a
@@ -4313,14 +4315,19 @@
   // possible — so appending would route the group past the meeting point to the
   // destination and then back to it.
   //
-  // THE LIMIT OF THAT, STATED RATHER THAN HIDDEN: on a day whose only points are
-  // the start and the destination — which is the shape this feature asks for and
-  // the shape it produces — second-to-last IS the right place. On a main group's
-  // day that already has stops along it, the meeting point lands at the end of
-  // that list whatever its position on the road, and the rider drags it. Placing
-  // it by its distance along the route needs `alongM` threaded through the
-  // response and a leg lookup, which is worth doing when a day like that is the
-  // common case rather than the exception.
+  // THE MAIN GROUP IS PLACED BY DISTANCE AND EVERY OTHER GROUP BY POSITION.
+  // Second-to-last was the rule for all of them until 2026-09-04, on the
+  // reasoning that a day whose only points are the start and the destination is
+  // the shape this feature asks for — true of a joining group and false of the
+  // main one, whose day is the ride and routinely has stops all along it. There
+  // the meet landed after every stop the rider had planned, hundreds of miles
+  // past where it belonged in the order. `alongM` is threaded through the
+  // response now and placeMeetOnMain walks the strand back to a day and a slot.
+  //
+  // A JOINING GROUP KEEPS THE POSITION RULE because there is nothing to measure:
+  // `alongM` is a distance along the MAIN group's road, and a joining group
+  // contributes a starting point and no road at all until this insert draws one.
+  // Never before their first point, though — that is where they set off from.
   //
   // GOES THROUGH addPoint LIKE EVERY OTHER POINT. It splices the legs, asks the
   // router for the two it changed, re-renders and marks dirty — a meeting point
@@ -4339,10 +4346,45 @@
   // meeting point after this, which is the part that changes the ride, and the
   // rider can split a day at any stop from the row menu when they want the
   // shared stretch to be its own day.
+  /**
+   * Where the meeting point goes on the main group's own road.
+   *
+   * WHAT THE MAIN GROUP HAS THAT NOBODY ELSE DOES IS A ROUTE THE POINT WAS
+   * MEASURED AGAINST. The proposal is made ON their track, so the response can
+   * say how far along it the meet is — and a day with stops already on it needs
+   * that number, because "before the last point" put a meeting point 200 miles
+   * up the road after every stop the rider had planned.
+   *
+   * THE STRAND, NOT THE GROUP'S OWN DAYS. `alongM` is measured along the same
+   * concatenation the server built — every day tagged for this group PLUS every
+   * shared one, in order — so the walk back has to use the same definition or
+   * the distance lands on the wrong day. That is `strandOf` server-side and this
+   * filter here; the two are one rule in two runtimes, like alts.ts and alts.js.
+   *
+   * NULL WHEN THERE IS NO DISTANCE TO USE, which is an old response or a
+   * candidate from before this shipped. The caller falls back to the position
+   * rule, so a missing number costs the placement and not the feature.
+   */
+  function placeMeetOnMain(alongM) {
+    const uid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    if (!uid || !Number.isFinite(alongM)) return null;
+    // ACTIVE DAYS ONLY, matching the server — a losing alternate is not a road
+    // anybody is riding, so it contributes no distance to walk through.
+    const active = ALT.activeDays(state.days);
+    const strand = active.filter((d) => !d.subgroupUid || d.subgroupUid === uid);
+    const place = DIST.placeAlongStrand(strand, alongM);
+    if (!place) return null;
+    const day = strand[place.index];
+    const dayIndex = state.days.indexOf(day);
+    if (dayIndex < 0 || day.points.length === 0) return null;
+    return { uid, dayIndex, at: place.at };
+  }
+
   function takeMeet(d) {
     const lat = Number(d.lat);
     const lng = Number(d.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const alongM = Number(d.along);
 
     // Each group's LAST day, by index — addPoint takes an index and everything
     // downstream of it is expressed in one. A group with no day of its own is
@@ -4352,7 +4394,15 @@
     state.days.forEach((day, i) => {
       if (day.subgroupUid) lastOf.set(day.subgroupUid, i);
     });
-    if (lastOf.size === 0) return;
+
+    // THE MAIN GROUP IS PLACED BY DISTANCE, EVERY OTHER GROUP BY POSITION, and
+    // that asymmetry is the shape of what is known rather than an inconsistency.
+    // `alongM` is measured along the MAIN group's strand and means nothing on
+    // anybody else's road; a joining group contributes a starting point and has
+    // no road to measure into until this insert draws one.
+    const mainPlace = placeMeetOnMain(alongM);
+    if (mainPlace) lastOf.delete(mainPlace.uid);
+    if (lastOf.size === 0 && !mainPlace) return;
 
     const names = [];
     const placed = [];
@@ -4360,7 +4410,9 @@
     // days here are distinct so it would survive either order, but doing
     // index-shifting edits in reverse is the habit that keeps the multi-day
     // paths in this file correct.
-    const targets = [...lastOf.entries()].sort((a, b) => b[1] - a[1]);
+    const targets = [...lastOf.entries()];
+    if (mainPlace) targets.push([mainPlace.uid, mainPlace.dayIndex]);
+    targets.sort((a, b) => b[1] - a[1]);
     const routed = [];
     for (const [uidOfGroup, dayIndex] of targets) {
       const day = state.days[dayIndex];
@@ -4374,7 +4426,17 @@
       // that role to decide where a tank refills, and a meeting point everyone
       // fills up at is exactly a refuel the range ring should know about.
       pt.roles = d.name ? ["meet", "gas"] : ["meet"];
-      const at = Math.max(0, day.points.length - 1);
+      // NEVER BEFORE THE FIRST POINT. A joining group contributes a STARTING
+      // POINT and nothing else, so its day is routinely one point long — and
+      // `points.length - 1` is 0 there, which put the meeting point ahead of the
+      // place the group sets off from. It also made elapsedToPointS() return 0,
+      // so the sync told them to leave at the moment everyone arrives. The floor
+      // of 1 is clamped up to the end of the list by addPoint, so a one-point
+      // day appends and every longer day inserts before its last point as before.
+      const at =
+        mainPlace && uidOfGroup === mainPlace.uid
+          ? Math.max(1, mainPlace.at)
+          : Math.max(1, day.points.length - 1);
       routed.push(addPoint(lng, lat, pt.name, dayIndex, pt, at));
       placed.push({ uid: uidOfGroup, dayIndex, at });
       if (g) names.push(g.name);

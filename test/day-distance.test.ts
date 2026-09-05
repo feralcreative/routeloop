@@ -168,3 +168,70 @@ describe('running dry', () => {
     expect(D.firstDryPoint(d, 'gas', mi(150))).toBeNull()
   })
 })
+
+// WHERE A MEETING POINT GOES (#239's placement half). The proposer measures a
+// candidate along the main group's strand, and this is the walk back from that
+// distance to a day and a slot in its point list. It replaced "before the last
+// point", which is exact on a start-and-destination day and put the meet after
+// every stop the rider had planned on a day that had any.
+describe('placing a point by distance into the day', () => {
+  it('lands inside the leg the distance falls on', () => {
+    // Home 0, Shell 100, Lunch 180, Motel 240.
+    expect(D.insertIndexAtM(day(), mi(50))).toBe(1)
+    expect(D.insertIndexAtM(day(), mi(140))).toBe(2)
+    expect(D.insertIndexAtM(day(), mi(200))).toBe(3)
+  })
+
+  // A distance sitting exactly on a point goes AFTER it: the rider is standing
+  // there, and a meet placed before a stop they have already reached would send
+  // them back up the road for it.
+  it('puts a distance landing on a point after that point', () => {
+    expect(D.insertIndexAtM(day(), mi(100))).toBe(2)
+    expect(D.insertIndexAtM(day(), mi(180))).toBe(3)
+  })
+
+  it('appends past the end of the day rather than clamping inside it', () => {
+    expect(D.insertIndexAtM(day(), mi(240))).toBe(4)
+    expect(D.insertIndexAtM(day(), mi(9999))).toBe(4)
+  })
+
+  // The geometric answer, with no floor. "Never before a group's start" is a
+  // rule about what a meeting point means and belongs to the caller.
+  it('applies no floor of its own at zero', () => {
+    expect(D.insertIndexAtM(day(), 0)).toBe(1)
+    expect(D.insertIndexAtM(day(), -1)).toBe(1)
+  })
+
+  it('answers zero for a day with no points', () => {
+    expect(D.insertIndexAtM({ points: [], legs: [] }, mi(10))).toBe(0)
+  })
+
+  const strand = (): Day[] => [
+    { points: [stop('A'), stop('B')], legs: [leg(100)] },
+    { points: [stop('C'), stop('D'), stop('E')], legs: [leg(50), leg(50)] },
+  ]
+
+  it('finds the day a strand distance falls on, and the slot within it', () => {
+    expect(D.placeAlongStrand(strand(), mi(40))).toEqual({ index: 0, at: 1 })
+    expect(D.placeAlongStrand(strand(), mi(130))).toEqual({ index: 1, at: 1 })
+    expect(D.placeAlongStrand(strand(), mi(180))).toEqual({ index: 1, at: 2 })
+  })
+
+  // The boundary goes to the day that ENDS there: that point is a place the
+  // rider planned, where the next day's first point is the same place again.
+  it('gives a day boundary to the day that ends on it', () => {
+    expect(D.placeAlongStrand(strand(), mi(100))).toEqual({ index: 0, at: 2 })
+  })
+
+  // The server measures along stored geometry and the builder along the legs in
+  // memory, so the two totals differ by meters. A meet at the very end of the
+  // road must not fall off it.
+  it('lands on the last day when the distance overshoots the strand', () => {
+    expect(D.placeAlongStrand(strand(), mi(9999))).toEqual({ index: 1, at: 3 })
+  })
+
+  it('is null for an empty strand, which is a group with no road', () => {
+    expect(D.placeAlongStrand([], mi(10))).toBeNull()
+    expect(D.placeAlongStrand(null, mi(10))).toBeNull()
+  })
+})

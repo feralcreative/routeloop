@@ -125,8 +125,73 @@
     return null;
   }
 
+  /**
+   * Where a point measured at `m` meters into the day belongs in its list.
+   *
+   * `legs[i]` joins `points[i]` to `points[i+1]`, so a distance falling inside
+   * leg i puts the new point between those two — index i+1. Past the end of the
+   * day it appends, which is the honest answer rather than a clamp: a meeting
+   * point beyond the last leg IS after the last point.
+   *
+   * It returns the GEOMETRIC answer and applies no floor. "Never before a
+   * group's starting point" is a rule about what a meeting point means, not
+   * about where a distance falls, and it lives with the caller that knows it.
+   *
+   * An unrouted leg measures zero — see legMeters — so a half-routed day lands
+   * the point at the first leg the router has not answered for yet. That is the
+   * same wrong-in-the-safe-direction the rest of this module takes: too early in
+   * the list is a drag, too late is a road that doubles back.
+   */
+  function insertIndexAtM(day, m) {
+    var points = pointsOf(day);
+    if (points.length === 0) return 0;
+    var cum = cumulativeM(day);
+    for (var i = 1; i < cum.length; i++) {
+      if (m < cum[i]) return i;
+    }
+    return points.length;
+  }
+
+  /**
+   * Which day of a strand a distance falls on, and where in that day's list.
+   *
+   * A STRAND IS THE CALLER'S TO ASSEMBLE — this takes the days already filtered
+   * and ordered, the same list the server measured `alongM` along, because the
+   * two have to agree about what a group rides and there is exactly one
+   * definition of that (strandOf, mirrored client-side by the same filter).
+   *
+   * Returns `{ index, at }`, where `index` addresses the array it was PASSED
+   * rather than `state.days` — the caller did the filtering and is the one that
+   * can map back. Null for an empty strand, which is a real state: a group with
+   * no day of its own has no road for a point to go on.
+   *
+   * A distance past the end of the strand lands on the last day. That is not a
+   * failure case but a rounding one — the server measures along stored geometry
+   * and the builder along the legs in memory, so the two totals differ by meters
+   * and a meet at the very end of the road can fall off it.
+   */
+  function placeAlongStrand(days, m) {
+    if (!days || days.length === 0) return null;
+    var run = 0;
+    for (var i = 0; i < days.length; i++) {
+      var total = totalM(days[i]);
+      // `<=` rather than `<` so a distance landing exactly on a day boundary
+      // goes to the day it ENDS, not the next one's first point — the same
+      // choice rideSegments makes in the other direction and for the opposite
+      // reason: there the next day's start is a time the rider typed, here the
+      // previous day's end is a place they already planned.
+      if (m <= run + total || i === days.length - 1) {
+        return { index: i, at: insertIndexAtM(days[i], m - run) };
+      }
+      run += total;
+    }
+    return null;
+  }
+
   window.TBDistance = {
     cumulativeM: cumulativeM,
+    insertIndexAtM: insertIndexAtM,
+    placeAlongStrand: placeAlongStrand,
     totalM: totalM,
     sinceRefuelM: sinceRefuelM,
     isRefuel: isRefuel,
