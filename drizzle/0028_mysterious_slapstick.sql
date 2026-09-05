@@ -1,0 +1,1 @@
+ALTER TABLE "points" ADD COLUMN "address" varchar(300);

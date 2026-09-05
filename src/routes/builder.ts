@@ -214,6 +214,9 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       lat: p.lat,
       lng: p.lng,
       name: p.name,
+      // Public, and part of the route being cloned — unlike `details` below,
+      // which is the private half and is dropped.
+      address: p.address,
       description: '',
       roles: p.roles,
       // A clone gets FRESH identities and NO private details, and both halves of
@@ -660,6 +663,7 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
         lat: p.lat,
         lng: p.lng,
         name: p.name,
+        address: p.address,
         description: p.description ?? '',
         roles: p.roles,
         durationMin: p.durationMin,

@@ -1113,23 +1113,199 @@
     }
   }
 
+  // A SHAPING POINT'S ROW. Quieter than a point row by a long way and
+  // deliberately so: a via is a hint about which road to take, not a place
+  // anyone is going, so it reads as an annotation ON the leg above it rather
+  // than as another entry in the day. Indented past the drag handle's column so
+  // the numbered rows still line up as one list down the left edge.
+  .via-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    // NO BORDER. Ziad's call, 2026-09-04, replacing an outlined pill: once the
+    // shaping points get the same hairline-and-+ gaps the point rows get, the
+    // list separates itself, and a box around each row is a second separator
+    // doing the same job — two grids down one column. What marks a shaping point
+    // as a different kind of thing is the dot, the label and the indent.
+    padding: 0 0.5em;
+    // NO VERTICAL MARGIN, AND THAT IS THE ANSWER TO "why is there still white
+    // under the words". MEASURED on ride 34 rather than reasoned: every point
+    // row has 2.8px above its distance readout, and below it had -1.6px when an
+    // insert slot followed and +5.4px when one of these did — a 7px difference
+    // between two rows that look identical, which is what reads as a band of
+    // white under a row that happens to have been shaped. Now that a slot sits
+    // above every shaping point too, ONE element owns every gap in this list and
+    // there is nothing left here to get out of step with it.
+    margin: 0 0 0 1.6em;
+    font-size: 0.7em;
+    // THE OTHER HALF OF "reduce the padding above and below a shaping point",
+    // and the half that is genuinely padding. Ziad's call, 2026-09-04. The row
+    // has no vertical padding at all — its height is one line box, and the
+    // body's 1.57 is prose leading, so a 9.8px label sat in a 15.4px row with
+    // about 4px of dead space split above and below it. 1.2 takes the row to
+    // 11.8px, which is as low as it goes: the × beside it is 10.8px and becomes
+    // the floor. The gaps either side are the insert slots and come down with
+    // it — see .insert-slot[data-via].
+    line-height: 1.2;
+    // DARKER THAN THE OTHER SECONDARY TEXT IN THIS LIST, deliberately. Ziad's
+    // call, 2026-09-04. `.row-dist` is $neutral-50 and is a figure you glance
+    // at; this is a label on a control you press, at 0.7em, inside a hairline
+    // outline — three things all giving way at once is what made it grey on
+    // grey. $neutral-36 is the same weight the tank figure takes when it has
+    // something to say.
+    color: $neutral-36;
+    // NOT A DRAG TARGET AND NOT A POINTER. The row is a label with one control
+    // in it; a grab cursor here would promise a reorder that Sortable is
+    // explicitly told not to offer.
+    cursor: default;
+  }
+
+  // The dot, matched to the map handle so the two read as the same object seen
+  // twice. Hollow rather than filled, which is what the map's via marker is.
+  .via-mark {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    // Matched to the text rather than to anything around it — the dot is
+    // read WITH the label, and at 6px a lighter ring than the words beside it
+    // reads as smudged rather than as quiet.
+    border: 1px solid $neutral-36;
+    border-radius: 50%;
+  }
+
+  .via-name {
+    // Grows, so the × sits at the row's right edge where a point row's own menu
+    // button is. The two lists read down one column rather than the delete
+    // landing wherever the label happens to end.
+    flex: 1 1 auto;
+    // NUDGED DOWN, AND THE NUDGE IS TWO THINGS. `align-items: center` centers
+    // BOXES, and the dot and the × are boxes whose ink fills them — so both land
+    // dead centre. Text does not: its box is the line box, and Overpass puts
+    // more of the half-leading below the baseline than above, so the ink sits
+    // high inside a box that is itself perfectly centred. That measured at
+    // 0.045em. The rest of the way to 0.15em is OPTICAL: the eye centres a word
+    // on its x-height, which sits above the middle of a box that also has to
+    // hold ascenders and descenders, so type always reads high when it is
+    // centred geometrically. In em because both halves are properties of the
+    // typeface rather than of this size. `position: relative` and not a margin,
+    // because a margin makes the row a pixel taller and takes the whole list
+    // with it.
+    position: relative;
+    // 0.25em since 2026-09-04, and it got there in two steps: 0.2em on top of
+    // the measured-plus-optical 0.15em below, once the row's own leading came
+    // down and left the label reading high in what was left, then half of that
+    // back — Ziad's call both times, by eye, which is the right instrument for
+    // where a word sits in a row.
+    top: 0.25em;
+    // It is one string with no name in it, so there is nothing to truncate and
+    // nothing to wrap for.
+    white-space: nowrap;
+  }
+
+  // ALWAYS VISIBLE. Ziad's call, 2026-09-04, reversing a hover reveal: a control
+  // that only exists while the pointer is over it does not exist on a touch
+  // screen at all — the same argument the insert slots are rendered on by — and
+  // removing a shaping point from the pane is the whole reason the row is here.
+  // It is quiet rather than hidden, and takes its color on hover.
+  .via-del {
+    flex: 0 0 auto;
+    // Tighter than it was: inside a pill this sets the height, and 1.2em with
+    // horizontal padding made the outline taller than the text in it.
+    padding: 0;
+    border: 0;
+    background: none;
+    color: $neutral-36;
+    font-size: 1.1em;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.12s;
+
+    &:hover,
+    &:focus-visible {
+      color: $stop;
+    }
+  }
+
+  // TIGHTER AROUND A SHAPING POINT than between two points. Ziad's call,
+  // 2026-09-04. Every gap in the list is this one element now, which is what
+  // keeps them from drifting apart — but a shaping point is a smaller thing than
+  // a stop, and a full point-row gap either side of a 0.7em label reads as a
+  // hole in the list. The negative margins are untouched, so the strip stays as
+  // easy to hit as any other; only the height it contributes comes down.
+  .insert-slot[data-via] {
+    // 15px, and the number is the glyph rather than a taste. The negative
+    // margins mean this contributes height-8 to the layout, so this is a SEVEN
+    // pixel gap either side of a shaping point against the ten between two
+    // points — and the + is 7px tall and the same size here as everywhere else
+    // (Ziad's call, 2026-09-04: the separator does not shrink because the row
+    // under it is small). Seven is therefore the floor: one pixel less and the
+    // glyph is back on top of the white card above, which is the whole defect
+    // this was drawn to fix.
+    height: 15px;
+
+    // AND THE GLYPH SITS A PIXEL LOW IN THIS ONE. Seven pixels of + in a seven
+    // pixel gap touches the card above with nothing to spare, and a bar's
+    // antialiasing is what would then read as the + being stuck to the row.
+    // A shaping point's row is transparent — it is a label on the day's own
+    // ground, not a white card — so the pixel is taken from BELOW, where it
+    // lands in the row's leading and is invisible, rather than from above.
+    .insert-btn {
+      top: 1px;
+    }
+  }
+
+  // THE + IS DRAWN, NOT TYPED, AND THAT IS WHAT PUTS IT IN THE GAP RATHER THAN
+  // ON THE ROW ABOVE IT. Ziad's call, 2026-09-04, reported as the + sitting
+  // underneath the row.
+  //
+  // MEASURED rather than reasoned: a text "+" is ink sitting entirely ABOVE the
+  // baseline, and a line box puts the baseline low. At 14px in this face the
+  // ink ran from 2.4px below the top of the button to 5.0px above its bottom —
+  // so a glyph centered by the browser is 1.3px HIGH of the box it is centered
+  // in, every time, and no amount of centering the box fixes it. Between two
+  // point rows that cost most of the clearance; over a shaping point's 4px gap
+  // it put 2.6px of the + inside the white card above, directly under the
+  // distance readout.
+  //
+  // Two bars with `inset: 0; margin: auto` are centered by geometry instead, so
+  // the font is out of the question entirely: whatever face the site ships, the
+  // + is 7px tall and sits in the middle of the gap. The text stays in the
+  // markup (the accessible name is the aria-label either way) and is hidden by
+  // font-size, so a caller that renders a different label still gets a +.
   .insert-btn {
+    position: relative;
     flex: 0 0 auto;
     box-sizing: border-box;
-    // No border, no background — it sits IN the gap rather than over the line.
-    // The padding is horizontal only, so the glyph keeps a little air from the
-    // two rule ends without growing the row.
-    padding: 0 2px;
+    // Wide enough to be a target next to the rules and to hold the bar, with the
+    // horizontal air the padding used to give it.
+    width: 18px;
+    height: 12px;
     border: 0;
     background: none;
     color: $text-l30;
-    // Plain weight, not bold. A bold glyph reads as a control demanding attention;
-    // this one is a quiet affordance sitting in a row separator. The size goes up
-    // 1px to hold its optical size, since a 400-weight plus looks smaller than a
-    // 700-weight one at the same px.
-    font: 400 14px/1 $font;
+    font-size: 0;
     cursor: pointer;
     transition: color 0.12s;
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      background: currentColor;
+    }
+    // The crossbar and the upright. 1px each, the same weight as the two rule
+    // segments either side, so the + reads as part of the line rather than as a
+    // glyph laid over it.
+    &::before {
+      width: 7px;
+      height: 1px;
+    }
+    &::after {
+      width: 1px;
+      height: 7px;
+    }
 
     .insert-slot:hover &,
     &:focus-visible {
@@ -1321,10 +1497,17 @@
       // because a row's pitch is the sum of all three and trimming one alone
       // barely shows. Anything lower than this and the drag tab has no grip left.
       //
+      // NO LONGER SYMMETRIC as of 2026-09-04: the bottom is half the top. What
+      // sits under the last line of a row is the distance readout, which is
+      // 0.7em grey text with its own leading — so the same padding that gives
+      // the name room at the top reads as a gap under a figure at the bottom.
+      // The top keeps 0.2em because that is what the drag tab's grip needs.
+      //
       // .row-drag cancels this with a negative margin so its tab reaches the
       // row's real edges, and .row-drag-ghost repeats it because the drag mirror
-      // deliberately inherits nothing. CHANGE ALL THREE OR NONE.
-      padding: 0.2em 0;
+      // deliberately inherits nothing. CHANGE ALL THREE OR NONE — and now each
+      // of the three carries two numbers rather than one.
+      padding: 0.2em 0 0.1em;
       background: $white;
       // A CARD PER ROW, separated, rather than a continuous run divided by
       // hairlines. The separation is what makes the drag tab read: butted
@@ -1375,9 +1558,11 @@
       // while the vertical padding belongs to .point-row OUTSIDE it, so the tab
       // stopped short at both ends and read as a floating stub rather than as
       // part of the row. The negative margins cancel exactly that padding — keep
-      // the two numbers in step if either moves. Both are 0.2em.
+      // the two numbers in step if either moves. The row is 0.2em over 0.1em
+      // since 2026-09-04, so this is too: a single -0.2em would overhang the
+      // bottom by a pixel and round the tab past the card it belongs to.
       align-self: stretch;
-      margin: -0.2em 0;
+      margin: -0.2em 0 -0.1em;
       // 16px against the dot grid's 8px, so 4px of air each side. It was 24px
       // and the dots swam in the middle of it — the tab needs to be a grip, not
       // a margin.
@@ -1770,8 +1955,21 @@
       display: flex;
       flex-wrap: wrap;
       gap: 0 0.6em;
-      margin: 0.15em 0 0 1.6em;
+      // 0.4em, up from 0.15em on 2026-09-04 — and note the em here is the
+      // readout's OWN 0.7em, so 0.15em was 1.5px at a 16px root. MEASURED on
+      // ride 34: the figure sat 1.5px under the name field and read as part of
+      // it rather than as a line under it. This is the top gap only; the bottom
+      // stays tight, because what is under the figure is the edge of the card.
+      margin: 0.4em 0 0 1.6em;
       font-size: 0.7em;
+      // ITS OWN LINE-HEIGHT, because the body's 1.5 is prose leading and this is
+      // a one-line figure. MEASURED, after halving the row's padding twice did
+      // nothing anybody could see: at a 16px root this text is 11.2px in a
+      // 16.8px box, so 2.8px of the gap under it was dead space INSIDE the
+      // readout — a third of the whole gap, and invisible to an inspector
+      // looking at padding. 1.2 keeps two lines legible when the tank figure
+      // wraps, which 1 does not.
+      line-height: 1.2;
       font-variant-numeric: tabular-nums;
       color: $neutral-50;
     }
@@ -2333,7 +2531,10 @@
   list-style: none;
   box-sizing: border-box;
   width: var(--panel-width, 380px);
-  padding: 0.2em 0.75em;
+  // Repeats .point-row's own vertical padding, which is 0.2em over 0.1em — the
+  // mirror inherits nothing, so a symmetric value here makes the dragged row a
+  // pixel taller than the gap it is being dropped into.
+  padding: 0.2em 0.75em 0.1em;
   background: $white;
   border: 1px solid $brand;
   border-radius: 6px;
@@ -2626,6 +2827,64 @@
 
 .sg-meet-fact {
   color: $neutral-57;
+}
+
+// ONE SECTION PER JOINING GROUP. Ziad's call, 2026-09-04: a press answers the
+// whole question — where group 2 joins, where group 3 joins — and the planner
+// knocks the decisions down one at a time. The heading is what makes three
+// lists on one screen readable; without it they are nine rows about nobody.
+.sg-meet-group + .sg-meet-group {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid $neutral-88;
+}
+
+.sg-meet-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: $neutral-36;
+}
+
+// The group's own color, so the heading, the row badges and the dots on the map
+// are one object seen three times.
+.sg-meet-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+// THE SAME NUMBER THE DOT CARRIES. It is the pairing between a row and a place
+// on the map, which is why it is a filled badge rather than a plain figure: at
+// 0.75em a bare numeral beside a button reads as part of the sentence.
+.sg-meet-num {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: $white;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  // The row is baseline-aligned and this is a circle with no text baseline of
+  // its own worth trusting, so it is nudged to sit with the words rather than
+  // hanging below them.
+  align-self: center;
+}
+
+// LIT FROM THE MAP. Pointing at a dot lights its row and pointing at a row
+// lights its dot — #232's rule, and the row half had no style at all until
+// 2026-09-04, so half of a two-way pairing silently did nothing.
+.sg-meets li.is-lit {
+  background: color-mix(in srgb, $brand 10%, transparent);
+  border-radius: 5px;
 }
 
 // The picker in a day header. Rendered only when the ride has subgroups, so on

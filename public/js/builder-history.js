@@ -74,7 +74,22 @@
 
   function snapshot(state) {
     return {
-      meta: { ...state.meta },
+      meta: {
+        ...state.meta,
+        // THE SAME TRAP AS `roles` AND `viaPoints`, ONE LEVEL UP, and it was
+        // live from the day groups shipped. `{ ...state.meta }` is SHALLOW, so
+        // the snapshot pointed at the very array the Groups panel pushes to,
+        // splices out of and reorders — and every group object in it is written
+        // field by field by the name and color inputs. Undo restored a meta
+        // object whose subgroups had already moved on, so adding, renaming,
+        // recoloring, deleting or reordering a group could not be taken back
+        // and nothing said so.
+        //
+        // It surfaced when adding a group started seeding a route for it:
+        // undo took the route back and left the group, which is one gesture
+        // half-undone rather than an undo that quietly does nothing.
+        subgroups: (state.meta.subgroups || []).map((g) => ({ ...g })),
+      },
       days: (state.days || []).map(snapshotRoute),
     };
   }

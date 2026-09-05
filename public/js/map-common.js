@@ -1058,10 +1058,18 @@
         // chosen — Place Details is billed per call, autocomplete is not.
         resolve: async () => {
           const place = prediction.toPlace();
-          await place.fetchFields({ fields: ["displayName", "location"] });
+          // `formattedAddress` rides along with no change to what this costs:
+          // Place Details is billed by the highest field tier requested, and it
+          // sits in the same Pro tier `displayName` already puts this call in.
+          // It is what the popup prints under the name — see points.address.
+          await place.fetchFields({ fields: ["displayName", "location", "formattedAddress"] });
           sessionToken = null;
           if (!place.location) return null;
-          return { lngLat: fromLatLng(place.location), name: place.displayName || "" };
+          return {
+            lngLat: fromLatLng(place.location),
+            name: place.displayName || "",
+            address: place.formattedAddress || "",
+          };
         },
       }));
   }
@@ -1189,8 +1197,14 @@
       "<div class='waypoint-tooltip-name'>" +
       esc(point.name || "") +
       "</div>" +
+      // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC. A popup naming "Shell"
+      // says nothing a rider can navigate by — Bakersfield has several — so the
+      // address Google gave when the point was added rides in ride.json for
+      // every viewer. Null for a point dropped on the map: nothing geocodes one
+      // after the fact, and an absent line is better than an invented one.
+      (point.address ? "<div class='waypoint-tooltip-addr'>" + esc(point.address) + "</div>" : "") +
       (point.description ? "<div class='waypoint-tooltip-desc'>" + esc(point.description) + "</div>" : "") +
-      detailsBlock(point.details)
+      detailsBlock(point.details, point.address)
     );
   }
 
@@ -1204,14 +1218,20 @@
   // Every value goes through esc(), links included, and the URL was already
   // constrained to http(s) at save time by fields.external_url — an href is the
   // one place esc() alone is not enough.
-  function detailsBlock(d) {
+  function detailsBlock(d, publicAddress) {
     if (!d) return "";
     let rows = "";
     if (d.confirmation) rows += numRow("Confirmation", esc(d.confirmation));
     if (d.checkInAt) rows += numRow("Check in", esc(fmtStamp(d.checkInAt)));
     if (d.checkOutAt) rows += numRow("Check out", esc(fmtStamp(d.checkOutAt)));
     if (d.phone) rows += numRow("Phone", "<a href='tel:" + esc(d.phone) + "'>" + esc(d.phone) + "</a>");
-    if (d.address) rows += numRow("Address", esc(d.address));
+    // Skipped when it is the same address the public half already printed. The
+    // owner's typed one and the point's own are two different fields and a stop
+    // taken from a saved place carries both, which read as the popup saying it
+    // twice.
+    if (d.address && d.address.trim() !== (publicAddress || "").trim()) {
+      rows += numRow("Address", esc(d.address));
+    }
     const links = (d.links || [])
       .filter((l) => l.url)
       .map(
@@ -1284,22 +1304,70 @@
 
     let open = false;
     let pinned = false;
+    let hideTimer = null;
     const el = marker.content;
 
+    // CLOSING IS DELAYED AND OPENING IS NOT, AND THE POPUP ITSELF HOLDS IT OPEN.
+    // Two things made the hover flicker rather than settle. The window opens
+    // ANCHORED over the marker, so Google's own `.gm-style-iw-a` box lands on
+    // top of the dot the pointer is resting on — the browser then fires
+    // `mouseleave` on a pointer that never moved, the popup closes, the dot is
+    // uncovered, `mouseenter` fires, and the pair loops at frame rate. And the
+    // hit target is a 16px dot (`.tb-marker` is 0x0 by design), so the few
+    // pixels of travel between the dot and the window's tail count as leaving.
+    //
+    // The grace period covers the gap and the popup's own hover cancels it, so
+    // a rider can move onto the window to read it or follow a link. Closing on
+    // a timer rather than on the edge is what makes it feel solid; opening is
+    // still immediate, because a delay there reads as lag.
+    const HOVER_GRACE_MS = 140;
+
+    function cancelHide() {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    }
     function show() {
+      cancelHide();
       if (open) return;
       popup.open({ map, anchor: marker });
       open = true;
     }
     function hide() {
+      cancelHide();
       if (!open) return;
       popup.close();
       open = false;
     }
+    function scheduleHide() {
+      if (pinned) return;
+      cancelHide();
+      hideTimer = setTimeout(() => {
+        hideTimer = null;
+        if (!pinned) hide();
+      }, HOVER_GRACE_MS);
+    }
+
+    // Google re-parents the content node into its own box on every open, so the
+    // element that actually sits under the pointer is an ancestor we do not own
+    // and cannot bind until it exists. `domready` is when it does. The flag is
+    // per element, so a box Google reuses across opens is bound once and a box
+    // it rebuilds is bound again.
+    function bindPopupHover() {
+      const box = content.closest(".gm-style-iw-a") || content.parentElement;
+      if (!box || box.dataset.tbHoverBound === "1") return;
+      box.dataset.tbHoverBound = "1";
+      box.addEventListener("mouseenter", cancelHide);
+      box.addEventListener("mouseleave", () => {
+        if (!pinned) scheduleHide();
+      });
+    }
+    Core.event.addListener(popup, "domready", bindPopupHover);
 
     el.addEventListener("mouseenter", show);
     el.addEventListener("mouseleave", () => {
-      if (!pinned) hide();
+      if (!pinned) scheduleHide();
     });
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1309,6 +1377,7 @@
     });
     Core.event.addListener(popup, "closeclick", () => {
       pinned = false;
+      cancelHide();
       open = false;
     });
     return popup;
@@ -1481,10 +1550,17 @@
   /**
    * Draw one numbered dot per search result, or clear them with an empty list.
    *
-   * `items` is [{ lngLat, name, tip, label }] in the order the list shows them,
-   * so the number on a dot is the row it belongs to. `tip` is the hover text and
-   * `label` the accessible name; both fall back to `name`. `onHover(i | null)`
-   * fires when the pointer enters or leaves a dot.
+   * `items` is [{ lngLat, name, tip, label, color }] in the order the list shows
+   * them, so the number on a dot is the row it belongs to. `tip` is the hover
+   * text and `label` the accessible name; both fall back to `name`.
+   * `onHover(i | null)` fires when the pointer enters or leaves a dot.
+   *
+   * `color` is optional and exists because the dots serve two features that need
+   * opposite things from a color. A place search is offering places and the
+   * brand is right for it. A meeting-point proposal is drawn ON the main group's
+   * own route, so a brand-blue dot on a brand-blue road is invisible — the
+   * caller passes the JOINING group's color there. Omitted leaves the CSS to it,
+   * which is what keeps the search call site untouched.
    */
   function setSearchPreview(map, items, onHover, onPick) {
     const p = searchPreviewOf(map);
@@ -1505,6 +1581,17 @@
       p.pins[i].map = map;
       const dot = p.pins[i].content.firstChild;
       dot.classList.remove("is-lit");
+      // THE NUMBER IS THE CALLER'S WHEN IT OFFERS ONE. A place search numbers a
+      // single list 1..n and the index is that number. A meeting-point proposal
+      // draws several lists at once — one per joining group, each in that
+      // group's color — and each has to count from one, or the rider is reading
+      // dot 5 against a row labelled 2.
+      dot.textContent = String(list[i].num == null ? i + 1 : list[i].num);
+      // Cleared rather than left alone when there is no color: the pins are a
+      // POOL, so a dot the meeting-point proposal painted is the same element
+      // the next place search gets back, and an unset inline style is what lets
+      // the stylesheet's own color through again.
+      dot.style.background = list[i].color || "";
       // No role — it is a button, and announcing it as an image would take the
       // press away from anyone using a screen reader.
       //
@@ -1544,13 +1631,28 @@
   // making right now, and at ghost opacity over busy tiles it is not readable.
   // Dashed rather than solid because it is not a day of the ride: nothing here
   // is saved, and a solid line would read as another route on the map.
-  function approachDashes(lit) {
+  // `color` is the joining group's, so a rider comparing three groups' roads can
+  // tell whose is whose — the same reason the candidate dots take it. Null falls
+  // back to the neutral pair, which is what a single unattributed approach wants
+  // and what this drew for every line before groups were colored.
+  function approachDashes(lit, color) {
     return [
       {
         icon: {
           path: "M 0,-1 0,1",
-          strokeColor: lit ? "#1f1f1f" : "#8a8a8a",
-          strokeOpacity: lit ? 0.95 : 0.55,
+          strokeColor: color || (lit ? "#1f1f1f" : "#8a8a8a"),
+          // FULLY OPAQUE WHEN IT IS THE ONE BEING POINTED AT. Ziad's call,
+          // 2026-09-04: it was 0.95 against 0.55, which is not a difference
+          // anybody can see on a busy map, so hovering a row told the rider
+          // almost nothing about which road it meant. Holding back was worry
+          // about an approach being mistaken for a planned route, and the DASHES
+          // already answer that — a dashed line is not a road anyone has
+          // planned, at any opacity.
+          //
+          // The unlit end came down to 0.35 in the same change: a highlight is a
+          // ratio, so raising the lit one and leaving the rest where they were
+          // would have bought half the contrast.
+          strokeOpacity: lit ? 1 : 0.35,
           strokeWeight: lit ? 4 : 3,
           scale: 3,
         },
@@ -1596,6 +1698,11 @@
       const line = a.lines[i];
       line.setPath(list[i].path.map(toLatLng));
       line.set("tbGroup", list[i].group);
+      // Kept on the overlay rather than in a parallel array, so a highlight pass
+      // repaints a line in its own color without the caller having to hand the
+      // whole set back in.
+      line.set("tbColor", list[i].color || null);
+      line.setOptions({ icons: approachDashes(false, list[i].color) });
       line.setMap(map);
       line.setVisible(true);
     }
@@ -1611,7 +1718,7 @@
     a.lines.forEach((line) => {
       if (!line.getVisible()) return;
       const lit = i == null || line.get("tbGroup") === i;
-      line.setOptions({ icons: approachDashes(lit), strokeOpacity: 0 });
+      line.setOptions({ icons: approachDashes(lit, line.get("tbColor")), strokeOpacity: 0 });
       line.setZIndex(lit ? 3.7 : 3.6);
     });
   }

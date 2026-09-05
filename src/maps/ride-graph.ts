@@ -89,6 +89,10 @@ const pointSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   name: z.string().max(255).default(''),
+  // The place's own address, public — see points.address. Optional and
+  // defaulted, so an older tab, a native file written before this shipped and
+  // every lossy import stay valid; none of them carries one.
+  address: z.string().max(300).nullable().default(null),
   description: z.string().max(2000).default(''),
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
   durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
@@ -431,6 +435,7 @@ export async function insertRideGraph(
       lat: s.lat,
       lng: s.lng,
       name: s.name,
+      address: s.address || null,
       description: s.description || null,
       roles: s.roles,
       durationMin: s.durationMin,

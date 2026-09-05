@@ -643,6 +643,10 @@ export async function loadNativeRide(
         lat: p.lat,
         lng: p.lng,
         name: p.name,
+        // The public address, carried because this is the format that promises
+        // to lose nothing. The four lossy formats do not write it — the same
+        // call as the day's clock: what a GPX cannot say, none of them says.
+        address: p.address,
         description: p.description ?? '',
         roles: p.roles,
         durationMin: p.durationMin,

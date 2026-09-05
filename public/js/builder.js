@@ -183,7 +183,11 @@
     return day;
   }
 
-  function newPoint(lng, lat, name) {
+  // `address` is the place's own street address as Google gave it, or "" for a
+  // point the rider dropped on the map — nothing geocodes one after the fact.
+  // It is PUBLIC and rides in the payload beside the name; the owner-only
+  // address a rider types by hand lives on `details` and is a different field.
+  function newPoint(lng, lat, name, address) {
     return {
       // THE BASELINE TYPE. Ziad's call, 2026-08-23: a point is a POI until it is
       // promoted, so nothing has to be decided at the moment of creation — which
@@ -192,6 +196,7 @@
       lat: +lat.toFixed(6),
       lng: +lng.toFixed(6),
       name: name || "",
+      address: address || "",
       description: "",
       roles: [],
       durationMin: null,
@@ -272,7 +277,7 @@
   // the place, a confirmation number is a fact about one trip.
   function stopFromPlace(pl) {
     const durable = Boolean(pl.phone || pl.address || (pl.links || []).length);
-    const pt = newPoint(pl.lng, pl.lat, pl.name);
+    const pt = newPoint(pl.lng, pl.lat, pl.name, pl.address);
     pt.roles = (pl.roles || []).slice();
     if (durable) {
       pt.details = {
@@ -530,6 +535,13 @@
     },
     days: [newDay()],
     // WHICH FEATURE OWNS THE MAP'S PREVIEW DOTS — "search", "meet" or null.
+    // The last proposal, whole, so taking one group's meeting point can re-render
+    // the sections for the groups still undecided. Null until the button is
+    // pressed and again the moment a press fails.
+    meet: null,
+    // The sentence about the decision just made, held for the same reason the
+    // proposal is — the panel that shows it is rebuilt whenever a day changes.
+    meetNote: "",
     // `setSearchPreview` is one slot and two features draw into it, so the one
     // that did not put them there must not clear them: see hideSearchResults.
     previewOwner: null,
@@ -1853,16 +1865,27 @@
   // A shaping point is not a place anyone is going — it is a hint about which
   // road to take. It gets its own smaller handle, no row in the stop list, and
   // no place in the stop numbering.
+  // ONE PATH FOR BOTH SURFACES. The map handle and the pane row take the same
+  // shaping point out, so they cannot come to disagree about what removing one
+  // does — and the pane needs the row list rebuilt where the map does not, which
+  // is the only difference and is done here rather than at either call site.
+  function removeVia(r, legIndex, viaIndex) {
+    const leg = state.days[r] && state.days[r].legs[legIndex];
+    if (!leg || !leg.viaPoints || !leg.viaPoints[viaIndex]) return;
+    beginEdit("remove shaping point");
+    leg.viaPoints.splice(viaIndex, 1);
+    computeLeg(r, legIndex);
+    renderMarkers();
+    renderDayList(r);
+    markDirty();
+  }
+
   function makeViaMarker(r, legIndex, viaIndex, v) {
     const el = markerElement({ name: "" }, state.days[r].color, "via");
     el.title = "Shaping point—drag to move, click to remove";
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      beginEdit("remove shaping point");
-      state.days[r].legs[legIndex].viaPoints.splice(viaIndex, 1);
-      computeLeg(r, legIndex);
-      renderMarkers();
-      markDirty();
+      removeVia(r, legIndex, viaIndex);
     });
     const marker = addMarker(state.map, [v[0], v[1]], el, { draggable: true });
     onMarkerDragEnd(marker, ([lng, lat]) => {
@@ -1871,6 +1894,9 @@
       computeLeg(r, legIndex);
       renderMarkers();
       markDirty();
+      // No renderDayList: the row says nothing about WHERE a shaping point is,
+      // so moving one changes no text — and rebuilding the list would cost the
+      // rider whatever field they had focused. #188, reached from the map.
     });
     return { marker, el };
   }
@@ -1896,6 +1922,9 @@
     vias.splice(at, 0, [+lngLat[0].toFixed(6), +lngLat[1].toFixed(6)]);
     computeLeg(r, legIndex);
     renderMarkers();
+    // The pane gains a row for it. Without this the drag reshaped the road and
+    // the list said nothing, which is exactly the report this row exists for.
+    renderDayList(r);
     markDirty();
   }
 
@@ -3791,6 +3820,49 @@
     return state.meta.subgroups.find((g) => g.uid === u) || null;
   }
 
+  /**
+   * A route of its own for a group that has just been added.
+   *
+   * SEEDED AT THE RIDE'S OWN START, which is a placeholder and is meant to be
+   * moved. A joining group contributes a starting point and nothing else — see
+   * src/subgroups/rendezvous.ts — so one point is the whole route until the
+   * rider drags it to where that group actually sets off. Seeding it at the
+   * main group's first point rather than at nothing is what makes it draggable:
+   * an empty route has no pin, and a rider with no pin is back to searching for
+   * a place they can already see on the map.
+   *
+   * THE GROUP'S COLOR, NOT THE NEXT ONE IN THE DAY PALETTE. A group's line has
+   * to read as one thing wherever it appears, which is the same reason the
+   * group carries a color at all.
+   *
+   * IT DEPARTS WHEN THE RIDE DOES, as a placeholder. Choosing a meeting point
+   * rewrites every joining group's departure from the main group's arrival
+   * (syncDeparturesToMeet), so this only has to be a sane starting value and
+   * not a guess at one — and leaving it undated would keep the group off the
+   * timeline entirely until somebody noticed.
+   *
+   * Appended rather than inserted ahead of the main group's own routes: a group
+   * owns a SUBSEQUENCE of the ride's positions, and pushing in at the front
+   * would renumber everything the rider has already planned.
+   */
+  function seedGroupRoute(g) {
+    if (state.days.length >= MAX_DAYS) return;
+    const counted = ALT.activeDays(state.days);
+    const first = counted[0];
+    const day = newDay(g.color);
+    day.subgroupUid = g.uid;
+    const from = first && first.points[0];
+    if (from) {
+      day.points.push(newPoint(from.lng, from.lat, from.name));
+      // The route's first point is a stop, exactly as it is when a rider drops
+      // one on an empty route. Without it the seed is a POI, nothing ever
+      // promotes it, and the ride cannot be saved at all — #233.
+      ensureDayHasStop(day);
+      day.startAt = first.startAt ?? null;
+    }
+    state.days.push(day);
+  }
+
   // The picker that sits in a day header. Empty string when the ride has no
   // subgroups, so daySectionHtml concatenates nothing.
   function daySubgroupHtml(day, r) {
@@ -3878,7 +3950,10 @@
             '" aria-label="Color for ' +
             esc(g.name) +
             '">' +
-            '<input class="sg-name" type="text" maxlength="80" value="' +
+            // autocomplete and data-1p-ignore for the reason spelled out on
+            // .day-title in daySectionHtml: "Name of this group" reads to a
+            // password manager as a person's name.
+            '<input class="sg-name" type="text" maxlength="80" autocomplete="off" data-1p-ignore value="' +
             esc(g.name) +
             '" aria-label="Name of this group">' +
             (i === 0
@@ -3921,6 +3996,24 @@
       '<div class="sg-meet-out" id="sg-meet-out"></div>';
     initGroupDrag($("sg-list"));
     renderAnchorNote();
+    // THE PROPOSAL IS STATE, SO IT SURVIVES A RE-RENDER OF THIS PANEL. Taking a
+    // meeting point moves a day's departure, which calls renderDays(), which
+    // cascades into this function — and this function rebuilds #sg-meet-out.
+    // The sections for the groups still undecided were written into the element
+    // that had just been replaced, so choosing group 2's meeting point silently
+    // wiped group 3's, which is the whole thing one press is meant to avoid.
+    // Rendering from `state.meet` rather than preserving innerHTML is what makes
+    // the panel and the map agree: the dots are drawn from the same object.
+    renderMeetOut();
+  }
+
+  /** Re-render the proposal into a freshly built panel, and re-pair the rows
+   *  with the dots that are still on the map. */
+  function renderMeetOut() {
+    const out = $("sg-meet-out");
+    if (!out || !state.meet || !(state.meet.groups || []).length) return;
+    out.innerHTML = (state.meetNote || "") + meetAllHtml(state.meet);
+    showMeetPreview(out, state.meet);
   }
 
   function wireSubgroups() {
@@ -3948,6 +4041,14 @@
       // Re-derived rather than conditionally set: the main group IS the first in
       // the list, so reading it back is the one spelling that cannot drift.
       state.meta.primarySubgroup = state.meta.subgroups[0].uid;
+      // AND IT COMES WITH A ROUTE OF ITS OWN. Ziad's call, 2026-09-04, reported
+      // as "I added a third group, so there should be three distinct routes".
+      // A group used to be a TAG and nothing else: adding one changed nothing a
+      // rider could see, and giving it a road meant knowing to add a day and
+      // then assign it from the day's own picker — two steps, in a different
+      // tab, that nothing on screen asked for. Same reasoning as SEED_GROUP:
+      // planning for a group means that group is riding something.
+      seedGroupRoute(g);
       // The panel used to be one column with a collapsed <details> for groups,
       // and this opened it. The Groups tab is already open — pressing Add a
       // group is only reachable from inside it — so there is nothing to reveal;
@@ -3955,6 +4056,8 @@
       // anybody until the ride saves, which the Riders tab says itself.
       ridersStale();
       renderDays();
+      rebuildLayers();
+      renderMarkers();
       markDirty();
     });
 
@@ -4082,12 +4185,31 @@
         out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
         return;
       }
-      out.innerHTML = meetResultHtml(data);
-      showMeetPreview(out, data.candidates || []);
+      // HELD, because taking one group's meeting point re-renders the panel for
+      // the groups still undecided — the whole point of answering everybody on
+      // one press is that the other answers survive the first decision.
+      state.meet = data;
+      state.meetNote = "";
+      out.innerHTML = meetAllHtml(data);
+      showMeetPreview(out, data);
     } catch (err) {
+      state.meet = null;
+      state.meetNote = "";
       out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
-      showMeetPreview(out, []);
+      showMeetPreview(out, null);
     }
+  }
+
+  /** Every candidate in the press, flattened in the order the sections render
+   *  them, each tagged with the group it belongs to. One list is what the map
+   *  wants — the dots share a single preview slot — and the running index is
+   *  what pairs a dot with its row. */
+  function meetFlat(data) {
+    const out = [];
+    for (const g of (data && data.groups) || []) {
+      for (const c of g.candidates || []) out.push({ c, group: g.group, name: g.name });
+    }
+    return out;
   }
 
   /**
@@ -4103,9 +4225,10 @@
    * `label` is passed because the search's default accessible name is "Add …",
    * which is the wrong verb here: choosing a meeting point is not adding a place.
    */
-  function showMeetPreview(host, candidates) {
+  function showMeetPreview(host, data) {
     if (!state.map) return;
-    if (!candidates.length) {
+    const flat = meetFlat(data);
+    if (!flat.length) {
       if (state.previewOwner === "meet") {
         setSearchPreview(state.map, []);
         state.previewOwner = null;
@@ -4114,15 +4237,27 @@
     }
     state.previewOwner = "meet";
     const rows = Array.from(host.querySelectorAll(".sg-meets li"));
+    // EVERY GROUP'S CANDIDATES AT ONCE, EACH IN ITS OWN GROUP'S COLOR. Ziad's
+    // call, 2026-09-04. They all sit on the MAIN group's own routed road, and
+    // they shipped in $brand — the first entry in DAY_COLORS and therefore the
+    // color most main groups are painted in, so the dots were blue on a blue
+    // line. The joining group is the right one to borrow from because the
+    // proposal is about them: the main group rides the road either way, and
+    // these are the places somebody else can reach it. With three satellites the
+    // color is also the only thing saying which decision a dot belongs to.
     setSearchPreview(
       state.map,
-      candidates.map((c, i) => ({
+      flat.map(({ c, group, name }, i) => ({
         lngLat: [c.lng, c.lat],
         name: "Meeting point " + (i + 1),
-        // The row's own headline fact, in the row's own words. Built here and
-        // not in map-common.js so that file stays out of miles-versus-kilometres.
-        tip: meetTip(c),
-        label: "Use meeting point " + (i + 1) + ", " + meetTip(c),
+        color: (subgroupByUid(group) || {}).color || null,
+        num: i + 1,
+        // The row's own headline fact, in the row's own words, led by whose
+        // decision it is — with several groups on one map the tip is the only
+        // place the dot can say that in words. Built here and not in
+        // map-common.js so that file stays out of miles-versus-kilometres.
+        tip: (name ? name + SEP : "") + meetTip(c),
+        label: "Use meeting point " + (i + 1) + " for " + (name || "this group") + ", " + meetTip(c),
       })),
       (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
       // PRESSING THE DOT PRESSES THE ROW'S BUTTON, rather than repeating what
@@ -4143,7 +4278,7 @@
         highlightMeetApproaches(state.map, null);
       });
     });
-    drawMeetApproaches(candidates);
+    drawMeetApproaches(flat);
   }
 
   // THE ROADS THE JOINING GROUPS WOULD ACTUALLY RIDE, one per group per
@@ -4154,13 +4289,22 @@
   // understates a road and would pass a station nobody can reach — so asking for
   // them a second time from the browser would pay Google twice for one road and
   // let the drawing disagree with the number the filter used.
-  function drawMeetApproaches(candidates) {
+  // ONE ROAD PER CANDIDATE NOW, in the joining group's own color. A candidate
+  // belongs to exactly one group since 2026-09-04, so the per-candidate list of
+  // approaches collapsed to the single road that group would ride — and the
+  // color is what lets three groups' roads be on the map at once and still be
+  // told apart. `group` is the flat index, which is what the hover pairs on.
+  //
+  // THIS IS THE COMPARISON, not decoration: the long way round the lake and the
+  // short slog down the interstate are two shapes before they are two numbers,
+  // which is the whole reason they are drawn rather than tabulated.
+  function drawMeetApproaches(flat) {
     if (!state.map) return;
     const paths = [];
-    candidates.forEach((c, i) => {
-      (c.approaches || []).forEach((a) => {
-        if (a.path && a.path.length > 1) paths.push({ path: a.path, group: i });
-      });
+    flat.forEach(({ c, group }, i) => {
+      if (c.approach && c.approach.length > 1) {
+        paths.push({ path: c.approach, group: i, color: (subgroupByUid(group) || {}).color || null });
+      }
     });
     setMeetApproaches(state.map, paths);
   }
@@ -4202,7 +4346,61 @@
       "No meeting point works without sending somebody a long way round. Check that every group's route ends at the same place.",
   };
 
-  function meetResultHtml(data) {
+  /**
+   * The whole answer: one section per joining group, in the order the server
+   * proposed for them.
+   *
+   * A SECTION EACH RATHER THAN ONE LIST. Ziad's call, 2026-09-04. One press
+   * answers the whole question now — where group 2 joins, where group 3 joins —
+   * and the decisions are knocked down one at a time. A single blended list
+   * could not say which group any row was for, which is what made three groups
+   * unreadable.
+   *
+   * A group already carrying a chosen point is still re-proposed for: a planner
+   * changing their mind is ordinary, and the row menu is what removes the point.
+   */
+  function meetAllHtml(data) {
+    const groups = data.groups || [];
+    // THE RIDE-WIDE REFUSALS ARE STILL RIDE-WIDE, and they are checked FIRST.
+    // Nothing is proposed for anybody when there is one group, no routes or no
+    // days, so those are said once at the top rather than repeated under every
+    // group's name — and this branch is the one that names the main group, which
+    // a bare "no groups came back" could not.
+    if (data.reason) {
+      let msg = MEET_REASONS[data.reason] || MEET_REASONS["none-viable"];
+      // The server names the main group where it has one, so the line reads
+      // "Plan Oakland's route…" rather than making the planner work out which
+      // group the app means.
+      if (data.reason === "no-routes" && data.group) {
+        msg = "Plan " + esc(data.group) + "'s route to the destination first—that is the road a meeting point sits on.";
+      }
+      return '<p class="sg-note">' + msg + "</p>";
+    }
+    if (!groups.length) return '<p class="sg-note">' + MEET_REASONS["none-viable"] + "</p>";
+    let n = 0;
+    return groups
+      .map((g) => {
+        const color = (subgroupByUid(g.group) || {}).color || "";
+        const head =
+          '<h4 class="sg-meet-head">' +
+          '<span class="sg-meet-swatch" style="background:' +
+          esc(color) +
+          '"></span>' +
+          esc(g.name || "Group") +
+          " joins here</h4>";
+        const body = meetResultHtml(g, n);
+        // The running number is what pairs a row with its dot, and it runs
+        // across the WHOLE press rather than per section — the dots share one
+        // map and one preview slot, so two groups both numbering from 1 would
+        // put two number 1s on the same road. The section's color is what says
+        // whose is whose; the number is only ever an identity.
+        n += (g.candidates || []).length;
+        return '<section class="sg-meet-group" data-sg="' + esc(g.group) + '">' + head + body + "</section>";
+      })
+      .join("");
+  }
+
+  function meetResultHtml(data, base) {
     if (data.candidates.length && data.note === "out-of-range") {
       // NAMES THE COMPROMISE. These stations are real and on the road; what they
       // are not is reachable on the tank somebody arrives with. Saying "here are
@@ -4210,7 +4408,7 @@
       // they run dry twenty miles short of.
       return (
         '<p class="sg-note">No gas station both groups can reach on one tank—these need a fuel stop first:</p>' +
-        meetListHtml(data.candidates)
+        meetListHtml(data.candidates, data.group, base)
       );
     }
     if (data.candidates.length && data.note === "no-gas") {
@@ -4221,35 +4419,51 @@
       // ignored them.
       return (
         '<p class="sg-note">No gas station on the stretch everyone can reach—these are the best spots on the road:</p>' +
-        meetListHtml(data.candidates)
+        meetListHtml(data.candidates, data.group, base)
       );
     }
     if (!data.candidates.length) {
-      let msg = MEET_REASONS[data.reason] || MEET_REASONS["none-viable"];
-      // The server names the main group where it has one, so the line reads
-      // "Plan Oakland's route…" rather than making the planner work out which
-      // group the app means.
-      if (data.reason === "no-routes" && data.group) {
-        msg = "Plan " + esc(data.group) + "'s route to the destination first—that is the road a meeting point sits on.";
-      }
-      return '<p class="sg-note">' + msg + "</p>";
+      // PER GROUP NOW, so it names the group rather than the ride: with three
+      // satellites, two of which have somewhere to meet, "no meeting point
+      // works" said once at the top would be false about the ride and useless
+      // about the group it is true of.
+      return '<p class="sg-note">Nowhere works for this group without a long way round.</p>';
     }
-    return '<p class="sg-note">Where the other groups could join:</p>' + meetListHtml(data.candidates);
+    return meetListHtml(data.candidates, data.group, base);
   }
 
-  function meetListHtml(candidates) {
+  function meetListHtml(candidates, groupUid, base) {
+    // The badge takes the group's color because the badge IS the pairing: the
+    // dot on the map carries the same number, and with three groups proposing at
+    // once the number alone is ambiguous the moment two sections are on screen
+    // together. Inline, because the color is a rider's choice and there is no
+    // class for an arbitrary hex.
+    const color = (subgroupByUid(groupUid) || {}).color || "";
     return (
       '<ul class="sg-meets">' +
       candidates
         .map(
-          (c) =>
-            "<li>" +
+          (c, i) =>
+            '<li data-n="' +
+            (base + i) +
+            '">' +
+            '<span class="sg-meet-num" style="background:' +
+            esc(color) +
+            '">' +
+            (base + i + 1) +
+            "</span>" +
             '<button type="button" class="sg-take" data-lat="' +
             c.lat +
             '" data-lng="' +
             c.lng +
             '" data-along="' +
             c.alongM +
+            // WHICH GROUP IS JOINING, carried on the button for the same reason
+            // the name is: the row IS the decision, and looking the group up
+            // again when the button is pressed is a second chance to disagree
+            // about which one the rider meant.
+            '" data-group="' +
+            esc(groupUid || "") +
             '"' +
             // The name rides along on the button rather than being looked up
             // again when it is pressed: the row is what the rider chose, and a
@@ -4386,13 +4600,18 @@
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const alongM = Number(d.along);
 
-    // Each group's LAST day, by index — addPoint takes an index and everything
-    // downstream of it is expressed in one. A group with no day of its own is
-    // skipped rather than refused: it has no route for the point to go on, and
-    // the other groups' routes are still worth changing.
+    // THE ONE GROUP THIS ROW IS ABOUT, and its LAST day by index — addPoint
+    // takes an index and everything downstream of it is expressed in one.
+    //
+    // ONE GROUP, NOT ALL OF THEM, since 2026-09-04. A press proposes for every
+    // satellite and each is its own decision: taking group 2's meeting point
+    // must not drop a point on group 3's road, which is still undecided and
+    // whose own candidates are on the map right now. A group with no day of its
+    // own is skipped rather than refused — it has no route for the point to go
+    // on, and the main group's is still worth changing.
     const lastOf = new Map();
     state.days.forEach((day, i) => {
-      if (day.subgroupUid) lastOf.set(day.subgroupUid, i);
+      if (day.subgroupUid && day.subgroupUid === d.group) lastOf.set(day.subgroupUid, i);
     });
 
     // THE MAIN GROUP IS PLACED BY DISTANCE, EVERY OTHER GROUP BY POSITION, and
@@ -4421,7 +4640,7 @@
       // NAMED AFTER THE STATION where there is one, so the day list reads
       // "Shell" rather than a row every group has three of. The `meet` role is
       // what says what it is FOR; the name says where it is.
-      const pt = newPoint(lng, lat, d.name || "Meeting point");
+      const pt = newPoint(lng, lat, d.name || "Meeting point", d.address);
       // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads
       // that role to decide where a tank refills, and a meeting point everyone
       // fills up at is exactly a refuel the range ring should know about.
@@ -4434,35 +4653,49 @@
       // of 1 is clamped up to the end of the list by addPoint, so a one-point
       // day appends and every longer day inserts before its last point as before.
       const at =
-        mainPlace && uidOfGroup === mainPlace.uid
-          ? Math.max(1, mainPlace.at)
-          : Math.max(1, day.points.length - 1);
+        mainPlace && uidOfGroup === mainPlace.uid ? Math.max(1, mainPlace.at) : Math.max(1, day.points.length - 1);
       routed.push(addPoint(lng, lat, pt.name, dayIndex, pt, at));
       placed.push({ uid: uidOfGroup, dayIndex, at });
       if (g) names.push(g.name);
     }
 
-    // The dots and the approach lines have served their purpose — the choice is
-    // made, and leaving the other candidates on the map would read as three
-    // meeting points with three sets of roads to them.
-    if (state.map) {
-      setSearchPreview(state.map, []);
-      setMeetApproaches(state.map, []);
-      state.previewOwner = null;
-    }
-
+    // THIS GROUP'S CANDIDATES GO AND EVERYBODY ELSE'S STAY. The decision that
+    // was just made is done — leaving its other two dots up would read as three
+    // meeting points for one group — but the groups still undecided are the
+    // whole reason a press answers everybody at once, and clearing the map here
+    // is what would send the planner back to the button for each of them.
     const out = $("sg-meet-out");
-    out.innerHTML =
+    if (state.meet) {
+      state.meet = { ...state.meet, groups: (state.meet.groups || []).filter((g) => g.group !== d.group) };
+    }
+    const rest = (state.meet && state.meet.groups) || [];
+    // IN STATE, NOT ONLY IN THE DOM, for the same reason the proposal is: this
+    // panel is rebuilt out from under us the moment a departure moves.
+    state.meetNote =
       '<p class="sg-note">Added to ' +
       esc(names.reverse().join(", ")) +
-      "—each group now rides through it. Working out departure times…</p>";
+      "—they now ride through it. Working out departure times…</p>";
+    out.innerHTML = state.meetNote + (rest.length ? meetAllHtml(state.meet) : "");
+    showMeetPreview(out, state.meet);
 
     // WAITS FOR THE REAL ROADS. Every leg here is a straight placeholder until
     // the Routes responses land, and syncing departures to a straight-line
     // duration would set every time to a number that is about to change — with
     // nothing to say it had. This is the one caller that awaits addPoint.
     Promise.all(routed).then(() => {
-      out.innerHTML = '<p class="sg-note">' + syncDeparturesToMeet(placed) + "</p>";
+      // The remaining groups' sections are re-rendered with the result rather
+      // than replaced by it: the departure line is about the decision just made,
+      // and the sections under it are the ones still to make.
+      //
+      // `$("sg-meet-out")` IS RE-READ rather than closed over. syncDeparturesToMeet
+      // calls renderDays(), which cascades into renderSubgroups(), which replaces
+      // this element — writing to the captured one puts the answer into a node
+      // that is no longer in the document.
+      state.meetNote = '<p class="sg-note">' + syncDeparturesToMeet(placed) + "</p>";
+      const host = $("sg-meet-out");
+      if (!host) return;
+      host.innerHTML = state.meetNote + (rest.length ? meetAllHtml(state.meet) : "");
+      showMeetPreview(host, state.meet);
     });
   }
 
@@ -4487,7 +4720,7 @@
       " Split a day at the meeting point from the row menu if you want the shared stretch to be its own day.";
     const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     const main = placed.find((p) => p.uid === mainUid);
-    if (!main) return "Each group now rides through it." + tail;
+    if (!main) return "They now ride through it." + tail;
 
     const mainDay = state.days[main.dayIndex];
     const mainStart = mainDay && dayStartS(mainDay);
@@ -4497,14 +4730,14 @@
     // and not a failure.
     if (mainStart == null) {
       return (
-        "Each group now rides through it. Give " +
+        "They now ride through it. Give " +
         esc(subgroupName(mainUid)) +
         "’s day a date and time to line the other groups up with it." +
         tail
       );
     }
     const mainToMeet = elapsedToPointS(mainDay, main.at);
-    if (mainToMeet == null) return "Each group now rides through it." + tail;
+    if (mainToMeet == null) return "They now ride through it." + tail;
     const arrival = mainStart + mainToMeet;
 
     // ITS OWN UNDO STEP. The point inserts pushed theirs while the rider was
@@ -4531,7 +4764,7 @@
     renderDays();
     refreshDerived();
     markDirty();
-    if (!moved.length) return "Each group now rides through it." + tail;
+    if (!moved.length) return "They now ride through it." + tail;
     return "Everyone arrives at " + fmtMoment(arrival) + ". Leaving: " + esc(moved.join(SEP)) + "." + tail;
   }
 
@@ -4734,8 +4967,23 @@
       // The placeholder no longer says "Day N". It used to, which made an empty
       // field look like it already held the name — so the number and the name
       // were indistinguishable until you clicked in.
+      //
+      // `data-1p-ignore` IS NOT A DUPLICATE OF `autocomplete="off"`, AND THAT IS
+      // WHY BOTH ARE HERE. 1Password deliberately ignores autocomplete — sites
+      // abuse it on fields people genuinely want filled — and classifies a field
+      // by the words around it instead. Every free-text field in this list is
+      // labeled "Name…", which its parser reads as a person's name, so it hung
+      // its fill icon on the day title and offered a rider their own contact
+      // card. `autocomplete="off"` still earns its place: it is what stops the
+      // BROWSER offering the last ride's day names in a dropdown.
+      //
+      // Three fields carry it — this, .row-name and .sg-name — and any new
+      // free-text field in the panel wants it too. It is 1Password's own
+      // attribute and does nothing in any other extension: LastPass, Dashlane
+      // and Bitwarden each have their own, and none of them has been reported
+      // here.
       '<input class="day-title" type="text" maxlength="150" placeholder="Name this day (optional)"' +
-      ' autocomplete="off" aria-label="Name for day ' +
+      ' autocomplete="off" data-1p-ignore aria-label="Name for day ' +
       dayNumber(r) +
       '" value="' +
       esc(day.title) +
@@ -5564,7 +5812,11 @@
       kind +
       "-name-" +
       i +
-      '" type="text" maxlength="255" autocomplete="off" placeholder="' +
+      // data-1p-ignore for the reason spelled out on .day-title in
+      // daySectionHtml, and this is the strongest case of the three: the field
+      // is called `stop-name-0`, so a password manager has both a label and a
+      // name attribute telling it this is somebody's name.
+      '" type="text" maxlength="255" autocomplete="off" data-1p-ignore placeholder="' +
       (isStop ? "Stop name" : "POI name") +
       '" value="' +
       esc(point.name) +
@@ -5810,7 +6062,6 @@
     if (!list) return;
     const day = state.days[r];
     if (!day) return;
-    const open = state.insertAt && state.insertAt.day === r ? state.insertAt.at : null;
     const dist = dayDistances(day);
     list.innerHTML =
       orderedRows(day)
@@ -5820,8 +6071,9 @@
             // the indices read the same way addPoint's `at` does. The gap below
             // the last row is the bottom add-row, which is always present, so no
             // slot is rendered for it.
-            (open === row.i ? addRowHtml(r, day, row.i) : insertSlotHtml(r, row.i)) +
-            pointRowHtml(row.kind, row.point, row.i, r, row.n, dist),
+            slotHtml(r, day, row.i, null) +
+            pointRowHtml(row.kind, row.point, row.i, r, row.n, dist) +
+            viaRowsHtml(r, day, row.i),
         )
         .join("") + addRowHtml(r, day);
     hydrateIcons(list);
@@ -5851,23 +6103,106 @@
   // — and the drawer is a phone sheet on a narrow viewport. It is quiet enough
   // at rest (a 1px rule and a small glyph) that 30 of them read as row
   // separators rather than as 30 buttons.
-  function insertSlotHtml(r, at) {
+  // `via` names WHICH slot this is when several share an `at`. Every slot in a
+  // leg's stack of shaping points inserts at the same index — the next point —
+  // because that is where a stop dropped anywhere along that leg goes. Without
+  // a second key, `state.insertAt` could not tell them apart and pressing one +
+  // opened a search field in every gap on the leg at once.
+  function insertSlotHtml(r, at, via) {
+    const viaAttr = via == null ? "" : '" data-via="' + via;
     return (
       '<li class="insert-slot" data-day="' +
       r +
       '" data-at="' +
       at +
+      viaAttr +
       '">' +
       '<button type="button" class="insert-btn" data-day="' +
       r +
       '" data-at="' +
       at +
+      viaAttr +
       '"' +
       ' title="Add a point here" aria-label="Add a point above point ' +
       (at + 1) +
       '">+</button>' +
       "</li>"
     );
+  }
+
+  // One gap: the hairline, or the search field when this is the gap the rider
+  // opened. Every gap in a day goes through it so the two states cannot be
+  // rendered by two different pieces of arithmetic.
+  function slotHtml(r, day, at, via) {
+    const open = state.insertAt;
+    const isOpen = open && open.day === r && open.at === at && (open.via == null ? via == null : open.via === via);
+    return isOpen ? addRowHtml(r, day, at) : insertSlotHtml(r, at, via);
+  }
+
+  /**
+   * The shaping points on one leg, as their own rows under the point they follow.
+   *
+   * A SHAPING POINT IS NOT A POINT, and these rows exist because it is also not
+   * invisible. A via is a hint about which road to take rather than a place
+   * anybody is going, so it stays out of `day.points`, out of the numbering and
+   * out of every arithmetic that walks the day. What it gained on 2026-09-04 is
+   * a row, because "I dragged the route onto 25 and nothing appeared in the
+   * pane" is what a feature whose only surface is a map dot costs — the map was
+   * the only place a rider could discover a shaped leg, or take one back.
+   *
+   * NOT A `.point-row`, AND THAT IS LOAD-BEARING IN THREE PLACES. wireList()'s
+   * handlers all resolve a row to `state.days[day].points[i]` and would find
+   * nothing here; SortableJS is told to leave it alone; and #166 is the reason
+   * the class matters more than it looks — the point list is a Sortable
+   * container whose raw child indices already run at 2n+1, and `onEnd` reads the
+   * DRAGGABLE pair for exactly that reason, so these add children the drag
+   * arithmetic cannot see. `filter` also names it, or a drag could start on one.
+   *
+   * `legs[i]` joins `points[i]` to `points[i+1]`, so a leg's vias render below
+   * the point they leave — which is the order a rider reads the day in.
+   */
+  function viaRowsHtml(r, day, i) {
+    const vias = (day.legs[i] && day.legs[i].viaPoints) || [];
+    if (!vias.length) return "";
+    return vias
+      .map(
+        (v, vi) =>
+          // THE SAME GAP THE POINT ROWS GET, above each one. Ziad's call,
+          // 2026-09-04: the stack reads as one list or it reads as two, and a
+          // shaping point is a place on the road like any other row here. Every
+          // one of these inserts at `i + 1` — the point after the leg — because
+          // a stop dropped anywhere along that leg goes in at the same index;
+          // `vi` is what tells the slots apart in state.insertAt.
+          slotHtml(r, day, i + 1, vi) +
+          '<li class="via-row" data-day="' +
+          r +
+          '" data-leg="' +
+          i +
+          '" data-via="' +
+          vi +
+          '">' +
+          '<span class="via-mark" aria-hidden="true"></span>' +
+          // NO NAME AND NO NUMBER, because it has neither. What it can honestly
+          // say is which of a leg's shaping points it is, and only when there is
+          // more than one to tell apart.
+          '<span class="via-name">Shaping point' +
+          (vias.length > 1 ? " " + (vi + 1) : "") +
+          "</span>" +
+          '<button type="button" class="via-del" data-day="' +
+          r +
+          '" data-leg="' +
+          i +
+          '" data-via="' +
+          vi +
+          '" title="Remove this shaping point"' +
+          ' aria-label="Remove shaping point' +
+          (vias.length > 1 ? " " + (vi + 1) : "") +
+          " after point " +
+          (i + 1) +
+          '">&times;</button>' +
+          "</li>",
+      )
+      .join("");
   }
 
   // `at` is the slot this row inserts into, or undefined for the day's own
@@ -6294,6 +6629,13 @@
       e.target.value = DUR.format(point.durationMin, durFormat);
     });
     listEl.addEventListener("click", (e) => {
+      // BEFORE THE .point-row LOOKUP, because a via row is not one — every
+      // handler below resolves a row to state.days[day].points[i], and there is
+      // no point behind this one.
+      const viaDel = e.target.closest(".via-del");
+      if (viaDel) {
+        return removeVia(Number(viaDel.dataset.day), Number(viaDel.dataset.leg), Number(viaDel.dataset.via));
+      }
       const row = e.target.closest(".point-row");
       if (!row) return;
       const i = Number(row.dataset.i);
@@ -6645,7 +6987,7 @@
       // between every pair of rows, so an unfiltered drag starting on a hairline
       // would be the easiest drag in the list to begin by accident.
       draggable: ".point-row",
-      filter: ".add-row, .insert-slot",
+      filter: ".add-row, .insert-slot, .via-row",
       // WITHOUT THIS THE SEARCH FIELD CANNOT BE CLICKED INTO. `preventOnFilter`
       // defaults to TRUE, which makes Sortable call preventDefault() on the
       // pointerdown whenever it lands inside a filtered element — and the
@@ -7296,7 +7638,7 @@
           // Built here rather than letting addPoint mint a bare one, for the same
           // reason a saved place is: the role is the point of having searched by
           // category, and addPoint's auto-promotion leaves a supplied role alone.
-          const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name);
+          const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name, h.address);
           const tag = role || QUERY.roleForType(h.type);
           if (tag) pt.roles = [tag];
           addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, openSlot(host));
@@ -7500,7 +7842,9 @@
               // click afterwards continues where the rider is working rather
               // than wherever they last clicked.
               setActive(r);
-              addPoint(lng, lat, picked.name, r, null, openSlot(results));
+              // A point rather than a bare add, only so the address travels: it
+              // is the one thing addPoint() cannot re-derive from coordinates.
+              addPoint(lng, lat, picked.name, r, newPoint(lng, lat, picked.name, picked.address), openSlot(results));
               panTo(state.map, picked.lngLat, 11);
               // The add above re-rendered the list, so this row is a new
               // element. Put the cursor in its replacement: adding several
@@ -7549,10 +7893,14 @@
       if (!btn) return;
       const r = Number(btn.dataset.day);
       const at = Number(btn.dataset.at);
+      // undefined rather than null when the attribute is absent, so a point
+      // slot and a shaping point's slot at the same index stay distinguishable.
+      const via = btn.dataset.via == null ? null : Number(btn.dataset.via);
       // A second press on the same gap closes it, matching how the arm button
       // toggles rather than needing a separate dismiss.
       const open = state.insertAt;
-      state.insertAt = open && open.day === r && open.at === at ? null : { day: r, at: at };
+      const same = open && open.day === r && open.at === at && open.via === via;
+      state.insertAt = same ? null : { day: r, at: at, via: via };
       // Arming belongs to the row that armed it, and that row may have just
       // stopped existing.
       disarmPlace();

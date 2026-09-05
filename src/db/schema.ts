@@ -1070,6 +1070,19 @@ export const points = pgTable(
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
+    // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC — which is what makes it a
+    // column here rather than a field on point_details. Ziad's call,
+    // 2026-09-04: the popup names a place and a rider reading a shared ride has
+    // no way to tell which Shell in Bakersfield is meant.
+    //
+    // `point_details.address` is a DIFFERENT field and stays where it is: that
+    // one is owner-only, typed by hand, and sits beside the confirmation number
+    // and the gate code. This one is what Google answered when the point was
+    // added, and it goes out in ride.json to every viewer.
+    //
+    // Null is the ordinary state: a point dropped on the map has no address to
+    // carry, and nothing geocodes one after the fact.
+    address: varchar('address', { length: 300 }),
     description: varchar('description', { length: 2000 }),
     roles: waypointRoleEnum('roles')
       .array()

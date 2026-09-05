@@ -394,6 +394,9 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       lat: p.lat,
       lng: p.lng,
       name: p.name,
+      // Public — see points.address. This is the one the popup prints under the
+      // name; the owner-only one on point_details is carried by `details`.
+      address: p.address,
       description: p.description ?? '',
       roles: p.roles,
       distFromStartMi: p.distFromStartM == null ? null : Math.round((p.distFromStartM / METERS_PER_MILE) * 10) / 10,

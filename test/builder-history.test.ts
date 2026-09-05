@@ -82,7 +82,17 @@ function stateOf(): any {
     layersReady: true,
     layerCount: 3,
     legSeq: [[1, 2]],
-    meta: { title: 'Three days', description: 'd', visibility: 'private', external_url: '' },
+    meta: {
+      title: 'Three days',
+      description: 'd',
+      visibility: 'private',
+      external_url: '',
+      subgroups: [
+        { uid: 'aaaaaaaaaaaa', name: 'North', color: '#0066cc' },
+        { uid: 'bbbbbbbbbbbb', name: 'South', color: '#8800dd' },
+      ],
+      primarySubgroup: 'aaaaaaaaaaaa',
+    },
     days: [
       {
         title: 'Day 1',
@@ -162,6 +172,21 @@ describe('what a snapshot copies and what it shares', () => {
     // let that reach into history.
     s.days[0].legs[0].viaPoints = [[-121.5, 37.5]]
     expect(snap.days[0].legs[0].viaPoints).toEqual([])
+  })
+
+  // Regression, and the one that was NOT inside a route: `meta` is spread, which
+  // is shallow, so the subgroups array and every group object in it were shared
+  // with live state. Adding a group could not be undone — the route seeded with
+  // it went back and the group stayed.
+  it('copies the subgroups array and each group, which the Groups panel mutates in place', () => {
+    const s = stateOf()
+    const snap = H.snapshot(s)
+    expect(snap.meta.subgroups).not.toBe(s.meta.subgroups)
+    expect(snap.meta.subgroups[0]).not.toBe(s.meta.subgroups[0])
+    s.meta.subgroups.push({ uid: 'cccccccccccc', name: 'East', color: '#ff6f00' })
+    s.meta.subgroups[0].name = 'Renamed'
+    expect(snap.meta.subgroups).toHaveLength(2)
+    expect(snap.meta.subgroups[0].name).toBe('North')
   })
 
   // The asymmetry that makes this file worth having. geometry is immutable by
@@ -473,7 +498,12 @@ describe('snapshot copies details rather than sharing them', () => {
     days: [
       {
         points: [
-          { kind: 'stop', uid: 'aaaaaaaaaaaa', roles: [], details: { notes: 'gate 4417', links: [{ label: 'a', url: 'b' }] } },
+          {
+            kind: 'stop',
+            uid: 'aaaaaaaaaaaa',
+            roles: [],
+            details: { notes: 'gate 4417', links: [{ label: 'a', url: 'b' }] },
+          },
         ],
         legs: [],
       },
