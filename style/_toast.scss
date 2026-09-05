@@ -48,4 +48,27 @@
       margin-left: 0.75em;
     }
   }
+
+  // "You are on staging." AMBER, NOT RED: the site is working exactly as it
+  // should, and $kml above is the color that means something broke. A warning
+  // that cries wolf on every page load stops being read by the second day.
+  //
+  // $ink-dark and not $white, and this is not a preference — $warning is a
+  // BLACK-LEGEND field in this palette (see the ink-pairing note in
+  // _palette.scss). White on it measures about 1.4:1, which is unreadable in
+  // every theme. $ink-dark rather than a bare `black` for the same reason
+  // everything else here uses a token: the two flip with the dark scheme.
+  //
+  // The height is reserved by --banner-h, declared in _map.scss and refined
+  // from the measured height by site.js. Nothing here may set a fixed height:
+  // the line wraps to two on a phone and to three on a narrow drawer.
+  &.is-stage {
+    background: $warning;
+    color: $ink-dark;
+
+    a {
+      color: $ink-dark;
+      text-decoration: underline;
+    }
+  }
 }

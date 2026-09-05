@@ -329,6 +329,11 @@ echo ""
 #
 # TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are in the printf block and
 # deliberately NOT here, for exactly that reason.
+#
+# APP_ENV is the same: sent, not required. It names the environment so the app
+# can say "this is staging" on every page, and src/config.ts falls back to
+# reading it out of APP_ORIGIN when it is absent — which is what makes it safe
+# to ship in the deploy that introduces it, rather than the one after push-env.
 REMOTE_ENV_KEYS="COMPOSE_PROJECT_NAME IMAGE_NAME DB_CONTAINER_NAME HOST_PORT ALIAS_HOST_PORT
 APP_UID APP_GID GMAPS_KEY GMAPS_SERVER_KEY GMAPS_MAP_ID DB_PASSWORD APP_ORIGIN
 GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET APP_VERSION BUILD_SHA DRAIN_GRACE_MS
@@ -365,6 +370,7 @@ printf '%s\n' \
   "GMAPS_MAP_ID=${GMAPS_MAP_ID}" \
   "DB_PASSWORD=${DB_PASSWORD}" \
   "APP_ORIGIN=${APP_ORIGIN}" \
+  "APP_ENV=${DEPLOY_ENV:-}" \
   "OWNER_EMAIL=${OWNER_EMAIL:-}" \
   "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
   "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \

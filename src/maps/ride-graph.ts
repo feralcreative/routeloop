@@ -222,6 +222,13 @@ export const ridePayload = z
     // although the builder asks once — see rides.primary_subgroup_id.
     primarySubgroup: z.string().max(12).nullable().default(null),
     trunkSubgroup: z.string().max(12).nullable().default(null),
+    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, minutes from midnight, as a
+    // wall clock at the departure point — see rides.stop_by_min. Bounded to a
+    // real time of day so a hostile payload cannot write an arbitrary integer
+    // into the column, and nullable-with-a-default like every field added since
+    // subgroups, so a native file written before this stays valid with no
+    // format-version bump.
+    stopByMin: z.number().int().min(0).max(1439).nullable().default(null),
     timeAnchor: z.enum(timeAnchorEnum.enumValues).default('departure'),
     days: z.array(daySchema).min(1).max(MAX_DAYS),
   })
@@ -454,7 +461,7 @@ export async function insertRideGraph(
 
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
-  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
+  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor, p.stopByMin)
   if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
   // THE THIRD RECONCILIATION, AND THE ONE THAT GOES THE OTHER WAY. The two
   // around it DELETE what has lost its uid; this one clears the anchor and keeps

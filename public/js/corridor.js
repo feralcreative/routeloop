@@ -27,6 +27,11 @@
   var R = 6371008.8; // IUGG mean radius, matching haversineM in route-shape.js
   var RAD = Math.PI / 180;
 
+  // What /api/places/search accepts, and therefore the real ceiling on how much
+  // corridor one search can reach. Not a preference — the proxy rejects more.
+  var MAX_RADIUS_M = 50000;
+  var MIN_RADIUS_M = 500;
+
   /** Meters per degree of latitude, and of longitude at this latitude. */
   function scaleAt(lat) {
     return { x: R * RAD * Math.cos(lat * RAD), y: R * RAD };
@@ -180,22 +185,58 @@
   function corridorSamples(totalM, corridorM, maxSamples) {
     if (!(totalM > 0) || !(corridorM > 0)) return [];
     var cap = maxSamples > 0 ? Math.floor(maxSamples) : 1;
-    var n = Math.max(1, Math.min(cap, Math.ceil(totalM / (2 * corridorM))));
-    var step = totalM / n;
-    // Half a span reaches the neighboring samples; the corridor width on top of
-    // that reaches the places the filter is about to accept. Clamped to the
-    // 500m–50km the proxy accepts, so a very long or very short span still asks
-    // a question the endpoint will answer.
+
+    // ENOUGH SAMPLES THAT THE CIRCLES ACTUALLY TOUCH, which is what this
+    // function always claimed and stopped doing the moment the clamp was added.
     //
+    // The radius wants to be `step / 2 + corridorM` so consecutive circles
+    // overlap. The proxy accepts at most 50 km, so past a certain day length the
+    // clamp silently cut the reach and left HOLES — measured on a real 593-mile
+    // day: six samples 99 miles apart with a radius clamped from 95 miles to 31,
+    // so 37 miles between every pair of circles went unsearched and the answer
+    // to "gas between Burbank and Anaheim" was nothing at all. The comment above
+    // the old radius said the circles overlapped; it had been false for every
+    // day over about 190 miles.
+    //
+    // So the COUNT is derived from the reach rather than the reach being
+    // squeezed to fit a fixed count: at most 2 × MAX_RADIUS_M of corridor per
+    // sample. A short day needs fewer samples than the old fixed six, which is
+    // cheaper as well as more correct — a 300-mile day drops from six searches
+    // to five.
+    // `want` is the MINIMUM that covers the day given the clamp. The second term
+    // is the older, denser rule — one sample per corridor diameter — and it is
+    // kept as a floor rather than replaced, because geometric coverage is not
+    // the whole story: `locationBias` only REORDERS, so a circle that covers a
+    // span still returns its twenty results ranked around the CENTER, and a
+    // station near the edge of a sparsely anchored circle can simply not make
+    // the list. More anchors is more chances. The cap is what bounds the bill.
+    var want = Math.ceil(totalM / (2 * MAX_RADIUS_M));
+    var n = Math.max(1, Math.min(cap, Math.max(want, Math.ceil(totalM / (2 * corridorM)))));
+    var step = totalM / n;
     // CEIL RATHER THAN ROUND, because the proxy wants an integer and rounding a
     // reach DOWN is exactly what opens the gap this radius exists to close. At a
     // day of precisely 2 × corridorM × cap the two are equal to the meter, and
     // Math.round took a third of a meter off it — invisible in use and wrong in
     // the one direction that matters.
-    var radiusM = Math.max(500, Math.min(50000, Math.ceil(step / 2 + corridorM)));
+    var radiusM = Math.max(MIN_RADIUS_M, Math.min(MAX_RADIUS_M, Math.ceil(step / 2 + corridorM)));
     var out = [];
     for (var i = 0; i < n; i++) out.push({ atM: (i + 0.5) * step, radiusM: radiusM });
     return out;
+  }
+
+  /**
+   * Whether the samples cover the whole day, or leave gaps between the circles.
+   *
+   * FALSE IS A REAL ANSWER AND HAS TO BE SHOWN. Even with the count derived
+   * above, a long enough day runs into `cap` and the circles stop touching
+   * again — and a partly searched day that reports nothing is indistinguishable
+   * from a stretch of road with no fuel on it. That was the whole defect: the
+   * rider is entitled to know which of the two they are looking at.
+   */
+  function samplesCoverAll(samples, totalM) {
+    if (!samples || !samples.length || !(totalM > 0)) return false;
+    var step = totalM / samples.length;
+    return 2 * samples[0].radiusM >= step;
   }
 
   window.TBCorridor = {
@@ -203,5 +244,6 @@
     withinCorridor: withinCorridor,
     placeLngLat: placeLngLat,
     corridorSamples: corridorSamples,
+    samplesCoverAll: samplesCoverAll,
   };
 })(typeof window !== "undefined" ? window : this);

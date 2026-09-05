@@ -141,9 +141,13 @@
 //@ Print — US Letter, which is what docs/ targets everywhere else
 @media print {
   .roadbook-page {
-    // Chrome is for navigating; paper has nothing to navigate to.
+    // Chrome is for navigating; paper has nothing to navigate to. The stage
+    // banner joins the list for a second reason: it is fixed, so left in it
+    // would print on EVERY sheet of a roadbook a rider is carrying in a tank
+    // bag, and the one thing that sheet has to be is the route.
     .site-header,
     .site-footer,
+    .tb-banner,
     .no-print {
       display: none !important;
     }

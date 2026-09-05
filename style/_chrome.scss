@@ -1027,6 +1027,34 @@ ul.cards {
   }
 }
 
+// The commit, beside the version. Monospaced because it is a hash and the
+// footer's own face is proportional, which makes a hex string read as a word.
+// `nowrap` for the same reason the version has it: this is a value somebody is
+// meant to compare across two environments, and half of it on the next line is
+// half of it misread.
+.site-footer-sha {
+  // The same stack _survey.scss uses. There is no $mono token — this app has
+  // had exactly one monospaced surface until now, and inventing a token for the
+  // second means adding it to _palette.scss too or it silently resolves to
+  // nothing. Worth doing on the third.
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: $brand;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
 .site-footer.is-splash {
   margin-top: 2rem;
   padding-top: 0;

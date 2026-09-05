@@ -271,9 +271,22 @@
 //
 // Set from JavaScript because the banner's height is not a number anyone can
 // declare: the recovery text wraps to two lines on a narrow drawer and the
-// maps-misconfigured banner is longer still. See setBannerOffset() in
-// public/js/builder.js. It stays 0 for every page that never shows one, which is
-// most of them, so the calc()s below are a no-op by default.
+// maps-misconfigured banner is longer still. See TBBanner.refresh() in
+// public/js/site.js — it lives there rather than in builder.js because the
+// VIEWER is a map page too and loads no copy of builder.js, so a banner there
+// had nothing to push the map down. It stays 0 for every page that never shows
+// one, which is most of them, so the calc()s below are a no-op by default.
+//
+// IT IS DECLARED ON :root AS WELL, because the stage banner is on ordinary
+// chrome pages too and they need the same reserve — see the body rule in
+// _chrome.scss. `html.has-stage-banner` seeds a plausible one-line height so
+// the first paint is close; site.js corrects it to the measured value, which is
+// what covers the wrap. Do not treat the seeded number as authoritative: that is
+// exactly how --timeline-height came to be three pixels short for two weeks.
+:root {
+  --banner-h: 0px;
+}
+
 html.map-page {
   --banner-h: 0px;
   --panel-inset: 2vw;
@@ -288,6 +301,14 @@ html.map-page {
   --timeline-height: 4em;
   --map-control-gutter: 3.4em;
   --map-credit-height: 2em;
+}
+
+// AFTER html.map-page, and that order is load-bearing. Both selectors are one
+// element plus one class, so they carry identical specificity and the later one
+// wins — declared above, the map page's own `--banner-h: 0px` would take it
+// straight back and the builder would paint its first frame under the banner.
+html.has-stage-banner {
+  --banner-h: 2.6em;
 }
 
 // The whole open/closed switch, in one declaration. :has() rather than a class
@@ -1834,4 +1855,53 @@ body.is-arming #map div {
   font-size: 0.78em;
   opacity: 0.7;
   text-align: center;
+}
+
+// WHERE THE RIDER WILL BE AT BEDTIME. A disc with a glyph rather than a bare
+// dot, for the reason the fuel E is one: a dot on a line reads as another stop,
+// and this marks a MOMENT rather than a place anybody chose.
+//
+// Fixed PIXELS, not meters — drawn in real distance a symbol is invisible at low
+// zoom and a mile wide at high zoom. Same construction as .tb-moment-disc, whose
+// comment carries the rest of the reasoning: the wrapper stays 0x0 for
+// anchoring, so the disc has to be a real child to be a hover target at all, and
+// Google sets pointer-events: none on a non-clickable marker's container which
+// only a DESCENDANT may re-enable.
+.tb-bed-disc {
+  pointer-events: auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: -0.675rem 0 0 -0.675rem;
+  border-radius: 50%;
+  background: $brand;
+  border: 2px solid $white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+// Hover only, and CSS rather than `title`: the native tooltip waits about a
+// second, renders in the OS style at the pointer and cannot be styled, which on
+// a map is slow enough to miss. Same call as the fuel wall's tip.
+.tb-bed-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  background: $tarmac;
+  color: $white;
+  font-size: 0.7rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.tb-bed-disc:hover + .tb-bed-tip {
+  opacity: 1;
 }

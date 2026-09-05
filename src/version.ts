@@ -32,11 +32,33 @@ export const APP_VERSION = RAW === '' ? 'dev' : RAW
 /** True for a local or unstamped build. Surfaces are free to render this differently. */
 export const IS_DEV_BUILD = APP_VERSION === 'dev'
 
-// The commit, for a bug report that needs to name an exact tree. Deliberately
-// NOT shown beside the version: a rider does not need it, and a hex string next
-// to a date invites them to quote the wrong one. It rides in a title attribute
-// and in the feedback diagnostics.
+// The commit this build was cut from.
+//
+// **It is RENDERED beside the version now**, which reverses the call recorded
+// here until 2026-09-04. The old reasoning was that a rider does not need a hex
+// string and one beside a date invites them to quote the wrong one, so it rode
+// in a `title` attribute and in the feedback diagnostics. That answered "which
+// build did I see this on", which the version already answers. The question it
+// could not answer is "are stage and prod on the same code" — and that one is
+// asked by the person deploying rather than by a rider, needs the SHA and not
+// the date, and was only answerable from /healthz.
+//
+// It arrives ALREADY SHORT: deploy.sh computes it with `git rev-parse --short
+// HEAD`, so there is no truncation helper here and none is needed. It is the
+// empty string on a local build — `BUILD_SHA` has no `dev` sentinel the way
+// APP_VERSION does — so every surface that renders it guards on truthiness.
 export const BUILD_SHA = (process.env.BUILD_SHA ?? '').trim()
+
+/**
+ * Where the source lives. Public, which is what makes linking a commit useful
+ * rather than a 404 for everyone but Ziad — the same URL the Dockerfile stamps
+ * as `org.opencontainers.image.source`, which is what links the GHCR package to
+ * the repository.
+ */
+export const REPO_URL = 'https://github.com/feralcreative/routeloop'
+
+/** A commit's page on GitHub. Takes a short or a full SHA; GitHub resolves both. */
+export const commitUrl = (sha: string): string => `${REPO_URL}/commit/${sha}`
 
 /**
  * The version as a rider sees it.

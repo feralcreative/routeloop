@@ -714,27 +714,54 @@ export const rides = pgTable(
     // rewrites which road a ride takes, unattended, on a site real riders have
     // accounts on, should be a thing the owner asked for.
     altVotesCloseAt: timestamp('alt_votes_close_at', { withTimezone: true }),
-    // WHOSE CLOCK IS FIXED. Not a decision the app can make fairly on its own:
+    // THE MAIN GROUP: whose clock is fixed AND, since #239, whose road every
+    // other group joins when a meeting point is proposed. Not a decision the app
+    // can make fairly on its own:
     // 3 miles against 60 to a 6am meet is unfair, the same two distances to a
     // 10am meet heading the other way is not, and only the planner knows which
     // they are looking at. #67 is explicit that the DEFAULT must not be the
     // planner's own group — it is the one most likely to be nearest the meet,
     // so that default reproduces the unfair case every time and the planner
     // does not notice, being the one who rode three miles.
-    primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
-      onDelete: 'set null',
-    }),
-    // WHOSE ROUTE IS THE SPINE a rendezvous is proposed against. A SEPARATE
-    // COLUMN from the one above although the UI asks once, because the two come
-    // apart: they are the same group when Sacramento joins Oakland's run to the
-    // Sierras, and they are not the same thing at all when Seattle and San
-    // Francisco meet in eastern Oregon — there is no trunk there and the ride
-    // starts at the meet. #67 says keep them separate in the model and this is
-    // that.
+    primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references(
+      (): AnyPgColumn => rideSubgroups.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    // DEAD AS OF 2026-09-03 (#239) AND READ BY NOTHING. It held whose route a
+    // rendezvous was proposed against, kept separate from the column above on
+    // the reasoning that the two come apart — the same group when Sacramento
+    // joins Oakland's run to the Sierras, not the same thing at all when Seattle
+    // and San Francisco meet in eastern Oregon. That reasoning is struck rather
+    // than deleted so it is not rediscovered and acted on: `primary_subgroup_id`
+    // now carries both axes, because one main group is what a planner holds in
+    // their head and two controls asking nearly the same question is what made
+    // the feature unusable.
+    //
+    // The column stays because dropping one is two deploys under the
+    // expand/contract rule, and it costs nothing where it is.
     trunkSubgroupId: bigint('trunk_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
       onDelete: 'set null',
     }),
     timeAnchor: timeAnchorEnum('time_anchor').notNull().default('departure'),
+    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, as minutes from midnight —
+    // 960 is 4pm. Null means they have not said, which is most rides, and the
+    // whole feature is quiet until they do.
+    //
+    // A WALL CLOCK, LIKE `days.start_at` AND FOR THE SAME REASON. "I like to
+    // stop by four" means four where the bike is, whether that is Oakland or
+    // Ensenada — see the day-clock rule in AGENTS.md. Minutes from midnight
+    // rather than a `time` column because there is no date to attach it to and
+    // no zone to interpret it in: it is a time of day and nothing else, and an
+    // integer cannot accidentally acquire either.
+    //
+    // PER RIDE rather than per rider or per day. Ziad's call, 2026-09-03: a
+    // relaxed tour and a hard push to the border want different answers, and the
+    // setting travels with the ride when it is shared — where a rider preference
+    // would not, and a per-day one would ask nine times for an answer that is
+    // the same on all nine.
+    stopByMin: integer('stop_by_min'),
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
@@ -934,7 +961,9 @@ export const days = pgTable(
     // `set null` on delete: removing a subgroup makes its days everyone's
     // rather than destroying them. Losing a rider's planned road because they
     // renamed a group wrong would be the place_groups mistake over again.
-    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
     // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
     // owns every rule about these two columns.
@@ -1577,7 +1606,6 @@ export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
 // reading the file and is not something any code may rely on.
 export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
 
-
 // Distinct from role, because a rider who declined is still on the roster —
 // that is the whole reason the two are separate columns.
 export const rsvpEnum = pgEnum('rsvp', ['invited', 'going', 'maybe', 'declined'])
@@ -1657,7 +1685,9 @@ export const rideMembers = pgTable(
     // #67 says so explicitly. `set null` rather than cascade, so deleting a
     // subgroup un-groups its riders instead of throwing them off the ride —
     // the same call place_groups made about its places.
-    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
     // WHICH BIKE THEY ARE BRINGING, which #52 needs and which a rider's default
     // bike cannot answer on its own: the whole point of owning two is that you
     // pick one per ride. Null falls back to their default — see bikesOnRide()

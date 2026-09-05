@@ -31,6 +31,21 @@ export const IS_HTTPS_ORIGIN = APP_ORIGIN.startsWith('https://')
 // snippet that talks to it (src/dev/livereload.ts).
 export const IS_DEV = !IS_HTTPS_ORIGIN
 
+// Which deployed environment this is, written by utils/deploy/deploy.sh from its
+// own DEPLOY_ENV. It is an OPTIONAL key — in the printf block and both compose
+// color blocks, deliberately NOT in REMOTE_ENV_KEYS — because promoting it there
+// makes its absence a hard failure, and the next CI deploy would refuse until
+// `deploy-utils.sh push-env` had put the value on every server.
+//
+// So it arrives empty on any server whose .env predates it, and the APP_ORIGIN
+// fallback is what covers that gap: stage is the only environment whose origin
+// is a `stage.` host, and APP_ORIGIN is already required, verified and shipped to
+// both colors. The variable states the answer; the origin infers it. Having both
+// means the banner is correct on the deploy that introduces the key, not the one
+// after it.
+export const APP_ENV = env('APP_ENV', '')
+export const IS_STAGE = APP_ENV === 'stage' || (APP_ENV === '' && APP_ORIGIN.startsWith('https://stage.'))
+
 // Production is strict. In development the map libraries want localhost while
 // APP_ORIGIN may say 127.0.0.1, so accept both names on the same port.
 //

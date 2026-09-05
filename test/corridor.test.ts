@@ -259,6 +259,38 @@ describe('sampling a day for corridor searches', () => {
     })
   })
 
+  // THE DEFECT THIS RULE EXISTS FOR, reported from a real 593-mile ride: six
+  // samples 99 miles apart with a radius clamped from 95 miles down to 31 left
+  // 37-mile holes, so "gas between Burbank and Anaheim" — the whole of the Los
+  // Angeles basin — came back empty. The radius CANNOT grow past the 50 km the
+  // proxy accepts, so the COUNT has to grow instead.
+  it('adds samples so the circles still touch on a long day', () => {
+    const CAP12 = 12
+    for (const miles of [200, 300, 450, 593, 745]) {
+      const got = samples(miles * MI, CAP12)
+      const step = (miles * MI) / got.length
+      expect(2 * got[0].radiusM).toBeGreaterThanOrEqual(step)
+      expect(C.samplesCoverAll(got, miles * MI)).toBe(true)
+    }
+  })
+
+  it('spends fewer searches on a short day than the cap allows', () => {
+    // The count is derived, not always spent: a 40-mile day needs two circles,
+    // not twelve. Cheaper than the fixed six this replaced.
+    expect(samples(40 * MI, 12).length).toBeLessThan(6)
+  })
+
+  // AND SAYS SO WHEN IT STILL CANNOT. Past the cap the circles stop touching
+  // again, and a partly searched day that finds nothing is indistinguishable
+  // from a road with no fuel on it — which is the wrong conclusion to leave a
+  // rider to draw.
+  it('reports partial coverage when even the cap cannot close the gaps', () => {
+    const long = 1200 * MI
+    const got = samples(long, 12)
+    expect(got).toHaveLength(12)
+    expect(C.samplesCoverAll(got, long)).toBe(false)
+  })
+
   it('asks nothing of a day with no distance', () => {
     expect(samples(0)).toEqual([])
     expect(samples(-1)).toEqual([])

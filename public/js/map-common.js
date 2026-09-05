@@ -1409,7 +1409,19 @@
   // fuel walls above.
   const previews = new Map();
 
-  function previewOf(map) {
+  // NAMED FOR ITS FEATURE, and it has to be. It shipped as `previewOf` in #238
+  // and there was already a `previewOf` a few hundred lines up — the shape
+  // drag's preview polyline — so the later declaration silently replaced the
+  // earlier one for the whole IIFE. Dragging a leg onto another road then called
+  // this by mistake, got `{pins, onHover, onPick}` back, and died on
+  // `preview.setPath is not a function`. It broke the moment #238 merged and was
+  // reported the same day.
+  //
+  // Nothing catches that class of mistake for free: two function declarations in
+  // one scope is legal JavaScript, `node --check` accepts it, and the failure
+  // only appears when somebody uses the older feature. `test/map-globals.test.ts`
+  // is the guard now.
+  function searchPreviewOf(map) {
     let p = previews.get(map);
     if (!p) {
       p = { pins: [], onHover: null, onPick: null };
@@ -1469,12 +1481,13 @@
   /**
    * Draw one numbered dot per search result, or clear them with an empty list.
    *
-   * `items` is [{ lngLat, name }] in the order the dropdown shows them, so the
-   * number on a dot is the row it belongs to. `onHover(i | null)` fires when the
-   * pointer enters or leaves a dot.
+   * `items` is [{ lngLat, name, tip, label }] in the order the list shows them,
+   * so the number on a dot is the row it belongs to. `tip` is the hover text and
+   * `label` the accessible name; both fall back to `name`. `onHover(i | null)`
+   * fires when the pointer enters or leaves a dot.
    */
   function setSearchPreview(map, items, onHover, onPick) {
-    const p = previewOf(map);
+    const p = searchPreviewOf(map);
     p.onHover = onHover || null;
     p.onPick = onPick || null;
     const list = items || [];
@@ -1494,7 +1507,12 @@
       dot.classList.remove("is-lit");
       // No role — it is a button, and announcing it as an image would take the
       // press away from anyone using a screen reader.
-      dot.setAttribute("aria-label", "Add " + (list[i].name || "result " + (i + 1)));
+      //
+      // `label` is the caller's, because the dots serve two features now and
+      // "Add" is only right for one of them: a place search adds a point, and a
+      // meeting-point proposal is a choice between candidates. Defaulted rather
+      // than required so the search call site is untouched.
+      dot.setAttribute("aria-label", list[i].label || "Add " + (list[i].name || "result " + (i + 1)));
       // ON HOVER, ONE AT A TIME. Painting every name on the map at once is the
       // thing that would be unreadable — twelve labels overlapping each other —
       // which is why the dot carries a NUMBER and the name arrives only when the
@@ -1504,6 +1522,158 @@
       tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
     }
     for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
+  }
+
+  // THE JOINING GROUPS' ROADS TO EACH CANDIDATE, so a rider can see what the
+  // three choices actually ask of everybody rather than comparing two numbers.
+  //
+  // POOLED AND DETACHED, never destroyed, the same as the preview dots and the
+  // fuel walls above: a rider pressing Find a meeting point twice would
+  // otherwise rebuild every line, and there is one per candidate per joining
+  // group.
+  //
+  // These are REAL ROUTED PATHS — Ziad's call, 2026-09-03, over a dashed
+  // straight connector. The straight line is free and it lies about the
+  // distance on any road that bends, and the whole point of drawing them is to
+  // make the candidates comparable. The requests are the caller's to make and to
+  // cache; this file only draws what it is handed.
+  const approaches = new Map();
+
+  // NOT dashIcons(), which is tuned for a GHOSTED day and carries
+  // GHOST_OPACITY — an approach is a live annotation about a choice the rider is
+  // making right now, and at ghost opacity over busy tiles it is not readable.
+  // Dashed rather than solid because it is not a day of the ride: nothing here
+  // is saved, and a solid line would read as another route on the map.
+  function approachDashes(lit) {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: lit ? "#1f1f1f" : "#8a8a8a",
+          strokeOpacity: lit ? 0.95 : 0.55,
+          strokeWeight: lit ? 4 : 3,
+          scale: 3,
+        },
+        offset: "0",
+        repeat: "14px",
+      },
+    ];
+  }
+
+  function approachOf(map) {
+    let a = approaches.get(map);
+    if (!a) {
+      a = { lines: [] };
+      approaches.set(map, a);
+    }
+    return a;
+  }
+
+  /**
+   * Draw one line per joining-group approach.
+   *
+   * `paths` is [{ path, group }] where `path` is a [lng, lat] track and `group`
+   * is the candidate index it belongs to, so hovering a candidate can lift its
+   * own lines. An empty list clears them.
+   */
+  function setMeetApproaches(map, paths) {
+    const a = approachOf(map);
+    const list = paths || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!a.lines[i]) {
+        a.lines[i] = new Maps.Polyline({
+          map,
+          // Under the preview dots (6) and under the drag preview (4), above the
+          // route: it is an annotation ABOUT the dots, so it must not cover the
+          // thing being chosen, and a rider dragging the road must never lose
+          // their own line behind it.
+          zIndex: 3.6,
+          clickable: false,
+          strokeOpacity: 0,
+          icons: approachDashes(false),
+        });
+      }
+      const line = a.lines[i];
+      line.setPath(list[i].path.map(toLatLng));
+      line.set("tbGroup", list[i].group);
+      line.setMap(map);
+      line.setVisible(true);
+    }
+    for (let i = list.length; i < a.lines.length; i++) a.lines[i].setVisible(false);
+  }
+
+  /** Lift the approaches belonging to one candidate, or level them all with
+   *  null. Lifting is opacity and weight rather than color: these are all the
+   *  same KIND of thing and recoloring one would read as a different one. */
+  function highlightMeetApproaches(map, i) {
+    const a = approaches.get(map);
+    if (!a) return;
+    a.lines.forEach((line) => {
+      if (!line.getVisible()) return;
+      const lit = i == null || line.get("tbGroup") === i;
+      line.setOptions({ icons: approachDashes(lit), strokeOpacity: 0 });
+      line.setZIndex(lit ? 3.7 : 3.6);
+    });
+  }
+
+  // WHERE THE RIDER WILL BE AT BEDTIME, one per day that reaches the hour.
+  //
+  // POOLED AND DETACHED like every other transient marker in this file. Named
+  // for its feature rather than its shape — see the `previewOf` collision that
+  // took drag-to-shape out for a day.
+  const bedtimes = new Map();
+
+  function bedtimeOf(map) {
+    let b = bedtimes.get(map);
+    if (!b) {
+      b = { pins: [] };
+      bedtimes.set(map, b);
+    }
+    return b;
+  }
+
+  /**
+   * Draw a bed marker at each position, or clear them with an empty list.
+   *
+   * `spots` is [{ lngLat, label }]. A DISC WITH A GLYPH, the same construction
+   * as the fuel E: a bare dot on a line reads as another stop, which is the one
+   * thing this is not — it marks a moment, not a place the rider chose.
+   */
+  function setBedtimeMarks(map, spots) {
+    const b = bedtimeOf(map);
+    const list = spots || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!b.pins[i]) {
+        const el = document.createElement("div");
+        // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors
+        // its content at bottom-center, so a sized wrapper puts the anchor off
+        // the point. The child carries the size and the hover.
+        el.className = "tb-marker";
+        const disc = document.createElement("div");
+        disc.className = "tb-bed-disc";
+        disc.textContent = "\u{1F6CF}";
+        el.appendChild(disc);
+        const tip = document.createElement("span");
+        tip.className = "tb-bed-tip";
+        // aria-hidden, or the tip joins the marker's accessible name and it is
+        // read twice — the same rule the fuel wall's tooltip follows.
+        tip.setAttribute("aria-hidden", "true");
+        el.appendChild(tip);
+        b.pins[i] = new Marker.AdvancedMarkerElement({
+          map,
+          content: el,
+          // Above the route and the fuel overlay, below the search dots: it is a
+          // standing annotation, and the dots are the thing being chosen now.
+          zIndex: 5,
+        });
+      }
+      b.pins[i].position = toLatLng(list[i].lngLat);
+      b.pins[i].map = map;
+      const el = b.pins[i].content;
+      el.firstChild.setAttribute("aria-label", list[i].label || "Where you will be at bedtime");
+      el.lastChild.textContent = list[i].label || "";
+    }
+    for (let i = list.length; i < b.pins.length; i++) b.pins[i].map = null;
   }
 
   /** Lift one preview dot, or none with a null index. */
@@ -1545,6 +1715,9 @@
     setMomentOverlay,
     setSearchPreview,
     highlightSearchPreview,
+    setBedtimeMarks,
+    setMeetApproaches,
+    highlightMeetApproaches,
     iconSvg,
     initPanelToggle,
   };

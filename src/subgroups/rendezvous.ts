@@ -75,14 +75,34 @@ export type RendezvousOptions = {
   /** How finely to sample the trunk. 2 km is well under any sane meeting-point
    *  precision and keeps a 500 km trunk to 250 candidates. */
   sampleM?: number
+  /**
+   * Offer ONLY fuel candidates, never a bare point on the road.
+   *
+   * THE FILTER HAS TO BE HERE AND NOT AT THE CALL SITE, which is the whole
+   * reason this option exists. Scoring everything and keeping the fuel ones
+   * afterwards does not work: the ranking prefers the EARLIEST viable point and
+   * only the best few survive, so a station a little further along is crowded
+   * out by plain vertices before a caller ever sees it — and "no station on this
+   * road" would be reported for a road with several.
+   */
+  fuelOnly?: boolean
 }
 
-const DEFAULTS = { maxDivertMi: 25, maxApproachDeg: 110, minSharedFraction: 0.2, sampleM: 2000 }
+const DEFAULTS = { maxDivertMi: 25, maxApproachDeg: 110, minSharedFraction: 0.2, sampleM: 2000, fuelOnly: false }
 
-/** An existing stop, offered as a candidate in its own right. */
+/**
+ * A place offered as a candidate in its own right.
+ *
+ * TWO SOURCES, ONE SHAPE. A stop already on the ride carrying the `gas` role,
+ * and a station found by searching the road — see the route. The second is why
+ * `name` and `address` are here: a meeting point at a forecourt should be that
+ * forecourt, named, not the anonymous stretch of highway beside it.
+ */
 export type FuelCandidate = {
   at: [number, number]
   roles: string[]
+  name?: string
+  address?: string
 }
 
 /**
@@ -261,3 +281,318 @@ export function proposeRendezvous(
 /** The divert in miles, rounded the way every other distance in the app is —
  *  for the one place this number is shown to a rider. */
 export const divertMi = (r: Rendezvous): number => Math.round((r.divertM / METERS_PER_MILE) * 10) / 10
+
+// --- Meeting without a spine ------------------------------------------------
+//
+// EVERYTHING ABOVE ASKS "WHERE DOES THIS GROUP JOIN THAT ROUTE". THIS ASKS THE
+// QUESTION A PLANNER ACTUALLY HAS: everyone is going to the same place, they
+// are setting off from different ones, where should they meet?
+//
+// THE MAIN GROUP'S ROUTE IS THE ROUTE, AND EVERY OTHER GROUP JOINS IT. Ziad's
+// call, 2026-09-03. The main group is `rides.primary_subgroup_id`, which already
+// defaults to the first group created — so there is nothing to nominate and no
+// loop to break: a planner does not pick a spine, they just have a main group,
+// because the first group they made is the ride.
+//
+// THE MAIN GROUP CAN NEVER BE THE ONE JOINING, which is what the signature says
+// rather than a rule the body checks. It takes the primary and the joiners as
+// two arguments for exactly that reason: a single list plus an id is one typo
+// away from proposing that the main group ride out of its way to meet a feeder,
+// and there is no shape of that answer a planner wants.
+//
+// The rejected version is recorded because it read well and was worse. It took
+// every group symmetrically and tried each one's road as a spine, which is
+// fairer in the abstract and wrong in practice: the answer moved depending on
+// which groups existed, a feeder's road could win, and the main group would be
+// told to divert onto it.
+
+/** One group's planned run to the shared destination. */
+export type GroupRoute = {
+  /** The subgroup's uid — what the client and the route both address it by. */
+  id: string
+  /** Where this group sets off. */
+  origin: [number, number]
+  /** Their routed track, origin to the destination everybody shares. */
+  track: Track
+}
+
+/** What one group pays for a proposed meeting point. */
+export type GroupDivert = {
+  id: string
+  divertM: number
+  /** Degrees between their approach and the spine's direction there. */
+  approachDeg: number
+  /** True when their own route already passes through this point, which is what
+   *  makes a natural convergence cost nothing. */
+  onRoute: boolean
+}
+
+export type GroupMeet = {
+  /** Where to meet. THE STATION'S OWN POSITION when this is a fuel candidate,
+   *  not the road vertex it snapped to — a rider told to meet at a Shell should
+   *  be sent to the forecourt, and the point added to every group's day is this
+   *  coordinate. `alongM` still comes from the snapped vertex, because ranking
+   *  is about distance along the road. */
+  at: [number, number]
+  /** Metres along the MAIN group's track, so the caller can cut it here. There
+   *  is no "which group's track" field: it is always the main group's, which is
+   *  the whole point of the shape. */
+  alongM: number
+  /** One entry per group, including the spine's own at zero. */
+  diverts: GroupDivert[]
+  /** The most any single group is asked to ride out of their way. THE FAIRNESS
+   *  TERM: a total alone lets one group absorb everybody else's convenience. */
+  worstDivertM: number
+  totalDivertM: number
+  /** How much of the spine is left to ride together, 0 to 1. */
+  sharedFraction: number
+  isFuel: boolean
+  /** The place's name and street address when it came from one. Empty for a
+   *  bare point on the road, which has neither. */
+  name?: string
+  address?: string
+  score: number
+}
+
+/**
+ * How close a group's own track has to pass for the meet to cost them nothing.
+ *
+ * Measured to the nearest VERTEX rather than the nearest segment, which is
+ * approximate on a sparsely sampled import — and gracefully so: a group whose
+ * road genuinely passes through the point but whose nearest vertex is further
+ * off than this is scored by the dogleg formula instead, which for a point
+ * essentially on their line returns nearly zero anyway. The failure is a small
+ * number where zero was right, not a rejection.
+ */
+const ON_ROUTE_M = 1000
+
+/**
+ * Propose where the joining groups should meet the main group, on the main
+ * group's own road to the destination everybody shares.
+ *
+ * Returns the best few, or an empty list, which is a real answer here for the
+ * same reason it is above: groups approaching a destination from opposite sides
+ * have no sensible meeting point short of it, and offering the least bad one
+ * would be worse than saying so.
+ *
+ * NOTHING IS RE-ROUTED AND NO ROUTER IS CALLED, exactly as above. The candidate
+ * is a point on a road the main group is already riding, so the road to it
+ * exists; what the others ride to reach it is measured straight-line, and is
+ * replaced by a real routed number the moment the planner accepts.
+ */
+export function proposeGroupMeet(
+  primary: GroupRoute,
+  joining: GroupRoute[],
+  fuelStops: FuelCandidate[] = [],
+  options: RendezvousOptions = {},
+  limit = 3,
+): GroupMeet[] {
+  const opts = { ...DEFAULTS, ...options }
+  // Nobody to meet. Not an error and nothing to explain — there is no question.
+  if (joining.length === 0) return []
+  // No road to put a meeting point on. The caller distinguishes this from
+  // "nowhere works" before ever getting here, because the two send a planner to
+  // completely different places.
+  if (primary.track.length < 3) return []
+
+  const pre = prefix(primary.track)
+  const totalM = pre[pre.length - 1]
+  if (totalM <= 0) return []
+
+  // THE DESTINATION IS WHERE THE MAIN GROUP'S ROUTE ENDS, which is the whole
+  // reason no new column was added for it: their day already says where they are
+  // going, and a second place to state it is a second place for it to be wrong.
+  //
+  // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE. Ziad's call,
+  // 2026-09-03: the main group rides start to finish, the others say where they
+  // set off, and where they meet is what the app is for. So only `origin` is read
+  // below, and where a joining group's own track happens to end is not consulted
+  // — that is usually the last place they have got round to planning rather than
+  // a statement about where they are going.
+  //
+  // A filter dropping groups whose route ended elsewhere was written and removed
+  // the same hour. It is recorded because it reads as careful and is not: on the
+  // ride it was first tried against, the second group's day ended at a coffee
+  // shop in their own town, so they were dropped and the ride answered "nowhere
+  // works". Nothing is lost by keeping them — a group genuinely riding to another
+  // city gets a divert far past `maxDivertMi` and is refused by the ordinary cap,
+  // which is a number behind a decision rather than a rule in front of one.
+  const dest = primary.track[primary.track.length - 1]
+
+  const found: GroupMeet[] = []
+  // `place` is the fuel candidate this vertex stands for, or null for a bare
+  // point on the road. When it is set, the candidate IS the place — its own
+  // coordinates, its name and its address — and the vertex only supplies
+  // `alongM`.
+  const consider = (i: number, place: FuelCandidate | null) => {
+    const scored = scoreGroupMeet(primary, i, pre, totalM, joining, dest, place, opts)
+    if (scored) found.push(scored)
+  }
+
+  // Bare points on the road, sampled. Skipped entirely under `fuelOnly` rather
+  // than scored and filtered later — see the option.
+  if (!opts.fuelOnly) {
+    let nextAt = opts.sampleM
+    for (let i = 1; i < primary.track.length - 1; i++) {
+      if (pre[i] < nextAt) continue
+      nextAt = pre[i] + opts.sampleM
+      consider(i, null)
+    }
+  }
+
+  // Existing fuel stops on the main group's road, snapped to it, offered whether
+  // or not the sampler landed on them. Same thumb on the scale as above.
+  for (const stop of fuelStops) {
+    if (!stop.roles.includes('gas')) continue
+    let best = -1
+    let bestD = Infinity
+    for (let i = 1; i < primary.track.length - 1; i++) {
+      const d = haversineM(stop.at[1], stop.at[0], primary.track[i][1], primary.track[i][0])
+      if (d < bestD) {
+        bestD = d
+        best = i
+      }
+    }
+    // Only when the stop is actually ON the road. Snapping a station three
+    // counties away to its nearest vertex would offer a meeting point nobody is
+    // riding past.
+    if (best > 0 && bestD <= ON_ROUTE_M) consider(best, stop)
+  }
+
+  found.sort((a, b) => a.score - b.score)
+
+  // NEAR-DUPLICATES DROPPED, because a 2 km sampler on a long road offers five
+  // candidates within a mile of each other and a planner reads that as the app
+  // having nothing to say. One per ten kilometres, by `alongM` — every candidate
+  // is on the same track now, so the distances are comparable.
+  const kept: GroupMeet[] = []
+  for (const c of found) {
+    if (kept.some((k) => Math.abs(k.alongM - c.alongM) < 10_000)) continue
+    kept.push(c)
+    if (kept.length === limit) break
+  }
+  return kept
+}
+
+/** Score one point on the main group's road as a meeting place. `null` when any
+ *  joining group is refused it. */
+function scoreGroupMeet(
+  primary: GroupRoute,
+  vertexIndex: number,
+  pre: number[],
+  totalM: number,
+  joining: GroupRoute[],
+  dest: [number, number],
+  place: FuelCandidate | null,
+  opts: Required<RendezvousOptions>,
+): GroupMeet | null {
+  // THE PLACE'S OWN POSITION WHERE THERE IS ONE. It sits within ON_ROUTE_M of
+  // the vertex by construction, so every distance below is unchanged to within
+  // that — and the coordinate the rider is actually sent to is the forecourt
+  // rather than the carriageway outside it.
+  const at = place ? place.at : primary.track[vertexIndex]
+  const isFuel = place !== null
+  const alongM = pre[vertexIndex]
+
+  // Real road left to ride together, or the meet achieves nothing. Same floor
+  // and same reasoning as the single-spine version — see minSharedFraction.
+  const sharedFraction = (totalM - alongM) / totalM
+  if (sharedFraction < opts.minSharedFraction) return null
+
+  const next = primary.track[Math.min(vertexIndex + 1, primary.track.length - 1)]
+  const prev = primary.track[Math.max(vertexIndex - 1, 0)]
+  const spineBearing = bearing(prev, next)
+
+  const toDestM = haversineM(at[1], at[0], dest[1], dest[0])
+
+  // The main group rides through here by construction, and is listed at zero so
+  // the panel can name every group rather than silently omitting the one whose
+  // road it is.
+  const diverts: GroupDivert[] = [{ id: primary.id, divertM: 0, approachDeg: 0, onRoute: true }]
+
+  for (const g of joining) {
+    // A group whose own road already passes through this point pays nothing,
+    // which is what lets a route that genuinely converges with the main one be
+    // found by this function rather than needing a second one beside it.
+    let nearest = Infinity
+    for (const v of g.track) {
+      const d = haversineM(v[1], v[0], at[1], at[0])
+      if (d < nearest) nearest = d
+    }
+    if (nearest <= ON_ROUTE_M) {
+      diverts.push({ id: g.id, divertM: 0, approachDeg: 0, onRoute: true })
+      continue
+    }
+
+    // Straight lines on all three legs, for the reason the single-spine version
+    // records at length: mixing a road distance into this comparison bills the
+    // road's own bends to whoever is joining.
+    const toMeetM = haversineM(g.origin[1], g.origin[0], at[1], at[0])
+    const directM = haversineM(g.origin[1], g.origin[0], dest[1], dest[0])
+    const divertM = toMeetM + toDestM - directM
+    const approachDeg = Math.abs(turn(bearing(g.origin, at), spineBearing))
+    // Arriving at the meeting point from in front of it: they would ride past it
+    // and turn around. Refused for the whole candidate rather than for one
+    // group, because a meeting point one group cannot use is not one.
+    if (approachDeg > opts.maxApproachDeg) return null
+    diverts.push({ id: g.id, divertM, approachDeg, onRoute: false })
+  }
+
+  const totalDivertM = diverts.reduce((n, d) => n + d.divertM, 0)
+  const worstDivertM = diverts.reduce((n, d) => Math.max(n, d.divertM), 0)
+  // THE CAP IS ON THE WORST GROUP, NOT ON THE TOTAL. A budget spent in total
+  // lets three groups' convenience be paid for by a fourth, which is exactly the
+  // silent unfairness #67 asks the app not to commit on the planner's behalf.
+  // The main group is never the one it protects — they ride their own road — so
+  // it is entirely a limit on what a feeder can be asked to do.
+  if (worstDivertM > opts.maxDivertMi * METERS_PER_MILE) return null
+
+  // THE EARLIEST ACCEPTABLE MEETING POINT WINS, NOT THE CHEAPEST. Ziad's call,
+  // 2026-09-03, and it reverses what the weights said an hour earlier. The point
+  // of a group ride is to ride as a group, so the thing being minimized is the
+  // distance covered APART; the divert is a limit on what that may cost
+  // somebody, not the goal.
+  //
+  // MEASURED, BECAUSE THE OLD WEIGHTS WERE NOT OBVIOUSLY WRONG. On ride 34 —
+  // Oakland to Bakersfield with a second group starting in Santa Cruz, which
+  // sits west of the road — divert falls monotonically the further south the
+  // meet is: 101 miles at Oakland, 25 near Los Banos, 2.4 near Bakersfield. So a
+  // score led by divert always picked the LAST viable point and the two groups
+  // rode 200 miles separately to a ride they were doing together. Choosing the
+  // earliest instead unites them about ninety minutes sooner.
+  //
+  // `alongM` REPLACES the old `-sharedFraction * 5` rather than joining it:
+  // shared fraction is `(total - along) / total`, so the two say the same thing
+  // and keeping both would just double the weight of one term.
+  //
+  // THE CONSEQUENCE TO STATE RATHER THAN TREAT AS A BUG: an earliest-subject-to-
+  // a-limit rule always lands near the limit, so `maxDivertMi` stops being a
+  // guard against nonsense and becomes the actual dial. It has no control and
+  // this is where it would need one.
+  //
+  // Divert survives at a TENTH of a mile per mile, which only ever separates
+  // candidates that are nearly the same distance along — near-ties, where "and
+  // it costs them less" is the right reason to prefer one. The approach angle
+  // and the fuel bonus keep their weights; note the fuel bonus is now worth two
+  // miles of ROUTE rather than two miles of detour, which is a smaller thumb
+  // than it was and still enough to prefer a pump over a bare vertex beside it.
+  const approachPenalty = diverts.reduce((n, d) => n + (d.approachDeg / 90) * 1, 0)
+  const score = alongM / METERS_PER_MILE + (totalDivertM / METERS_PER_MILE) * 0.1 + approachPenalty - (isFuel ? 2 : 0)
+
+  return {
+    at,
+    alongM,
+    diverts,
+    worstDivertM,
+    totalDivertM,
+    sharedFraction,
+    isFuel,
+    name: place?.name,
+    address: place?.address,
+    score,
+  }
+}
+
+/** The worst single group's divert in miles — the one number that says whether a
+ *  proposal is fair, rounded the way every other distance in the app is. */
+export const worstDivertMi = (m: GroupMeet): number => Math.round((m.worstDivertM / METERS_PER_MILE) * 10) / 10

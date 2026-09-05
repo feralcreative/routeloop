@@ -1,0 +1,1 @@
+ALTER TABLE "rides" ADD COLUMN "stop_by_min" integer;

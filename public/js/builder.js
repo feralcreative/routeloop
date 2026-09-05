@@ -28,6 +28,9 @@
     setMomentOverlay,
     setSearchPreview,
     highlightSearchPreview,
+    setBedtimeMarks,
+    setMeetApproaches,
+    highlightMeetApproaches,
     clearLegHighlight,
     onRouteShapeDrag,
     consumeShapeClick,
@@ -52,6 +55,8 @@
     dayStoppedS,
     dayElapsedS,
     dayStartS,
+    elapsedToPointS,
+    clockMoment,
     daySpan,
     rideSpan,
     rideSegments,
@@ -129,6 +134,14 @@
   // fails the whole request. Rejection sampling — bytes at or above 252 are
   // discarded, because 256 % 36 would otherwise bias the first four symbols.
   const UID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+  // The group every ride starts with. Named rather than blank because it is
+  // rendered in a <select> and in the day pickers, where an unnamed option is
+  // an empty row nobody can aim at; the rider renames it if they want to, which
+  // is what "optional name" means here.
+  function seedGroup() {
+    return { uid: uid(), name: "Group 1", color: DAY_COLORS[0] };
+  }
+
   function uid() {
     let out = "";
     while (out.length < 12) {
@@ -438,6 +451,11 @@
   // replaces it.
   const UNTITLED = "Untitled ride";
 
+  // Built before the state literal so the seed's uid can be the main group in
+  // the same breath: `primarySubgroup` may never be null, and setting it
+  // afterwards is a second statement somebody can forget to keep.
+  const SEED_GROUP = seedGroup();
+
   const state = {
     map: null,
     // Which row has its category picker open, as {day, i}, or null.
@@ -486,16 +504,35 @@
       // assigned to one across the whole ride. Each is {uid, name, color}; the
       // uid is minted here and is what days reference, because the server's ids
       // do not exist until the first save. Mirror of ride_subgroups.
-      subgroups: [],
-      // Whose clock is pinned, and whose route is the spine — two keys although
-      // the panel asks once. See rides.primary_subgroup_id for why they come
-      // apart. Both are subgroup uids or null.
-      primarySubgroup: null,
+      //
+      // A RIDE ALWAYS HAS AT LEAST ONE, AND IT IS SEEDED HERE RATHER THAN ASKED
+      // FOR. Ziad's call, 2026-09-03: planning a route means a rider is riding
+      // it, which is a group of one. The empty list was the state that made
+      // every group feature read as opt-in machinery — the panel opened on
+      // "Add a group for each starting point", so the planner had to understand
+      // subgroups before the app would admit anybody was going.
+      subgroups: [SEED_GROUP],
+      // THE MAIN GROUP, and it is never null. Whose clock is pinned and whose
+      // road the other groups join — one setting since #239, see
+      // rides.primary_subgroup_id. A uid, always pointing at a group that
+      // exists.
+      primarySubgroup: SEED_GROUP.uid,
+      // Dead since #239 and read by nothing; kept on the payload so a save does
+      // not clear a column older rides may still carry.
       trunkSubgroup: null,
       // Which event is pinned: "departure", "meet" or "arrival".
       timeAnchor: "departure",
+      // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, minutes from midnight, or
+      // null for "they have not said" — which is most rides, and the whole
+      // feature is quiet until they do. A wall clock at the departure point, see
+      // rides.stop_by_min.
+      stopByMin: null,
     },
     days: [newDay()],
+    // WHICH FEATURE OWNS THE MAP'S PREVIEW DOTS — "search", "meet" or null.
+    // `setSearchPreview` is one slot and two features draw into it, so the one
+    // that did not put them there must not clear them: see hideSearchResults.
+    previewOwner: null,
     // The active day, as a plain index into state.days. It is where a map click
     // puts a stop and which day the map emphasizes; it is NOT a filter, because
     // every day is on screen at once.
@@ -730,6 +767,7 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     setFieldValue("ride-visibility", state.meta.visibility);
+    renderStopBy();
     // Undo can shorten the name as easily as lengthen it, and the field will not
     // notice either on its own.
     fitTitle();
@@ -1494,11 +1532,17 @@
   // Recomputes leg i of day r, joining points[i] to points[i+1]. `i` indexes
   // day.points directly — both kinds anchor a leg, so there is no ordinal to
   // convert from.
+  // RETURNS A PROMISE THAT SETTLES WHEN THE ROAD IS REAL, and every early exit
+  // returns a settled one so a caller can always await it. Fire-and-forget is
+  // still the normal use — nothing awaits this on an ordinary edit — but syncing
+  // departures to an arrival time needs the ROUTED duration, and the straight
+  // placeholder this installs first would sync everybody to a number that is
+  // about to change.
   function computeLeg(r, i) {
     const day = state.days[r];
-    if (!day) return;
+    if (!day) return Promise.resolve();
     const pts = day.points;
-    if (!pts[i] || !pts[i + 1]) return;
+    if (!pts[i] || !pts[i + 1]) return Promise.resolve();
     const a = [pts[i].lng, pts[i].lat];
     const b = [pts[i + 1].lng, pts[i + 1].lat];
     const vias = (day.legs[i] && day.legs[i].viaPoints) || [];
@@ -1512,11 +1556,11 @@
     // The straight leg above is already the right answer: zero meters, zero
     // seconds. This became reachable the moment duplicate-a-point shipped, which
     // by design puts the copy exactly on top of its original.
-    if (!vias.length && a[0] === b[0] && a[1] === b[1]) return;
+    if (!vias.length && a[0] === b[0] && a[1] === b[1]) return Promise.resolve();
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
     const seq = (state.legSeq[r][i] = (state.legSeq[r][i] || 0) + 1);
-    directions(a, b, vias, day.routePrefs)
+    return directions(a, b, vias, day.routePrefs)
       .then((leg) => {
         // The day may have been deleted or reordered while this was in flight.
         if (state.days[r] !== day) return;
@@ -1531,9 +1575,11 @@
       });
   }
 
+  // Also returns a promise, for the same reason and with the same caveat: it is
+  // normally called for its effect and the result ignored.
   function computeLegsAround(r, indices) {
     const n = state.days[r].points.length - 1;
-    [...new Set(indices)].filter((i) => i >= 0 && i < n).forEach((i) => computeLeg(r, i));
+    return Promise.all([...new Set(indices)].filter((i) => i >= 0 && i < n).map((i) => computeLeg(r, i)));
   }
 
   // --- Map rendering --------------------------------------------------------
@@ -1853,6 +1899,148 @@
     markDirty();
   }
 
+  // --- Stopping for the night ------------------------------------------------
+  //
+  // #220's other half, and the planner's own words: "I like to stop by four, so
+  // where should I be looking?" The pieces were already here — activeAt() says
+  // where the rider is at a moment, distanceAtMoment() turns that into a
+  // distance along the day, sliceBetween() cuts that stretch out of the track,
+  // and the corridor search covers a stretch. This is the wiring, not a new
+  // mechanism.
+
+  /** A track's own length. corridorRun() needs it to space its samples, and the
+   *  bedtime stretch is a slice rather than a whole day, so nothing has already
+   *  measured it. */
+  function trackLengthM(track) {
+    let m = 0;
+    for (let i = 1; i < track.length; i++) {
+      m += haversineM(track[i - 1][1], track[i - 1][0], track[i][1], track[i][0]);
+    }
+    return m;
+  }
+
+  /** How wide "around four" is, in minutes of riding either side. A constant for
+   *  the reason CORRIDOR_MI is one: it is a preference about how much slack a
+   *  bedtime has, not a decision to be made afresh on every search. */
+  const STOP_BY_WINDOW_MIN = 45;
+
+  /** "16:00" → 960. Empty, half-typed or nonsense → null, which is the same
+   *  thing the column means by null: the rider has not said. */
+  function minutesFromTimeValue(v) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(v || ""));
+    if (!m) return null;
+    const min = Number(m[1]) * 60 + Number(m[2]);
+    return min >= 0 && min <= 1439 ? min : null;
+  }
+
+  /** 960 → "16:00", for the input. */
+  function timeValueFromMinutes(min) {
+    if (min == null) return "";
+    return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+  }
+
+  function renderStopBy() {
+    setFieldValue("ride-stop-by", timeValueFromMinutes(state.meta.stopByMin));
+    const clear = $("ride-stop-by-clear");
+    // Hidden rather than disabled when there is nothing to clear: a control that
+    // is always present and never works reads as a bug, the same rule the main
+    // group's missing × follows.
+    if (clear) clear.hidden = state.meta.stopByMin == null;
+  }
+
+  /**
+   * Where each day will be when the clock reads the rider's bedtime.
+   *
+   * One entry per day that HAS an answer, and a day is allowed to have none: an
+   * undated day has no clock, and a day that finishes before the hour never
+   * reaches it. Both are ordinary and neither is worth reporting — the marker
+   * simply is not there.
+   */
+  // MEMOIZED, BECAUSE THE DAY LIST ASKS ONCE PER ROW. bedtimeOfferHtml() calls
+  // this while rendering every point of every day, and each uncached call walks
+  // every day's whole track and rebuilds its cumulative distances — on a
+  // hundred-point day that is a hundred full passes to place one button.
+  //
+  // Cleared from refreshDerived(), which is the pass every schedule change
+  // already goes through, and from the setting's own handler. A render that
+  // happens without either — a rename redrawing one row — can read a stale
+  // answer, which at worst puts the offer one row out until the next real
+  // change. That is the right way for this to be wrong.
+  let stopByCache = null;
+
+  function stopByPoints() {
+    if (stopByCache) return stopByCache;
+    const min = state.meta.stopByMin;
+    if (min == null) return (stopByCache = []);
+    const out = [];
+    state.days.forEach((day, r) => {
+      if (ALT.isLosingAlt && ALT.isLosingAlt(day)) return;
+      const moment = clockMoment(day, min);
+      if (!moment || !moment.at) return;
+      // The same two the fuel overlay uses, and deliberately so: a marker
+      // placed by different arithmetic from the moment dot would drift from it
+      // on the same day.
+      const track = fullTrack(r);
+      if (!track.length) return;
+      const cum = DIST.cumulativeM(day);
+      const distM = RANGE.distanceAtMoment(day, moment.at, cum);
+      if (distM == null) return;
+      const at = pointAtDistance(track, distM);
+      if (!at) return;
+      // The last point the rider passes BEFORE the moment, which is the row the
+      // offer belongs on. `activeAt` reports either a point or a leg; on a leg,
+      // the point before it is the leg's own index.
+      const atPoint = moment.at.pointIndex != null ? moment.at.pointIndex : moment.at.legIndex;
+      out.push({ dayIndex: r, at, distM, offsetS: moment.offsetS, track, cum, atPoint });
+    });
+    return (stopByCache = out);
+  }
+
+  /** The stretch of road the rider could reasonably stop along, as a track. */
+  function stopByStretch(entry) {
+    const day = state.days[entry.dayIndex];
+    const windowS = STOP_BY_WINDOW_MIN * 60;
+    const from = TIMEDIST(day, entry, -windowS);
+    const to = TIMEDIST(day, entry, windowS);
+    return sliceBetween(entry.track, from, to);
+  }
+
+  /** The distance along the day `deltaS` seconds either side of the bedtime,
+   *  clamped to the day. Time in, distance out — the two are not proportional on
+   *  a day with a two-hour lunch in it, which is why this walks the schedule
+   *  rather than scaling miles. */
+  function TIMEDIST(day, entry, deltaS) {
+    const offset = Math.max(0, Math.min(dayElapsedS(day), entry.offsetS + deltaS));
+    const at = activeAt(day, offset);
+    const d = RANGE.distanceAtMoment(day, at, entry.cum);
+    return d == null ? entry.distM : d;
+  }
+
+  /** Draw the bedtime markers, or clear them. Called from the setting's own
+   *  handler and from every repaint that could move them. */
+  function paintStopBy() {
+    if (!state.map) return;
+    const spots = stopByPoints().map((e) => ({
+      lngLat: e.at,
+      label: dayLabel(e.dayIndex) + " · " + fmtClockMin(state.meta.stopByMin) + " · start looking here",
+    }));
+    setBedtimeMarks(state.map, spots);
+  }
+
+  /** 960 → "4:00 PM", in the rider's own date format. The panel says the time
+   *  back to them in the form they read everywhere else, not the 24-hour string
+   *  the input stores. */
+  function fmtClockMin(min) {
+    if (min == null) return "";
+    // An arbitrary UTC date carrying that time of day, formatted in UTC — the
+    // same trick every other clock in this app uses, and for the same reason: a
+    // wall clock must not be re-read in the browser's zone.
+    return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(undefined, {
+      timeStyle: "short",
+      timeZone: "UTC",
+    });
+  }
+
   function renderMarkers() {
     clearMarkers();
     state.markers = state.days.map((day, r) => ({
@@ -1927,10 +2115,15 @@
     // [placeholder, AB], recomputing 0 gives [XA] and leg 1 stays AB. Appending
     // is the same operation with `where === oldLen`, which is why there is no
     // separate branch for it.
+    // ROUTED, and the promise is handed back for the one caller that needs to
+    // wait for it — takeMeet syncs departures against an ARRIVAL time, and the
+    // straight placeholder installed a line above is not the number to sync to.
+    // Every other caller ignores the return, as they always did.
+    let routed = Promise.resolve();
     if (!first) {
       day.legs.splice(Math.min(where, day.legs.length), 0, straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat]));
       state.legSeq[r] = [];
-      computeLegsAround(r, [where - 1, where]);
+      routed = computeLegsAround(r, [where - 1, where]);
     }
     // The slot has been used, so it closes. Left open, the next render would put
     // a second field in the middle of the day the rider just finished with.
@@ -1942,6 +2135,7 @@
     renderDayList(r);
     refreshDerived();
     markDirty();
+    return routed;
   }
 
   /**
@@ -2063,6 +2257,19 @@
     if (!pt) return;
     beginEdit(pt.kind === "stop" ? "delete stop" : "delete POI");
     day.points.splice(i, 1);
+    // A DAY MUST KEEP A STOP, AND THIS WAS THE ONE DELETE PATH WITHOUT THE
+    // GUARD. The bulk delete, the cross-day move and the drag all had it; this
+    // did not, so removing a day's last stop from the row menu left a day of
+    // nothing but POIs — which the API refuses with `a day needs at least one
+    // stop` and which no amount of further editing repairs, because addPoint
+    // only promotes on an EMPTY day. #233 again, through the last door.
+    //
+    // A RIDE NEEDS A STARTING POINT AND NOTHING MORE — Ziad's call,
+    // 2026-09-03. The rule stays where it is (the roadbook numbers its rows
+    // from stops, the Maps hand-off is built from them, and start/finish are
+    // roles on one); what changes is that the rider can never be made to
+    // satisfy it by hand. The first surviving point becomes the anchor.
+    ensureDayHasStop(day);
 
     if (day.legs.length) {
       const pts = day.points;
@@ -3623,20 +3830,49 @@
     const count = $("sg-count");
     if (count) count.textContent = groups.length ? String(groups.length) : "";
 
+    // UNREACHABLE BY DESIGN — a ride always has at least one group, seeded at
+    // state init and again on load. Repaired rather than rendered around: an
+    // empty panel here would be a dead end the rider cannot get out of, and the
+    // seed is one line.
     if (groups.length === 0) {
-      host.innerHTML =
-        '<p class="sg-empty">Riders leaving from different places. Add a group for each starting point, then say ' +
-        "which days that group rides—the days you leave on Everyone are the ones you all ride together.</p>";
-      return;
+      state.meta.subgroups.push(seedGroup());
+      state.meta.primarySubgroup = state.meta.subgroups[0].uid;
+      return renderSubgroups();
     }
 
+    // ORDER IS RANK, AND THE FIRST ROW IS THE MAIN GROUP. Ziad's call,
+    // 2026-09-03: promotion is a DRAG rather than a picker — pull a group up
+    // over the main one and it takes the slot, demoting the old main into the
+    // list. So `state.meta.subgroups[0]` IS the main group and
+    // `state.meta.primarySubgroup` is kept equal to its uid rather than being a
+    // second, independently settable fact. The select that used to set it is
+    // gone: two ways to say the same thing is what made this panel read as
+    // machinery.
+    //
+    // ONE CONTAINER HOLDING NOTHING BUT `.sg-row`, which is not a style choice.
+    // Sortable's raw `oldIndex`/`newIndex` count EVERY child, so a section
+    // header between the rows would silently make them read about double —
+    // that is #166, and the day list carries the same warning. The "Main group"
+    // label is INSIDE the first row for exactly that reason, and onEnd reads
+    // the draggable pair anyway.
     host.innerHTML =
+      '<div class="sg-list" id="sg-list">' +
       groups
         .map(
-          (g) =>
-            '<div class="sg-row" data-sg="' +
+          (g, i) =>
+            '<div class="sg-row' +
+            (i === 0 ? " is-main" : "") +
+            '" data-sg="' +
             esc(g.uid) +
             '">' +
+            // A real <button>, not a decorative grip: it is the keyboard path
+            // and the path that still works when the SortableJS CDN does not.
+            // Same arrangement as a day's handle, which replaced two move
+            // buttons on 2026-08-16.
+            '<button type="button" class="sg-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+            ' aria-label="Reorder ' +
+            esc(g.name) +
+            '">⠿</button>' +
             '<input class="sg-color" type="color" value="' +
             esc(g.color) +
             '" aria-label="Color for ' +
@@ -3645,82 +3881,45 @@
             '<input class="sg-name" type="text" maxlength="80" value="' +
             esc(g.name) +
             '" aria-label="Name of this group">' +
-            '<button type="button" class="sg-meet" title="Suggest where this group could join the others">Find a meet</button>' +
-            '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' +
-            esc(g.name) +
-            '">×</button>' +
+            (i === 0
+              ? '<span class="sg-main-tag">Main</span>'
+              : // NO DELETE ON THE MAIN GROUP, which is what guarantees a ride
+                // always has one — a simpler invariant than "you cannot delete
+                // the last" and the one Ziad asked for. Demote it by dragging
+                // another group over it, then it can go like any other.
+                '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' +
+                esc(g.name) +
+                '">×</button>') +
             "</div>",
         )
         .join("") +
-      // The two axes, and they only appear once there are two groups to solve
-      // against each other. Whose clock and which event — see rides.time_anchor
-      // for why one control cannot carry both.
+      "</div>" +
+      // Only what is PINNED now — the group it applies to is the one at the top
+      // of the list above, so naming it again in a select was the redundancy.
+      // WHAT IS PINNED IS ALWAYS THE MAIN GROUP'S DEPARTURE, so there is no
+      // control for it. Ziad's call, 2026-09-03: of course you pin when they
+      // set off — that is the one time a planner actually knows, and the meet
+      // and the arrival are both things the app works out from it. The select
+      // offered three answers to a question with one.
+      //
+      // `rides.time_anchor` keeps its other members and schedule.ts keeps
+      // solving for them; nothing sets them any more. What survives here is the
+      // fairness note, which is about WHOSE departure and is a live question.
+      (groups.length < 2 ? "" : '<div class="sg-anchor"><p class="sg-anchor-note" id="sg-anchor-note"></p></div>') +
+      // ONE BUTTON FOR THE RIDE, NOT ONE PER GROUP — #239. The question is
+      // "where do we meet", which has one answer for everybody. It appears with
+      // the second group, because one group has nobody to meet.
       (groups.length < 2
         ? ""
-        : '<div class="sg-anchor">' +
-          '<label for="sg-primary">Solve everyone around</label>' +
-          '<select id="sg-primary">' +
-          state.meta.subgroups
-            .map(
-              (g) =>
-                '<option value="' +
-                esc(g.uid) +
-                '"' +
-                (state.meta.primarySubgroup === g.uid ? " selected" : "") +
-                ">" +
-                esc(g.name) +
-                "</option>",
-            )
-            .join("") +
-          "</select>" +
-          '<label for="sg-when">and pin their</label>' +
-          '<select id="sg-when">' +
-          ANCHORS.map(
-            (a) =>
-              '<option value="' +
-              a.key +
-              '"' +
-              (state.meta.timeAnchor === a.key ? " selected" : "") +
-              ">" +
-              a.label +
-              "</option>",
-          ).join("") +
-          "</select>" +
-          // WHOSE ROAD IS THE SPINE, asked ONLY when there is no shared day —
-          // #239. With a day on Everyone the trunk is that day and there is
-          // nothing to choose, so the control would be a question whose answer
-          // is ignored. Without one it is the whole reason Find a meet can
-          // answer at all.
-          //
-          // It is a SECOND select rather than a mode of "Solve everyone around"
-          // because the two come apart: Sacramento joining Oakland's run makes
-          // them the same group, San Francisco and Seattle meeting in eastern
-          // Oregon makes them different. See rides.trunk_subgroup_id.
-          (state.days.some((d) => !d.subgroupUid)
-            ? ""
-            : '<div class="sg-trunk">' +
-              '<label for="sg-trunk">No shared days—others join</label>' +
-              '<select id="sg-trunk">' +
-              // No default, deliberately. The app must not pick whose route
-              // everybody else bends around; see renderAnchorNote and #67.
-              '<option value="">Choose a group…</option>' +
-              state.meta.subgroups
-                .map(
-                  (g) =>
-                    '<option value="' +
-                    esc(g.uid) +
-                    '"' +
-                    (state.meta.trunkSubgroup === g.uid ? " selected" : "") +
-                    ">" +
-                    esc(g.name) +
-                    "</option>",
-                )
-                .join("") +
-              "</select>" +
-              "</div>") +
-          '<p class="sg-anchor-note" id="sg-anchor-note"></p>' +
-          "</div>") +
+        : // btn btn-sm, matching "Add a group" beside it—`.sg-meet` alone was
+          // styled ONLY as a descendant of `.sg-row`, so the moment this became
+          // a ride-wide button sitting outside the rows it inherited nothing at
+          // all. btn-sm is in $btn-flat, so it is a plain button rather than a
+          // highway sign; not btn-quiet, because this is the panel's primary
+          // action and adding a group is the incidental one.
+          '<button type="button" id="sg-meet-all" class="btn btn-sm sg-meet">Find a meeting point</button>') +
       '<div class="sg-meet-out" id="sg-meet-out"></div>';
+    initGroupDrag($("sg-list"));
     renderAnchorNote();
   }
 
@@ -3736,10 +3935,19 @@
       const color = DAY_COLORS[state.meta.subgroups.length % DAY_COLORS.length];
       const g = { uid: uid(), name: "Group " + (state.meta.subgroups.length + 1), color: color };
       state.meta.subgroups.push(g);
-      // The first group is the default primary only because there is nothing
-      // else to be. The moment there are two, renderAnchorNote says whether
-      // that is the fair answer — see #67 on why the app must not pick.
-      if (!state.meta.primarySubgroup) state.meta.primarySubgroup = g.uid;
+      // NOT PROMOTED. A ride always has a main group already — the seed, or
+      // whichever the rider promoted since — so a group added now is a joining
+      // one, and taking the main slot from underneath them would silently
+      // re-point every meeting-point proposal at a road nobody has planned.
+      //
+      // The fairness half is still live and matters MORE than it did: the seed
+      // is the planner's own group, so the default main group IS the planner's,
+      // which is exactly the case #67 says the app must not choose silently.
+      // renderAnchorNote is what says so, and it fires from the second group on.
+      //
+      // Re-derived rather than conditionally set: the main group IS the first in
+      // the list, so reading it back is the one spelling that cannot drift.
+      state.meta.primarySubgroup = state.meta.subgroups[0].uid;
       // The panel used to be one column with a collapsed <details> for groups,
       // and this opened it. The Groups tab is already open — pressing Add a
       // group is only reachable from inside it — so there is nothing to reveal;
@@ -3773,33 +3981,39 @@
       }
     });
 
-    body.addEventListener("change", (e) => {
-      if (e.target.id === "sg-primary") {
-        beginEdit("change the primary group");
-        state.meta.primarySubgroup = e.target.value;
-        renderAnchorNote();
-        markDirty();
-      } else if (e.target.id === "sg-trunk") {
-        beginEdit("change whose route is the spine");
-        // "" is the Choose a group… option and is a real value: null means
-        // nobody has answered, which is what `no-trunk-group` reports.
-        state.meta.trunkSubgroup = e.target.value || null;
-        markDirty();
-      } else if (e.target.id === "sg-when") {
-        beginEdit("change what is pinned");
-        state.meta.timeAnchor = e.target.value;
-        markDirty();
-      }
+    // The keyboard half of the drag handle, and the path that still works when
+    // the SortableJS CDN does not. preventDefault because the drawer scrolls,
+    // and an arrow key that both moves the row and scrolls the panel loses the
+    // row off the screen — the same reasoning as the day grip.
+    body.addEventListener("keydown", (e) => {
+      const grip = e.target.closest(".sg-drag");
+      if (!grip) return;
+      const dir = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const row = grip.closest(".sg-row");
+      if (!row) return;
+      const uidOfRow = row.dataset.sg;
+      const from = state.meta.subgroups.findIndex((g) => g.uid === uidOfRow);
+      if (from < 0) return;
+      moveGroup(from, from + dir);
+      // renderSubgroups() has replaced the button that was focused, so focus
+      // goes back to the same GROUP's grip at its new position — by uid, not by
+      // index, which is the thing that just changed.
+      const moved = body.querySelector('.sg-row[data-sg="' + CSS.escape(uidOfRow) + '"] .sg-drag');
+      if (moved) moved.focus();
     });
 
     body.addEventListener("click", (e) => {
       if (e.target.classList.contains("sg-take")) return takeMeet(e.target.dataset);
+      // Ride-wide, so it is deliberately checked BEFORE the row lookup — it sits
+      // below every row and closest(".sg-row") would find nothing.
+      if (e.target.id === "sg-meet-all") return findMeet();
       const row = e.target.closest(".sg-row");
       if (!row) return;
       const g = subgroupByUid(row.dataset.sg);
       if (!g) return;
       if (e.target.classList.contains("sg-del")) return removeSubgroup(g);
-      if (e.target.classList.contains("sg-meet")) return findMeet(g);
     });
   }
 
@@ -3808,26 +4022,43 @@
   // what the save will do. A rider tidying up a group name must not lose the
   // road they planned.
   function removeSubgroup(g) {
+    // THE MAIN GROUP CANNOT BE DELETED, and that one rule is what guarantees a
+    // ride always has a group — simpler than "you cannot delete the last one",
+    // which is the shape this replaced. Demote it first by dragging another
+    // group over it; then it goes like any other.
+    //
+    // The × is not rendered on it, so this is the backstop for a stale DOM
+    // rather than a path a rider takes — but the invariant lives here and the
+    // rendering is the courtesy.
+    if (state.meta.subgroups[0] && state.meta.subgroups[0].uid === g.uid) return;
     beginEdit("remove a group");
     state.meta.subgroups = state.meta.subgroups.filter((x) => x.uid !== g.uid);
     state.days.forEach((d) => {
       if (d.subgroupUid === g.uid) d.subgroupUid = null;
     });
-    if (state.meta.primarySubgroup === g.uid) state.meta.primarySubgroup = state.meta.subgroups[0]?.uid || null;
+    // Re-derived rather than repaired: the main group is whatever is first, and
+    // deleting a non-main group cannot change that — but reading it from the
+    // list keeps the two from ever disagreeing.
+    state.meta.primarySubgroup = state.meta.subgroups[0].uid;
     if (state.meta.trunkSubgroup === g.uid) state.meta.trunkSubgroup = null;
+    // renderDays() cascades into renderSubgroups() — see moveGroup.
     renderDays();
     rebuildLayers();
     markDirty();
   }
 
-  // Asks the server for somewhere this group could join the others. The whole
-  // computation is pure geometry and calls no router — see
-  // src/subgroups/rendezvous.ts — so this is cheap enough to press repeatedly.
+  // Asks the server where everybody should meet. The whole computation is pure
+  // geometry and calls no router — see src/subgroups/rendezvous.ts — so this is
+  // cheap enough to press repeatedly.
+  //
+  // NO GROUP ARGUMENT, which is #239 in one line: the answer is one meeting
+  // point for the ride, so asking it "for" a group was asking a question whose
+  // answer did not depend on the asking.
   //
   // IT NEEDS A SAVED RIDE, because the proposal is made against the STORED
-  // trunk. Proposing against unsaved edits would mean shipping the whole ride
-  // up to ask, and the answer would be about a route that does not exist yet.
-  async function findMeet(g) {
+  // routes. Proposing against unsaved edits would mean shipping the whole ride
+  // up to ask, and the answer would be about roads that do not exist yet.
+  async function findMeet() {
     const out = $("sg-meet-out");
     if (!state.rideId) {
       out.innerHTML =
@@ -3839,7 +4070,7 @@
       const res = await fetch("/api/rides/" + state.rideId + "/rendezvous", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ group: g.uid }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       // A REFUSAL IS NOT A FAILURE AND MUST NOT READ AS ONE. The catch below
@@ -3848,45 +4079,168 @@
       // panel said "could not work one out just now", which is what it also
       // says when the network is down.
       if (!res.ok) {
-        out.innerHTML =
-          '<p class="sg-note">' +
-          (data && data.error === "unknown group"
-            ? "This group is not saved yet. Give it a moment and try again."
-            : "Could not work one out just now.") +
-          "</p>";
+        out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
         return;
       }
-      out.innerHTML = meetResultHtml(g, data);
+      out.innerHTML = meetResultHtml(data);
+      showMeetPreview(out, data.candidates || []);
     } catch (err) {
       out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
+      showMeetPreview(out, []);
     }
   }
 
+  /**
+   * The candidates on the map, one numbered dot each, matching the rows.
+   *
+   * THE SAME MECHANISM THE PLACE SEARCH USES — `setSearchPreview` — rather than
+   * a second kind of temporary marker. A proposal is exactly the shape that was
+   * built for: a short ordered list the rider is choosing between right now,
+   * gone the moment they choose. Reusing it also means the dots are already
+   * pressable and already hover both ways, which is what #232 established a dot
+   * on a map has to be.
+   *
+   * `label` is passed because the search's default accessible name is "Add …",
+   * which is the wrong verb here: choosing a meeting point is not adding a place.
+   */
+  function showMeetPreview(host, candidates) {
+    if (!state.map) return;
+    if (!candidates.length) {
+      if (state.previewOwner === "meet") {
+        setSearchPreview(state.map, []);
+        state.previewOwner = null;
+      }
+      return setMeetApproaches(state.map, []);
+    }
+    state.previewOwner = "meet";
+    const rows = Array.from(host.querySelectorAll(".sg-meets li"));
+    setSearchPreview(
+      state.map,
+      candidates.map((c, i) => ({
+        lngLat: [c.lng, c.lat],
+        name: "Meeting point " + (i + 1),
+        // The row's own headline fact, in the row's own words. Built here and
+        // not in map-common.js so that file stays out of miles-versus-kilometres.
+        tip: meetTip(c),
+        label: "Use meeting point " + (i + 1) + ", " + meetTip(c),
+      })),
+      (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
+      // PRESSING THE DOT PRESSES THE ROW'S BUTTON, rather than repeating what
+      // takeMeet does with the row's dataset — a second copy of that call would
+      // drift the first time the data attributes changed.
+      (i) => {
+        const btn = rows[i] && rows[i].querySelector(".sg-take");
+        if (btn) btn.click();
+      },
+    );
+    rows.forEach((li, j) => {
+      li.addEventListener("pointerenter", () => {
+        highlightSearchPreview(state.map, j);
+        highlightMeetApproaches(state.map, j);
+      });
+      li.addEventListener("pointerleave", () => {
+        highlightSearchPreview(state.map, null);
+        highlightMeetApproaches(state.map, null);
+      });
+    });
+    drawMeetApproaches(candidates);
+  }
+
+  // THE ROADS THE JOINING GROUPS WOULD ACTUALLY RIDE, one per group per
+  // candidate, drawn from what the proposal already returned.
+  //
+  // FETCHED BY THE SERVER, NOT HERE, as of 2026-09-03. It routes them anyway to
+  // measure each approach against the group's fuel range — a straight line
+  // understates a road and would pass a station nobody can reach — so asking for
+  // them a second time from the browser would pay Google twice for one road and
+  // let the drawing disagree with the number the filter used.
+  function drawMeetApproaches(candidates) {
+    if (!state.map) return;
+    const paths = [];
+    candidates.forEach((c, i) => {
+      (c.approaches || []).forEach((a) => {
+        if (a.path && a.path.length > 1) paths.push({ path: a.path, group: i });
+      });
+    });
+    setMeetApproaches(state.map, paths);
+  }
+
+  /** One line of what a candidate costs, shared by the row and its dot so the
+   *  two cannot say different things about the same place. */
+  function meetTip(c) {
+    const worst = (c.diverts || []).filter((d) => !d.onRoute).sort((a, b) => b.mi - a.mi)[0];
+    return (
+      (c.name ? c.name + SEP : "") +
+      (worst ? "+" + worst.mi + " mi at worst" : "nobody goes out of their way") +
+      SEP +
+      c.sharedPct +
+      "% ridden together"
+    );
+  }
+
+  // EVERY ONE OF THESE NAMES THE THING THE PLANNER SHOULD DO NEXT. The set
+  // before #239 named the app's internal state instead — "there are no shared
+  // days yet" is true, unhelpful, and describes the very thing the planner
+  // pressed the button to get.
   const MEET_REASONS = {
-    "no-trunk": "The group everyone else joins has no day of its own yet.",
-    // NOT "leave a day on Everyone", which is what this said until #239. A ride
-    // whose groups converge at the destination has no shared day by
-    // construction, so that advice asked the planner to plan the thing they had
-    // pressed the button to be told. The answer is upstairs in the panel.
-    "no-trunk-group": "Choose whose route the others join, above, and try again.",
-    "is-trunk": "This is the group everyone else joins—pick one of the others.",
-    "no-days": "Give this group a day of its own first, starting where they start.",
-    // A REAL ANSWER, not a failure. Two groups on opposite sides of a route
-    // running away from both of them have nowhere sensible to meet, and
-    // offering the least bad option would be worse than saying so.
-    "none-viable": "Nowhere on the shared route works without sending them a long way round or backwards.",
+    "one-group": "Add a second group—a meeting point needs at least two starting places.",
+    "no-days": "Give each group a day of its own, starting where that group starts.",
+    // ITS OWN MESSAGE, because the old code answered this with "nowhere works"
+    // and sent the planner hunting for a geometry problem in a ride whose real
+    // state was that nobody had drawn a road yet. A meeting point is placed ON a
+    // road somebody is already riding.
+    // NAMES THE GROUP, because which one has to be planned first is the whole
+    // of what the planner needs to know, and "a group" leaves them to guess.
+    // The server sends the name for the same reason firstIssue() renders
+    // `day 2` rather than `days.1` — an answer they can act on without
+    // counting.
+    "no-routes": "Plan the main group's route to the destination first—that is the road a meeting point sits on.",
+    // A REAL ANSWER, not a failure. Groups approaching a destination from
+    // opposite sides have nowhere sensible to meet short of it, and offering the
+    // least bad option would be worse than saying so.
+    "none-viable":
+      "No meeting point works without sending somebody a long way round. Check that every group's route ends at the same place.",
   };
 
-  function meetResultHtml(g, data) {
-    if (!data.candidates.length) {
-      return '<p class="sg-note">' + (MEET_REASONS[data.reason] || MEET_REASONS["none-viable"]) + "</p>";
+  function meetResultHtml(data) {
+    if (data.candidates.length && data.note === "out-of-range") {
+      // NAMES THE COMPROMISE. These stations are real and on the road; what they
+      // are not is reachable on the tank somebody arrives with. Saying "here are
+      // three meeting points" without that would send a group at a forecourt
+      // they run dry twenty miles short of.
+      return (
+        '<p class="sg-note">No gas station both groups can reach on one tank—these need a fuel stop first:</p>' +
+        meetListHtml(data.candidates)
+      );
     }
+    if (data.candidates.length && data.note === "no-gas") {
+      // SAYS WHICH KIND IT GAVE, which is the whole reason the fallback is
+      // allowed. A stretch with no station is ordinary on a rural road, and a
+      // rider who asked for a forecourt and got a mile marker has to be told
+      // that is what happened — otherwise the next question is why the app
+      // ignored them.
+      return (
+        '<p class="sg-note">No gas station on the stretch everyone can reach—these are the best spots on the road:</p>' +
+        meetListHtml(data.candidates)
+      );
+    }
+    if (!data.candidates.length) {
+      let msg = MEET_REASONS[data.reason] || MEET_REASONS["none-viable"];
+      // The server names the main group where it has one, so the line reads
+      // "Plan Oakland's route…" rather than making the planner work out which
+      // group the app means.
+      if (data.reason === "no-routes" && data.group) {
+        msg = "Plan " + esc(data.group) + "'s route to the destination first—that is the road a meeting point sits on.";
+      }
+      return '<p class="sg-note">' + msg + "</p>";
+    }
+    return '<p class="sg-note">Where the other groups could join:</p>' + meetListHtml(data.candidates);
+  }
+
+  function meetListHtml(candidates) {
     return (
-      '<p class="sg-note">Where ' +
-      esc(g.name) +
-      " could join:</p>" +
       '<ul class="sg-meets">' +
-      data.candidates
+      candidates
         .map(
           (c) =>
             "<li>" +
@@ -3895,17 +4249,23 @@
             '" data-lng="' +
             c.lng +
             '"' +
-            ' data-sg="' +
-            esc(g.uid) +
-            '">Use this</button>' +
+            // The name rides along on the button rather than being looked up
+            // again when it is pressed: the row is what the rider chose, and a
+            // second lookup by coordinate is a second chance to disagree.
+            (c.name ? ' data-name="' + esc(c.name) + '"' : "") +
+            ">Use this</button>" +
             '<span class="sg-meet-fact">' +
-            (c.isFuel ? "a fuel stop" + SEP : "") +
-            "+" +
-            c.divertMi +
-            " mi out of their way" +
+            (c.name
+              ? "<strong>" + esc(c.name) + "</strong>" + (c.address ? SEP + esc(shortAddress(c.address)) : "") + SEP
+              : "") +
+            // WHAT IT COSTS EACH GROUP BY NAME. One number for the worst-hit
+            // group would be the honest headline and an unreadable one — the
+            // planner cannot tell whose it is, which is the whole thing #67 asks
+            // them to be able to see before they choose.
+            costPerGroup(c) +
             SEP +
             c.sharedPct +
-            "% of the shared route still ahead" +
+            "% of the way still to ride together" +
             "</span>" +
             "</li>",
         )
@@ -3914,59 +4274,265 @@
     );
   }
 
-  // ACCEPTING A PROPOSAL IS TWO EDITS, NOT ONE, and that is the whole structure
-  // of a meet: the joining group's last day ENDS there and the first shared day
-  // BEGINS there. One place, two points, which is what gives each group a route
-  // that actually reaches it and what makes junctions() see a boundary.
+  // Google returns a full postal address and the panel is 380px wide. The street
+  // and the town is what tells two forecourts of the same brand apart; the state
+  // and the postcode are the parts a rider already knows.
+  function shortAddress(a) {
+    return String(a).split(",").slice(0, 2).join(",").trim();
+  }
+
+  // "on their way" rather than "+0 mi" for a group whose road already passes
+  // through the point: zero extra miles is the arithmetic, and what it MEANS is
+  // that this is not a detour for them at all. Two routes that converge get a
+  // line saying so for every group, which is the answer a planner most wants and
+  // the one a column of zeroes would bury.
+  function costPerGroup(c) {
+    return (c.diverts || [])
+      .map((d) => {
+        const g = subgroupByUid(d.group);
+        const name = g ? g.name : "a group";
+        return esc(name) + (d.onRoute ? " on their way" : " +" + d.mi + " mi");
+      })
+      .join(SEP);
+  }
+
+  // ACCEPTING A PROPOSAL PUTS THE MEETING POINT ON EVERY GROUP'S ROUTE, THE MAIN
+  // GROUP'S INCLUDED. Theirs is the road it was found on, so the point is
+  // already somewhere they ride — adding it explicitly is what turns it from a
+  // coordinate the app suggested into a stop on their day, with a name, a dwell
+  // and a row in the roadbook.
   //
-  // GOES THROUGH addPoint LIKE EVERY OTHER POINT. It appends, splices the leg,
-  // asks the router for it, re-renders and marks dirty — a meeting point is not
-  // special once it exists, and a second path that placed one would be a second
-  // path to keep in step with routing, undo and the map.
+  // It is one edit per group rather than the two the trunk-based version made.
+  // That version added the point to the joining group's last day AND to the
+  // first shared day, which only worked because a shared day was a precondition
+  // of being offered anything — under #239 there is usually no shared day at
+  // all, and requiring one is the loop this feature exists to break.
   //
-  // The prebuilt carries `meet`, which is an existing waypoint role and is where
-  // #67's "meet/split become structural" lands. It is still only a LABEL:
-  // junctions() derives the boundary from the day list and reads no role. A
-  // point arriving with roles becomes a stop, which is right — a meeting point
-  // is somewhere you unambiguously stop, and it wants a dwell.
+  // IT IS INSERTED BEFORE EACH GROUP'S LAST POINT, not appended. The last point
+  // is the destination everybody is riding to — it is what made the proposal
+  // possible — so appending would route the group past the meeting point to the
+  // destination and then back to it.
+  //
+  // THE LIMIT OF THAT, STATED RATHER THAN HIDDEN: on a day whose only points are
+  // the start and the destination — which is the shape this feature asks for and
+  // the shape it produces — second-to-last IS the right place. On a main group's
+  // day that already has stops along it, the meeting point lands at the end of
+  // that list whatever its position on the road, and the rider drags it. Placing
+  // it by its distance along the route needs `alongM` threaded through the
+  // response and a leg lookup, which is worth doing when a day like that is the
+  // common case rather than the exception.
+  //
+  // GOES THROUGH addPoint LIKE EVERY OTHER POINT. It splices the legs, asks the
+  // router for the two it changed, re-renders and marks dirty — a meeting point
+  // is not special once it exists, and a second path that placed one would be a
+  // second path to keep in step with routing, undo and the map.
+  //
+  // The prebuilt carries `meet`, an existing waypoint role, which is where #67's
+  // "meets become structural" lands. It is still only a LABEL: junctions()
+  // derives the boundary from the day list and reads no role. A point arriving
+  // with roles becomes a stop, which is right — a meeting point is somewhere you
+  // unambiguously stop, and it wants a dwell.
+  //
+  // WHAT IT DELIBERATELY DOES NOT DO IS CUT THE DAYS. Splitting each group's day
+  // at the meet and folding the tails into one shared day is the tidier
+  // structure and it is a separate piece of work: every group's route reaches the
+  // meeting point after this, which is the part that changes the ride, and the
+  // rider can split a day at any stop from the row menu when they want the
+  // shared stretch to be its own day.
   function takeMeet(d) {
-    const g = subgroupByUid(d.sg);
-    if (!g) return;
     const lat = Number(d.lat);
     const lng = Number(d.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    // Indices, not the day objects: addPoint takes an index and everything
-    // downstream of it is expressed in one.
-    let lastOwn = -1;
-    let firstShared = -1;
+    // Each group's LAST day, by index — addPoint takes an index and everything
+    // downstream of it is expressed in one. A group with no day of its own is
+    // skipped rather than refused: it has no route for the point to go on, and
+    // the other groups' routes are still worth changing.
+    const lastOf = new Map();
     state.days.forEach((day, i) => {
-      if (day.subgroupUid === g.uid) lastOwn = i;
-      if (firstShared < 0 && day.subgroupUid == null) firstShared = i;
+      if (day.subgroupUid) lastOf.set(day.subgroupUid, i);
     });
-    if (lastOwn < 0 || firstShared < 0) return;
+    if (lastOf.size === 0) return;
 
-    const name = g.name + " meets here";
-    const mk = () => {
-      const pt = newPoint(lng, lat, name);
-      pt.roles = ["meet"];
-      return pt;
-    };
-    // The shared day FIRST, because adding to it does not move any index, and
-    // then the group's own — the reverse order would still work here since the
-    // two days are distinct, but doing index-shifting edits back to front is
-    // the habit that keeps the multi-day paths in this file correct.
-    addPoint(lng, lat, name, firstShared, mk(), 0);
-    addPoint(lng, lat, name, lastOwn, mk());
-    $("sg-meet-out").innerHTML =
-      '<p class="sg-note">Added to ' + esc(g.name) + "'s last day and to the first shared day.</p>";
+    const names = [];
+    const placed = [];
+    // BACK TO FRONT, so an insert never moves an index still to be used. The
+    // days here are distinct so it would survive either order, but doing
+    // index-shifting edits in reverse is the habit that keeps the multi-day
+    // paths in this file correct.
+    const targets = [...lastOf.entries()].sort((a, b) => b[1] - a[1]);
+    const routed = [];
+    for (const [uidOfGroup, dayIndex] of targets) {
+      const day = state.days[dayIndex];
+      if (!day || day.points.length === 0) continue;
+      const g = subgroupByUid(uidOfGroup);
+      // NAMED AFTER THE STATION where there is one, so the day list reads
+      // "Shell" rather than a row every group has three of. The `meet` role is
+      // what says what it is FOR; the name says where it is.
+      const pt = newPoint(lng, lat, d.name || "Meeting point");
+      // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads
+      // that role to decide where a tank refills, and a meeting point everyone
+      // fills up at is exactly a refuel the range ring should know about.
+      pt.roles = d.name ? ["meet", "gas"] : ["meet"];
+      const at = Math.max(0, day.points.length - 1);
+      routed.push(addPoint(lng, lat, pt.name, dayIndex, pt, at));
+      placed.push({ uid: uidOfGroup, dayIndex, at });
+      if (g) names.push(g.name);
+    }
+
+    // The dots and the approach lines have served their purpose — the choice is
+    // made, and leaving the other candidates on the map would read as three
+    // meeting points with three sets of roads to them.
+    if (state.map) {
+      setSearchPreview(state.map, []);
+      setMeetApproaches(state.map, []);
+      state.previewOwner = null;
+    }
+
+    const out = $("sg-meet-out");
+    out.innerHTML =
+      '<p class="sg-note">Added to ' +
+      esc(names.reverse().join(", ")) +
+      "—each group now rides through it. Working out departure times…</p>";
+
+    // WAITS FOR THE REAL ROADS. Every leg here is a straight placeholder until
+    // the Routes responses land, and syncing departures to a straight-line
+    // duration would set every time to a number that is about to change — with
+    // nothing to say it had. This is the one caller that awaits addPoint.
+    Promise.all(routed).then(() => {
+      out.innerHTML = '<p class="sg-note">' + syncDeparturesToMeet(placed) + "</p>";
+    });
   }
 
-  const ANCHORS = [
-    { key: "departure", label: "departure" },
-    { key: "meet", label: "arrival at the meet" },
-    { key: "arrival", label: "arrival at the end" },
-  ];
+  /**
+   * Set every sub-group's departure so they reach the meeting point when the
+   * main group does.
+   *
+   * THE MAIN GROUP'S CLOCK IS THE ONE THAT HOLDS, which is the same rule the
+   * panel's fairness note is about and the reason `time_anchor` needs no control:
+   * what is pinned is always the main group's departure, and everything else is
+   * solved from it. So this never moves the main group's day — a planner who set
+   * a 7am start gets to keep it.
+   *
+   * ARITHMETIC ON THE STORED VALUE, WITH NO ZONE ANYWHERE. `startAt` is a wall
+   * clock at the departure point carried as UTC, so adding and subtracting
+   * seconds to it is exact and stays in the same representation — see
+   * day-clock.js, which is the only place that value is ever converted to
+   * anything. Do not reach for a local Date here.
+   */
+  function syncDeparturesToMeet(placed) {
+    const tail =
+      " Split a day at the meeting point from the row menu if you want the shared stretch to be its own day.";
+    const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    const main = placed.find((p) => p.uid === mainUid);
+    if (!main) return "Each group now rides through it." + tail;
+
+    const mainDay = state.days[main.dayIndex];
+    const mainStart = mainDay && dayStartS(mainDay);
+    // NOTHING TO SYNC TO, said rather than silently skipped. An undated main day
+    // is the ordinary state of a ride nobody has put a date on yet, and a rider
+    // who watched three departure times not change deserves to know it was this
+    // and not a failure.
+    if (mainStart == null) {
+      return (
+        "Each group now rides through it. Give " +
+        esc(subgroupName(mainUid)) +
+        "’s day a date and time to line the other groups up with it." +
+        tail
+      );
+    }
+    const mainToMeet = elapsedToPointS(mainDay, main.at);
+    if (mainToMeet == null) return "Each group now rides through it." + tail;
+    const arrival = mainStart + mainToMeet;
+
+    // ITS OWN UNDO STEP. The point inserts pushed theirs while the rider was
+    // watching; this lands a second or two later when the Routes responses do,
+    // and folding it into the last insert would make one undo take back a
+    // departure time the rider had already read on screen.
+    beginEdit("sync departures");
+    const moved = [];
+    for (const p of placed) {
+      if (p.uid === mainUid) continue;
+      const day = state.days[p.dayIndex];
+      const toMeet = day && elapsedToPointS(day, p.at);
+      if (toMeet == null) continue;
+      // The seconds are dropped so a rider is given a departure on the minute —
+      // a route's duration is seconds-precise and "leave at 07:43:19" is a
+      // false precision nobody can act on. Rounding DOWN, because the alternative
+      // is telling somebody to leave after the moment they had to.
+      const departS = Math.floor((arrival - toMeet) / 60) * 60;
+      day.startAt = new Date(departS * 1000).toISOString();
+      moved.push(subgroupName(p.uid) + " " + fmtMoment(departS));
+    }
+    // refreshDerived() syncs every day's end from its new start, so the ends
+    // follow the departures without this touching endAt itself.
+    renderDays();
+    refreshDerived();
+    markDirty();
+    if (!moved.length) return "Each group now rides through it." + tail;
+    return "Everyone arrives at " + fmtMoment(arrival) + ". Leaving: " + esc(moved.join(SEP)) + "." + tail;
+  }
+
+  const subgroupName = (uid) => {
+    const g = subgroupByUid(uid);
+    return g ? g.name : "that group";
+  };
+
+  // MOVING A GROUP IS THE ONLY WAY TO CHANGE WHICH IS MAIN. `subgroups[0]` is
+  // the main group by definition, so promotion and reordering are one operation
+  // rather than two that could disagree — and `primarySubgroup` is re-derived
+  // here rather than set anywhere else, which is what stops the column drifting
+  // away from the list a rider is looking at.
+  function moveGroup(from, to) {
+    const a = state.meta.subgroups;
+    if (from === to || from < 0 || to < 0 || from >= a.length || to >= a.length) return;
+    beginEdit(to === 0 || from === 0 ? "change the main group" : "reorder groups");
+    a.splice(to, 0, a.splice(from, 1)[0]);
+    state.meta.primarySubgroup = a[0].uid;
+    // renderDays() only — it cascades into renderSubgroups(), and calling both
+    // would build the row list twice and re-init Sortable on a node it had just
+    // bound. The day pickers name groups in this order and the fairness note is
+    // about which group is main, so both are stale the moment the order changes.
+    renderDays();
+    markDirty();
+  }
+
+  // Rebound on every renderSubgroups() because that replaces the rows; the
+  // instance is stashed on the element and destroyed first, the same as the day
+  // list and the point lists.
+  function initGroupDrag(host) {
+    if (!host) return;
+    if (!window.Sortable) {
+      // Not a failure worth a toast: the grip is a real button with arrow keys,
+      // so reordering still works and the only thing lost is the gesture.
+      console.warn("[builder] Sortable did not load—reorder groups with the grip and arrow keys");
+      return;
+    }
+    if (host._sortable) host._sortable.destroy();
+    host._sortable = window.Sortable.create(host, {
+      draggable: ".sg-row",
+      handle: ".sg-drag",
+      animation: 150,
+      ghostClass: "is-dragging",
+      // Same reasoning as the day list: one code path on desktop and touch, a
+      // drag mirror that can be styled, and the only path a synthetic event can
+      // drive.
+      forceFallback: true,
+      fallbackClass: "day-drag-ghost",
+      fallbackOnBody: true,
+      onEnd: (evt) => {
+        // THE DRAGGABLE PAIR, NOT THE RAW ONE. #sg-list holds nothing but
+        // .sg-row today, so the two agree — and that is exactly the property
+        // #166 quietly lost when insert slots landed in the point list nine days
+        // after the arithmetic. Reading the pair that stays correct costs
+        // nothing and does not depend on nobody ever adding a separator here.
+        const from = evt.oldDraggableIndex;
+        const to = evt.newDraggableIndex;
+        if (from == null || to == null || from === to) return;
+        moveGroup(from, to);
+      },
+    });
+  }
 
   // #67 IS EXPLICIT THAT THE DEFAULT PRIMARY MUST NOT BE THE PLANNER'S OWN
   // GROUP: it is the one most likely to be nearest the meet, so that default
@@ -3981,9 +4547,14 @@
       el.textContent = longest ? "" : "Give each group at least one day to see the effect.";
       return;
     }
+    // NAMES THE GESTURE, because there is no longer a picker to point at: the
+    // main group is whichever is at the top of the list, so the fix for this
+    // warning is to drag one there.
     el.textContent =
       esc(longest.name) +
-      " has the farthest to ride. Solving around a group that is closer asks them to leave earlier.";
+      " has the farthest to ride. Pinning a closer group's clock asks them to leave earlier—drag " +
+      esc(longest.name) +
+      " to the top to make it the main group.";
   }
 
   // Longest by planned riding time across the days that group rides on its own
@@ -4357,6 +4928,11 @@
     renderTotals();
     renderTimes();
     renderTimeline();
+    // Where the rider will be at bedtime moves with every schedule change — a
+    // dragged stop, a new dwell, a changed departure — so it is recomputed and
+    // repainted from the one pass every such change already goes through.
+    stopByCache = null;
+    paintStopBy();
     // Last, and not optional: the leg highlight is derived from the moment and
     // the legs, and the engine drops it on every track repath. Anything that
     // changes a day has to put it back, which is exactly this pass.
@@ -4766,6 +5342,52 @@
    * It is a button rather than a toast: a toast disappears, and this is an offer
    * about a specific row that should wait until the rider has decided.
    */
+  /**
+   * The band that says the riding day should end about here.
+   *
+   * A BANNER ACROSS THE LIST, NOT A BUTTON ON A ROW. Ziad's call, 2026-09-03,
+   * after the first version: a small control tucked under one row is a
+   * decoration, and what this has to be is an interruption — the point in the
+   * list where the day stops being a good idea. It carries the three facts that
+   * make it actionable: the hour, how far in that is, and what to do about it.
+   *
+   * INSIDE THE ROW ELEMENT rather than as a sibling `<li>`, deliberately. The
+   * point list is a Sortable container and every non-draggable child it holds
+   * has to be accounted for — that is #166, where insert slots doubled the raw
+   * indices nine days after the arithmetic was written. The handler reads the
+   * DRAGGABLE pair so it would survive, but a band that cannot be a sibling
+   * cannot be miscounted at all, and it renders identically.
+   *
+   * ON THE ROW BEFORE THE MOMENT, not the one after it: the useful place to be
+   * told is the last point you pass BEFORE the hour comes up. After it you have
+   * already ridden the stretch.
+   *
+   * ONE PER DAY, because the moment is one moment.
+   */
+  function bedtimeOfferHtml(i, dayIndex) {
+    const entry = stopByPoints().find((e) => e.dayIndex === dayIndex);
+    if (!entry || entry.atPoint !== i) return "";
+    const day = state.days[dayIndex];
+    const over = dayElapsedS(day) - entry.offsetS;
+    return (
+      '<div class="bedtime-band">' +
+      '<span class="bedtime-band-fact">' +
+      esc(fmtClockMin(state.meta.stopByMin)) +
+      SEP +
+      esc(fmtDist(entry.distM)) +
+      " in" +
+      // WHAT IS LEFT AFTER IT, which is the number that says whether this is a
+      // gentle nudge or a day that badly overruns. Omitted when the day ends
+      // within the hour anyway, where "0h 12m still to ride" is noise.
+      (over > 3600 ? SEP + esc(hm(over)) + " still to ride" : "") +
+      "</span>" +
+      '<button type="button" class="row-bedtime-btn" data-day="' +
+      dayIndex +
+      '">Find somewhere to stay</button>' +
+      "</div>"
+    );
+  }
+
   function lodgingOfferHtml(point, i, dayIndex) {
     const day = state.days[dayIndex];
     if (!day || !SPLIT.canSplitAt(day, i)) return "";
@@ -4934,6 +5556,7 @@
       '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
       distReadoutHtml(point, i, dist) +
+      bedtimeOfferHtml(i, dayIndex) +
       lodgingOfferHtml(point, i, dayIndex) +
       '<div class="row-roles"' +
       (rolesAreOpen(dayIndex, i) ? "" : " hidden") +
@@ -5266,12 +5889,27 @@
   // not under every day.
   const CORRIDOR_MI = 15;
 
+  // Whether the last corridor search covered the whole day or left gaps between
+  // its circles. Read by nearbyResultsHtml() — see MAX_CORRIDOR_SAMPLES for why
+  // a long enough day still cannot be covered in one press.
+  let corridorPartial = false;
+
   // The ceiling on how many Places calls one chip tap may spend. Text Search is
-  // billed per request, so this is a money number rather than a performance one:
-  // six covers a 180-mile corridor at full density and thins gracefully beyond
-  // it, which is the right way round — a 700-mile day getting sparse coverage
-  // beats a 700-mile day getting a bill proportional to its length.
-  const MAX_CORRIDOR_SAMPLES = 6;
+  // billed per request, so this is a money number rather than a performance one.
+  //
+  // TWELVE, NOT SIX, since 2026-09-03, and the count is now DERIVED from it
+  // rather than always spent — corridorSamples() asks for as many as the day
+  // needs for its circles to touch, and no more. Short days therefore got
+  // CHEAPER: a 40-mile day spends two searches where it used to spend six, and a
+  // 300-mile one spends ten.
+  //
+  // Six was chosen when the radius was believed to grow with the day. It does
+  // not — the proxy caps it at 50 km — so six left 37-mile holes in a 593-mile
+  // day and answered "no gas between Burbank and Anaheim", which is where the
+  // whole of Los Angeles is. Twelve covers about 745 miles with no holes;
+  // past that samplesCoverAll() reports false and the panel says so rather than
+  // letting a partly searched day read as an empty road.
+  const MAX_CORRIDOR_SAMPLES = 12;
 
   /** What a chip promises. A slot chip searches its own leg whichever scope is
    *  selected, so it names that rather than the scope — see the chip handler. */
@@ -6226,7 +6864,16 @@
     // comes through here — picking a result, clicking away, scrolling the panel,
     // starting a new search — so there is one place to clear them and no way to
     // leave a dozen candidates painted over a route the rider has moved on from.
-    if (state.map) setSearchPreview(state.map, []);
+    //
+    // ONLY WHEN THE SEARCH IS WHAT PUT THEM THERE. `setSearchPreview` is one
+    // slot with two consumers now — a place search and a meeting-point proposal
+    // — and without this, opening and closing a search would silently wipe the
+    // candidates the rider is in the middle of choosing between. The proposal
+    // keeps its dots until it is answered or re-run.
+    if (state.map && state.previewOwner === "search") {
+      setSearchPreview(state.map, []);
+      state.previewOwner = null;
+    }
   }
 
   function wireSearch() {
@@ -6411,7 +7058,12 @@
     async function corridorRun(query, track, totalM, fallbackNear) {
       const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
       const samples = [];
-      CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES).forEach((sp) => {
+      const spans = CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES);
+      // WHETHER THE DAY WAS FULLY SEARCHED, carried out with the results. A
+      // partly searched day that finds nothing is indistinguishable from a road
+      // with no fuel on it, and the rider is entitled to know which they have.
+      corridorPartial = !CORRIDOR.samplesCoverAll(spans, totalM);
+      spans.forEach((sp) => {
         const at = pointAtDistance(track, sp.atM);
         if (at) samples.push({ near: at, radiusM: sp.radiusM });
       });
@@ -6492,9 +7144,16 @@
     // happen to be at the top. They are not the same question: above are places
     // matching what you typed, below are places OF the kind you asked for.
     function nearbyResultsHtml(hits) {
-      if (!hits.length) return "";
+      if (!hits.length && !corridorPartial) return "";
       return (
-        '<li class="hit-head" aria-hidden="true">Nearby</li>' +
+        '<li class="hit-head" aria-hidden="true">Nearby' +
+        // SAYS THE DAY WAS ONLY PARTLY SEARCHED, because the alternative is a
+        // short list — or none — that reads as a road with no fuel on it. Past
+        // about 745 miles the samples stop touching even at the raised cap, and
+        // the honest thing is to name the gap rather than let the rider draw the
+        // wrong conclusion from it. See MAX_CORRIDOR_SAMPLES.
+        (corridorPartial ? ' <span class="hit-partial">part of this day only—zoom in and use On screen</span>' : "") +
+        "</li>" +
         hits
           .map(
             (h, i) =>
@@ -6534,6 +7193,11 @@
      */
     function showPreview(host, hits) {
       if (!state.map) return;
+      // The search takes the slot, which also clears any meeting-point dots —
+      // correct, because the rider has moved on to adding a place, and two sets
+      // of numbered dots on one map would be unreadable.
+      state.previewOwner = "search";
+      setMeetApproaches(state.map, []);
       const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
       setSearchPreview(
         state.map,
@@ -6875,6 +7539,27 @@
     });
 
     host.addEventListener("click", async (e) => {
+      // "Find somewhere to stay" runs the SAME search a Lodging chip does, over
+      // the stretch of road around the rider's bedtime instead of the whole day.
+      // It is routed through categorySearch() rather than repeating the render,
+      // the preview, the error text and the sequence guard — five things a
+      // second copy would drift from the first time any of them changed.
+      const bed = e.target.closest(".row-bedtime-btn");
+      if (bed) {
+        const r = Number(bed.dataset.day);
+        const entry = stopByPoints().find((x) => x.dayIndex === r);
+        if (!entry) return;
+        const stretch = stopByStretch(entry);
+        if (!stretch || stretch.length < 2) return;
+        return categorySearch({
+          r,
+          at: null,
+          spec: CHIPS.find((c) => c.role === "hotel"),
+          input: null,
+          track: stretch,
+          near: entry.at,
+        });
+      }
       const chip = e.target.closest(".chip");
       if (!chip || chip.disabled) return;
       const r = Number(chip.dataset.day);
@@ -6883,6 +7568,18 @@
       const at = slotOf(chip);
       const row = chip.closest(".add-row");
       const input = row ? row.querySelector(".add-search") : null;
+      return categorySearch({ r, at, spec, input });
+    });
+
+    /**
+     * One category search, however it was asked for.
+     *
+     * `track` and `near` are the bedtime button's: an explicit stretch of road to
+     * search instead of the day or the screen. Without them this behaves exactly
+     * as the chips always did.
+     */
+    async function categorySearch({ r, at, spec, input, track, near }) {
+      if (!spec || !state.days[r]) return;
       const results = searchResultsEl();
       results.dataset.day = String(r);
       results.dataset.at = at == null ? "" : String(at);
@@ -6894,21 +7591,34 @@
       if (input) placeResults(input, results);
       try {
         let nearby;
+        // CLEARED BEFORE EVERY SEARCH, so the partial-coverage note belongs to
+        // THIS answer. Left standing, a corridor search on a very long day would
+        // put its warning above the next On screen search, which searched
+        // exactly what it said it did.
+        corridorPartial = false;
         // A SLOT OUTRANKS THE SCOPE, AND THAT IS THE WHOLE OF #232's SECOND
         // HALF. Pressing the + between Oakland and Benbow is the rider pointing
         // at that stretch of road; searching the day, or worse the screen, threw
         // the one specific thing they said away. So a slot search is always the
         // leg's corridor, and the Day / On screen control governs only the day's
         // own bottom add-row. Ziad's call, 2026-09-02.
-        const leg = at == null ? null : legAnchor(state.days[r], at);
-        if (leg) {
-          nearby = await corridorRun(spec.query, leg.track, leg.totalM, leg.near);
-        } else if (state.corridorOn) {
-          const args = corridorSearchArgs(r);
-          nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
+        // AN EXPLICIT STRETCH OUTRANKS EVERYTHING, for the same reason a slot
+        // outranks the scope: the rider has pointed at a piece of road, and
+        // searching the day or the screen instead throws away the one specific
+        // thing they said.
+        if (track) {
+          nearby = await corridorRun(spec.query, track, trackLengthM(track), near);
         } else {
-          const view = screenAnchor(r);
-          nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
+          const leg = at == null ? null : legAnchor(state.days[r], at);
+          if (leg) {
+            nearby = await corridorRun(spec.query, leg.track, leg.totalM, leg.near);
+          } else if (state.corridorOn) {
+            const args = corridorSearchArgs(r);
+            nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
+          } else {
+            const view = screenAnchor(r);
+            nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
+          }
         }
         if (mine !== searchSeq) return;
         results.innerHTML =
@@ -6933,7 +7643,7 @@
         results.hidden = false;
         if (input) placeResults(input, results);
       }
-    });
+    }
 
     // Escape dismisses the suggestions without clearing the query — the rider
     // may have meant to close the list, not to start over.
@@ -7069,6 +7779,7 @@
       primarySubgroup: state.meta.primarySubgroup,
       trunkSubgroup: state.meta.trunkSubgroup,
       timeAnchor: state.meta.timeAnchor,
+      stopByMin: state.meta.stopByMin,
       // The API requires at least one stop per day, so a day you added but
       // never filled in would fail validation for the whole ride. Dropping it
       // is what the rider means; save() warns when it happens.
@@ -7304,11 +8015,34 @@
       // then silently gone — the same trap the altGroup comment below names,
       // and worse here because the days keep their tags while the subgroups
       // they name stop existing.
-      subgroups: ride.subgroups || [],
+      // SEEDED ON LOAD WHEN A STORED RIDE HAS NONE, which every ride planned
+      // before 2026-09-03 does. The alternative was a backfill against live
+      // rider data; this costs nothing and the ride gets its group the first
+      // time it is saved. A ride created outside the builder and never opened in
+      // it therefore still has none, which is the known limit of doing it here.
+      subgroups: (ride.subgroups || []).length ? ride.subgroups : [seedGroup()],
       primarySubgroup: ride.primarySubgroup ?? null,
       trunkSubgroup: ride.trunkSubgroup ?? null,
       timeAnchor: ride.timeAnchor || "departure",
+      // `?? null` rather than `||`: midnight is 0 and a real answer, and `||`
+      // would turn "start looking at 00:00" into "never said".
+      stopByMin: ride.stopByMin ?? null,
     };
+    // ORDER IS RANK, SO THE STORED MAIN GROUP IS MOVED TO THE FRONT rather than
+    // the column simply being trusted where it sits. A ride saved before
+    // 2026-09-03 could name any group as primary while `position` put it third,
+    // and the panel now says the top row is the main group — so one of the two
+    // has to give, and it is the order, because that is the thing the rider was
+    // never asked about.
+    //
+    // THE MAIN GROUP MAY NEVER BE NULL. A stored ride can carry a null column or
+    // one naming a group that has since been deleted; both fall through to the
+    // first group, which is what the panel would show anyway.
+    const wasPrimary = state.meta.subgroups.findIndex((g) => g.uid === state.meta.primarySubgroup);
+    if (wasPrimary > 0) {
+      state.meta.subgroups.splice(0, 0, state.meta.subgroups.splice(wasPrimary, 1)[0]);
+    }
+    state.meta.primarySubgroup = state.meta.subgroups[0].uid;
     // `?? null` because rev 0 is a real, current revision — a ride nobody has
     // saved since the column landed — and `||` would send it as null and turn
     // the check off for exactly the rides that have never been contested.
@@ -7334,6 +8068,13 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     setFieldValue("ride-visibility", state.meta.visibility);
+    // MISSED ON THE LOAD PATH FIRST TIME ROUND. The snapshot render calls this
+    // and this one did not, so a stop-by time set, saved and reloaded came back
+    // to an empty field — the value was in state and on the server, and the one
+    // control that shows it never heard. Every ride-level field has to be listed
+    // in BOTH places, which is the shape of this bug and the reason they sit
+    // together here.
+    renderStopBy();
     fitTitle();
     // What was just loaded IS what the server holds, so the panel opens on
     // "Saved" rather than on the "Not saved yet" a new ride starts at.
@@ -7622,6 +8363,33 @@
       markDirty();
       offerPublicStart();
     });
+    // A <input type="time"> reports "" when it is cleared or half-typed, which
+    // is the same thing as "they have not said" — so it lands as null rather
+    // than being refused or defaulted.
+    $("ride-stop-by")?.addEventListener("change", (e) => {
+      beginEdit("change when to look for a bed");
+      state.meta.stopByMin = minutesFromTimeValue(e.target.value);
+      stopByCache = null;
+      renderStopBy();
+      // THE MAP AND THE LIST BOTH MOVE. The marker is a repaint, but the row
+      // offer is part of the day list, so the list has to be rebuilt for it to
+      // appear at all — and this control is a ride-level field the rider has
+      // just committed to with a `change` event, so nothing in the list is
+      // mid-edit. That is the same test #188's rule turns on: only a render
+      // under a rider who is typing is the harmful one.
+      paintStopBy();
+      renderDays();
+      markDirty();
+    });
+    $("ride-stop-by-clear")?.addEventListener("click", () => {
+      beginEdit("clear when to look for a bed");
+      state.meta.stopByMin = null;
+      stopByCache = null;
+      renderStopBy();
+      paintStopBy();
+      renderDays();
+      markDirty();
+    });
     // Narrowed from "dirty" to "dirty and not yet flushed". With autosave most
     // of a session is clean within three seconds of the last keystroke, so the
     // old guard would have fired on almost every exit for work that was already
@@ -7744,41 +8512,17 @@
   // Tell the layout how tall the page-top banner is, so the map and the drawer
   // move down instead of being painted over.
   //
-  // MEASURED, not declared. The recovery text wraps to two lines in a narrow
-  // drawer and the maps-misconfigured banner is longer again, so no constant is
-  // right — and a constant that is wrong either leaves a gap or puts the banner
-  // back over the logo. Re-measured on resize for the same reason.
+  // THE HELPER MOVED TO site.js. It used to live here, which meant the VIEWER —
+  // a map page that loads no copy of this file — had nothing to push its map
+  // down, and that only mattered once a banner could appear on every page. The
+  // measuring, the resize dispatch and the do-nothing-on-no-change guard all
+  // went with it; see TBBanner.refresh() there for why each one is load-bearing.
   //
-  // Reads 0 when the banner is hidden or absent, which is what every other page
-  // gets and what makes the calc()s in _map.scss a no-op by default.
-  //
-  // IT ONLY ACTS ON A CHANGE, AND THAT IS WHAT STOPS IT RECURSING FOREVER.
-  // This function dispatches a resize, and it is itself a resize listener, so
-  // dispatching unconditionally called it again from inside itself: a
-  // RangeError every time a banner appeared, thrown out of offerRecovery() and
-  // straight through init(). Everything after that line was then never wired —
-  // clicking the map added nothing and the route could not be dragged into
-  // shape — so a rider with an unsaved draft got a builder that looked normal
-  // and did not work, with one console error nobody was looking at.
-  //
-  // Comparing against the last value fixes it at the source rather than with a
-  // re-entry flag: the nested call measures the same height, changes nothing
-  // and returns, and a resize that did not move the banner no longer costs a
-  // pointless map redraw either.
-  let bannerH = null;
+  // site.js is loaded by page() on every page, so this shim is a courtesy for a
+  // load order that has never actually failed rather than a real fallback.
   function setBannerOffset() {
-    const bar = document.querySelector(".tb-banner:not([hidden])");
-    const h = bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
-    if (h === bannerH) return;
-    bannerH = h;
-    document.documentElement.style.setProperty("--banner-h", h + "px");
-    // The map's own viewport changed size, and Google only notices on a resize
-    // event. Without this the tiles keep the old height and the controls sit
-    // off the bottom edge until something else nudges it.
-    if (state.map && h) window.dispatchEvent(new Event("resize"));
+    if (window.TBBanner) window.TBBanner.refresh();
   }
-
-  window.addEventListener("resize", setBannerOffset);
 
   function offerRecovery() {
     const d = HIST.Draft.read(state.rideId);

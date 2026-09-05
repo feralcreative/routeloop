@@ -516,3 +516,123 @@ describe('the compressed ride axis', () => {
     expect(T.momentAtOffset([], 0)).toBeNull()
   })
 })
+
+// When a group ARRIVES somewhere, which is what a meeting point is agreed on and
+// what the builder syncs sub-group departures against.
+describe('elapsedToPointS', () => {
+  it('is zero at the point a day departs from', () => {
+    expect(T.elapsedToPointS(day(), 0)).toBe(0)
+  })
+
+  it('sums the dwell and the riding before it', () => {
+    // Home (no dwell) → 3600s → Lunch. Arriving is before Lunch's own 120min.
+    expect(T.elapsedToPointS(day(), 1)).toBe(3600)
+    // …then Lunch's 7200s of dwell and 1800s more riding to the Motel.
+    expect(T.elapsedToPointS(day(), 2)).toBe(3600 + 7200 + 1800)
+  })
+
+  // ARRIVING, NOT LEAVING. The dwell at the point itself is somebody's plan for
+  // after everyone is there; a group waiting for another group is not waiting
+  // for that.
+  it('excludes the dwell of the point itself', () => {
+    const d = day()
+    d.points[1].durationMin = 999
+    expect(T.elapsedToPointS(d, 1)).toBe(3600)
+  })
+
+  // The invariant that ties it to the rest of the file: arriving at the last
+  // point plus that point's own dwell is the whole day.
+  it('agrees with dayElapsedS at the end of the day', () => {
+    const d = day()
+    const last = d.points.length - 1
+    expect(T.elapsedToPointS(d, last) + (d.points[last].durationMin || 0) * 60).toBe(T.dayElapsedS(d))
+  })
+
+  it('absorbs a missing leg rather than stopping early', () => {
+    const d = day()
+    d.legs = [leg(3600)] as any
+    // The second leg is gone; the dwell after it still counts.
+    expect(T.elapsedToPointS(d, 2)).toBe(3600 + 7200)
+  })
+
+  it('is null for an index that is not a point', () => {
+    // Not 0 — a caller holding a stale index would read that as "they arrive at
+    // the moment they set off".
+    expect(T.elapsedToPointS(day(), 3)).toBe(null)
+    expect(T.elapsedToPointS(day(), -1)).toBe(null)
+    expect(T.elapsedToPointS(day(), 1.5)).toBe(null)
+  })
+})
+
+// "I like to stop by four" — turning a time of day into a place on the road, so
+// the builder can mark where the rider will be and search for a bed around it.
+//
+// THESE BUILD THEIR OWN START TIMES WITH AN EXPLICIT `Z`, and the shared `at()`
+// above deliberately is not used. `new Date('2026-08-01T09:00')` has no zone, so
+// it parses in the MACHINE's — the fixture stores 16:00Z on a Pacific laptop and
+// 08:00Z in Berlin. Every other test in this file measures durations, which that
+// cannot affect; these are the first to read a clock, and they would pass or
+// fail by geography. A day's start is a wall clock CARRIED as UTC, so a test
+// about wall clocks has to say UTC.
+const utcDay = (iso: string): Route => ({ ...day(), startAt: `${iso}.000Z` })
+
+describe('offsetAtClock', () => {
+  it('counts forward from the day’s own departure', () => {
+    // 09:00 to 16:00 is seven hours, and no zone is consulted to say so.
+    expect(T.offsetAtClock(utcDay('2026-08-01T09:00:00'), 16 * 60)).toBe(7 * 3600)
+  })
+
+  it('wraps to tomorrow when the time has already passed', () => {
+    // A day setting off at 09:00 reaches 08:00 twenty-three hours later, not an
+    // hour ago. The caller rejects it by length; it is not a special case here.
+    expect(T.offsetAtClock(utcDay('2026-08-01T09:00:00'), 8 * 60)).toBe(23 * 3600)
+  })
+
+  it('is zero at the departure time itself', () => {
+    expect(T.offsetAtClock(utcDay('2026-08-01T09:00:00'), 9 * 60)).toBe(0)
+  })
+
+  it('has nothing to count from on an undated day', () => {
+    const d = utcDay('2026-08-01T09:00:00')
+    d.startAt = null
+    // Not 0 — that would read as "at the moment they set off".
+    expect(T.offsetAtClock(d, 16 * 60)).toBe(null)
+    expect(T.offsetAtClock(utcDay('2026-08-01T09:00:00'), Number.NaN)).toBe(null)
+  })
+
+  // The clock is read in UTC because a day's start IS a wall clock carried as
+  // UTC. A machine in another zone must get the same answer, which is the whole
+  // point of the rule — so this asserts against a stored time whose UTC reading
+  // and local reading differ.
+  it('reads the departure as a wall clock, not in the browser’s zone', () => {
+    const d = utcDay('2026-08-01T23:30:00')
+    // 23:30 to 04:00 is four and a half hours by the clock on the bike.
+    expect(T.offsetAtClock(d, 4 * 60)).toBe(4.5 * 3600)
+  })
+})
+
+describe('clockMoment', () => {
+  // The fixture day runs 09:00 to 12:30 — an hour of riding, two hours of lunch,
+  // half an hour more.
+  it('places the rider on the road at that time', () => {
+    const got = T.clockMoment(utcDay('2026-08-01T09:00:00'), 11 * 60)
+    expect(got).not.toBe(null)
+    expect(got.offsetS).toBe(2 * 3600)
+    // Two hours in is the middle of the two-hour lunch, so the rider is AT a
+    // point rather than on a leg — which activeAt reports as such.
+    expect(got.at.pointIndex).toBe(1)
+  })
+
+  // THE COMMON ANSWER, AND NOT A FAILURE. A day that finishes at 12:30 never
+  // reaches four, and pinning the marker to its last point would put "look for a
+  // bed here" on the place the rider already arrived at.
+  it('is null when the day ends before that time', () => {
+    expect(T.clockMoment(utcDay('2026-08-01T09:00:00'), 16 * 60)).toBe(null)
+  })
+
+  it('is null on an undated day', () => {
+    const d = utcDay('2026-08-01T09:00:00')
+    d.startAt = null
+    expect(T.clockMoment(d, 16 * 60)).toBe(null)
+  })
+})

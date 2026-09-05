@@ -493,6 +493,63 @@
     });
   }
 
+  // Tell the layout how tall the page-top banner is, so the map and the drawer
+  // move down instead of being painted over.
+  //
+  // IT LIVES HERE RATHER THAN IN builder.js, WHICH IS WHERE IT WAS UNTIL THE
+  // STAGE BANNER LANDED. The viewer is a map page too and loads no copy of
+  // builder.js, so a banner there had nothing to push the map down — and every
+  // chrome page needs the same number now that a banner can appear on all of
+  // them. One writer to --banner-h, one place to fix it: two functions setting
+  // one custom property is the same trap as two previewOf()s in map-common.js.
+  //
+  // MEASURED, not declared. `html.has-stage-banner` seeds a plausible one-line
+  // height in _map.scss so the first paint is close, but the recovery text
+  // wraps to two lines in a narrow drawer and the maps-misconfigured banner is
+  // longer again, so no constant is right for long. Re-measured on resize, and
+  // by a ResizeObserver where there is one — a banner can also change height
+  // without the window moving, which is exactly what the recovery bar does when
+  // its text is written into it.
+  //
+  // Reads 0 when the banner is hidden or absent, which is what most pages get
+  // and what makes the calc()s in _map.scss a no-op by default.
+  //
+  // IT ONLY ACTS ON A CHANGE, AND THAT IS WHAT STOPS IT RECURSING FOREVER.
+  // This function dispatches a resize, and it is itself a resize listener, so
+  // dispatching unconditionally called it again from inside itself: a
+  // RangeError every time a banner appeared, thrown out of offerRecovery() and
+  // straight through the builder's init(). Everything after that line was then
+  // never wired — clicking the map added nothing and the route could not be
+  // dragged into shape — so a rider with an unsaved draft got a builder that
+  // looked normal and did not work, with one console error nobody was looking
+  // at. Comparing against the last value fixes it at the source rather than
+  // with a re-entry flag: the nested call measures the same height, changes
+  // nothing and returns.
+  let bannerH = null;
+  function refreshBanner() {
+    const bar = document.querySelector(".tb-banner:not([hidden])");
+    const h = bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    if (h === bannerH) return;
+    bannerH = h;
+    document.documentElement.style.setProperty("--banner-h", h + "px");
+    // A map's own viewport changed size, and Google only notices on a resize
+    // event. Without this the tiles keep the old height and the controls sit
+    // off the bottom edge until something else nudges it. Harmless on a page
+    // with no map, which is why this does not ask whether there is one.
+    if (h) window.dispatchEvent(new Event("resize"));
+  }
+
+  // Named for the feature rather than for its shape, so the next helper that
+  // lands in this file cannot silently replace it.
+  window.TBBanner = { refresh: refreshBanner };
+
+  function initBanner() {
+    refreshBanner();
+    window.addEventListener("resize", refreshBanner);
+    const bar = document.querySelector(".tb-banner");
+    if (bar && window.ResizeObserver) new ResizeObserver(refreshBanner).observe(bar);
+  }
+
   function init() {
     initNav();
     initSplash();
@@ -500,6 +557,7 @@
     initFab();
     initSplashVideo();
     initFaq();
+    initBanner();
   }
 
   // `defer` normally guarantees DOM readiness, but this file is also safe to

@@ -228,8 +228,12 @@ function MemberRow({
       {/* WHICH APPROACH THEY ARE ON, and this one IS the owner's to set —
           unlike the RSVP beside it. Being on the Oakland run is a fact about
           the plan rather than a statement by the rider, and the planner is the
-          one who knows it. Renders nothing on a ride with no subgroups. */}
-      {subgroups.length > 0 &&
+          one who knows it. NOTHING UNTIL THERE ARE TWO GROUPS, not until there
+          is one: every ride carries a seeded group of one as of 2026-09-03, so
+          `> 0` would put a picker with a single option on every rider of every
+          ride. A group is only a question worth asking once there is another
+          one to be on. Same threshold the builder's panel uses. */}
+      {subgroups.length > 1 &&
         (canAssign ? (
           <form method="post" action={`/m/${slug}/riders/group`} class="roster-rsvp">
             <input type="hidden" name="rider" value={String(m.riderId)} />

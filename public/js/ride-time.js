@@ -28,8 +28,7 @@
   // and an imported ride — which carries its whole track as one leg with no
   // duration at all — gets a plausible span instead of a zero-length day.
   const legIsEstimated = (leg) => leg.durationS <= 0 && leg.distanceM > 0;
-  const legDurationS = (leg) =>
-    legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS;
+  const legDurationS = (leg) => (legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS);
 
   // Every point of the day, in the rider's order. `legs[i]` joins `pointsOf(day)[i]`
   // to `pointsOf(day)[i+1]`, whatever kind either of them is.
@@ -158,6 +157,80 @@
       }
     }
     return segs;
+  }
+
+  /**
+   * Seconds from a day's departure until the rider ARRIVES at point `i`.
+   *
+   * The dwell of every point before it plus the riding time of every leg before
+   * it — and deliberately NOT the dwell of `i` itself, because arriving is the
+   * moment the group is there and what a meeting point is agreed on. Including
+   * it would answer "when do they leave the meeting point", which nobody is
+   * synchronizing.
+   *
+   * IT IS A WALK, NOT A LOOKUP INTO daySchedule(). That function omits a
+   * zero-length segment entirely — a point with no dwell, a leg with no duration
+   * — so its indices are not point indices, and finding "the segment for point
+   * i" in it is the same off-by-one this file already warns about twice.
+   *
+   * Null when `i` is out of range, which is a real answer rather than a guard: a
+   * caller asking about a point that is not there is holding a stale index, and
+   * returning 0 would read as "they arrive at the moment they set off".
+   */
+  function elapsedToPointS(day, i) {
+    const points = pointsOf(day);
+    if (!Number.isInteger(i) || i < 0 || i >= points.length) return null;
+    let t = 0;
+    for (let k = 0; k < i; k++) {
+      t += dwellS(points[k]);
+      const leg = day.legs && day.legs[k];
+      if (leg) t += legDurationS(leg);
+    }
+    return t;
+  }
+
+  /**
+   * Seconds into a day at which the clock next reads `minuteOfDay`.
+   *
+   * WALL CLOCK THROUGHOUT, with no zone anywhere: `startAt` is a time at the
+   * departure point carried as UTC, and `minuteOfDay` is "four in the afternoon"
+   * meaning four where the bike is. Reading either in the browser's zone is the
+   * bug day-clock.js exists to prevent.
+   *
+   * WRAPS TO THE NEXT DAY when the target has already passed at departure — a
+   * day setting off at 6pm reaches 4pm twenty-two hours later, not two hours
+   * ago. That matters less for a bed than it looks: the caller checks the answer
+   * against the day's own length, and a twenty-two-hour offset simply falls off
+   * the end of every real day, which is the correct outcome rather than a
+   * special case.
+   *
+   * Null when the day has no departure time, because there is nothing to count
+   * from — not zero, which would read as "at the moment they set off".
+   */
+  function offsetAtClock(day, minuteOfDay) {
+    var start = dayStartS(day);
+    if (start == null) return null;
+    if (!Number.isFinite(minuteOfDay)) return null;
+    var startedAt = new Date(start * 1000);
+    var startMin = startedAt.getUTCHours() * 60 + startedAt.getUTCMinutes();
+    var delta = (Math.round(minuteOfDay) - startMin + 1440) % 1440;
+    return delta * 60 - startedAt.getUTCSeconds();
+  }
+
+  /**
+   * Where the rider is when the clock reads `minuteOfDay`, or null when the day
+   * ends before it does.
+   *
+   * NULL IS THE COMMON ANSWER AND IS NOT A FAILURE. A day that finishes at 2pm
+   * never reaches 4pm, and the honest thing is to say so rather than pinning the
+   * marker to the last point — which would put "look for a bed here" on the
+   * hotel they already arrived at.
+   */
+  function clockMoment(day, minuteOfDay) {
+    var offset = offsetAtClock(day, minuteOfDay);
+    if (offset == null || offset < 0) return null;
+    if (offset > dayElapsedS(day)) return null;
+    return { offsetS: offset, at: activeAt(day, offset) };
   }
 
   // Where the rider is at a given offset into the day.
@@ -341,6 +414,9 @@
     dayEndS,
     isLosingAlt,
     daySchedule,
+    elapsedToPointS,
+    offsetAtClock,
+    clockMoment,
     daySpan,
     rideSpan,
     rideSegments,

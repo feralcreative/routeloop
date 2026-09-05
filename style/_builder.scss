@@ -2378,11 +2378,33 @@
   margin: 0.5rem 0;
 }
 
+// THE MAIN GROUP IS THE FIRST ROW, and the separator under it is what makes the
+// list read as two things without being two containers. It cannot be two:
+// Sortable's raw indices count every child, so a section header between the rows
+// would silently make them read about double — #166, from the point list.
+.sg-list {
+  display: flex;
+  flex-direction: column;
+}
+
 .sg-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   margin: 0.4rem 0;
+
+  // Isolated by a rule and a little air rather than by a box, because it is
+  // still a row in the same draggable list and drawing it as a separate card
+  // would say it is somewhere a group cannot be dropped.
+  &.is-main {
+    padding-bottom: 0.55rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px solid $grey;
+  }
+
+  &.is-dragging {
+    opacity: 0.35;
+  }
 
   .sg-name {
     flex: 1;
@@ -2406,7 +2428,6 @@
     background: none;
   }
 
-  .sg-meet,
   .sg-del {
     flex: none;
     font: inherit;
@@ -2424,8 +2445,10 @@
   }
 }
 
-// The two axes: whose clock, and which of their events. Two selects rather than
-// one, because one control cannot carry both — see rides.time_anchor.
+// WAS the two axes, whose clock and which of their events. The event select
+// went on 2026-09-03 — what is pinned is always the main group's departure — so
+// this is now the fairness note's own strip, kept as a block because the rule
+// above it is what separates the note from the group rows.
 .sg-anchor {
   display: flex;
   flex-wrap: wrap;
@@ -2447,18 +2470,123 @@
   }
 }
 
-// Whose route is the spine, on its own line. It shares the anchor block's flex
-// row rather than sitting outside it because it is the same kind of question —
-// one setting solved across every group — but its label is a sentence and
-// letting it flow inline after "and pin their" reads as one run-on control.
-// Only rendered when the ride has no shared day; see renderSubgroups and #239.
-.sg-trunk {
-  flex-basis: 100%;
+// The panel's primary action, full width under the group list. It carries
+// `.btn .btn-sm` for its actual look — this only places it, because a `.btn`
+// is inline-flex and would otherwise sit hard against the note above it.
+.sg-meet {
+  display: flex;
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+// "part of this day only" beside the Nearby heading. Amber rather than red for
+// the reason .row-dist-dry is: it is advice — search the rest another way — not
+// a verdict that something is wrong.
+.hit-partial {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: $warning;
+}
+
+// WHERE THE RIDING DAY SHOULD END. An interruption in the list rather than a
+// control on a row: the rules top and bottom are what make it read as a break in
+// the day rather than as another thing attached to the point above it.
+//
+// Amber, on the same reasoning as .row-dist-dry — this is ADVICE, not a verdict.
+// Riding past four is a decision the rider is allowed to make, and #67's rule
+// about the fairness note applies here too: the app's job is to make the
+// consequence visible beside the choice, not to refuse it.
+.bedtime-band {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem;
-  margin-top: 0.3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin: 0.45rem -0.4rem 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-top: 1px solid $warning;
+  border-bottom: 1px solid $warning;
+  // color-mix, NOT a Sass color function: $warning is `var(--warning)` since the
+  // themes landed, and Sass cannot operate on a var() — "$color: var(--warning)
+  // is not a color". Every tinted surface in this file does it this way.
+  background: color-mix(in srgb, #{$warning} 10%, #{$white});
+  font-size: 0.72em;
+}
+
+.bedtime-band-fact {
+  color: $neutral-36;
+  font-weight: 600;
+}
+
+.row-bedtime-btn {
+  flex: none;
+  font: inherit;
+  padding: 0.25em 0.5em;
+  border: 1px solid $warning;
+  border-radius: 5px;
+  background: $white;
+  color: $neutral-36;
+  cursor: pointer;
+
+  &:hover {
+    border-color: $brand;
+    color: $brand;
+  }
+}
+
+// The ride-level time, under the visibility select.
+.meta-row--stopby {
+  gap: 0.4rem;
+  font-size: 0.8em;
+  color: $neutral-50;
+
+  input[type="time"] {
+    font: inherit;
+    padding: 0.25em 0.35em;
+    border: 1px solid $grey;
+    border-radius: 5px;
+    background: $white;
+    color: $text;
+  }
+}
+
+// The grip. A real <button> so it is focusable and carries the arrow keys —
+// reordering groups has to work when the SortableJS CDN does not, the same
+// property the day handle holds.
+.sg-drag {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 0 0.1em;
+  font-size: 0.9em;
+  line-height: 1;
+  color: $neutral-50;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
+// Says which row is the main group in words, because the separator alone is a
+// convention a first-time reader has no way to decode. It sits where the delete
+// button sits on every other row, so the rows still line up.
+.sg-main-tag {
+  flex: none;
+  font-size: 0.65em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2em 0.45em;
+  border: 1px solid $grey;
+  border-radius: 4px;
+  color: $neutral-36;
 }
 
 // The fairness warning. Amber rather than red: choosing a nearer group is a

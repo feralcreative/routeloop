@@ -18,7 +18,10 @@ import type { Strand } from '../subgroups/service'
  * forward rather than this component knowing about them; `extra` is that.
  */
 export function StrandSwitch({ strand, base, extra = '' }: { strand: Strand; base: string; extra?: string }) {
-  if (strand.all.length === 0) return <></>
+  // TWO, NOT ONE. Every ride carries a seeded group of one as of 2026-09-03, and
+  // "Everybody's" versus the only group there is offers a choice between a thing
+  // and itself. The switch is for a ride that genuinely has separate approaches.
+  if (strand.all.length < 2) return <></>
   const q = (group: string) => `${base}?group=${group}${extra}`
   const mine = strand.group
 

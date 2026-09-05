@@ -16,6 +16,7 @@ import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } fro
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
 import { type AddressHit, type GoogleComponent, addressParts } from '../maps/address'
+import { searchPlaces } from '../maps/places'
 
 export const routingRoutes = new Hono<AuthEnv>()
 
@@ -146,23 +147,53 @@ function remember(key: string, leg: RouteLeg): RouteLeg {
 }
 
 routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
-  if (!GMAPS_SERVER_KEY) {
-    return c.json({ error: 'routing is not configured' }, 503)
-  }
-
   const parsed = routeRequest.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) {
     return c.json({ error: 'origin and destination are required as [lng, lat]' }, 400)
   }
 
-  const origin = parsed.data.origin as LngLat
-  const destination = parsed.data.destination as LngLat
-  const vias = (parsed.data.vias ?? []) as LngLat[]
+  const out = await fetchRouteLeg(
+    parsed.data.origin as LngLat,
+    parsed.data.destination as LngLat,
+    (parsed.data.vias ?? []) as LngLat[],
+    parsed.data.prefs ?? null,
+  )
+  if (out.ok) return c.json(out.leg)
+  if (out.error === 'unconfigured') return c.json({ error: 'routing is not configured' }, 503)
+  if (out.error === 'no-route') return c.json({ error: 'no road route between those points' }, 422)
+  if (out.error === 'unreachable') return c.json({ error: 'routing service unavailable' }, 502)
+  return c.json({ error: 'routing service rejected the request' }, 502)
+})
 
-  const prefs = parsed.data.prefs ?? null
+/** Why a leg could not be fetched. The route above turns these into statuses; a
+ *  caller that can carry on without a road treats them all the same. */
+export type RouteError = 'unconfigured' | 'unreachable' | 'rejected' | 'no-route'
+
+export type RouteResult = { ok: true; leg: RouteLeg } | { ok: false; error: RouteError }
+
+/**
+ * One routed leg, from the cache or from Google.
+ *
+ * EXPORTED ON 2026-09-03 because the meeting-point proposer became a second
+ * caller: it routes each joining group to each candidate, both to draw the
+ * approach and to check the distance against the group's fuel range. Sharing
+ * this rather than writing a second fetch shares the CACHE, which is the part
+ * that matters — the builder asks for the same approach the moment it draws it,
+ * and a second implementation would pay for the same road twice.
+ *
+ * Never throws: every failure is `{ ok: false, error }`.
+ */
+export async function fetchRouteLeg(
+  origin: LngLat,
+  destination: LngLat,
+  vias: LngLat[] = [],
+  prefs: RoutePrefs | null = null,
+): Promise<RouteResult> {
+  if (!GMAPS_SERVER_KEY) return { ok: false, error: 'unconfigured' }
+
   const key = cacheKey(origin, destination, vias, prefs)
   const hit = cache.get(key)
-  if (hit) return c.json(hit)
+  if (hit) return { ok: true, leg: hit }
 
   const modifiers = toRouteModifiers(prefs)
   const twisty = wantsTwisty(prefs)
@@ -207,7 +238,7 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
   } catch (err) {
     // A timeout or a DNS failure is ours, not the rider's.
     console.error('[routing] Routes API unreachable:', err instanceof Error ? err.stack : err)
-    return c.json({ error: 'routing service unavailable' }, 502)
+    return { ok: false, error: 'unreachable' }
   }
 
   if (!res.ok) {
@@ -215,11 +246,15 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
     // Google's message but never the request.
     const detail = await res.text().catch(() => '')
     console.error(`[routing] Routes API ${res.status}: ${detail.slice(0, 300)}`)
-    return c.json({ error: 'routing service rejected the request' }, 502)
+    return { ok: false, error: 'rejected' }
   }
 
   const data = (await res.json().catch(() => null)) as {
-    routes?: { polyline?: { geoJsonLinestring?: { coordinates?: unknown } }; distanceMeters?: number; duration?: unknown }[]
+    routes?: {
+      polyline?: { geoJsonLinestring?: { coordinates?: unknown } }
+      distanceMeters?: number
+      duration?: unknown
+    }[]
   } | null
 
   // THE TWISTIEST OF WHAT CAME BACK, or simply the first when nothing asked for
@@ -240,7 +275,7 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
 
   // An empty `routes` array is how Routes reports "no path", with HTTP 200.
   if (!route || !Array.isArray(rawCoords) || rawCoords.length < 2) {
-    return c.json({ error: 'no road route between those points' }, 422)
+    return { ok: false, error: 'no-route' }
   }
 
   const geometry: LngLat[] = []
@@ -253,7 +288,7 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
   }
 
   if (geometry.length < 2) {
-    return c.json({ error: 'no road route between those points' }, 422)
+    return { ok: false, error: 'no-route' }
   }
 
   const leg: RouteLeg = {
@@ -262,8 +297,8 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
     durationS: parseDuration(route.duration),
   }
 
-  return c.json(remember(key, leg))
-})
+  return { ok: true, leg: remember(key, leg) }
+}
 
 // --- Geocoding --------------------------------------------------------------
 
@@ -438,36 +473,6 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
 // costs materially more than the Autocomplete session it sits beside, and a
 // rider tapping the same chip twice or retyping a query must not pay twice. Same
 // argument, and the same bounded-Map shape, as the leg cache above.
-const PLACES_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
-
-// The field mask is what Google prices this on, so every field is money.
-// `primaryType` is the one worth questioning: it is only used to tag a result
-// with a role (a `gas_station` becomes Gas), and it can put the call in a higher
-// SKU than the other three. Drop it first if the bill argues — roleForType()
-// already treats an unknown type as untagged rather than guessing.
-const PLACES_FIELD_MASK = 'places.displayName,places.formattedAddress,places.location,places.primaryType'
-
-// Eight is a dropdown, not a directory. Text Search will return twenty and the
-// rider will read four.
-const MAX_PLACE_RESULTS = 8
-
-// A CORRIDOR SEARCH IS NOT A DROPDOWN, so it asks for the twenty. #50 filters
-// what comes back to a band either side of the day's line and throws most of it
-// away — eight results biased at one point routinely survives as two, which
-// reads as "there is nowhere" rather than "we only looked in one place".
-//
-// **THIS COSTS NOTHING EXTRA, and that is the belief the change rests on rather
-// than something measured here: Text Search (New) is billed per REQUEST, not per
-// result, so twenty and eight are the same call and the same money.** Worth
-// confirming against a real bill before leaning on it further. Twenty is the
-// API's own ceiling.
-const MAX_CORRIDOR_RESULTS = 20
-
-// Used only when `near` is supplied and no radius is. Wide enough to cover a
-// town and its outskirts, narrow enough that "coffee" anchored to a stop does
-// not answer with the next county.
-const DEFAULT_BIAS_RADIUS_M = 25_000
-
 const placeSearchRequest = z.object({
   // Bounded for the same reason the geocode query is: this endpoint spends our
   // key, so it cannot be a pipe for arbitrary volume.
@@ -479,114 +484,24 @@ const placeSearchRequest = z.object({
   wide: z.boolean().optional(),
 })
 
-type PlaceHit = { name: string; address: string; lngLat: LngLat; type: string | null }
-
-const PLACES_CACHE_MAX = 300
-const placesCache = new Map<string, PlaceHit[]>()
-
-function rememberPlaces(key: string, hits: PlaceHit[]): PlaceHit[] {
-  if (placesCache.size >= PLACES_CACHE_MAX) {
-    const oldest = placesCache.keys().next().value
-    if (oldest !== undefined) placesCache.delete(oldest)
-  }
-  placesCache.set(key, hits)
-  return hits
-}
-
 routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
-  if (!GMAPS_SERVER_KEY) {
-    return c.json({ error: 'place search is not configured' }, 503)
-  }
-
   const parsed = placeSearchRequest.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) {
     return c.json({ error: 'a search query is required' }, 400)
   }
 
-  const { query, near, radiusM, wide } = parsed.data
-  // `wide` is part of the cache key: the narrow and the wide answer to the same
-  // query are different lists, and serving one for the other would give a
-  // corridor search eight results because a dropdown asked first.
-  const key = [
-    query.toLowerCase().replace(/\s+/g, ' '),
-    near ? near.map(round6).join(',') : '',
-    radiusM ?? '',
-    wide ? 'w' : '',
-  ].join('|')
-  const cached = placesCache.get(key)
-  if (cached) return c.json({ places: cached })
+  // THE CALL, THE FIELD MASK AND THE CACHE ALL LIVE IN src/maps/places.ts as of
+  // 2026-09-03, because the meeting-point proposer needs the same search and two
+  // implementations of a billed call is two field masks to get wrong and two
+  // caches each paying for what the other already knows. This route's job is now
+  // the gate and the status codes.
+  const out = await searchPlaces(parsed.data, GMAPS_SERVER_KEY)
+  if (out.ok) return c.json({ places: out.places })
 
-  const body: Record<string, unknown> = {
-    textQuery: query,
-    maxResultCount: wide ? MAX_CORRIDOR_RESULTS : MAX_PLACE_RESULTS,
+  if (out.error === 'unconfigured') return c.json({ error: 'place search is not configured' }, 503)
+  if (out.error === 'blocked') {
+    return c.json({ error: 'category search is not enabled on the server key—add Places API (New) to it' }, 503)
   }
-  if (near) {
-    body.locationBias = {
-      circle: {
-        center: { latitude: near[1], longitude: near[0] },
-        radius: radiusM ?? DEFAULT_BIAS_RADIUS_M,
-      },
-    }
-  }
-
-  let res: Response
-  try {
-    res = await fetch(PLACES_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GMAPS_SERVER_KEY,
-        'X-Goog-FieldMask': PLACES_FIELD_MASK,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000),
-    })
-  } catch (err) {
-    console.error('[places] Text Search unreachable:', err instanceof Error ? err.stack : err)
-    return c.json({ error: 'place search is unavailable' }, 502)
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    // The body can echo the key back in an error, so only the status and a
-    // bounded slice are logged — same rule as the Routes proxy above.
-    console.error(`[places] Text Search ${res.status}: ${detail.slice(0, 300)}`)
-    // THE ONE FAILURE WORTH NAMING SEPARATELY. A server key restricted to Routes
-    // and Geocoding answers every Text Search with 403 API_KEY_SERVICE_BLOCKED,
-    // which is a console change and not a code problem — and reporting it as a
-    // generic outage would send whoever meets it looking in the wrong place.
-    if (res.status === 403 && detail.includes('API_KEY_SERVICE_BLOCKED')) {
-      return c.json({ error: 'category search is not enabled on the server key—add Places API (New) to it' }, 503)
-    }
-    return c.json({ error: 'place search rejected the request' }, 502)
-  }
-
-  const data = (await res.json().catch(() => null)) as {
-    places?: {
-      displayName?: { text?: string }
-      formattedAddress?: string
-      location?: { latitude?: number; longitude?: number }
-      primaryType?: string
-    }[]
-  } | null
-
-  // No match is a 200 with the array absent, not an error — the same way Routes
-  // reports "no path" and Geocoding reports ZERO_RESULTS. An empty list is a
-  // real answer and it is cached, because a query that found nothing gets
-  // retyped as often as one that found something.
-  const hits: PlaceHit[] = (data?.places ?? [])
-    .map((p) => {
-      const lat = p.location?.latitude
-      const lng = p.location?.longitude
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-      return {
-        name: p.displayName?.text ?? '',
-        address: p.formattedAddress ?? '',
-        lngLat: [round6(Number(lng)), round6(Number(lat))] as LngLat,
-        type: p.primaryType ?? null,
-      }
-    })
-    .filter((h): h is PlaceHit => h !== null)
-
-  return c.json({ places: rememberPlaces(key, hits) })
+  if (out.error === 'unreachable') return c.json({ error: 'place search is unavailable' }, 502)
+  return c.json({ error: 'place search rejected the request' }, 502)
 })

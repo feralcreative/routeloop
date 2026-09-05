@@ -263,6 +263,29 @@ body.modal-open {
   font-style: italic;
 }
 
+// The commit, in the modal header and on every release heading in the notes
+// themselves. One class for both because they are the same object — a link to a
+// commit — and the chip styling comes from the <code> inside it, which the
+// .rn-version and .rn-release rules already own.
+.rn-sha {
+  color: inherit;
+  text-decoration: none;
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  &:hover code {
+    color: $brand;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
 .rn-body {
   // The notes grow forever; the dialog does not. .modal already caps at 90vh and
   // scrolls, but the heading and the version line should stay put while the list

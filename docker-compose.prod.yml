@@ -89,6 +89,15 @@ services:
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
       # must be the canonical host — https://routeloop.app, not the alias.
       APP_ORIGIN: ${APP_ORIGIN}
+      # Which environment this is — `stage` or `prod`, from deploy.sh's own
+      # DEPLOY_ENV. It is what puts the "this is staging" banner on every page.
+      #
+      # OPTIONAL, hence the `:-` default: it is in the printf block and NOT in
+      # REMOTE_ENV_KEYS, so a server whose .env predates it has no such line and
+      # a bare ${APP_ENV} would make Compose warn on every deploy. src/config.ts
+      # falls back to reading the environment out of APP_ORIGIN when this is
+      # empty, so an old .env still gets the banner right.
+      APP_ENV: ${APP_ENV:-}
       # Sign-in. Cloudflare Access no longer authenticates at the edge, so these
       # are the only way in: omit them and the deployed site has no sign-in at
       # all, because both methods hide themselves when unconfigured.
@@ -166,6 +175,15 @@ services:
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
       # must be the canonical host — https://routeloop.app, not the alias.
       APP_ORIGIN: ${APP_ORIGIN}
+      # Which environment this is — `stage` or `prod`, from deploy.sh's own
+      # DEPLOY_ENV. It is what puts the "this is staging" banner on every page.
+      #
+      # OPTIONAL, hence the `:-` default: it is in the printf block and NOT in
+      # REMOTE_ENV_KEYS, so a server whose .env predates it has no such line and
+      # a bare ${APP_ENV} would make Compose warn on every deploy. src/config.ts
+      # falls back to reading the environment out of APP_ORIGIN when this is
+      # empty, so an old .env still gets the banner right.
+      APP_ENV: ${APP_ENV:-}
       # Sign-in. Cloudflare Access no longer authenticates at the edge, so these
       # are the only way in: omit them and the deployed site has no sign-in at
       # all, because both methods hide themselves when unconfigured.

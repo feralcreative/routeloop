@@ -14,8 +14,24 @@
   heading again in a second format, which is why none of the backfilled entries
   below have one.
 
+  DO NOT TYPE THE STAMP OR THE COMMIT BY HAND. Write the block with the heading
+  and the list, leave the stamp off, and run:
+
+    npx tsx utils/stamp-release.ts --dry-run   # then again without it
+
+  That reads HEAD and fills in both, which is the point: a hand-typed hash is
+  one transposed character away from linking to a commit that is not the one
+  that shipped, and nothing would ever catch it.
+
+  THE COMMIT ANSWERS A DIFFERENT QUESTION FROM THE DATE. The date says when; the
+  hash says which sprint, and it is the value that can be compared against what
+  the page footer and /healthz report on each environment. That is why it links
+  out rather than sitting as plain text.
+
     <section class="rn-release">
-      <h3>24 August 2026 <code>2026-08-24-0912PT</code></h3>
+      <h3>24 August 2026 <code>2026-08-24-0912PT</code>
+        <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/FULL"><code>abc1234</code></a>
+      </h3>
       <ul>
         <li>One sentence per change, in a rider's words.</li>
       </ul>
@@ -56,16 +72,89 @@
   <h3>3 September 2026 — finding a meeting point when two groups ride to the same place</h3>
   <ul>
     <li>
-      <strong>Fixed: Find a meet gave up on the most ordinary kind of ride.</strong> If your groups set off from
-      different places and converge at the destination — one from Los Gatos, one from San Francisco, both heading for
-      Lake Shasta — there is no day everybody rides yet, and that is the day you were pressing the button to plan. It
-      told you to go and plan one first. It now asks whose route the others should join, and works out where.
+      <strong>Find a meeting point now answers the question you actually have.</strong> Plan your main group's route to
+      the destination — say Oakland to Ensenada — then press <strong>Find a meeting point</strong> in the Groups panel.
+      It suggests where the other groups should join that road, and tells you what each one goes out of its way by
+      name. Where a group's route already passes through the spot, it says so rather than showing a zero.
     </li>
     <li>
-      Meeting points were being proposed too late along the route. Every bend in the road ahead was counted as a detour
-      the joining group had chosen, which on a normal winding route added tens of miles that nobody was riding — enough
-      to push a suggestion hundreds of miles down the road, or to rule the whole route out. Suggestions now land where
-      the two routes genuinely come together.
+      There is now one button for the whole ride instead of one per group, and the first group you add is the main
+      group. It used to refuse to say anything until a day was marked as ridden by everyone — which is the thing you
+      were trying to work out.
+    </li>
+    <li>
+      <strong>Fixed: deleting a stop could leave a day that would never save again.</strong> If you removed the last
+      stop from a day using the row menu, everything left on it was a point you ride past rather than stop at — and the
+      ride refused to save from then on, with no way to put it right except tagging one by hand. The first remaining
+      point now becomes the stop, the way it already did everywhere else.
+    </li>
+    <li>
+      Every ride now starts with one group already there, which is you. Rename it if you like; you cannot delete it,
+      because a ride you planned has at least one rider on it. Groups only start appearing elsewhere — on the roster,
+      and on the roadbook's whose-copy switch — once there are two of them.
+    </li>
+    <li>
+      The Groups tab now shows the main group on its own at the top, marked <strong>Main</strong>. That is the group
+      whose route everyone else joins when you look for a meeting point. To change it, drag another group up over it —
+      the one on top is the main one. You can also focus a group's grip and use the arrow keys.
+    </li>
+    <li>
+      <strong>Suggested meeting points now appear on the map</strong>, one numbered dot each, matching the list, with
+      the road each joining group would ride to reach it drawn alongside. Hover a dot or a row and the other lights up;
+      press either to take it.
+    </li>
+    <li>
+      <strong>Tell a ride when you like to stop for the night.</strong> Set a time on the ride — say 4pm — and the day
+      list breaks where you reach that hour, with a band saying how far in you are and how much riding would still be
+      left after it. It takes the road you planned and the stops you added into account, and offers to search that
+      stretch for somewhere to stay; picking one still offers to end the day there. The map marks the spot too. Leave
+      it blank and nothing changes.
+    </li>
+    <li>
+      <strong>Fixed: dragging a route onto a different road stopped working.</strong> It broke earlier the same day,
+      when the search-result dots landed — two pieces of the map code ended up sharing a name and the newer one
+      silently replaced the older. Dragging a leg to reshape it works again.
+    </li>
+    <li>
+      <strong>Fixed: searching a long day for gas missed most of it.</strong> Looking for fuel along the day ran a
+      fixed six searches spread across the whole route, and on anything over about 190 miles those searches stopped
+      overlapping — so a 593-mile day had 37-mile stretches nobody ever looked at, and a run through Los Angeles could
+      come back with nothing. It now runs as many searches as the day needs, which also means fewer of them on a short
+      day. Past about 745 miles it still cannot cover everything, and now says so rather than looking like an empty
+      road.
+    </li>
+    <li>
+      <strong>A meeting point has to be one everybody can actually get to on the fuel they have.</strong> Suggestions
+      are now checked against the shortest tank on the ride, measured from each group's last fill — along the road for
+      the main group, and along the real routed road for anyone joining. If nothing is reachable without stopping for
+      fuel first, it says so rather than quietly suggesting a forecourt you would run dry short of.
+    </li>
+    <li>
+      <strong>Meeting points are gas stations.</strong> Everyone turns up needing fuel and a forecourt is somewhere you
+      can actually wait, so the suggestions are real stations on the main group's road, named and with an address. The
+      point added to everyone's day is the station itself rather than a spot on the highway beside it, and it counts as
+      a refuel on the fuel gauge. If there is no station on the stretch everyone can reach, it offers the best plain
+      spots instead and says that is what it did.
+    </li>
+    <li>
+      <strong>Meeting points are now the earliest everyone can reach, not the cheapest.</strong> The old suggestions
+      were whichever cost the joining group the fewest extra miles, which is almost always somewhere near the end of
+      the ride — so two groups rode most of the way separately to a ride they were doing together. It now picks the
+      soonest point everybody can get to without going a long way out of their way.
+    </li>
+    <li>
+      <strong>Taking a meeting point sets everyone's departure for you.</strong> The main group keeps the time you gave
+      them, and every other group is told when to leave so they arrive at the meeting point at the same moment. It
+      waits for the real roads to be worked out first, so the times you see are the routed ones rather than a guess. If
+      the main group's day has no date yet, it says so instead of quietly doing nothing.
+    </li>
+    <li>
+      The choice of what to pin a group ride to is gone. It is always the main group's departure, which is the one time
+      anybody actually knows; the meet and the arrival are worked out from it.
+    </li>
+    <li>
+      Suggestions were also landing too far along the route. Every bend in the road ahead was counted as a detour the
+      joining group had chosen, which on a normal winding route added tens of miles nobody was riding.
     </li>
   </ul>
 </section>

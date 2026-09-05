@@ -137,18 +137,21 @@ export async function writeRideAnchors(
   primaryUid: string | null,
   trunkUid: string | null,
   timeAnchor: TimeAnchor,
+  stopByMin: number | null,
 ): Promise<void> {
   await tx
     .update(rides)
     .set({
       primarySubgroupId: primaryUid ? (byUid.get(primaryUid) ?? null) : null,
       trunkSubgroupId: trunkUid ? (byUid.get(trunkUid) ?? null) : null,
-      // ALL THREE IN ONE WRITE. The anchor was left out of the first draft of
+      // ALL OF THEM IN ONE WRITE. The anchor was left out of the first draft of
       // this function and the round-trip test caught it: the payload carried
       // 'meet', the save reported success, and the ride came back 'departure'
-      // with nothing raised. Three fields describing one decision belong in one
-      // statement for exactly that reason.
+      // with nothing raised. Fields describing when and around whom a ride is
+      // solved belong in one statement for exactly that reason — which is why
+      // "stop by four" joined them here rather than getting an update of its own.
       timeAnchor,
+      stopByMin,
     })
     .where(eq(rides.id, rideId))
 }
@@ -183,11 +186,7 @@ export type Strand = {
  * A ride with no subgroups always answers `undefined`. Nothing downstream has
  * to test for that separately, which is the point of resolving it here.
  */
-export async function resolveStrand(
-  rideId: number,
-  viewerId: number | null,
-  requested?: string,
-): Promise<Strand> {
+export async function resolveStrand(rideId: number, viewerId: number | null, requested?: string): Promise<Strand> {
   const all = await subgroupsOf(rideId)
   if (all.length === 0) return { subgroupId: undefined, group: null, all }
   if (requested === 'all') return { subgroupId: undefined, group: null, all }

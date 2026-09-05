@@ -287,6 +287,7 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     subgroups: [],
     primarySubgroup: null,
     trunkSubgroup: null,
+    stopByMin: null,
     timeAnchor: 'departure',
     days: payloadDays,
   }
@@ -602,6 +603,7 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
     subgroups: groups.map((g) => ({ uid: g.uid, name: g.name, color: g.color })),
     primarySubgroup: ride.primarySubgroupId ? (uidOf.get(ride.primarySubgroupId) ?? null) : null,
     trunkSubgroup: ride.trunkSubgroupId ? (uidOf.get(ride.trunkSubgroupId) ?? null) : null,
+    stopByMin: ride.stopByMin,
     timeAnchor: ride.timeAnchor,
     days: [] as unknown[],
   }
@@ -973,6 +975,11 @@ ${
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, friends, unlisted and public')}
+          </div>
+          <div class="meta-row meta-row--stopby">
+            <label for="ride-stop-by">Start looking for a bed at</label>
+            <input id="ride-stop-by" name="stopBy" type="time" step="900" title="When to start looking for somewhere to stay">
+            <button type="button" id="ride-stop-by-clear" class="btn btn-sm btn-quiet" hidden>Clear</button>
           </div>`
     : ''
 }

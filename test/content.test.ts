@@ -109,3 +109,34 @@ describe('the loader', () => {
     }
   })
 })
+
+describe('the release-notes commit stamps', () => {
+  // Written by utils/stamp-release.ts from HEAD, never typed. This is what
+  // catches a hand-edit or a half-finished run of that script: a malformed href
+  // still renders as a perfectly ordinary link and only fails when somebody
+  // follows it, which is long after the release it was meant to identify.
+  // COMMENTS STRIPPED FIRST. The file's own authoring contract is an HTML
+  // comment at the top and it contains a worked example of a stamped heading,
+  // placeholders and all — so a scan of the raw text finds a href of
+  // `.../commit/FULL` and fails on the one block that is meant to be fake.
+  const notes = readFileSync('src/content/release-notes.html', 'utf8').replace(/<!--[^]*?-->/g, '')
+
+  it('links every stamped release to a commit in this repository', () => {
+    const hrefs = [...notes.matchAll(/<a class="rn-sha" href="([^"]*)"/g)].map((m) => m[1])
+    for (const href of hrefs) {
+      expect(href, `${href} is not a commit URL for this repository`).toMatch(
+        /^https:\/\/github\.com\/feralcreative\/routeloop\/commit\/[0-9a-f]{7,40}$/,
+      )
+    }
+  })
+
+  it('shows a short SHA that is a prefix of the commit it links to', () => {
+    // The two are written from one `git rev-parse` pair, so a mismatch means an
+    // edit by hand — and a label that names a different commit from the link
+    // under it is worse than no label, because both look right on their own.
+    const pairs = [...notes.matchAll(/<a class="rn-sha" href="[^"]*\/commit\/([0-9a-f]+)"><code>([0-9a-f]+)<\/code>/g)]
+    for (const [, full, short] of pairs) {
+      expect(full.startsWith(short), `<code>${short}</code> is not a prefix of ${full}`).toBe(true)
+    }
+  })
+})
