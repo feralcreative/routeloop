@@ -3821,15 +3821,16 @@
   }
 
   /**
-   * A route of its own for a group that has just been added.
+   * A route of its own for a group that has just been added, starting where the
+   * rider said that group starts.
    *
-   * SEEDED AT THE RIDE'S OWN START, which is a placeholder and is meant to be
-   * moved. A joining group contributes a starting point and nothing else — see
-   * src/subgroups/rendezvous.ts — so one point is the whole route until the
-   * rider drags it to where that group actually sets off. Seeding it at the
-   * main group's first point rather than at nothing is what makes it draggable:
-   * an empty route has no pin, and a rider with no pin is back to searching for
-   * a place they can already see on the map.
+   * A GROUP MUST HAVE A STARTING POINT AND CANNOT BE MADE WITHOUT ONE. Ziad's
+   * call, 2026-09-04. It seeded at the RIDE'S start for one day before that —
+   * a placeholder meant to be dragged — and a placeholder is exactly what a
+   * satellite group is not: a joining group contributes a starting point and
+   * nothing else (see src/subgroups/rendezvous.ts), so a group parked on the
+   * main group's start is a group with the one fact it owns filled in wrong.
+   * Every proposal made from it would be about a road nobody rides.
    *
    * THE GROUP'S COLOR, NOT THE NEXT ONE IN THE DAY PALETTE. A group's line has
    * to read as one thing wherever it appears, which is the same reason the
@@ -3845,21 +3846,20 @@
    * owns a SUBSEQUENCE of the ride's positions, and pushing in at the front
    * would renumber everything the rider has already planned.
    */
-  function seedGroupRoute(g) {
+  function seedGroupRoute(g, start) {
     if (state.days.length >= MAX_DAYS) return;
-    const counted = ALT.activeDays(state.days);
-    const first = counted[0];
     const day = newDay(g.color);
     day.subgroupUid = g.uid;
-    const from = first && first.points[0];
-    if (from) {
-      day.points.push(newPoint(from.lng, from.lat, from.name));
-      // The route's first point is a stop, exactly as it is when a rider drops
-      // one on an empty route. Without it the seed is a POI, nothing ever
-      // promotes it, and the ride cannot be saved at all — #233.
-      ensureDayHasStop(day);
-      day.startAt = first.startAt ?? null;
-    }
+    day.points.push(newPoint(start.lngLat[0], start.lngLat[1], start.name, start.address));
+    // The route's first point is a stop, exactly as it is when a rider drops
+    // one on an empty route. Without it the seed is a POI, nothing ever
+    // promotes it, and the ride cannot be saved at all — #233.
+    ensureDayHasStop(day);
+    // Tagged `start` for the same reason the first point of any route is: it is
+    // where somebody sets off, and the roadbook and the hand-off both read it.
+    if (!day.points[0].roles.length) day.points[0].roles = ["start"];
+    const first = ALT.activeDays(state.days)[0];
+    day.startAt = (first && first.startAt) || null;
     state.days.push(day);
   }
 
@@ -4016,50 +4016,189 @@
     showMeetPreview(out, state.meet);
   }
 
+  /**
+   * The "add a group" form: a name and, required, where that group starts.
+   *
+   * A GROUP MUST HAVE A STARTING POINT AND CANNOT BE MADE WITHOUT ONE. Ziad's
+   * call, 2026-09-04. The button used to create a group on the spot and seed its
+   * route at the RIDE'S start, which is the one place a satellite group provably
+   * does not set off from — so every group arrived holding the single fact it
+   * owns, filled in wrong, and a meeting-point proposal made from it was about a
+   * road nobody rides. Collecting the point first is what makes the group real
+   * when it appears.
+   *
+   * IT LIVES IN `.tab-actions`, NEXT TO THE BUTTON, AND NOT IN `#sg-body`.
+   * renderSubgroups() rebuilds that element, and anything that moves a day
+   * cascades into it — a form rendered inside would lose the half-typed search
+   * it is holding, which is #188 reached from a third direction. Here nothing
+   * rebuilds it but this file.
+   *
+   * NAME SEARCH ONLY, no category arm and no saved places: the question is
+   * "which town does this group set off from", and "coffee" is not an answer to
+   * it. That also keeps this to the Autocomplete SKU, where the day's own
+   * add-row deliberately spends a Text Search when a query reads as a category.
+   */
+  function openNewGroup() {
+    const add = $("sg-add");
+    if (!add || document.querySelector(".sg-new")) return;
+    add.hidden = true;
+    const box = document.createElement("div");
+    box.className = "sg-new";
+    box.innerHTML =
+      '<label class="sg-new-lab" for="sg-new-start">Where does this group start?</label>' +
+      '<input class="sg-new-start" id="sg-new-start" type="text" autocomplete="off" data-1p-ignore' +
+      ' spellcheck="false" placeholder="Town, address or place">' +
+      '<ul class="sg-new-hits" hidden></ul>' +
+      '<input class="sg-new-name" type="text" maxlength="80" autocomplete="off" data-1p-ignore' +
+      ' placeholder="Group name (optional)" aria-label="Name for this group">' +
+      '<button type="button" class="btn btn-sm btn-quiet sg-new-cancel">Cancel</button>';
+    add.parentNode.appendChild(box);
+
+    const startField = box.querySelector(".sg-new-start");
+    const nameField = box.querySelector(".sg-new-name");
+    const hitList = box.querySelector(".sg-new-hits");
+    let hits = [];
+    let timer = null;
+    let seq = 0;
+    startField.focus();
+
+    box.querySelector(".sg-new-cancel").addEventListener("click", closeNewGroup);
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeNewGroup();
+      }
+    });
+
+    startField.addEventListener("input", () => {
+      clearTimeout(timer);
+      const q = startField.value.trim();
+      if (q.length < 3) {
+        hitList.hidden = true;
+        hitList.innerHTML = "";
+        return;
+      }
+      timer = setTimeout(async () => {
+        // Predictions come back out of order often enough to matter; a slow
+        // early keystroke must not overwrite a fast later one. Same guard the
+        // day's own search carries, for the same reason.
+        const mine = ++seq;
+        if (!state.map) return;
+        let found = [];
+        try {
+          found = await searchPlaces(state.map, q);
+        } catch (err) {
+          console.warn("[builder] group start search:", err.message);
+        }
+        if (mine !== seq || !box.isConnected) return;
+        hits = found;
+        if (!hits.length) {
+          // NAMES THE VIEWPORT, the same as the day's search does: the search is
+          // RESTRICTED to what is on screen, so "no matches" is a fact about the
+          // map rather than about the world, and zooming out is the move.
+          hitList.innerHTML = '<li class="sg-new-empty">No matches on screen—zoom out to search wider.</li>';
+          hitList.hidden = false;
+          return;
+        }
+        hitList.innerHTML = hits
+          .map(
+            (h, i) =>
+              '<li><button type="button" class="sg-new-hit" data-i="' +
+              i +
+              '"><strong>' +
+              esc(h.name) +
+              "</strong>" +
+              (h.context ? ' <span class="sg-new-ctx">' + esc(h.context) + "</span>" : "") +
+              "</button></li>",
+          )
+          .join("");
+        hitList.hidden = false;
+      }, 300);
+    });
+
+    hitList.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".sg-new-hit");
+      if (!btn) return;
+      const h = hits[Number(btn.dataset.i)];
+      if (!h) return;
+      // Coordinates are fetched only for the pick — Place Details is billed per
+      // call, so resolving every prediction would cost five times as much for a
+      // rider who is going to choose one.
+      const picked = await h.resolve().catch(() => null);
+      if (!picked) return toast("Could not locate that place", true);
+      createGroup(picked, nameField.value.trim());
+    });
+  }
+
+  function closeNewGroup() {
+    const box = document.querySelector(".sg-new");
+    if (box) box.remove();
+    const add = $("sg-add");
+    if (add) {
+      add.hidden = false;
+      add.focus();
+    }
+  }
+
+  /**
+   * Make the group, with the starting point that is now known.
+   *
+   * NAMED AFTER THE PLACE unless the rider typed something. Ziad's call,
+   * 2026-09-04: "Group 2" says nothing about who it is, and "Santa Cruz" is what
+   * a planner calls them anyway. A typed name always wins — the same rule the
+   * ride title follows, and the reason there is no flag to keep in step here is
+   * that the field is read once, at the moment of creation.
+   */
+  function createGroup(place, typedName) {
+    beginEdit("add a group");
+    // Walks the day palette so two groups are never the same color. It is the
+    // group's own color rather than a day's because a group spans several days
+    // and its line has to read as one thing across all of them.
+    const color = DAY_COLORS[state.meta.subgroups.length % DAY_COLORS.length];
+    const g = {
+      uid: uid(),
+      name: typedName || place.name || "Group " + (state.meta.subgroups.length + 1),
+      color: color,
+    };
+    state.meta.subgroups.push(g);
+    // NOT PROMOTED. A ride always has a main group already — the seed, or
+    // whichever the rider promoted since — so a group added now is a joining
+    // one, and taking the main slot from underneath them would silently
+    // re-point every meeting-point proposal at a road nobody has planned.
+    //
+    // The fairness half is still live and matters MORE than it did: the seed is
+    // the planner's own group, so the default main group IS the planner's, which
+    // is exactly the case #67 says the app must not choose silently.
+    // renderAnchorNote is what says so, and it fires from the second group on.
+    //
+    // Re-derived rather than conditionally set: the main group IS the first in
+    // the list, so reading it back is the one spelling that cannot drift.
+    state.meta.primarySubgroup = state.meta.subgroups[0].uid;
+    // AND IT COMES WITH A ROUTE OF ITS OWN, starting where the rider just said.
+    // Ziad's call, 2026-09-04, reported as "I added a third group, so there
+    // should be three distinct routes". A group used to be a TAG and nothing
+    // else: adding one changed nothing a rider could see, and giving it a road
+    // meant knowing to add a day and then assign it from the day's own picker —
+    // two steps, in a different tab, that nothing on screen asked for.
+    seedGroupRoute(g, place);
+    closeNewGroup();
+    // The new group cannot be assigned to anybody until the ride saves, which
+    // the Riders tab says itself.
+    ridersStale();
+    renderDays();
+    rebuildLayers();
+    renderMarkers();
+    markDirty();
+    panTo(state.map, place.lngLat, 10);
+  }
+
   function wireSubgroups() {
     const add = $("sg-add");
     if (!add) return;
 
-    add.addEventListener("click", () => {
-      beginEdit("add a group");
-      // Walks the day palette so two groups are never the same color. It is the
-      // group's own color rather than a day's because a group spans several
-      // days and its line has to read as one thing across all of them.
-      const color = DAY_COLORS[state.meta.subgroups.length % DAY_COLORS.length];
-      const g = { uid: uid(), name: "Group " + (state.meta.subgroups.length + 1), color: color };
-      state.meta.subgroups.push(g);
-      // NOT PROMOTED. A ride always has a main group already — the seed, or
-      // whichever the rider promoted since — so a group added now is a joining
-      // one, and taking the main slot from underneath them would silently
-      // re-point every meeting-point proposal at a road nobody has planned.
-      //
-      // The fairness half is still live and matters MORE than it did: the seed
-      // is the planner's own group, so the default main group IS the planner's,
-      // which is exactly the case #67 says the app must not choose silently.
-      // renderAnchorNote is what says so, and it fires from the second group on.
-      //
-      // Re-derived rather than conditionally set: the main group IS the first in
-      // the list, so reading it back is the one spelling that cannot drift.
-      state.meta.primarySubgroup = state.meta.subgroups[0].uid;
-      // AND IT COMES WITH A ROUTE OF ITS OWN. Ziad's call, 2026-09-04, reported
-      // as "I added a third group, so there should be three distinct routes".
-      // A group used to be a TAG and nothing else: adding one changed nothing a
-      // rider could see, and giving it a road meant knowing to add a day and
-      // then assign it from the day's own picker — two steps, in a different
-      // tab, that nothing on screen asked for. Same reasoning as SEED_GROUP:
-      // planning for a group means that group is riding something.
-      seedGroupRoute(g);
-      // The panel used to be one column with a collapsed <details> for groups,
-      // and this opened it. The Groups tab is already open — pressing Add a
-      // group is only reachable from inside it — so there is nothing to reveal;
-      // what does need saying is that the new group cannot be assigned to
-      // anybody until the ride saves, which the Riders tab says itself.
-      ridersStale();
-      renderDays();
-      rebuildLayers();
-      renderMarkers();
-      markDirty();
-    });
+    // A GROUP CANNOT BE MADE WITHOUT A STARTING POINT, so the button opens a form
+    // rather than creating anything. Ziad's call, 2026-09-04.
+    add.addEventListener("click", openNewGroup);
 
     // Delegated on the body, because every row is rebuilt by renderSubgroups
     // and a handler bound to a row would be thrown away with it.

@@ -2829,6 +2829,78 @@
   color: $neutral-57;
 }
 
+// THE ADD-A-GROUP FORM. A group cannot be made without a starting point, so
+// this collects one before anything exists — see openNewGroup(). It sits in
+// .tab-actions beside the button rather than inside #sg-body, which is rebuilt
+// whenever a day changes and would take a half-typed search with it.
+.sg-new {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid $grey;
+  border-radius: 6px;
+  background: $white;
+  text-align: left;
+}
+
+.sg-new-lab {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: $neutral-36;
+}
+
+.sg-new-start,
+.sg-new-name {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.3em 0.4em;
+  border: 1px solid $grey;
+  border-radius: 5px;
+  background: $white;
+}
+
+// The predictions. A plain list under the field rather than a floating panel:
+// this form is already a box of its own, and a popover would have to be
+// positioned against a drawer that scrolls.
+.sg-new-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.sg-new-hit {
+  display: block;
+  width: 100%;
+  padding: 0.3em 0.4em;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 0.8em;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, $brand 10%, transparent);
+  }
+}
+
+.sg-new-ctx {
+  color: $neutral-57;
+}
+
+.sg-new-empty {
+  padding: 0.3em 0.4em;
+  font-size: 0.8em;
+  color: $neutral-57;
+}
+
 // ONE SECTION PER JOINING GROUP. Ziad's call, 2026-09-04: a press answers the
 // whole question — where group 2 joins, where group 3 joins — and the planner
 // knocks the decisions down one at a time. The heading is what makes three
