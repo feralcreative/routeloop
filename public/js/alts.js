@@ -2,7 +2,7 @@
 //
 // Two implementations for the same reason twist.js, filename.js and duration.js
 // are: the server owns the rule and the builder needs it live, while the rider
-// is still dragging days around. There is no round trip to ask the server which
+// is still dragging routes around. There is no round trip to ask the server which
 // alternate is active or what the ride's mileage now reads.
 //
 // test/alts.test.ts runs both over the same fixtures and fails if they ever
@@ -26,8 +26,8 @@ window.TBAlt = (function () {
 
   const METERS_PER_MILE = 1609.344;
 
-  function resolveAltGroups(days) {
-    for (const d of days) {
+  function resolveAltGroups(routes) {
+    for (const d of routes) {
       if (d.altGroup == null) {
         d.altGroup = null;
         d.altActive = true;
@@ -36,7 +36,7 @@ window.TBAlt = (function () {
 
     const order = [];
     const members = new Map();
-    for (const d of days) {
+    for (const d of routes) {
       if (d.altGroup == null) continue;
       let m = members.get(d.altGroup);
       if (!m) {
@@ -74,13 +74,13 @@ window.TBAlt = (function () {
     }
   }
 
-  function activeDays(days) {
-    return days.filter((d) => d.altGroup == null || d.altActive);
+  function activeRoutes(routes) {
+    return routes.filter((d) => d.altGroup == null || d.altActive);
   }
 
-  function activeDayCount(days) {
+  function activeRouteCount(routes) {
     let n = 0;
-    for (const d of days) if (d.altGroup == null || d.altActive) n++;
+    for (const d of routes) if (d.altGroup == null || d.altActive) n++;
     return n;
   }
 
@@ -88,21 +88,21 @@ window.TBAlt = (function () {
     return n < 25 ? String.fromCharCode(98 + n) : "z" + (n - 23);
   }
 
-  function dayOrdinals(days) {
-    const out = new Array(days.length).fill("");
+  function routeOrdinals(routes) {
+    const out = new Array(routes.length).fill("");
     const groupNumber = new Map();
     let n = 0;
 
-    for (let i = 0; i < days.length; i++) {
-      const d = days[i];
+    for (let i = 0; i < routes.length; i++) {
+      const d = routes[i];
       if (d.altGroup != null && !d.altActive) continue;
       out[i] = String(++n);
       if (d.altGroup != null) groupNumber.set(d.altGroup, n);
     }
 
     const rank = new Map();
-    for (let i = 0; i < days.length; i++) {
-      const d = days[i];
+    for (let i = 0; i < routes.length; i++) {
+      const d = routes[i];
       if (d.altGroup == null || d.altActive) continue;
       const k = rank.get(d.altGroup) || 0;
       rank.set(d.altGroup, k + 1);
@@ -113,20 +113,20 @@ window.TBAlt = (function () {
     return out;
   }
 
-  function dayOrdinal(days, i) {
-    return dayOrdinals(days)[i] || "";
+  function routeOrdinal(routes, i) {
+    return routeOrdinals(routes)[i] || "";
   }
 
-  // Fold per-day totals into the ride's. Takes the totals of the days that
-  // COUNT — callers pass activeDays(state.days).map(routeTotals) — so a losing
+  // Fold per-route totals into the ride's. Takes the totals of the routes that
+  // COUNT — callers pass activeRoutes(state.routes).map(routeTotals) — so a losing
   // alternate's miles never reach it.
   //
-  // Twistiness across days is a distance-weighted mean, not an average of the
-  // days' figures: it is degrees over miles, so the ride's value is the sum of
-  // the degrees over the sum of the miles. Averaging the per-day numbers would
-  // let a 30-mile breakfast ride count as much as a 300-mile transit day.
+  // Twistiness across routes is a distance-weighted mean, not an average of the
+  // routes' figures: it is degrees over miles, so the ride's value is the sum of
+  // the degrees over the sum of the miles. Averaging the per-route numbers would
+  // let a 30-mile breakfast ride count as much as a 300-mile transit route.
   //
-  // The ride's best stretch is the best any single day has, not a sum:
+  // The ride's best stretch is the best any single route has, not a sum:
   // "somewhere in this ride there are twenty miles like that".
   function rideRollup(totals) {
     const acc = {
@@ -162,5 +162,5 @@ window.TBAlt = (function () {
     return acc;
   }
 
-  return { resolveAltGroups, activeDays, activeDayCount, dayOrdinals, dayOrdinal, rideRollup, METERS_PER_MILE };
+  return { resolveAltGroups, activeRoutes, activeRouteCount, routeOrdinals, routeOrdinal, rideRollup, METERS_PER_MILE };
 })();

@@ -2,7 +2,7 @@
 // roadbook and the Google Maps hand-off.
 //
 // ONE COMPONENT BECAUSE THE ANSWER MUST NOT DIFFER between them. A rider who
-// reads "Seattle approach" on the roadbook and gets everybody's days in the
+// reads "Seattle approach" on the roadbook and gets everybody's routes in the
 // hand-off has been handed somebody else's morning at a fuel stop, which is the
 // exact failure #67's per-rider export exists to prevent.
 //

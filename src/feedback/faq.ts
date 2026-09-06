@@ -7,7 +7,7 @@
 //
 // Why this exists at all: the question path is the one kind where the best
 // outcome is that we never see the report. A rider who finds their answer in
-// three seconds is better served than one who waits a day for an email, and it
+// three seconds is better served than one who waits a route for an email, and it
 // costs us a list of 24 headings.
 
 /** One question, addressable by the anchor it already has on /faq. Those ids are

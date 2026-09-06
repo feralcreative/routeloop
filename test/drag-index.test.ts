@@ -1,4 +1,4 @@
-// The arithmetic that turns a SortableJS drop into a position in day.points.
+// The arithmetic that turns a SortableJS drop into a position in route.points.
 //
 // This test exists because the four lines it covers shipped wrong and nothing
 // caught it. There is no browser suite, so a drag was verifiable only by hand —
@@ -50,14 +50,14 @@ describe('dropTarget', () => {
     expect(D.dropTarget(4, -3, 8)).toBe(0)
   })
 
-  // A day of one point has nowhere to drop to; a day of none cannot be dragged
+  // A route of one point has nowhere to drop to; a route of none cannot be dragged
   // in at all.
   it('is null when there is nothing to reorder', () => {
     expect(D.dropTarget(0, 0, 1)).toBeNull()
     expect(D.dropTarget(0, 0, 0)).toBeNull()
   })
 
-  it('is null for a row index outside the day', () => {
+  it('is null for a row index outside the route', () => {
     expect(D.dropTarget(9, 2, 8)).toBeNull()
     expect(D.dropTarget(-1, 2, 8)).toBeNull()
   })
@@ -103,22 +103,22 @@ describe('dropTarget', () => {
 describe('builder.js reads the draggable indices, not the raw ones', () => {
   const SRC = readFileSync('public/js/builder.js', 'utf8')
 
-  // initDayDrag is the one handler where the raw pair is correct, because
-  // #day-list holds nothing but .day-section children and the two pairs agree.
+  // initRouteDrag is the one handler where the raw pair is correct, because
+  // #route-list holds nothing but .route-section children and the two pairs agree.
   // Every other use is a bug, so the test is: all of them are in there.
-  const dayDragStart = SRC.indexOf('function initDayDrag')
-  const dayDragEnd = SRC.indexOf('\n  function ', dayDragStart + 1)
+  const routeDragStart = SRC.indexOf('function initRouteDrag')
+  const routeDragEnd = SRC.indexOf('\n  function ', routeDragStart + 1)
 
-  it('finds the day-drag handler, so the exemption below means something', () => {
-    expect(dayDragStart).toBeGreaterThan(-1)
-    expect(dayDragEnd).toBeGreaterThan(dayDragStart)
+  it('finds the route-drag handler, so the exemption below means something', () => {
+    expect(routeDragStart).toBeGreaterThan(-1)
+    expect(routeDragEnd).toBeGreaterThan(routeDragStart)
   })
 
-  it('uses evt.newIndex / evt.oldIndex nowhere but the day-drag handler', () => {
+  it('uses evt.newIndex / evt.oldIndex nowhere but the route-drag handler', () => {
     const offenders: string[] = []
     for (const m of SRC.matchAll(/evt\.(newIndex|oldIndex)/g)) {
       const at = m.index ?? 0
-      if (at < dayDragStart || at > dayDragEnd) {
+      if (at < routeDragStart || at > routeDragEnd) {
         offenders.push(`${m[0]} at line ${SRC.slice(0, at).split('\n').length}`)
       }
     }
@@ -149,7 +149,7 @@ describe('insertTarget', () => {
     expect(D.insertTarget(-4, 7)).toBe(0)
   })
 
-  it('puts the first point of an empty day at the top', () => {
+  it('puts the first point of an empty route at the top', () => {
     expect(D.insertTarget(0, 0)).toBe(0)
     expect(D.insertTarget(5, 0)).toBe(0)
   })

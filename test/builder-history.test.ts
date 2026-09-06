@@ -2,7 +2,7 @@
 //
 // This exists because the properties it asserts are invisible when they break.
 // A snapshot that shares a `roles` array still passes every manual test until
-// the day a role toggle silently rewrites history that was taken ten edits
+// the route a role toggle silently rewrites history that was taken ten edits
 // ago. A restore that reuses route objects works perfectly until a routing
 // response that left before an undo lands after it. Neither shows up in a
 // click-through; both are one assertion here.
@@ -13,7 +13,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 
-type Snap = { meta: Record<string, unknown>; days: any[] }
+type Snap = { meta: Record<string, unknown>; routes: any[] }
 type Store = {
   getItem(k: string): string | null
   setItem(k: string, v: string): void
@@ -83,7 +83,7 @@ function stateOf(): any {
     layerCount: 3,
     legSeq: [[1, 2]],
     meta: {
-      title: 'Three days',
+      title: 'Three routes',
       description: 'd',
       visibility: 'private',
       external_url: '',
@@ -93,9 +93,9 @@ function stateOf(): any {
       ],
       primarySubgroup: 'aaaaaaaaaaaa',
     },
-    days: [
+    routes: [
       {
-        title: 'Day 1',
+        title: 'Route 1',
         color: '#cc0000',
         startAt: '2026-08-01T09:00:00Z',
         endAt: '2026-08-01T17:00:00Z',
@@ -119,17 +119,17 @@ describe('what a snapshot carries', () => {
   it('keeps meta and routes', () => {
     const s = stateOf()
     const snap: Snap = H.snapshot(s)
-    expect(snap.meta.title).toBe('Three days')
-    expect(snap.days).toHaveLength(1)
-    expect(snap.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
-    expect(snap.days[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
+    expect(snap.meta.title).toBe('Three routes')
+    expect(snap.routes).toHaveLength(1)
+    expect(snap.routes[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
+    expect(snap.routes[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
   })
 
   // payload() drops this, so deriving the snapshot from payload() would lose
   // a hand-typed end time on every undo — silently, and only for the rider
   // who bothered to set one.
   it('keeps endManual, which payload() does not carry', () => {
-    expect(H.snapshot(stateOf()).days[0].endManual).toBe(true)
+    expect(H.snapshot(stateOf()).routes[0].endManual).toBe(true)
   })
 
   it('carries no UI state, identity or map handles', () => {
@@ -143,12 +143,12 @@ describe('what a snapshot carries', () => {
 describe('what a snapshot copies and what it shares', () => {
   // The memory budget rests on this one identity. Sharing geometry is what
   // makes a 100-step stack ~50 object copies instead of ~19,000 coordinate
-  // pairs per step; if this ever becomes a deep copy, a long multi-day ride
+  // pairs per step; if this ever becomes a deep copy, a long multi-route ride
   // will eat hundreds of megabytes and nothing will say so.
   it('shares leg geometry by reference, because it is never mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.days[0].legs[0].geometry).toBe(s.days[0].legs[0].geometry)
+    expect(snap.routes[0].legs[0].geometry).toBe(s.routes[0].legs[0].geometry)
   })
 
   // Regression: viaPoints was shared by reference because nothing wrote vias.
@@ -158,20 +158,20 @@ describe('what a snapshot copies and what it shares', () => {
   it('copies viaPoints, which drag-to-shape splices in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.days[0].legs[0].viaPoints).not.toBe(s.days[0].legs[0].viaPoints)
-    s.days[0].legs[0].viaPoints.splice(0, 0, [-122.05, 37.05])
-    expect(snap.days[0].legs[0].viaPoints).toEqual([])
+    expect(snap.routes[0].legs[0].viaPoints).not.toBe(s.routes[0].legs[0].viaPoints)
+    s.routes[0].legs[0].viaPoints.splice(0, 0, [-122.05, 37.05])
+    expect(snap.routes[0].legs[0].viaPoints).toEqual([])
   })
 
   it('copies the legs array and each leg object, which are mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.days[0].legs).not.toBe(s.days[0].legs)
-    expect(snap.days[0].legs[0]).not.toBe(s.days[0].legs[0])
+    expect(snap.routes[0].legs).not.toBe(s.routes[0].legs)
+    expect(snap.routes[0].legs[0]).not.toBe(s.routes[0].legs[0])
     // viaPoints is reassigned wholesale on drag; a shared leg object would
     // let that reach into history.
-    s.days[0].legs[0].viaPoints = [[-121.5, 37.5]]
-    expect(snap.days[0].legs[0].viaPoints).toEqual([])
+    s.routes[0].legs[0].viaPoints = [[-121.5, 37.5]]
+    expect(snap.routes[0].legs[0].viaPoints).toEqual([])
   })
 
   // Regression, and the one that was NOT inside a route: `meta` is spread, which
@@ -194,27 +194,27 @@ describe('what a snapshot copies and what it shares', () => {
   it('copies roles arrays, which ARE mutated in place', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    expect(snap.days[0].points[2].roles).not.toBe(s.days[0].points[2].roles)
-    s.days[0].points[2].roles.push('hotel')
-    expect(snap.days[0].points[2].roles).toEqual(['gas', 'food'])
+    expect(snap.routes[0].points[2].roles).not.toBe(s.routes[0].points[2].roles)
+    s.routes[0].points[2].roles.push('hotel')
+    expect(snap.routes[0].points[2].roles).toEqual(['gas', 'food'])
   })
 
   it('survives every in-place mutation the builder actually performs', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     // Each of these mirrors a real site in builder.js.
-    s.days[0].points.reverse() // reverseDay
-    s.days[0].points[0].lat = 99 // marker dragend
-    s.days[0].points[0].name = 'typed' // row input
-    s.days[0].points[0].kind = 'poi' // setPointKind
-    s.days[0].points.splice(0, 1) // deletePoint
-    s.days[0].legs.splice(0, 1) // deletePoint, stop branch
+    s.routes[0].points.reverse() // reverseRoute
+    s.routes[0].points[0].lat = 99 // marker dragend
+    s.routes[0].points[0].name = 'typed' // row input
+    s.routes[0].points[0].kind = 'poi' // setPointKind
+    s.routes[0].points.splice(0, 1) // deletePoint
+    s.routes[0].legs.splice(0, 1) // deletePoint, stop branch
     s.meta.title = 'renamed' // ride-title input
-    expect(snap.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
-    expect(snap.days[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
-    expect(snap.days[0].points[0].lat).toBe(37)
-    expect(snap.days[0].legs).toHaveLength(1)
-    expect(snap.meta.title).toBe('Three days')
+    expect(snap.routes[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
+    expect(snap.routes[0].points.map((x: any) => x.kind)).toEqual(['stop', 'poi', 'stop'])
+    expect(snap.routes[0].points[0].lat).toBe(37)
+    expect(snap.routes[0].legs).toHaveLength(1)
+    expect(snap.meta.title).toBe('Three routes')
   })
 })
 
@@ -222,34 +222,34 @@ describe('restore', () => {
   it('puts the snapshot back', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    s.days[0].points.pop()
+    s.routes[0].points.pop()
     s.meta.title = 'wrong'
     H.restore(s, snap)
-    expect(s.days[0].points).toHaveLength(3)
-    expect(s.meta.title).toBe('Three days')
+    expect(s.routes[0].points).toHaveLength(3)
+    expect(s.meta.title).toBe('Three routes')
   })
 
-  // The async leg completion guards on `state.days[r] !== route`. Fresh
+  // The async leg completion guards on `state.routes[r] !== route`. Fresh
   // objects make an in-flight routing response drop itself; handing back the
   // stored reference lets a response that left before the undo land after it,
   // writing a leg the rider already took back.
   it('builds fresh route objects rather than aliasing the snapshot', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
-    const beforeRoute = s.days[0]
+    const beforeRoute = s.routes[0]
     H.restore(s, snap)
-    expect(s.days[0]).not.toBe(beforeRoute)
-    expect(s.days[0]).not.toBe(snap.days[0])
-    expect(s.days[0].points[0]).not.toBe(snap.days[0].points[0])
+    expect(s.routes[0]).not.toBe(beforeRoute)
+    expect(s.routes[0]).not.toBe(snap.routes[0])
+    expect(s.routes[0].points[0]).not.toBe(snap.routes[0].points[0])
   })
 
   it('can be restored twice without the first restore aliasing the second', () => {
     const s = stateOf()
     const snap = H.snapshot(s)
     H.restore(s, snap)
-    s.days[0].points[0].name = 'clobbered'
+    s.routes[0].points[0].name = 'clobbered'
     H.restore(s, snap)
-    expect(s.days[0].points[0].name).toBe('A')
+    expect(s.routes[0].points[0].name).toBe('A')
   })
 
   it('resets legSeq, so nothing in flight is let through', () => {
@@ -348,8 +348,8 @@ describe('drafts', () => {
     expect(H.Draft.write(41, s)).toBe(true)
     const back = H.Draft.read(41)
     expect(back.rideId).toBe(41)
-    expect(back.meta.title).toBe('Three days')
-    expect(back.days[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
+    expect(back.meta.title).toBe('Three routes')
+    expect(back.routes[0].points.map((x: any) => x.name)).toEqual(['A', 'View', 'B'])
   })
 
   it('keys a never-saved ride separately from a saved one', () => {
@@ -367,8 +367,8 @@ describe('drafts', () => {
     H.Draft.write(41, stateOf())
     const back = H.Draft.read(41)
     expect(back.legsStripped).toBe(true)
-    expect(back.days[0].legs[0]).not.toHaveProperty('geometry')
-    expect(back.days[0].legs[0].distanceM).toBe(1000)
+    expect(back.routes[0].legs[0]).not.toHaveProperty('geometry')
+    expect(back.routes[0].legs[0].distanceM).toBe(1000)
   })
 
   it('is small enough to matter — a 500-point leg does not go to disk', () => {
@@ -379,9 +379,9 @@ describe('drafts', () => {
     expect(raw.length).toBeLessThan(2000)
   })
 
-  it('keeps empty days, which payload() drops', () => {
+  it('keeps empty routes, which payload() drops', () => {
     const s = stateOf()
-    s.days.push({
+    s.routes.push({
       title: '',
       color: '#0000cc',
       startAt: null,
@@ -391,7 +391,7 @@ describe('drafts', () => {
       legs: [],
     })
     H.Draft.write(41, s)
-    expect(H.Draft.read(41).days).toHaveLength(2)
+    expect(H.Draft.read(41).routes).toHaveLength(2)
   })
 
   it('clears', () => {
@@ -401,7 +401,7 @@ describe('drafts', () => {
   })
 
   it('discards a draft written by an older schema rather than guessing', () => {
-    store.setItem('routeloop.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, days: [] }))
+    store.setItem('routeloop.builderDraft.41', JSON.stringify({ v: 0, savedAt: 1, routes: [] }))
     expect(H.Draft.read(41)).toBe(null)
     expect(store.getItem('routeloop.builderDraft.41')).toBe(null)
   })
@@ -484,18 +484,18 @@ describe('drafts', () => {
     expect(H.Draft.read(null)).toBe(null)
     const moved = H.Draft.read(77)
     expect(moved.rideId).toBe(77)
-    expect(moved.meta.title).toBe('Three days')
+    expect(moved.meta.title).toBe('Three routes')
   })
 })
 
 // The snapshot rule, for the field this feature added. `roles` has been copied
 // since the beginning; `details` joins it, and `leg.viaPoints` moved between the
-// shared and copied groups the day drag-to-shape shipped without anything
+// shared and copied groups the route drag-to-shape shipped without anything
 // failing loudly. Re-check this whenever an edit-in-place feature lands.
 describe('snapshot copies details rather than sharing them', () => {
   const withDetails = () => ({
     meta: {},
-    days: [
+    routes: [
       {
         points: [
           {
@@ -513,26 +513,26 @@ describe('snapshot copies details rather than sharing them', () => {
   it('does not share the details object', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].points[0].details.notes = 'changed'
-    expect(snap.days[0].points[0].details.notes).toBe('gate 4417')
+    state.routes[0].points[0].details.notes = 'changed'
+    expect(snap.routes[0].points[0].details.notes).toBe('gate 4417')
   })
 
   it('does not share the links array inside details', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].points[0].details.links.push({ label: 'x', url: 'y' })
-    expect(snap.days[0].points[0].details.links).toHaveLength(1)
+    state.routes[0].points[0].details.links.push({ label: 'x', url: 'y' })
+    expect(snap.routes[0].points[0].details.links).toHaveLength(1)
   })
 
   it('does not share a link object inside that array', () => {
     const state = withDetails()
     const snap = H.snapshot(state)
-    state.days[0].points[0].details.links[0].url = 'changed'
-    expect(snap.days[0].points[0].details.links[0].url).toBe('b')
+    state.routes[0].points[0].details.links[0].url = 'changed'
+    expect(snap.routes[0].points[0].details.links[0].url).toBe('b')
   })
 
   it('leaves a stop with no details as null', () => {
-    const snap = H.snapshot({ meta: {}, days: [{ points: [{ kind: 'stop', roles: [], details: null }], legs: [] }] })
-    expect(snap.days[0].points[0].details).toBeNull()
+    const snap = H.snapshot({ meta: {}, routes: [{ points: [{ kind: 'stop', roles: [], details: null }], legs: [] }] })
+    expect(snap.routes[0].points[0].details).toBeNull()
   })
 })

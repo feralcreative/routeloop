@@ -1,7 +1,7 @@
 // CSV import, and the round-trip back out through the exporter.
 //
 // The parser is hand-written, so the tests that matter are the ones about the
-// grammar rather than about days: a quoted comma, a doubled quote, an
+// grammar rather than about routes: a quoted comma, a doubled quote, an
 // embedded newline, CRLF. Those are what separate a parser from a `split(',')`,
 // and "Chevron, Petaluma" is a name a rider will actually type.
 import { describe, expect, it } from 'vitest'
@@ -137,7 +137,7 @@ describe('processCsv', () => {
     expect(() => processCsv('name,lat,lng\nA,38.2\n')).toThrow(/row 2: "" is not a longitude/)
   })
 
-  it('refuses more stops than a day can hold', () => {
+  it('refuses more stops than a route can hold', () => {
     const rows = Array.from({ length: 250 }, (_, i) => `S${i},38.2,-122.6`).join('\n')
     expect(() => processCsv(`${HEAD}\n${rows}\n`)).toThrow(/more than 200 stops/)
   })
@@ -148,9 +148,9 @@ describe('buildCsv → processCsv round-trip', () => {
     title: 'Bodega weekend',
     description: null,
     hiddenAlts: 0,
-    days: [
+    routes: [
       {
-        title: 'Day 1',
+        title: 'Route 1',
         color: '#cc0000',
         distanceM: 16000,
         durationS: 0,
@@ -222,6 +222,8 @@ describe('buildCsv → processCsv round-trip', () => {
   })
 
   it('writes a header a spreadsheet can read', () => {
-    expect(buildCsv(ride).split('\r\n')[0]).toBe('day,kind,name,lat,lng,roles,durationMin,description,distFromStartMi')
+    expect(buildCsv(ride).split('\r\n')[0]).toBe(
+      'route,kind,name,lat,lng,roles,durationMin,description,distFromStartMi',
+    )
   })
 })

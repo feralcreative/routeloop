@@ -1,5 +1,5 @@
 // The live channel for a ride: who else is here, what they are working on, and
-// when a day changes under you.
+// when a route changes under you.
 //
 // SSE RATHER THAN A WEBSOCKET, and src/dev/livereload.ts is the working
 // precedent in this repo. Everything here is one-directional — the server tells
@@ -67,7 +67,7 @@ liveRoutes.get('/api/rides/:id/live', requireActiveApi, async (c) => {
       rideId: ride.id,
       riderId: user.id,
       name: me?.username ?? 'A rider',
-      dayUid: null,
+      routeUid: null,
       // Fire and forget. writeSSE is async and a publish walks the whole room —
       // awaiting each one would make one slow client stall everybody else's
       // notification. A failed write is a socket that is going away anyway, and
@@ -107,11 +107,11 @@ liveRoutes.get('/api/rides/:id/live', requireActiveApi, async (c) => {
  *
  * A POST because EventSource cannot send anything, and the claim is genuinely a
  * write. It answers whether the claim was granted rather than assuming: the
- * client greys the day either way, so it has to know which side it is on.
+ * client greys the route either way, so it has to know which side it is on.
  *
  * ADVISORY, NOT A LOCK. A refused claim does not stop the rider editing and does
- * not stop their save landing — it is the day hash that decides that, on the
- * write. This exists so two riders do not pick up the same day by accident, not
+ * not stop their save landing — it is the route hash that decides that, on the
+ * write. This exists so two riders do not pick up the same route by accident, not
  * so one can be locked out by the other.
  */
 liveRoutes.post('/api/rides/:id/live/claim', requireActiveApi, requireSameOrigin, async (c) => {
@@ -119,13 +119,13 @@ liveRoutes.post('/api/rides/:id/live/claim', requireActiveApi, requireSameOrigin
   const ride = await liveRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  let body: { dayUid?: unknown } | null = null
+  let body: { routeUid?: unknown } | null = null
   try {
     body = await c.req.json()
   } catch {
     return c.json({ error: 'invalid JSON body' }, 400)
   }
-  const dayUid = typeof body?.dayUid === 'string' && body.dayUid.length <= 12 ? body.dayUid : null
+  const routeUid = typeof body?.routeUid === 'string' && body.routeUid.length <= 12 ? body.routeUid : null
 
   // Every connection this rider has open on this ride, so a claim made in one
   // tab is not immediately contradicted by a heartbeat from another.
@@ -134,7 +134,7 @@ liveRoutes.post('/api/rides/:id/live/claim', requireActiveApi, requireSameOrigin
   for (const conn of hub.roomOf(ride.id)) {
     if (conn.riderId !== user.id) continue
     found = true
-    if (!hub.setClaim(conn, dayUid)) granted = false
+    if (!hub.setClaim(conn, routeUid)) granted = false
   }
 
   // No stream open — the rider has JavaScript running but the channel has not

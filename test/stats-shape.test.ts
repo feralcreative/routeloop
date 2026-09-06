@@ -8,7 +8,7 @@
 // could plausibly have gone the other way and would be invisible if it had:
 //
 //   - twistiness rolls up distance-weighted, so a short twisty loop cannot
-//     outvote a long transit day
+//     outvote a long transit route
 //   - a null twistiness is "not measured", never "Straight"
 //   - the month series is dense, so a gap in activity draws as a gap
 //   - the storage meter is absent at zero rather than showing 0%
@@ -39,7 +39,7 @@ const NOW = new Date('2026-08-08T12:00:00Z')
 
 const totals = (over: Partial<RawTotals> = {}): RawTotals => ({
   rides: 0,
-  days: 0,
+  routes: 0,
   legs: 0,
   points: 0,
   stops: 0,
@@ -64,10 +64,10 @@ const raw = (over: Partial<RawStats> = {}): RawStats => ({
   roles: [],
   months: [],
   records: {
-    longestDayM: null,
-    longestDayTitle: null,
-    longestDaySlug: null,
-    longestDayThumb: null,
+    longestRouteM: null,
+    longestRouteTitle: null,
+    longestRouteSlug: null,
+    longestRouteThumb: null,
     biggestRideM: null,
     biggestRideTitle: null,
     biggestRideSlug: null,
@@ -84,7 +84,7 @@ const raw = (over: Partial<RawStats> = {}): RawStats => ({
 })
 
 describe('rollUpTwist', () => {
-  // THE test in this file. A 30-mile loop at 300°/mi and a 300-mile day at
+  // THE test in this file. A 30-mile loop at 300°/mi and a 300-mile route at
   // 50°/mi: the honest answer is close to 50, because almost all the miles were
   // the straight ones. A mean of the two figures says 175 — "Twisty" — which
   // describes a library the rider does not have.
@@ -107,7 +107,7 @@ describe('rollUpTwist', () => {
     ).toBe(150)
   })
 
-  // Null is not zero. days.twistiness_dpm is nullable and query.ts filters
+  // Null is not zero. routes.twistiness_dpm is nullable and query.ts filters
   // nulls out before they arrive, so an empty list means "nothing measured" —
   // and the one thing it must never do is fall through to the 0 band.
   it('returns null when nothing has been measured, rather than "Straight"', () => {
@@ -151,7 +151,7 @@ describe('rollUpTwist', () => {
   })
 
   // A route with no distance carries no weight and must not divide by zero.
-  it('ignores zero-length days', () => {
+  it('ignores zero-length routes', () => {
     expect(rollUpTwist([{ dpm: 999, distanceM: 0 }])).toBeNull()
     expect(
       rollUpTwist([
@@ -200,7 +200,7 @@ describe('roleBars', () => {
   })
 
   // Every ride has a start and an end, so both arrive with a count equal to the
-  // number of days and sit at the top of a chart called "what you stop for" —
+  // number of routes and sit at the top of a chart called "what you stop for" —
   // burying the categories the rider actually chose. Caught by rendering it.
   it('drops start and finish, which every route has by construction', () => {
     const bars = roleBars([
@@ -316,7 +316,7 @@ describe('shapeStats', () => {
 
   // The builder-only rider. This is the case that made the meter conditional.
   it('hides the meter entirely when nothing has been imported', () => {
-    expect(shapeStats(raw({ totals: totals({ rides: 9, days: 20 }) }), 0, NOW).meter).toBeNull()
+    expect(shapeStats(raw({ totals: totals({ rides: 9, routes: 20 }) }), 0, NOW).meter).toBeNull()
   })
 
   it('shows the meter once something is stored', () => {
@@ -346,7 +346,7 @@ describe('shapeStats', () => {
   })
 
   it('uses singular labels for one of a thing', () => {
-    const s = shapeStats(raw({ totals: totals({ rides: 1, days: 1, legs: 1, points: 1 }) }), 0, NOW)
+    const s = shapeStats(raw({ totals: totals({ rides: 1, routes: 1, legs: 1, points: 1 }) }), 0, NOW)
     expect(s.tiles.map((t) => t.label)).toEqual(['ride', 'route', 'leg', 'waypoint'])
   })
 
@@ -383,10 +383,10 @@ describe('shapeStats', () => {
     const s = shapeStats(
       raw({
         records: {
-          longestDayM: 420 * MI,
-          longestDayTitle: 'Sierras',
-          longestDaySlug: 'abc',
-          longestDayThumb: 'h1',
+          longestRouteM: 420 * MI,
+          longestRouteTitle: 'Sierras',
+          longestRouteSlug: 'abc',
+          longestRouteThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
@@ -413,7 +413,7 @@ describe('shapeStats', () => {
   // small. The whole point is that `value` is now the number ALONE — a record
   // that re-joins them puts the emphasis back on the unit.
   it('hands the figure and its unit over separately', () => {
-    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const s = shapeStats(raw({ records: { ...raw().records, longestRouteM: 420 * MI } }), 0, NOW)
     const rec = s.records.find((x) => x.label === 'Longest single route')
     expect(rec?.value).toBe('420')
     expect(rec?.unit).toBe('mi')
@@ -445,10 +445,10 @@ describe('shapeStats', () => {
     const s = shapeStats(
       raw({
         records: {
-          longestDayM: 420 * MI,
-          longestDayTitle: 'Sierras',
-          longestDaySlug: 'abc',
-          longestDayThumb: 'h1',
+          longestRouteM: 420 * MI,
+          longestRouteTitle: 'Sierras',
+          longestRouteSlug: 'abc',
+          longestRouteThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
@@ -469,17 +469,17 @@ describe('shapeStats', () => {
   })
 
   // EVERY record names a ride, so every card can show its map and link to it.
-  // Two of the four did not until 2026-08-26: the longest day and the twistiest
+  // Two of the four did not until 2026-08-26: the longest route and the twistiest
   // stretch were max() aggregates, and a figure with no slug is a card with no
   // picture next to three that have one.
   it('carries the ride and its thumbnail on all four records', () => {
     const s = shapeStats(
       raw({
         records: {
-          longestDayM: 420 * MI,
-          longestDayTitle: 'Sierras',
-          longestDaySlug: 'abc',
-          longestDayThumb: 'h1',
+          longestRouteM: 420 * MI,
+          longestRouteTitle: 'Sierras',
+          longestRouteSlug: 'abc',
+          longestRouteThumb: 'h1',
           biggestRideM: 2100 * MI,
           biggestRideTitle: 'Sierras',
           biggestRideSlug: 'abc',
@@ -501,12 +501,14 @@ describe('shapeStats', () => {
     expect(s.records.map((x) => x.thumbHash)).toEqual(['h1', 'h1', 'h2', 'h3'])
   })
 
-  // The longest day gained a hint it never had, for the same reason: a map with
+  // The longest route gained a hint it never had, for the same reason: a map with
   // no name, on a card that links somewhere, asks the rider to recognize their
   // own route from a thumbnail.
-  it('names the ride the longest day was set on', () => {
+  it('names the ride the longest route was set on', () => {
     const s = shapeStats(
-      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDayTitle: 'Sierras', longestDaySlug: 'abc' } }),
+      raw({
+        records: { ...raw().records, longestRouteM: 420 * MI, longestRouteTitle: 'Sierras', longestRouteSlug: 'abc' },
+      }),
       0,
       NOW,
     )
@@ -519,7 +521,7 @@ describe('shapeStats', () => {
   // the view builds `?v=null` and asks the route for a picture by that name.
   it('gives a record its slug without a thumbnail when the sweep has not run', () => {
     const s = shapeStats(
-      raw({ records: { ...raw().records, longestDayM: 420 * MI, longestDaySlug: 'abc', longestDayThumb: null } }),
+      raw({ records: { ...raw().records, longestRouteM: 420 * MI, longestRouteSlug: 'abc', longestRouteThumb: null } }),
       0,
       NOW,
     )
@@ -533,7 +535,7 @@ describe('shapeStats', () => {
   // a span instead of an anchor when it happens, so neither key may be present
   // and defined.
   it('leaves the ride keys off a record that has none', () => {
-    const s = shapeStats(raw({ records: { ...raw().records, longestDayM: 420 * MI } }), 0, NOW)
+    const s = shapeStats(raw({ records: { ...raw().records, longestRouteM: 420 * MI } }), 0, NOW)
     const rec = s.records.find((x) => x.label === 'Longest single route')
     expect('slug' in (rec ?? {})).toBe(false)
     expect('thumbHash' in (rec ?? {})).toBe(false)
@@ -545,7 +547,7 @@ describe('shapeStats', () => {
   })
 
   // SADDLE TIME. This block replaced a test asserting that no duration figure
-  // appeared anywhere — that rule held from the day the dashboard was built until
+  // appeared anywhere — that rule held from the route the dashboard was built until
   // 2026-08-24, on the grounds that the import path writes no leg duration and a
   // total would therefore undercount. The undercount was fixed instead of the
   // figure being withheld (query.ts estimates an unrouted leg from distance), so
@@ -586,14 +588,14 @@ describe('shapeStats', () => {
 describe('the comparison columns', () => {
   const global = {
     rides: { avg: 6.666666666666667, top: 17 },
-    days: { avg: 13, top: 34 },
+    routes: { avg: 13, top: 34 },
     legs: { avg: 44.333333333333336, top: 95 },
     points: { avg: 67.33333333333333, top: 154 },
   }
 
   const tilesFor = (g?: typeof global) =>
     Object.fromEntries(
-      shapeStats(raw({ totals: totals({ rides: 3, days: 9, legs: 30, points: 50 }) }), 0, NOW, g).tiles.map((t) => [
+      shapeStats(raw({ totals: totals({ rides: 3, routes: 9, legs: 30, points: 50 }) }), 0, NOW, g).tiles.map((t) => [
         t.label,
         t,
       ]),
@@ -642,7 +644,7 @@ describe('fmtAvg', () => {
     expect(fmtAvg(44.333333333333336)).toBe('44.3')
   })
 
-  // "13.0 days" is 13 with a decorative zero on it.
+  // "13.0 routes" is 13 with a decorative zero on it.
   it('drops a decimal that is only a zero', () => {
     expect(fmtAvg(13)).toBe('13')
     expect(fmtAvg(12.98)).toBe('13')
@@ -664,7 +666,7 @@ describe('fmtHours', () => {
   })
 
   // Hours and nothing smaller, unlike the roadbook's fmtDuration. A minute is
-  // information about one day and noise across a hundred, and some unknown share
+  // information about one route and noise across a hundred, and some unknown share
   // of this figure is estimated anyway.
   it('never prints minutes', () => {
     expect(fmtHours(3600 * 4 + 1200)).toBe('4')

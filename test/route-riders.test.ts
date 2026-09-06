@@ -10,13 +10,14 @@ import {
   resolveRouteRiders,
   riderJunctions,
   routesForRider,
-  type DayRiderRef,
+  type RouteRiderRef,
   type RouteRef,
-} from '../src/day-riders/policy'
+} from '../src/route-riders/policy'
 
 const routes = (n: number): RouteRef[] => Array.from({ length: n }, (_, i) => ({ uid: `r${i + 1}`, position: i }))
 
-const on = (dayUid: string, ...riderIds: number[]): DayRiderRef[] => riderIds.map((riderId) => ({ dayUid, riderId }))
+const on = (routeUid: string, ...riderIds: number[]): RouteRiderRef[] =>
+  riderIds.map((riderId) => ({ routeUid, riderId }))
 
 describe('resolveRouteRiders', () => {
   // The ordinary tour: nine routes, nobody has answered anything.
@@ -56,7 +57,7 @@ describe('resolveRouteRiders', () => {
   })
 
   it('drops a rider who has left the roster rather than carrying them', () => {
-    // Rider 3 was on route 1 and is no longer on the ride. day_riders cascades
+    // Rider 3 was on route 1 and is no longer on the ride. route_riders cascades
     // from rides and users, so the row can outlive a roster removal.
     const out = resolveRouteRiders(routes(2), on('r1', 1, 3), [1, 2])
     expect(out[0].riderIds).toEqual([1])

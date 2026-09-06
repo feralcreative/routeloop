@@ -1,4 +1,4 @@
-// A day's routing preferences (#29).
+// A route's routing preferences (#29).
 //
 // The cases here are all one worry: that two spellings of "no preference" reach
 // the row, the cache key or the revision hash as different values. Each of those
@@ -36,7 +36,7 @@ describe('normalizing', () => {
 })
 
 describe('the Google request', () => {
-  // A day with no preferences must send the request it sent before this feature
+  // A route with no preferences must send the request it sent before this feature
   // existed, or every route already in the cache misses on the deploy that
   // lands it and the whole corpus re-bills.
   it('asks for no modifiers at all when nothing is set', () => {
@@ -71,7 +71,9 @@ describe('the cache key', () => {
   })
 
   it('does not depend on the order the flags were written in', () => {
-    expect(prefsKey({ avoidTolls: true, avoidHighways: true })).toBe(prefsKey({ avoidHighways: true, avoidTolls: true }))
+    expect(prefsKey({ avoidTolls: true, avoidHighways: true })).toBe(
+      prefsKey({ avoidHighways: true, avoidTolls: true }),
+    )
   })
 })
 
@@ -116,9 +118,7 @@ describe('the twisty preference', () => {
   it('is part of the cache key', () => {
     expect(prefsKey({ preferTwisty: true })).not.toBe('')
     expect(prefsKey({ preferTwisty: true })).not.toBe(prefsKey({ avoidHighways: true }))
-    expect(prefsKey({ preferTwisty: true, avoidTolls: true })).toBe(
-      prefsKey({ avoidTolls: true, preferTwisty: true }),
-    )
+    expect(prefsKey({ preferTwisty: true, avoidTolls: true })).toBe(prefsKey({ avoidTolls: true, preferTwisty: true }))
   })
 
   it('survives normalizing and collapses when false', () => {

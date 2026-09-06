@@ -21,9 +21,9 @@ export type DownloadSpec = {
   type: string
   stored: StoredExt
   hasStored: (m: RideRow) => boolean
-  // firstDay is only passed by the per-day zip, where each file holds one
-  // day that is day N of a ride rather than day 1 of itself.
-  build: (r: ExportRide, firstDay?: number) => string
+  // firstRoute is only passed by the per-route zip, where each file holds one
+  // route that is route N of a ride rather than route 1 of itself.
+  build: (r: ExportRide, firstRoute?: number) => string
 }
 
 /**

@@ -2,28 +2,28 @@
 //
 // Two lossy edges meet in a filename. GPX and KML carry no dates at all, so a
 // ride exported as the format every GPS actually reads loses its schedule —
-// `days.start_at` survives a round trip through Routeloop JSON and nowhere else. And
-// importing a folder is data entry the files already describe: day order comes
+// `routes.start_at` survives a round trip through Routeloop JSON and nowhere else. And
+// importing a folder is data entry the files already describe: route order comes
 // from whatever order the browser lists them in, and the ride name is typed by
 // hand every time.
 //
 //   routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx
 //   \_______/ \__________/ \_/ \________/ \_________/
-//    marker      ride      day     date       title
+//    marker      ride      route     date       title
 //
 // **A filename cannot hold the ride and is not trying to.** Roles, dwell, via
-// points, per-day colors and the stop/POI distinction do not fit in one and are
+// points, per-route colors and the stop/POI distinction do not fit in one and are
 // not going in one — Routeloop JSON stays the lossless format (see export.ts).
 // This carries the four fields the lossy formats drop, and nothing else.
 //
 // Three rules the whole design rests on:
 //
 // - **Underscores separate fields; hyphens live inside one.** A field never
-//   contains an underscore, so a day title with a dash in it cannot split the
+//   contains an underscore, so a route title with a dash in it cannot split the
 //   filename. This is the entire reason the separator is not a hyphen throughout.
 // - **The marker is load-bearing, not decoration.** Its presence is what says
 //   "this name is structured". Without it `parseExportName` returns null and the
-//   caller takes the path it always took — a rider's own `day-2.gpx` is never
+//   caller takes the path it always took — a rider's own `route-2.gpx` is never
 //   silently reinterpreted.
 // - **Optional fields are identified by shape, not position**, so
 //   `routeloop_big-sur-run_d02.gpx` and `routeloop_big-sur-run_2026-08-14.gpx`
@@ -39,7 +39,7 @@ export const MARKER = 'routeloop'
  * Markers accepted on read, newest first. `tankbag` is the name this app shipped
  * under between 2026-07-29 and 2026-08-11, so every file exported in that window
  * carries it — and the date field is the one thing GPX and KML cannot hold
- * internally. Refusing the old marker would lose day order and dates on
+ * internally. Refusing the old marker would lose route order and dates on
  * re-import, and would do it silently: the files still import, just as one ride
  * in upload order. Write MARKER, read all of these, forever.
  */
@@ -48,7 +48,7 @@ const READ_MARKERS = [MARKER, 'tankbag']
 /** Cap per text field. Five fields well under any filesystem's 255-byte limit. */
 const MAX_FIELD = 60
 
-const DAY_RE = /^d(\d{1,3})$/
+const ROUTE_RE = /^d(\d{1,3})$/
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})(\d{2}))?$/
 
 /** No leading dot. The native extension this app writes. */
@@ -101,10 +101,10 @@ export function titleFromSlug(slug: string): string {
     .join(' ')
 }
 
-// `days.start_at` carries a WALL CLOCK at the departure point, as UTC — see the
-// header of public/js/day-clock.js — and the roadbook renders it with
+// `routes.start_at` carries a WALL CLOCK at the departure point, as UTC — see the
+// header of public/js/route-clock.js — and the roadbook renders it with
 // `timeZone: 'UTC'` for that reason. Formatting a filename any other way would
-// let a roadbook and a filename disagree about which day a route is on, so these
+// let a roadbook and a filename disagree about which route a route is on, so these
 // two are UTC for the same reason and must stay matched to it.
 //
 // No zone in the filename itself, and now none is missing: the digits ARE the
@@ -113,7 +113,7 @@ function fmtDate(d: Date): string {
   const iso = d.toISOString()
   const date = iso.slice(0, 10)
   const hhmm = iso.slice(11, 13) + iso.slice(14, 16)
-  // Midnight is what an undated-but-scheduled day looks like, and writing
+  // Midnight is what an undated-but-scheduled route looks like, and writing
   // `T0000` on every one of them is noise. Any other time is real information.
   return hhmm === '0000' ? date : `${date}T${hhmm}`
 }
@@ -142,8 +142,8 @@ export function splitExt(fileName: string): { stem: string; ext: string } {
 
 export type ExportNameParts = {
   ride: string
-  /** 1-based, matching the "Day N" a rider sees. Null when the name omits it. */
-  day?: number | null
+  /** 1-based, matching the "Route N" a rider sees. Null when the name omits it. */
+  route?: number | null
   date?: Date | null
   title?: string | null
   /** No leading dot. `routeloop.json` for the native format. */
@@ -154,14 +154,14 @@ export type ExportNameParts = {
  * Build a conforming filename. Absent optional fields are skipped rather than
  * written empty, so the result never carries a `__`.
  *
- * The day is written even for a single-day ride: two days titled "Rest Day"
+ * The route is written even for a single-route ride: two routes titled "Rest Day"
  * slug identically, and `dNN` is the only field keeping such filenames distinct.
  * Zero-padded to two so `d10` sorts after `d09` in any file listing.
  */
 export function buildExportName(parts: ExportNameParts): string {
   const fields = [MARKER, slugField(parts.ride) || 'ride']
 
-  if (parts.day != null) fields.push(`d${String(parts.day).padStart(2, '0')}`)
+  if (parts.route != null) fields.push(`d${String(parts.route).padStart(2, '0')}`)
   if (parts.date) fields.push(fmtDate(parts.date))
 
   const title = parts.title ? slugField(parts.title) : ''
@@ -172,9 +172,9 @@ export function buildExportName(parts: ExportNameParts): string {
 
 export type ParsedName = {
   ride: string
-  day: number | null
+  route: number | null
   date: Date | null
-  /** Whether the date field carried a time, as opposed to a bare day. */
+  /** Whether the date field carried a time, as opposed to a bare route. */
   hasTime: boolean
   title: string | null
   ext: string
@@ -187,7 +187,7 @@ export type ParsedName = {
  *
  * Forgiving within a marked name, because the likeliest author of a malformed
  * one is a rider renaming a file rather than an attacker: text fields are
- * re-normalized, a single-digit day is accepted even though this writes two,
+ * re-normalized, a single-digit route is accepted even though this writes two,
  * and tokens past the title are folded into it instead of failing the parse.
  * An unparseable date field is left to be read as title text rather than
  * rejecting the name outright.
@@ -202,16 +202,16 @@ export function parseExportName(fileName: string): ParsedName | null {
   if (!ride) return null
 
   let i = 1
-  let day: number | null = null
+  let route: number | null = null
   let date: Date | null = null
   let hasTime = false
 
-  const dayMatch = i < rest.length ? DAY_RE.exec(rest[i]) : null
-  if (dayMatch) {
-    const n = Number(dayMatch[1])
-    // `d00` is not a day. Left unconsumed so it reads as title text.
+  const routeMatch = i < rest.length ? ROUTE_RE.exec(rest[i]) : null
+  if (routeMatch) {
+    const n = Number(routeMatch[1])
+    // `d00` is not a route. Left unconsumed so it reads as title text.
     if (n >= 1) {
-      day = n
+      route = n
       i++
     }
   }
@@ -227,16 +227,16 @@ export function parseExportName(fileName: string): ParsedName | null {
 
   const title = slugField(rest.slice(i).join('-')) || null
 
-  return { ride, day, date, hasTime, title, ext }
+  return { ride, route, date, hasTime, title, ext }
 }
 
 export type PlannedFile = {
   fileName: string
   /** Position as supplied, before any reordering. */
   index: number
-  day: number | null
+  route: number | null
   date: Date | null
-  /** Whether the date field carried a time. A bare day is not midnight, it is undated. */
+  /** Whether the date field carried a time. A bare route is not midnight, it is undated. */
   hasTime: boolean
   title: string | null
   ext: string
@@ -250,7 +250,7 @@ export type ImportPlan = {
   files: PlannedFile[]
   /** True only when every file carried the marker. */
   allConforming: boolean
-  /** True when the files were reordered by their day fields rather than left as supplied. */
+  /** True when the files were reordered by their route fields rather than left as supplied. */
   reordered: boolean
   /** True when conforming files disagree about which ride they belong to. */
   rideConflict: boolean
@@ -268,9 +268,9 @@ export type ImportPlan = {
  * sides start from rather than the last word either of them has. See
  * maps/manifest.ts, which is the rider's answer to what this returns.
  *
- * Ordering is the part worth stating: files are sorted by their day field only
+ * Ordering is the part worth stating: files are sorted by their route field only
  * when **every** file has one. A partial set has no defensible order — sorting
- * it would interleave numbered and unnumbered days by an invented rule — so the
+ * it would interleave numbered and unnumbered routes by an invented rule — so the
  * supplied order stands, which is what the importer did before this existed.
  */
 export function planImport(fileNames: string[]): ImportPlan {
@@ -279,7 +279,7 @@ export function planImport(fileNames: string[]): ImportPlan {
     return {
       fileName,
       index,
-      day: p?.day ?? null,
+      route: p?.route ?? null,
       date: p?.date ?? null,
       hasTime: p?.hasTime ?? false,
       title: p?.title ?? null,
@@ -293,18 +293,18 @@ export function planImport(fileNames: string[]): ImportPlan {
   const ride = rides.length > 0 ? titleFromSlug(rides[0]) : null
   const rideConflict = rides.some((r) => r !== rides[0])
 
-  const everyDay = files.length > 0 && files.every((f) => f.day != null)
-  if (everyDay) {
+  const everyRoute = files.length > 0 && files.every((f) => f.route != null)
+  if (everyRoute) {
     // Stable on ties: two files claiming d02 keep the order they arrived in
     // rather than swapping unpredictably.
-    files.sort((a, b) => a.day! - b.day! || a.index - b.index)
+    files.sort((a, b) => a.route! - b.route! || a.index - b.index)
   }
 
   return {
     ride,
     files,
     allConforming: files.length > 0 && files.every((f) => f.conforming),
-    reordered: everyDay && files.some((f, n) => f.index !== n),
+    reordered: everyRoute && files.some((f, n) => f.index !== n),
     rideConflict,
   }
 }

@@ -3,7 +3,7 @@
 // The boundary cases are the ones that matter, for the same reason they do in
 // account-policy.test.ts: 'due' is what makes a purge eligible to run, so a
 // comparison wrong by one tick either strands a ride in the bin forever or
-// destroys one a day early.
+// destroys one a route early.
 //
 // The quota case matters for a different reason. Trashing frees a rider's
 // allowance immediately, so a restore spends it again — and if canRestore lets
@@ -22,7 +22,7 @@ import {
 } from '../src/trash/policy'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
-const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000)
+const route = (n: number) => new Date(NOW.getTime() + n * 86_400_000)
 
 const fields = (over: Partial<TrashFields> = {}): TrashFields => ({
   deletedAt: null,
@@ -40,11 +40,11 @@ const ctx = (over: Partial<RestoreContext> = {}): RestoreContext => ({
 })
 
 describe('purgeDateFor', () => {
-  it('is the hold, in days, after the row was binned', () => {
-    expect(purgeDateFor(NOW).toISOString()).toBe(day(TRASH_HOLD_DAYS).toISOString())
+  it('is the hold, in routes, after the row was binned', () => {
+    expect(purgeDateFor(NOW).toISOString()).toBe(route(TRASH_HOLD_DAYS).toISOString())
   })
 
-  it('keeps the time of day, so the deadline is a moment and not a date', () => {
+  it('keeps the time of route, so the deadline is a moment and not a date', () => {
     expect(purgeDateFor(NOW).getUTCHours()).toBe(NOW.getUTCHours())
   })
 
@@ -52,9 +52,9 @@ describe('purgeDateFor', () => {
   // implementing it: re-trashing simply calls this again.
   it('resets in full when something is binned a second time', () => {
     const first = purgeDateFor(NOW)
-    const second = purgeDateFor(day(29))
+    const second = purgeDateFor(route(29))
     expect(second.getTime() - first.getTime()).toBe(29 * 86_400_000)
-    expect(daysUntilPurge({ deletedAt: day(29), purgeAfter: second }, day(29))).toBe(TRASH_HOLD_DAYS)
+    expect(daysUntilPurge({ deletedAt: route(29), purgeAfter: second }, route(29))).toBe(TRASH_HOLD_DAYS)
   })
 })
 
@@ -64,43 +64,43 @@ describe('trashState', () => {
   })
 
   it('is trashed inside the hold', () => {
-    expect(trashState(fields({ deletedAt: day(-1), purgeAfter: day(29) }), NOW)).toBe('trashed')
+    expect(trashState(fields({ deletedAt: route(-1), purgeAfter: route(29) }), NOW)).toBe('trashed')
   })
 
   it('is due once the deadline has passed', () => {
-    expect(trashState(fields({ deletedAt: day(-31), purgeAfter: day(-1) }), NOW)).toBe('due')
+    expect(trashState(fields({ deletedAt: route(-31), purgeAfter: route(-1) }), NOW)).toBe('due')
   })
 
   it('is due exactly on the deadline, not a tick after', () => {
-    expect(trashState(fields({ deletedAt: day(-30), purgeAfter: NOW }), NOW)).toBe('due')
-    expect(trashState(fields({ deletedAt: day(-30), purgeAfter: new Date(NOW.getTime() + 1) }), NOW)).toBe('trashed')
+    expect(trashState(fields({ deletedAt: route(-30), purgeAfter: NOW }), NOW)).toBe('due')
+    expect(trashState(fields({ deletedAt: route(-30), purgeAfter: new Date(NOW.getTime() + 1) }), NOW)).toBe('trashed')
   })
 
   // A half-written row must never be read as permission to destroy something.
   it('refuses to call a row with no deadline due', () => {
-    expect(trashState(fields({ deletedAt: day(-999) }), NOW)).toBe('trashed')
+    expect(trashState(fields({ deletedAt: route(-999) }), NOW)).toBe('trashed')
   })
 
   it('reads deleted_at alone, so a stale deadline on a live row is ignored', () => {
-    expect(trashState(fields({ purgeAfter: day(-99) }), NOW)).toBe('live')
+    expect(trashState(fields({ purgeAfter: route(-99) }), NOW)).toBe('live')
   })
 })
 
 describe('isTrashed', () => {
   it('is true for anything in the bin, due or not', () => {
     expect(isTrashed(fields())).toBe(false)
-    expect(isTrashed(fields({ deletedAt: day(-1), purgeAfter: day(29) }))).toBe(true)
-    expect(isTrashed(fields({ deletedAt: day(-31), purgeAfter: day(-1) }))).toBe(true)
+    expect(isTrashed(fields({ deletedAt: route(-1), purgeAfter: route(29) }))).toBe(true)
+    expect(isTrashed(fields({ deletedAt: route(-31), purgeAfter: route(-1) }))).toBe(true)
   })
 })
 
 describe('daysUntilPurge', () => {
-  it('rounds up, so the last partial day still reads as one', () => {
+  it('rounds up, so the last partial route still reads as one', () => {
     expect(daysUntilPurge(fields({ purgeAfter: new Date(NOW.getTime() + 1) }), NOW)).toBe(1)
   })
 
   it('is zero once the deadline has passed', () => {
-    expect(daysUntilPurge(fields({ purgeAfter: day(-1) }), NOW)).toBe(0)
+    expect(daysUntilPurge(fields({ purgeAfter: route(-1) }), NOW)).toBe(0)
     expect(daysUntilPurge(fields({ purgeAfter: NOW }), NOW)).toBe(0)
   })
 

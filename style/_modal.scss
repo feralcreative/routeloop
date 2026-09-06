@@ -423,7 +423,7 @@ body.modal-open {
 }
 
 // The one line of the fragment's own preamble that the dialog does NOT hide: it
-// explains why the list below is dated by day instead of by build, which the
+// explains why the list below is dated by route instead of by build, which the
 // dialog's heading and version line do not say. Set apart rather than sized down
 // — a rider reads it once and then never again, and it should not compete with
 // the first release for attention.
@@ -512,7 +512,7 @@ body:has(dialog.modal[open]) {
 // a second one invented for it. The hairline is what keeps it legible, exactly
 // as it does there.
 //
-// IT IS NOT MONOSPACED. firstIssue() hands this prose now — `day 2: a day needs
+// IT IS NOT MONOSPACED. firstIssue() hands this prose now — `route 2: a route needs
 // at least one stop` — and setting a rider's own sentence in a code face tells
 // them a program failed rather than that their ride needs a stop. A path with no
 // spaces in it still has to break somewhere, so it breaks anywhere rather than

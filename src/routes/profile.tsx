@@ -180,14 +180,14 @@ function Check(o: { name: string; label: string; values: Record<string, unknown>
 function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   if (rows.length < 2) return <></> // nothing to show a rider who has only ever had one
   const now = Date.now()
-  const day = (d: Date) => d.toISOString().slice(0, 10)
+  const route = (d: Date) => d.toISOString().slice(0, 10)
   const released = rows.filter((r) => r.releasedAt)
   if (released.length === 0) return <></>
   return (
     <div class="handle-history">
       <p class="field-hint">
-        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take it
-        while you think it over.
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} routes, so nobody else can take
+        it while you think it over.
       </p>
       <ul>
         {released.map((r) => {
@@ -197,8 +197,8 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
             <li>
               <span class="handle">@{r.username}</span>{' '}
               <span class="handle-dates">
-                {day(r.claimedAt)} – {day(r.releasedAt!)}
-                {held ? `${SEP}yours to reclaim until ${day(until)}` : ''}
+                {route(r.claimedAt)} – {route(r.releasedAt!)}
+                {held ? `${SEP}yours to reclaim until ${route(until)}` : ''}
               </span>
             </li>
           )
@@ -233,7 +233,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
             label="Username"
             values={v}
             errors={errors}
-            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} routes.`}
           />
           <HistoryBlock rows={history ?? []} />
           <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
@@ -257,8 +257,8 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <legend>Public starting point</legend>
           <p class="field-hint">
             Where a <em>shared</em> ride starts instead of your front door. Pick somewhere a few minutes away that you
-            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket parking lot.
-            Somewhere you can actually meet people is ideal.
+            would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket parking
+            lot. Somewhere you can actually meet people is ideal.
           </p>
           <p class="field-hint">
             Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on

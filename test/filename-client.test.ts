@@ -46,7 +46,7 @@ const NAMES = [
   'tankbag_r.tankbag.json',
   'TANKBAG_r_d02.gpx',
   // Not the convention. Every one of these must parse to null on both sides.
-  'day-2.gpx',
+  'route-2.gpx',
   'Big Sur Run.gpx',
   '2026-08-14.gpx',
   'd02_2026-08-14_lost-coast.gpx',
@@ -75,7 +75,7 @@ describe('filename.js agrees with filename.ts', () => {
   })
 
   it('slugs identically, including the cases that are easy to get wrong', () => {
-    const inputs = ['Lost Coast', 'Cañón', 'Côte d’Azur', 'day_two_coast', '  --Big   Sur!!  ', '***', '']
+    const inputs = ['Lost Coast', 'Cañón', 'Côte d’Azur', 'route_two_coast', '  --Big   Sur!!  ', '***', '']
     for (const s of inputs) expect(F.slugField(s), s).toBe(slugField(s))
     expect(F.slugField('aaaa bbbb cccc dddd', 10)).toBe(slugField('aaaa bbbb cccc dddd', 10))
   })
@@ -101,7 +101,7 @@ describe('filename.js agrees with filename.ts', () => {
       ],
       ['routeloop_r_d02.gpx', 'whatever.gpx', 'routeloop_r_d01.gpx'],
       ['routeloop_a_d01.gpx', 'routeloop_b_d02.gpx'],
-      ['day-1.gpx', 'day-2.gpx'],
+      ['route-1.gpx', 'route-2.gpx'],
       ['routeloop_r_d02_b.gpx', 'routeloop_r_d02_a.gpx'],
       // A folder downloaded before the rename, and one downloaded across it.
       [
@@ -125,9 +125,9 @@ describe('filename.js agrees with filename.ts', () => {
   // one the client can read — that is the whole round trip.
   it('reads back everything the server writes', () => {
     const cases = [
-      { ride: 'Big Sur Run', day: 2, date: new Date(Date.UTC(2026, 7, 14)), title: 'Lost Coast', ext: 'gpx' },
-      { ride: 'Big Sur Run', day: 12, date: new Date(Date.UTC(2026, 11, 1, 7, 5)), title: 'Rest Day', ext: 'kml' },
-      { ride: 'r', day: 1, ext: 'routeloop.json' },
+      { ride: 'Big Sur Run', route: 2, date: new Date(Date.UTC(2026, 7, 14)), title: 'Lost Coast', ext: 'gpx' },
+      { ride: 'Big Sur Run', route: 12, date: new Date(Date.UTC(2026, 11, 1, 7, 5)), title: 'Rest Route', ext: 'kml' },
+      { ride: 'r', route: 1, ext: 'routeloop.json' },
       { ride: 'Solo', ext: 'csv' },
     ]
     for (const c of cases) {
@@ -135,7 +135,7 @@ describe('filename.js agrees with filename.ts', () => {
       const js = F.parseExportName(name)
       expect(js, name).not.toBeNull()
       expect(js.ride).toBe(slugField(c.ride))
-      expect(js.day ?? null).toBe(c.day ?? null)
+      expect(js.route ?? null).toBe(c.route ?? null)
       expect(js.date?.getTime() ?? null).toBe(c.date?.getTime() ?? null)
     }
   })

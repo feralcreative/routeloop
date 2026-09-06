@@ -18,8 +18,8 @@
   }
 
   // SQUARE, because `<input type="color">` renders wide by default and the extra
-  // width is dead space. #day-color was 50x27 in a 320px day head, beside a
-  // day-name field that only got 165px — 23px of nothing, right next to the
+  // width is dead space. #route-color was 50x27 in a 320px route head, beside a
+  // route-name field that only got 165px — 23px of nothing, right next to the
   // control that needed it. Scoped to the input type rather than the id: it is
   // true of any color input, and there will be more of them.
   //
@@ -180,13 +180,13 @@
     }
   }
 
-  // Three bands, one per scope: the ride, the trip across its days, and the one
-  // day being edited. The panel used to be a flat run of divs where nothing said
-  // whether a control changed one day or everything.
+  // Three bands, one per scope: the ride, the trip across its routes, and the one
+  // route being edited. The panel used to be a flat run of divs where nothing said
+  // whether a control changed one route or everything.
   //
   // Tint and an accent rather than captions and rules. At 380px a horizontal
   // rule reads as clutter and three extra label lines are three lines of the
-  // vertical budget — the grouping itself carries the meaning, and the day band
+  // vertical budget — the grouping itself carries the meaning, and the route band
   // names its own scope through the color it is accented in.
   .panel-band {
     padding: 0.7em 0.75em;
@@ -253,55 +253,55 @@
     }
   }
 
-  // ONE SECTION PER DAY, ALL ON SCREEN AT ONCE. This was .panel-band--day, a
-  // single block showing whichever day a slider at the bottom of the drawer had
-  // selected, plus .day-scrub, .day-slider and .day-ticks for the slider itself.
+  // ONE SECTION PER DAY, ALL ON SCREEN AT ONCE. This was .panel-band--route, a
+  // single block showing whichever route a slider at the bottom of the drawer had
+  // selected, plus .route-scrub, .route-slider and .route-ticks for the slider itself.
   // All of that is gone: a fixed-height drawer has room for the whole ride, so
-  // showing one day at a time was a constraint of the old floating panel rather
-  // than a decision. renderDays() in builder.js fills #day-list with these.
+  // showing one route at a time was a constraint of the old floating panel rather
+  // than a decision. renderRoutes() in builder.js fills #route-list with these.
   //
-  // Accented in the day's own color, which is also what every role icon inside
-  // it inherits. --day-color is set per section by renderDays().
-  .day-list {
+  // Accented in the route's own color, which is also what every role icon inside
+  // it inherits. --route-color is set per section by renderRoutes().
+  .route-list {
     display: flex;
     flex-direction: column;
     gap: 0.5em;
     margin-top: 0.6em;
   }
 
-  .day-section {
+  .route-section {
     padding: 0.5em 0.6em;
     border-radius: 8px;
     background: rgba(0, 0, 0, 0.035);
-    border-left: 3px solid var(--day-color, #{$grey});
+    border-left: 3px solid var(--route-color, #{$grey});
 
     // The icons are SVGs drawn with fill="currentColor", so one `color` here
     // tints every one of them — role chips, the picker, the stop numbers and
     // the POI dots. Scoped to the section on purpose: the collapse toggle and
     // any other drawer chrome must stay as they are.
-    color: var(--day-color, #{$text});
+    color: var(--route-color, #{$text});
 
     // Text is not tinted — a whole panel of colored prose is unreadable, and
     // the point is the icons.
     input,
     textarea,
     .row-name,
-    .day-time,
-    .day-times-note {
+    .route-time,
+    .route-times-note {
       color: $text;
     }
 
     // THE ACTIVE DAY, which is where a map click puts its stop. It needs to be
-    // obvious without being loud: every day is on screen, so this is the only
-    // thing saying which one is about to receive an edit. A ring in the day's own
+    // obvious without being loud: every route is on screen, so this is the only
+    // thing saying which one is about to receive an edit. A ring in the route's own
     // color rather than a fill, because a fill would fight the row backgrounds.
     &.is-active {
       background: rgba(0, 0, 0, 0.06);
-      box-shadow: inset 0 0 0 1px var(--day-color, #{$url});
+      box-shadow: inset 0 0 0 1px var(--route-color, #{$url});
     }
 
     // ALTERNATES. The pair is bracketed by a shared left edge and the loser is
-    // quieted — not hidden and not disabled, because it is a real day the rider
+    // quieted — not hidden and not disabled, because it is a real route the rider
     // can still edit, name, reorder and promote.
     //
     // Deliberately NOT `opacity` on the section: that would take the color
@@ -314,25 +314,25 @@
     &.is-alt {
       background: rgba(0, 0, 0, 0.02);
 
-      .day-num,
-      .day-title {
+      .route-num,
+      .route-title {
         opacity: 0.65;
       }
     }
 
     // Shut: the head stays, the body goes. `display: none` rather than a height
     // animation — animating to auto needs a measured height, and a wrong one
-    // clips the last row of a long day.
-    &.is-shut .day-body {
+    // clips the last row of a long route.
+    &.is-shut .route-body {
       display: none;
     }
 
     // With the body gone, the head's 0.6em bottom margin is the gap to nothing:
-    // it left the section taller than .day-drag, which stretches to the head and
+    // it left the section taller than .route-drag, which stretches to the head and
     // is pulled out to the padding edge by its negative margins. Zeroed here
-    // rather than at the source because an OPEN day still wants that margin as
+    // rather than at the source because an OPEN route still wants that margin as
     // its head-to-body gap.
-    &.is-shut .day-head {
+    &.is-shut .route-head {
       margin-bottom: 0;
     }
   }
@@ -349,7 +349,7 @@
   //
   // [hidden] is explicit because the `display` below outranks the UA sheet's
   // `[hidden] { display: none }`. Same trap as .row-roles.
-  .day-head {
+  .route-head {
     &[hidden] {
       display: none;
     }
@@ -361,7 +361,7 @@
     margin-bottom: 0.6em;
   }
 
-  // The day's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
+  // The route's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
   // box centered inside it by a ::before — and not, as it was first written, a
   // repeating background-image on the element itself. That tiled dots edge to
   // edge across the whole tab at whatever height the header happened to be, so
@@ -369,8 +369,8 @@
   //
   // The negative margins pull it out to the section's own padding edge so the
   // tab reaches top and bottom of the header instead of floating in it. They
-  // are .day-section's padding: 0.5em vertical, 0.6em left. Keep them in step.
-  .day-drag {
+  // are .route-section's padding: 0.5em vertical, 0.6em left. Keep them in step.
+  .route-drag {
     position: relative;
     flex: none;
     align-self: stretch;
@@ -387,7 +387,7 @@
       outline-offset: 1px;
     }
 
-    // Right margin is 0 and must stay 0: .day-head's `gap: 10px` is what spaces
+    // Right margin is 0 and must stay 0: .route-head's `gap: 10px` is what spaces
     // this from the caret now. It was 0.15em, which simply added to the gap and
     // made the first of the four spacings wider than the other three.
     //
@@ -396,8 +396,8 @@
     // the padding box — which is exactly where .is-active paints its 1px inset
     // ring, and a CHILD ELEMENT PAINTS ABOVE A PARENT'S INSET BOX-SHADOW, so the
     // tab punched a 14px hole in the ring at the top and the bottom of every
-    // active day. Reported as the handle overlapping the border, which is what
-    // it looks like. The corner is the other job: .day-section rounds its BORDER
+    // active route. Reported as the handle overlapping the border, which is what
+    // it looks like. The corner is the other job: .route-section rounds its BORDER
     // box at 8px while this tab is anchored 3px in, at the far side of the color
     // rail, so an 8px radius here is a curve struck from the wrong origin and
     // bulges past the section's own. 6px against a padding-box corner of 5px
@@ -409,8 +409,8 @@
     margin: calc(-0.5em + 1px) 0 calc(-0.5em + 1px) calc(-0.6em + 1px);
     border-radius: 6px 0 0 6px;
     cursor: grab;
-    background: color-mix(in srgb, var(--day-color, #{$neutral-88}) 16%, #{$white});
-    color: color-mix(in srgb, var(--day-color, #{$neutral-50}) 55%, #{$white});
+    background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 16%, #{$white});
+    color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 55%, #{$white});
 
     // Two columns by three rows: an 8x12 box on the same 4px tile the row grips
     // use, so the two read as one gesture at two scales. `0 0` rather than
@@ -429,8 +429,8 @@
     }
 
     &:hover {
-      background: color-mix(in srgb, var(--day-color, #{$neutral-76}) 32%, #{$white});
-      color: color-mix(in srgb, var(--day-color, #{$neutral-29}) 80%, #{$white});
+      background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 32%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 80%, #{$white});
     }
 
     &:active {
@@ -441,7 +441,7 @@
   // The twirl. A CSS triangle rather than a glyph so it cannot pick up a font's
   // idea of what a triangle is, and so the rotation is a transform rather than
   // swapping one character for another.
-  .day-twirl {
+  .route-twirl {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -458,7 +458,7 @@
     // browser, not reasoned about; reasoning about it is how it got set to 22px
     // and then to 18px without either being right.
     //
-    // Same trick and same reason as .day-drag's negative margins above. Keep the
+    // Same trick and same reason as .route-drag's negative margins above. Keep the
     // 5px in step with the width if either changes: it is (width − 8) / 2.
     width: 18px;
     height: 22px;
@@ -475,7 +475,7 @@
     }
   }
 
-  .day-twirl-mark {
+  .route-twirl-mark {
     width: 0;
     height: 0;
     border-left: 5px solid currentColor;
@@ -485,48 +485,48 @@
     transform: rotate(90deg);
   }
 
-  .day-twirl[aria-expanded="false"] .day-twirl-mark {
+  .route-twirl[aria-expanded="false"] .route-twirl-mark {
     transform: rotate(0deg);
   }
 
-  // The day's ordinal. Bolder and larger than .row-num, which is the stop number
-  // inside a day — the two are the same idea at two levels, and the day's has to
+  // The route's ordinal. Bolder and larger than .row-num, which is the stop number
+  // inside a route — the two are the same idea at two levels, and the route's has to
   // win where they sit in one column.
   //
-  // It takes --day-color like everything else in the section, so at a glance the
+  // It takes --route-color like everything else in the section, so at a glance the
   // number, the swatch, the grip and the routes on the map all agree.
   //
   // FIXED WIDTH, so a ride crossing into double figures does not shift every
   // name field beside it by a character — and sized to TWO digits, which is the
-  // widest it can get at MAX_DAYS = 31. That is why a one-digit day looks like
+  // widest it can get at MAX_ROUTES = 31. That is why a one-digit route looks like
   // it has more air around it than a two-digit one: the box is the same and the
-  // ink is narrower. Correct, and the alternative is a row that jumps at day 10.
+  // ink is narrower. Correct, and the alternative is a row that jumps at route 10.
   //
   // 1.25em rather than the old 1.4em. tabular-nums at 0.95em/700 puts "31" at
   // about 15px against this box's 17.5px, so there is still a pixel of slack
   // each side. Widen if a wider face ever ships — flex-shrink is 0, so an
   // overflow here collides with the swatch rather than reflowing.
-  .day-num {
+  .route-num {
     flex: 0 0 1.25em;
     text-align: center;
     font-size: 0.95em;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    color: var(--day-color, #{$text});
+    color: var(--route-color, #{$text});
   }
 
-  // The day header's ⋮. A text glyph rather than a masked icon, matching
+  // The route header's ⋮. A text glyph rather than a masked icon, matching
   // .row-menu-btn exactly — the two are the same control at two levels and a
   // rider should not have to notice they are drawn differently.
-  .day-menu-btn {
+  .route-menu-btn {
     font-size: 1.1em;
     line-height: 1;
     letter-spacing: 0.05em;
   }
 
-  // SELECT MODE'S ACTION BAR. Above the day list and outside the scroller, so it
+  // SELECT MODE'S ACTION BAR. Above the route list and outside the scroller, so it
   // covers none of the rows being ticked and stays put while the rider scrolls
-  // to reach day 9. Tinted rather than bordered: it is a mode the panel is in,
+  // to reach route 9. Tinted rather than bordered: it is a mode the panel is in,
   // not another control in it.
   .select-bar {
     display: flex;
@@ -586,13 +586,13 @@
     }
   }
 
-  // Both checkboxes take the day's color, so a ticked row still says which day
+  // Both checkboxes take the route's color, so a ticked row still says which route
   // it belongs to at a glance.
-  .day-pick,
+  .route-pick,
   .row-pick {
     flex: none;
     margin: 0;
-    accent-color: var(--day-color, $url);
+    accent-color: var(--route-color, $url);
   }
 
   // Sized and placed where .row-num sat, which it replaces — so the fields to
@@ -602,7 +602,7 @@
   }
 
   // THE OVERFLOW MENU, FOR BOTH ITS HOSTS. This lived inside .point-row until
-  // day headers grew a ⋮ of their own on 2026-08-16, at which point the day's
+  // route headers grew a ⋮ of their own on 2026-08-16, at which point the route's
   // menu inherited none of it and rendered as an 84px box with "Ungroup
   // alternatives" wrapped over three lines. It is one component with two
   // parents, so it is scoped to the panel and not to either of them.
@@ -610,7 +610,7 @@
   // Absolutely positioned so opening it costs no layout, right-aligned under the
   // button it belongs to, and allowed to overflow its host — the panel scroller
   // clips it, which is the same bound the role picker lives inside. Both hosts
-  // must therefore be `position: relative`; .point-row and .day-head both are.
+  // must therefore be `position: relative`; .point-row and .route-head both are.
   .row-menu {
     position: absolute;
     top: 100%;
@@ -660,11 +660,11 @@
     }
   }
 
-  // The badge in a day header. Same two words and same shape as the viewer's
+  // The badge in a route header. Same two words and same shape as the viewer's
   // legend badge in _map.scss — a rider who has seen one should not have to
   // learn the other. `flex: none` because it sits in the header's flex row and
-  // must not be squeezed by a long day name.
-  .day-head .day-alt {
+  // must not be squeezed by a long route name.
+  .route-head .route-alt {
     flex: none;
     padding: 0.05em 0.45em;
     border-radius: 999px;
@@ -676,37 +676,37 @@
     cursor: help;
 
     &.is-on {
-      background: color-mix(in srgb, var(--day-color, #{$url}) 16%, #{$white});
-      color: color-mix(in srgb, var(--day-color, #{$url}) 70%, #{$black});
+      background: color-mix(in srgb, var(--route-color, #{$url}) 16%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$url}) 70%, #{$black});
     }
   }
 
   // Narrower than the 2em the generic input[type="color"] rule gives it, and
   // scoped to the header so the swatch on any other form keeps its size. The
   // generic rule already pads the well down to 2px, so 1.6em still shows a
-  // 20px block of color — enough to read as the day's color at a glance,
+  // 20px block of color — enough to read as the route's color at a glance,
   // which is all it does here.
-  .day-head .day-color {
+  .route-head .route-color {
     width: 1.6em;
     height: 1.6em;
   }
 
-  .day-title {
+  .route-title {
     flex: 1 1 auto;
     // Without this a flex item refuses to shrink below its own content, and a
-    // long day name pushes the four action buttons off the end of the row.
+    // long route name pushes the four action buttons off the end of the row.
     min-width: 0;
   }
 
-  .day-body {
+  .route-body {
     margin-top: 0.4em;
   }
 
-  // Start and end for the day edits land on. Hidden along with the rest of the
-  // day section while the slider is on "All", so it needs the same explicit
-  // rule .day-head does — the `display` below outranks the UA sheet's
+  // Start and end for the route edits land on. Hidden along with the rest of the
+  // route section while the slider is on "All", so it needs the same explicit
+  // rule .route-head does — the `display` below outranks the UA sheet's
   // `[hidden] { display: none }`.
-  .day-times {
+  .route-times {
     &[hidden] {
       display: none;
     }
@@ -717,7 +717,7 @@
     gap: 0.5em;
     margin-top: 0.5em;
   }
-  .day-time {
+  .route-time {
     display: flex;
     // `flex: 1 1 0` and `min-width: 0`, where this was `flex: 1 1 10em` with the
     // default `min-width: auto`. Both halves of that were the bug.
@@ -751,11 +751,11 @@
     }
   }
   // Says where the end came from — derived, estimated, or typed by the rider —
-  // and, on a day with no start, that typing one is what turns the map's timeline
+  // and, on a route with no start, that typing one is what turns the map's timeline
   // on. It was on the panel rule's list of variable-length readouts and it now
   // has one more state than it did, so the line is reserved whether or not there
   // is anything on it.
-  .day-times-note {
+  .route-times-note {
     flex: 1 0 100%;
     min-height: 1.4em;
     font-size: 0.7em;
@@ -764,9 +764,9 @@
   }
 
   // WHAT THIS DAY ASKS OF THE ROUTER (#29). Under the times rather than in the
-  // head: it belongs to the day's settings, and the head is already carrying the
+  // head: it belongs to the route's settings, and the head is already carrying the
   // color, the title and two menus in a 380px drawer.
-  .day-prefs {
+  .route-prefs {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -777,13 +777,13 @@
     // Prefer are one question asked twice, so the pair reads as a block; four
     // toggles under one "Avoid" would have read as "avoid twisty roads", which
     // is the opposite of what the last one does.
-    + .day-prefs {
+    + .route-prefs {
       margin-top: -0.1em;
       margin-bottom: 0.4em;
     }
   }
 
-  .day-prefs-lede {
+  .route-prefs-lede {
     font-size: 0.72em;
     font-weight: 600;
     color: $neutral-50;
@@ -797,7 +797,7 @@
   }
 
   // QUIET UNTIL SET, like .scope-btn and for the same reason: a row of filled
-  // pills under every day would outweigh the category chips, which are the
+  // pills under every route would outweigh the category chips, which are the
   // action, while this only says how the road is chosen. These are independent
   // toggles rather than a segmented control, so each gets its own border — there
   // is no single pill for them to be segments of.
@@ -827,7 +827,7 @@
     // Set is a fill, unlike .scope-btn's weight-and-color change: a scope button
     // is always one of two states and something is always true of it, where this
     // is off by default and the whole question is which of three are on. A rider
-    // has to be able to answer that at a glance down a list of days.
+    // has to be able to answer that at a glance down a list of routes.
     &.is-on {
       background: $neutral-94;
       border-color: $neutral-50;
@@ -904,18 +904,18 @@
     }
   }
 
-  // The day header's action buttons. This used to be a SECOND `.day-head` block,
-  // a leftover from the day-slider era, sitting at equal specificity to the real
+  // The route header's action buttons. This used to be a SECOND `.route-head` block,
+  // a leftover from the route-slider era, sitting at equal specificity to the real
   // one further up and beating it on source order — so `gap` was silently 0.4em
   // rather than the 0.3em the first block declares, and a `margin-bottom: 0.6em`
-  // nobody could find was padding the bottom of every collapsed day. Both blocks
-  // are now one, up at .day-head; only .day-actions is left here.
+  // nobody could find was padding the bottom of every collapsed route. Both blocks
+  // are now one, up at .route-head; only .route-actions is left here.
   //
-  // The `#day-title` rule that lived here went with it — dead since the drawer
-  // rewrite, which renders `.day-title` per day. There is no element with that
+  // The `#route-title` rule that lived here went with it — dead since the drawer
+  // rewrite, which renders `.route-title` per route. There is no element with that
   // id on the page.
-  .day-head {
-    .day-actions {
+  .route-head {
+    .route-actions {
       display: flex;
       gap: 0.15em;
       button {
@@ -923,7 +923,7 @@
         font-size: 0.85em;
         line-height: 1;
         padding: 0.35em 0.45em;
-        // Centers .day-del's masked glyph. Its three neighbors are still text
+        // Centers .route-del's masked glyph. Its three neighbors are still text
         // characters and are unaffected by it.
         display: inline-flex;
         align-items: center;
@@ -945,12 +945,12 @@
     }
   }
 
-  // Shown only when a ride somehow has no days at all, which nothing in the app
-  // can currently produce — the builder starts with one and deleteDay refuses to
-  // remove the last. It replaced .day-pick-hint, which stood in for the whole
-  // day-editing section while the slider sat on "All"; there is no "All" any
-  // more, because every day is on screen.
-  .day-empty-hint {
+  // Shown only when a ride somehow has no routes at all, which nothing in the app
+  // can currently produce — the builder starts with one and deleteRoute refuses to
+  // remove the last. It replaced .route-pick-hint, which stood in for the whole
+  // route-editing section while the slider sat on "All"; there is no "All" any
+  // more, because every route is on screen.
+  .route-empty-hint {
     margin: 0.75em 0;
     padding: 0.9em 0.75em;
     border: 1px dashed $grey;
@@ -1002,13 +1002,13 @@
   // rather than a question: it is read once, set once, and then sat above the
   // work for the rest of the session.
   //
-  // RIDE-LEVEL, WHICH IS WHY IT IS ABOVE THE TAB STRIP and why + Day is no
-  // longer on it — see .day-add below. Visibility governs the whole shareable
+  // RIDE-LEVEL, WHICH IS WHY IT IS ABOVE THE TAB STRIP and why + Route is no
+  // longer on it — see .route-add below. Visibility governs the whole shareable
   // package rather than any one of Routes, Groups or Riders, and it is the most
   // consequential control in the panel, so it is not filed inside a tab.
   //
-  // (The `#day-color` rule that used to live here was dead — the color picker
-  // is in .day-head and never has been in this row.)
+  // (The `#route-color` rule that used to live here was dead — the color picker
+  // is in .route-head and never has been in this row.)
   .meta-row {
     display: flex;
     align-items: center;
@@ -1021,7 +1021,7 @@
   }
 
   // + DAY, WHICH IS NO LONGER IN .meta-row. It moved to the Routes tab's own
-  // action row when the panel gained tabs — adding a day is about the route and
+  // action row when the panel gained tabs — adding a route is about the route and
   // the meta-row is now ride-level only — so this is a sibling of .meta-row
   // rather than nested in it. Left nested, the rule would have matched nothing
   // and the button would have rendered as the browser's native grey chrome,
@@ -1031,7 +1031,7 @@
   // rule anywhere in the stylesheet and read as broken beside two custom pills.
   // It always worked. Not a `.btn` — that is a highway sign now, and a sign at
   // 0.85em in a 380px panel would be the loudest thing on the page.
-  .day-add {
+  .route-add {
     font: inherit;
     font-size: 0.85em;
     padding: 0.3em 0.55em;
@@ -1057,9 +1057,9 @@
     }
   }
 
-  // THE LAST ROW OF EVERY DAY, where the single search box above the day list
+  // THE LAST ROW OF EVERY DAY, where the single search box above the route list
   // used to be. Built by addRowHtml() in builder.js; the box is gone because it
-  // had to guess which day a searched address belonged to.
+  // had to guess which route a searched address belonged to.
   //
   // Shaped to line up with the .point-row above it rather than to stand out: it
   // is the next row of the list, not a separate control. The dashed border is
@@ -1104,7 +1104,7 @@
     // faking a break.
     gap: 6px;
     // Short, and the negative margins pull the rows either side back together —
-    // a full row's height between every pair would double the length of a day.
+    // a full row's height between every pair would double the length of a route.
     height: 18px;
     margin: -4px 0;
     cursor: pointer;
@@ -1132,7 +1132,7 @@
   // A SHAPING POINT'S ROW. Quieter than a point row by a long way and
   // deliberately so: a via is a hint about which road to take, not a place
   // anyone is going, so it reads as an annotation ON the leg above it rather
-  // than as another entry in the day. Indented past the drag handle's column so
+  // than as another entry in the route. Indented past the drag handle's column so
   // the numbered rows still line up as one list down the left edge.
   .via-row {
     display: flex;
@@ -1262,7 +1262,7 @@
     // AND THE GLYPH SITS A PIXEL LOW IN THIS ONE. Seven pixels of + in a seven
     // pixel gap touches the card above with nothing to spare, and a bar's
     // antialiasing is what would then read as the + being stuck to the row.
-    // A shaping point's row is transparent — it is a label on the day's own
+    // A shaping point's row is transparent — it is a label on the route's own
     // ground, not a white card — so the pixel is taken from BELOW, where it
     // lands in the row's leading and is invisible, rather than from above.
     .insert-btn {
@@ -1330,7 +1330,7 @@
   }
 
   // An add row standing in for a gap. Marked so it reads as belonging between
-  // the two rows either side rather than as the day's own trailing field, which
+  // the two rows either side rather than as the route's own trailing field, which
   // is the one thing that could make a rider add to the wrong place.
   .add-row.is-insert {
     border-style: solid;
@@ -1359,7 +1359,7 @@
     border-radius: 4px;
     background: none;
 
-    // No border until it is being used. A visible field per day would put 31
+    // No border until it is being used. A visible field per route would put 31
     // boxes down the panel and make the list read as a form rather than as a
     // route.
     &:hover:not(:disabled),
@@ -1374,9 +1374,9 @@
     }
   }
 
-  // Arms the next map click for this day. Quiet until it is armed, because a
-  // lit button per day would put 31 of them down the panel — the whole reason
-  // the day search box is borderless until it is used.
+  // Arms the next map click for this route. Quiet until it is armed, because a
+  // lit button per route would put 31 of them down the panel — the whole reason
+  // the route search box is borderless until it is used.
   .add-place-btn {
     flex: 0 0 auto;
     font: inherit;
@@ -1400,13 +1400,13 @@
       outline-offset: 1px;
     }
 
-    // ARMED. It borrows the day's own color rather than one accent for all of
-    // them, so on a nine-day ride the lit button says WHICH day is waiting
+    // ARMED. It borrows the route's own color rather than one accent for all of
+    // them, so on a nine-route ride the lit button says WHICH route is waiting
     // without being read.
     &.is-armed {
       border-color: currentColor;
       background: $white;
-      color: var(--day-color, $url);
+      color: var(--route-color, $url);
       font-weight: 700;
     }
 
@@ -1420,41 +1420,41 @@
   // stays put while the stop list scrolls. It used to sit in the band below both
   // sliders, three controls away from the thing it summarizes.
   //
-  // THE DAY LINE IS ALWAYS IN THE MARKUP, empty when no day is focused, and
+  // THE DAY LINE IS ALWAYS IN THE MARKUP, empty when no route is focused, and
   // that — not a height in em — is what stops this block resizing.
   //
   // `min-height: 2.6em` was here first with the right intention and the wrong
   // arithmetic: it reserved two lines and the real content runs to three. The
-  // ride line wraps to two on its own once the mileage is long enough ("3 days ·
-  // 702.8 mi · ~14h 36m riding · Mostly straight" does at 380px) and the day line
-  // lands under it, so the block measured 30.9px on "All days" against 40.5 to
-  // 42.6px on a focused day. The panel moved by the difference every time the
-  // scrubber changed — 11.6px with short day names, 23.3px with an imported
-  // "Track-2018 Crater Lake: Day 03b".
+  // ride line wraps to two on its own once the mileage is long enough ("3 routes ·
+  // 702.8 mi · ~14h 36m riding · Mostly straight" does at 380px) and the route line
+  // lands under it, so the block measured 30.9px on "All routes" against 40.5 to
+  // 42.6px on a focused route. The panel moved by the difference every time the
+  // scrubber changed — 11.6px with short route names, 23.3px with an imported
+  // "Track-2018 Crater Lake: Route 03b".
   //
   // Reserving it structurally beats reserving it numerically here. A fixed
   // height has to be re-derived from the root font size, the 0.85rem step and
   // two different line-heights, and getting it wrong by 2.5px — which the first
-  // attempt did — either clips the day line or leaves a gap. An always-present
+  // attempt did — either clips the route line or leaves a gap. An always-present
   // span is exactly one line by construction, in whatever font it ends up in.
   //
   // What is left varying is the ride line's own wrap count, and it cannot change
-  // while scrubbing: it is the whole-ride total, identical for every day. It
-  // moves only when the day count does, which is a deliberate press of + Day.
+  // while scrubbing: it is the whole-ride total, identical for every route. It
+  // moves only when the route count does, which is a deliberate press of + Route.
   .totals {
     font-weight: 600;
     margin: 0.15em 2.6em 0.6em 0;
     min-height: 2.6em;
     font-size: 0.85rem;
-    // Two lines once there are several days: the trip total leads, because on a
-    // multi-day ride that is the number being planned against, and the focused
-    // day's own figures sit under it.
+    // Two lines once there are several routes: the trip total leads, because on a
+    // multi-route ride that is the number being planned against, and the focused
+    // route's own figures sit under it.
     .totals-ride,
-    .totals-day {
+    .totals-route {
       display: block;
       line-height: 1.3;
     }
-    // Capped at the two lines reserved above. The content is bounded — a day
+    // Capped at the two lines reserved above. The content is bounded — a route
     // count, a mileage, a duration and one of a handful of twistiness words —
     // so two is genuinely enough, and the clamp is the guarantee rather than
     // the expectation.
@@ -1465,17 +1465,17 @@
       overflow: hidden;
     }
     // One line, always, and split so the numbers survive the truncation. The
-    // day's name is the only unbounded thing on it — a title runs to 150
+    // route's name is the only unbounded thing on it — a title runs to 150
     // characters and an import supplies 31 of them by default — so the name
     // shrinks and ellipsizes while the figures hold their width. Truncating the
     // other way round would hide the mileage behind a filename.
     //
-    // Nothing is lost: the full name is already spelled out on #day-label
+    // Nothing is lost: the full name is already spelled out on #route-label
     // directly above the slider.
-    // min-height is what makes the empty copy hold its line on "All days".
+    // min-height is what makes the empty copy hold its line on "All routes".
     // 1.3em of its own font size is exactly the one line the rule above sets,
-    // so the block is the same height whether or not a day is focused.
-    .totals-day {
+    // so the block is the same height whether or not a route is focused.
+    .totals-route {
       display: flex;
       gap: 0.35em;
       min-height: 1.3em;
@@ -1483,7 +1483,7 @@
       font-size: 0.85em;
       opacity: 0.8;
     }
-    .totals-day-name {
+    .totals-route-name {
       flex: 0 1 auto;
       // Without this a flex item refuses to shrink below its own content and
       // the ellipsis never fires.
@@ -1492,7 +1492,7 @@
       white-space: nowrap;
       text-overflow: ellipsis;
     }
-    .totals-day-figs {
+    .totals-route-figs {
       flex: 0 0 auto;
       white-space: nowrap;
     }
@@ -1587,19 +1587,19 @@
       cursor: grab;
       // THE DAY'S OWN COLOR, faded back. This was deliberately neutral on the
       // reasoning that a grip is furniture — "drag me" is true of every row on
-      // every day — and that held while only one day was ever on screen. With
-      // every day listed at once the left edge of each row is the fastest way to
-      // see where one day stops and the next starts, so the grips are now the
-      // day's color and read as a continuous rail down its rows.
+      // every route — and that held while only one route was ever on screen. With
+      // every route listed at once the left edge of each row is the fastest way to
+      // see where one route stops and the next starts, so the grips are now the
+      // route's color and read as a continuous rail down its rows.
       //
       // Two mixes, not one: the tab is faint enough to sit under the row's own
       // white, and the dots inside it are strong enough to still read as a grip
       // rather than as a smudge. Keep roughly this ratio if either moves.
       //
-      // --day-color is inherited from .day-section. The fallbacks are the greys
-      // it used to be, so a row rendered outside a day section still looks right.
-      background: color-mix(in srgb, var(--day-color, #{$neutral-88}) 20%, #{$white});
-      color: color-mix(in srgb, var(--day-color, #{$neutral-50}) 60%, #{$white});
+      // --route-color is inherited from .route-section. The fallbacks are the greys
+      // it used to be, so a row rendered outside a route section still looks right.
+      background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 20%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 60%, #{$white});
 
       // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
       //
@@ -1626,8 +1626,8 @@
       }
 
       &:hover {
-        background: color-mix(in srgb, var(--day-color, #{$neutral-76}) 38%, #{$white});
-        color: color-mix(in srgb, var(--day-color, #{$neutral-29}) 85%, #{$white});
+        background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 38%, #{$white});
+        color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 85%, #{$white});
       }
 
       &:active {
@@ -1639,9 +1639,9 @@
       align-items: center;
       gap: 0.3em;
     }
-    // Inherits the band's --day-color rather than carrying its own gray: the
+    // Inherits the band's --route-color rather than carrying its own gray: the
     // stop number and the POI dot are markers, and a marker should say which
-    // day it belongs to.
+    // route it belongs to.
     .row-num {
       flex: 0 0 1.3em;
       text-align: center;
@@ -1670,10 +1670,10 @@
     // format or spends the difference on a field the other two do not need —
     // and that width comes straight out of the name field beside it.
     //
-    // The attribute is written server-side onto #day-list in builder.ts, from
+    // The attribute is written server-side onto #route-list in builder.ts, from
     // the same preference the rows are rendered with, so there is no flash of a
     // wrongly-sized field before the JS runs. It moved from #stop-list when the
-    // single list became one per day; it is read by inheritance, so the ancestor
+    // single list became one per route; it is read by inheritance, so the ancestor
     // is what matters and not which element carries it.
     //
     // 4em is the floor and it is set by content, not by taste: "43200" is the
@@ -1706,7 +1706,7 @@
       font: inherit;
       // Without this the chips inside stay black: the UA sheet gives every
       // <button> `color: buttontext`, and no author rule was overriding it, so
-      // the band's --day-color never reached the currentColor in the SVGs.
+      // the band's --route-color never reached the currentColor in the SVGs.
       color: inherit;
       display: flex;
       align-items: center;
@@ -1743,8 +1743,8 @@
       }
       // The empty state: no roles yet. A solid dot in the DAY'S color rather
       // than a "+" glyph — Ziad's call, 2026-08-22. `currentColor` is what makes
-      // it the day color for free: `.row-roles-btn` sets `color: inherit` a few
-      // lines up specifically so the band's --day-color reaches in here, and the
+      // it the route color for free: `.row-roles-btn` sets `color: inherit` a few
+      // lines up specifically so the band's --route-color reaches in here, and the
       // role icons already ride on the same value.
       //
       // 10px against the 16px role chip, so a categorized row and an
@@ -1823,9 +1823,9 @@
           display: block;
           flex: 0 0 18px;
         }
-        // Selected. The tint used to be $url regardless of the day, which now
+        // Selected. The tint used to be $url regardless of the route, which now
         // fights the band's color — the highlight is the background, and the
-        // icon keeps the day's color like every other icon here.
+        // icon keeps the route's color like every other icon here.
         &.on {
           border-color: currentColor;
           background: rgba(0, 0, 0, 0.06);
@@ -1959,13 +1959,13 @@
     // HOW FAR IN, AND HOW FAR ON THIS TANK (#220).
     //
     // Quiet by default and on its own line under the row's controls. It is
-    // reference rather than an action — the rider is scanning down a day for the
+    // reference rather than an action — the rider is scanning down a route for the
     // gap where fuel has to go — so it must not compete with the name field it
     // sits under.
     //
     // A FIXED HEIGHT IS NOT NEEDED and would be wrong: the readout is absent
-    // entirely on the first point of every day and on any row with no distance
-    // yet, so reserving the line would put an empty band under every day's first
+    // entirely on the first point of every route and on any row with no distance
+    // yet, so reserving the line would put an empty band under every route's first
     // stop. The rows below simply sit closer.
     .row-dist {
       display: flex;
@@ -1991,7 +1991,7 @@
     }
 
     // The tank figure is the one being scanned for, so it is the one that is not
-    // grey. It appears only once it differs from the distance into the day —
+    // grey. It appears only once it differs from the distance into the route —
     // see distReadoutHtml — so when it is here it is saying something new.
     .row-dist-fuel {
       color: $neutral-36;
@@ -2007,14 +2007,14 @@
       cursor: help;
     }
 
-    // #54's offer, on a mid-day point tagged as somewhere to sleep. An OFFER and
+    // #54's offer, on a mid-route point tagged as somewhere to sleep. An OFFER and
     // not a state, so it reads as a suggestion rather than as something already
-    // decided — see lodgingOfferHtml for why the day is not simply cut.
+    // decided — see lodgingOfferHtml for why the route is not simply cut.
     .row-lodging-offer {
       margin: 0.2em 0 0.1em 1.6em;
     }
 
-    // #50's search scope, under the category chips: near the day's last point,
+    // #50's search scope, under the category chips: near the route's last point,
     // or along its whole line. A two-state segmented control, and it replaced a
     // checkbox plus a range slider on 2026-08-31 — see corridorHtml() in
     // builder.js for why both halves are named rather than one being implied.
@@ -2105,7 +2105,7 @@
   //
   // STICKY, because this row used to fall off the bottom of the world. It was
   // `position: static` at the end of a list that grows without limit, so on a
-  // seven-stop day Save sat 140px below the visible area and dropped further
+  // seven-stop route Save sat 140px below the visible area and dropped further
   // with every stop added — the controls a rider reaches for most were the ones
   // furthest from reach. Sticking it to the bottom of the scroller costs the
   // list nothing and means undo is always one click away.
@@ -2293,9 +2293,9 @@
 }
 
 // The place-search dropdown. TOP LEVEL, NOT nested under .builder-panel, for
-// the same reason .day-drag-ghost below is not: builder.js appends this to
+// the same reason .route-drag-ghost below is not: builder.js appends this to
 // <body>, so a `.builder-panel #search-results` selector would never match it.
-// It moved out of the panel when the single search box became one row per day —
+// It moved out of the panel when the single search box became one row per route —
 // there are up to 31 fields and one list, owned by nobody in particular.
 //
 // Fixed, not absolute, and positioned from JS — see placeResults() in
@@ -2439,7 +2439,7 @@
   }
 }
 
-// Category chips on a day's add row: one tap for the four things a rider hunts
+// Category chips on a route's add row: one tap for the four things a rider hunts
 // for mid-plan. Everything else reaches the same search by typing the word, so
 // this stays four wide and does not grow into a second role picker.
 .add-chips {
@@ -2463,7 +2463,7 @@
   .chip {
     // Its own box-sizing: there is no global border-box reset in style/, so a
     // fixed-size box that forgets has its padding sit outside its width. See the
-    // note in AGENTS.md — this cost a day on .btn-stop.
+    // note in AGENTS.md — this cost a route on .btn-stop.
     box-sizing: border-box;
     padding: 0.1em 0.45em;
     border: 1px solid $neutral-88;
@@ -2498,11 +2498,11 @@
 }
 
 // A DAY SOMEBODY ELSE IS WORKING ON. Deliberately a hint and not a lock: the
-// section stays fully interactive, because a claim is advisory and the day hash
+// section stays fully interactive, because a claim is advisory and the route hash
 // on the write is what actually decides a clash. Styling it as disabled would
 // promise an enforcement that does not exist — and would strand a rider whose
 // collaborator closed their laptop without releasing.
-.builder-panel .day-section.is-held > .day-head {
+.builder-panel .route-section.is-held > .route-head {
   box-shadow: inset 3px 0 0 $pending;
 }
 
@@ -2524,11 +2524,11 @@
 // moment it is picked up. --panel-width moved from #info-panel to html.map-page
 // when the timeline became a sibling of the panel, so it is in scope here now;
 // the literal stays as the fallback for a ghost appended before the page class.
-// The day's drag mirror, appended to <body> for the same reason .row-drag-ghost
+// The route's drag mirror, appended to <body> for the same reason .row-drag-ghost
 // is — fallbackOnBody puts it outside the panel, where it inherits nothing. A
-// whole day can be tall, so this one is capped and clipped rather than dragged
+// whole route can be tall, so this one is capped and clipped rather than dragged
 // full height across the map.
-.day-drag-ghost {
+.route-drag-ghost {
   box-sizing: border-box;
   width: var(--panel-width, 380px);
   max-height: 40vh;
@@ -2536,7 +2536,7 @@
   padding: 0.5em 0.6em;
   background: $white;
   border: 1px solid $brand;
-  border-left: 3px solid var(--day-color, #{$brand});
+  border-left: 3px solid var(--route-color, #{$brand});
   border-radius: 8px;
   box-shadow: 0 6px 18px $panel-shadow;
   opacity: 0.95;
@@ -2575,7 +2575,7 @@
 
 // --- Delete this ride --------------------------------------------------------
 //
-// At the END of the panel contents, below the last day, and that placement is
+// At the END of the panel contents, below the last route, and that placement is
 // the whole design. The meta-row and the action bar are both rows a rider's
 // pointer lives in while building — a destructive control belongs where someone
 // arrives on purpose, not where they click by reflex.
@@ -2639,7 +2639,7 @@
   }
 
   .sg-color {
-    // Matches .day-color's box so the two color wells in the panel read as the
+    // Matches .route-color's box so the two color wells in the panel read as the
     // same control at two levels.
     width: 1.6rem;
     height: 1.6rem;
@@ -2692,7 +2692,7 @@
 // that looks like text is one a rider never presses. Quiet by default: on a ride
 // where nobody joins or leaves it reads "4 riders" on every row and must not
 // compete with the route's own name.
-.day-riders {
+.route-riders {
   flex: none;
   max-width: 12em;
   overflow: hidden;
@@ -2861,7 +2861,7 @@
   }
 }
 
-// "part of this day only" beside the Nearby heading. Amber rather than red for
+// "part of this route only" beside the Nearby heading. Amber rather than red for
 // the reason .row-dist-dry is: it is advice — search the rest another way — not
 // a verdict that something is wrong.
 .hit-partial {
@@ -2873,7 +2873,7 @@
 
 // WHERE THE RIDING DAY SHOULD END. An interruption in the list rather than a
 // control on a row: the rules top and bottom are what make it read as a break in
-// the day rather than as another thing attached to the point above it.
+// the route rather than as another thing attached to the point above it.
 //
 // Amber, on the same reasoning as .row-dist-dry — this is ADVICE, not a verdict.
 // Riding past four is a decision the rider is allowed to make, and #67's rule
@@ -2935,7 +2935,7 @@
 
 // The grip. A real <button> so it is focusable and carries the arrow keys —
 // reordering groups has to work when the SortableJS CDN does not, the same
-// property the day handle holds.
+// property the route handle holds.
 .sg-drag {
   flex: none;
   border: 0;
@@ -3013,7 +3013,7 @@
 // THE ADD-A-GROUP FORM. A group cannot be made without a starting point, so
 // this collects one before anything exists — see openNewGroup(). It sits in
 // .tab-actions beside the button rather than inside #sg-body, which is rebuilt
-// whenever a day changes and would take a half-typed search with it.
+// whenever a route changes and would take a half-typed search with it.
 // FULL WIDTH THE WHOLE TIME, AND IT IS THE PARENT THAT MAKES IT SO. Ziad's
 // call, 2026-09-05. `.tab-actions` is a flex row, so this box was an auto-basis
 // flex item sized by its own content: it opened about as wide as the
@@ -3177,9 +3177,9 @@
   border-radius: 5px;
 }
 
-// The picker in a day header. Rendered only when the ride has subgroups, so on
+// The picker in a route header. Rendered only when the ride has subgroups, so on
 // every other ride this rule matches nothing.
-.day-subgroup {
+.route-subgroup {
   font: inherit;
   font-size: 0.7em;
   max-width: 7rem;
@@ -3223,7 +3223,7 @@
   padding: 0;
 
   li {
-    // Baseline rather than center, so the format and the smaller per-day link
+    // Baseline rather than center, so the format and the smaller per-route link
     // sit on one line of type rather than being optically stacked.
     display: flex;
     align-items: baseline;
@@ -3266,10 +3266,10 @@
 // --- The panel's three tabs --------------------------------------------------
 //
 // Routes, Groups and Riders. The panel is 380px of a fixed-height drawer and the
-// day list is the thing it exists to show; before this, a subgroup editor and a
-// roster link sat above it and pushed the day being edited below the fold.
+// route list is the thing it exists to show; before this, a subgroup editor and a
+// roster link sat above it and pushed the route being edited below the fold.
 //
-// STUCK TO THE TOP OF THE SCROLLER, so the strip is reachable from day 9 without
+// STUCK TO THE TOP OF THE SCROLLER, so the strip is reachable from route 9 without
 // scrolling back up. `position: sticky` rather than moving the strip out of
 // .panel-content: the tab panels are its siblings and have to scroll with it, so
 // it belongs to the same scroller.
@@ -3356,8 +3356,8 @@
   }
 }
 
-// The row a tab's own actions live on: + Day on Routes, Add a group on Groups,
-// the link out on Riders. Right-aligned, which is where + Day already sat when
+// The row a tab's own actions live on: + Route on Routes, Add a group on Groups,
+// the link out on Riders. Right-aligned, which is where + Route already sat when
 // it was in .meta-row.
 .tab-actions {
   display: flex;
@@ -3365,7 +3365,7 @@
   gap: 0.35em;
   margin: 0.5rem 0;
 
-  .day-add,
+  .route-add,
   .btn {
     margin-left: auto;
   }
@@ -3527,9 +3527,9 @@
 // A BUILDER SOMEBODY MAY LOOK AT BUT NOT WRITE TO (#190).
 //
 // applyReadOnly() in builder.js disables the FIELDS; this hides the controls
-// that would still be live and would still do nothing — the per-day add rows,
+// that would still be live and would still do nothing — the per-route add rows,
 // the insert-between hairlines, and the drag handles. What stays is everything a
-// reader uses to move around: the tab strip, the day rail, the row menus and the
+// reader uses to move around: the tab strip, the route rail, the row menus and the
 // map itself.
 //
 // The class goes on <body> rather than on the panel because the timeline and the
@@ -3538,9 +3538,9 @@
   .builder-panel {
     .add-row,
     .insert-slot,
-    .day-add,
+    .route-add,
     .row-drag,
-    .day-drag {
+    .route-drag {
       display: none;
     }
 
@@ -3694,7 +3694,7 @@
       border-left-color: $go;
     }
 
-    // Not an error color. A stale suggestion is nobody's mistake — the day moved
+    // Not an error color. A stale suggestion is nobody's mistake — the route moved
     // under it, which is the ordinary consequence of two people planning a ride.
     &.is-stale {
       border-left-color: $pending;

@@ -1,8 +1,8 @@
 // Turning one imported track into the legs a builder can edit.
 //
-// THE PROBLEM. An imported day was stored as a single `route_legs` row holding
+// THE PROBLEM. An imported route was stored as a single `route_legs` row holding
 // the entire track, however many points sat along it. The builder's model is N
-// points and exactly N−1 legs, one per consecutive pair, and `daySchema` in
+// points and exactly N−1 legs, one per consecutive pair, and `routeSchema` in
 // ride-graph.ts enforces it — so an imported ride could never be opened, saved
 // or exported as valid native JSON. That is the whole reason `/builder/:id`
 // answered 409 for imports, and it is what this file removes.
@@ -17,7 +17,7 @@
 // untouched, because a POI sat beside the route and anchored no leg; it is on the
 // route now, so it takes a boundary like any other point. Leaving POIs out would
 // append them after the last stop, which draws a road out to a viewpoint that was
-// actually halfway along the day.
+// actually halfway along the route.
 //
 // Legs SHARE their joint vertex — leg k is `track[i_k .. i_{k+1}]` inclusive, so
 // leg k's last coordinate is leg k+1's first. That is the form the builder
@@ -31,10 +31,10 @@ import { haversineM, nearestVertexIndex, trackMeters, type ExtractedPoint, type 
 
 export type SplitLeg = { geometry: Track; distanceM: number }
 
-export type SplitDay = {
+export type SplitRoute = {
   /**
    * Every point, both kinds, in along-track order — which is the order their
-   * legs connect them in. One list, matching `day.points` everywhere else.
+   * legs connect them in. One list, matching `route.points` everywhere else.
    */
   points: ExtractedPoint[]
   legs: SplitLeg[]
@@ -66,7 +66,7 @@ function pointAt(track: Track, i: number, name: string): ExtractedPoint {
 const metersBetween = (a: Track[number], p: { lat: number; lng: number }) => haversineM(a[1], a[0], p.lat, p.lng)
 
 /**
- * Split one day's track into the legs its points imply.
+ * Split one route's track into the legs its points imply.
  *
  * `points` is the mixed list the parsers produce, and BOTH KINDS are placed.
  * They come back in ALONG-TRACK order, which is not necessarily the order they
@@ -74,7 +74,7 @@ const metersBetween = (a: Track[number], p: { lat: number; lng: number }) => hav
  * nothing tying them to a track, so their order is whatever the exporting tool
  * felt like. That was already true of stops and is just as true of POIs.
  */
-export function splitDayTrack(track: Track, points: ExtractedPoint[]): SplitDay {
+export function splitRouteTrack(track: Track, points: ExtractedPoint[]): SplitRoute {
   // No geometry to cut. A CSV import lands here by design — it is a list of
   // points with no line, and saying so is better than joining them with straight
   // lines and reporting a distance no motorcycle can ride.
@@ -109,7 +109,7 @@ export function splitDayTrack(track: Track, points: ExtractedPoint[]): SplitDay 
   // everything before the first and after the last — so either a point already
   // stands at each end, or one is invented there.
   //
-  // A synthesized endpoint is a STOP, not a POI. It is where the day begins or
+  // A synthesized endpoint is a STOP, not a POI. It is where the route begins or
   // ends, the at-least-one-stop rule has to be satisfiable, and `start`/`finish`
   // mean something only on a stop.
   let synthesizedStart = false
@@ -142,7 +142,7 @@ export function splitDayTrack(track: Track, points: ExtractedPoint[]): SplitDay 
   // A DAY NEEDS A STOP, and a file of nothing but POIs would leave it without
   // one — the payload refine would reject the whole import. The first point is
   // promoted, which is the same rule the builder applies to the first point of
-  // every day.
+  // every route.
   if (!placed.some((p) => p.point.kind !== 'poi')) {
     placed[0] = { ...placed[0], point: { ...placed[0].point, kind: 'stop' } }
   }
@@ -178,18 +178,18 @@ function sliceAt(track: Track, at: number[]): SplitLeg[] {
 }
 
 /**
- * Re-cut a day's legs for a list of points whose ORDER IS ALREADY RIGHT.
+ * Re-cut a route's legs for a list of points whose ORDER IS ALREADY RIGHT.
  *
  * This is the restore path for a native file written before 2026-08-24, when a
- * day carried `stops - 1` legs. The points are all there and in the order the
+ * route carried `stops - 1` legs. The points are all there and in the order the
  * rider put them in; what the file lacks is a leg per pair. Concatenating what it
- * does have gives the day's track back, and cutting that at every point produces
+ * does have gives the route's track back, and cutting that at every point produces
  * the missing legs without inventing a coordinate or asking the router.
  *
  * The rider's order is KEPT rather than re-derived, which is what separates this
- * from splitDayTrack above. In a v4 file a POI's place in the list was the
+ * from splitRouteTrack above. In a v4 file a POI's place in the list was the
  * rider's own choice — they could drag it — so sorting along the track would
- * quietly rearrange a day they had arranged. A point that projects behind its
+ * quietly rearrange a route they had arranged. A point that projects behind its
  * predecessor is clamped forward to it instead, which costs a zero-length leg and
  * keeps the sequence.
  *
@@ -197,7 +197,7 @@ function sliceAt(track: Track, at: number[]): SplitLeg[] {
  * in every older version, so the whole recorded line belongs between them, and
  * anything outside would be silently dropped.
  */
-export function relegDay(track: Track, points: Array<{ lat: number; lng: number }>): SplitLeg[] {
+export function relegRoute(track: Track, points: Array<{ lat: number; lng: number }>): SplitLeg[] {
   if (track.length < 2 || points.length < 2) return []
   const at = points.map((p) => nearestVertexIndex(track, p))
   at[0] = 0
@@ -207,7 +207,7 @@ export function relegDay(track: Track, points: Array<{ lat: number; lng: number 
 }
 
 /**
- * The track a split day renders as — the same concatenation every reader does,
+ * The track a split route renders as — the same concatenation every reader does,
  * dropping the duplicate at each joint.
  *
  * Here so the tests can assert the round trip in the reader's own terms rather

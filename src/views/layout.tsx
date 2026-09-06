@@ -385,7 +385,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 //   .panel-contents  the ONLY part that scrolls, and it takes whatever height is
 //                    left. This is what stops the drawer growing and shrinking
 //                    with its own content.
-//   .drawer-foot     pinned to the bottom edge. The builder puts the day
+//   .drawer-foot     pinned to the bottom edge. The builder puts the route
 //                    scrubber here; the viewer passes nothing and it collapses.
 //
 // THE LOGO LIVES HERE NOW rather than floating over the map. SiteHeader drops it
@@ -396,9 +396,9 @@ export function panelShell(o: {
   titleHtml?: string
   extraClass?: string
   contents: string
-  /** Pinned to the drawer's bottom edge. The builder's day scrubber. */
+  /** Pinned to the drawer's bottom edge. The builder's route scrubber. */
   footer?: string
-  /** Shown only while collapsed, in the rail. The builder's day dots. */
+  /** Shown only while collapsed, in the rail. The builder's route dots. */
   rail?: string
 }): string {
   return (
@@ -434,7 +434,7 @@ export function panelShell(o: {
       {/*
         The rail's own contents, hidden until .collapsed. Rendered even when
         empty so the collapsed drawer has something to be, and aria-hidden while
-        expanded so its duplicate day controls are not announced twice.
+        expanded so its duplicate route controls are not announced twice.
       */}
       <div class="drawer-rail" aria-hidden="true">
         {o.rail ? raw(o.rail) : ''}
@@ -468,13 +468,13 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
         <div class="time-readout" id="time-readout"></div>
         {/* BUILDER ONLY, and the argument is what makes that explicit rather
             than a class the viewer has to remember not to style. The builder's
-            slider spans the day being edited (see state.timeScope in
+            slider spans the route being edited (see state.timeScope in
             builder.js) and this widens it to the ride; the viewer's spans the
             ride already, because reading a ride is not editing one and there is
-            no active day there to scope to.
+            no active route there to scope to.
 
             Ships with no label and hidden: renderTimeScope() fills both in, and
-            leaves it hidden on a one-day ride where the two scopes are the same
+            leaves it hidden on a one-route ride where the two scopes are the same
             slider. */}
         {opts.scopeToggle ? (
           <button type="button" class="time-scope" id="time-scope" aria-pressed="false" hidden></button>
@@ -688,7 +688,7 @@ function feedbackFab(area?: string): string {
   // and every other support widget uses, so a tester arrives already knowing
   // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
   //
-  // It was two permanent marks for most of that day, which cost one fewer tap on
+  // It was two permanent marks for most of that route, which cost one fewer tap on
   // a bug report and bought a second piece of chrome on every screen forever.
   // The convention is one affordance for the same reason: the errands behind it
   // are occasional, and a dock that grows a mark per errand is a menu that
@@ -853,8 +853,7 @@ function stageBanner(): string {
   if (!IS_STAGE) return ''
   return (
     <div class="tb-banner is-stage" role="status">
-      <strong>Staging.</strong> Rides planned here are wiped whenever this environment is refreshed from
-      production.{' '}
+      <strong>Staging.</strong> Rides planned here are wiped whenever this environment is refreshed from production.{' '}
       <a href="https://routeloop.app">Go to the real&nbsp;site</a>
     </div>
   ).toString()

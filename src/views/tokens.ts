@@ -3,7 +3,7 @@
 //
 // A hardcoded table in TypeScript would have been half the code and wrong
 // within a week — that is the whole failure mode this page exists to fix, since
-// the palette already has one copy too many (DAY_COLORS was duplicated in
+// the palette already has one copy too many (ROUTE_COLORS was duplicated in
 // builder.js until the importer needed it too). Parsing the source means a
 // token trimmed in _tokens.scss disappears from the page on the next reload,
 // with no second place to remember.
@@ -67,8 +67,7 @@ const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 // The three keywords are here for the same reason luminance() knows them: Sass
 // writes the shortest form of a color, so a derivation that lands exactly on one
 // arrives as a keyword rather than as a hex.
-const isColorValue = (v: string) =>
-  HEX.test(v) || v.startsWith('rgba(') || v.startsWith('rgb(') || KEYWORDS.has(v)
+const isColorValue = (v: string) => HEX.test(v) || v.startsWith('rgba(') || v.startsWith('rgb(') || KEYWORDS.has(v)
 
 /**
  * Parses `$name: value;` declarations, carrying the comment block above each
@@ -165,7 +164,14 @@ export function findLiterals(files: { name: string; text: string }[], tokens: To
 /** `#06c` and `#0066cc` are the same color and must not count as two. */
 function expand(hex: string): string {
   if (hex.length !== 4) return hex
-  return '#' + hex.slice(1).split('').map((c) => c + c).join('')
+  return (
+    '#' +
+    hex
+      .slice(1)
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  )
 }
 
 // --- Contrast ---------------------------------------------------------------
@@ -290,10 +296,7 @@ export function readTokens(): Snapshot {
     // compiled CSS is in the key as well: in dev the sass watcher rewrites it a
     // moment after the partial it came from, and without this the page would
     // show the previous build's colors until something else changed.
-    const key = [
-      ...names.map((n) => `${n}:${statSync(join(STYLE_DIR, n)).mtimeMs}`),
-      `css:${cssMtime()}`,
-    ].join('|')
+    const key = [...names.map((n) => `${n}:${statSync(join(STYLE_DIR, n)).mtimeMs}`), `css:${cssMtime()}`].join('|')
     if (cache && cache.key === key) return cache.snapshot
 
     const palette = parsePalette(readCss())

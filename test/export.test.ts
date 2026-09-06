@@ -14,9 +14,9 @@ const ride: ExportRide = {
   // loadRideForExport has already dropped any losing alternates by the time a
   // serializer sees the ride, so a fixture for one always has none hidden.
   hiddenAlts: 0,
-  days: [
+  routes: [
     {
-      title: 'Day 1',
+      title: 'Route 1',
       color: '#cc0000',
       distanceM: 1000,
       durationS: 0,
@@ -55,7 +55,7 @@ describe('buildKml', () => {
   })
 
   it('falls back to a valid color rather than emitting a broken one', () => {
-    const broken = buildKml({ ...ride, days: [{ ...ride.days[0], color: 'rebeccapurple' }] })
+    const broken = buildKml({ ...ride, routes: [{ ...ride.routes[0], color: 'rebeccapurple' }] })
     expect(broken).toMatch(/<color>[0-9a-f]{8}<\/color>/)
   })
 
@@ -127,14 +127,14 @@ describe('buildGpx', () => {
     ])
   })
 
-  it('writes a track per day, so the days stay separable in the file', () => {
-    const twoDays = buildGpx({ ...ride, days: [ride.days[0], { ...ride.days[0], title: 'Day 2' }] })
-    expect(twoDays.match(/<trk>/g) ?? []).toHaveLength(2)
+  it('writes a track per route, so the routes stay separable in the file', () => {
+    const twoRoutes = buildGpx({ ...ride, routes: [ride.routes[0], { ...ride.routes[0], title: 'Route 2' }] })
+    expect(twoRoutes.match(/<trk>/g) ?? []).toHaveLength(2)
   })
 })
 
 describe('a ride with no geometry', () => {
-  const stopsOnly: ExportRide = { ...ride, days: [{ ...ride.days[0], track: [] }] }
+  const stopsOnly: ExportRide = { ...ride, routes: [{ ...ride.routes[0], track: [] }] }
 
   it('writes no LineString rather than an empty one', () => {
     expect(buildKml(stopsOnly)).not.toContain('<LineString>')
@@ -154,7 +154,7 @@ describe('a ride with no geometry', () => {
 describe('angle brackets in a name', () => {
   const nasty: ExportRide = {
     ...ride,
-    days: [{ ...ride.days[0], points: [{ ...ride.days[0].points[0], name: 'A <b> C', roles: [] }] }],
+    routes: [{ ...ride.routes[0], points: [{ ...ride.routes[0].points[0], name: 'A <b> C', roles: [] }] }],
   }
 
   it('is escaped on the way out, so the file stays well-formed', () => {

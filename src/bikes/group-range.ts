@@ -97,7 +97,7 @@ export type GroupRange = {
    * has to know which category resets the count. The BINDING bike's is the one
    * that matters because it is the bike the plan is built around; a mixed group
    * where the smallest tank is electric plans around chargers, correctly, and
-   * the gas riders have the easier day.
+   * the gas riders have the easier route.
    */
   fuelType: BikeRow['fuelType'] | null
 }
@@ -122,7 +122,7 @@ export async function groupRange(rideId: number): Promise<GroupRange> {
  * insert transaction, so until the first save there is nobody to ask — and
  * `bikesOnRide` correctly answers with an empty list. That is the right answer
  * to "who is coming" and the wrong one for the builder, where a planner is
- * sitting there with a bike in the garage and a day to fill.
+ * sitting there with a bike in the garage and a route to fill.
  *
  * Their default bike is the honest stand-in. It is deliberately NOT merged into
  * groupRange(): the moment the ride exists the roster is the better answer, and

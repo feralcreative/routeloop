@@ -90,7 +90,7 @@ describe('buildZip', () => {
 
 describe('entryBaseName', () => {
   it('strips any directory an archive tries to carry', () => {
-    expect(entryBaseName('day/one.gpx')).toBe('one.gpx')
+    expect(entryBaseName('route/one.gpx')).toBe('one.gpx')
     expect(entryBaseName('a\\b\\one.gpx')).toBe('one.gpx')
     expect(entryBaseName('one.gpx')).toBe('one.gpx')
   })
@@ -113,7 +113,7 @@ describe('isArchiveCruft', () => {
 
 describe('readZipEntries', () => {
   // The case that made this necessary: zipping three files in Finder produces
-  // six entries, and left in, the ride imports as six days with three of them
+  // six entries, and left in, the ride imports as six routes with three of them
   // binary junk.
   it('drops macOS resource forks', () => {
     const zip = buildZip([
@@ -126,8 +126,8 @@ describe('readZipEntries', () => {
 
   it('drops directory entries and applies the caller filter', () => {
     const zip = buildZip([
-      { name: 'day/', body: Buffer.alloc(0) },
-      { name: 'day/one.gpx', body: body('<gpx/>') },
+      { name: 'route/', body: Buffer.alloc(0) },
+      { name: 'route/one.gpx', body: body('<gpx/>') },
       { name: 'readme.txt', body: body('hello') },
     ])
     const out = readZipEntries(zip, opts({ keep: (n) => n.endsWith('.gpx') }))
@@ -170,14 +170,14 @@ describe('readZipEntries', () => {
 })
 
 // The point of the whole sprint, asserted end to end across the pure parts: a
-// per-day archive this app writes, dragged back in, comes out as the trip it
+// per-route archive this app writes, dragged back in, comes out as the trip it
 // left as. Only the database insert is missing, and that is what it is given.
-describe('a per-day export round-trips back to a plan', () => {
+describe('a per-route export round-trips back to a plan', () => {
   const RIDE = 'Big Sur Run'
   const DAYS = [
-    { day: 1, date: new Date(Date.UTC(2026, 7, 13)), title: 'Coast Start' },
-    { day: 2, date: new Date(Date.UTC(2026, 7, 14, 8, 30)), title: 'Lost Coast' },
-    { day: 3, date: new Date(Date.UTC(2026, 7, 15)), title: 'Avenue of Giants' },
+    { route: 1, date: new Date(Date.UTC(2026, 7, 13)), title: 'Coast Start' },
+    { route: 2, date: new Date(Date.UTC(2026, 7, 14, 8, 30)), title: 'Lost Coast' },
+    { route: 3, date: new Date(Date.UTC(2026, 7, 15)), title: 'Avenue of Giants' },
   ]
 
   const archive = () =>
@@ -185,25 +185,25 @@ describe('a per-day export round-trips back to a plan', () => {
       // Reversed, because entry order in an archive is whatever wrote it and
       // must not be what the import depends on.
       [...DAYS].reverse().map((d) => ({
-        name: buildExportName({ ride: RIDE, day: d.day, date: d.date, title: d.title, ext: 'gpx' }),
+        name: buildExportName({ ride: RIDE, route: d.route, date: d.date, title: d.title, ext: 'gpx' }),
         body: body(`<gpx><trk><name>${d.title}</name></trk></gpx>`),
       })),
     )
 
-  it('recovers the trip, the day order and every date', () => {
+  it('recovers the trip, the route order and every date', () => {
     const entries = readZipEntries(archive(), opts({ keep: (n) => n.endsWith('.gpx') }))
     const plan = planImport(entries.map((e) => e.name))
 
     expect(plan.ride).toBe('Big Sur Run')
     expect(plan.allConforming).toBe(true)
     expect(plan.reordered).toBe(true)
-    expect(plan.files.map((f) => f.day)).toEqual([1, 2, 3])
+    expect(plan.files.map((f) => f.route)).toEqual([1, 2, 3])
     expect(plan.files.map((f) => f.date?.toISOString())).toEqual([
       '2026-08-13T00:00:00.000Z',
       '2026-08-14T08:30:00.000Z',
       '2026-08-15T00:00:00.000Z',
     ])
-    // The time on day 2 survived; the other two are bare days, not midnights.
+    // The time on route 2 survived; the other two are bare routes, not midnights.
     expect(plan.files.map((f) => f.hasTime)).toEqual([false, true, false])
   })
 

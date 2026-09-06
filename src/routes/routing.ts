@@ -217,7 +217,7 @@ export async function fetchRouteLeg(
         intermediates: vias.map((v) => ({ ...toGoogleWaypoint(v), via: true })),
         travelMode: TRAVEL_MODE,
         polylineEncoding: 'GEO_JSON_LINESTRING',
-        // Spread rather than assigned, so a day with no preferences sends the
+        // Spread rather than assigned, so a route with no preferences sends the
         // request it sent before this existed — with no `routeModifiers` key at
         // all rather than one holding an object of falses.
         ...(modifiers ? { routeModifiers: modifiers } : {}),
@@ -262,7 +262,7 @@ export async function fetchRouteLeg(
   //
   // SCORED ON dpm RATHER THAN bestDpm, deliberately. bestDpm is the twistiest
   // 20-mile window, which is the right number to SHOW a rider deciding whether a
-  // day is worth riding — and the wrong one to pick a leg by, because a route
+  // route is worth riding — and the wrong one to pick a leg by, because a route
   // that is superb for five miles and slab for forty would beat one that is good
   // throughout. Choosing a road is a question about the whole road.
   //
@@ -467,7 +467,7 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
 // Australia" — so the whole phrase goes through as `textQuery` and the extra
 // Geocoding call that would otherwise be needed never happens. `near` is for the
 // case with no place in the text at all: a category chip, which anchors to the
-// day's last point or the map viewport.
+// route's last point or the map viewport.
 //
 // Here rather than in the browser for the cache. Text Search bills per call and
 // costs materially more than the Autocomplete session it sits beside, and a

@@ -35,7 +35,7 @@
 import { Hono } from 'hono'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
-import { days as daysTable, points as pointsTable, routeLegs } from '../db/schema'
+import { routes as routesTable, points as pointsTable, routeLegs } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { ownRide } from './maps'
 import {
@@ -47,8 +47,8 @@ import {
   type GroupRoute,
 } from '../subgroups/rendezvous'
 import { subgroupsOf } from '../subgroups/service'
-import { startDayOf, strandOf } from '../subgroups/policy'
-import { activeDays } from '../maps/alts'
+import { startRouteOf, strandOf } from '../subgroups/policy'
+import { activeRoutes } from '../maps/alts'
 import { METERS_PER_MILE, haversineM, type Track } from '../maps/kml'
 import { searchPlaces } from '../maps/places'
 import { fetchRouteLeg } from './routing'
@@ -65,7 +65,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // HOW FAR OUT OF THEIR WAY A JOINING GROUP MAY BE SENT, from the planner
   // rather than from a constant. Ziad's call, 2026-09-06: an earliest-acceptable
   // rule always lands NEAR the limit, so `maxDivertMi` stopped being a guard
-  // against nonsense the day the scoring was reversed and became the actual
+  // against nonsense the route the scoring was reversed and became the actual
   // dial — and it had no control, which made the one number deciding where a
   // meeting point lands the one number nobody could touch.
   //
@@ -82,82 +82,82 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // One group has nobody to meet. A real answer rather than an error.
   if (groups.length < 2) return c.json({ candidates: [], reason: 'one-group' })
 
-  const all = activeDays(
-    await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position),
+  const all = activeRoutes(
+    await db.select().from(routesTable).where(eq(routesTable.rideId, ride.id)).orderBy(routesTable.position),
   )
 
-  const dayIds = all.map((d) => d.id)
-  if (dayIds.length === 0) return c.json({ candidates: [], reason: 'no-days' })
+  const routeIds = all.map((d) => d.id)
+  if (routeIds.length === 0) return c.json({ candidates: [], reason: 'no-routes' })
 
-  // Every leg geometry in the ride, once, keyed by day. ONE QUERY rather than
-  // one per group: a group's strand includes the shared days, so the same day is
+  // Every leg geometry in the ride, once, keyed by route. ONE QUERY rather than
+  // one per group: a group's strand includes the shared routes, so the same route is
   // routinely read by several groups and a per-group query would fetch it twice.
   const legs = await db
-    .select({ dayId: routeLegs.dayId, geometry: routeLegs.geometry, position: routeLegs.position })
+    .select({ routeId: routeLegs.routeId, geometry: routeLegs.geometry, position: routeLegs.position })
     .from(routeLegs)
-    .where(inArray(routeLegs.dayId, dayIds))
+    .where(inArray(routeLegs.routeId, routeIds))
     .orderBy(routeLegs.position)
-  const byDay = new Map<number, Track[]>()
-  // Each day's own routed length, so a point's `dist_from_start_m` — which is
-  // measured from ITS day's start — can be offset onto the whole strand.
-  const dayLengthM = new Map<number, number>()
+  const byRoute = new Map<number, Track[]>()
+  // Each route's own routed length, so a point's `dist_from_start_m` — which is
+  // measured from ITS route's start — can be offset onto the whole strand.
+  const routeLengthM = new Map<number, number>()
   for (const l of legs) {
-    const list = byDay.get(l.dayId) ?? []
+    const list = byRoute.get(l.routeId) ?? []
     list.push(l.geometry as Track)
-    byDay.set(l.dayId, list)
+    byRoute.set(l.routeId, list)
     const geom = l.geometry as Track
     let len = 0
     for (let i = 1; i < geom.length; i++) {
       len += haversineM(geom[i - 1][1], geom[i - 1][0], geom[i][1], geom[i][0])
     }
-    dayLengthM.set(l.dayId, (dayLengthM.get(l.dayId) ?? 0) + len)
+    routeLengthM.set(l.routeId, (routeLengthM.get(l.routeId) ?? 0) + len)
   }
 
   // Every point in the ride, once, in position order — read for two things at
-  // once. The FIRST point of a group's first day is where they set off (not
+  // once. The FIRST point of a group's first route is where they set off (not
   // their riders' home addresses: this proposes against the ride as planned, and
   // the planner may not have put anybody in a group yet), and any point tagged
   // `gas` anywhere is offered as a candidate in its own right.
   const pts = await db
     .select({
-      dayId: pointsTable.dayId,
+      routeId: pointsTable.routeId,
       lat: pointsTable.lat,
       lng: pointsTable.lng,
       roles: pointsTable.roles,
-      // How far into ITS OWN DAY a point is. Offset by the days before it to get
+      // How far into ITS OWN DAY a point is. Offset by the routes before it to get
       // a distance along a group's whole strand — see fillBeforeM().
       distFromStartM: pointsTable.distFromStartM,
     })
     .from(pointsTable)
-    .where(inArray(pointsTable.dayId, dayIds))
+    .where(inArray(pointsTable.routeId, routeIds))
     .orderBy(pointsTable.position)
   const originOf = new Map<number, [number, number]>()
   const fuel: FuelCandidate[] = []
   for (const p of pts) {
-    if (!originOf.has(p.dayId)) originOf.set(p.dayId, [p.lng, p.lat])
+    if (!originOf.has(p.routeId)) originOf.set(p.routeId, [p.lng, p.lat])
     fuel.push({ at: [p.lng, p.lat], roles: p.roles })
   }
 
-  // WHAT A GROUP RIDES IS THEIR STRAND — their own days plus every shared one,
+  // WHAT A GROUP RIDES IS THEIR STRAND — their own routes plus every shared one,
   // in position order. `strandOf` is already the definition of that and is not
-  // restated here. It also means the two cases fall together: with no shared day
+  // restated here. It also means the two cases fall together: with no shared route
   // a strand is that group's own route, and with one the strands genuinely
   // overlap, which the proposer reads as a convergence costing nobody anything.
   const routeFor = (g: (typeof groups)[number]): GroupRoute | null => {
     const strand = strandOf(all, g.id)
     if (strand.length === 0) return null
-    // WHERE THEY SET OFF IS THEIR OWN DAY, NOT `strand[0]` — see startDayOf().
-    // A shared day sorting ahead of a group's own day used to become its origin,
+    // WHERE THEY SET OFF IS THEIR OWN DAY, NOT `strand[0]` — see startRouteOf().
+    // A shared route sorting ahead of a group's own route used to become its origin,
     // which handed every satellite the same starting point.
-    const startDay = startDayOf(all, g.id)
-    const origin = startDay && originOf.get(startDay.id)
+    const startRoute = startRouteOf(all, g.id)
+    const origin = startRoute && originOf.get(startRoute.id)
     if (!origin) return null
     const track: Track = []
     for (const d of strand) {
-      for (const geom of byDay.get(d.id) ?? []) {
+      for (const geom of byRoute.get(d.id) ?? []) {
         for (const v of geom) {
           // Drop the duplicate vertex at every joint, the same way the viewer's
-          // per-day concat does — a repeated point is a zero-length segment that
+          // per-route concat does — a repeated point is a zero-length segment that
           // makes the bearing at that vertex undefined.
           const last = track[track.length - 1]
           if (!last || last[0] !== v[0] || last[1] !== v[1]) track.push(v)
@@ -184,13 +184,13 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     let last = 0
     for (const d of strandOf(all, g.id)) {
       for (const p of pts) {
-        if (p.dayId !== d.id) continue
+        if (p.routeId !== d.id) continue
         if (p.distFromStartM == null) continue
         if (!p.roles.includes('gas')) continue
         const at = offset + p.distFromStartM
         if (at <= alongM) last = Math.max(last, at)
       }
-      offset += dayLengthM.get(d.id) ?? 0
+      offset += routeLengthM.get(d.id) ?? 0
     }
     return last
   }
@@ -209,10 +209,10 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     if (r) joining.push(r)
   }
 
-  if (!primary || joining.length === 0) return c.json({ candidates: [], reason: 'no-days' })
+  if (!primary || joining.length === 0) return c.json({ candidates: [], reason: 'no-routes' })
   // THE MAIN GROUP HAS NOT PLANNED A ROAD YET, said as its own reason rather
   // than folded into "nowhere works". A meeting point is placed ON their road,
-  // so with no routed day there is nothing to place it on — and "nowhere works"
+  // so with no routed route there is nothing to place it on — and "nowhere works"
   // would send the planner hunting for a geometry problem in a ride whose real
   // state is that it has not been drawn yet. It names the group, because which
   // one has to be planned first is the whole of what they need to know.

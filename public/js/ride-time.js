@@ -26,95 +26,95 @@
   // time is estimated from distance. Deriving this rather than storing a flag
   // means a reloaded ride reports the same figures as the session that built it,
   // and an imported ride — which carries its whole track as one leg with no
-  // duration at all — gets a plausible span instead of a zero-length day.
+  // duration at all — gets a plausible span instead of a zero-length route.
   const legIsEstimated = (leg) => leg.durationS <= 0 && leg.distanceM > 0;
   const legDurationS = (leg) => (legIsEstimated(leg) ? Math.round(leg.distanceM / NOMINAL_SPEED_MS) : leg.durationS);
 
-  // Every point of the day, in the rider's order. `legs[i]` joins `pointsOf(day)[i]`
-  // to `pointsOf(day)[i+1]`, whatever kind either of them is.
-  const pointsOf = (day) => day.points || [];
+  // Every point of the route, in the rider's order. `legs[i]` joins `pointsOf(route)[i]`
+  // to `pointsOf(route)[i+1]`, whatever kind either of them is.
+  const pointsOf = (route) => route.points || [];
 
   // Kept for the surfaces that still care which points are stops — the stop
   // count on a ride card, the roadbook's numbered rows, the hand-off to Google
   // Maps. It has nothing to do with the leg math any more.
-  const stopsOf = (day) => pointsOf(day).filter((p) => p.kind === "stop");
+  const stopsOf = (route) => pointsOf(route).filter((p) => p.kind === "stop");
 
-  const dayRidingS = (day) => day.legs.reduce((n, l) => n + legDurationS(l), 0);
+  const routeRidingS = (route) => route.legs.reduce((n, l) => n + legDurationS(l), 0);
   // BOTH KINDS, from the one list. A rider who spends forty minutes at a
-  // viewpoint has spent forty minutes, and the day ends forty minutes later.
+  // viewpoint has spent forty minutes, and the route ends forty minutes later.
   // Most POIs carry no duration at all — you rode past — and contribute nothing.
   const dwellS = (p) => (p.durationMin || 0) * 60;
-  const dayStoppedS = (day) => pointsOf(day).reduce((n, p) => n + dwellS(p), 0);
-  const dayIsEstimated = (day) => day.legs.some(legIsEstimated);
+  const routeStoppedS = (route) => pointsOf(route).reduce((n, p) => n + dwellS(p), 0);
+  const routeIsEstimated = (route) => route.legs.some(legIsEstimated);
 
-  // How long a day actually occupies: riding plus every planned stop. This is
-  // what the end time is derived from — a two-hour lunch ends the day two hours
+  // How long a route actually occupies: riding plus every planned stop. This is
+  // what the end time is derived from — a two-hour lunch ends the route two hours
   // later than the legs alone say. Deliberately not the same number as the
-  // server's days.duration_s, which caches riding time only.
-  const dayElapsedS = (day) => dayRidingS(day) + dayStoppedS(day);
+  // server's routes.duration_s, which caches riding time only.
+  const routeElapsedS = (route) => routeRidingS(route) + routeStoppedS(route);
 
-  const dayStartS = (day) => (day.startAt ? Math.floor(new Date(day.startAt).getTime() / 1000) : null);
+  const routeStartS = (route) => (route.startAt ? Math.floor(new Date(route.startAt).getTime() / 1000) : null);
 
-  // A day that lost its alternate group. It is not on the schedule: two
+  // A route that lost its alternate group. It is not on the schedule: two
   // alternates for the same Thursday cover the same hours, and without this the
   // timeline puts the rider on both at once and picks whichever comes first in
   // the array.
   //
   // SKIPPED INSIDE THIS FILE, NEVER BY FILTERING THE ARRAY AT A CALL SITE, and
   // the distinction is the whole reason it is here. `activeAtMoment` returns
-  // `dayIndex`, which both clients feed straight back into `state.days[i]`,
+  // `routeIndex`, which both clients feed straight back into `state.routes[i]`,
   // `setLegHighlight(map, i, …)` and `setActive(i)` — those are indices into the
   // FULL array. Hand it a filtered array and every index past the first ghost is
   // off by one, silently, and the map highlights the wrong road.
-  const isLosingAlt = (day) => day.altGroup != null && !day.altActive;
+  const isLosingAlt = (route) => route.altGroup != null && !route.altActive;
 
-  // endAt is normally kept in step by the builder, but a day can carry a start
+  // endAt is normally kept in step by the builder, but a route can carry a start
   // with no end (a stored row we deliberately do not overwrite), so the elapsed
-  // figure is the fallback rather than treating the day as instantaneous.
-  function dayEndS(day) {
-    const start = dayStartS(day);
+  // figure is the fallback rather than treating the route as instantaneous.
+  function routeEndS(route) {
+    const start = routeStartS(route);
     if (start == null) return null;
-    if (!day.endAt) return start + dayElapsedS(day);
-    const end = Math.floor(new Date(day.endAt).getTime() / 1000);
-    return Number.isNaN(end) ? start + dayElapsedS(day) : end;
+    if (!route.endAt) return start + routeElapsedS(route);
+    const end = Math.floor(new Date(route.endAt).getTime() / 1000);
+    return Number.isNaN(end) ? start + routeElapsedS(route) : end;
   }
 
-  // One day's extent, which is what the builder's timeline scrubs by default.
+  // One route's extent, which is what the builder's timeline scrubs by default.
   //
   // A LOSING ALTERNATE HAS ONE HERE AND HAS NONE IN rideSpan, and the difference
-  // is deliberate. rideSpan answers "how long is this ride", so a day the rider
+  // is deliberate. rideSpan answers "how long is this ride", so a route the rider
   // decided against must not stretch it. This answers "what am I looking at",
   // and a rider who has clicked into an alternate to work on it is looking at
-  // exactly that day — refusing it a span would hide the timeline on the one day
+  // exactly that route — refusing it a span would hide the timeline on the one route
   // they are editing.
   //
-  // Same null contract as rideSpan: an undated day, or one whose end does not
+  // Same null contract as rideSpan: an undated route, or one whose end does not
   // come after its start, has no span rather than a zero-width one. A slider
   // whose min equals its max is a control that cannot move.
-  function daySpan(day) {
-    const from = dayStartS(day);
+  function routeSpan(route) {
+    const from = routeStartS(route);
     if (from == null) return null;
-    const to = dayEndS(day);
+    const to = routeEndS(route);
     return to == null || to <= from ? null : { from, to };
   }
 
-  // The ride's whole extent. Undated days sit outside it rather than stretching
-  // it — a rider who has dated day 2 only gets a timeline over day 2.
-  function rideSpan(days) {
+  // The ride's whole extent. Undated routes sit outside it rather than stretching
+  // it — a rider who has dated route 2 only gets a timeline over route 2.
+  function rideSpan(routes) {
     let from = null;
     let to = null;
-    days.forEach((day) => {
-      if (isLosingAlt(day)) return;
-      const s = dayStartS(day);
+    routes.forEach((route) => {
+      if (isLosingAlt(route)) return;
+      const s = routeStartS(route);
       if (s == null) return;
-      const e = dayEndS(day);
+      const e = routeEndS(route);
       from = from == null ? s : Math.min(from, s);
       to = to == null ? e : Math.max(to, e);
     });
     return from == null || to == null || to <= from ? null : { from, to };
   }
 
-  // The day as an ordered list of segments: parked at a point, riding the leg
+  // The route as an ordered list of segments: parked at a point, riding the leg
   // out of it, parked at the next, and so on.
   //
   // A PLAIN WALK, because every point is on the road now. This used to project
@@ -126,9 +126,9 @@
   // — so a pause at a POI lands on a leg boundary like every other pause, and
   // the projection, the sort and the `poiDistsM` argument every caller had to
   // thread through are all gone with it.
-  function daySchedule(day) {
+  function routeSchedule(route) {
     const segs = [];
-    const points = pointsOf(day);
+    const points = pointsOf(route);
     let t = 0;
     for (let i = 0; i < points.length; i++) {
       const dwell = dwellS(points[i]);
@@ -137,18 +137,18 @@
         t += dwell;
       }
 
-      // A MISSING LEG IS ABSORBED, not treated as the end of the day. This used
+      // A MISSING LEG IS ABSORBED, not treated as the end of the route. This used
       // to `break`, which silently abandoned every remaining point — their dwell
-      // vanished from the schedule while dayElapsedS, which sums the points
+      // vanished from the schedule while routeElapsedS, which sums the points
       // independently, went on counting it. The two then disagreed, and the
-      // invariant that the last segment's end equals dayElapsedS — the one this
+      // invariant that the last segment's end equals routeElapsedS — the one this
       // file's tests call the one that matters most — was quietly false.
       //
-      // Every day should arrive here with exactly points-1 legs: fillMissingLegs
-      // supplies them in the builder and daySchema refuses a payload without
+      // Every route should arrive here with exactly points-1 legs: fillMissingLegs
+      // supplies them in the builder and routeSchema refuses a payload without
       // them. So this guards a malformed shape rather than a real one, but a
       // schedule that simply stops early is the kind of wrong nothing reports.
-      const leg = day.legs[i];
+      const leg = route.legs[i];
       if (!leg) continue;
       const riding = legDurationS(leg);
       if (riding > 0) {
@@ -160,7 +160,7 @@
   }
 
   /**
-   * Seconds from a day's departure until the rider ARRIVES at point `i`.
+   * Seconds from a route's departure until the rider ARRIVES at point `i`.
    *
    * The dwell of every point before it plus the riding time of every leg before
    * it — and deliberately NOT the dwell of `i` itself, because arriving is the
@@ -168,7 +168,7 @@
    * it would answer "when do they leave the meeting point", which nobody is
    * synchronizing.
    *
-   * IT IS A WALK, NOT A LOOKUP INTO daySchedule(). That function omits a
+   * IT IS A WALK, NOT A LOOKUP INTO routeSchedule(). That function omits a
    * zero-length segment entirely — a point with no dwell, a leg with no duration
    * — so its indices are not point indices, and finding "the segment for point
    * i" in it is the same off-by-one this file already warns about twice.
@@ -177,38 +177,38 @@
    * caller asking about a point that is not there is holding a stale index, and
    * returning 0 would read as "they arrive at the moment they set off".
    */
-  function elapsedToPointS(day, i) {
-    const points = pointsOf(day);
+  function elapsedToPointS(route, i) {
+    const points = pointsOf(route);
     if (!Number.isInteger(i) || i < 0 || i >= points.length) return null;
     let t = 0;
     for (let k = 0; k < i; k++) {
       t += dwellS(points[k]);
-      const leg = day.legs && day.legs[k];
+      const leg = route.legs && route.legs[k];
       if (leg) t += legDurationS(leg);
     }
     return t;
   }
 
   /**
-   * Seconds into a day at which the clock next reads `minuteOfDay`.
+   * Seconds into a route at which the clock next reads `minuteOfDay`.
    *
    * WALL CLOCK THROUGHOUT, with no zone anywhere: `startAt` is a time at the
    * departure point carried as UTC, and `minuteOfDay` is "four in the afternoon"
    * meaning four where the bike is. Reading either in the browser's zone is the
-   * bug day-clock.js exists to prevent.
+   * bug route-clock.js exists to prevent.
    *
    * WRAPS TO THE NEXT DAY when the target has already passed at departure — a
-   * day setting off at 6pm reaches 4pm twenty-two hours later, not two hours
+   * route setting off at 6pm reaches 4pm twenty-two hours later, not two hours
    * ago. That matters less for a bed than it looks: the caller checks the answer
-   * against the day's own length, and a twenty-two-hour offset simply falls off
-   * the end of every real day, which is the correct outcome rather than a
+   * against the route's own length, and a twenty-two-hour offset simply falls off
+   * the end of every real route, which is the correct outcome rather than a
    * special case.
    *
-   * Null when the day has no departure time, because there is nothing to count
+   * Null when the route has no departure time, because there is nothing to count
    * from — not zero, which would read as "at the moment they set off".
    */
-  function offsetAtClock(day, minuteOfDay) {
-    var start = dayStartS(day);
+  function offsetAtClock(route, minuteOfDay) {
+    var start = routeStartS(route);
     if (start == null) return null;
     if (!Number.isFinite(minuteOfDay)) return null;
     var startedAt = new Date(start * 1000);
@@ -218,28 +218,28 @@
   }
 
   /**
-   * Where the rider is when the clock reads `minuteOfDay`, or null when the day
+   * Where the rider is when the clock reads `minuteOfDay`, or null when the route
    * ends before it does.
    *
-   * NULL IS THE COMMON ANSWER AND IS NOT A FAILURE. A day that finishes at 2pm
+   * NULL IS THE COMMON ANSWER AND IS NOT A FAILURE. A route that finishes at 2pm
    * never reaches 4pm, and the honest thing is to say so rather than pinning the
    * marker to the last point — which would put "look for a bed here" on the
    * hotel they already arrived at.
    */
-  function clockMoment(day, minuteOfDay) {
-    var offset = offsetAtClock(day, minuteOfDay);
+  function clockMoment(route, minuteOfDay) {
+    var offset = offsetAtClock(route, minuteOfDay);
     if (offset == null || offset < 0) return null;
-    if (offset > dayElapsedS(day)) return null;
-    return { offsetS: offset, at: activeAt(day, offset) };
+    if (offset > routeElapsedS(route)) return null;
+    return { offsetS: offset, at: activeAt(route, offset) };
   }
 
-  // Where the rider is at a given offset into the day.
+  // Where the rider is at a given offset into the route.
   //
   // A moment spent at a point is on no leg at all, and says so. Highlighting the
   // leg just ridden (or the one about to be) would put a line on the map
   // claiming the rider is somewhere they are not.
   //
-  // ONE INDEX INTO `day.points`, where this used to return a `stopIndex` and a
+  // ONE INDEX INTO `route.points`, where this used to return a `stopIndex` and a
   // `poiIndex` that each indexed their own FILTERED array. That is the same
   // off-by-one trap the isLosingAlt comment above warns about, one level down: a
   // caller holding the ordered list had to filter it the same way to read the
@@ -247,7 +247,7 @@
   //
   // `legFraction` is HOW FAR THROUGH THAT LEG, 0..1, and null at a point. It is
   // what lets a caller put the rider somewhere on the road rather than only on
-  // one of its ends: distance into the day is the legs before this one plus
+  // one of its ends: distance into the route is the legs before this one plus
   // this fraction of it, which is a coordinate through pointAtDistance(). A
   // caller that only wants the leg ignores it and reads the same shape it read
   // before, which is why it is an added field rather than a new function.
@@ -257,9 +257,9 @@
   // moves along, so it is the honest one here: an hour into a two-hour leg puts
   // the dot at the halfway mark, and the alternative would have the dot lag or
   // race the clock the rider is reading beside it.
-  function activeAt(day, offsetS) {
+  function activeAt(route, offsetS) {
     const none = { legIndex: null, pointIndex: null, legFraction: null };
-    for (const seg of daySchedule(day)) {
+    for (const seg of routeSchedule(route)) {
       if (offsetS < seg.end) {
         if (seg.kind === "leg") {
           const span = seg.end - seg.start;
@@ -272,44 +272,44 @@
         return { ...none, pointIndex: seg.index };
       }
     }
-    // Past the end of the day: parked at the final point.
-    const n = pointsOf(day).length;
+    // Past the end of the route: parked at the final point.
+    const n = pointsOf(route).length;
     return { ...none, pointIndex: n ? n - 1 : null };
   }
 
   /**
    * The ride's riding hours as a set of disjoint wall-clock intervals — every
-   * day's span, with the overnights between them left out.
+   * route's span, with the overnights between them left out.
    *
    * WHAT THE RIDE-SCOPE SLIDER TRAVELS. rideSpan() is first-departure to
-   * last-arrival, so on a nine-day ride most of the slider's travel is nights
-   * in hotels: a rider dragging it spends more of the gesture in "between days"
+   * last-arrival, so on a nine-route ride most of the slider's travel is nights
+   * in hotels: a rider dragging it spends more of the gesture in "between routes"
    * than on the road, and the map shows nothing for all of it.
    *
    * OVERLAPS ARE MERGED, NOT CONCATENATED, and that is the subtle half. Real
-   * rides have days sharing a date — four alternates for one Thursday, or a
+   * rides have routes sharing a date — four alternates for one Thursday, or a
    * subgroup's feeder running alongside the trunk — and activeAtMoment()
-   * resolves a wall-clock moment to the FIRST day covering it. Concatenating
+   * resolves a wall-clock moment to the FIRST route covering it. Concatenating
    * overlapping spans would give the slider two positions that mean the same
-   * instant and therefore resolve to the same day, so the second copy would be
-   * unreachable travel showing a day the rider is not scrubbing. Merging keeps
+   * instant and therefore resolve to the same route, so the second copy would be
+   * unreachable travel showing a route the rider is not scrubbing. Merging keeps
    * one position per instant, which is exactly what the resolver can answer.
    *
-   * Losing alternates are dropped, matching rideSpan() rather than daySpan():
-   * the ride's length must not include a day the rider decided against.
+   * Losing alternates are dropped, matching rideSpan() rather than routeSpan():
+   * the ride's length must not include a route the rider decided against.
    */
-  function rideSegments(days) {
+  function rideSegments(routes) {
     const spans = [];
-    for (const day of days || []) {
-      if (isLosingAlt(day)) continue;
-      const s = daySpan(day);
+    for (const route of routes || []) {
+      if (isLosingAlt(route)) continue;
+      const s = routeSpan(route);
       if (s) spans.push(s);
     }
     spans.sort((a, b) => a.from - b.from);
     const out = [];
     for (const s of spans) {
       const last = out[out.length - 1];
-      // `<=` rather than `<`, so a day starting exactly when the previous one
+      // `<=` rather than `<`, so a route starting exactly when the previous one
       // ends joins it instead of leaving a zero-length gap the slider would
       // have to step over.
       if (last && s.from <= last.to) last.to = Math.max(last.to, s.to);
@@ -324,7 +324,7 @@
   /**
    * The wall-clock moment `offsetS` into the segments, skipping the gaps.
    *
-   * The slider's value is an OFFSET in ride scope and an epoch second in day
+   * The slider's value is an OFFSET in ride scope and an epoch second in route
    * scope, but `state.moment` is always an epoch second — everything
    * downstream, activeAtMoment and fmtMoment included, reads wall clock. This
    * and offsetAtMoment are the only conversion, and they are here rather than
@@ -336,17 +336,17 @@
     let o = Math.max(0, offsetS);
     for (const s of segs) {
       const len = s.to - s.from;
-      // STRICTLY LESS, so the boundary offset belongs to the LATER day.
+      // STRICTLY LESS, so the boundary offset belongs to the LATER route.
       //
-      // One offset means two instants there — the end of day N and the start of
-      // day N+1 — and only one can win. The next day's start wins because it is
-      // a real, labeled time the rider typed into the Starts field, while day
+      // One offset means two instants there — the end of route N and the start of
+      // route N+1 — and only one can win. The next route's start wins because it is
+      // a real, labeled time the rider typed into the Starts field, while route
       // N's final second is visually identical to its second-to-last. Taken the
       // other way the round trip through offsetAtMoment breaks, and with the
-      // slider's 60-second step every day after the first became unreachable at
+      // slider's 60-second step every route after the first became unreachable at
       // its own departure time.
       //
-      // A zero-length day consumes no travel, correctly: `o < 0` is never true.
+      // A zero-length route consumes no travel, correctly: `o < 0` is never true.
       if (o < len) return s.from + o;
       o -= len;
     }
@@ -357,7 +357,7 @@
    * Where a moment sits on that compressed axis. A moment inside an overnight
    * lands at the START of the gap rather than the end of it: the gap has no
    * travel of its own, and rounding forward would jump a rider who has just
-   * clicked into the next day back to the previous one's last second.
+   * clicked into the next route back to the previous one's last second.
    */
   function offsetAtMoment(segs, momentS) {
     let acc = 0;
@@ -369,25 +369,25 @@
     return acc;
   }
 
-  // Which day and leg a moment falls in. A moment in the gap between two days —
+  // Which route and leg a moment falls in. A moment in the gap between two routes —
   // the overnight — belongs to neither, and returns nulls rather than being
-  // rounded into the nearest day.
-  function activeAtMoment(days, momentS) {
-    for (let d = 0; d < days.length; d++) {
-      const day = days[d];
+  // rounded into the nearest route.
+  function activeAtMoment(routes, momentS) {
+    for (let d = 0; d < routes.length; d++) {
+      const route = routes[d];
       // `continue`, so `d` stays the index into the caller's own array.
-      if (isLosingAlt(day)) continue;
-      const start = dayStartS(day);
+      if (isLosingAlt(route)) continue;
+      const start = routeStartS(route);
       if (start == null) continue;
-      if (momentS < start || momentS > dayEndS(day)) continue;
-      const a = activeAt(day, momentS - start);
-      return { dayIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex, legFraction: a.legFraction };
+      if (momentS < start || momentS > routeEndS(route)) continue;
+      const a = activeAt(route, momentS - start);
+      return { routeIndex: d, legIndex: a.legIndex, pointIndex: a.pointIndex, legFraction: a.legFraction };
     }
-    return { dayIndex: null, legIndex: null, pointIndex: null, legFraction: null };
+    return { routeIndex: null, legIndex: null, pointIndex: null, legFraction: null };
   }
 
-  // UTC, because a day's clock is a WALL CLOCK at the departure point and is
-  // carried as UTC — see the header of public/js/day-clock.js. Formatting in the
+  // UTC, because a route's clock is a WALL CLOCK at the departure point and is
+  // carried as UTC — see the header of public/js/route-clock.js. Formatting in the
   // browser's zone is what made the timeline and the printed roadbook disagree
   // by the viewer's offset.
   const fmtMoment = (s) =>
@@ -406,18 +406,18 @@
     stopsOf,
     legIsEstimated,
     legDurationS,
-    dayRidingS,
-    dayStoppedS,
-    dayIsEstimated,
-    dayElapsedS,
-    dayStartS,
-    dayEndS,
+    routeRidingS,
+    routeStoppedS,
+    routeIsEstimated,
+    routeElapsedS,
+    routeStartS,
+    routeEndS,
     isLosingAlt,
-    daySchedule,
+    routeSchedule,
     elapsedToPointS,
     offsetAtClock,
     clockMoment,
-    daySpan,
+    routeSpan,
     rideSpan,
     rideSegments,
     segmentsTotalS,

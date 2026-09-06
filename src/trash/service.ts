@@ -5,7 +5,7 @@
 // out of the bin, and nothing enforces that it does — a missed one shows a
 // trashed ride on the dashboard, counts it in the stats, keeps a share link
 // alive, or hands its bytes back to the quota tally. That is the same shape as
-// "only active days count, and there is no single place that enforces it" in
+// "only active routes count, and there is no single place that enforces it" in
 // AGENTS.md, and the mitigation is the same: name the predicate once, import it
 // everywhere, and make an omission visible in review as a missing import rather
 // than invisible as an absent `is null`.

@@ -34,8 +34,7 @@
   const labels = months.map((m) => m.label);
   const peak = Math.max(1, ...ys);
 
-  const css = (name, fallback) =>
-    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const css = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
   const series = css("--viz-series-1", "#1565c0");
   const ink = css("--viz-ink-muted", "#777");

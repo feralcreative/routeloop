@@ -140,13 +140,13 @@
   }
 
   // THE IMPORT REVIEW TABLE (#129). It used to be a plain list, and the comment
-  // here used to argue that it should stay one — that the place to change a day
+  // here used to argue that it should stay one — that the place to change a route
   // order was the files or the builder. That was wrong in the way a shipped
   // guess is always wrong: a rider who saw a misread date had to rename files on
   // disk and drop them again. It reports AND corrects now.
   //
   // A grid rather than a flex line, because the columns have to line up DOWN the
-  // list: the day numbers, the name fields and the dates each form a column, and
+  // list: the route numbers, the name fields and the dates each form a column, and
   // a flex row per <li> lines up nothing with its neighbors. `subgrid` is what
   // lets each row keep its own hover and border while inheriting the parent's
   // tracks.
@@ -179,7 +179,7 @@
 
     .plan-list {
       display: grid;
-      // grip | day | name | date | time | ext | actions. The name track takes
+      // grip | route | name | date | time | ext | actions. The name track takes
       // the slack; every other one is sized by its content so the columns hold
       // still as rows are added, dropped and dragged.
       grid-template-columns: auto auto minmax(6rem, 1fr) auto auto auto auto;
@@ -214,13 +214,13 @@
 
     // A file that carried no structured name. Dimmed rather than flagged: it
     // still imports, it just brought less with it.
-    .plan-row.is-plain .plan-day {
+    .plan-row.is-plain .plan-route {
       color: $neutral-57;
     }
 
     // Two files with the same name. A warning tone and not an error one: it is
     // usually the same file added twice, and occasionally two genuinely
-    // different days a rider named badly. Either way it is theirs to decide.
+    // different routes a rider named badly. Either way it is theirs to decide.
     .plan-row.is-dupe {
       background: color-mix(in oklab, $warning 12%, transparent);
     }
@@ -238,7 +238,7 @@
       white-space: nowrap;
     }
 
-    .plan-day {
+    .plan-route {
       color: $url;
       font-weight: 600;
       white-space: nowrap;
@@ -337,7 +337,7 @@
   //
   // Below 640px there is no room for seven columns, and a horizontal scroller
   // inside a form is worse than a stack. Each row becomes its own small grid:
-  // the day number and the controls on one line, the fields under them.
+  // the route number and the controls on one line, the fields under them.
   @media (max-width: 640px) {
     .import-plan {
       .plan-list {
@@ -348,7 +348,7 @@
         display: grid;
         grid-template-columns: auto auto 1fr auto;
         grid-template-areas:
-          "grip day ext actions"
+          "grip route ext actions"
           "name name name name"
           "date date time time";
         padding: 0.6rem 0;
@@ -358,8 +358,8 @@
         grid-area: grip;
       }
 
-      .plan-day {
-        grid-area: day;
+      .plan-route {
+        grid-area: route;
       }
 
       .plan-ext {
@@ -453,8 +453,8 @@
       color: $ride;
     }
 
-    .f-day {
-      color: $day;
+    .f-route {
+      color: $route;
     }
 
     .f-date {

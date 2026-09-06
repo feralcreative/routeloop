@@ -5,7 +5,7 @@
 // batching exists because Maps silently drops what it cannot carry.
 import { describe, expect, it } from 'vitest'
 import { MAX_POINTS_PER_LINK, linkLabel, routeLinks } from '../src/maps/gmaps-links'
-import type { ExportPoint, ExportDay } from '../src/maps/export'
+import type { ExportPoint, ExportRoute } from '../src/maps/export'
 import { SEP } from '../src/views/sep'
 
 const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
@@ -19,7 +19,7 @@ const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
   distFromStartM: null,
 })
 
-const routeOf = (points: ExportPoint[], title: string | null = 'Day 1'): ExportDay => ({
+const routeOf = (points: ExportPoint[], title: string | null = 'Route 1'): ExportRoute => ({
   title,
   color: '#cc0000',
   distanceM: 0,
@@ -85,7 +85,7 @@ describe('starting from where the rider is', () => {
   })
 })
 
-describe('batching a long day', () => {
+describe('batching a long route', () => {
   const long = (n: number) => routeLinks(routeOf(Array.from({ length: n }, (_, i) => stop(i))))
 
   // The cap is the entire reason this module exists: Maps drops what it cannot
@@ -156,29 +156,34 @@ describe('what is left out', () => {
     expect(params(r.links[0].url).get('destination')).toBe('37.03,-121.97')
   })
 
-  it('never batches across a day boundary', () => {
-    // Two days are two calls; nothing in this module can join them.
-    const d1 = routeLinks(routeOf([stop(1), stop(2)], 'Day 1'))
-    const d2 = routeLinks(routeOf([stop(8), stop(9)], 'Day 2'))
+  it('never batches across a route boundary', () => {
+    // Two routes are two calls; nothing in this module can join them.
+    const d1 = routeLinks(routeOf([stop(1), stop(2)], 'Route 1'))
+    const d2 = routeLinks(routeOf([stop(8), stop(9)], 'Route 2'))
     expect(d1.links[0].url).not.toContain('37.08')
     expect(d2.links[0].url).not.toContain('37.01')
   })
 })
 
 describe('labels', () => {
-  it('names the day when one link covers it', () => {
+  it('names the route when one link covers it', () => {
     const r = routeLinks(routeOf([stop(1), stop(2)], 'Coast run'))
     expect(linkLabel(r, r.links[0], 0)).toBe('Coast run')
   })
 
   it('numbers the parts when it does not', () => {
-    const r = routeLinks(routeOf(Array.from({ length: 25 }, (_, i) => stop(i)), 'Coast run'))
+    const r = routeLinks(
+      routeOf(
+        Array.from({ length: 25 }, (_, i) => stop(i)),
+        'Coast run',
+      ),
+    )
     expect(linkLabel(r, r.links[1], 0)).toBe(`Coast run${SEP}part 2 of ${r.links.length}`)
   })
 
-  it('falls back to the day number when the route has no title', () => {
+  it('falls back to the route number when the route has no title', () => {
     const r = routeLinks(routeOf([stop(1), stop(2)], null))
-    expect(linkLabel(r, r.links[0], 2)).toBe('Day 3')
+    expect(linkLabel(r, r.links[0], 2)).toBe('Route 3')
   })
 })
 
@@ -211,7 +216,7 @@ describe('holding the route with shaping points', () => {
   })
 
   it('counts stops as pinning the route, not just shaping points', () => {
-    // A day with a stop every few miles needs no shaping at all, and reporting
+    // A route with a stop every few miles needs no shaping at all, and reporting
     // it as wide open would be a confident wrong number.
     const M = 1 / 111_320
     const dense: ExportPoint[] = Array.from({ length: 12 }, (_, i) => ({
@@ -248,7 +253,7 @@ describe('holding the route with shaping points', () => {
     for (const l of many.links) expect(waypointsOf(l.url).length).toBeLessThanOrEqual(9)
   })
 
-  it('keeps the rider\'s own stops as the ends of the day', () => {
+  it("keeps the rider's own stops as the ends of the route", () => {
     // A shaping point outside the first or last stop would send someone past
     // their own start or finish.
     const r = routeLinks(route, { shapingPoints: 20 })

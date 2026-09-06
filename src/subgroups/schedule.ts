@@ -4,7 +4,7 @@
 // Pure — arithmetic over minutes, no database and no Date arithmetic beyond
 // epoch milliseconds — so it is testable under the house rule that governs
 // test/. It is deliberately separate from public/js/ride-time.js, which solves a
-// DIFFERENT problem: that walks one day's points and legs to place a moment on
+// DIFFERENT problem: that walks one route's points and legs to place a moment on
 // the map. This places whole strands against each other.
 //
 // TWO AXES, AND KEEPING THEM APART IS MOST OF THE DESIGN. #67's finding, and
@@ -26,7 +26,7 @@ export type Strand = {
   subgroupId: number
   /** Riding time from this strand's own start to the meet, in seconds. Dwell at
    *  its own intermediate stops is included by the caller — this module never
-   *  looks inside a day. */
+   *  looks inside a route. */
   toMeetS: number
   /** Riding time from the meet to the end of the ride, in seconds. Identical
    *  for every strand on a ride with one trunk, and NOT assumed to be: a ride
@@ -150,7 +150,7 @@ export function solveStrands(
       // SLACK IS SPENT HERE AND NOWHERE ELSE. Each strand is asked to be at the
       // meet slackMin before the group actually needs to move, so a group up to
       // that late costs nobody anything. Fold slack into dwell instead and every
-      // minute of lateness moves the whole rest of the day.
+      // minute of lateness moves the whole rest of the route.
       arriveAt: arriveAt - slackMs,
       departAt: arriveAt - slackMs - s.toMeetS * 1000,
     })),
@@ -186,8 +186,8 @@ export function departureSpreadMs(solution: Solution): number {
  * looking routinely produces one, and the planner is the least likely person to
  * notice, being the one who rode three miles.
  *
- * The hour is read in UTC because a day's clock is a WALL CLOCK at the departure
- * point carried as UTC — see days.start_at. Converting to anyone's local time
+ * The hour is read in UTC because a route's clock is a WALL CLOCK at the departure
+ * point carried as UTC — see routes.start_at. Converting to anyone's local time
  * here would be the exact bug that comment exists to prevent.
  */
 export function unsociableDepartures(solution: Solution, beforeHour = 6): number[] {

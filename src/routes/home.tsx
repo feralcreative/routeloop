@@ -40,7 +40,7 @@ import { fmtRideDistance, rideCards } from '../views/cards'
 import { type Units, distanceUnit } from '../views/units'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, days as daysTable, type RideRow, type Rsvp } from '../db/schema'
+import { rides, routes as routesTable, type RideRow, type Rsvp } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -105,7 +105,7 @@ const RIDE_CEILING = 500
 // neither of the others has anywhere to put. A flag meaning "am I the owner"
 // plus a flag meaning "am I a member" is two booleans encoding three cards.
 //
-// No color block: `ridesImOn` does not join days, and a fourth query per
+// No color block: `ridesImOn` does not join routes, and a fourth query per
 // dashboard render to tint a short list is not worth it. CardFace draws the
 // thumbnail when there is one and a neutral field when there is not.
 function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; units: Units }) {
@@ -299,7 +299,7 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
 // the color together, so a fifth record cannot arrive with one and not the other.
 //
 // EACH RECORD SHOWS THE MAP OF THE RIDE THAT HOLDS IT, and links to it, since
-// 2026-08-26. Two of the four had no ride to name before that — the longest day
+// 2026-08-26. Two of the four had no ride to name before that — the longest route
 // and the twistiest stretch were `max()` aggregates — so shape.ts and query.ts
 // both changed to carry a slug for all four.
 //
@@ -330,7 +330,7 @@ function Records({ records }: { records: RecordTile[] }) {
 //
 // A SPAN WHEN THERE IS NO SLUG, rather than an anchor with no href. All four
 // records carry one today, so this is the branch that never runs — and it runs
-// the day a fifth record is a figure about the rider rather than about a ride,
+// the route a fifth record is a figure about the rider rather than about a ride,
 // which is exactly when nobody will be looking at this file.
 function RecordCard({ r }: { r: RecordTile }) {
   const inner = (
@@ -407,7 +407,7 @@ function FirstRun() {
     <section class="first-run">
       <h2>Nothing planned yet</h2>
       <p class="lede">
-        Plan a multi-day ride on one map, then take it with you. Once you have one, this page fills up with what you
+        Plan a multi-route ride on one map, then take it with you. Once you have one, this page fills up with what you
         have covered — miles, routes, the stops you keep making, and the twistiest roads you have picked.
       </p>
 
@@ -529,9 +529,9 @@ homeRoutes.get('/', requireActive, async (c) => {
     loadStats(user.id),
     cachedUsedBytes(user.id),
     db
-      .select({ ride: rides, color: daysTable.color })
+      .select({ ride: rides, color: routesTable.color })
       .from(rides)
-      .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
       .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
       // updatedAt, not createdAt. /rides sorted by creation because it was a
       // catalog; this list has to do that job AND the "pick up where you left

@@ -83,7 +83,7 @@ export async function dueAccounts(now: Date = new Date()): Promise<AccountPurgeC
 /**
  * Destroys every account whose hold has run out. Returns how many went.
  *
- * Deleting the `users` row cascades to rides — and through them to days, points,
+ * Deleting the `users` row cascades to rides — and through them to routes, points,
  * legs and point_details — plus sessions, identities, profile and username
  * history. The directory removal is the half the database cannot do.
  */

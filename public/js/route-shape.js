@@ -1,6 +1,6 @@
 // The arithmetic behind drag-to-shape.
 //
-// A day is drawn as ONE polyline — the concatenated geometry of all its legs —
+// A route is drawn as ONE polyline — the concatenated geometry of all its legs —
 // so a drag gives back a vertex index into that flat path and nothing else. The
 // map layer has no idea where one leg ends and the next begins. Turning that
 // index back into "leg 3, between via 1 and via 2" is this file's whole job.
@@ -13,7 +13,7 @@
 (function (window) {
   "use strict";
 
-  // Which leg owns a vertex of the day's flat track?
+  // Which leg owns a vertex of the route's flat track?
   //
   // `spans` comes from trackAndSpans() and is index-aligned with legs: spans[i]
   // is {startIndex, endIndex} for legs[i], or null when that leg has no
@@ -172,7 +172,7 @@
   //
   // Added for drag-to-reorder a POI. A POI has no stored order — ride-graph.ts
   // writes `position: null` for every one of them and its place in the list is
-  // its projected distance along the day's track — so dragging one has nothing
+  // its projected distance along the route's track — so dragging one has nothing
   // to reorder. It moves the pin instead: dropped between two stops, the POI
   // relocates to the point on the road between them. This is the half that turns
   // "between those two rows" back into a coordinate.
@@ -202,7 +202,7 @@
       }
       acc += seg;
     }
-    // Past the end — a drop below the last row asks for the end of the day.
+    // Past the end — a drop below the last row asks for the end of the route.
     return track[track.length - 1].slice();
   }
 
@@ -242,7 +242,7 @@
    * FOR DRAWING A CIRCLE AS A POLYLINE, which is the only way to get a dashed
    * or dotted one: google.maps.Circle has strokeWeight, strokeColor and
    * strokeOpacity and no dash support at all, while a Polyline can carry
-   * repeating icons — the same mechanism dashIcons() uses for a ghosted day.
+   * repeating icons — the same mechanism dashIcons() uses for a ghosted route.
    *
    * Geodesic rather than a flat ellipse, so it stays a true constant-distance
    * ring at any latitude. The last point repeats the first, so the caller draws
@@ -270,9 +270,9 @@
 
   // Mirrors haversineTrack() in builder.js and the constant in twist.js. Both
   // use the IUGG mean radius; keep the three in step.
-  // Which original legs make up each leg of a day after some points are removed?
+  // Which original legs make up each leg of a route after some points are removed?
   //
-  // Leg k joins points k and k+1, so a day of n points has n-1 legs. Take some
+  // Leg k joins points k and k+1, so a route of n points has n-1 legs. Take some
   // points out and the survivors are re-joined in order: the leg between
   // survivors S[j] and S[j+1] covers every original leg from S[j] through
   // S[j+1]-1. A span of ONE is a leg the removal never touched — same two

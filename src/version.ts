@@ -8,7 +8,7 @@
 // The shape is `YYYY-MM-DD-HHMMPT` — Ziad's call, 2026-08-23. Date-based because
 // the question a beta tester actually asks is "is this newer than the one I
 // found that bug in", and a date answers it without them learning what our minor
-// version means. The time is the same answer at a finer grain: on a day with
+// version means. The time is the same answer at a finer grain: on a route with
 // four deploys, a sequence counter tells a rider which build came later but a
 // clock tells them how long ago, which is the thing they were really asking.
 //

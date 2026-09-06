@@ -1,6 +1,6 @@
 // Google Maps hand-off links.
 //
-// Google Maps takes a limited number of points per directions URL, so a day is
+// Google Maps takes a limited number of points per directions URL, so a route is
 // serialized into an ordered series of links rather than one. This is the
 // answer to the waypoint cap that makes riders give up and screenshot a map.
 //
@@ -27,7 +27,7 @@
 // blob that resolves to a single place on mobile.
 import { expandTrack } from './expand'
 import { distFromStartAlongTrack, type Track } from './kml'
-import type { ExportPoint, ExportDay } from './export'
+import type { ExportPoint, ExportRoute } from './export'
 import { SEP } from '../views/sep'
 
 // Origin + 9 waypoints + destination. The 9 is Google's documented ceiling and
@@ -111,7 +111,7 @@ function buildUrl(batch: LinkPoint[], opts: LinkOptions, isFirst: boolean): stri
 }
 
 // Stops and shaping points woven into one ordered list. Both are projected onto
-// the day's geometry and sorted by how far along it they fall, because that is
+// the route's geometry and sorted by how far along it they fall, because that is
 // the only ordering that means anything once the two sets are mixed — a shaping
 // point has no position in the stop sequence and a stop has no index in the
 // track.
@@ -132,7 +132,7 @@ function weave(anchors: ExportPoint[], track: Track, shaping: Track): { seq: Lin
   // stop is the thing the rider actually asked for.
   merged.sort((a, b) => a.d - b.d || (a.p.stop ? -1 : 1) - (b.p.stop ? -1 : 1))
 
-  // Keep the day's real ends as the ends. A shaping point outside the first or
+  // Keep the route's real ends as the ends. A shaping point outside the first or
   // last stop would send the rider past their own start or finish.
   const first = merged.findIndex((m) => m.p.stop)
   const last = merged.length - 1 - [...merged].reverse().findIndex((m) => m.p.stop)
@@ -141,7 +141,7 @@ function weave(anchors: ExportPoint[], track: Track, shaping: Track): { seq: Lin
   // The gap is measured over what the links actually cover — first stop to last
   // — and counts stops as pinning the route, because they do. Measuring the
   // whole track instead would report unpinned miles nobody is being sent down,
-  // and ignoring stops would claim a day with a fuel stop every five miles is
+  // and ignoring stops would claim a route with a fuel stop every five miles is
   // wide open. Both would be the kind of confident wrong number this feature
   // exists to stop shipping.
   let longestGapM = 0
@@ -150,26 +150,26 @@ function weave(anchors: ExportPoint[], track: Track, shaping: Track): { seq: Lin
   return { seq: span.map((m) => m.p), longestGapM }
 }
 
-// One day's points as an ordered series of links. Never batches across a
-// day boundary: day 2 starting where day 1 ended is a rest, not a leg.
-export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLinks {
+// One route's points as an ordered series of links. Never batches across a
+// route boundary: route 2 starting where route 1 ended is a rest, not a leg.
+export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRouteLinks {
   // BOTH KINDS ARE HANDED OVER, as of 2026-08-24. POIs used to be excluded here,
   // on the grounds that routing through one would bend the road to reach it —
   // which was right while a POI sat beside the route. It IS the route now, so
   // excluding them would send the rider down a different road than the one the
   // builder drew and the roadbook printed, with nothing saying so.
   //
-  // The cost is waypoints, and the batching below already absorbs it: a day with
+  // The cost is waypoints, and the batching below already absorbs it: a route with
   // many POIs comes out as more links rather than a wrong one.
-  const anchors = day.points
+  const anchors = route.points
 
   // A single point is a destination, not a route: one link, no waypoints.
   if (anchors.length < 2) {
-    if (anchors.length === 0) return { title: day.title, links: [], longestGapM: null }
+    if (anchors.length === 0) return { title: route.title, links: [], longestGapM: null }
     const params = new URLSearchParams({ api: '1', destination: coord(anchors[0]) })
     params.set('travelmode', opts.travelMode ?? 'driving')
     return {
-      title: day.title,
+      title: route.title,
       links: [
         {
           url: `https://www.google.com/maps/dir/?${params.toString()}`,
@@ -184,8 +184,8 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
   }
 
   const budget = Math.max(0, Math.floor(opts.shapingPoints ?? 0))
-  const expansion = budget > 0 && day.track.length > 2 ? expandTrack(day.track, { maxPoints: budget }) : null
-  const { seq, longestGapM } = weave(anchors, day.track, expansion?.points ?? [])
+  const expansion = budget > 0 && route.track.length > 2 ? expandTrack(route.track, { maxPoints: budget }) : null
+  const { seq, longestGapM } = weave(anchors, route.track, expansion?.points ?? [])
 
   // A link that omits its origin holds one planned point fewer. The rider's
   // current location fills the origin slot, so the point that would have been
@@ -215,7 +215,7 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
   }
 
   return {
-    title: day.title,
+    title: route.title,
     links: batches.map((batch, i) => ({
       url: buildUrl(batch, opts, i === 0),
       part: i + 1,
@@ -227,8 +227,8 @@ export function routeLinks(day: ExportDay, opts: LinkOptions = {}): GmapsRouteLi
   }
 }
 
-// "Day 2 · part 1 of 3", or just the day when it fits in one link.
-export function linkLabel(links: GmapsRouteLinks, link: GmapsLink, dayIndex: number): string {
-  const day = links.title?.trim() || `Day ${dayIndex + 1}`
-  return link.parts > 1 ? `${day}${SEP}part ${link.part} of ${link.parts}` : day
+// "Route 2 · part 1 of 3", or just the route when it fits in one link.
+export function linkLabel(links: GmapsRouteLinks, link: GmapsLink, routeIndex: number): string {
+  const route = links.title?.trim() || `Route ${routeIndex + 1}`
+  return link.parts > 1 ? `${route}${SEP}part ${link.part} of ${link.parts}` : route
 }

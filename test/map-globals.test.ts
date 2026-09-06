@@ -2,12 +2,12 @@
 // every time it happens here.
 //
 // THE FAILURE THIS EXISTS FOR. `previewOf` was the shape drag's preview polyline
-// from the day drag-to-shape shipped. #238 added the search-result dots and
+// from the route drag-to-shape shipped. #238 added the search-result dots and
 // called their accessor `previewOf` too, a few hundred lines further down the
 // same IIFE — so the later declaration replaced the earlier one for the whole
 // file, and dragging a leg onto another road called the wrong one, got
 // `{pins, onHover, onPick}` back, and died on `preview.setPath is not a
-// function`. Shipped 2026-09-03 and reported the same day.
+// function`. Shipped 2026-09-03 and reported the same route.
 //
 // NOTHING ELSE CATCHES IT. `node --check` accepts a redeclaration, prettier has
 // no opinion, and the typecheck does not read `public/js/`. The general answer

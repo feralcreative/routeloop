@@ -53,7 +53,7 @@ describe('the rule', () => {
 
   it('is zero for a leg with neither, rather than guessing', () => {
     // Two points in the same place get a zero-length leg deliberately —
-    // splitDayTrack produces them. A guess here would invent time out of nothing.
+    // splitRouteTrack produces them. A guess here would invent time out of nothing.
     expect(legIsEstimated({ durationS: 0, distanceM: 0 })).toBe(false)
     expect(legDurationS({ durationS: 0, distanceM: 0 })).toBe(0)
   })

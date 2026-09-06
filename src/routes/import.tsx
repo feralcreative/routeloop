@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, desc, eq, exists, gte, ilike, lt, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { days as daysTable, rides } from '../db/schema'
+import { routes as routesTable, rides } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -107,10 +107,10 @@ importRoutes.get('/import', requireActive, async (c) => {
                 <span class="dropzone-sub">or click to choose</span>
               </span>
               {/*
-                `multiple` because a rider with a multi-day ride has one file
-                per day, and importing them one at a time makes a separate ride
-                out of each day. Several files become several days of one ride.
-                Order comes from the day field in the filename where the files
+                `multiple` because a rider with a multi-route ride has one file
+                per route, and importing them one at a time makes a separate ride
+                out of each route. Several files become several routes of one ride.
+                Order comes from the route field in the filename where the files
                 carry one, and from the browser's listing otherwise.
               */}
               <input
@@ -130,7 +130,7 @@ importRoutes.get('/import', requireActive, async (c) => {
             {/*
               THE REVIEW TABLE (#129). What the filenames were read as, shown
               before the upload rather than after — and editable, which is the
-              half that makes the guessing worth doing. A wrong day order costs
+              half that makes the guessing worth doing. A wrong route order costs
               one drag here and a rebuild in the builder.
 
               Empty in the markup and filled by import.js, so a rider without
@@ -163,7 +163,7 @@ importRoutes.get('/import', requireActive, async (c) => {
                   that defines it, so which part of the name is being described
                   needs no counting of underscores.
 
-                  The colors are their own tokens ($ride, $day, $date, $label)
+                  The colors are their own tokens ($ride, $route, $date, $label)
                   rather than the existing palette: every color already defined
                   means something — $gpx, $kml and $pending are format and state
                   — and a field that borrowed one would inherit a meaning it does
@@ -171,11 +171,11 @@ importRoutes.get('/import', requireActive, async (c) => {
 
                   The definitions stay in the order of the example, and each one
                   still names its field in words, because color cannot be the
-                  only cue: $day and $label converge under protanopia.
+                  only cue: $route and $label converge under protanopia.
                 */}
                 <p class="naming-example">
                   <code>
-                    routeloop_<b class="f-ride">big-sur-run</b>_<b class="f-day">d02</b>_
+                    routeloop_<b class="f-ride">big-sur-run</b>_<b class="f-route">d02</b>_
                     <b class="f-date">2026-08-14</b>_<b class="f-label">lost-coast</b>.gpx
                   </code>
                 </p>
@@ -186,7 +186,7 @@ importRoutes.get('/import', requireActive, async (c) => {
                     this applies and your file imports the way it always did.
                   </li>
                   <li>
-                    Then <b class="f-ride">the ride</b>, <b class="f-day">d plus the route number</b>,{' '}
+                    Then <b class="f-ride">the ride</b>, <b class="f-route">d plus the route number</b>,{' '}
                     <b class="f-date">the date</b> that route starts, and <b class="f-label">what you call it</b>.
                     Everything after the ride name is optional.
                   </li>
@@ -366,8 +366,8 @@ const SEARCH_LIMIT = 12
  *  memory at once, so this is a real bound rather than a tidy number. */
 const CART_MAX = 20
 
-/** `%` and `_` are wildcards in LIKE, so a rider searching for "day_1" must not
- *  silently match "day-1". Backslash is the escape and has to go first. */
+/** `%` and `_` are wildcards in LIKE, so a rider searching for "route_1" must not
+ *  silently match "route-1". Backslash is the escape and has to go first. */
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 
 /**
@@ -377,7 +377,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
  * explicit instruction and worth restating where the query is: a rider
  * searching "August" means when they rode. The two are routinely months apart.
  *
- * An EXISTS rather than a join, because a ride with four days in August must
+ * An EXISTS rather than a join, because a ride with four routes in August must
  * come back once. A join would return it four times and need a distinct that
  * fights the leftJoin below it.
  */
@@ -399,19 +399,19 @@ importRoutes.get('/api/export/search', requireActiveApi, async (c) => {
 
   const titleTerm = q.text ? ilike(rides.title, `%${escapeLike(q.text)}%`) : null
 
-  const dayMatch =
+  const routeMatch =
     q.from && q.to
-      ? and(gte(daysTable.startAt, q.from), lt(daysTable.startAt, q.to))
+      ? and(gte(routesTable.startAt, q.from), lt(routesTable.startAt, q.to))
       : q.month !== null
-        ? sql`extract(month from ${daysTable.startAt}) = ${q.month}`
+        ? sql`extract(month from ${routesTable.startAt}) = ${q.month}`
         : null
 
-  const dateTerm = dayMatch
+  const dateTerm = routeMatch
     ? exists(
         db
           .select({ one: sql`1` })
-          .from(daysTable)
-          .where(and(eq(daysTable.rideId, rides.id), dayMatch)),
+          .from(routesTable)
+          .where(and(eq(routesTable.rideId, rides.id), routeMatch)),
       )
     : null
 
@@ -422,9 +422,9 @@ importRoutes.get('/api/export/search', requireActiveApi, async (c) => {
   const where = terms.length === 0 ? undefined : terms.length === 1 ? terms[0] : q.loose ? or(...terms) : and(...terms)
 
   const rows = await db
-    .select({ slug: rides.slug, title: rides.title, startAt: daysTable.startAt })
+    .select({ slug: rides.slug, title: rides.title, startAt: routesTable.startAt })
     .from(rides)
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     .where(and(eq(rides.ownerId, user.id), LIVE_RIDE, where))
     .orderBy(desc(rides.updatedAt))
     .limit(SEARCH_LIMIT)
@@ -509,7 +509,7 @@ importRoutes.post('/export/zip', requireActive, requireSameOrigin, async (c) => 
         // a second rule here that could disagree.
         await detailsForViewer(ride.id, ride.ownerId, user),
       )
-      if ((native.ride as { days: unknown[] }).days.length === 0) continue
+      if ((native.ride as { routes: unknown[] }).routes.length === 0) continue
       files.push({
         name: unique(buildExportName({ ride: ride.title, date, ext: NATIVE_EXT })),
         body: Buffer.from(buildNativeJson(native), 'utf8'),
@@ -519,7 +519,7 @@ importRoutes.post('/export/zip', requireActive, requireSameOrigin, async (c) => 
 
     const spec = DOWNLOADS[item.format]
     const loaded = await loadRideForExport(ride.id, meta)
-    if (loaded.days.length === 0) continue
+    if (loaded.routes.length === 0) continue
     files.push({
       name: unique(buildExportName({ ride: ride.title, date, ext: item.format })),
       body: Buffer.from(spec.build(loaded), 'utf8'),
@@ -538,7 +538,7 @@ importRoutes.post('/export/zip', requireActive, requireSameOrigin, async (c) => 
   const zip = buildZip(files)
   // Midnight UTC rather than `new Date()`, so the name carries a DATE and not a
   // date plus the minute the button was pressed — fmtDate writes `T2205` for any
-  // non-midnight time, which is real information about a day's departure and
+  // non-midnight time, which is real information about a route's departure and
   // noise about a download. UTC because every other date in this convention is.
   const now = new Date()
   const stamp = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))

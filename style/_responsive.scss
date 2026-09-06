@@ -2,19 +2,19 @@
 
 //@ MD >768px
 @media (min-width: 768px) {
-  table.day-table {
-    table.day-table:has(.day-row-label:hover) .day-row-label {
+  table.route-table {
+    table.route-table:has(.route-row-label:hover) .route-row-label {
       opacity: 0.3;
       transition: opacity 0.15s;
     }
-    table.day-table .day-row-label:hover {
+    table.route-table .route-row-label:hover {
       z-index: 1;
       opacity: 1 !important;
     }
 
     // Route label cell
     td.label,
-    td.day-row-label-cell {
+    td.route-row-label-cell {
       background: $white;
       border-radius: 10px;
       font-size: 1rem;
@@ -22,7 +22,7 @@
       color: $text;
       text-align: left;
       width: fit-content;
-      div.day-row-label {
+      div.route-row-label {
         // border: 4px solid black !important;
         padding: 0 0.75em;
         border-radius: 100px;
@@ -32,7 +32,7 @@
     }
 
     // Mileage cell
-    td.day-mileage-cell {
+    td.route-mileage-cell {
       min-width: fit-content;
       max-width: 80px;
       font-size: 0.8em;
@@ -73,7 +73,7 @@
 
 //@ LG >992px
 @media (min-width: 992px) {
-  .day-table-line-icon {
+  .route-table-line-icon {
     display: inline-block;
     margin-right: 0.5em;
   }

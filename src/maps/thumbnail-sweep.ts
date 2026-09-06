@@ -12,8 +12,8 @@
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { GMAPS_SERVER_KEY } from '../config'
 import { db } from '../db/index'
-import { days as daysTable, rides, routeLegs } from '../db/schema'
-import { thumbnailHash, thumbnailRequest, thumbnailUrl, type ThumbDay } from './thumbnail'
+import { routes as routesTable, rides, routeLegs } from '../db/schema'
+import { thumbnailHash, thumbnailRequest, thumbnailUrl, type ThumbRoute } from './thumbnail'
 import { writeThumbFile } from './storage'
 import { LIVE_RIDE } from '../trash/service'
 
@@ -43,25 +43,25 @@ export const QUIET_PERIOD_MS = 5 * 60_000
 // At the interval above the whole dev corpus drains in a couple of minutes.
 const MAX_PER_SWEEP = 25
 
-/** The days of one ride, in the shape thumbnail.ts wants. */
-async function loadThumbDays(rideId: number): Promise<ThumbDay[]> {
+/** The routes of one ride, in the shape thumbnail.ts wants. */
+async function loadThumbRoutes(rideId: number): Promise<ThumbRoute[]> {
   const rows = await db
     .select({
-      id: daysTable.id,
-      color: daysTable.color,
-      altGroup: daysTable.altGroup,
-      altActive: daysTable.altActive,
+      id: routesTable.id,
+      color: routesTable.color,
+      altGroup: routesTable.altGroup,
+      altActive: routesTable.altActive,
     })
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(daysTable.position)
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
 
-  const out: ThumbDay[] = []
-  for (const day of rows) {
+  const out: ThumbRoute[] = []
+  for (const route of rows) {
     const legs = await db
       .select({ geometry: routeLegs.geometry })
       .from(routeLegs)
-      .where(eq(routeLegs.dayId, day.id))
+      .where(eq(routeLegs.routeId, route.id))
       .orderBy(routeLegs.position)
 
     // Legs share their joints, so the duplicate vertex is dropped at each one —
@@ -76,7 +76,7 @@ async function loadThumbDays(rideId: number): Promise<ThumbDay[]> {
       }
     }
 
-    out.push({ geometry, color: day.color, altGroup: day.altGroup, altActive: day.altActive })
+    out.push({ geometry, color: route.color, altGroup: route.altGroup, altActive: route.altActive })
   }
   return out
 }
@@ -140,7 +140,7 @@ export async function sweepThumbnails(): Promise<{ checked: number; built: numbe
 
   for (const ride of stale) {
     try {
-      const request = thumbnailRequest(await loadThumbDays(ride.id))
+      const request = thumbnailRequest(await loadThumbRoutes(ride.id))
 
       // Nothing to draw, or nothing changed. Both stamp and move on: the card
       // falls back to its color swatch, and the row stops being a candidate.

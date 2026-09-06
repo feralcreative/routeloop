@@ -71,7 +71,7 @@ export async function purgeDueRides(now: Date = new Date()): Promise<number> {
   for (const ride of claimed) {
     try {
       await deleteMapFiles(ride.ownerId, ride.id)
-      await db.delete(rides).where(sql`${rides.id} = ${ride.id}`) // days/points/legs/details cascade
+      await db.delete(rides).where(sql`${rides.id} = ${ride.id}`) // routes/points/legs/details cascade
       destroyed++
       // Logged per ride and not just counted. This is irreversible, so the log is
       // the only record that the ride ever existed once the row is gone.
@@ -126,7 +126,7 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
  * difference is what each one is racing. Those two exist to bound how long a
  * WRONG ANSWER survives — a denied upload, a stale picture — so they want to be
  * frequent. This one enforces a thirty-day deadline, where an hour of slack is
- * invisible to everybody and 24 queries a day beats 288 for the same outcome.
+ * invisible to everybody and 24 queries a route beats 288 for the same outcome.
  *
  * Exported because the account purge runs on the same schedule. Two jobs on one
  * cadence, the same arrangement the quota sweep has with the thumbnail sweep.

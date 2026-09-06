@@ -5,18 +5,18 @@
 // over. That split is what lets the interesting half be tested with no database,
 // exactly as src/survey/score.ts is.
 //
-// Five queries rather than one. A single statement joining rides to days to
+// Five queries rather than one. A single statement joining rides to routes to
 // points AND legs would multiply rows against each other — every leg once per
-// point on the same day — and produce sums that are silently several times too
+// point on the same route — and produce sums that are silently several times too
 // large. That class of bug looks like enthusiasm rather than arithmetic, so the
 // join fan-out is avoided rather than corrected for.
 //
 // Every aggregate is scoped by rides.owner_id, which is indexed (idx_owner) and
-// is the only ownership concept in the schema; days, points and legs inherit
+// is the only ownership concept in the schema; routes, points and legs inherit
 // it through the FK chain.
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { points, rides, routeLegs, days, users } from '../db/schema'
+import { points, rides, routeLegs, routes, users } from '../db/schema'
 import { NOMINAL_SPEED_MS } from '../maps/ride-time'
 import { ACTIVITY_MONTHS } from './shape'
 import type { RawGlobal, RawMonth, RawRecords, RawRole, RawStats, RawTotals, RawTwist } from './shape'
@@ -34,22 +34,22 @@ export async function loadStats(userId: number): Promise<RawStats> {
   // planned, so it belongs in no total, no record and no month on this page.
   const owned = and(eq(rides.ownerId, userId), LIVE_RIDE)
 
-  // ALTERNATES. A day that lost is a road the rider decided against, so it must
+  // ALTERNATES. A route that lost is a road the rider decided against, so it must
   // not add to a distance, a duration or a record — this dashboard is a claim
   // about what they have planned to ride, and it is the broadest-scoped consumer
   // in the app: every ride they own, all the way back.
   //
-  // A predicate on the days join rather than a column or a new query, because
-  // every aggregate below already joins through days to reach rides.owner_id.
-  // Cheap, and it cannot be forgotten in a query that does not join days —
+  // A predicate on the routes join rather than a column or a new query, because
+  // every aggregate below already joins through routes to reach rides.owner_id.
+  // Cheap, and it cannot be forgotten in a query that does not join routes —
   // there are none that also count distance.
   //
   // NOT applied to the point and role counts further down, and that asymmetry is
   // deliberate rather than an oversight: the rider really did plan those stops
   // and pick those roles. A stop count is a record of the work; a mileage is a
-  // claim about a road. Only the second one becomes a lie when the day is not
+  // claim about a road. Only the second one becomes a lie when the route is not
   // ridden.
-  const counts = and(owned, eq(days.altActive, true))
+  const counts = and(owned, eq(routes.altActive, true))
 
   const [rideRow] = await db
     .select({
@@ -73,13 +73,13 @@ export async function loadStats(userId: number): Promise<RawStats> {
     .from(rides)
     .where(owned)
 
-  const [dayRow] = await db
+  const [routeRow] = await db
     .select({
-      days: int(sql`count(*)`),
+      routes: int(sql`count(*)`),
     })
-    .from(days)
-    .innerJoin(rides, eq(rides.id, days.rideId))
-    // A ride of three days plus two alternates is a three-day ride.
+    .from(routes)
+    .innerJoin(rides, eq(rides.id, routes.rideId))
+    // A ride of three routes plus two alternates is a three-route ride.
     .where(counts)
 
   const [legRow] = await db
@@ -113,8 +113,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       estimatedLegs: int(sql`count(*) filter (where ${routeLegs.durationS} <= 0 and ${routeLegs.distanceM} > 0)`),
     })
     .from(routeLegs)
-    .innerJoin(days, eq(days.id, routeLegs.dayId))
-    .innerJoin(rides, eq(rides.id, days.rideId))
+    .innerJoin(routes, eq(routes.id, routeLegs.routeId))
+    .innerJoin(rides, eq(rides.id, routes.rideId))
     // The hero mileage figure. This is the one that would be visibly wrong.
     .where(counts)
 
@@ -125,8 +125,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       pois: int(sql`count(*) filter (where ${points.kind} = 'poi')`),
     })
     .from(points)
-    .innerJoin(days, eq(days.id, points.dayId))
-    .innerJoin(rides, eq(rides.id, days.rideId))
+    .innerJoin(routes, eq(routes.id, points.routeId))
+    .innerJoin(rides, eq(rides.id, routes.rideId))
     .where(owned)
 
   // Roles is a waypoint_role[] with up to 4 entries, so unnest gives one row per
@@ -135,20 +135,20 @@ export async function loadStats(userId: number): Promise<RawStats> {
   const roleRows = await db
     .select({ role: sql<string>`unnest(${points.roles})::text`, n: int(sql`count(*)`) })
     .from(points)
-    .innerJoin(days, eq(days.id, points.dayId))
-    .innerJoin(rides, eq(rides.id, days.rideId))
+    .innerJoin(routes, eq(routes.id, points.routeId))
+    .innerJoin(rides, eq(rides.id, routes.rideId))
     .where(owned)
     .groupBy(sql`1`)
 
   // Nulls filtered HERE rather than in shape.ts, so "no rows" means "nothing
   // measured" and the rollup never has to distinguish a null from a zero.
   const twistRows = await db
-    .select({ dpm: sql<number>`${days.twistinessDpm}::int`, distanceM: sql<number>`${days.distanceM}::int` })
-    .from(days)
-    .innerJoin(rides, eq(rides.id, days.rideId))
+    .select({ dpm: sql<number>`${routes.twistinessDpm}::int`, distanceM: sql<number>`${routes.distanceM}::int` })
+    .from(routes)
+    .innerJoin(rides, eq(rides.id, routes.rideId))
     // Distance-weighted in shape.ts, so a losing alternate would not merely be
     // counted — it would drag the mean toward whatever its own roads were like.
-    .where(and(counts, sql`${days.twistinessDpm} is not null`, sql`${days.distanceM} > 0`))
+    .where(and(counts, sql`${routes.twistinessDpm} is not null`, sql`${routes.distanceM} > 0`))
 
   const monthRows = await db
     .select({
@@ -170,25 +170,25 @@ export async function loadStats(userId: number): Promise<RawStats> {
   // Two of these were `max()` until 2026-08-26 and gave a figure with no way
   // back to the road it was set on. Now that every record shows the map of the
   // ride that holds it, an aggregate cannot answer the question — so the longest
-  // day and the twistiest stretch moved to the shape the two "best ride" records
+  // route and the twistiest stretch moved to the shape the two "best ride" records
   // always had. The figures are identical: `order by x desc limit 1` reads the
   // same row `max(x)` measures.
-  const [longestDay] = await db
+  const [longestRoute] = await db
     .select({
-      // The per-day cache, which is the natural grain for this record; the leg
+      // The per-route cache, which is the natural grain for this record; the leg
       // sum further up is the one behind the hero figure.
-      m: days.distanceM,
+      m: routes.distanceM,
       title: rides.title,
       slug: rides.slug,
       thumbHash: rides.thumbHash,
     })
-    .from(days)
-    .innerJoin(rides, eq(rides.id, days.rideId))
-    // Both figures: a ride of three days plus two alternates is a three-day
+    .from(routes)
+    .innerJoin(rides, eq(rides.id, routes.rideId))
+    // Both figures: a ride of three routes plus two alternates is a three-route
     // ride, and a losing alternate that happens to be the longest would claim
     // the record for a road nobody rides.
     .where(counts)
-    .orderBy(sql`${days.distanceM} desc`)
+    .orderBy(sql`${routes.distanceM} desc`)
     .limit(1)
 
   const [biggest] = await db
@@ -199,8 +199,8 @@ export async function loadStats(userId: number): Promise<RawStats> {
       thumbHash: rides.thumbHash,
     })
     .from(rides)
-    .innerJoin(days, eq(days.rideId, rides.id))
-    .innerJoin(routeLegs, eq(routeLegs.dayId, days.id))
+    .innerJoin(routes, eq(routes.rideId, rides.id))
+    .innerJoin(routeLegs, eq(routeLegs.routeId, routes.id))
     .where(counts)
     .groupBy(rides.id, rides.title, rides.slug, rides.thumbHash)
     .orderBy(sql`1 desc`)
@@ -221,14 +221,14 @@ export async function loadStats(userId: number): Promise<RawStats> {
   // has to come back as no row rather than as a ride with a null dpm.
   const [bestTwist] = await db
     .select({
-      dpm: sql<number>`${days.twistinessBestDpm}::int`,
+      dpm: sql<number>`${routes.twistinessBestDpm}::int`,
       slug: rides.slug,
       thumbHash: rides.thumbHash,
     })
-    .from(days)
-    .innerJoin(rides, eq(rides.id, days.rideId))
-    .where(and(counts, sql`${days.twistinessBestDpm} is not null`))
-    .orderBy(sql`${days.twistinessBestDpm} desc`)
+    .from(routes)
+    .innerJoin(rides, eq(rides.id, routes.rideId))
+    .where(and(counts, sql`${routes.twistinessBestDpm} is not null`))
+    .orderBy(sql`${routes.twistinessBestDpm} desc`)
     .limit(1)
 
   const [me] = await db
@@ -239,7 +239,7 @@ export async function loadStats(userId: number): Promise<RawStats> {
 
   const totals: RawTotals = {
     rides: rideRow?.rides ?? 0,
-    days: dayRow?.days ?? 0,
+    routes: routeRow?.routes ?? 0,
     legs: legRow?.legs ?? 0,
     points: pointRow?.points ?? 0,
     stops: pointRow?.stops ?? 0,
@@ -259,12 +259,12 @@ export async function loadStats(userId: number): Promise<RawStats> {
 
   const records: RawRecords = {
     // `|| null` and not `?? null`: distance_m is NOT NULL and defaults to 0, so
-    // the longest day of a library with no legs is a real row reading zero, and
+    // the longest route of a library with no legs is a real row reading zero, and
     // shape.ts treats a zero record as one nobody has set.
-    longestDayM: longestDay?.m || null,
-    longestDayTitle: longestDay?.title ?? null,
-    longestDaySlug: longestDay?.slug ?? null,
-    longestDayThumb: longestDay?.thumbHash ?? null,
+    longestRouteM: longestRoute?.m || null,
+    longestRouteTitle: longestRoute?.title ?? null,
+    longestRouteSlug: longestRoute?.slug ?? null,
+    longestRouteThumb: longestRoute?.thumbHash ?? null,
     biggestRideM: biggest ? Number(biggest.m) : null,
     biggestRideTitle: biggest?.title ?? null,
     biggestRideSlug: biggest?.slug ?? null,
@@ -307,29 +307,29 @@ export async function loadStats(userId: number): Promise<RawStats> {
  *
  * **ONE COHORT, NOT FOUR, and the first attempt got this wrong.** Grouping each
  * metric by owner_id independently looks equivalent and is not: a rider whose only
- * day is a losing alternate produces no row in the days query at all, so they fall
+ * route is a losing alternate produces no row in the routes query at all, so they fall
  * out of that metric's denominator while staying in the rides one. Measured rather
- * than reasoned about — marking a single day inactive in the dev corpus moved the
- * days average from 13 to 19, UPWARD, because the rider it belonged to vanished
+ * than reasoned about — marking a single route inactive in the dev corpus moved the
+ * routes average from 13 to 19, UPWARD, because the rider it belonged to vanished
  * from the average instead of counting as the zero they actually have. Four
  * metrics on four different denominators are four numbers a rider cannot compare
  * across a row of tiles. Each metric is now LEFT JOINed onto the cohort and
  * coalesced to 0, so a rider with none of something counts as having none of it.
  *
  * FOUR QUERIES, NOT ONE, and the file header explains why at length: joining
- * rides to days to points AND legs multiplies rows against each other and
+ * rides to routes to points AND legs multiplies rows against each other and
  * produces sums several times too large, in a way that looks like enthusiasm
  * rather than arithmetic. A per-user rollup CTE feeding an aggregate has exactly
  * the same hazard — the fan-out happens inside the CTE instead of outside it.
  *
  * THE FILTER ASYMMETRY IS REPRODUCED DELIBERATELY. `rides` and `points` are
- * scoped by ownership alone; `days` and `legs` also require `days.alt_active`.
+ * scoped by ownership alone; `routes` and `legs` also require `routes.alt_active`.
  * That is the same split loadStats() makes, and the reasoning at the top of this
  * file applies unchanged: a stop a rider planned is work they did, a mile on a
- * day they decided against is not a road they will ride. Getting this wrong here
+ * route they decided against is not a road they will ride. Getting this wrong here
  * would put a rider's own figure and the average on different definitions, so
  * the comparison would silently be between two different questions. Verified by
- * flipping a day to inactive and watching the filtered and unfiltered figures
+ * flipping a route to inactive and watching the filtered and unfiltered figures
  * diverge — with no losing alternates in the corpus the two are identical and a
  * missing filter would look exactly like a working one.
  */
@@ -349,29 +349,29 @@ export async function loadGlobalStats(): Promise<RawGlobal> {
         return { avg: Number(row?.avg ?? 0), top: Number(row?.top ?? 0) }
       })
 
-  const [rideSpread, daySpread, legSpread, pointSpread] = await Promise.all([
+  const [rideSpread, routeSpread, legSpread, pointSpread] = await Promise.all([
     spread(sql`select owner_id, count(*)::int as n from rides group by owner_id`),
     spread(sql`
       select r.owner_id, count(*)::int as n
-        from days d join rides r on r.id = d.ride_id
+        from routes d join rides r on r.id = d.ride_id
        where d.alt_active
        group by r.owner_id`),
     spread(sql`
       select r.owner_id, count(*)::int as n
         from route_legs l
-        join days d on d.id = l.day_id
+        join routes d on d.id = l.route_id
         join rides r on r.id = d.ride_id
        where d.alt_active
        group by r.owner_id`),
     spread(sql`
       select r.owner_id, count(*)::int as n
         from points p
-        join days d on d.id = p.day_id
+        join routes d on d.id = p.route_id
         join rides r on r.id = d.ride_id
        group by r.owner_id`),
   ])
 
-  return { rides: rideSpread, days: daySpread, legs: legSpread, points: pointSpread }
+  return { rides: rideSpread, routes: routeSpread, legs: legSpread, points: pointSpread }
 }
 
 /**

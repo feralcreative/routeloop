@@ -46,9 +46,19 @@
 // of _tokens.scss for why these specific values and why the -76 to -88 gap is
 // real rather than an oversight.
 $-neutrals-light: (
-  21: #333333, 29: #444444, 36: #555555, 43: #666666, 50: #777777,
-  57: #888888, 63: #999999, 70: #aaaaaa, 76: #bbbbbb, 88: #dddddd,
-  94: #eeeeee, 96: #f4f4f4, 98: #fafafa,
+  21: #333333,
+  29: #444444,
+  36: #555555,
+  43: #666666,
+  50: #777777,
+  57: #888888,
+  63: #999999,
+  70: #aaaaaa,
+  76: #bbbbbb,
+  88: #dddddd,
+  94: #eeeeee,
+  96: #f4f4f4,
+  98: #fafafa,
 );
 
 // The dark ramp: each step takes the value its L*-complement holds in the light
@@ -62,9 +72,19 @@ $-neutrals-light: (
 //   src/emails/theme.ts mirrors it as DARK.cardBg. Inventing a second near-black
 //   would put two of them in one product.
 $-neutrals-dark: (
-  21: #bbbbbb, 29: #aaaaaa, 36: #999999, 43: #888888, 50: #888888,
-  57: #777777, 63: #666666, 70: #555555, 76: #444444, 88: #333333,
-  94: #262626, 96: #1a1a1a, 98: #0a0e11,
+  21: #bbbbbb,
+  29: #aaaaaa,
+  36: #999999,
+  43: #888888,
+  50: #888888,
+  57: #777777,
+  63: #666666,
+  70: #555555,
+  76: #444444,
+  88: #333333,
+  94: #262626,
+  96: #1a1a1a,
+  98: #0a0e11,
 );
 
 // --- The road-sign palette, which is the theme axis --------------------------
@@ -88,9 +108,16 @@ $-neutrals-dark: (
 }
 
 $-signs-default: (
-  "interstate": #266149, "speed": #efefef, "stop": #cc0000, "detour": #f56100,
-  "warning": #ffac00, "yield": #ffdd00, "go": #41ae4d, "disabled": #0a539c,
-  "recreation": #603d15, "tarmac": #291507,
+  "interstate": #266149,
+  "speed": #efefef,
+  "stop": #cc0000,
+  "detour": #f56100,
+  "warning": #ffac00,
+  "yield": #ffdd00,
+  "go": #41ae4d,
+  "disabled": #0a539c,
+  "recreation": #603d15,
+  "tarmac": #291507,
 );
 
 // HIGH CONTRAST. Every field pushed away from the ink it carries, including the
@@ -106,9 +133,16 @@ $-signs-default: (
 // mistake the values being "reasoned rather than measured" was hiding: the rule
 // two lines above was right and the arithmetic went the other way.
 $-signs-contrast: (
-  "interstate": #14402f, "speed": #ffffff, "stop": #b00000, "detour": #ff7e29,
-  "warning": #ffc94d, "yield": #ffe94d, "go": #57c063, "disabled": #043a72,
-  "recreation": #3d2708, "tarmac": #1a0d04,
+  "interstate": #14402f,
+  "speed": #ffffff,
+  "stop": #b00000,
+  "detour": #ff7e29,
+  "warning": #ffc94d,
+  "yield": #ffe94d,
+  "go": #57c063,
+  "disabled": #043a72,
+  "recreation": #3d2708,
+  "tarmac": #1a0d04,
 );
 
 // COLORBLIND. Addresses the collisions this palette has BY CONSTRUCTION rather
@@ -139,9 +173,16 @@ $-signs-contrast: (
 // vermillion darkened 6% and the blue lightened 7%, which keeps both on the
 // blue-yellow axis and puts each back under its own legend. Measured 2026-08-25.
 $-signs-colorblind: (
-  "interstate": #1f5c7a, "speed": #efefef, "stop": #b65000, "detour": #e69f00,
-  "warning": #cc8400, "yield": #f0e442, "go": #0089d6, "disabled": #004c99,
-  "recreation": #5c4033, "tarmac": #291507,
+  "interstate": #1f5c7a,
+  "speed": #efefef,
+  "stop": #b65000,
+  "detour": #e69f00,
+  "warning": #cc8400,
+  "yield": #f0e442,
+  "go": #0089d6,
+  "disabled": #004c99,
+  "recreation": #5c4033,
+  "tarmac": #291507,
 );
 
 // A legibility derivation, signed by the scheme. Module scope rather than nested
@@ -176,8 +217,12 @@ $-signs-colorblind: (
 }
 
 @function -signs($theme) {
-  @if $theme == contrast { @return $-signs-contrast; }
-  @if $theme == colorblind { @return $-signs-colorblind; }
+  @if $theme == contrast {
+    @return $-signs-contrast;
+  }
+  @if $theme == colorblind {
+    @return $-signs-colorblind;
+  }
   @return $-signs-default;
 }
 
@@ -276,20 +321,30 @@ $-signs-colorblind: (
   // app actually paints, in all six palettes: each sign field against its own
   // legend, each field FAILING on the other one, body text and links against the
   // page surface, and both signed derivations as text. It found four defects on
-  // the day it was written — see the notes on $-signs-contrast, $-signs-colorblind
+  // the route it was written — see the notes on $-signs-contrast, $-signs-colorblind
   // and $url. A figure written into a comment goes stale the first time somebody
   // nudges a hue; a figure asserted there cannot.
   @return (
     // Neutrals, addressed by their L* number exactly as before.
-    "neutral-21": map.get($n, 21), "neutral-29": map.get($n, 29), "neutral-36": map.get($n, 36),
-    "neutral-43": map.get($n, 43), "neutral-50": map.get($n, 50), "neutral-57": map.get($n, 57),
-    "neutral-63": map.get($n, 63), "neutral-70": map.get($n, 70), "neutral-76": map.get($n, 76),
-    "neutral-88": map.get($n, 88), "neutral-94": map.get($n, 94), "neutral-96": map.get($n, 96),
+    "neutral-21": map.get($n, 21),
+    "neutral-29": map.get($n, 29),
+    "neutral-36": map.get($n, 36),
+    "neutral-43": map.get($n, 43),
+    "neutral-50": map.get($n, 50),
+    "neutral-57": map.get($n, 57),
+    "neutral-63": map.get($n, 63),
+    "neutral-70": map.get($n, 70),
+    "neutral-76": map.get($n, 76),
+    "neutral-88": map.get($n, 88),
+    "neutral-94": map.get($n, 94),
+    "neutral-96": map.get($n, 96),
     "neutral-98": map.get($n, 98),
-
-    "interstate": $interstate, "speed": map.get($s, "speed"), "stop": $stop,
-    "detour": map.get($s, "detour"), "warning": $warning, "yield": map.get($s, "yield"),
-
+    "interstate": $interstate,
+    "speed": map.get($s, "speed"),
+    "stop": $stop,
+    "detour": map.get($s, "detour"),
+    "warning": $warning,
+    "yield": map.get($s, "yield"),
     // HALFWAY BETWEEN THE DETOUR ORANGE AND THE WARNING AMBER, for the range
     // ring's middle band and nothing else so far. Ziad's call, 2026-09-02, after
     // both neighbors were tried on the map: $warning washed out over pale busy
@@ -303,17 +358,24 @@ $-signs-colorblind: (
     // It is a FIELD color on a map overlay, never text, so it is deliberately
     // absent from the ink-pairing tables below: nothing is printed on it.
     "fuel-low": -hex(color.mix(map.get($s, "detour"), $warning, 50%)),
-    "go": $go, "disabled": $disabled, "recreation": map.get($s, "recreation"),
-    "tarmac": map.get($s, "tarmac"), "concrete": map.get($n, 57),
-
+    "go": $go,
+    "disabled": $disabled,
+    "recreation": map.get($s, "recreation"),
+    "tarmac": map.get($s, "tarmac"),
+    "concrete": map.get($n, 57),
     // PAGE SURFACES, not legends. Under a dark scheme $white is the page's own
     // near-black and $black is the light ink that sits on it — the names keep
     // meaning "the page" and "the ink on the page" rather than meaning the two
     // colors. Anything that wants a literal white or black on a SIGN field wants
     // ink-light or ink-dark above.
-    "white": $white, "black": $black,
+    "white": $white,
+    "black": $black,
 
-    "url": $url, "gpx": $go, "kml": $stop, "grey": $grey, "text": $text,
+    "url": $url,
+    "gpx": $go,
+    "kml": $stop,
+    "grey": $grey,
+    "text": $text,
 
     // THE TWO LEGENDS DO NOT FOLLOW THE SCHEME, and this is the one place the
     // "$white and $black flip" rule must not apply. They were aliases of $white
@@ -329,7 +391,8 @@ $-signs-colorblind: (
     //
     // So these are literals in all six palettes, while $white and $black below
     // are page surfaces and do flip.
-    "ink-light": #ffffff, "ink-dark": #000000,
+    "ink-light": #ffffff,
+    "ink-dark": #000000,
 
     // Text on a tint of itself. Named against $warning rather than $yield
     // deliberately: the same expression against the brighter yellow lands on
@@ -347,39 +410,50 @@ $-signs-colorblind: (
     "disabled-text": -tone(map.get($s, "disabled"), $record-text-l),
     "detour-text": -tone(map.get($s, "detour"), $record-text-l),
     "recreation-text": -tone(map.get($s, "recreation"), $record-text-l),
-
     "panel-bg": $panel-bg,
     "panel-shadow": $panel-shadow,
 
-    "brand": $url, "ride": $url, "day": $stop, "date": $interstate,
+    "brand": $url,
+    "ride": $url,
+    "route": $stop,
+    "date": $interstate,
 
     // The promoted derivations. All are legibility-derived and therefore signed.
-    "text-l15": -adj($text, 15%, $dir), "text-l20": -adj($text, 20%, $dir),
-    "text-l25": -adj($text, 25%, $dir), "text-l30": -adj($text, 30%, $dir),
-    "text-l35": -adj($text, 35%, $dir), "text-l40": -adj($text, 40%, $dir),
-
-    "grey-d3": -adj($grey, -3%, $dir), "grey-d5": -adj($grey, -5%, $dir),
-    "grey-d8": -adj($grey, -8%, $dir), "grey-l6": -adj($grey, 6%, $dir),
+    "text-l15": -adj($text, 15%, $dir),
+    "text-l20": -adj($text, 20%, $dir),
+    "text-l25": -adj($text, 25%, $dir),
+    "text-l30": -adj($text, 30%, $dir),
+    "text-l35": -adj($text, 35%, $dir),
+    "text-l40": -adj($text, 40%, $dir),
+    "grey-d3": -adj($grey, -3%, $dir),
+    "grey-d5": -adj($grey, -5%, $dir),
+    "grey-d8": -adj($grey, -8%, $dir),
+    "grey-l6": -adj($grey, 6%, $dir),
     "grey-l8": -adj($grey, 8%, $dir),
-
-    "gpx-l8": -adj($go, 8%, $dir), "gpx-l45": -adj($go, 45%, $dir),
-    "gpx-d12": -adj($go, -12%, $dir), "gpx-d14": -adj($go, -14%, $dir),
+    "gpx-l8": -adj($go, 8%, $dir),
+    "gpx-l45": -adj($go, 45%, $dir),
+    "gpx-d12": -adj($go, -12%, $dir),
+    "gpx-d14": -adj($go, -14%, $dir),
     "gpx-d20": -adj($go, -20%, $dir),
-
-    "kml-d6": -adj($stop, -6%, $dir), "kml-d8": -adj($stop, -8%, $dir),
-    "kml-d10": -adj($stop, -10%, $dir), "kml-d20": -adj($stop, -20%, $dir),
-
-    "url-l43": -adj($url, 43%, $dir), "url-l46": -adj($url, 46%, $dir),
-    "url-l52": -adj($url, 52%, $dir), "url-d8": -adj($url, -8%, $dir),
-    "url-d10": -adj($url, -10%, $dir), "url-d20": -adj($url, -20%, $dir),
-
+    "kml-d6": -adj($stop, -6%, $dir),
+    "kml-d8": -adj($stop, -8%, $dir),
+    "kml-d10": -adj($stop, -10%, $dir),
+    "kml-d20": -adj($stop, -20%, $dir),
+    "url-l43": -adj($url, 43%, $dir),
+    "url-l46": -adj($url, 46%, $dir),
+    "url-l52": -adj($url, 52%, $dir),
+    "url-d8": -adj($url, -8%, $dir),
+    "url-d10": -adj($url, -10%, $dir),
+    "url-d20": -adj($url, -20%, $dir),
     "brand-d6": -adj($url, -6%, $dir),
     "interstate-d6": -adj($interstate, -6%, $dir),
     "stop-d8": -adj($stop, -8%, $dir),
-
     // NOT OURS TO HARMONIZE, and therefore identical in all six. These sit under
     // recognizable third-party logos, where an approximation reads as a knock-off.
-    "google-blue": #4285f4, "github": #181717, "signal": #3a76f0, "discord": #5865f2,
+    "google-blue": #4285f4,
+    "github": #181717,
+    "signal": #3a76f0,
+    "discord": #5865f2,
     "accent": map.get($s, "yield")
   );
 }

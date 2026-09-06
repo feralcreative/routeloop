@@ -5,8 +5,8 @@
 // find out whether the next leg is a problem, and it is wrong in a way nobody
 // would notice until they are standing beside a dry bike.
 import { describe, expect, it } from 'vitest'
-import { dayRows } from '../src/routes/roadbook'
-import type { ExportPoint, ExportDay } from '../src/maps/export'
+import { routeRows } from '../src/routes/roadbook'
+import type { ExportPoint, ExportRoute } from '../src/maps/export'
 
 const MI = 1609.344
 
@@ -21,8 +21,8 @@ const pt = (over: Partial<ExportPoint> & { distFromStartM: number | null }): Exp
   ...over,
 })
 
-const day = (points: ExportPoint[], over: Partial<ExportDay> = {}): ExportDay => ({
-  title: 'Day 1',
+const route = (points: ExportPoint[], over: Partial<ExportRoute> = {}): ExportRoute => ({
+  title: 'Route 1',
   color: '#0066cc',
   distanceM: 200 * MI,
   durationS: 4 * 3600,
@@ -35,10 +35,10 @@ const day = (points: ExportPoint[], over: Partial<ExportDay> = {}): ExportDay =>
   ...over,
 })
 
-describe('dayRows', () => {
+describe('routeRows', () => {
   it('numbers stops and leaves POIs unnumbered', () => {
-    const rows = dayRows(
-      day([
+    const rows = routeRows(
+      route([
         pt({ distFromStartM: 0, name: 'A' }),
         pt({ distFromStartM: 10 * MI, name: 'View', kind: 'poi' }),
         pt({ distFromStartM: 20 * MI, name: 'B' }),
@@ -52,9 +52,9 @@ describe('dayRows', () => {
   // had no stored order and its projection onto the track was the only thing
   // that could place it. Every point carries a position now, loadRideForExport
   // reads by it, and the printed sheet says what the rider planned.
-  it('keeps the order the points arrive in, which is the rider\'s own', () => {
-    const rows = dayRows(
-      day([
+  it("keeps the order the points arrive in, which is the rider's own", () => {
+    const rows = routeRows(
+      route([
         pt({ distFromStartM: 30 * MI, name: 'C' }),
         pt({ distFromStartM: 10 * MI, name: 'A' }),
         pt({ distFromStartM: 20 * MI, name: 'B' }),
@@ -64,8 +64,8 @@ describe('dayRows', () => {
   })
 
   it('measures each leg from the point before it', () => {
-    const rows = dayRows(
-      day([pt({ distFromStartM: 0 }), pt({ distFromStartM: 40 * MI }), pt({ distFromStartM: 55 * MI })]),
+    const rows = routeRows(
+      route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 40 * MI }), pt({ distFromStartM: 55 * MI })]),
     )
     expect(rows.map((r) => (r.fromPrevM == null ? null : Math.round(r.fromPrevM / MI)))).toEqual([null, 40, 15])
   })
@@ -73,13 +73,13 @@ describe('dayRows', () => {
   // The column that earns the sheet its place.
   describe('miles since fuel', () => {
     it('says nothing before the first fuel stop, because there is no answer yet', () => {
-      const rows = dayRows(day([pt({ distFromStartM: 0 }), pt({ distFromStartM: 50 * MI })]))
+      const rows = routeRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 50 * MI })]))
       expect(rows.map((r) => r.sinceFuelM)).toEqual([null, null])
     })
 
     it('counts from the last gas stop', () => {
-      const rows = dayRows(
-        day([
+      const rows = routeRows(
+        route([
           pt({ distFromStartM: 0 }),
           pt({ distFromStartM: 20 * MI, roles: ['gas'] }),
           pt({ distFromStartM: 90 * MI }),
@@ -99,8 +99,8 @@ describe('dayRows', () => {
     // number worth printing. Resetting to 0 there would say nothing the word
     // "Gas" in the same row does not already say.
     it('reads as-you-arrive, so a fuel stop shows the tank it just used', () => {
-      const rows = dayRows(
-        day([
+      const rows = routeRows(
+        route([
           pt({ distFromStartM: 0, roles: ['gas'] }),
           pt({ distFromStartM: 100 * MI }),
           pt({ distFromStartM: 120 * MI, roles: ['gas'] }),
@@ -108,7 +108,7 @@ describe('dayRows', () => {
         ]),
       )
       expect(rows.map((r) => (r.sinceFuelM == null ? null : Math.round(r.sinceFuelM / MI)))).toEqual([
-        null, // first stop of the day, and the first fuel: nothing behind it
+        null, // first stop of the route, and the first fuel: nothing behind it
         100,
         120, // arrived here having run 120 miles since the last fill
         40, // and 40 since this one
@@ -117,7 +117,7 @@ describe('dayRows', () => {
 
     // An EV rider is asking the same question with a different verb.
     it('treats a charger as fuel', () => {
-      const rows = dayRows(day([pt({ distFromStartM: 0, roles: ['charge'] }), pt({ distFromStartM: 60 * MI })]))
+      const rows = routeRows(route([pt({ distFromStartM: 0, roles: ['charge'] }), pt({ distFromStartM: 60 * MI })]))
       expect(Math.round((rows[1].sinceFuelM ?? 0) / MI)).toBe(60)
     })
   })
@@ -125,13 +125,13 @@ describe('dayRows', () => {
   // Imported rides and older seeded POIs have no measured position. Printing
   // "0.0" beside one is a claim about where it is.
   //
-  // It no longer moves such a point to the end of the day — that was a
+  // It no longer moves such a point to the end of the route — that was a
   // consequence of sorting by distance, and the sort is gone. An unmeasured
   // point stays where the rider put it and reports nothing, which is the honest
   // pair: we know the order, we do not know the mileage.
   describe('a point with no measured distance', () => {
-    const rows = dayRows(
-      day([
+    const rows = routeRows(
+      route([
         pt({ distFromStartM: 0, name: 'A' }),
         pt({ distFromStartM: null, name: 'Unknown', kind: 'poi' }),
         pt({ distFromStartM: 50 * MI, name: 'B' }),
@@ -155,15 +155,15 @@ describe('dayRows', () => {
   })
 
   describe('the clock', () => {
-    it('is absent when the day has no start time', () => {
-      const rows = dayRows(day([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })]))
+    it('is absent when the route has no start time', () => {
+      const rows = routeRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })]))
       expect(rows.every((r) => r.arrive === null)).toBe(true)
     })
 
-    it('advances with distance at the day’s average pace', () => {
+    it('advances with distance at the route’s average pace', () => {
       // 200 mi in 4 h, so the 100-mile mark is 2 h in.
-      const rows = dayRows(
-        day([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })], {
+      const rows = routeRows(
+        route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })], {
           startAt: new Date('2026-08-03T15:00:00Z'),
         }),
       )
@@ -172,8 +172,8 @@ describe('dayRows', () => {
     })
 
     it('adds the time planned at each stop to everything after it', () => {
-      const rows = dayRows(
-        day(
+      const rows = routeRows(
+        route(
           [
             pt({ distFromStartM: 0 }),
             pt({ distFromStartM: 100 * MI, durationMin: 30 }),
@@ -186,9 +186,9 @@ describe('dayRows', () => {
       expect(rows[2].arrive?.toISOString()).toBe('2026-08-03T19:30:00.000Z')
     })
 
-    it('does not divide by zero on a day with no distance', () => {
-      const rows = dayRows(
-        day([pt({ distFromStartM: 0 })], { distanceM: 0, startAt: new Date('2026-08-03T15:00:00Z') }),
+    it('does not divide by zero on a route with no distance', () => {
+      const rows = routeRows(
+        route([pt({ distFromStartM: 0 })], { distanceM: 0, startAt: new Date('2026-08-03T15:00:00Z') }),
       )
       expect(rows[0].arrive?.toISOString()).toBe('2026-08-03T15:00:00.000Z')
     })

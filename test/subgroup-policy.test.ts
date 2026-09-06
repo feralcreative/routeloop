@@ -2,18 +2,18 @@
 //
 // The case that carries this file is the MULTI-DAY APPROACH, because it is the
 // one the rejected model could not express and the one a reader will assume is
-// broken: Seattle takes two days to reach the meet and San Francisco takes one.
-// Those are three consecutive private days, nobody has met anybody yet, and the
-// meet is the shared day after them — ONE meet, involving both.
+// broken: Seattle takes two routes to reach the meet and San Francisco takes one.
+// Those are three consecutive private routes, nobody has met anybody yet, and the
+// meet is the shared route after them — ONE meet, involving both.
 import { describe, expect, it } from 'vitest'
 import {
   activeSubgroupIds,
   hasSubgroups,
   junctions,
   neverConverges,
-  startDayOf,
+  startRouteOf,
   strandOf,
-  type StrandDay,
+  type StrandRoute,
 } from '../src/subgroups/policy'
 
 const SEA = 1
@@ -21,29 +21,29 @@ const SF = 2
 const SAC = 3
 
 /** `null` is the trunk. Positions are assigned densely, which is what the
- *  database guarantees through uq_day_ride_pos. */
-const ride = (...subgroups: Array<number | null>): StrandDay[] =>
+ *  database guarantees through uq_route_ride_pos. */
+const ride = (...subgroups: Array<number | null>): StrandRoute[] =>
   subgroups.map((subgroupId, position) => ({ position, subgroupId }))
 
 describe('strandOf', () => {
   // Seattle: 0, 1 and the trunk at 3. SF: 2 and the trunk. The two lists are
   // different lengths and neither is a prefix of the other, which is the whole
   // point of the model.
-  const multiDay = ride(SEA, SEA, SF, null)
+  const multiRoute = ride(SEA, SEA, SF, null)
 
-  it('gives a subgroup its own days plus the shared ones, in order', () => {
-    expect(strandOf(multiDay, SEA).map((d) => d.position)).toEqual([0, 1, 3])
-    expect(strandOf(multiDay, SF).map((d) => d.position)).toEqual([2, 3])
+  it('gives a subgroup its own routes plus the shared ones, in order', () => {
+    expect(strandOf(multiRoute, SEA).map((d) => d.position)).toEqual([0, 1, 3])
+    expect(strandOf(multiRoute, SF).map((d) => d.position)).toEqual([2, 3])
   })
 
   it('gives a rider in no subgroup the trunk alone', () => {
-    expect(strandOf(multiDay, null).map((d) => d.position)).toEqual([3])
+    expect(strandOf(multiRoute, null).map((d) => d.position)).toEqual([3])
   })
 
   it('gives an unknown subgroup the trunk rather than nothing', () => {
     // A rider whose subgroup was deleted has subgroup_id null on their member
     // row, but a stale id in a URL must not produce an empty ride.
-    expect(strandOf(multiDay, 999).map((d) => d.position)).toEqual([3])
+    expect(strandOf(multiRoute, 999).map((d) => d.position)).toEqual([3])
   })
 
   it('leaves a ride with no subgroups completely alone', () => {
@@ -66,7 +66,7 @@ describe('activeSubgroupIds and hasSubgroups', () => {
 })
 
 describe('junctions', () => {
-  it('finds one meet at the shared day, however many private days precede it', () => {
+  it('finds one meet at the shared route, however many private routes precede it', () => {
     expect(junctions(ride(SEA, SEA, SF, null))).toEqual([{ position: 3, kind: 'meet', subgroupIds: [SEA, SF] }])
   })
 
@@ -94,7 +94,7 @@ describe('junctions', () => {
 
   // The ride starts at the meet — Seattle and San Francisco in eastern Oregon,
   // #67's strangers case. There is no trunk before it and no split after.
-  it('handles a ride whose first shared day is the meet', () => {
+  it('handles a ride whose first shared route is the meet', () => {
     expect(junctions(ride(SEA, SF, null, null))).toEqual([{ position: 2, kind: 'meet', subgroupIds: [SEA, SF] }])
   })
 
@@ -106,43 +106,43 @@ describe('junctions', () => {
   })
 })
 
-describe('startDayOf', () => {
-  // RIDE 34, WHICH IS WHERE THIS CAME FROM. Two one-point days left over from
+describe('startRouteOf', () => {
+  // RIDE 34, WHICH IS WHERE THIS CAME FROM. Two one-point routes left over from
   // before a group seeded its own route are tagged for nobody, so they sort
-  // ahead of both satellites' own days — and `strand[0]` handed each of them the
+  // ahead of both satellites' own routes — and `strand[0]` handed each of them the
   // OTHER group's starting point. Both joining groups came back with identical
   // candidates and identical diverts, and the group starting in San Luis Obispo
   // was offered a meeting point north of Santa Cruz.
   const leftovers = ride(SF, null, null, SEA, SAC)
 
-  it('gives a group its OWN first day, not a shared one that sorts before it', () => {
-    expect(startDayOf(leftovers, SEA)?.position).toBe(3)
-    expect(startDayOf(leftovers, SAC)?.position).toBe(4)
+  it('gives a group its OWN first route, not a shared one that sorts before it', () => {
+    expect(startRouteOf(leftovers, SEA)?.position).toBe(3)
+    expect(startRouteOf(leftovers, SAC)?.position).toBe(4)
   })
 
-  it('gives the main group its own day too', () => {
-    expect(startDayOf(leftovers, SF)?.position).toBe(0)
+  it('gives the main group its own route too', () => {
+    expect(startRouteOf(leftovers, SF)?.position).toBe(0)
   })
 
-  it('falls back to the strand for a group with no day of its own', () => {
-    // Riding only shared days: where the shared road starts is the one honest
+  it('falls back to the strand for a group with no route of its own', () => {
+    // Riding only shared routes: where the shared road starts is the one honest
     // answer, and it is what the old rule returned for everybody.
-    expect(startDayOf(ride(null, null, SF), SEA)?.position).toBe(0)
+    expect(startRouteOf(ride(null, null, SF), SEA)?.position).toBe(0)
   })
 
-  it('is null when the group has no days at all', () => {
-    expect(startDayOf([], SEA)).toBe(null)
+  it('is null when the group has no routes at all', () => {
+    expect(startRouteOf([], SEA)).toBe(null)
   })
 
-  it('agrees with strandOf when a group owns the first day of its strand', () => {
+  it('agrees with strandOf when a group owns the first route of its strand', () => {
     const simple = ride(SEA, SF, null)
-    expect(startDayOf(simple, SEA)).toBe(strandOf(simple, SEA)[0])
-    expect(startDayOf(simple, SF)).toBe(strandOf(simple, SF)[0])
+    expect(startRouteOf(simple, SEA)).toBe(strandOf(simple, SEA)[0])
+    expect(startRouteOf(simple, SF)).toBe(strandOf(simple, SF)[0])
   })
 })
 
 describe('neverConverges', () => {
-  it('flags two subgroups that never share a day', () => {
+  it('flags two subgroups that never share a route', () => {
     expect(neverConverges(ride(SEA, SEA, SF))).toBe(true)
   })
 

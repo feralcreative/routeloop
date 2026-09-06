@@ -45,8 +45,7 @@ window.TBTwist = (function () {
   function haversineM(lat1, lon1, lat2, lon2) {
     const dLat = (lat2 - lat1) * RAD;
     const dLon = (lon2 - lon1) * RAD;
-    const a =
-      Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * RAD) * Math.cos(lat2 * RAD) * Math.sin(dLon / 2) ** 2;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * RAD) * Math.cos(lat2 * RAD) * Math.sin(dLon / 2) ** 2;
     return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
   }
 
@@ -124,35 +123,35 @@ window.TBTwist = (function () {
   }
 
   // Both figures below are expensive enough to need caching — roughly 19,000
-  // samples for a 300-mile day, recomputed by renderTotals() on every keystroke
+  // samples for a 300-mile route, recomputed by renderTotals() on every keystroke
   // — and both are invalidated by a *signature* rather than by array identity.
   //
   // Identity looked like the obvious key and is wrong here: the builder mutates
-  // these arrays in place (`day.legs[i] = leg` when the router answers,
+  // these arrays in place (`route.legs[i] = leg` when the router answers,
   // `legs.splice()` on a delete, `pois.push()` on an add), so the array object
   // never changes and a cache keyed on it would serve the pre-reroute answer
   // forever. The signatures are O(n) over the leg or POI list, which is nothing
   // beside the walk they are protecting.
-  const legsSignature = (day) => {
-    let sig = day.legs.length + ":";
-    for (const l of day.legs) sig += (l.distanceM || 0) + "," + ((l.geometry && l.geometry.length) || 0) + ";";
+  const legsSignature = (route) => {
+    let sig = route.legs.length + ":";
+    for (const l of route.legs) sig += (l.distanceM || 0) + "," + ((l.geometry && l.geometry.length) || 0) + ";";
     return sig;
   };
 
   const cache = new WeakMap();
-  function dayTwistiness(day) {
-    if (!day || !day.legs || day.legs.length === 0) return null;
-    const sig = legsSignature(day);
-    const hit = cache.get(day);
+  function routeTwistiness(route) {
+    if (!route || !route.legs || route.legs.length === 0) return null;
+    const sig = legsSignature(route);
+    const hit = cache.get(route);
     if (hit && hit.sig === sig) return hit.value;
     const track = [];
-    for (const leg of day.legs) for (const p of leg.geometry || []) track.push(p);
+    for (const leg of route.legs) for (const p of leg.geometry || []) track.push(p);
     const value = twistiness(track);
-    cache.set(day, { sig, value });
+    cache.set(route, { sig, value });
     return value;
   }
 
-  // Where each POI falls along the day, in meters from the start.
+  // Where each POI falls along the route, in meters from the start.
   //
   // A port of distFromStartAlongTrack() in src/maps/kml.ts, and pinned to it by
   // test/twist-client.test.ts for the same reason twistiness() is: the server
@@ -185,9 +184,9 @@ window.TBTwist = (function () {
     });
   }
 
-  // distFromStartAlongTrack STAYS, and dayPoiDistances that used to sit here is
-  // gone. It projected each of a day's POIs onto the concatenated track to find
-  // how far along the day it sat, which was the only way to place a POI in the
+  // distFromStartAlongTrack STAYS, and routePoiDistances that used to sit here is
+  // gone. It projected each of a route's POIs onto the concatenated track to find
+  // how far along the route it sat, which was the only way to place a POI in the
   // sequence while a POI anchored no leg. Every point anchors a leg as of
   // 2026-08-24, so a point's distance from the start is the prefix sum of the
   // legs before it — exact, free, and the same number the server stores. The
@@ -198,7 +197,7 @@ window.TBTwist = (function () {
   return {
     twistiness,
     twistLabel,
-    dayTwistiness,
+    routeTwistiness,
     distFromStartAlongTrack,
     SPACING_M,
     DEADBAND_DEG,

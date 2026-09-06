@@ -238,7 +238,7 @@ describe('pointAtDistance', () => {
     expect(p[0]).toBeCloseTo(1.5, 4)
   })
 
-  // Dropping a POI below every other row asks for the end of the day, and
+  // Dropping a POI below every other row asks for the end of the route, and
   // builder.js passes Infinity to say so.
   it('clamps past the end rather than running off it', () => {
     expect(S.pointAtDistance(EAST, DEG_M * 99)).toEqual([3, 0])
@@ -363,14 +363,14 @@ describe('circlePath', () => {
   })
 })
 
-// Re-joining a day after points are removed.
+// Re-joining a route after points are removed.
 //
 // This is the arithmetic that decides whether a rider's hand-drawn shaping
 // points survive a delete. Getting it wrong is silent both ways: too wide a
 // span throws away a leg nothing touched (and pays the router to redraw it),
 // too narrow a one drops the vias of a leg that was swallowed.
 describe('rejoinSpans', () => {
-  it('leaves an untouched day as one span per leg', () => {
+  it('leaves an untouched route as one span per leg', () => {
     expect(S.rejoinSpans(4, [])).toEqual([
       { from: 0, to: 0 },
       { from: 1, to: 1 },
@@ -387,7 +387,7 @@ describe('rejoinSpans', () => {
   })
 
   // The ends are not a merge: there is only ever one leg to lose.
-  it('drops one leg at either end of the day', () => {
+  it('drops one leg at either end of the route', () => {
     expect(S.rejoinSpans(4, [0])).toEqual([
       { from: 1, to: 1 },
       { from: 2, to: 2 },

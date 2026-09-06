@@ -135,8 +135,8 @@ function firstString(props: Json | undefined, keys: string[]): string {
   return ''
 }
 
-// Lines carry their properties for the same reason points do: a multi-day
-// GeoJSON names each feature ("Day 2"), and that name is the day's title on
+// Lines carry their properties for the same reason points do: a multi-route
+// GeoJSON names each feature ("Route 2"), and that name is the route's title on
 // import. GPX and KML both keep theirs, and a format silently dropping it was
 // the odd one out.
 type Collected = {
@@ -228,7 +228,7 @@ export function processGeoJson(text: string): ExtractedRoute {
   }
 
   // Every line is kept, in the order the document listed them. A file with
-  // several is a file with several days far more often than it is one route
+  // several is a file with several routes far more often than it is one route
   // plus its scenery, and guessing wrong by taking the longest silently threw
   // the rest away.
 

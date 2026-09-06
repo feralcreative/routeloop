@@ -1,6 +1,6 @@
-// Turning a SortableJS drop into an index into day.points.
+// Turning a SortableJS drop into an index into route.points.
 //
-// This is four lines of arithmetic that shipped wrong for four days and cost
+// This is four lines of arithmetic that shipped wrong for four routes and cost
 // #166, so it lives here rather than inside the onEnd closure in builder.js —
 // where no test could reach it. Pure: no DOM, no Sortable, no state.
 //
@@ -10,7 +10,7 @@
 // matching the `draggable` selector. A point list renders an `.insert-slot`
 // hairline above every row plus one trailing `.add-row`, so it holds 2n+1
 // children for n points and the raw index runs at roughly double the one
-// `day.points` is addressed by.
+// `route.points` is addressed by.
 //
 // Nothing here can tell which pair it was handed — that is the caller's job and
 // the reason the caller is one line long. What this file CAN do is be exercised
@@ -19,10 +19,10 @@
 (function (window) {
   "use strict";
 
-  // Where a same-day drag lands, or null when it is not an edit.
+  // Where a same-route drag lands, or null when it is not an edit.
   //
   // `from` is the dragged row's own point index (its `data-i`), `to` is
-  // Sortable's newDraggableIndex, and `count` is day.points.length.
+  // Sortable's newDraggableIndex, and `count` is route.points.length.
   //
   // Null rather than `from` for a non-move, because the caller must not run its
   // beginEdit/markDirty path for a drop that changed nothing — and null is the
@@ -46,7 +46,7 @@
   // Clamped to `count` rather than `count - 1`, and that difference is the whole
   // reason this is a second function: the point is being INSERTED into a list it
   // is not yet in, so landing one past the last element is appending and is a
-  // legitimate answer. In the same-day case the point is already in the array
+  // legitimate answer. In the same-route case the point is already in the array
   // and `count - 1` is the last position that exists.
   function insertTarget(to, count) {
     if (!Number.isInteger(to) || !Number.isInteger(count) || count < 0) return 0;

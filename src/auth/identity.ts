@@ -35,7 +35,10 @@ export type VerifiedIdentity = {
 }
 
 function displayNameFromEmail(email: string): string {
-  const local = email.slice(0, email.indexOf('@')).replace(/[._-]+/g, ' ').trim()
+  const local = email
+    .slice(0, email.indexOf('@'))
+    .replace(/[._-]+/g, ' ')
+    .trim()
   return local ? local.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Rider'
 }
 
@@ -66,10 +69,7 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
     .from(userIdentities)
     .innerJoin(users, eq(userIdentities.userId, users.id))
     .where(
-      and(
-        eq(userIdentities.provider, identity.provider),
-        eq(userIdentities.providerUserId, identity.providerUserId),
-      ),
+      and(eq(userIdentities.provider, identity.provider), eq(userIdentities.providerUserId, identity.providerUserId)),
     )
     .limit(1)
 
@@ -81,7 +81,7 @@ export async function resolveUser(identity: VerifiedIdentity, exec?: Executor): 
   const create = async (tx: Executor): Promise<ResolvedUser> => {
     // Same person arriving by a second method. Both providers verify the address
     // before we get here, so matching on it is safe and is what lets someone use
-    // Google one day and a magic link the next without splitting their rides
+    // Google one route and a magic link the next without splitting their rides
     // across two accounts.
     const [match] = await tx.select().from(users).where(eq(users.email, email)).limit(1)
 

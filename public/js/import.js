@@ -5,10 +5,10 @@
 //
 // WHAT IT IS FOR, in one line: guess harder, then let the rider correct the
 // guess. Filenames written by this app's export already say which ride they
-// belong to, which day they are and when that day starts, so dropping a folder
+// belong to, which route they are and when that route starts, so dropping a folder
 // fills the form in from what the files already know — and #129 is the other
 // half of that bargain, because a guess a rider cannot correct is worse than no
-// guess at all. A misread day order discovered here costs one edit; discovered
+// guess at all. A misread route order discovered here costs one edit; discovered
 // in the builder it costs a rebuild.
 //
 // See public/js/filename.js for the convention, src/maps/filename.ts for why it
@@ -20,7 +20,7 @@
 // the review runs entirely on what the browser already holds, and Import posts
 // the files and the manifest together in one body. The cost is stated rather
 // than hidden: **a zip cannot be reviewed**, because nothing unzips in the
-// browser, so an archive's row says so and its days are read on the way in.
+// browser, so an archive's row says so and its routes are read on the way in.
 (function () {
   "use strict";
 
@@ -57,8 +57,8 @@
   }
 
   // UTC to match how the server reads these dates back off the filename, how the
-  // manifest is parsed, and how every surface in the app renders a day's clock.
-  // A day's time is a wall clock at the departure point — 9am means 9am where
+  // manifest is parsed, and how every surface in the app renders a route's clock.
+  // A route's time is a wall clock at the departure point — 9am means 9am where
   // the bike is — so nothing here converts it into the reader's own zone.
   function pad(n) {
     return String(n).padStart(2, "0");
@@ -89,7 +89,7 @@
       }),
     );
 
-    // planImport() sorts by day number where every file carries one, and its
+    // planImport() sorts by route number where every file carries one, and its
     // `index` is the position the file arrived in — which is what maps a planned
     // row back to its File after that sort.
     rows = plan.files.map(function (p) {
@@ -103,7 +103,7 @@
         // pre-filled from the filename, so without this every row would post a
         // title as though it had been typed — and a typed title outranks the
         // file's own <trk><name>, which the browser cannot read. Importing one
-        // file with JavaScript on and off would then give it two different day
+        // file with JavaScript on and off would then give it two different route
         // names. Measured, not theorized: a GPX whose track is named
         // "Oakland to Mt Shasta" came in as "Oakland To Mt Shasta", capitalised
         // by titleFromSlug out of the filename.
@@ -116,7 +116,7 @@
     });
 
     // Archives last, and always last: their contents are unknown here, so there
-    // is no position for them to hold among rows that know their day number.
+    // is no position for them to hold among rows that know their route number.
     zips.forEach(function (f) {
       rows.push({ file: f, name: f.name, ext: "zip", title: "", date: "", time: "", zip: true, conforming: false });
     });
@@ -170,7 +170,7 @@
       out.push("Two files with the same name—check you did not add one twice.");
     }
     // A DATE COLLISION IS NOT AN ERROR, and this says so rather than flagging it
-    // like one: two days of one ride genuinely can start on the same date, and a
+    // like one: two routes of one ride genuinely can start on the same date, and a
     // rider who did that on purpose should not be told they are wrong.
     var dates = rows
       .filter(function (r) {
@@ -200,7 +200,7 @@
       // are real controls rather than a nicety — a drag handle cannot be
       // operated from a keyboard at all.
       '<span class="plan-grip" aria-hidden="true">⠿</span>' +
-      '<span class="plan-day">' +
+      '<span class="plan-route">' +
       (r.zip ? "—" : "Route " + (i + 1)) +
       "</span>" +
       (r.zip
@@ -267,12 +267,12 @@
 
     var dupes = duplicateNames();
     var noteList = notes(plan);
-    var days = rows.length;
+    var routes = rows.length;
 
     panel.innerHTML =
       '<p class="plan-head"><span class="plan-count">' +
-      esc(String(days)) +
-      (days === 1 ? " file" : " files") +
+      esc(String(routes)) +
+      (routes === 1 ? " file" : " files") +
       (plan.ride ? ' from <strong class="plan-ride">' + esc(plan.ride) + "</strong>" : "") +
       '</span><span class="plan-hint">Drag to reorder. Edit anything that looks wrong.</span>' +
       "</p>" +
@@ -299,7 +299,7 @@
     var zips = rows.filter(function (r) {
       return r.zip;
     }).length;
-    submit.textContent = zips > 0 ? SUBMIT_LABEL : "Import " + days + (days === 1 ? " route" : " routes");
+    submit.textContent = zips > 0 ? SUBMIT_LABEL : "Import " + routes + (routes === 1 ? " route" : " routes");
   }
 
   // Re-render without re-reading the files, for an edit that changed the model.
@@ -412,7 +412,7 @@
         fileName: f.name,
         // Only a name the rider actually typed. An untouched box is an
         // unanswered question, so the server falls back to what the FILE says
-        // its day is called — see the note in build() above.
+        // its route is called — see the note in build() above.
         title: r && !r.zip && !r.titleAuto ? r.title.trim() : "",
         // A time with no date is not a start, so it is dropped rather than being
         // stamped onto a date the rider never gave.

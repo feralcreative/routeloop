@@ -1,6 +1,6 @@
 // Stored originals are kept brotli-compressed on disk.
 //
-// WHY BROTLI AND NOT GZIP. Measured on a real 8-day GPX import in `storage/`:
+// WHY BROTLI AND NOT GZIP. Measured on a real 8-route GPX import in `storage/`:
 // 834,594 B raw, 115,046 B at gzip -9, 59,895 B at brotli q11 — 7.3x against
 // 13.9x. Both codecs are in Node core, so the better ratio costs nothing but the
 // compression time, and that is paid once at import rather than on every read.

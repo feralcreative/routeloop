@@ -18,12 +18,12 @@ import { normalize, ridePayload } from '../src/maps/ride-graph'
 
 const ride = {
   title: 'Coast run',
-  description: 'Two days.',
+  description: 'Two routes.',
   visibility: 'unlisted' as const,
   external_url: 'https://example.com/thread',
-  days: [
+  routes: [
     {
-      title: 'Day 1',
+      title: 'Route 1',
       color: '#0066cc',
       startAt: '2026-08-03T15:00:00.000Z',
       endAt: '2026-08-03T23:30:00.000Z',
@@ -61,7 +61,7 @@ const ride = {
       ],
       // ONE LEG PER PAIR OF POINTS, the POI included — Ziad's call, 2026-08-24. A
       // POI is somewhere the rider at least rides by, so the road runs through it
-      // and the day is two legs rather than one. A fixture with one leg is what a
+      // and the route is two legs rather than one. A fixture with one leg is what a
       // v4 file looks like, and upgradeNativeRide re-cuts those; this one is
       // current, so it has to already be right.
       legs: [
@@ -131,11 +131,41 @@ describe('the legacy tankbag version key', () => {
     expect(upgradeNativeRide(legacyNative)).toEqual(upgradeNativeRide(native))
   })
 
-  // v1 called the array of days `routes`, and a v1 file necessarily carries the
+  // v1 called the array of routes `routes`, and a v1 file necessarily carries the
   // old key — so the oldest upgrade path is only reachable through it.
   it('still upgrades a v1 file, which can only have the old key', () => {
     const v1: NativeRide = { tankbag: 1, exportedFrom: 'tankbag.app', ride: { title: 'x', routes: [] } }
-    expect(upgradeNativeRide(v1)).toEqual({ title: 'x', days: [] })
+    expect(upgradeNativeRide(v1)).toEqual({ title: 'x', routes: [] })
+  })
+
+  // EVERY GENERATION OF THE KEY, BECAUSE IT HAS MOVED TWICE. v1 called the array
+  // `routes`, v2 renamed it to `days`, and v6 renamed it back — so a file from
+  // ANY version a rider still holds has to land on `routes`.
+  //
+  // This exists because the v6 rename broke it. The sweep that renamed `day` to
+  // `route` across the tree also rewrote the v1 branch's guard from
+  // `ride.days === undefined` to `ride.routes === undefined`, which can never be
+  // true alongside its own `Array.isArray(ride.routes)` — so nothing remapped
+  // `days` any more and every v2-to-v5 backup on a rider's disk imported empty,
+  // silently. Riders hold these files, and a backup that will not restore is not
+  // a backup.
+  it('lands every version of the key on `routes`', () => {
+    const one = { title: 'A', color: '#cc0000', points: [], legs: [] }
+    const versions: Array<[string, NativeRide]> = [
+      ['v1 routes', { tankbag: 1, exportedFrom: 'x', ride: { title: 't', routes: [one] } }],
+      ['v2 days', { tankbag: 2, exportedFrom: 'x', ride: { title: 't', days: [one] } }],
+      ['v3 days', { routeloop: 3, exportedFrom: 'x', ride: { title: 't', days: [one] } }],
+      ['v5 days', { routeloop: 5, exportedFrom: 'x', ride: { title: 't', days: [one] } }],
+      ['v6 routes', { routeloop: 6, exportedFrom: 'x', ride: { title: 't', routes: [one] } }],
+    ]
+    for (const [label, file] of versions) {
+      const out = upgradeNativeRide(file) as { routes?: unknown[]; days?: unknown }
+      expect(out.routes, label).toHaveLength(1)
+      // AND THE OLD KEY IS GONE, not carried alongside. ridePayload would ignore
+      // it, but a payload holding both is two answers to one question and the
+      // next reader has to pick.
+      expect(out.days, label).toBeUndefined()
+    }
   })
 
   it('is never written back out', () => {
@@ -157,29 +187,29 @@ describe('the exported shape is what the importer accepts', () => {
   it('keeps every field through parse and normalize', () => {
     const out = ridePayload.parse(JSON.parse(buildNativeJson(native)).ride)
     normalize(out)
-    const day = out.days[0]
-    expect(day.title).toBe('Day 1')
-    expect(day.color).toBe('#0066cc')
-    expect(day.startAt).toBe('2026-08-03T15:00:00.000Z')
-    expect(day.endAt).toBe('2026-08-03T23:30:00.000Z')
+    const route = out.routes[0]
+    expect(route.title).toBe('Route 1')
+    expect(route.color).toBe('#0066cc')
+    expect(route.startAt).toBe('2026-08-03T15:00:00.000Z')
+    expect(route.endAt).toBe('2026-08-03T23:30:00.000Z')
     // Order preserved across the whole list, both kinds — the POI sits between
     // the two stops because that is where it was written.
-    expect(day.points.map((s) => s.name)).toEqual(['Santa Cruz', 'Pigeon Point', 'Half Moon Bay'])
-    expect(day.points.map((s) => s.kind)).toEqual(['stop', 'poi', 'stop'])
-    expect(day.points[2].roles).toEqual(['gas', 'food'])
-    expect(day.points[2].durationMin).toBe(45)
-    expect(day.points[0].description).toBe('Meet at the wharf.')
+    expect(route.points.map((s) => s.name)).toEqual(['Santa Cruz', 'Pigeon Point', 'Half Moon Bay'])
+    expect(route.points.map((s) => s.kind)).toEqual(['stop', 'poi', 'stop'])
+    expect(route.points[2].roles).toEqual(['gas', 'food'])
+    expect(route.points[2].durationMin).toBe(45)
+    expect(route.points[0].description).toBe('Meet at the wharf.')
     // The distinction KML and GPX cannot carry at all.
-    expect(day.points[1]).toMatchObject({ name: 'Pigeon Point', durationMin: 20, roles: ['view'] })
+    expect(route.points[1]).toMatchObject({ name: 'Pigeon Point', durationMin: 20, roles: ['view'] })
     // Legs, not a flattened track — the leg boundaries are where the POINTS are,
-    // both kinds, so the POI in the middle is a boundary and the day has two.
-    expect(day.legs).toHaveLength(2)
-    expect(day.legs[0].geometry).toHaveLength(3)
-    expect(day.legs[0].durationS).toBe(2400)
-    expect(day.legs[1].durationS).toBe(1800)
+    // both kinds, so the POI in the middle is a boundary and the route has two.
+    expect(route.legs).toHaveLength(2)
+    expect(route.legs[0].geometry).toHaveLength(3)
+    expect(route.legs[0].durationS).toBe(2400)
+    expect(route.legs[1].durationS).toBe(1800)
     // A shaping point is not a point in the list and keeps its own place on the
     // leg it belongs to.
-    expect(day.legs[0].viaPoints).toEqual([[-122.2867, 37.105]])
+    expect(route.legs[0].viaPoints).toEqual([[-122.2867, 37.105]])
     expect(out.external_url).toBe('https://example.com/thread')
   })
 
@@ -190,52 +220,52 @@ describe('the exported shape is what the importer accepts', () => {
 
 // The lossless format has to stay lossless as fields are added to it, and an
 // alternate grouping is the field most expensive to lose: a rider who reimports
-// their own backup would get their alternates back as ordinary days, silently,
+// their own backup would get their alternates back as ordinary routes, silently,
 // with the ride's mileage doubling to match.
 describe('alternates survive the native format', () => {
   const grouped = {
     ...ride,
-    days: [
-      { ...ride.days[0], altGroup: 0, altActive: true },
-      { ...ride.days[0], altGroup: 0, altActive: false },
+    routes: [
+      { ...ride.routes[0], altGroup: 0, altActive: true },
+      { ...ride.routes[0], altGroup: 0, altActive: false },
     ],
   }
 
   it('carries both fields through parse and normalize', () => {
     const out = ridePayload.parse(grouped)
     normalize(out)
-    expect(out.days.map((r) => [r.altGroup, r.altActive])).toEqual([
+    expect(out.routes.map((r) => [r.altGroup, r.altActive])).toEqual([
       [0, true],
       [0, false],
     ])
   })
 
-  it('defaults a file written before the feature to a plain, active day', () => {
+  it('defaults a file written before the feature to a plain, active route', () => {
     // Every native JSON a rider already holds omits these keys. It must import
     // as an ordinary ride rather than failing validation — which is the whole
     // reason both fields are .default()ed and NATIVE_FORMAT_VERSION did not move.
     const out = ridePayload.parse(ride)
     normalize(out)
-    expect(out.days.every((r) => r.altGroup === null && r.altActive)).toBe(true)
+    expect(out.routes.every((r) => r.altGroup === null && r.altActive)).toBe(true)
     expect(nativeVersion(native)).toBe(NATIVE_FORMAT_VERSION)
   })
 
   it('repairs a group of one instead of refusing it', () => {
     // The shape an autosave sees the instant a rider deletes one of a pair.
-    const out = ridePayload.parse({ ...ride, days: [{ ...ride.days[0], altGroup: 0, altActive: false }] })
+    const out = ridePayload.parse({ ...ride, routes: [{ ...ride.routes[0], altGroup: 0, altActive: false }] })
     normalize(out)
-    expect(out.days[0]).toMatchObject({ altGroup: null, altActive: true })
+    expect(out.routes[0]).toMatchObject({ altGroup: null, altActive: true })
   })
 
-  it('refuses a group id outside the day cap', () => {
-    const bad = { ...ride, days: [{ ...ride.days[0], altGroup: 9999 }] }
+  it('refuses a group id outside the route cap', () => {
+    const bad = { ...ride, routes: [{ ...ride.routes[0], altGroup: 9999 }] }
     expect(ridePayload.safeParse(bad).success).toBe(false)
   })
 })
 
 describe('what the importer refuses', () => {
   it('refuses a payload whose legs do not connect its stops', () => {
-    const broken = { ...ride, days: [{ ...ride.days[0], legs: [] }] }
+    const broken = { ...ride, routes: [{ ...ride.routes[0], legs: [] }] }
     const parsed = ridePayload.safeParse(broken)
     expect(parsed.success).toBe(false)
     expect(JSON.stringify(parsed.error?.issues)).toMatch(/legs must connect/)
@@ -249,10 +279,10 @@ describe('what the importer refuses', () => {
   it('refuses a coordinate outside the world', () => {
     const bad = {
       ...ride,
-      days: [
+      routes: [
         {
-          ...ride.days[0],
-          points: [{ ...ride.days[0].points[0], lat: 991 }, ride.days[0].points[1], ride.days[0].points[2]],
+          ...ride.routes[0],
+          points: [{ ...ride.routes[0].points[0], lat: 991 }, ride.routes[0].points[1], ride.routes[0].points[2]],
         },
       ],
     }
@@ -264,19 +294,19 @@ describe('what the importer refuses', () => {
   it('strips markup out of names on the way in', () => {
     const nasty = {
       ...ride,
-      days: [
+      routes: [
         {
-          ...ride.days[0],
+          ...ride.routes[0],
           points: [
-            { ...ride.days[0].points[0], name: '<script>alert(1)</script>Santa Cruz' },
-            ride.days[0].points[1],
-            ride.days[0].points[2],
+            { ...ride.routes[0].points[0], name: '<script>alert(1)</script>Santa Cruz' },
+            ride.routes[0].points[1],
+            ride.routes[0].points[2],
           ],
         },
       ],
     }
     const out = ridePayload.parse(nasty)
     normalize(out)
-    expect(out.days[0].points[0].name).toBe('alert(1)Santa Cruz')
+    expect(out.routes[0].points[0].name).toBe('alert(1)Santa Cruz')
   })
 })

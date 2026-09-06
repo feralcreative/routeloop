@@ -420,7 +420,7 @@ describe('proposeGroupMeet', () => {
   // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE, so where its
   // own track happens to end is not consulted. That is usually the last place
   // they have got round to planning — on the ride this was first tried against,
-  // the second group's day ended at a coffee shop in their own town, and a
+  // the second group's route ended at a coffee shop in their own town, and a
   // filter that dropped them for it made the whole ride answer "nowhere works".
   it('ignores where a joining group’s own route ends', () => {
     // Same origin as `south`, but its road wanders off to the south-east and
@@ -445,7 +445,7 @@ describe('proposeGroupMeet', () => {
     }
   })
 
-  // A JOINING group with one point and no legs is a day somebody started and has
+  // A JOINING group with one point and no legs is a route somebody started and has
   // not planned. It has an origin, so it is still somebody who has to get there
   // and is still scored — dropping it would propose a meeting point the other
   // groups love and this one cannot reach.

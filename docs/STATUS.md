@@ -12,6 +12,24 @@
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
 
+## A route is a route—the rename shipped, 2026-09-06
+
+**All the way, including the table.** `days` → `routes`, `points.day_id`/`route_legs.day_id` → `route_id`, `alt_votes.day_uid`/`ride_suggestions.day_uid` → `route_uid`, `day_riders` → `route_riders`, plus every index and constraint. 3,223 identifier replacements across 178 files and twelve `day-*` files renamed.
+
+**`drizzle/0030_fair_owl.sql` IS HAND-WRITTEN AND MUST STAY THAT WAY.** drizzle-kit cannot tell a rename from a drop-and-create; asked, it emitted `DROP TABLE "days" CASCADE`—every route, point and leg on every ride—plus four `ADD COLUMN … NOT NULL` against populated tables that would have failed and left the schema half-applied. The generated SQL was replaced with 25 catalog renames; the generated SNAPSHOT is correct and was kept. Rehearsed inside a rolled-back transaction before applying, then applied: 106 routes, 971 points, 283 legs, zero stale `day`-named columns or indexes.
+
+**It ships with `--no-overlap` and costs a few seconds of downtime.** A rename has no additive form, so this is the one migration on the branch that expand/contract cannot cover. Ziad's call.
+
+**Native JSON went to 6 and this is the bug the sweep nearly shipped.** The key has moved twice: v1 `routes`, v2–v5 `days`, v6 `routes`. The sweep rewrote the upgrade guard `ride.days === undefined` into `ride.routes === undefined`, which can never hold beside its own `Array.isArray(ride.routes)`—so nothing remapped `days` and **every v2-to-v5 backup on a rider's disk would have imported empty, silently**. Found by probing the format rather than by a test; `test/native.test.ts` now pins all five generations.
+
+**Three more the typechecker caught** that a blind sweep would have shipped: `Intl.DateTimeFormat`'s `day:` option in four files, every import path for the renamed modules, and a stray brace from a first attempt at a string-aware transformer.
+
+**Two classes the sweep got wrong and were repaired by hand.** SCREAMING_CASE was skipped entirely—the guard `[Dd]ay` never matches `DAY`—so `DAY_COLORS`, `MAX_DAYS`, `DAY_RE`, `DAY_MENU_ITEMS` and `DAY_START_HOUR` survived and were renamed after; `DAY_FIRST_REGIONS`, `DAY_MS` and the three `*_HOLD_DAYS` are calendar and stay. And prose in comments was clobbered—"thirty routes", "30-route hold", "route-first dates"—24 of those reverted across 18 files.
+
+**Deliberately unchanged:** the export filename field is still `dNN`. The letter is opaque, every file a rider holds uses it, and `parseExportName` would have to read both forever for no gain.
+
+**Needs a browser pass.** The CSS class rename and the wire-format keys are the half no test covers, and a wire key is what silently loaded zero days when this rename ran in the other direction on 2026-08-09.
+
 ## Who is on which stretch of road—2026-09-06
 
 **The model changed and `days.subgroup_id` is no longer the answer to "who rides this".** Ziad's call, after describing the ride that breaks the old one: ride to Portland, a friend joins as far as Seattle, they peel off, carry on to Vancouver—and then the harder version, three riders joining together and ONE of them leaving further down the road. A route carried one subgroup and a rider belonged to one subgroup for the whole ride, so those three share a group and there was no way to say only one of them carries on.

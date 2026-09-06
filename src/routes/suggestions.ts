@@ -50,7 +50,7 @@ suggestionRoutes.get('/api/rides/:id/suggestions', requireActiveApi, async (c) =
       id: r.id,
       authorId: r.authorId,
       authorName: r.authorName,
-      dayUid: r.dayUid,
+      routeUid: r.routeUid,
       note: r.note,
       state: r.state,
       createdAt: r.createdAt.toISOString(),
@@ -69,16 +69,16 @@ suggestionRoutes.post('/api/rides/:id/suggestions', requireActiveApi, requireSam
     return c.json({ error: 'invalid JSON body' }, 400)
   }
   const b = (raw ?? {}) as Record<string, unknown>
-  const dayUid = typeof b.dayUid === 'string' ? b.dayUid : ''
-  if (!dayUid) return c.json({ error: 'no-such-day' }, 400)
+  const routeUid = typeof b.routeUid === 'string' ? b.routeUid : ''
+  if (!routeUid) return c.json({ error: 'no-such-route' }, 400)
   const note = typeof b.note === 'string' ? b.note : null
-  const res = await propose(found.ride.id, user.id, dayUid, b.day, note)
+  const res = await propose(found.ride.id, user.id, routeUid, b.route, note)
   if (!res.ok) return c.json({ error: res.reason }, res.reason === 'refused' ? 403 : 400)
   return c.json({ id: res.id })
 })
 
 /** Accept, discard or withdraw. One route because they are one decision with
- *  three answers, and each verb re-reads the roster and the day's fingerprint
+ *  three answers, and each verb re-reads the roster and the route's fingerprint
  *  for itself. */
 suggestionRoutes.post('/api/rides/:id/suggestions/:sid/:verb', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)

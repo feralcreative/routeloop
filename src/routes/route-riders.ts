@@ -1,6 +1,6 @@
 // Who is on which stretch of road, over HTTP.
 //
-// The rules are `src/day-riders/policy.ts` and the queries `src/riders/service.ts`;
+// The rules are `src/route-riders/policy.ts` and the queries `src/riders/service.ts`;
 // this file only decides who may ask and who may answer.
 //
 // TWO ROUTES AND NOT ONE PER RIDER. Membership is a per-ROUTE fact — "these
@@ -17,8 +17,8 @@ import { Hono } from 'hono'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { ownRide } from './maps'
 import { roster } from '../members/service'
-import { resolvedRoutes, setRouteRiders } from '../day-riders/service'
-import { riderJunctions } from '../day-riders/policy'
+import { resolvedRoutes, setRouteRiders } from '../route-riders/service'
+import { riderJunctions } from '../route-riders/policy'
 
 export const routeRiderRoutes = new Hono<AuthEnv>()
 

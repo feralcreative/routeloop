@@ -24,7 +24,7 @@
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { db } from '../db/index'
 import {
-  days as daysTable,
+  routes as routesTable,
   follows,
   friendships,
   rideMembers,
@@ -132,14 +132,14 @@ export async function viewableRide(slug: string, viewer: Viewer): Promise<RideRo
 /**
  * The levels that appear in the "a friend's rides" list.
  *
- * The viewer-dependent list this file's header said would one day be wanted. The
+ * The viewer-dependent list this file's header said would one route be wanted. The
  * membership half of it is the join in friendsRides() below — this constant is
  * only the visibility half, derived from isFriendListed() so the SQL and the
  * boolean stay two readings of one rule.
  */
 export const FRIEND_LISTED_RIDE = inArray(rides.visibility, visibilityEnum.enumValues.filter(isFriendListed))
 
-/** One row of a ride list, with the first day's color for the card's stripe. */
+/** One row of a ride list, with the first route's color for the card's stripe. */
 type ListRow = { ride: RideRow; color: string | null }
 
 /**
@@ -165,7 +165,7 @@ type ListRow = { ride: RideRow; color: string | null }
  */
 export async function friendsRides(viewerId: number, limit: number): Promise<ListRow[]> {
   return db
-    .select({ ride: rides, color: daysTable.color })
+    .select({ ride: rides, color: routesTable.color })
     .from(rides)
     .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
     .innerJoin(
@@ -178,7 +178,7 @@ export async function friendsRides(viewerId: number, limit: number): Promise<Lis
         ),
       ),
     )
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     .where(and(FRIEND_LISTED_RIDE, LIVE_RIDE))
     .orderBy(desc(rides.updatedAt))
     .limit(limit)
@@ -194,10 +194,10 @@ export async function friendsRides(viewerId: number, limit: number): Promise<Lis
  */
 export async function publicRides(viewerId: number, limit: number): Promise<ListRow[]> {
   return db
-    .select({ ride: rides, color: daysTable.color })
+    .select({ ride: rides, color: routesTable.color })
     .from(rides)
     .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     .where(and(LISTED_RIDE, LIVE_RIDE, ne(rides.ownerId, viewerId)))
     .orderBy(desc(rides.updatedAt))
     .limit(limit)
@@ -222,11 +222,11 @@ export async function publicRides(viewerId: number, limit: number): Promise<List
  */
 export async function followingRides(viewerId: number, limit: number): Promise<ListRow[]> {
   return db
-    .select({ ride: rides, color: daysTable.color })
+    .select({ ride: rides, color: routesTable.color })
     .from(rides)
     .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
     .innerJoin(follows, and(eq(follows.followerId, viewerId), eq(follows.followeeId, rides.ownerId)))
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     .where(and(LISTED_RIDE, LIVE_RIDE))
     .orderBy(desc(rides.updatedAt))
     .limit(limit)

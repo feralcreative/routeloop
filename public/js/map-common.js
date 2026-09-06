@@ -209,7 +209,7 @@
    * What the rider can actually see, as a circle: `{ near, radiusM }`, or null
    * before the map has settled.
    *
-   * THE SEARCH ANCHOR. Every "near" search used to anchor on the day's LAST
+   * THE SEARCH ANCHOR. Every "near" search used to anchor on the route's LAST
    * POINT, which is a place the rider can neither see nor move — so panning the
    * map changed nothing and a search for coffee while looking at Redding
    * answered around a hotel three hundred miles away. The viewport is the one
@@ -249,7 +249,7 @@
   //
   // Here rather than in builder.js because this file is the only one that names
   // a vendor API. The caller is the category search, which needs somewhere to
-  // anchor "coffee" when the rider has typed no place and the day has no points
+  // anchor "coffee" when the rider has typed no place and the route has no points
   // to work from.
   function mapCenter(map) {
     const c = map && map.getCenter && map.getCenter();
@@ -261,7 +261,7 @@
   const TRACK_OPACITY = 0.8;
   const DIM_OPACITY = 0.25;
   // A LOSING ALTERNATE. Between the other two on purpose: a ghost is quieter
-  // than the road you are riding and louder than a day you simply are not
+  // than the road you are riding and louder than a route you simply are not
   // looking at right now, because it is still a real option rather than
   // something out of focus.
   const GHOST_OPACITY = 0.35;
@@ -331,7 +331,7 @@
   }
 
   // GHOST BEATS DIM, in all three properties. A losing alternate that happens
-  // to be the focused day is still a losing alternate — the rider clicked into
+  // to be the focused route is still a losing alternate — the rider clicked into
   // it to edit it, which is exactly when they most need to see that it is the
   // one that does not count. Reading `dim` first would un-ghost it on focus.
   //
@@ -368,7 +368,7 @@
   //
   // It lives on the entry rather than only on the Polyline because
   // addRouteLayers destroys and rebuilds the line — rebuildLayers() runs on
-  // every day add, delete, reorder and recolor — so a flag set once at
+  // every route add, delete, reorder and recolor — so a flag set once at
   // construction would quietly vanish. paint() never touches clickable, so
   // once it is on the entry it survives every repaint.
   function addRouteLayers(map, id, track, color, opts) {
@@ -388,7 +388,7 @@
       dim: false,
       // On the entry rather than the Polyline for the same reason `shapeable`
       // is, and it is worth restating because it has bitten before:
-      // rebuildLayers() destroys and recreates every line on every day add,
+      // rebuildLayers() destroys and recreates every line on every route add,
       // delete, reorder and recolor, so a flag set on the Polyline alone would
       // vanish the next time a rider touched anything. A ghost that silently
       // becomes a solid line is a ride whose mileage and map disagree.
@@ -400,7 +400,7 @@
     layersOf(map).set(id, entry);
     // Re-arm: this line is brand new, and rebuildLayers() runs often enough
     // that a gesture wired only at onRouteShapeDrag() time would stop working
-    // the first time a day was added.
+    // the first time a route was added.
     const drag = shapeDrags.get(map);
     if (shapeable && drag && drag.arm) drag.arm(entry);
   }
@@ -445,7 +445,7 @@
   // Separate from setRouteDim rather than an argument to it, because the two
   // answer different questions and are owned by different code. `dim` is
   // transient — focus, legend hover, the timeline — and both clients rewrite it
-  // constantly. `ghost` is a fact about the ride: this day is an alternate that
+  // constantly. `ghost` is a fact about the ride: this route is an alternate that
   // lost. Folding them into one flag means whichever ran last wins, and the
   // symptom is an alternate that turns solid the moment you click it.
   function setRouteGhost(map, id, ghost) {
@@ -569,7 +569,7 @@
 
   // Small round dots rather than dashes: the ring is the quietest thing on the
   // map and a dashed edge reads as a route, which is what every other dashed
-  // line here means — see dashIcons() and the ghosted-day treatment.
+  // line here means — see dashIcons() and the ghosted-route treatment.
   function ringDots(color) {
     return [
       {
@@ -593,14 +593,14 @@
   // hazard tape rather than a road.
   //
   // WHY NOT DASH THE RED ITSELF. That was tried and reported as "dashed AND
-  // solid underneath", and the report was right: a day is drawn as ONE polyline
+  // solid underneath", and the report was right: a route is drawn as ONE polyline
   // (see route-shape.js and the note in AGENTS.md), so there is no way to blank
-  // the span of it the stretch covers. Gapping the red just let the day's own
+  // the span of it the stretch covers. Gapping the red just let the route's own
   // color through, and the eye read the continuous line beneath rather than the
   // gaps. Painting over it opaquely is the only way to make the road look
   // closed, so the dashes go ON the red instead of being made of it.
   //
-  // White, not the day's color: the whole point is that the day's line has been
+  // White, not the route's color: the whole point is that the route's line has been
   // covered, and tinting the dashes with it would put it straight back.
   function dryDashes() {
     return [
@@ -630,11 +630,11 @@
         // THE FILL ONLY, and a Polygon rather than a Circle. Circle cannot draw
         // a dashed or dotted edge — it has strokeWeight, strokeColor and
         // strokeOpacity and nothing else — so the edge is the polyline below,
-        // which carries repeating icons the way a ghosted day does. Once the
+        // which carries repeating icons the way a ghosted route does. Once the
         // edge is a path, the fill may as well take the same one: two overlays
         // built from one array cannot disagree about where the ring is.
         //
-        // Below the route lines, so a ring drawn over a day never obscures the
+        // Below the route lines, so a ring drawn over a route never obscures the
         // road it is a statement about.
         circle: new Maps.Polygon({
           map,
@@ -656,8 +656,8 @@
           // same mechanism dashIcons() uses. See ringDots().
           strokeOpacity: 0,
         }),
-        // A POOL, not one marker. There is a wall for every tankful the day
-        // needs (#220), so a 700-mile day with no pumps draws six or seven.
+        // A POOL, not one marker. There is a wall for every tankful the route
+        // needs (#220), so a 700-mile route with no pumps draws six or seven.
         // Grown on demand by wallMarkers() and never shrunk — the spares are
         // detached rather than destroyed, because a rider scrubbing back and
         // forth would otherwise rebuild them on every frame.
@@ -667,7 +667,7 @@
         // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
         // drag preview is 4, and this has to sit between them: above the
         // highlight, because a rider who scrubs INTO the dry stretch would
-        // otherwise have the bright day-colored highlight paint over the one
+        // otherwise have the bright route-colored highlight paint over the one
         // thing on screen telling them they cannot ride it; and below the drag
         // preview, which is the line following their pointer and must never be
         // obscured while they are holding it.
@@ -700,7 +700,7 @@
   // wrong: a route heading broadly north runs genuinely east-west for a mile
   // here and there, so a wall landing on one of those stretches stood vertical
   // against a northbound ride. Smoothing the heading over a wider chord was
-  // measured and trades one wrongness for another — on day 2 of ride 32 a
+  // measured and trades one wrongness for another — on route 2 of ride 32 a
   // five-mile window fixed the wall at mile 291 and broke the ones at 181 and
   // 621, where the bar would then visibly not be square to the road in front of
   // it. A sign is meant to be read upright, so it has no angle to get wrong.
@@ -813,7 +813,7 @@
       m.ringLine.setVisible(false);
     }
 
-    // Independent of the ring, and drawn whenever the day holds one. The ring
+    // Independent of the ring, and drawn whenever the route holds one. The ring
     // is how much fuel is left as the crow flies; this is where that runs out
     // on the road the rider is actually on, and the gap between them is the
     // cost of the bends.
@@ -1285,7 +1285,7 @@
   }
 
   // The stored value is the wall clock where the stop is, carried as UTC — see
-  // the header of public/js/day-clock.js. So UTC is what reads it back, and the
+  // the header of public/js/route-clock.js. So UTC is what reads it back, and the
   // rider sees the digits they typed wherever they are standing.
   function fmtStamp(iso) {
     const d = new Date(iso);
@@ -1467,7 +1467,7 @@
       // screen reader user is looking at.
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
-      // The rail's controls duplicate the day scrubber, so they are hidden from
+      // The rail's controls duplicate the route scrubber, so they are hidden from
       // assistive tech while the scrubber itself is on screen and exposed only
       // once it is not. The markup ships aria-hidden="true" to match the
       // expanded state it also ships in.
@@ -1514,7 +1514,7 @@
   // earlier one for the whole IIFE. Dragging a leg onto another road then called
   // this by mistake, got `{pins, onHover, onPick}` back, and died on
   // `preview.setPath is not a function`. It broke the moment #238 merged and was
-  // reported the same day.
+  // reported the same route.
   //
   // Nothing catches that class of mistake for free: two function declarations in
   // one scope is legal JavaScript, `node --check` accepts it, and the failure
@@ -1660,10 +1660,10 @@
   // cache; this file only draws what it is handed.
   const approaches = new Map();
 
-  // NOT dashIcons(), which is tuned for a GHOSTED day and carries
+  // NOT dashIcons(), which is tuned for a GHOSTED route and carries
   // GHOST_OPACITY — an approach is a live annotation about a choice the rider is
   // making right now, and at ghost opacity over busy tiles it is not readable.
-  // Dashed because it is not a day of the ride: nothing here is saved, and a
+  // Dashed because it is not a route of the ride: nothing here is saved, and a
   // solid line at rest would read as another route on the map.
   // `color` is the joining group's, so a rider comparing three groups' roads can
   // tell whose is whose — the same reason the candidate dots take it. Null falls
@@ -1672,7 +1672,7 @@
   //
   // THE DASHES ARE THE RESTING STATE AND NOTHING ELSE — the hovered one is
   // SOLID, see approachStyle() — so there is no `lit` parameter to get wrong.
-  // It had one while the highlight was opacity alone, and it went dead the day
+  // It had one while the highlight was opacity alone, and it went dead the route
   // the hover became solid.
   function approachDashes(color) {
     return [
@@ -1797,11 +1797,11 @@
     });
   }
 
-  // WHERE THE RIDER WILL BE AT BEDTIME, one per day that reaches the hour.
+  // WHERE THE RIDER WILL BE AT BEDTIME, one per route that reaches the hour.
   //
   // POOLED AND DETACHED like every other transient marker in this file. Named
   // for its feature rather than its shape — see the `previewOf` collision that
-  // took drag-to-shape out for a day.
+  // took drag-to-shape out for a route.
   const bedtimes = new Map();
 
   function bedtimeOf(map) {

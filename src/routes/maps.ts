@@ -14,7 +14,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
-import { rides, days as daysTable, points, routeLegs, users as usersTable } from '../db/schema'
+import { rides, routes as routesTable, points, routeLegs, users as usersTable } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { newUid } from '../maps/uid'
 import { seedOwner } from '../members/service'
@@ -36,16 +36,16 @@ import {
   type ExtractedPoint,
   type Track,
 } from '../maps/kml'
-import { splitDayTrack } from '../maps/track-split'
+import { splitRouteTrack } from '../maps/track-split'
 import { processCsv } from '../maps/csv'
 import { processGeoJson } from '../maps/geojson'
 import { isNativeRide, nativeVersion, NATIVE_FORMAT_VERSION, upgradeNativeRide } from '../maps/export'
-import { MAX_DAYS, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
+import { MAX_ROUTES, insertRideGraph, normalize, ridePayload, rideTotals } from '../maps/ride-graph'
 import { extractKmlFromKmz } from '../maps/kmz'
 import { parseExportName, titleFromSlug, type ParsedName } from '../maps/filename'
 import { readZipEntries } from '../maps/zip'
 import { fields, firstIssue } from '../maps/fields'
-import { dayColor } from '../maps/palette'
+import { routeColor } from '../maps/palette'
 import { generateSlug } from '../maps/slug'
 import { MAX_SOURCE_FILES, type StoredExt } from '../maps/storage'
 import { readManifest, type ReviewEntry } from '../maps/manifest'
@@ -92,25 +92,25 @@ const patchSchema = z
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'nothing to update' })
 
-// A day's name from the file it came from: "day-2-coast.gpx" reads better in
-// the legend than "Day 2", and a rider who named their files named them for a
+// A route's name from the file it came from: "route-2-coast.gpx" reads better in
+// the legend than "Route 2", and a rider who named their files named them for a
 // reason. Falls back to the position when the name says nothing useful.
 //
 // A name following the convention (maps/filename.ts) is read by the caller
 // before this is reached, so what lands here is a name nobody structured.
-function dayTitle(fileName: string, index: number): string {
+function routeTitle(fileName: string, index: number): string {
   const base = fileName
     .replace(/\.[A-Za-z0-9]+$/, '')
     .replace(/[_-]+/g, ' ')
     .trim()
     .slice(0, 120)
-  return base || `Day ${index + 1}`
+  return base || `Route ${index + 1}`
 }
 
 // A zip is a container, not a route format: it is expanded before anything asks
 // what format a file is, so nothing downstream ever sees one.
 //
-// It exists because the per-day export writes one, and a rider who downloads an
+// It exists because the per-route export writes one, and a rider who downloads an
 // archive should be able to drag it straight back in. Caps are the point of the
 // options rather than an afterthought — a per-entry cap alone does not bound an
 // archive, so maxTotalBytes bounds the sum as it accumulates.
@@ -174,16 +174,16 @@ mapsRoutes.post(
     // arrives under. `kml` is still read so anything already posting to this
     // endpoint keeps working — the two are the same field, differently named.
     //
-    // Several files become several days of one ride, in the order given. That
-    // is what a rider with a folder of per-day GPX files actually has, and
-    // importing them one at a time would make a separate ride per day rather than one ride with days.
+    // Several files become several routes of one ride, in the order given. That
+    // is what a rider with a folder of per-route GPX files actually has, and
+    // importing them one at a time would make a separate ride per route rather than one ride with routes.
     const asFiles = (v: unknown): File[] =>
       (Array.isArray(v) ? v : [v]).filter((f): f is File => f instanceof File && f.size > 0)
     const posted = asFiles(body.route).length > 0 ? asFiles(body.route) : asFiles(body.kml)
     if (posted.length === 0) return fail('a route file is required', 400)
 
     // A zip becomes the files inside it, before anything asks what format
-    // anything is. This is the other half of the per-day zip download: an
+    // anything is. This is the other half of the per-route zip download: an
     // archive this app wrote drags straight back in and comes out as the ride
     // it left as.
     // The rider's corrections, when the review table sent any. Absent for a
@@ -209,7 +209,7 @@ mapsRoutes.post(
         }
         const entries = readZipEntries(Buffer.from(await f.arrayBuffer()), zipReadOptions)
         if (entries.length === 0) return fail(`${f.name}: no route files in that zip`, 400)
-        // The entry name is used for its extension and its day fields and for
+        // The entry name is used for its extension and its route fields and for
         // nothing else — it never becomes a path. readZipEntries has already
         // reduced it to a basename.
         //
@@ -229,7 +229,7 @@ mapsRoutes.post(
     }
 
     // Validate every file before parsing any, so a bad tenth file fails the
-    // upload rather than leaving nine days half-imported.
+    // upload rather than leaving nine routes half-imported.
     const sources: Array<{ file: File; ext: SupportedFormat; planned: ParsedName | null; review: ReviewEntry | null }> =
       []
     for (const { file, review: entry } of uploads) {
@@ -242,7 +242,7 @@ mapsRoutes.post(
       sources.push({ file, ext: e, planned: parseExportName(file.name), review: entry })
     }
 
-    // Day order comes from the filenames when every one of them carries a day,
+    // Route order comes from the filenames when every one of them carries a route,
     // and from the upload order otherwise. Partial is deliberately not handled:
     // interleaving numbered and unnumbered files needs a rule nobody asked for,
     // and the upload order is the answer this endpoint has always given.
@@ -253,11 +253,11 @@ mapsRoutes.post(
     //
     // A REVIEWED IMPORT IS NEVER RE-SORTED. The rider dragged the rows into the
     // order they meant, the page rebuilt its file input to match, and re-deriving
-    // an order from the day fields here would silently undo exactly the
+    // an order from the route fields here would silently undo exactly the
     // correction they came to make. The manifest check in maps/manifest.ts is
     // what proves the posted order IS the reviewed order.
-    if (!review && sources.length > 1 && sources.every((s) => s.planned?.day != null)) {
-      sources.sort((a, b) => a.planned!.day! - b.planned!.day!)
+    if (!review && sources.length > 1 && sources.every((s) => s.planned?.route != null)) {
+      sources.sort((a, b) => a.planned!.route! - b.planned!.route!)
     }
 
     // The single-file case keeps every behavior it had, including the
@@ -294,7 +294,7 @@ mapsRoutes.post(
         const totals = rideTotals(payload)
 
         // No file is stored and no quota is charged: a native ride is rows, and
-        // the caps that bound it are structural (MAX_DAYS, MAX_STOPS, the
+        // the caps that bound it are structural (MAX_ROUTES, MAX_STOPS, the
         // per-ride point ceiling) rather than byte-based. That is exactly how a
         // ride built in the builder is treated.
         const created = await db.transaction(async (tx) => {
@@ -344,8 +344,8 @@ mapsRoutes.post(
     // Every branch yields the same ExtractedRoute plus the bytes to keep, and
     // every format keeps its original. That last part was not always true:
     // GeoJSON and CSV briefly stored nothing on the theory that the rows were a
-    // complete record of the upload. They are not — import flattens a multi-day
-    // file to one route, so the day structure would have existed in the upload
+    // complete record of the upload. They are not — import flattens a multi-route
+    // file to one route, so the route structure would have existed in the upload
     // and then existed nowhere. The file is the only copy of what was actually
     // sent, which is the whole reason to keep one.
     //
@@ -353,43 +353,43 @@ mapsRoutes.post(
     // storedKml); everything else is stored as uploaded. All of it streams back
     // with an explicit non-HTML content type and nosniff, so none of it can be
     // coaxed into rendering.
-    // One day per *track*, not per file. A file holding several — a GPX with a
-    // <trk> per day, a KML with a Placemark per day — becomes that many days,
+    // One route per *track*, not per file. A file holding several — a GPX with a
+    // <trk> per route, a KML with a Placemark per route — becomes that many routes,
     // because the alternative is keeping one and discarding the rest, which is
     // the data loss this pipeline used to ship (#70).
     //
     // `buf` is the stored original and belongs to the file, so only the first
-    // day out of a file carries it. Every day counting the same bytes would
+    // route out of a file carries it. Every route counting the same bytes would
     // charge a rider's quota three times for one upload.
-    type Day = {
+    type Route = {
       points: ExtractedPoint[]
       track: Track
       trackMeters: number
-      title: string | null // the file's own name for this day, if it had one
+      title: string | null // the file's own name for this route, if it had one
       ext: StoredExt
       // The stored original and its slot on disk. Both belong to the file, so
-      // only the first day out of a file carries them; the rest write nothing.
+      // only the first route out of a file carries them; the rest write nothing.
       buf: Buffer | null
       fileIndex: number
       name: string
       // Read off the filename, when it followed the convention. Both belong to
-      // the file, so a file that produced several days gives them to the first
-      // only: one filename cannot date three days, and stamping them all with
+      // the file, so a file that produced several routes gives them to the first
+      // only: one filename cannot date three routes, and stamping them all with
       // the same start would be an invention rather than a recovery.
       fileTitle: string | null
       // What the rider TYPED in the review table, which outranks every derived
       // name including the file's own. Null when they typed nothing, which is
-      // not the same as an empty name — see the note in addDays.
+      // not the same as an empty name — see the note in addRoutes.
       typedTitle: string | null
       startAt: Date | null
     }
-    const days: Day[] = []
+    const routes: Route[] = []
 
     // Waypoints arrive at document level with nothing tying them to a track, so
     // when a file holds several they are assigned by proximity — a stop sitting
-    // on day 3's road belongs to day 3. With one track the question does not
+    // on route 3's road belongs to route 3. With one track the question does not
     // arise and every point goes to it, which is what always happened.
-    const addDays = (
+    const addRoutes = (
       route: ExtractedRoute,
       ext: StoredExt,
       buf: Buffer,
@@ -408,7 +408,7 @@ mapsRoutes.post(
       // The NAME is only ever shown as what the FILENAME said — nothing in the
       // browser opens a GPX, so a file whose <trk><name> is "Lost Coast" shows
       // an empty box with the filename as its placeholder. So an empty name is
-      // "I did not answer", not "this day has no name": what the rider typed
+      // "I did not answer", not "this route has no name": what the rider typed
       // outranks everything, and typing nothing leaves the file's own name to
       // win as it always did. Clearing a name the table DID show still works —
       // that value was the filename's, and it is dropped with the box.
@@ -416,7 +416,7 @@ mapsRoutes.post(
       const fileTitle = entry ? null : planned?.title ? titleFromSlug(planned.title) : null
       const startAt = entry ? entry.startAt : (planned?.date ?? null)
       if (route.tracks.length <= 1) {
-        days.push({
+        routes.push({
           points: route.points,
           track: route.track,
           trackMeters: route.trackMeters,
@@ -434,17 +434,17 @@ mapsRoutes.post(
       const buckets: ExtractedPoint[][] = route.tracks.map(() => [])
       for (const p of route.points) buckets[nearestTrackIndex(route.tracks, p)].push(p)
       route.tracks.forEach((t, i) => {
-        days.push({
+        routes.push({
           points: buckets[i],
           track: t.track,
           trackMeters: t.meters,
           title: t.name,
           ext,
-          // Only the first day of the file owns the bytes.
+          // Only the first route of the file owns the bytes.
           buf: i === 0 ? buf : null,
           fileIndex,
           name,
-          // A file naming one day cannot name three, so the tracks' own names
+          // A file naming one route cannot name three, so the tracks' own names
           // stand and only the first inherits the filename's date.
           fileTitle: i === 0 ? fileTitle : null,
           typedTitle: i === 0 ? typedTitle : null,
@@ -458,15 +458,15 @@ mapsRoutes.post(
       for (const [fileIndex, { file, ext: e, planned, review: entry }] of sources.entries()) {
         if (e === 'geojson' || e === 'json') {
           const text = await file.text()
-          addDays(processGeoJson(text), e, Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
+          addRoutes(processGeoJson(text), e, Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
         } else if (e === 'csv') {
           // Stops and nothing else — no track, so no legs, no mileage and no
           // twistiness. The ride gets its line when it is routed in the builder.
           const text = await file.text()
-          addDays(processCsv(text), 'csv', Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
+          addRoutes(processCsv(text), 'csv', Buffer.from(text, 'utf8'), file.name, fileIndex, planned, entry)
         } else if (e === 'gpx') {
           const buf = Buffer.from(await file.arrayBuffer())
-          addDays(processGpx(await file.text()), 'gpx', buf, file.name, fileIndex, planned, entry)
+          addRoutes(processGpx(await file.text()), 'gpx', buf, file.name, fileIndex, planned, entry)
           if (single) gpxBuf = buf
         } else {
           // Unzipping first means the KMZ path converges on processKml before
@@ -476,7 +476,7 @@ mapsRoutes.post(
           // remembers it arrived zipped.
           const text = e === 'kmz' ? extractKmlFromKmz(Buffer.from(await file.arrayBuffer())) : await file.text()
           const kml = processKml(text)
-          addDays(kml, 'kml', Buffer.from(kml.storedKml, 'utf8'), file.name, fileIndex, planned, entry)
+          addRoutes(kml, 'kml', Buffer.from(kml.storedKml, 'utf8'), file.name, fileIndex, planned, entry)
         }
       }
       if (companionGpx) {
@@ -487,20 +487,23 @@ mapsRoutes.post(
       // Name the file, or a folder import that fails says only "no <kml> root"
       // and leaves the rider to work out which of thirty files it meant.
       if (e instanceof RouteFileError) {
-        return fail(sources.length > 1 ? `${sources[days.length]?.file.name ?? 'file'}: ${e.message}` : e.message, 400)
+        return fail(
+          sources.length > 1 ? `${sources[routes.length]?.file.name ?? 'file'}: ${e.message}` : e.message,
+          400,
+        )
       }
       throw e
     }
 
-    // A file can now produce more days than files were uploaded, so the ride's
+    // A file can now produce more routes than files were uploaded, so the ride's
     // route cap has to be checked here rather than being implied by
-    // MAX_SOURCE_FILES. Refused rather than truncated: dropping days 32+ is the
+    // MAX_SOURCE_FILES. Refused rather than truncated: dropping routes 32+ is the
     // silent data loss this whole change exists to remove, and a rider who is
     // told the number can split the file themselves. A merge step in the
     // importer is the real answer (#70) and this is what holds until then.
-    if (days.length > MAX_DAYS) {
+    if (routes.length > MAX_ROUTES) {
       return fail(
-        `that import comes to ${days.length} days and the limit is ${MAX_DAYS} — split it and import the parts as separate rides`,
+        `that import comes to ${routes.length} routes and the limit is ${MAX_ROUTES} — split it and import the parts as separate rides`,
         400,
       )
     }
@@ -508,7 +511,8 @@ mapsRoutes.post(
     // Which byte column each stored original lands in. KML and GPX have their
     // own for historical reasons and because "how big is the KML" stays a
     // question worth answering; everything else shares source_bytes.
-    const bytesIn = (want: (d: Day) => boolean) => days.filter(want).reduce((n, d) => n + (d.buf?.byteLength ?? 0), 0)
+    const bytesIn = (want: (d: Route) => boolean) =>
+      routes.filter(want).reduce((n, d) => n + (d.buf?.byteLength ?? 0), 0)
     const kmlBytes = bytesIn((d) => d.ext === 'kml')
     const gpxBytes = bytesIn((d) => d.ext === 'gpx') + (companionGpx ? (gpxBuf?.byteLength ?? 0) : 0)
     const sourceBytes = bytesIn((d) => d.ext !== 'kml' && d.ext !== 'gpx')
@@ -519,9 +523,9 @@ mapsRoutes.post(
     // is the same sum as the column expression and nothing else.
     const incoming = kmlBytes + gpxBytes + sourceBytes
 
-    const totalMeters = days.reduce((m, d) => m + d.trackMeters, 0)
+    const totalMeters = routes.reduce((m, d) => m + d.trackMeters, 0)
     const totalMiles = (totalMeters / METERS_PER_MILE).toFixed(1)
-    const stopCount = days.reduce((n, d) => n + d.points.filter((p) => p.kind !== 'poi').length, 0)
+    const stopCount = routes.reduce((n, d) => n + d.points.filter((p) => p.kind !== 'poi').length, 0)
 
     // Quota + inserts + file writes in one transaction: the quota row is
     // locked (FOR UPDATE) so concurrent imports cannot both squeeze under the
@@ -572,19 +576,19 @@ mapsRoutes.post(
         // here whether insertRideGraph has already run or not.
         await seedMainGroup(tx, ride.id)
 
-        // One day per file, in the order they were given. A single upload is
-        // the same code path with one day in the list.
-        for (const [i, day] of days.entries()) {
-          const distM = Math.round(day.trackMeters)
+        // One route per file, in the order they were given. A single upload is
+        // the same code path with one route in the list.
+        for (const [i, route] of routes.entries()) {
+          const distM = Math.round(route.trackMeters)
 
           // An imported ride never touches the router, so this is the only shape
           // information it will ever have — which is exactly why twistiness is
           // computed from geometry rather than from routing maneuvers. It is
-          // per-day: averaging a whole ride would bury the good road in the
+          // per-route: averaging a whole ride would bury the good road in the
           // straight one that got you there.
-          const twist = twistiness(day.track)
-          const [dayRow] = await tx
-            .insert(daysTable)
+          const twist = twistiness(route.track)
+          const [routeRow] = await tx
+            .insert(routesTable)
             .values({
               rideId: ride.id,
               position: i,
@@ -593,28 +597,32 @@ mapsRoutes.post(
               // insertRideGraph, so nothing downstream would fill it in and the
               // NOT NULL fails at runtime with nothing useful to say.
               uid: newUid(),
-              // Every day the same color would make the viewer's legend
+              // Every route the same color would make the viewer's legend
               // useless, so a multi-file import walks the palette the builder
               // uses. A single file keeps exactly the color that was asked for.
-              color: days.length > 1 ? dayColor(i) : meta.color,
+              color: routes.length > 1 ? routeColor(i) : meta.color,
               // '' is this column's no-title value (notNull, default ''),
-              // and the viewer already falls back to "Day N" when it is empty.
+              // and the viewer already falls back to "Route N" when it is empty.
               //
               // Precedence, and the reason for it: WHAT THE RIDER TYPED IN THE
               // REVIEW TABLE WINS, because it is the only one of these they
               // actually chose — and a correction that loses to a value the
               // table never showed them is #129 not working. Then the file's own
-              // name for the day — a GPX <trk><name>Day 2</name> is also
+              // name for the route — a GPX <trk><name>Route 2</name> is also
               // something a rider typed, where a filename title survived a trip
               // through slugField and comes back capitalised by guess. A
               // conforming filename is next, since it at least meant to say
               // something. Mangling the raw filename is last and only for a
-              // multi-day import.
-              title: day.typedTitle ?? day.title ?? day.fileTitle ?? (days.length > 1 ? dayTitle(day.name, i) : ''),
+              // multi-route import.
+              title:
+                route.typedTitle ??
+                route.title ??
+                route.fileTitle ??
+                (routes.length > 1 ? routeTitle(route.name, i) : ''),
               // The one field a filename is authoritative for. Neither GPX nor
               // KML can carry a date at all, so for those formats this is the
               // only way a planned schedule survives a round trip.
-              startAt: day.startAt,
+              startAt: route.startAt,
               distanceM: distM,
               twistinessDpm: twist?.dpm ?? null,
               twistinessBestDpm: twist?.bestDpm ?? null,
@@ -625,7 +633,7 @@ mapsRoutes.post(
           //
           // This used to write a single leg holding the whole track, which is
           // what made an imported ride impossible to open in the builder: the
-          // builder's model — and `daySchema` in ride-graph.ts — is N points and
+          // builder's model — and `routeSchema` in ride-graph.ts — is N points and
           // exactly N−1 legs. An imported ride could not satisfy that, so
           // /builder/:id answered 409 and the FAQ's promise of "an editable
           // ride, not a picture of one" was false.
@@ -641,12 +649,12 @@ mapsRoutes.post(
           // BOTH KINDS ARE PLACED as of 2026-08-24. The split used to pass POIs
           // through untouched and this line appended them after the stops, which
           // was right while a POI anchored no leg. It would now draw a road out
-          // to a viewpoint that sat halfway along the day and back again.
-          const split = splitDayTrack(day.track, day.points)
+          // to a viewpoint that sat halfway along the route and back again.
+          const split = splitRouteTrack(route.track, route.points)
           const ordered = split.points
 
           // Deliberately still measured against the whole track rather than
-          // summed from the legs. `days.distance_m` and `rides.total_miles`
+          // summed from the legs. `routes.distance_m` and `rides.total_miles`
           // have always been the haversine of the imported line and there is no
           // reason for a change in how it is sliced to move a stored mileage.
           //
@@ -656,7 +664,7 @@ mapsRoutes.post(
           // null instead, the same null-is-not-zero distinction twistiness
           // makes: null means nothing measured it, 0 means it measured zero.
           const stopDists: Array<number | null> =
-            day.track.length > 0 ? distFromStartAlongTrack(day.track, ordered) : ordered.map(() => null)
+            route.track.length > 0 ? distFromStartAlongTrack(route.track, ordered) : ordered.map(() => null)
 
           if (ordered.length > 0) {
             // EVERY point carries a position, both kinds, dense from 0 —
@@ -669,7 +677,7 @@ mapsRoutes.post(
               ordered.map((p, n) => {
                 const isPoi = p.kind === 'poi'
                 return {
-                  dayId: dayRow.id,
+                  routeId: routeRow.id,
                   kind: isPoi ? ('poi' as const) : ('stop' as const),
                   position: n,
                   lat: p.lat,
@@ -691,7 +699,7 @@ mapsRoutes.post(
           if (split.legs.length > 0) {
             await tx.insert(routeLegs).values(
               split.legs.map((leg, n) => ({
-                dayId: dayRow.id,
+                routeId: routeRow.id,
                 position: n,
                 geometry: leg.geometry,
                 distanceM: leg.distanceM,
@@ -700,10 +708,10 @@ mapsRoutes.post(
           }
 
           fileRideId = ride.id
-          // Indexed by file, not by day: one file that produced three days is
+          // Indexed by file, not by route: one file that produced three routes is
           // still one original on disk, and writing it three times would both
           // waste the slots and disagree with the bytes charged to quota.
-          if (day.buf) await writeMapFile(user.id, ride.id, day.ext, day.buf, day.fileIndex)
+          if (route.buf) await writeMapFile(user.id, ride.id, route.ext, route.buf, route.fileIndex)
         }
         if (companionGpx && gpxBuf) await writeMapFile(user.id, ride.id, 'gpx', gpxBuf)
 
@@ -741,7 +749,7 @@ mapsRoutes.post(
 // offers an action it then refuses.
 //
 // IMPORTED RIDES ARE NOT EXCLUDED ANY MORE. They were, and the reason was
-// mechanical rather than principled: an imported day was stored as one leg
+// mechanical rather than principled: an imported route was stored as one leg
 // holding the whole track, which the builder's N stops / N−1 legs model cannot
 // represent, so /builder/:id answered 409. The import splits the track into real
 // legs now (src/maps/track-split.ts), so there is nothing left to refuse — and
@@ -804,10 +812,10 @@ mapsRoutes.patch('/api/maps/:id', requireActiveApi, requireSameOrigin, async (c)
     })
     .where(eq(rides.id, ride.id))
     .returning()
-  // Color lives on days now; a meta-level color change recolors the whole
-  // ride (one day for imports; per-day colors are edited in the builder).
+  // Color lives on routes now; a meta-level color change recolors the whole
+  // ride (one route for imports; per-route colors are edited in the builder).
   if (p.color !== undefined) {
-    await db.update(daysTable).set({ color: p.color }).where(eq(daysTable.rideId, ride.id))
+    await db.update(routesTable).set({ color: p.color }).where(eq(routesTable.rideId, ride.id))
   }
   return c.json({ id: updated.id, slug: updated.slug, title: updated.title, visibility: updated.visibility })
 })

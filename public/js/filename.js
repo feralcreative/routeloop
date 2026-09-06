@@ -17,11 +17,11 @@
 
   var MARKER = "routeloop";
   // Written: MARKER. Accepted: these. See READ_MARKERS in src/maps/filename.ts —
-  // dropping the legacy marker loses day order and dates on every file a rider
+  // dropping the legacy marker loses route order and dates on every file a rider
   // exported under the old name, and loses them silently.
   var READ_MARKERS = [MARKER, "tankbag"];
   var MAX_FIELD = 60;
-  var DAY_RE = /^d(\d{1,3})$/;
+  var ROUTE_RE = /^d(\d{1,3})$/;
   var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})(\d{2}))?$/;
   var NATIVE_EXT = "routeloop.json";
   var COMPOUND_EXTS = [NATIVE_EXT, "tankbag.json"];
@@ -85,15 +85,15 @@
     if (!ride) return null;
 
     var i = 1;
-    var day = null;
+    var route = null;
     var date = null;
     var hasTime = false;
 
-    var dayMatch = i < rest.length ? DAY_RE.exec(rest[i]) : null;
-    if (dayMatch) {
-      var n = Number(dayMatch[1]);
+    var routeMatch = i < rest.length ? ROUTE_RE.exec(rest[i]) : null;
+    if (routeMatch) {
+      var n = Number(routeMatch[1]);
       if (n >= 1) {
-        day = n;
+        route = n;
         i++;
       }
     }
@@ -109,7 +109,7 @@
 
     return {
       ride: ride,
-      day: day,
+      route: route,
       date: date,
       hasTime: hasTime,
       title: slugField(rest.slice(i).join("-")) || null,
@@ -123,7 +123,7 @@
       return {
         fileName: fileName,
         index: index,
-        day: p ? p.day : null,
+        route: p ? p.route : null,
         date: p ? p.date : null,
         hasTime: p ? p.hasTime : false,
         title: p ? p.title : null,
@@ -141,15 +141,15 @@
         return p.ride;
       });
 
-    var everyDay =
+    var everyRoute =
       files.length > 0 &&
       files.every(function (f) {
-        return f.day != null;
+        return f.route != null;
       });
 
-    if (everyDay) {
+    if (everyRoute) {
       files.sort(function (a, b) {
-        return a.day - b.day || a.index - b.index;
+        return a.route - b.route || a.index - b.index;
       });
     }
 
@@ -162,7 +162,7 @@
           return f.conforming;
         }),
       reordered:
-        everyDay &&
+        everyRoute &&
         files.some(function (f, n) {
           return f.index !== n;
         }),

@@ -1,58 +1,51 @@
 // Suggestions, query side. The rules are in ./policy.ts and nothing here
 // re-decides one.
 //
-// ACCEPTING A SUGGESTION IS A NORMAL RIDE SAVE with one day swapped out. It
-// re-reads the ride's payload, replaces the target day, and goes back through
+// ACCEPTING A SUGGESTION IS A NORMAL RIDE SAVE with one route swapped out. It
+// re-reads the ride's payload, replaces the target route, and goes back through
 // insertRideGraph — the SAME path the builder's PUT and the native JSON import
-// use. That is deliberate: a second write path for "apply a day" would be a
+// use. That is deliberate: a second write path for "apply a route" would be a
 // second place for the graph's invariants to be got wrong, and this one already
 // handles uids, alts, subgroups, votes, details and comments correctly.
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { db } from '../db/index'
-import {
-  days as daysTable,
-  points as pointsTable,
-  rideSuggestions,
-  rides,
-  users,
-  type RideRow,
-} from '../db/schema'
+import { routes as routesTable, points as pointsTable, rideSuggestions, rides, users, type RideRow } from '../db/schema'
 import { membershipOf } from '../members/service'
-import { dayPayload, insertRideGraph, rideTotals, type DayPayload } from '../maps/ride-graph'
+import { routePayload, insertRideGraph, rideTotals, type RoutePayload } from '../maps/ride-graph'
 import { loadRidePayload } from '../routes/builder'
 import {
   canDecide,
   canPropose,
   canWithdraw,
-  dayFingerprint,
+  routeFingerprint,
   isActionable,
   MAX_OPEN_PER_RIDER,
   suggestionState,
-  type DayShape,
+  type RouteShape,
   type SuggestionFields,
   type SuggestionState,
 } from './policy'
 
 /**
- * Every day of a ride, as the fingerprint wants it.
+ * Every route of a ride, as the fingerprint wants it.
  *
  * Read from the DATABASE rather than from a payload the client sent, because the
  * fingerprint has to describe what the ride actually says — a client that
- * fingerprinted its own idea of the day would find every suggestion applied
+ * fingerprinted its own idea of the route would find every suggestion applied
  * cleanly to a ride it had already changed.
  */
-export async function dayShapes(rideId: number): Promise<Map<string, DayShape>> {
+export async function routeShapes(rideId: number): Promise<Map<string, RouteShape>> {
   const rows = await db
-    .select({ id: daysTable.id, uid: daysTable.uid })
-    .from(daysTable)
-    .where(eq(daysTable.rideId, rideId))
-    .orderBy(asc(daysTable.position))
-  const out = new Map<string, DayShape>()
+    .select({ id: routesTable.id, uid: routesTable.uid })
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(asc(routesTable.position))
+  const out = new Map<string, RouteShape>()
   for (const r of rows) {
     const pts = await db
       .select({ uid: pointsTable.uid, lng: pointsTable.lng, lat: pointsTable.lat, kind: pointsTable.kind })
       .from(pointsTable)
-      .where(eq(pointsTable.dayId, r.id))
+      .where(eq(pointsTable.routeId, r.id))
       .orderBy(asc(pointsTable.position))
     out.set(r.uid, { uid: r.uid, points: pts })
   }
@@ -75,7 +68,7 @@ export async function suggestionsOn(rideId: number): Promise<SuggestionView[]> {
       .select({
         id: rideSuggestions.id,
         authorId: rideSuggestions.authorId,
-        dayUid: rideSuggestions.dayUid,
+        routeUid: rideSuggestions.routeUid,
         baseFingerprint: rideSuggestions.baseFingerprint,
         resolvedAt: rideSuggestions.resolvedAt,
         outcome: rideSuggestions.outcome,
@@ -88,42 +81,41 @@ export async function suggestionsOn(rideId: number): Promise<SuggestionView[]> {
       .innerJoin(users, eq(users.id, rideSuggestions.authorId))
       .where(eq(rideSuggestions.rideId, rideId))
       .orderBy(asc(rideSuggestions.createdAt)),
-    dayShapes(rideId),
+    routeShapes(rideId),
   ])
   return rows.map((r) => {
-    const shape = shapes.get(r.dayUid)
-    return { ...r, state: suggestionState(r, shape ? dayFingerprint(shape) : null) }
+    const shape = shapes.get(r.routeUid)
+    return { ...r, state: suggestionState(r, shape ? routeFingerprint(shape) : null) }
   })
 }
 
 export type ProposeResult =
-  | { ok: true; id: number }
-  | { ok: false; reason: 'refused' | 'invalid' | 'no-such-day' | 'too-many' }
+  { ok: true; id: number } | { ok: false; reason: 'refused' | 'invalid' | 'no-such-route' | 'too-many' }
 
 /**
- * Propose a replacement for one day.
+ * Propose a replacement for one route.
  *
  * **THE FINGERPRINT IS TAKEN HERE, FROM THE DATABASE, AND NEVER FROM THE
- * CLIENT.** It records what the day looked like at the moment the proposal was
+ * CLIENT.** It records what the route looked like at the moment the proposal was
  * made, which is the only thing that makes staleness meaningful. A
  * client-supplied fingerprint would let a stale proposal declare itself fresh.
  */
 export async function propose(
   rideId: number,
   viewerId: number,
-  dayUid: string,
-  rawDay: unknown,
+  routeUid: string,
+  rawRoute: unknown,
   note: string | null,
 ): Promise<ProposeResult> {
   const viewer = await membershipOf(rideId, viewerId)
   if (!canPropose(viewer)) return { ok: false, reason: 'refused' }
 
-  const parsed = dayPayload.safeParse(rawDay)
+  const parsed = routePayload.safeParse(rawRoute)
   if (!parsed.success) return { ok: false, reason: 'invalid' }
 
-  const shapes = await dayShapes(rideId)
-  const target = shapes.get(dayUid)
-  if (!target) return { ok: false, reason: 'no-such-day' }
+  const shapes = await routeShapes(rideId)
+  const target = shapes.get(routeUid)
+  if (!target) return { ok: false, reason: 'no-such-route' }
 
   const open = await db
     .select({ id: rideSuggestions.id })
@@ -142,9 +134,9 @@ export async function propose(
     .values({
       rideId,
       authorId: viewerId,
-      dayUid,
+      routeUid,
       payload: parsed.data,
-      baseFingerprint: dayFingerprint(target),
+      baseFingerprint: routeFingerprint(target),
       note: note && note.trim() ? note.trim().slice(0, 2000) : null,
     })
     .returning({ id: rideSuggestions.id })
@@ -165,14 +157,14 @@ async function suggestionRow(rideId: number, id: number) {
 export type DecideResult = { ok: true } | { ok: false; reason: 'refused' | 'stale' | 'not-found' }
 
 /**
- * Accept a suggestion: replace its day and write the ride.
+ * Accept a suggestion: replace its route and write the ride.
  *
  * **STALENESS IS RE-CHECKED HERE, NOT TRUSTED FROM THE PAGE.** The owner's list
  * was rendered from a read that may be minutes old, and the whole hazard this
- * feature has is applying a proposal made against a day that has since moved.
+ * feature has is applying a proposal made against a route that has since moved.
  *
  * The write goes through insertRideGraph like every other ride save, so the
- * accepted day gets the same treatment as one the owner drew: uids settled,
+ * accepted route gets the same treatment as one the owner drew: uids settled,
  * alt groups resolved, votes and comments reconciled, totals recomputed.
  */
 export async function accept(rideId: number, viewerId: number, id: number, ride: RideRow): Promise<DecideResult> {
@@ -180,26 +172,26 @@ export async function accept(rideId: number, viewerId: number, id: number, ride:
   if (!row) return { ok: false, reason: 'not-found' }
   if (!canDecide(viewer)) return { ok: false, reason: 'refused' }
 
-  const shapes = await dayShapes(rideId)
-  const shape = shapes.get(row.dayUid)
-  if (!isActionable(suggestionState(row, shape ? dayFingerprint(shape) : null))) {
+  const shapes = await routeShapes(rideId)
+  const shape = shapes.get(row.routeUid)
+  if (!isActionable(suggestionState(row, shape ? routeFingerprint(shape) : null))) {
     return { ok: false, reason: 'stale' }
   }
 
-  // The ride as it stands, with the one day swapped for the proposal. Read
+  // The ride as it stands, with the one route swapped for the proposal. Read
   // through the builder's own loader so the shape is exactly what the save path
   // expects — details included, because the accepting rider is the owner.
   const current = await loadRidePayload(ride, { id: viewerId })
-  const proposed = row.payload as DayPayload
-  const days = (current.days as DayPayload[]).map((d) => (d.uid === row.dayUid ? proposed : d))
+  const proposed = row.payload as RoutePayload
+  const routes = (current.routes as RoutePayload[]).map((d) => (d.uid === row.routeUid ? proposed : d))
 
   await db.transaction(async (tx) => {
-    const payload = { ...current, days } as Parameters<typeof insertRideGraph>[2]
+    const payload = { ...current, routes } as Parameters<typeof insertRideGraph>[2]
     await tx
       .update(rides)
       .set({ ...rideTotals(payload), updatedAt: new Date() })
       .where(eq(rides.id, rideId))
-    await tx.delete(daysTable).where(eq(daysTable.rideId, rideId))
+    await tx.delete(routesTable).where(eq(routesTable.rideId, rideId))
     await insertRideGraph(tx, rideId, payload)
     await tx
       .update(rideSuggestions)

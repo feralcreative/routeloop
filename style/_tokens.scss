@@ -208,7 +208,7 @@ $brand: var(--brand);
 //
 // These used to hold four hand-picked values so they could be tuned for telling
 // each other apart without moving anything else. They now come from the palette,
-// which costs one thing worth recording: $day and $kml were deliberately two
+// which costs one thing worth recording: $route and $kml were deliberately two
 // different reds — the note here used to say they "need to stay free to
 // diverge", because one means a filename field and the other means error and
 // bad format. The palette has one red, so they are now the same color. If they
@@ -224,7 +224,7 @@ $brand: var(--brand);
 // the example and still name their field in words, because color cannot be the
 // only cue — red and amber converge under protanopia.
 $ride: var(--ride);
-$day: var(--day);
+$route: var(--route);
 $date: var(--date);
 $label: var(--label);
 

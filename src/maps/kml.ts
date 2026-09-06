@@ -73,10 +73,10 @@ export type ExtractedPoint = {
   durationMin?: number | null
 }
 
-// One line out of a file, with whatever the file called it. A multi-day export
-// writes one of these per day — separate <trk> elements in GPX, separate
+// One line out of a file, with whatever the file called it. A multi-route export
+// writes one of these per route — separate <trk> elements in GPX, separate
 // Placemarks in KML, separate features in GeoJSON — and the name is usually
-// "Day 3" or "Reno to Ely" if the exporting tool bothered.
+// "Route 3" or "Reno to Ely" if the exporting tool bothered.
 export type ExtractedTrack = {
   track: Track // [lng, lat], 6-decimal rounded
   name: string | null // the file's own name for it, if it had one
@@ -87,7 +87,7 @@ export type ExtractedRoute = {
   points: ExtractedPoint[] // Placemark/wpt order—becomes stop order
   // Every line in the file, in document order. This is the honest answer to
   // "what was in there", and importing fewer of them than this holds is data
-  // loss — the file said three days and the ride has one.
+  // loss — the file said three routes and the ride has one.
   tracks: ExtractedTrack[]
   // The first line, which for the single-track file most formats produce is
   // the only line. Kept because almost everything downstream wants one route's
@@ -163,13 +163,13 @@ export function extracted(lines: Array<{ track: Track; name?: string | null }>, 
 }
 
 // Which line does this point belong to? Only asked when a file holds several,
-// and answered by proximity: a waypoint sitting on day 3's road is a day 3
+// and answered by proximity: a waypoint sitting on route 3's road is a route 3
 // stop, whatever order the <wpt> elements happened to appear in. GPX writes
 // waypoints at document level with nothing tying them to a <trk>, so proximity
 // is the only signal there is.
 //
-// Vertices are sampled rather than walked. A recorded day is tens of thousands
-// of points, the answer only has to be better than "put everything on day 1",
+// Vertices are sampled rather than walked. A recorded route is tens of thousands
+// of points, the answer only has to be better than "put everything on route 1",
 // and an exact nearest-vertex search over every track would make a large import
 // noticeably slower to no benefit.
 export function nearestTrackIndex(tracks: ExtractedTrack[], p: { lat: number; lng: number }): number {
@@ -277,8 +277,8 @@ function sanitizeDoc(doc: Document): void {
 
 // --- KML -------------------------------------------------------------------
 
-// The name on the Placemark a geometry sits inside, which is where a multi-day
-// KML puts "Day 2". Walks up rather than querying down because a LineString can
+// The name on the Placemark a geometry sits inside, which is where a multi-route
+// KML puts "Route 2". Walks up rather than querying down because a LineString can
 // be nested in a MultiGeometry and the name belongs to the Placemark either way.
 function placemarkName(el: Element): string | null {
   for (let n: Element | null = el; n; n = n.parentNode as Element | null) {
@@ -287,8 +287,8 @@ function placemarkName(el: Element): string | null {
   return null
 }
 
-// Every LineString is a route line, and each is kept: a multi-day KML writes one
-// Placemark per day and taking only the longest threw the other days away.
+// Every LineString is a route line, and each is kept: a multi-route KML writes one
+// Placemark per route and taking only the longest threw the other routes away.
 // Point Placemarks are stops and are read separately below, which is why this
 // walks LineString rather than every <coordinates> — a Point carries one of
 // those too, and length alone is a fragile way to tell them apart.
@@ -378,17 +378,17 @@ export function processGpx(text: string): ExtractedRoute {
   }
 
   // Every <trk> is kept, because each one is a separate ride and dropping the
-  // rest loses days the file plainly contained. Segments *within* a track are
+  // rest loses routes the file plainly contained. Segments *within* a track are
   // joined, because a <trkseg> break is a recording pause in one ride while
   // separate <trk> elements are separate rides. The two cases look alike and
   // are not.
   //
   // What is never done is reading every trkpt in the file as one track. That
-  // invents the geometry between where one day ends and the next begins:
-  // measured on a real 3-day ride, 553 miles came back as 631 and twistiness
+  // invents the geometry between where one route ends and the next begins:
+  // measured on a real 3-route ride, 553 miles came back as 631 and twistiness
   // fell from 79/69/53 to 59, because the phantom joins are perfectly straight.
   // Keeping the tracks apart is what avoids that, and it is also what keeps
-  // the days — the reason this used to take only the longest one.
+  // the routes — the reason this used to take only the longest one.
   const lines: Array<{ track: Track; name: string | null }> = []
   for (const trk of elements(doc, 'trk')) {
     const t = readPts(trk, 'trkpt')

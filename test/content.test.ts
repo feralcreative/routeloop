@@ -25,7 +25,7 @@ const FAQ_IDS = [
   'twistiness',
   'import-a-route',
   'file-names',
-  'one-file-per-day',
+  'one-file-per-route',
   'on-a-phone',
   'outside-the-us',
   'share-without-account',

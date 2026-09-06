@@ -231,7 +231,7 @@ export function processCsv(text: string): ExtractedRoute {
     })
 
     if (points.length > MAX_ROWS) {
-      throw new RouteFileError(`CSV file has more than ${MAX_ROWS} stops, which is the limit per day`)
+      throw new RouteFileError(`CSV file has more than ${MAX_ROWS} stops, which is the limit per route`)
     }
   }
 

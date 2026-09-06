@@ -92,7 +92,7 @@ const isRider = (v: Viewer): v is { id: number; status: string } => v !== null &
  * LISTED, which is isListed()'s job and not this one.
  *
  * `private` gaining "and members" is a SUPERSET of what it meant, and no ride
- * has members, so no existing row changed meaning the day this landed.
+ * has members, so no existing row changed meaning the route this landed.
  */
 export function canView(ride: ViewableRide, viewer: Viewer, grants: ViewGrants = {}): boolean {
   if (viewer !== null && viewer.id === ride.ownerId) return true
@@ -136,7 +136,7 @@ export function isListed(visibility: RideVisibility): boolean {
  * Whether a ride appears in the list of A FRIEND'S rides, shown to that friend.
  *
  * Only `friends`. This is the viewer-dependent list that ./query.ts's header
- * said would one day be wanted, and it exists as a named rule for exactly the
+ * said would one route be wanted, and it exists as a named rule for exactly the
  * reason isListed() does: so the SQL predicate and the boolean are two readings
  * of one rule rather than two rules. test/access-lists.test.ts pins it against
  * canView().

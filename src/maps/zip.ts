@@ -1,7 +1,7 @@
 // Zip, both directions.
 //
 // The reading half was `kmz.ts`'s private internals until the naming convention
-// gave the app a second reason to open an archive — a folder of per-day route
+// gave the app a second reason to open an archive — a folder of per-route route
 // files, exported by this app and dragged back in. It is factored out here
 // unchanged rather than duplicated, and kmz.ts still owns the *policy* that made
 // it careful: one entry, the first .kml, everything else ignored.
@@ -18,8 +18,8 @@
 //     integer-id paths (storage.ts), and `entryBaseName` below strips any
 //     directory an archive tries to carry, so zip-slip has no surface.
 //
-// The writing half is new, and exists because a multi-day ride wants one file
-// per day and a browser can only be handed one. Note test/helpers/zip.ts is a
+// The writing half is new, and exists because a multi-route ride wants one file
+// per route and a browser can only be handed one. Note test/helpers/zip.ts is a
 // *different* writer and deliberately stays: it builds deliberately malformed
 // archives for the reader's tests, writes no CRC, and would produce a file that
 // macOS Archive Utility refuses.
@@ -163,7 +163,7 @@ export function readZipEntry(buf: Buffer, entry: ZipEntryMeta, o: ZipReadOptions
  * backslashes and the spec's "no backslashes" rule is widely ignored.
  *
  * This is what makes "../../etc/passwd" harmless: it becomes "passwd", and even
- * that is only ever read for its extension and its day fields — callers write
+ * that is only ever read for its extension and its route fields — callers write
  * to integer-id paths and never to a name that came out of an archive.
  */
 export function entryBaseName(name: string): string {
@@ -174,7 +174,7 @@ export function entryBaseName(name: string): string {
 /**
  * True for the entries macOS adds when you right-click and Compress: an
  * `__MACOSX/` tree of `._name` resource forks, one shadowing every real file.
- * Left in, a three-day zip imports as six days, three of them binary junk.
+ * Left in, a three-route zip imports as six routes, three of them binary junk.
  */
 export const isArchiveCruft = (name: string): boolean =>
   name.startsWith('__MACOSX/') || entryBaseName(name).startsWith('._') || entryBaseName(name) === '.DS_Store'
@@ -240,7 +240,7 @@ function crc32(buf: Buffer): number {
 // lets the tests assert on bytes.
 const ZIP_EPOCH = new Date(Date.UTC(1980, 0, 1))
 
-// DOS date/time: 7 bits of year-since-1980, 4 of month, 5 of day; 5 of hour,
+// DOS date/time: 7 bits of year-since-1980, 4 of month, 5 of route; 5 of hour,
 // 6 of minute, 5 of two-second units. UTC getters for the same reason
 // filename.ts uses them — a local reading would make the bytes machine-dependent.
 function dosStamp(d: Date): { time: number; date: number } {
@@ -257,7 +257,7 @@ export type ZipFile = { name: string; body: Buffer }
  * A zip a rider's operating system will open.
  *
  * Deflate is tried and kept only when it wins, which for route files is always
- * — a GPX of a day's geometry is thousands of near-identical decimal strings —
+ * — a GPX of a route's geometry is thousands of near-identical decimal strings —
  * but a tiny CSV can inflate under deflate's block overhead and is stored instead.
  *
  * No ZIP64, deliberately: the format's 32-bit fields are the reason the reader

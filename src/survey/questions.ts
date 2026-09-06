@@ -109,12 +109,12 @@ export const BUNDLES: readonly Bundle[] = [
   {
     id: 'lodging-anchors',
     section: 'planning',
-    label: 'Where you sleep sets where the day ends, and the next morning starts there',
+    label: 'Where you sleep sets where the route ends, and the next morning starts there',
   },
   {
-    id: 'day-budget',
+    id: 'route-budget',
     section: 'planning',
-    label: 'A per-day time budget, so you find out Tuesday is over-packed before you leave',
+    label: 'A per-route time budget, so you find out Tuesday is over-packed before you leave',
   },
   { id: 'elevation', section: 'planning', label: 'Elevation and grade, before you commit to a pass' },
 
@@ -133,7 +133,7 @@ export const BUNDLES: readonly Bundle[] = [
   {
     id: 'weather-timeline',
     section: 'conditions',
-    label: 'Weather along the route, for the day and hour you would actually be there',
+    label: 'Weather along the route, for the route and hour you would actually be there',
   },
   { id: 'closures', section: 'conditions', label: 'Seasonal closures—a warning that the pass is shut in April' },
   { id: 'map-layers', section: 'conditions', label: 'Map layers you can stack and fade—terrain, satellite' },
@@ -191,7 +191,7 @@ export type OpenQuestion = { id: string; label: string; hint?: string; required:
  * How they ride, which is what makes the ranking readable.
  *
  * Without these the result is one averaged rider who does not exist. With them,
- * "the people who ride multi-day in groups want X" is a sentence you can act on.
+ * "the people who ride multi-route in groups want X" is a sentence you can act on.
  */
 export const CHOICE_QUESTIONS: readonly ChoiceQuestion[] = [
   {
@@ -201,12 +201,12 @@ export const CHOICE_QUESTIONS: readonly ChoiceQuestion[] = [
     multi: true,
     required: true,
     options: [
-      'Day rides',
+      'Route rides',
       'Weekend trips',
-      'Multi-day tours',
+      'Multi-route tours',
       'Rallies and organized events',
       'Adventure or dual-sport',
-      'Track or canyon days',
+      'Track or canyon routes',
       'Commuting',
     ],
   },

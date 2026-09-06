@@ -366,7 +366,7 @@ export type GroupDivert = {
 export type GroupMeet = {
   /** Where to meet. THE STATION'S OWN POSITION when this is a fuel candidate,
    *  not the road vertex it snapped to — a rider told to meet at a Shell should
-   *  be sent to the forecourt, and the point added to every group's day is this
+   *  be sent to the forecourt, and the point added to every group's route is this
    *  coordinate. `alongM` still comes from the snapped vertex, because ranking
    *  is about distance along the road. */
   at: [number, number]
@@ -436,7 +436,7 @@ export function proposeGroupMeet(
   if (totalM <= 0) return []
 
   // THE DESTINATION IS WHERE THE MAIN GROUP'S ROUTE ENDS, which is the whole
-  // reason no new column was added for it: their day already says where they are
+  // reason no new column was added for it: their route already says where they are
   // going, and a second place to state it is a second place for it to be wrong.
   //
   // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE. Ziad's call,
@@ -448,7 +448,7 @@ export function proposeGroupMeet(
   //
   // A filter dropping groups whose route ended elsewhere was written and removed
   // the same hour. It is recorded because it reads as careful and is not: on the
-  // ride it was first tried against, the second group's day ended at a coffee
+  // ride it was first tried against, the second group's route ended at a coffee
   // shop in their own town, so they were dropped and the ride answered "nowhere
   // works". Nothing is lost by keeping them — a group genuinely riding to another
   // city gets a divert far past `maxDivertMi` and is refused by the ordinary cap,

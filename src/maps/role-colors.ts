@@ -1,8 +1,8 @@
 // One color per waypoint role, for the dashboard's "What you stop for" chart.
 //
-// NOT `DAY_COLORS`, and the reason is semantic before it is arithmetic. That
+// NOT `ROUTE_COLORS`, and the reason is semantic before it is arithmetic. That
 // palette holds twelve, so five roles would wrap onto a duplicate — but the real
-// objection is that the same hue would mean "day 3" in a ride legend and "coffee"
+// objection is that the same hue would mean "route 3" in a ride legend and "coffee"
 // here, in an app where a colored line on a map already carries meaning.
 //
 // GENERATED, NOT PICKED. `utils/build-role-colors.mjs` is the derivation and its

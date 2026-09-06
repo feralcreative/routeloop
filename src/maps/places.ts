@@ -32,7 +32,7 @@ export const MAX_PLACE_RESULTS = 8
 
 /**
  * A CORRIDOR SEARCH IS NOT A DROPDOWN, so it asks for the twenty. #50 filters
- * what comes back to a band either side of the day's line and throws most of it
+ * what comes back to a band either side of the route's line and throws most of it
  * away — eight results biased at one point routinely survives as two, which
  * reads as "there is nowhere" rather than "we only looked in one place".
  *

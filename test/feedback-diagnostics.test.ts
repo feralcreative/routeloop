@@ -86,8 +86,8 @@ describe('parseDiagnostics: flat blocks', () => {
   })
 
   it('keeps the map block, which reproduces more than a screenshot would', () => {
-    const out = parseDiagnostics({ map: { zoom: 9.5, dayIndex: 2, stopCount: 7, tileErrors: 0 } })
-    expect(out.map).toEqual({ zoom: 9.5, dayIndex: 2, stopCount: 7, tileErrors: 0 })
+    const out = parseDiagnostics({ map: { zoom: 9.5, routeIndex: 2, stopCount: 7, tileErrors: 0 } })
+    expect(out.map).toEqual({ zoom: 9.5, routeIndex: 2, stopCount: 7, tileErrors: 0 })
   })
 
   it('truncates a long string rather than dropping it', () => {
@@ -163,7 +163,7 @@ describe('parseDiagnostics: permissions are states, never positions', () => {
 
 describe('stripUrl', () => {
   it('drops the query string and the fragment', () => {
-    expect(stripUrl('https://routeloop.app/m/abc123?share=xyz#day2')).toBe('https://routeloop.app/m/abc123')
+    expect(stripUrl('https://routeloop.app/m/abc123?share=xyz#route2')).toBe('https://routeloop.app/m/abc123')
   })
 
   it('handles a relative path', () => {
@@ -225,7 +225,7 @@ describe('redactDiagnostics', () => {
   })
 
   it('strips a query string off a pattern before checking it', () => {
-    expect(redactDiagnostics({ app: { pattern: '/build/:slug?day=2' } }).app?.pattern).toBe('/build/:slug')
+    expect(redactDiagnostics({ app: { pattern: '/build/:slug?route=2' } }).app?.pattern).toBe('/build/:slug')
   })
 
   it('strips URLs out of error messages and stacks', () => {
@@ -252,10 +252,10 @@ describe('redactDiagnostics', () => {
 
   it('drops forbidden keys outright', () => {
     const out = redactDiagnostics({
-      map: { lat: 44.05, lng: -121.31, center: 'x', zoom: 9, dayIndex: 1 },
+      map: { lat: 44.05, lng: -121.31, center: 'x', zoom: 9, routeIndex: 1 },
       device: { email: 'a@b.c', token: 'secret', os: 'iOS 26' },
     })
-    expect(out.map).toEqual({ zoom: 9, dayIndex: 1 })
+    expect(out.map).toEqual({ zoom: 9, routeIndex: 1 })
     expect(out.device).toEqual({ os: 'iOS 26' })
   })
 

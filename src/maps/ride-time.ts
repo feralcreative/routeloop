@@ -1,7 +1,7 @@
 // The rule for how long a leg took, on the server.
 //
 // THIS IS DELIBERATELY NOT THE WHOLE TIME MODEL. `public/js/ride-time.js` holds
-// the schedule walk — what is active at a moment, when a day ends, how dwell
+// the schedule walk — what is active at a moment, when a route ends, how dwell
 // interleaves with riding — and that stays client-only for the reason its own
 // header gives: the builder and the viewer both need it live, against legs held
 // in memory, with no round trip. Nothing on the server has ever needed to answer
@@ -46,7 +46,7 @@ export const legIsEstimated = (leg: { durationS: number; distanceM: number }): b
  *
  * Note what this returns for a leg with neither: zero. That is correct and not a
  * gap — a zero-length leg took no time, and the two points it joins are in the
- * same place. `splitDayTrack` produces those deliberately when two points share a
+ * same place. `splitRouteTrack` produces those deliberately when two points share a
  * position.
  */
 export const legDurationS = (leg: { durationS: number; distanceM: number }): number =>

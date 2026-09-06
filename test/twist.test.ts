@@ -4,7 +4,7 @@
 // guessed, so what matters here is that the maths does what those measurements
 // assumed: a straight road scores ~0, a curve scores in proportion to how tight
 // it is, the deadband actually suppresses wobble, and the best-window pass finds
-// a good stretch buried in a boring day.
+// a good stretch buried in a boring route.
 import { describe, expect, it } from 'vitest'
 import { twistiness, twistLabel, TWIST_BANDS } from '../src/maps/twist'
 import type { Track } from '../src/maps/kml'
@@ -83,17 +83,17 @@ describe('a curve', () => {
 })
 
 describe('the best stretch', () => {
-  it('finds a twisty section buried in a long boring day', () => {
+  it('finds a twisty section buried in a long boring route', () => {
     // 40km of switchbacks, then 200km of interstate. The average is dragged
     // down; the window is not. The twisty part has to be at least a window long
     // or the window averages the slab back in — which is the whole reason the
     // window is 20 miles rather than 5.
-    const day = join(arc(300, 7600, 10), straight(200000))
-    const t = twistiness(day)!
+    const route = join(arc(300, 7600, 10), straight(200000))
+    const t = twistiness(route)!
     expect(t.bestDpm).toBeGreaterThan(t.dpm * 3)
   })
 
-  it('equals the average when the whole day is uniform', () => {
+  it('equals the average when the whole route is uniform', () => {
     const t = twistiness(arc(300, 360))!
     expect(Math.abs(t.bestDpm - t.dpm)).toBeLessThan(t.dpm * 0.35)
   })
@@ -101,7 +101,7 @@ describe('the best stretch', () => {
   it('reports the length it actually measured, capped at the window', () => {
     // 100km is longer than the 20-mile window, so it reports the window.
     expect(twistiness(straight(100000))!.bestMiles).toBeCloseTo(20, 1)
-    // A day shorter than the window measures the whole day and says so.
+    // A route shorter than the window measures the whole route and says so.
     expect(twistiness(arc(200, 90))!.bestMiles).toBeLessThan(20)
   })
 })
@@ -110,7 +110,12 @@ describe('nothing to measure', () => {
   it('is null rather than zero, which would claim the road is straight', () => {
     expect(twistiness([])).toBeNull()
     expect(twistiness([[-120, 37]])).toBeNull()
-    expect(twistiness([[-120, 37], [-119, 37]])).toBeNull()
+    expect(
+      twistiness([
+        [-120, 37],
+        [-119, 37],
+      ]),
+    ).toBeNull()
   })
 
   it('survives a track of repeated identical points', () => {

@@ -24,8 +24,7 @@ export const DELETION_HOLD_DAYS = 30
 const DAY_MS = 86_400_000
 
 /** When a deletion requested now would become eligible for purging. */
-export const purgeDateFor = (requestedAt: Date): Date =>
-  new Date(requestedAt.getTime() + DELETION_HOLD_DAYS * DAY_MS)
+export const purgeDateFor = (requestedAt: Date): Date => new Date(requestedAt.getTime() + DELETION_HOLD_DAYS * DAY_MS)
 
 /** Only the fields the rules read, so a test does not have to build a whole row. */
 export type DeletionFields = Pick<UserRow, 'deletionRequestedAt' | 'purgeAfter'>
@@ -57,8 +56,8 @@ export function deletionState(user: DeletionFields, now: Date): DeletionState {
 export const isLeaving = (user: DeletionFields): boolean => user.deletionRequestedAt != null
 
 /**
- * Whole days left, rounded up so the last partial day still reads as "1 day"
- * rather than "0 days" to someone deciding whether to hit Save Me. Zero once the
+ * Whole routes left, rounded up so the last partial route still reads as "1 route"
+ * rather than "0 routes" to someone deciding whether to hit Save Me. Zero once the
  * deadline has passed.
  */
 export function daysUntilPurge(user: DeletionFields, now: Date): number {

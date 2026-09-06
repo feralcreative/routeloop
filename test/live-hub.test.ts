@@ -1,14 +1,14 @@
-// Who is in a ride, and who holds which day.
+// Who is in a ride, and who holds which route.
 //
 // The registry is module-level state, so every test resets it — a room left
 // behind changes the next test's answer, and the failure looks like a logic bug
 // rather than a leak.
 //
-// Nothing here protects data. A claim is a courtesy; the day hash in
-// src/maps/day-merge.ts is what actually decides a save. These tests are about
+// Nothing here protects data. A claim is a courtesy; the route hash in
+// src/maps/route-merge.ts is what actually decides a save. These tests are about
 // what riders are SHOWN, and the two that matter are the deduplication (a rider
 // with two tabs is one person) and the release on leave (a rider who closes the
-// tab must stop holding day 4).
+// tab must stop holding route 4).
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   join,
@@ -35,7 +35,7 @@ const conn = (riderId: number, name: string, over: Partial<Conn> = {}): Conn & {
     rideId: RIDE,
     riderId,
     name,
-    dayUid: null,
+    routeUid: null,
     sent,
     send: (event, data) => sent.push({ event, data }),
     close: () => {},
@@ -72,15 +72,15 @@ describe('presence', () => {
     expect(presenceOf(RIDE)).toHaveLength(1)
   })
 
-  // And the working tab's day must survive an idle second tab, or opening the
+  // And the working tab's route must survive an idle second tab, or opening the
   // ride again blanks out what you are shown to be doing.
-  it('reports the day from whichever of a rider’s tabs claims one', () => {
+  it('reports the route from whichever of a rider’s tabs claims one', () => {
     const working = conn(1, 'ada')
     const idle = conn(1, 'ada')
     join(idle)
     join(working)
-    setClaim(working, 'day-a')
-    expect(presenceOf(RIDE)).toEqual([{ riderId: 1, name: 'ada', dayUid: 'day-a' }])
+    setClaim(working, 'route-a')
+    expect(presenceOf(RIDE)).toEqual([{ riderId: 1, name: 'ada', routeUid: 'route-a' }])
   })
 
   it('drops a rider who leaves', () => {
@@ -109,63 +109,63 @@ describe('presence', () => {
 })
 
 describe('claims', () => {
-  it('grants an unheld day', () => {
+  it('grants an unheld route', () => {
     const a = conn(1, 'ada')
     join(a)
-    expect(setClaim(a, 'day-a')).toBe(true)
-    expect(presenceOf(RIDE)[0].dayUid).toBe('day-a')
+    expect(setClaim(a, 'route-a')).toBe(true)
+    expect(presenceOf(RIDE)[0].routeUid).toBe('route-a')
   })
 
-  it('refuses a day another rider holds', () => {
+  it('refuses a route another rider holds', () => {
     const a = conn(1, 'ada')
     const b = conn(2, 'grace')
     join(a)
     join(b)
-    setClaim(a, 'day-a')
-    expect(setClaim(b, 'day-a')).toBe(false)
-    expect(presenceOf(RIDE).find((p) => p.riderId === 2)?.dayUid).toBe(null)
+    setClaim(a, 'route-a')
+    expect(setClaim(b, 'route-a')).toBe(false)
+    expect(presenceOf(RIDE).find((p) => p.riderId === 2)?.routeUid).toBe(null)
   })
 
   // A rider is never in their own way — the same person in two tabs, or
-  // re-claiming after a reconnect, must not lock themselves out of their day.
-  it('lets a rider re-claim their own day', () => {
+  // re-claiming after a reconnect, must not lock themselves out of their route.
+  it('lets a rider re-claim their own route', () => {
     const a = conn(1, 'ada')
     const alsoA = conn(1, 'ada')
     join(a)
     join(alsoA)
-    setClaim(a, 'day-a')
-    expect(setClaim(alsoA, 'day-a')).toBe(true)
+    setClaim(a, 'route-a')
+    expect(setClaim(alsoA, 'route-a')).toBe(true)
   })
 
-  it('frees the day when the holder releases it', () => {
+  it('frees the route when the holder releases it', () => {
     const a = conn(1, 'ada')
     const b = conn(2, 'grace')
     join(a)
     join(b)
-    setClaim(a, 'day-a')
+    setClaim(a, 'route-a')
     setClaim(a, null)
-    expect(setClaim(b, 'day-a')).toBe(true)
+    expect(setClaim(b, 'route-a')).toBe(true)
   })
 
-  // THE RELEASE THAT MATTERS. A closed tab that kept its claim would hold day 4
+  // THE RELEASE THAT MATTERS. A closed tab that kept its claim would hold route 4
   // for the life of the process, and nobody could take it back.
-  it('frees the day when the holder disconnects', () => {
+  it('frees the route when the holder disconnects', () => {
     const a = conn(1, 'ada')
     const b = conn(2, 'grace')
     join(a)
     join(b)
-    setClaim(a, 'day-a')
+    setClaim(a, 'route-a')
     leave(a)
-    expect(setClaim(b, 'day-a')).toBe(true)
+    expect(setClaim(b, 'route-a')).toBe(true)
   })
 
-  it('lets two riders hold different days', () => {
+  it('lets two riders hold different routes', () => {
     const a = conn(1, 'ada')
     const b = conn(2, 'grace')
     join(a)
     join(b)
-    expect(setClaim(a, 'day-a')).toBe(true)
-    expect(setClaim(b, 'day-b')).toBe(true)
+    expect(setClaim(a, 'route-a')).toBe(true)
+    expect(setClaim(b, 'route-b')).toBe(true)
   })
 })
 
@@ -175,7 +175,7 @@ describe('publish', () => {
     const b = conn(2, 'grace')
     join(a)
     join(b)
-    publish(RIDE, 'saved', { day: 'x' })
+    publish(RIDE, 'saved', { route: 'x' })
     expect(a.sent.filter((s) => s.event === 'saved')).toHaveLength(1)
     expect(b.sent.filter((s) => s.event === 'saved')).toHaveLength(1)
   })
@@ -211,7 +211,7 @@ describe('publish', () => {
     expect(a.sent.filter((s) => s.event === 'presence').length).toBeGreaterThanOrEqual(2)
     leave(b)
     const last = a.sent.filter((s) => s.event === 'presence').at(-1)
-    expect(last?.data).toEqual([{ riderId: 1, name: 'ada', dayUid: null }])
+    expect(last?.data).toEqual([{ riderId: 1, name: 'ada', routeUid: null }])
   })
 })
 

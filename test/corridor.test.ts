@@ -76,7 +76,7 @@ describe('distance off the route', () => {
     expect(C.offRouteM([-122, 38], doubled)).toBeCloseTo(0, 0)
   })
 
-  // A day with a single point is a real, saveable shape.
+  // A route with a single point is a real, saveable shape.
   it('measures to the lone point of a one-point track', () => {
     expect(C.offRouteM([-122, 38], [[-122, 38]])).toBeCloseTo(0, 0)
   })
@@ -121,7 +121,7 @@ describe('filtering to the corridor', () => {
 
   // An empty list reads as "there is no fuel here", which is a different and
   // false claim. With no track there is no corridor to be outside of.
-  it('lets everything through on a day with no track yet', () => {
+  it('lets everything through on a route with no track yet', () => {
     const got = C.withinCorridor([onLine, far], [], 1 * MI)
     expect(got).toHaveLength(2)
     expect(got[0].offRouteM).toBeNull()
@@ -143,7 +143,7 @@ describe('filtering to the corridor', () => {
 // {name, address, lngLat, type} and that object goes to withinCorridor()
 // untouched. placeLngLat() read only the loose pair, so it returned null for
 // every real result, the filter dropped all of them, and ALONG THE DAY answered
-// "no gas within 15 mi of this day" on every day of every ride from the moment
+// "no gas within 15 mi of this route" on every route of every ride from the moment
 // #50 shipped. The arithmetic was right the whole time, which is why it read as
 // a radius or a routing problem.
 //
@@ -184,31 +184,31 @@ describe('the shape the places proxy actually sends', () => {
   })
 })
 
-// Where along a day the corridor searches run (#232). Each sample is a BILLED
+// Where along a route the corridor searches run (#232). Each sample is a BILLED
 // Text Search, so the count is a money number and the spacing is what decides
 // whether a station on the road is ever offered at all.
-describe('sampling a day for corridor searches', () => {
+describe('sampling a route for corridor searches', () => {
   const CORRIDOR_M = 15 * MI
   const CAP = 6
   const samples = (totalM: number, cap = CAP) => C.corridorSamples(totalM, CORRIDOR_M, cap)
 
-  it('asks once on a day shorter than the corridor is wide', () => {
+  it('asks once on a route shorter than the corridor is wide', () => {
     const got = samples(10 * MI)
     expect(got).toHaveLength(1)
-    // Centered, so a short day is searched from its middle rather than its start.
+    // Centered, so a short route is searched from its middle rather than its start.
     expect(got[0].atM).toBeCloseTo(5 * MI, 0)
   })
 
-  // A 300-mile day is the #232 report: one call at the midpoint left the whole
+  // A 300-mile route is the #232 report: one call at the midpoint left the whole
   // route uncovered but the two counties around Willows.
-  it('spreads across a long day instead of clustering at the midpoint', () => {
+  it('spreads across a long route instead of clustering at the midpoint', () => {
     const got = samples(300 * MI)
     expect(got).toHaveLength(CAP)
     expect(got[0].atM).toBeCloseTo(25 * MI, 0)
     expect(got[CAP - 1].atM).toBeCloseTo(275 * MI, 0)
   })
 
-  it('never spends more than the cap, however long the day', () => {
+  it('never spends more than the cap, however long the route', () => {
     expect(samples(3000 * MI)).toHaveLength(CAP)
     expect(samples(300 * MI, 3)).toHaveLength(3)
     expect(samples(300 * MI, 1)).toHaveLength(1)
@@ -230,11 +230,11 @@ describe('sampling a day for corridor searches', () => {
   })
 
   // PAST THE CAP THE COVERAGE THINS, AND THAT IS THE DESIGN RATHER THAN A BUG.
-  // The spend is fixed at six calls, so a 300-mile day spaces them 50 miles
+  // The spend is fixed at six calls, so a 300-mile route spaces them 50 miles
   // apart while the proxy clamps a bias radius at 50km — the samples stop
   // overlapping and stretches between them are searched only as far as Google's
   // own ranking reaches. The alternative is a bill proportional to the length of
-  // the day, which was the decision made on 2026-09-02.
+  // the route, which was the decision made on 2026-09-02.
   //
   // It degrades rather than failing: locationBias REORDERS and never restricts,
   // so a sample can still answer with a station outside its circle, and the
@@ -264,7 +264,7 @@ describe('sampling a day for corridor searches', () => {
   // 37-mile holes, so "gas between Burbank and Anaheim" — the whole of the Los
   // Angeles basin — came back empty. The radius CANNOT grow past the 50 km the
   // proxy accepts, so the COUNT has to grow instead.
-  it('adds samples so the circles still touch on a long day', () => {
+  it('adds samples so the circles still touch on a long route', () => {
     const CAP12 = 12
     for (const miles of [200, 300, 450, 593, 745]) {
       const got = samples(miles * MI, CAP12)
@@ -274,14 +274,14 @@ describe('sampling a day for corridor searches', () => {
     }
   })
 
-  it('spends fewer searches on a short day than the cap allows', () => {
-    // The count is derived, not always spent: a 40-mile day needs two circles,
+  it('spends fewer searches on a short route than the cap allows', () => {
+    // The count is derived, not always spent: a 40-mile route needs two circles,
     // not twelve. Cheaper than the fixed six this replaced.
     expect(samples(40 * MI, 12).length).toBeLessThan(6)
   })
 
   // AND SAYS SO WHEN IT STILL CANNOT. Past the cap the circles stop touching
-  // again, and a partly searched day that finds nothing is indistinguishable
+  // again, and a partly searched route that finds nothing is indistinguishable
   // from a road with no fuel on it — which is the wrong conclusion to leave a
   // rider to draw.
   it('reports partial coverage when even the cap cannot close the gaps', () => {
@@ -291,7 +291,7 @@ describe('sampling a day for corridor searches', () => {
     expect(C.samplesCoverAll(got, long)).toBe(false)
   })
 
-  it('asks nothing of a day with no distance', () => {
+  it('asks nothing of a route with no distance', () => {
     expect(samples(0)).toEqual([])
     expect(samples(-1)).toEqual([])
     expect(C.corridorSamples(100 * MI, 0, CAP)).toEqual([])

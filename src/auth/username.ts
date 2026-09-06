@@ -73,10 +73,7 @@ export function publicIdFor(username: string, createdAt: Date): string {
   return `${username.toLowerCase()}-${stamp}`
 }
 
-export type Availability =
-  | { ok: true }
-  | { ok: false; reason: 'taken' }
-  | { ok: false; reason: 'held'; until: Date }
+export type Availability = { ok: true } | { ok: false; reason: 'taken' } | { ok: false; reason: 'held'; until: Date }
 
 // Two questions, not one. A name is unavailable while someone else holds it, and
 // for USERNAME_HOLD_DAYS after someone else let it go — but never to the rider
@@ -85,11 +82,7 @@ export type Availability =
 // Both checks are advisory. uq_username_lower is the hard guard, and callers
 // still have to catch its violation: two riders can pass this check in the same
 // instant and only one of them can win the insert.
-export async function checkAvailability(
-  name: string,
-  selfUserId: number,
-  exec: Executor = db,
-): Promise<Availability> {
+export async function checkAvailability(name: string, selfUserId: number, exec: Executor = db): Promise<Availability> {
   const [heldNow] = await exec
     .select({ id: users.id })
     .from(users)
@@ -104,7 +97,7 @@ export async function checkAvailability(
       sql`lower(${usernameHistory.username}) = lower(${name})
           and ${usernameHistory.userId} <> ${selfUserId}
           and ${usernameHistory.releasedAt} is not null
-          and ${usernameHistory.releasedAt} > now() - ${sql.raw(`interval '${USERNAME_HOLD_DAYS} days'`)}`,
+          and ${usernameHistory.releasedAt} > now() - ${sql.raw(`interval '${USERNAME_HOLD_DAYS} routes'`)}`,
     )
     .orderBy(sql`${usernameHistory.releasedAt} desc`)
     .limit(1)

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 
 type Point = { kind: 'stop' | 'poi'; name?: string; roles?: string[] }
 type Leg = { distanceM: number }
-type Day = { points: Point[]; legs: Leg[] }
+type Route = { points: Point[]; legs: Leg[] }
 
 let R: any
 let D: any
@@ -19,7 +19,7 @@ let D: any
 beforeAll(() => {
   const win: Record<string, unknown> = {}
   new Function('window', readFileSync('public/js/range-circle.js', 'utf8'))(win)
-  new Function('window', readFileSync('public/js/day-distance.js', 'utf8'))(win)
+  new Function('window', readFileSync('public/js/route-distance.js', 'utf8'))(win)
   R = win.TBRange
   D = win.TBDistance
 })
@@ -30,23 +30,23 @@ const stop = (name: string, roles: string[] = []): Point => ({ kind: 'stop', nam
 const leg = (miles: number): Leg => ({ distanceM: mi(miles) })
 
 /** Home → 100 → Shell(gas) → 80 → Lunch → 60 → Motel. 240 miles. */
-const day = (): Day => ({
+const route = (): Route => ({
   points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('Lunch', ['food']), stop('Motel', ['hotel'])],
   legs: [leg(100), leg(80), leg(60)],
 })
-const cum = (d: Day) => D.cumulativeM(d)
+const cum = (d: Route) => D.cumulativeM(d)
 const round = (m: number | null) => (m == null ? null : Math.round(m / MI))
 
 describe('where the rider is', () => {
   it('is the point’s own distance while parked at one', () => {
-    const d = day()
+    const d = route()
     expect(round(R.distanceAtMoment(d, { pointIndex: 2, legIndex: null, legFraction: null }, cum(d)))).toBe(180)
   })
 
   // The reason legFraction was added at all: without it the dot can only ever
   // sit on one end of a leg, and a two-hour leg would jump.
   it('interpolates along a leg by its fraction', () => {
-    const d = day()
+    const d = route()
     const at = (f: number) => ({ pointIndex: null, legIndex: 1, legFraction: f })
     expect(round(R.distanceAtMoment(d, at(0), cum(d)))).toBe(100)
     expect(round(R.distanceAtMoment(d, at(0.5), cum(d)))).toBe(140)
@@ -54,25 +54,25 @@ describe('where the rider is', () => {
   })
 
   it('clamps a fraction outside 0..1 rather than running off the leg', () => {
-    const d = day()
+    const d = route()
     expect(round(R.distanceAtMoment(d, { pointIndex: null, legIndex: 1, legFraction: 9 }, cum(d)))).toBe(180)
     expect(round(R.distanceAtMoment(d, { pointIndex: null, legIndex: 1, legFraction: -3 }, cum(d)))).toBe(100)
   })
 
   it('treats a missing fraction as the start of the leg', () => {
-    const d = day()
+    const d = route()
     expect(round(R.distanceAtMoment(d, { pointIndex: null, legIndex: 1, legFraction: null }, cum(d)))).toBe(100)
   })
 
-  // A moment in the overnight gap belongs to no day. Drawing the last known
+  // A moment in the overnight gap belongs to no route. Drawing the last known
   // position there would show a rider riding through the night.
-  it('is null when the moment is on no day', () => {
-    const d = day()
+  it('is null when the moment is on no route', () => {
+    const d = route()
     expect(R.distanceAtMoment(d, { pointIndex: null, legIndex: null, legFraction: null }, cum(d))).toBeNull()
     expect(R.distanceAtMoment(d, null, cum(d))).toBeNull()
   })
 
-  it('is null on a day with no points', () => {
+  it('is null on a route with no points', () => {
     expect(R.distanceAtMoment({ points: [], legs: [] }, { pointIndex: 0 }, [])).toBeNull()
   })
 })
@@ -81,34 +81,34 @@ describe('how far the fuel reaches', () => {
   // THE DEFECT THIS EXISTS FOR. Reported from a test ride with the pump set a
   // few miles past empty: the ring shrank to nothing, the rider rode through
   // the pump, and it never came back. The refuel was detected the whole time —
-  // the new dry point simply landed past the end of the day, so there was
+  // the new dry point simply landed past the end of the route, so there was
   // nothing left to point at and the ring was drawn from that.
-  it('comes back after a refuel whose tank then outlasts the day', () => {
-    const d: Day = {
+  it('comes back after a refuel whose tank then outlasts the route', () => {
+    const d: Route = {
       points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
       legs: [leg(105), leg(45)],
     }
     const c = cum(d)
     // Before the pump: the ring reaches the dry point at 100.
     expect(round(R.fuelReachM(d, mi(50), c, 'gas', mi(100)))).toBe(100)
-    // Past it: 105 + 100 is beyond the day, so it reaches the day's end.
+    // Past it: 105 + 100 is beyond the route, so it reaches the route's end.
     expect(round(R.fuelReachM(d, mi(110), c, 'gas', mi(100)))).toBe(150)
     // ...and there is no wall, because the rider does not run out.
     expect(R.dryDistanceM(d, mi(110), c, 'gas', mi(100))).toBeNull()
   })
 
   it('is the dry point when the tank runs out first', () => {
-    const d = day()
+    const d = route()
     expect(round(R.fuelReachM(d, mi(120), cum(d), 'gas', mi(120)))).toBe(220)
   })
 
-  it('never reaches past the end of the day', () => {
-    const d = day()
+  it('never reaches past the end of the route', () => {
+    const d = route()
     expect(round(R.fuelReachM(d, mi(10), cum(d), 'gas', mi(9999)))).toBe(240)
   })
 
   it('is null when no range is known', () => {
-    const d = day()
+    const d = route()
     expect(R.fuelReachM(d, mi(20), cum(d), 'gas', null)).toBeNull()
     expect(R.fuelReachM(d, null, cum(d), 'gas', mi(120))).toBeNull()
   })
@@ -116,57 +116,57 @@ describe('how far the fuel reaches', () => {
 
 describe('where the tank runs dry', () => {
   it('is the last fill plus the range', () => {
-    const d = day()
+    const d = route()
     expect(round(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(120)))).toBe(220)
   })
 
-  it('is null when the day ends before the tank does', () => {
-    const d = day()
+  it('is null when the route ends before the tank does', () => {
+    const d = route()
     expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(300))).toBeNull()
   })
 
   // THIS TEST USED TO ASSERT THE BUG. It expected "dry at 150" for a rider ten
-  // miles into the day, because dryDistanceM() read only the fill BEHIND them —
+  // miles into the route, because dryDistanceM() read only the fill BEHIND them —
   // ignoring that they stop at Shell at 100 and set off again full. Fixed
   // 2026-08-31; the answer is the same before and after that pump because
   // reaching it was never in doubt.
   it('is the same before and after a fill the rider is going to make', () => {
-    const d = day()
-    // 150-mile tank, Shell at 100: filled there, dry at 250 and the day is 240.
+    const d = route()
+    // 150-mile tank, Shell at 100: filled there, dry at 250 and the route is 240.
     expect(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(150))).toBeNull()
     expect(R.dryDistanceM(d, mi(120), cum(d), 'gas', mi(150))).toBeNull()
   })
 
   it('is measured from a fill the rider cannot reach only if they reach it', () => {
-    const d = day()
+    const d = route()
     // An 80-mile tank cannot get to Shell at 100, so the ride stops at 80 and
     // the pump beyond it changes nothing.
     expect(round(R.dryDistanceM(d, mi(10), cum(d), 'gas', mi(80)))).toBe(80)
   })
 
-  // It is a fact about the day, not about where the rider is. Dropping it once
+  // It is a fact about the route, not about where the rider is. Dropping it once
   // passed made the map go quiet at exactly the moment the plan was worst.
   it('stays put once the rider is past it', () => {
-    const d = day()
+    const d = route()
     expect(round(R.dryDistanceM(d, mi(200), cum(d), 'gas', mi(120)))).toBe(220)
   })
 
   it('is null when no range is known', () => {
-    const d = day()
+    const d = route()
     expect(R.dryDistanceM(d, mi(20), cum(d), 'gas', null)).toBeNull()
   })
 })
 
 describe('the last fill', () => {
-  it('is the start of the day before any pump', () => {
-    const d = day()
+  it('is the start of the route before any pump', () => {
+    const d = route()
     expect(R.lastFillM(d, mi(50), cum(d), 'gas')).toBe(0)
   })
 
   // Standing at the pump the tank is full, matching the reading sinceRefuelM()
-  // gives that row in the day list.
+  // gives that row in the route list.
   it('counts a pump the rider is standing on', () => {
-    const d = day()
+    const d = route()
     expect(round(R.lastFillM(d, mi(100), cum(d), 'gas'))).toBe(100)
   })
 })
@@ -187,9 +187,9 @@ describe('pumps the rider has not reached yet', () => {
   // station at 108.6, the hotel at 209.7, on a 110-mile tank. dryDistanceM()
   // read only the fill BEHIND the rider, so it answered "dry at 110" — a mile
   // and a half past the pump they stop at — and the route went red from there
-  // to the end of a day they finish with nine miles in hand. The day list said
+  // to the end of a route they finish with nine miles in hand. The route list said
   // "101 mi on this tank" at the hotel the whole time.
-  const testRide = (): Day => ({
+  const testRide = (): Route => ({
     points: [stop('Home', ['start', 'home', 'gas']), stop('Hopland', ['gas']), stop('Benbow', ['hotel', 'food'])],
     legs: [leg(108.6), leg(101.1)],
   })
@@ -215,7 +215,7 @@ describe('pumps the rider has not reached yet', () => {
   // The first pump out of reach is where the ride stops, and the walk must
   // break there rather than skipping on to a later one it cannot get to.
   it('stops at the first pump it cannot reach', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home', ['gas']), stop('Far', ['gas']), stop('Further', ['gas']), stop('End')],
       legs: [leg(200), leg(50), leg(50)],
     }
@@ -225,12 +225,12 @@ describe('pumps the rider has not reached yet', () => {
   })
 
   it('chains through several fills it can reach', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home', ['gas']), stop('A', ['gas']), stop('B', ['gas']), stop('End')],
       legs: [leg(100), leg(100), leg(100)],
     }
     // Filled at 0, 100 and 200 on a 110-mile tank, so dry at 310 — past the
-    // day's 300, which means the day is covered.
+    // route's 300, which means the route is covered.
     expect(R.dryDistanceM(d, 0, cum(d), 'gas', mi(110))).toBeNull()
   })
 
@@ -246,7 +246,7 @@ describe('the stretch that cannot be ridden', () => {
   // reported. The red runs from the wall to the pump, not from the wall to
   // nowhere.
   it('runs from the wall to the next pump', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
       legs: [leg(115), leg(60)],
     }
@@ -259,23 +259,23 @@ describe('the stretch that cannot be ridden', () => {
   // They do not make it, and the whole remainder is the part they cannot ride.
   // Stopping at the dry point would say the problem was a point rather than a
   // distance.
-  it('runs to the end of the day when no pump follows', () => {
-    const d: Day = { points: [stop('Home'), stop('End')], legs: [leg(300)] }
+  it('runs to the end of the route when no pump follows', () => {
+    const d: Route = { points: [stop('Home'), stop('End')], legs: [leg(300)] }
     const s = R.dryStretch(d, 0, cum(d), 'gas', mi(110))
     expect(round(s.from)).toBe(110)
     expect(round(s.to)).toBe(300)
   })
 
   it('goes when the rider refuels', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('End')],
       legs: [leg(115), leg(60)],
     }
     expect(R.dryStretch(d, mi(115), cum(d), 'gas', mi(110))).toBeNull()
   })
 
-  it('is null on a day the tank covers, and when no range is known', () => {
-    const d = day()
+  it('is null on a route the tank covers, and when no range is known', () => {
+    const d = route()
     expect(R.dryStretch(d, mi(10), cum(d), 'gas', mi(9999))).toBeNull()
     expect(R.dryStretch(d, mi(10), cum(d), 'gas', null)).toBeNull()
   })
@@ -284,10 +284,10 @@ describe('the stretch that cannot be ridden', () => {
 describe('every point the tank runs out', () => {
   // ONE WALL PER TANKFUL. #220 is about knowing where fuel stops have to go,
   // and a single marker only ever answers that for the first one — on a
-  // 700-mile day a rider needs to see all six, not be told about the first and
+  // 700-mile route a rider needs to see all six, not be told about the first and
   // left to divide.
-  it('marks each range interval across a day with no pumps', () => {
-    const d: Day = { points: [stop('Benbow'), stop('Vancouver')], legs: [leg(797.7)] }
+  it('marks each range interval across a route with no pumps', () => {
+    const d: Route = { points: [stop('Benbow'), stop('Vancouver')], legs: [leg(797.7)] }
     expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(110)).map(round)).toEqual([110, 220, 330, 440, 550, 660, 770])
   })
 
@@ -295,12 +295,12 @@ describe('every point the tank runs out', () => {
   // it starts there. That is what makes the intervals read as "you need fuel
   // roughly here, here and here".
   it('starts each tank from the wall before it', () => {
-    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    const d: Route = { points: [stop('A'), stop('B')], legs: [leg(250)] }
     expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(100)).map(round)).toEqual([100, 200])
   })
 
-  it('is empty on a day the tank covers', () => {
-    const d: Day = {
+  it('is empty on a route the tank covers', () => {
+    const d: Route = {
       points: [stop('Home', ['gas']), stop('Hopland', ['gas']), stop('Benbow')],
       legs: [leg(108.6), leg(101.1)],
     }
@@ -308,14 +308,14 @@ describe('every point the tank runs out', () => {
   })
 
   // A real pump resets the count the same way a wall does, so the first wall
-  // after one is a full range beyond IT rather than beyond the day's start.
+  // after one is a full range beyond IT rather than beyond the route's start.
   it('counts from a real pump the rider reaches', () => {
-    const d: Day = { points: [stop('A'), stop('Gas', ['gas']), stop('B')], legs: [leg(90), leg(210)] }
+    const d: Route = { points: [stop('A'), stop('Gas', ['gas']), stop('B')], legs: [leg(90), leg(210)] }
     expect(R.dryDistancesM(d, 0, cum(d), 'gas', mi(110)).map(round)).toEqual([200])
   })
 
-  it('never puts a wall past the end of the day', () => {
-    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+  it('never puts a wall past the end of the route', () => {
+    const d: Route = { points: [stop('A'), stop('B')], legs: [leg(250)] }
     const total = 250
     for (const w of R.dryDistancesM(d, 0, cum(d), 'gas', mi(100))) {
       expect(w / MI).toBeLessThanOrEqual(total)
@@ -323,7 +323,7 @@ describe('every point the tank runs out', () => {
   })
 
   it('is empty when no range is known', () => {
-    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    const d: Route = { points: [stop('A'), stop('B')], legs: [leg(250)] }
     expect(R.dryDistancesM(d, 0, cum(d), 'gas', null)).toEqual([])
     expect(R.dryDistancesM(d, null, cum(d), 'gas', mi(100))).toEqual([])
   })
@@ -331,7 +331,7 @@ describe('every point the tank runs out', () => {
   // The red stretch and the ring both key off the first one, so the two must
   // not be able to drift apart.
   it('agrees with dryDistanceM on the first wall', () => {
-    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(250)] }
+    const d: Route = { points: [stop('A'), stop('B')], legs: [leg(250)] }
     const all = R.dryDistancesM(d, 0, cum(d), 'gas', mi(100))
     expect(R.dryDistanceM(d, 0, cum(d), 'gas', mi(100))).toBe(all[0])
   })
@@ -344,39 +344,39 @@ describe('every point the tank runs out', () => {
 describe('how much of the tank is gone', () => {
   const RANGE_M = 100_000
 
-  // A day with a pump at 40km, so the tank resets there.
-  const day = {
+  // A route with a pump at 40km, so the tank resets there.
+  const route = {
     points: [{ roles: [] }, { roles: ['gas'] }, { roles: [] }],
     legs: [{ distanceM: 40_000 }, { distanceM: 120_000 }],
   }
   const cum = [0, 40_000, 160_000]
 
   it('is null when nothing can say, which is not zero', () => {
-    expect(R.tankUsed(day, null, cum, 'gas', RANGE_M)).toBeNull()
+    expect(R.tankUsed(route, null, cum, 'gas', RANGE_M)).toBeNull()
     // No bike on file is the common case, not the edge one. Zero would claim a
     // full tank, which is a claim nobody made.
-    expect(R.tankUsed(day, 20_000, cum, 'gas', null)).toBeNull()
-    expect(R.tankUsed(day, 20_000, cum, 'gas', 0)).toBeNull()
+    expect(R.tankUsed(route, 20_000, cum, 'gas', null)).toBeNull()
+    expect(R.tankUsed(route, 20_000, cum, 'gas', 0)).toBeNull()
   })
 
-  it('measures from the start of the day before any pump', () => {
-    expect(R.tankUsed(day, 25_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.25, 5)
+  it('measures from the start of the route before any pump', () => {
+    expect(R.tankUsed(route, 25_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.25, 5)
   })
 
   // THE TANK, NOT THE DAY. A rider who fills at 40km is back to a full tank on
   // the far side of it, however far into the ride they are.
   it('resets at a pump the rider has passed', () => {
-    expect(R.tankUsed(day, 40_000, cum, 'gas', RANGE_M)).toBe(0)
-    expect(R.tankUsed(day, 90_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.5, 5)
+    expect(R.tankUsed(route, 40_000, cum, 'gas', RANGE_M)).toBe(0)
+    expect(R.tankUsed(route, 90_000, cum, 'gas', RANGE_M)).toBeCloseTo(0.5, 5)
   })
 
   it('does not count a pump for a bike that does not drink from it', () => {
     // charge and gas are the same event seen from two kinds of machine.
-    expect(R.tankUsed(day, 90_000, cum, 'charge', RANGE_M)).toBeCloseTo(0.9, 5)
+    expect(R.tankUsed(route, 90_000, cum, 'charge', RANGE_M)).toBeCloseTo(0.9, 5)
   })
 
   it('caps at one rather than reporting a fraction nothing reads', () => {
-    expect(R.tankUsed(day, 160_000, cum, 'gas', RANGE_M)).toBe(1)
+    expect(R.tankUsed(route, 160_000, cum, 'gas', RANGE_M)).toBe(1)
   })
 })
 
