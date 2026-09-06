@@ -1,4 +1,4 @@
-// How far into the day each point is, and how far since the last refuel.
+// How far into the route each point is, and how far since the last refuel.
 //
 // #220, in the planner's own words: "to know when to add fuel stops I need to
 // know how many miles since the start, and how many since the last fuel stop."
@@ -9,7 +9,7 @@
 // builder is the one surface that has to be right while a rider is still
 // dragging stops around. It is null on every unsaved point (`builder.js` sets it
 // so explicitly), so a reader that trusted it would show blanks on exactly the
-// day being planned.
+// route being planned.
 //
 // METERS THROUGHOUT, and nothing here formats. Miles or kilometers is the
 // rider's preference and belongs to units.js at the point of display; a module
@@ -20,11 +20,11 @@
 (function (window) {
   "use strict";
 
-  var pointsOf = function (day) {
-    return (day && day.points) || [];
+  var pointsOf = function (route) {
+    return (route && route.points) || [];
   };
-  var legsOf = function (day) {
-    return (day && day.legs) || [];
+  var legsOf = function (route) {
+    return (route && route.legs) || [];
   };
 
   // A leg with no distance contributes nothing rather than breaking the sum. An
@@ -36,20 +36,20 @@
   }
 
   /**
-   * Meters from the start of the day to each point, in order.
+   * Meters from the start of the route to each point, in order.
    *
    * `legs[i]` joins `points[i]` to `points[i+1]`, so point 0 is always 0 and
    * point i is the sum of the legs before it. BOTH KINDS COUNT — a POI is on the
    * route and anchors a leg, so skipping them would under-report every distance
    * after the first one.
    *
-   * Always the same length as `day.points`, so a caller can index it with a row
-   * index without checking. A day with more points than legs — which is every
-   * complete day, and also a half-routed one — simply stops accumulating.
+   * Always the same length as `route.points`, so a caller can index it with a row
+   * index without checking. A route with more points than legs — which is every
+   * complete route, and also a half-routed one — simply stops accumulating.
    */
-  function cumulativeM(day) {
-    var points = pointsOf(day);
-    var legs = legsOf(day);
+  function cumulativeM(route) {
+    var points = pointsOf(route);
+    var legs = legsOf(route);
     var out = [];
     var run = 0;
     for (var i = 0; i < points.length; i++) {
@@ -59,11 +59,11 @@
     return out;
   }
 
-  /** The whole day, which is the last point's distance. Zero for an empty day
-   *  rather than null: a day with no points is zero miles long, and nothing
+  /** The whole route, which is the last point's distance. Zero for an empty route
+   *  rather than null: a route with no points is zero miles long, and nothing
    *  measured it wrongly. */
-  function totalM(day) {
-    var c = cumulativeM(day);
+  function totalM(route) {
+    var c = cumulativeM(route);
     return c.length ? c[c.length - 1] : 0;
   }
 
@@ -86,15 +86,15 @@
    * asking is how far the NEXT one is, and a row that said 180 at the fuel stop
    * would be answering the previous leg's question in the next leg's row.
    *
-   * Before the first refuel it counts from the start of the day, because that is
-   * where the tank was last full — near enough. It is not: a rider joining day 3
+   * Before the first refuel it counts from the start of the route, because that is
+   * where the tank was last full — near enough. It is not: a rider joining route 3
    * on whatever they had left is not starting full, and this module cannot know
    * that. Stated rather than modelled, because the alternative is asking every
-   * rider what is in their tank at the start of every day.
+   * rider what is in their tank at the start of every route.
    */
-  function sinceRefuelM(day, fuelRole) {
-    var points = pointsOf(day);
-    var cum = cumulativeM(day);
+  function sinceRefuelM(route, fuelRole) {
+    var points = pointsOf(route);
+    var cum = cumulativeM(route);
     var out = [];
     var lastRefuelAt = 0;
     for (var i = 0; i < points.length; i++) {
@@ -105,20 +105,20 @@
   }
 
   /**
-   * The first point the day runs dry at, or null.
+   * The first point the route runs dry at, or null.
    *
    * NULL WHEN NO RANGE IS KNOWN, NEVER A GUESS. A range nobody has measured is
    * `bikes.usable_range_m = null`, and a fuel warning built on an invented
    * number is worse than no warning because it looks like one — the same
    * argument null twistiness makes. Callers must render nothing, not "0 miles".
    *
-   * It reports the FIRST breach only. A day that overshoots at point 4 is
+   * It reports the FIRST breach only. A route that overshoots at point 4 is
    * already wrong there, and every later point inherits the error — flagging all
    * of them turns one problem into a column of red.
    */
-  function firstDryPoint(day, fuelRole, rangeM) {
+  function firstDryPoint(route, fuelRole, rangeM) {
     if (rangeM == null || !(rangeM > 0)) return null;
-    var since = sinceRefuelM(day, fuelRole);
+    var since = sinceRefuelM(route, fuelRole);
     for (var i = 0; i < since.length; i++) {
       if (since[i] > rangeM) return i;
     }
@@ -126,26 +126,26 @@
   }
 
   /**
-   * Where a point measured at `m` meters into the day belongs in its list.
+   * Where a point measured at `m` meters into the route belongs in its list.
    *
    * `legs[i]` joins `points[i]` to `points[i+1]`, so a distance falling inside
    * leg i puts the new point between those two — index i+1. Past the end of the
-   * day it appends, which is the honest answer rather than a clamp: a meeting
+   * route it appends, which is the honest answer rather than a clamp: a meeting
    * point beyond the last leg IS after the last point.
    *
    * It returns the GEOMETRIC answer and applies no floor. "Never before a
    * group's starting point" is a rule about what a meeting point means, not
    * about where a distance falls, and it lives with the caller that knows it.
    *
-   * An unrouted leg measures zero — see legMeters — so a half-routed day lands
+   * An unrouted leg measures zero — see legMeters — so a half-routed route lands
    * the point at the first leg the router has not answered for yet. That is the
    * same wrong-in-the-safe-direction the rest of this module takes: too early in
    * the list is a drag, too late is a road that doubles back.
    */
-  function insertIndexAtM(day, m) {
-    var points = pointsOf(day);
+  function insertIndexAtM(route, m) {
+    var points = pointsOf(route);
     if (points.length === 0) return 0;
-    var cum = cumulativeM(day);
+    var cum = cumulativeM(route);
     for (var i = 1; i < cum.length; i++) {
       if (m < cum[i]) return i;
     }
@@ -153,35 +153,35 @@
   }
 
   /**
-   * Which day of a strand a distance falls on, and where in that day's list.
+   * Which route of a strand a distance falls on, and where in that route's list.
    *
-   * A STRAND IS THE CALLER'S TO ASSEMBLE — this takes the days already filtered
+   * A STRAND IS THE CALLER'S TO ASSEMBLE — this takes the routes already filtered
    * and ordered, the same list the server measured `alongM` along, because the
    * two have to agree about what a group rides and there is exactly one
    * definition of that (strandOf, mirrored client-side by the same filter).
    *
    * Returns `{ index, at }`, where `index` addresses the array it was PASSED
-   * rather than `state.days` — the caller did the filtering and is the one that
+   * rather than `state.routes` — the caller did the filtering and is the one that
    * can map back. Null for an empty strand, which is a real state: a group with
-   * no day of its own has no road for a point to go on.
+   * no route of its own has no road for a point to go on.
    *
-   * A distance past the end of the strand lands on the last day. That is not a
+   * A distance past the end of the strand lands on the last route. That is not a
    * failure case but a rounding one — the server measures along stored geometry
    * and the builder along the legs in memory, so the two totals differ by meters
    * and a meet at the very end of the road can fall off it.
    */
-  function placeAlongStrand(days, m) {
-    if (!days || days.length === 0) return null;
+  function placeAlongStrand(routes, m) {
+    if (!routes || routes.length === 0) return null;
     var run = 0;
-    for (var i = 0; i < days.length; i++) {
-      var total = totalM(days[i]);
-      // `<=` rather than `<` so a distance landing exactly on a day boundary
-      // goes to the day it ENDS, not the next one's first point — the same
+    for (var i = 0; i < routes.length; i++) {
+      var total = totalM(routes[i]);
+      // `<=` rather than `<` so a distance landing exactly on a route boundary
+      // goes to the route it ENDS, not the next one's first point — the same
       // choice rideSegments makes in the other direction and for the opposite
-      // reason: there the next day's start is a time the rider typed, here the
-      // previous day's end is a place they already planned.
-      if (m <= run + total || i === days.length - 1) {
-        return { index: i, at: insertIndexAtM(days[i], m - run) };
+      // reason: there the next route's start is a time the rider typed, here the
+      // previous route's end is a place they already planned.
+      if (m <= run + total || i === routes.length - 1) {
+        return { index: i, at: insertIndexAtM(routes[i], m - run) };
       }
       run += total;
     }

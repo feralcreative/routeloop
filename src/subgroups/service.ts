@@ -1,7 +1,7 @@
 // Subgroups, query side. The rules are in ./policy.ts, ./schedule.ts and
 // ./rendezvous.ts, and nothing here re-decides one.
 //
-// RECONCILED BY UID, NOT CHURNED. Every other child of a ride — days, points,
+// RECONCILED BY UID, NOT CHURNED. Every other child of a ride — routes, points,
 // legs — is deleted and re-inserted on every save, and this deliberately is not:
 // `ride_members.subgroup_id` and `rides.primary_subgroup_id` both point at these
 // rows, and a delete-and-reinsert would null every one of them on the first edit
@@ -13,6 +13,7 @@ import { db } from '../db/index'
 import { rideMembers, rideSubgroups, rides, users, type RideSubgroupRow, type TimeAnchor } from '../db/schema'
 import type { Tx } from '../maps/ride-graph'
 import { newUid } from '../maps/uid'
+import { routeUidsForRider } from '../route-riders/service'
 
 /** The db or a transaction on it. `seedMainGroup` runs inside the same
  *  transaction that inserts the ride at every real call site — the same
@@ -29,12 +30,12 @@ export type SubgroupInput = {
 
 /**
  * Bring the stored subgroups into line with the payload, and hand back the
- * uid → id map every day insert needs.
+ * uid → id map every route insert needs.
  *
- * Runs BEFORE the days are inserted, inside the save transaction, because
- * `days.subgroup_id` is resolved through the map this returns.
+ * Runs BEFORE the routes are inserted, inside the save transaction, because
+ * `routes.subgroup_id` is resolved through the map this returns.
  *
- * Deleting a subgroup is `set null` on both sides: its days become everyone's
+ * Deleting a subgroup is `set null` on both sides: its routes become everyone's
  * and its riders become ungrouped, rather than either being destroyed. That is
  * the `place_groups` call again — a rider tidying up a name must not lose the
  * road they planned.
@@ -214,6 +215,22 @@ export type Strand = {
   group: RideSubgroupRow | null
   /** Every subgroup on the ride, so a page can offer the others. */
   all: RideSubgroupRow[]
+  /**
+   * The route uids this VIEWER is on, or null when nothing narrows.
+   *
+   * **THIS OUTRANKS `subgroupId` AND IS THE REASON A PER-RIDER EXPORT IS NOW
+   * CORRECT.** A strand is a GROUP's run — its own routes plus every shared one
+   * — which was an approximation of what a rider wanted and is wrong the moment
+   * two riders in one group ride different stretches. A friend who joins for the
+   * middle of a ride is on neither group's strand and on exactly three routes.
+   * `route_riders` is what knows that; see src/route-riders/policy.ts.
+   *
+   * **ONLY WHEN THE STRAND WAS DERIVED FROM MEMBERSHIP.** An explicit `?group`
+   * is a planner asking for a GROUP's view and still gets one, and `?group=all`
+   * is the way back to the whole ride — narrowing either to the viewer's own
+   * routes would take away the question they asked.
+   */
+  routeUids: string[] | null
 }
 
 /**
@@ -235,13 +252,27 @@ export type Strand = {
  */
 export async function resolveStrand(rideId: number, viewerId: number | null, requested?: string): Promise<Strand> {
   const all = await subgroupsOf(rideId)
-  if (all.length === 0) return { subgroupId: undefined, group: null, all }
-  if (requested === 'all') return { subgroupId: undefined, group: null, all }
+  // A RIDE WITH NO SUBGROUPS CAN STILL NARROW BY RIDER, which is what makes the
+  // Portland case work: a friend riding the middle three routes of a solo tour
+  // needs no group at all, and asking for one to express it is the machinery
+  // #67 was trying to avoid. So this is asked before the early returns rather
+  // than after them.
+  const routeUids = await routeUidsForRider(rideId, viewerId)
+  if (all.length === 0) return { subgroupId: undefined, group: null, all, routeUids }
+  // `all` is the planner's way back to the WHOLE ride, so it clears both
+  // narrowings and not just the group one.
+  if (requested === 'all') return { subgroupId: undefined, group: null, all, routeUids: null }
 
+  // An explicit group is the question that was asked; answering it with the
+  // viewer's own routes instead would be answering a different one.
   const asked = requested ? (all.find((g) => g.uid === requested) ?? null) : null
-  if (asked) return { subgroupId: asked.id, group: asked, all }
+  if (asked) return { subgroupId: asked.id, group: asked, all, routeUids: null }
 
   const mine = viewerId === null ? null : await subgroupOf(rideId, viewerId)
-  if (mine === null) return { subgroupId: undefined, group: null, all }
-  return { subgroupId: mine, group: all.find((g) => g.id === mine) ?? null, all }
+  if (mine === null) return { subgroupId: undefined, group: null, all, routeUids }
+  // BOTH, and `loadRideForExport` applies the uids first. A rider is on their
+  // group's strand by construction in the ordinary case, so the two agree —
+  // and where they disagree it is because somebody joined or left partway,
+  // which is exactly what the uids know and the strand does not.
+  return { subgroupId: mine, group: all.find((g) => g.id === mine) ?? null, all, routeUids }
 }

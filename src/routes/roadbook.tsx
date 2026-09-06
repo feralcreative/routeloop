@@ -15,7 +15,7 @@
 // No JavaScript. It is a page you print.
 import { Hono } from 'hono'
 import type { AuthEnv } from '../auth/middleware'
-import { loadRideForExport, type ExportPoint, type ExportDay } from '../maps/export'
+import { loadRideForExport, type ExportPoint, type ExportRoute } from '../maps/export'
 import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
@@ -56,11 +56,11 @@ function fmtDuration(seconds: number): string {
 
 // fmtClock and fmtDate used to live here with a hardcoded 'en-US'. They are in
 // src/views/date-format.ts now and take the rider's format, because this is the
-// one page that gets PRINTED and carried — a rider who plans a day in 24/08 and
+// one page that gets PRINTED and carried — a rider who plans a route in 24/08 and
 // prints a sheet saying 08/24 is reading two different products. Both still read
-// in UTC, which is now the right answer rather than a workaround: a day's clock
+// in UTC, which is now the right answer rather than a workaround: a route's clock
 // is a wall clock at the departure point, carried as UTC. See that file, and the
-// header of public/js/day-clock.js.
+// header of public/js/route-clock.js.
 
 const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(SEP)
 
@@ -74,7 +74,7 @@ export type Row = {
   arrive: Date | null
 }
 
-// Everything the sheet needs, computed once per day.
+// Everything the sheet needs, computed once per route.
 //
 // `sinceFuel` is the column that earns its place: the distance since the last
 // stop that could fill a tank. A rider with a 180-mile range needs to see 210
@@ -84,7 +84,7 @@ export type Row = {
 // on that tank rather than the 0 you are about to reset to. That is the number
 // worth printing: it tells you what the bike actually did on the last tank, and
 // the 0 says nothing you did not already know from the word "Gas" in the row.
-export function dayRows(route: ExportDay): Row[] {
+export function routeRows(route: ExportRoute): Row[] {
   // THE RIDER'S OWN ORDER, which is the order the rows arrive in — every point
   // carries a position now and loadRideForExport reads by it.
   //
@@ -96,8 +96,8 @@ export function dayRows(route: ExportDay): Row[] {
   // sheet should say what the rider planned.
   const ordered = route.points
 
-  // Riding seconds are known per day, not per leg-between-stops, so they are
-  // spread across the day's distance. That is an estimate and the header says
+  // Riding seconds are known per route, not per leg-between-stops, so they are
+  // spread across the route's distance. That is an estimate and the header says
   // so; the alternative is no clock at all, which is worse on a sheet whose
   // whole job is telling you whether you are behind.
   const perMeter = route.distanceM > 0 ? route.durationS / route.distanceM : 0
@@ -125,7 +125,7 @@ export function dayRows(route: ExportDay): Row[] {
     rows.push({
       point: p,
       n: isPoi ? null : ++n,
-      // null, not 0, for the first point of the day: there is no leg before it.
+      // null, not 0, for the first point of the route: there is no leg before it.
       // Same convention as atM and sinceFuelM — a dash means "no answer", and
       // relying on 0 being falsy in the template would make the value itself a
       // lie for anything that read it directly.
@@ -172,17 +172,22 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // print and carry; printing the road you decided against is worse than useless
   // on a tank bag. `ride.hiddenAlts` is how many were left out.
   // WHOSE ROADBOOK. A rider on the Sacramento approach opens this and gets
-  // their own — their approach plus every shared day, and nothing about
+  // their own — their approach plus every shared route, and nothing about
   // Oakland's morning. Derived from membership rather than asked for; `?group`
   // overrides it and `?group=all` is the planner's way back to the whole ride.
   const strand = await resolveStrand(m.id, user?.id ?? null, c.req.query('group'))
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
-  if (ride.days.length === 0) return c.text('Not found', 404)
+  const ride = await loadRideForExport(
+    m.id,
+    { title: m.title, description: m.description },
+    strand.subgroupId,
+    strand.routeUids,
+  )
+  if (ride.routes.length === 0) return c.text('Not found', 404)
 
   const units = await unitsFor(c)
-  const totalM = ride.days.reduce((n, r) => n + r.distanceM, 0)
-  const totalS = ride.days.reduce((n, r) => n + r.durationS, 0)
-  const anyClock = ride.days.some((r) => r.startAt)
+  const totalM = ride.routes.reduce((n, r) => n + r.distanceM, 0)
+  const totalS = ride.routes.reduce((n, r) => n + r.durationS, 0)
+  const anyClock = ride.routes.some((r) => r.startAt)
 
   return c.html(
     page({
@@ -194,7 +199,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
           <header class="rb-head">
             <h1>{m.title}</h1>
             <p class="rb-summary">
-              {ride.days.length} {ride.days.length === 1 ? 'day' : 'days'}
+              {ride.routes.length} {ride.routes.length === 1 ? 'route' : 'routes'}
               {SEP}
               {fmtMi(totalM, units)} {distanceUnit(units)}
               {totalS > 0 && (
@@ -217,15 +222,15 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
             )}
           </header>
 
-          {ride.days.map((r, i) => {
-            const rows = dayRows(r)
+          {ride.routes.map((r, i) => {
+            const rows = routeRows(r)
             return (
-              <section class="rb-day">
+              <section class="rb-route">
                 <h2>
-                  <span class="rb-day-swatch" style={`background:${r.color}`}></span>
+                  <span class="rb-route-swatch" style={`background:${r.color}`}></span>
                   {r.title || `Route ${i + 1}`}
                 </h2>
-                <p class="rb-day-meta">
+                <p class="rb-route-meta">
                   {r.startAt && (
                     <>
                       {fmtDateLong(r.startAt, dateFormat)}

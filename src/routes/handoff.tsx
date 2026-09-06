@@ -3,12 +3,12 @@
 //
 // Most riders are on a phone, not a dedicated unit, so this is the hand-off
 // that matters most. Google Maps takes nine waypoints per link, which is the
-// constraint everything here is shaped by: a day becomes an ordered series of
+// constraint everything here is shaped by: a route becomes an ordered series of
 // links rather than one, and holding the route to the roads it was planned on
 // is paid for in links rather than in points per link.
 //
 // The number this page refuses to hide is the longest unpinned stretch. Between
-// two consecutive points Maps routes however it likes, so a day handed over as
+// two consecutive points Maps routes however it likes, so a route handed over as
 // six stops leaves it twenty-odd miles of freedom at the worst point. Saying so
 // is the difference between this and every tool that claims a clean hand-off
 // and delivers a route that wandered.
@@ -64,22 +64,27 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
 
   // ACTIVE DAYS ONLY, via loadRideForExport. Nothing below needs to know about
   // alternates as a result: the link count, the worst-gap figure, the "across N
-  // days" summary and the per-day headings are all over the ride as it will be
-  // ridden. Handing a rider a Google Maps link for a day they chose not to do is
+  // routes" summary and the per-route headings are all over the ride as it will be
+  // ridden. Handing a rider a Google Maps link for a route they chose not to do is
   // the one outcome this page must not produce.
   // WHOSE HAND-OFF. #67's per-rider export: mine starts in Oakland, Dylan's in
   // Sacramento, and neither is handed the other's morning. Derived from
   // membership; `?group=all` is the planner's way back to the whole ride.
   const strand = await resolveStrand(m.id, user?.id ?? null, c.req.query('group'))
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
-  if (ride.days.length === 0) return c.text('Not found', 404)
+  const ride = await loadRideForExport(
+    m.id,
+    { title: m.title, description: m.description },
+    strand.subgroupId,
+    strand.routeUids,
+  )
+  if (ride.routes.length === 0) return c.text('Not found', 404)
 
   const density = densityOf(c.req.query('density'))
-  const days: GmapsRouteLinks[] = ride.days.map((r) => routeLinks(r, { shapingPoints: density.points }))
-  const totalLinks = days.reduce((n, d) => n + d.links.length, 0)
-  // The worst day is what the rider should be told about, not an average that
+  const routes: GmapsRouteLinks[] = ride.routes.map((r) => routeLinks(r, { shapingPoints: density.points }))
+  const totalLinks = routes.reduce((n, d) => n + d.links.length, 0)
+  // The worst route is what the rider should be told about, not an average that
   // hides it.
-  const gaps = days.map((d) => d.longestGapM).filter((g): g is number => g !== null)
+  const gaps = routes.map((d) => d.longestGapM).filter((g): g is number => g !== null)
   const worstGapM = gaps.length > 0 ? Math.max(...gaps) : null
 
   return c.html(
@@ -92,8 +97,8 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
           <header class="ho-head">
             <h1>{m.title}</h1>
             <p class="ho-summary">
-              {totalLinks} {totalLinks === 1 ? 'link' : 'links'} across {ride.days.length}{' '}
-              {ride.days.length === 1 ? 'day' : 'days'}
+              {totalLinks} {totalLinks === 1 ? 'link' : 'links'} across {ride.routes.length}{' '}
+              {ride.routes.length === 1 ? 'route' : 'routes'}
             </p>
             <p class="ho-note">
               Open a link and Google Maps starts from where you are. Ride it, and when you arrive open the next one.
@@ -124,19 +129,19 @@ handoffRoutes.get('/m/:slug/navigate', async (c) => {
             )}
           </section>
 
-          {ride.days.map((r, dayIndex) => {
-            const day = days[dayIndex]
+          {ride.routes.map((r, routeIndex) => {
+            const route = routes[routeIndex]
             return (
-              <section class="ho-day">
-                <h2>{day.title?.trim() || `Route ${dayIndex + 1}`}</h2>
-                {day.links.length === 0 ? (
+              <section class="ho-route">
+                <h2>{route.title?.trim() || `Route ${routeIndex + 1}`}</h2>
+                {route.links.length === 0 ? (
                   <p class="ho-empty">Nothing to navigate—this route has no stops yet.</p>
                 ) : (
                   <ol class="ho-links">
-                    {day.links.map((link) => (
+                    {route.links.map((link) => (
                       <li>
                         <a class="ho-go" href={link.url} target="_blank" rel="noopener noreferrer">
-                          {linkLabel(day, link, dayIndex)}
+                          {linkLabel(route, link, routeIndex)}
                         </a>
                         <p class="ho-stops">
                           {link.points.map((p) => p.name || 'Unnamed stop').join(' → ')}

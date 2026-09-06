@@ -1,15 +1,15 @@
-// A day's start and end are WALL CLOCK TIMES AT THE DEPARTURE POINT, and this
+// A route's start and end are WALL CLOCK TIMES AT THE DEPARTURE POINT, and this
 // file is the only place that converts between one and the string an
 // `<input type="datetime-local">` speaks.
 //
 // THE RULE, Ziad's call 2026-08-24: a time is a time is a time at the departure
 // point. A rider who plans a 9am departure means 9am where the bike is, and that
 // is true whether they planned it from home, from a hotel in another state, or
-// from London two weeks before flying out. Nothing in this app converts a day's
+// from London two weeks before flying out. Nothing in this app converts a route's
 // clock into anyone's local time, ever.
 //
 // HOW THAT IS CARRIED: the wall clock rides in the ISO string as though it were
-// UTC. 9am becomes `2026-08-24T09:00:00.000Z`, `days.start_at` stores
+// UTC. 9am becomes `2026-08-24T09:00:00.000Z`, `routes.start_at` stores
 // `09:00:00+00`, and every surface that renders it already asks for
 // `timeZone: 'UTC'` — the roadbook (src/views/date-format.ts), the export
 // filename (src/maps/filename.ts), and the import preview (public/js/import.js).
@@ -28,12 +28,12 @@
 // WHY UTC METHODS EVERYWHERE BELOW: UTC has no daylight saving, so every
 // conversion in this file is plain arithmetic on the digits the rider typed.
 // The local-zone versions of these same functions had to be right about DST
-// transitions and were not — a day starting on the morning the clocks went
+// transitions and were not — a route starting on the morning the clocks went
 // forward came back an hour out.
 //
-// Pure arithmetic, no DOM: test/day-clock.test.ts evals this file, the same
+// Pure arithmetic, no DOM: test/route-clock.test.ts evals this file, the same
 // arrangement as duration.js, twist.js and route-shape.js.
-window.TBDayClock = (function () {
+window.TBRouteClock = (function () {
   "use strict";
 
   // What `<input type="datetime-local">` reads and writes. Seconds are optional
@@ -73,7 +73,7 @@ window.TBDayClock = (function () {
    * Built from the digits rather than by handing the string to `new Date()`,
    * which parses an offsetless datetime as local time — that is exactly the
    * conversion this file exists to refuse. Seconds are dropped: the field's
-   * resolution is a minute and a day's start is not a stopwatch.
+   * resolution is a minute and a route's start is not a stopwatch.
    */
   function inputToIso(value) {
     const m = INPUT_RE.exec(String(value || ""));
@@ -93,8 +93,8 @@ window.TBDayClock = (function () {
    * The first `hour` o'clock strictly after the given moment.
    *
    * Anchoring on the end INSTANT rather than on its calendar date is what keeps
-   * a day that runs past midnight sane — "the morning after the end date" would
-   * skip a day for a ride finishing at 2am, this does not.
+   * a route that runs past midnight sane — "the morning after the end date" would
+   * skip a route for a ride finishing at 2am, this does not.
    */
   function nextMorningAfter(iso, hour) {
     if (!iso) return null;

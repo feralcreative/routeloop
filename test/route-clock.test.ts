@@ -1,7 +1,7 @@
-// A day's clock is a WALL CLOCK AT THE DEPARTURE POINT, and this is the test
+// A route's clock is a WALL CLOCK AT THE DEPARTURE POINT, and this is the test
 // that says so in a way a click-through cannot.
 //
-// The bug it exists to prevent shipped twice. The builder wrote a day's start by
+// The bug it exists to prevent shipped twice. The builder wrote a route's start by
 // attaching the BROWSER's offset (`new Date("2026-08-24T09:00").toISOString()`),
 // so a 9am departure planned in California was stored as 16:00 and the printed
 // roadbook — which renders in UTC — said 4:00 PM. The same mistake, in the other
@@ -30,8 +30,8 @@ const priorTz = process.env.TZ
 beforeAll(() => {
   process.env.TZ = 'America/Los_Angeles'
   const win: any = {}
-  new Function('window', readFileSync('public/js/day-clock.js', 'utf8'))(win)
-  C = win.TBDayClock
+  new Function('window', readFileSync('public/js/route-clock.js', 'utf8'))(win)
+  C = win.TBRouteClock
 })
 
 afterAll(() => {
@@ -102,15 +102,15 @@ describe('round trip', () => {
 })
 
 describe('nextMorningAfter', () => {
-  it('is the same days morning when the day ended before it', () => {
+  it('is the same routes morning when the route ended before it', () => {
     expect(C.nextMorningAfter('2026-08-24T02:00:00.000Z', 8)).toBe('2026-08-24T08:00:00.000Z')
   })
 
-  it('is the next mornings when the day ended after it', () => {
+  it('is the next mornings when the route ended after it', () => {
     expect(C.nextMorningAfter('2026-08-24T19:30:00.000Z', 8)).toBe('2026-08-25T08:00:00.000Z')
   })
 
-  it('is strictly after — a day ending exactly at the hour rolls forward', () => {
+  it('is strictly after — a route ending exactly at the hour rolls forward', () => {
     expect(C.nextMorningAfter('2026-08-24T08:00:00.000Z', 8)).toBe('2026-08-25T08:00:00.000Z')
   })
 
