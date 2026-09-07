@@ -667,7 +667,19 @@
   // inside it now rather than a glyph alone.
   width: 1.45em;
   height: 1.45em;
-  padding: 0;
+  // THE LEGEND SITS A TENTH OF AN EM LOW, the same correction `.btn-sign` makes
+  // to its own legend and for the same reason: a `?` centered by its line box
+  // reads high, because the glyph's ink sits above the baseline with the
+  // descender space still counted underneath it. Ziad's call, 2026-09-07.
+  //
+  // ASYMMETRIC PADDING RATHER THAN A TRANSFORM, because there is no element
+  // around the glyph to move — it is a bare text node, and giving it a wrapper
+  // would cost `fieldHelp()` the property worth having, that the badge is one
+  // button with a character in it. Flex centers within the CONTENT box, so
+  // 0.2em off the top shifts the center by half that. `box-sizing: border-box`
+  // keeps the circle 1.45em through it, and an inset shadow is drawn from the
+  // border box, so the keyline does not move either.
+  padding: 0.2em 0 0;
   margin-left: 0.4em;
   background: $disabled;
   // **$ink-light AND NOT $white, AND THIS IS THE ONE TRAP IN THE WHOLE RULE.**
@@ -684,7 +696,19 @@
   border: 0;
   border-radius: 50%;
   font: inherit;
-  font-size: 0.75em;
+  // 20% down from 0.75em. Ziad's call, 2026-09-07 — the badge read as loud
+  // beside a label at the larger size.
+  //
+  // THE ONE DECLARATION SCALES THE WHOLE BADGE, which is why the size is not
+  // written into `width` as a rem: a non-font `em` resolves against the
+  // element's OWN font-size, so the 1.45em box and the 0.4em gap come down with
+  // the glyph and the proportions hold. Changing the box alone would leave a
+  // full-size `?` overflowing a smaller circle.
+  //
+  // The keyline stays at 1px and 2px and so reads slightly heavier here, which
+  // is deliberate rather than overlooked: a sub-pixel ring is not a ring, and at
+  // this size the inset border is most of what says "sign" rather than "icon".
+  font-size: 0.6em;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -697,6 +721,25 @@
   // Named per field by the wrapper's --anchor, so the bubble below can find
   // exactly this dot. Ignored by a browser with no anchor positioning.
   anchor-name: var(--anchor);
+  // The containing block for the tap target below.
+  position: relative;
+
+  // A TAP TARGET LARGER THAN THE BADGE, and it is what the 20% reduction cost.
+  // The circle is 13.9px; WCAG 2.2's Target Size (Minimum) asks for 24, and a
+  // 14px dot is a poor thing to aim a thumb at whatever the guideline says.
+  // Inset -5px puts a transparent 24px square around it.
+  //
+  // A PSEUDO-ELEMENT RATHER THAN PADDING, because padding would grow the circle
+  // — the border-radius and the inset keyline are both drawn on the border box,
+  // so the badge would stop being the size that was asked for. This leaves the
+  // drawing alone and only widens what a pointer hits.
+  //
+  // No `content` on a <button> would render nothing at all, so it is `""`.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+  }
 
   // Lit differently, not a different sign — the guide sign's own rule, and both
   // inset layers move together for the same reason they do there. color-mix in
