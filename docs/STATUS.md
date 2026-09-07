@@ -30,6 +30,16 @@
 
 **Needs a browser pass.** The CSS class rename and the wire-format keys are the half no test covers, and a wire key is what silently loaded zero days when this rename ran in the other direction on 2026-08-09.
 
+## Meeting points in Oakland for a ride to Ensenada—2026-09-06
+
+**Reported on stage, reproduced on stage, and it was not the bug fixed an hour earlier.** Both satellites were offered gas stations in Oakland, each labelled "on their way"—which is the tell: the proposer thought VMCSC was already riding the road at Oakland.
+
+**`routeFor()` built a joining group's track from its STRAND.** A strand is a group's own routes plus every shared one, and a shared route is precisely the road they have not ridden yet. So each satellite's track WAS the main group's road: every candidate fell within `ON_ROUTE_M`, every divert came out at zero, and the earliest acceptable point won—the start.
+
+**Why it looked like a data problem.** The same ride shape worked earlier the same day on ride 34, whose main route was TAGGED VMCSF rather than shared—so it sat in nobody else's strand and the satellites' tracks were correctly empty. Ride 31's main route is tagged "everybody". The tags on stage were checked first and were intact, which is what ruled the earlier fix out.
+
+**A joining group's track is now its own routes only**; the primary keeps the strand, because for them the shared road is theirs. Pinned in `test/rendezvous.test.ts` by running both readings against one another: handed the main road a group pays zero everywhere and meets at the start; told the truth it pays a real divert and meets somewhere sensible.
+
 ## The legacy tag erased itself, and it took meeting points with it—2026-09-06
 
 **Caught on stage within minutes of the merge, before any prod deploy.** A new ride from Oakland to Ensenada with SC and SLO groups proposed all of its meeting points in Oakland.
