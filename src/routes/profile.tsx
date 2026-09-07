@@ -38,6 +38,7 @@ const profileFields = {
   displayName: z.string().trim().min(1, 'display name is required').max(255),
   firstName: optionalText(80),
   lastName: optionalText(80),
+  homeLabel: optionalText(120),
   addressLine: optionalText(255),
   city: optionalText(120),
   state: optionalText(80),
@@ -281,17 +282,29 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           <legend>Who you are</legend>
           <div class="who-grid">
             <div class="who-fields">
-              <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
-              <Field
-                name="username"
-                label="Username"
-                values={v}
-                errors={errors}
-                hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
-              />
+              {/* TWO UP, because these are four short answers rather than four
+                  paragraphs and a column of full-width boxes makes them read as
+                  a longer form than they are. The pairs are the ones a rider
+                  fills in together. `.field-pair` stacks below 768px. */}
+              <div class="field-pair">
+                <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
+                <Field
+                  name="username"
+                  label="Username"
+                  values={v}
+                  errors={errors}
+                  hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+                />
+              </div>
+              {/* FULL WIDTH AND OUTSIDE THE PAIR. It belongs to the username
+                  above it, but it is a list rather than a field — put in the
+                  pair it would stretch the row to its own height and leave the
+                  display name floating beside a column of dates. */}
               <HistoryBlock rows={history ?? []} />
-              <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
-              <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
+              <div class="field-pair">
+                <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
+                <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
+              </div>
               <Check name="shareLastName" label="Show my last name to other riders" values={v} />
             </div>
 
@@ -370,6 +383,45 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
 
         <fieldset>
           <legend>Home base</legend>
+          {/*
+            WHAT IT SAYS IS WHAT THE CODE DOES, and the difference matters more
+            here than anywhere else on this form. Ziad asked for copy saying a
+            ride going public "automatically swaps" the home address for the
+            public starting point. `offerPublicStart()` in builder.js does not:
+            it ASKS, with a confirm; it fires on any level above private rather
+            than on public alone; and it does nothing at all when no public
+            starting point is set. Promising an automatic swap that is really a
+            dialog somebody can dismiss is how a rider publishes their house
+            believing the app had handled it.
+
+            SO THE THIRD SENTENCE IS THE LOAD-BEARING ONE. The offer needs a
+            public starting point to exist, and a rider with none gets no
+            prompt — which is exactly the rider most in need of one.
+          */}
+          <p class="field-hint">
+            Only ever on rides you keep private or friends-only, and only if you ask for it below. Share a ride any
+            wider and the builder offers to swap your home for your public starting point before anyone sees&nbsp;it —
+            so set one up on the right, because with none there is nothing to offer and the pin stays on
+            your&nbsp;house.
+          </p>
+          {/* NAMED, LIKE THE PUBLIC STARTING POINT BELOW. Ziad's call,
+              2026-09-07: the builder seeds a rider's first point from this
+              address and called it "Home", hardcoded — which is right for most
+              people and wrong for anyone whose home base is the shop, a
+              storage unit, or somebody else's garage.
+
+              THE FALLBACK LIVES IN CODE AND NOT IN A COLUMN DEFAULT, so a rider
+              who clears the field goes back to "Home" rather than having it
+              written into their profile as though they had typed it. Same
+              arrangement `start_label` has with "Meeting point". */}
+          <Field
+            name="homeLabel"
+            label="Name it"
+            values={v}
+            errors={errors}
+            hint={'What a stop here is called on a ride. “Bill’s apartment”, “the shop”. Defaults to Home.'}
+            autocomplete="off"
+          />
           <Field name="addressLine" label="Address" values={v} errors={errors} autocomplete="street-address" />
           <Field name="city" label="City" values={v} errors={errors} autocomplete="address-level2" />
           <Field name="state" label="State or region" values={v} errors={errors} autocomplete="address-level1" />
@@ -387,9 +439,13 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket parking
             lot. Somewhere you can actually meet people is ideal.
           </p>
+          {/* "SHARED", NOT "SHARED PUBLICLY". offerPublicStart() fires on any
+              level above private — unlisted and friends-only included — and a
+              rider reading "publicly" would reasonably conclude a friends-only
+              ride was covered by the private case. It is not. */}
           <p class="field-hint">
-            Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on
-            it.
+            Without this there is nothing to swap in, so a ride you started at home keeps the pin on your&nbsp;house the
+            moment you share it with anyone.
           </p>
           <Field
             name="startLabel"
@@ -747,6 +803,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
       const profile = {
         firstName: text(p.firstName),
         lastName: text(p.lastName),
+        homeLabel: text(p.homeLabel),
         addressLine: text(p.addressLine),
         city: text(p.city),
         state: text(p.state),
@@ -839,6 +896,7 @@ const AUTOSAVE_FIELDS = [
   'displayName',
   'firstName',
   'lastName',
+  'homeLabel',
   'cashApp',
   'venmo',
   'paypal',
@@ -852,10 +910,22 @@ const AUTOSAVE_FIELDS = [
 
 const AUTOSAVE_FLAGS = ['shareLastName', 'addHomeToRides', 'sharePaymentHandles', 'sharePhone', 'shareSocials'] as const
 
-/** Which stored column each text field writes, and how its value is cleaned.
- *  The social handles go through handle() and everything else through text(),
- *  which is the only reason this is a table rather than a loop over the names. */
-const AUTOSAVE_CLEAN: Record<string, 'text' | 'handle'> = {
+/**
+ * Which stored column each text field writes, and how its value is cleaned.
+ *
+ * THIS TABLE HAS TO MATCH THE WHOLE-FORM HANDLER'S, and the payment handles are
+ * why that is written down rather than assumed. They were added with a `$`/`@`
+ * drawn in the field and a `money()` strip on `POST /profile` — and this path
+ * cleaned them as plain text, so the SAME typed value stored `$ziad` from the
+ * autosave and `ziad` from the Save button. Two write paths for one form means
+ * every normalizer has to appear in both, and the failure is silent: the field
+ * looks right until something prints it.
+ */
+const AUTOSAVE_CLEAN: Record<string, 'text' | 'handle' | 'money'> = {
+  cashApp: 'money',
+  venmo: 'money',
+  paypal: 'money',
+  // NOT zelle: a phone number or an email, not a handle. See money() below.
   instagram: 'handle',
   facebook: 'handle',
   youtube: 'handle',
@@ -878,6 +948,12 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
       .pop()
     return bare ? bare.replace(/^@+/, '') || null : null
   }
+  // The sigil the field already draws. Mirrors money() in the whole-form handler
+  // above — see the note on AUTOSAVE_CLEAN for why both paths need it.
+  const money = (s: string) => {
+    const bare = handle(s)
+    return bare ? bare.replace(/^[$@]+/, '') || null : null
+  }
 
   const set: Record<string, unknown> = {}
   const errors: Record<string, string> = {}
@@ -892,7 +968,8 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
       continue
     }
     const v = parsed.data as string
-    set[name] = AUTOSAVE_CLEAN[name] === 'handle' ? handle(v) : text(v)
+    const mode = AUTOSAVE_CLEAN[name]
+    set[name] = mode === 'handle' ? handle(v) : mode === 'money' ? money(v) : text(v)
   }
 
   // A checkbox absent from the body is unchecked, but only if the caller was

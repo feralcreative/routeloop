@@ -17,7 +17,7 @@ import {
   rideDirFor,
   type AccountArchiveInput,
 } from '../src/account/archive'
-import type { RideRow, UserIdentityRow, UserProfileRow, UserRow, UsernameHistoryRow } from '../src/db/schema'
+import type { BikeRow, RideRow, UserIdentityRow, UserProfileRow, UserRow, UsernameHistoryRow } from '../src/db/schema'
 import { parseExportName } from '../src/maps/filename'
 
 const AT = new Date('2026-08-14T18:22:00.000Z')
@@ -72,10 +72,33 @@ const input = (over: Partial<AccountArchiveInput> = {}): AccountArchiveInput => 
   profile: null,
   usernameHistory: [],
   identities: [],
+  bikes: [],
   rides: [],
   exportedAt: AT,
   ...over,
 })
+
+/** A bike row, with only the fields the archive reads made interesting. */
+const bike = (over: Partial<BikeRow> = {}): BikeRow =>
+  ({
+    id: 7,
+    ownerId: 1,
+    nickname: 'Nessie',
+    make: 'Triumph',
+    model: 'Tiger 900',
+    year: 2019,
+    fuelType: 'gas',
+    usableRangeM: 289_682,
+    comfortRangeM: null,
+    tankMl: 20_000,
+    photoHash: null,
+    photoBytes: 0,
+    isDefault: true,
+    position: 0,
+    createdAt: AT,
+    updatedAt: AT,
+    ...over,
+  }) as BikeRow
 
 describe('accountArchiveName', () => {
   it('names itself after the rider and the route', () => {
@@ -286,7 +309,18 @@ describe('readmeText', () => {
 
     expect(text).toContain('sanitized')
     expect(text).toContain('Builder undo history')
-    expect(text).toContain('1 ride.')
+    expect(text).toContain('1 ride, 0 bikes.')
+  })
+
+  it('counts bikes beside rides, and singularizes each on its own', () => {
+    const one = readmeText(buildAccountJson(input({ bikes: [bike()] })))
+    expect(one).toContain('0 rides, 1 bike.')
+    const several = readmeText(buildAccountJson(input({ bikes: [bike({ id: 1 }), bike({ id: 2 })] })))
+    expect(several).toContain('0 rides, 2 bikes.')
+  })
+
+  it('says where the bike pictures are', () => {
+    expect(readmeText(buildAccountJson(input()))).toContain('bikes/')
   })
 
   it('counts rides in plural when there are several', () => {
@@ -300,6 +334,60 @@ describe('readmeText', () => {
         }),
       ),
     )
-    expect(text).toContain('2 rides.')
+    expect(text).toContain('2 rides, 0 bikes.')
+  })
+})
+
+// THE PADDOCK, absent from the archive entirely until 2026-09-07 — "everything
+// the app holds about you" did not include a rider's bikes, their ranges, or the
+// photographs they had uploaded of them, and nothing said so.
+describe('bikes', () => {
+  it('carries every bike, in the order the Paddock shows them', () => {
+    const out = buildAccountJson(input({ bikes: [bike({ id: 7 }), bike({ id: 9, isDefault: false, position: 1 })] }))
+    expect(out.bikes.map((b) => b.id)).toEqual([7, 9])
+  })
+
+  // RAW STORED UNITS. The archive is the record of what the app HOLDS, and a
+  // rider's miles-or-kilometers choice is a display preference that is itself a
+  // few lines up in the same file — converting here would make the archive
+  // depend on a setting they can change after exporting it.
+  it('ships meters and milliliters, not miles and gallons', () => {
+    const [b] = buildAccountJson(input({ bikes: [bike()] })).bikes
+    expect(b.usableRangeM).toBe(289_682)
+    expect(b.tankMl).toBe(20_000)
+  })
+
+  it('names a photo only when there is one', () => {
+    const none = buildAccountJson(input({ bikes: [bike({ photoHash: null })] })).bikes[0]
+    expect(none.photo).toBeNull()
+
+    const some = buildAccountJson(input({ bikes: [bike({ id: 42, photoHash: 'abc' })] })).bikes[0]
+    expect(some.photo).toBe('bikes/bike-42.webp')
+  })
+
+  // KEYED BY ID AND NOT BY NAME, which is the opposite of a ride's directory and
+  // for the opposite reason: every field on a bike is optional, so two bikes can
+  // be identically nameless and bikeLabel() answers "Untitled bike" for both.
+  it('gives two nameless bikes two different paths', () => {
+    const out = buildAccountJson(
+      input({
+        bikes: [
+          bike({ id: 1, nickname: null, make: null, model: null, year: null, photoHash: 'a' }),
+          bike({ id: 2, nickname: null, make: null, model: null, year: null, photoHash: 'b' }),
+        ],
+      }),
+    )
+    expect(new Set(out.bikes.map((b) => b.photo)).size).toBe(2)
+  })
+
+  // photoHash is a cache-busting fingerprint for a URL — bookkeeping about
+  // serving, not something the rider gave us. The picture itself is in the zip.
+  it('does not ship the photo hash', () => {
+    const [b] = buildAccountJson(input({ bikes: [bike({ photoHash: 'abc' })] })).bikes
+    expect(b).not.toHaveProperty('photoHash')
+  })
+
+  it('is an empty list for a rider with no bikes', () => {
+    expect(buildAccountJson(input()).bikes).toEqual([])
   })
 })

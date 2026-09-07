@@ -575,6 +575,30 @@
   }
 }
 
+// TWO SHORT FIELDS SIDE BY SIDE — a display name and a username, a first name
+// and a last name. Generic rather than profile-specific, which is why it lives
+// here beside `.field` rather than in _account.scss.
+//
+// The children are `.field`s, which carry their own bottom margin, so the row
+// gap is 0 and the column gap is the only one declared. A row gap on top of that
+// margin double-spaces the stacked case, which is the one on every phone.
+.field-pair {
+  display: grid;
+  gap: 0 1.5rem;
+}
+
+//@ MD ≥768px — two across. Below it they stack, which is what a `.field`'s own
+//@ margin already lays out correctly.
+@media (min-width: 768px) {
+  .field-pair {
+    grid-template-columns: 1fr 1fr;
+    // START, NOT STRETCH: one of a pair routinely carries a hint and the other
+    // does not, and stretching makes the shorter box grow to match a line of
+    // grey text underneath its neighbour.
+    align-items: start;
+  }
+}
+
 // Paired with aria-describedby on the input, so this text is announced rather
 // than being color-only information.
 .field-error {

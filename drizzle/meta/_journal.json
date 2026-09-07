@@ -232,6 +232,13 @@
       "when": 1788792023625,
       "tag": "0032_strange_mandrill",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788805981014,
+      "tag": "0033_right_scarecrow",
+      "breakpoints": true
     }
   ]
 }

@@ -709,13 +709,18 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
 // on the server rather than in builder.js is deliberate: the edit route below
 // never loads this, so an existing ride cannot grow a home stop on every save
 // even if the client logic were wrong.
-async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | null> {
+async function homeSeed(userId: number): Promise<{ lat: number; lng: number; label: string } | null> {
   const [p] = await db
-    .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng })
+    .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng, label: userProfiles.homeLabel })
     .from(userProfiles)
     .where(and(eq(userProfiles.userId, userId), eq(userProfiles.addHomeToRides, true)))
     .limit(1)
-  return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
+  // "Home" IS A FALLBACK RATHER THAN A STORED DEFAULT, exactly as
+  // builderPrefs() treats "Meeting point": a rider who clears the name goes back
+  // to it, instead of it being written into their profile as though they typed
+  // it. builder.js hardcoded the word until 2026-09-07, which was right for most
+  // riders and wrong for anyone whose home base is the shop.
+  return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Home' } : null
 }
 
 // Everything the builder needs off the rider's profile that is NOT the home
@@ -807,7 +812,7 @@ const OWNS_IT: BuilderStanding = { canEdit: true, isOwner: true, perm: null }
 function builderHtml(
   rideId: number | null,
   user: UserRow,
-  home: { lat: number; lng: number } | null,
+  home: { lat: number; lng: number; label: string } | null,
   prefs: BuilderPrefs,
   // The ride's slug, for the roster link. Null on a new ride, which has no
   // roster to link to — and no ride, so nothing to be on.

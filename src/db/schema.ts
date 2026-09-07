@@ -305,6 +305,13 @@ export const userProfiles = pgTable('user_profiles', {
     .references(() => users.id, { onDelete: 'cascade' }),
   firstName: varchar('first_name', { length: 80 }),
   lastName: varchar('last_name', { length: 80 }),
+  // What the rider calls the place they set off from — "Bill's apartment", "the
+  // shop". MIRRORS start_label EXACTLY, including being nullable with the
+  // fallback living in code rather than in a column default: "Home" is a
+  // FALLBACK and not a stored value, so a rider who clears the field goes back
+  // to it instead of having it written into their profile as though they had
+  // typed it. `homeSeed()` in routes/builder.ts is the one reader.
+  homeLabel: varchar('home_label', { length: 120 }),
   addressLine: varchar('address_line', { length: 255 }),
   city: varchar('city', { length: 120 }),
   // Free text, not a US state list — the labels are US-shaped but nothing here

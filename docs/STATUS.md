@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Branch:** `feat/account-and-preferences`, four commits ahead of `main`. **2,525 tests across 99 files** (2 skipped, 2,527 total)
+**Branch:** `feat/account-and-preferences`, five commits ahead of `main`. **2,535 tests across 101 files** (2 skipped, 2,537 total)
 **Not pushed.** The branch is local; the push and the PR are yours.
 **Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
 **[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
@@ -27,11 +27,17 @@ Genuine route counts were left alone—the FAQ's 31, `/brand`'s palette length, 
 
 **`tabs.js` has to be in `scripts` and its absence fails silently**—the panels are server-rendered into the right state, so a missing script is two tabs that do nothing rather than a broken page. It shipped that way for one build during the sprint.
 
-## Profile tab layout, payment sigils, and an autofill bug, 2026-09-07
+## Profile tab layout, payment sigils, and two data bugs, 2026-09-07
 
 Ziad's call, in the same sprint. **Your picture moved into Who you are**, where its own `#99` comment had said it belonged all along—it had drifted six fieldsets down, between Splitting costs and Phone. That fieldset is `full-span` now with a two-column grid of its own, and making it full-span is also what **pairs Home base with Public starting point**: `two-col` places children in order, and those two are the one place on this form where a rider is genuinely comparing two answers.
 
 **Cash App carries a `$`, Venmo and PayPal an `@`, Zelle none.** Zelle is reached by phone number or email rather than a handle, so there is no sigil to draw and the hint says so instead. PayPal.Me is a URL slug with no sigil either—the `@` is a deliberate simplification and the hint names PayPal.Me so the field is not lying. `money()` strips a leading sigil on save, or a rider who types the one they can already see stores `$ziad` in a field that draws a `$`.
+
+**Display name pairs with Username and First with Last**, and Home base now carries a "Name it" field of its own—`user_profiles.home_label`, mirroring `start_label` including the fallback living in code, so clearing it goes back to "Home" rather than storing it. `builder.js` hardcoded that word, which is right for most riders and wrong for anyone whose home base is the shop.
+
+**The Home base copy says what the code does, which is not what was asked for.** Ziad asked for "changing a ride to public automatically swaps out your Home Base"—`offerPublicStart()` ASKS with a confirm, fires on any level above private rather than public alone, and does nothing at all when no public starting point is set. Shown the gap, he kept the confirm and took the accurate copy. The mirror block was wrong in the same direction and was fixed with it.
+
+**Two data bugs found while doing it, both fixed and both now guarded.** The payment sigils had shipped into the whole-form handler alone, so the same typed value stored `$ziad` from the autosave and `ziad` from the Save button—the form has two write paths and every normalizer has to appear in both. And the account archive was missing the three preference columns added earlier in this sprint, under a comment warning about exactly that; **the whole Paddock was missing too**, so "everything the app holds about you" had never included a rider's bikes or their photos. `test/archive-completeness.test.ts` compares `schema.ts` against `archive.ts` as text for both tables—note its own first version matched two-space indentation only and so read `bikes` as three columns and passed, which the sanity floor caught.
 
 **[#281](https://github.com/feralcreative/routeloop/issues/281), found in the browser and filed after the fact.** Opening `/profile` in Chrome and doing nothing wrote a Cash App handle and a Venmo handle into the profile: Chrome autofills a field it cannot place by guessing from the label, an autofill fires a real `input` event, and `profile.js`'s idle autosave cannot tell that from typing. With `share_payment_handles` standing ready to publish them, the first surface to render those would have offered a payment address nobody chose. `autocomplete="off"` on all eight handle fields is the fix and is the only place it can be fixed—there is no signal in the DOM to narrow the autosave on.
 

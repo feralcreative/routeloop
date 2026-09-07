@@ -10,7 +10,7 @@
 // computes each path once and the writer puts the bytes exactly where the
 // manifest says, so a manifest that disagrees with the archive is not a bug that
 // can happen — there is only one place the path is decided.
-import type { RideRow, UserIdentityRow, UserProfileRow, UserRow, UsernameHistoryRow } from '../db/schema'
+import type { BikeRow, RideRow, UserIdentityRow, UserProfileRow, UserRow, UsernameHistoryRow } from '../db/schema'
 import { buildExportName, NATIVE_EXT, slugField } from '../maps/filename'
 import { DOWNLOAD_FORMATS, type DownloadFormat } from '../maps/downloads'
 import type { StoredExt, StoredFile } from '../maps/storage'
@@ -64,6 +64,7 @@ export type AccountArchiveInput = {
   profile: UserProfileRow | null
   usernameHistory: UsernameHistoryRow[]
   identities: UserIdentityRow[]
+  bikes: BikeRow[]
   rides: ArchiveRideInput[]
   exportedAt: Date
 }
@@ -99,6 +100,34 @@ export type ArchiveRide = {
   originals: ArchiveOriginal[]
 }
 
+/**
+ * One bike, with every stored column and the path its photo sits at.
+ *
+ * RAW STORED UNITS — meters and milliliters — rather than the miles and gallons
+ * the Paddock form asks for. This file is the record of what the app HOLDS, and
+ * a rider's own unit preference is a display choice that is itself in the
+ * profile block a few lines up. Converting here would make the archive depend on
+ * a setting they can change after exporting it.
+ */
+export type ArchiveBike = {
+  id: number
+  nickname: string | null
+  make: string | null
+  model: string | null
+  year: number | null
+  fuelType: string
+  usableRangeM: number | null
+  comfortRangeM: number | null
+  tankMl: number | null
+  isDefault: boolean
+  position: number
+  photoBytes: number
+  /** Where the picture sits in the zip, or null when the bike has none. */
+  photo: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type AccountArchive = {
   routeloopAccount: number
   exportedFrom: string
@@ -107,8 +136,21 @@ export type AccountArchive = {
   profile: Record<string, unknown> | null
   usernameHistory: Array<{ username: string; claimedAt: string; releasedAt: string | null }>
   identities: Array<{ provider: string; providerEmail: string | null; createdAt: string }>
+  bikes: ArchiveBike[]
   rides: ArchiveRide[]
 }
+
+/**
+ * Where a bike's picture sits in the zip.
+ *
+ * KEYED BY ID RATHER THAN BY NICKNAME, unlike a ride's directory, and for the
+ * opposite reason: a ride has `uq_slug` and a bike has nothing unique about it
+ * at all — every field is optional, so two bikes can be identically nameless and
+ * `bikeLabel()` answers "Untitled bike" for both. The id is the only thing that
+ * cannot collide. It matches the on-disk name too, which is what makes the
+ * writer a lookup rather than a second naming rule.
+ */
+export const bikePhotoEntry = (bikeId: number): string => `bikes/bike-${bikeId}.webp`
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null)
 
@@ -156,6 +198,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
       ? {
           firstName: profile.firstName,
           lastName: profile.lastName,
+          homeLabel: profile.homeLabel,
           addressLine: profile.addressLine,
           city: profile.city,
           state: profile.state,
@@ -192,6 +235,9 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           scheme: profile.scheme,
           motion: profile.motion,
           units: profile.units,
+          clock: profile.clock,
+          volumeUnits: profile.volumeUnits,
+          avoidPlaces: profile.avoidPlaces,
           createdAt: iso(profile.createdAt),
           updatedAt: iso(profile.updatedAt),
         }
@@ -209,7 +255,38 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
       createdAt: iso(i.createdAt) ?? '',
     })),
 
+    // THE PADDOCK, since 2026-09-07. It was absent entirely — "everything the
+    // app holds about you" did not include a rider's bikes, their ranges, or
+    // the photographs they had uploaded of them, and nothing said so. Found
+    // while adding tank capacity to the same table.
+    bikes: input.bikes.map(archiveBike),
+
     rides: input.rides.map(archiveRide),
+  }
+}
+
+function archiveBike(bike: BikeRow): ArchiveBike {
+  return {
+    id: bike.id,
+    nickname: bike.nickname,
+    make: bike.make,
+    model: bike.model,
+    year: bike.year,
+    fuelType: bike.fuelType,
+    usableRangeM: bike.usableRangeM,
+    comfortRangeM: bike.comfortRangeM,
+    tankMl: bike.tankMl,
+    isDefault: bike.isDefault,
+    position: bike.position,
+    photoBytes: bike.photoBytes,
+    // photoHash IS THE TEST AND IT IS NOT SHIPPED. It is a cache-busting
+    // fingerprint for a URL, which is bookkeeping about serving rather than
+    // anything the rider gave us — the picture itself is in the zip, which is
+    // the fact that matters. `photoBytes` stays because it is what the quota
+    // note in schema.ts is about, and a rider auditing their storage can read it.
+    photo: bike.photoHash ? bikePhotoEntry(bike.id) : null,
+    createdAt: iso(bike.createdAt) ?? '',
+    updatedAt: iso(bike.updatedAt) ?? '',
   }
 }
 
@@ -265,12 +342,13 @@ function archiveRide({ ride, startDate, originals }: ArchiveRideInput): ArchiveR
  */
 export function readmeText(archive: AccountArchive): string {
   const rides = archive.rides.length
+  const bikes = archive.bikes.length
   return [
     'Your Routeloop account',
     '======================',
     '',
     `Exported ${archive.exportedAt} from ${archive.exportedFrom}.`,
-    `${rides} ride${rides === 1 ? '' : 's'}.`,
+    `${rides} ride${rides === 1 ? '' : 's'}, ${bikes} bike${bikes === 1 ? '' : 's'}.`,
     '',
     'What is in here',
     '---------------',
@@ -287,6 +365,12 @@ export function readmeText(archive: AccountArchive): string {
     '',
     'originals/     Inside each ride, the file you originally uploaded, where the',
     '               ride was imported rather than built.',
+    '',
+    'bikes/         A picture per bike that has one. What each bike IS—its make,',
+    '               its ranges, its tank—is in account.json beside your profile.',
+    '               Ranges are in meters and tanks in milliliters, which is how',
+    '               they are stored; the miles and gallons you typed are that',
+    '               converted for reading.',
     '',
     'Three things worth knowing',
     '--------------------------',

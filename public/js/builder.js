@@ -10831,7 +10831,10 @@
       // Seeded with its roles already set, so addPoint's auto-promotion leaves
       // them alone — it only supplies `start` when the caller named nothing. Both
       // are true of this point: it is where the ride begins and it is home.
-      const seed = newPoint(window.TB.home.lng, window.TB.home.lat, "Home");
+      // The rider's own name for the place, with "Home" as the server's
+      // fallback — see homeSeed() in routes/builder.ts. Hardcoded here until
+      // 2026-09-07, which named the shop and the storage unit wrong.
+      const seed = newPoint(window.TB.home.lng, window.TB.home.lat, window.TB.home.label || "Home");
       seed.roles = ["start", "home"];
       addPoint(window.TB.home.lng, window.TB.home.lat, "Home", 0, seed);
     }

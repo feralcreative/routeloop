@@ -3,11 +3,12 @@
 import { asc, eq } from 'drizzle-orm'
 import { readFile } from 'node:fs/promises'
 import { db } from '../db/index'
-import { rides, userIdentities, userProfiles, usernameHistory, type UserRow } from '../db/schema'
+import { bikes, rides, userIdentities, userProfiles, usernameHistory, type UserRow } from '../db/schema'
 import { DOWNLOADS, DOWNLOAD_FORMATS } from '../maps/downloads'
 import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from '../maps/export'
 import { detailsForOwner } from '../maps/point-details'
 import { listOwnerFiles, readMapFile } from '../maps/storage'
+import { readBikePhoto } from '../bikes/photo'
 import { buildZip, type ZipFile } from '../maps/zip'
 import {
   ACCOUNT_JSON,
@@ -65,6 +66,14 @@ export async function buildAccountArchive(user: UserRow, exportedAt: Date): Prom
 
   const identities = await db.select().from(userIdentities).where(eq(userIdentities.userId, user.id))
 
+  // Ordered the way the Paddock renders them, so the archive reads in the order
+  // the rider arranged rather than by insertion.
+  const garage = await db
+    .select()
+    .from(bikes)
+    .where(eq(bikes.ownerId, user.id))
+    .orderBy(asc(bikes.position), asc(bikes.id))
+
   const owned = await db.select().from(rides).where(eq(rides.ownerId, user.id)).orderBy(asc(rides.createdAt))
 
   // One readdir for the account, bucketed by ride, rather than probing every
@@ -92,6 +101,7 @@ export async function buildAccountArchive(user: UserRow, exportedAt: Date): Prom
     profile: profile ?? null,
     usernameHistory: history,
     identities,
+    bikes: garage,
     rides: rideInputs,
     exportedAt,
   })
@@ -109,6 +119,21 @@ export async function buildAccountArchive(user: UserRow, exportedAt: Date): Prom
     // the same reasoning readZipEntries uses on the way in.
     if (total > MAX_ARCHIVE_BYTES) throw new ArchiveTooLargeError()
     files.push({ name, body })
+  }
+
+  // THE PICTURES, BEFORE THE RIDES. A rider's whole Paddock is a handful of
+  // small WebPs and every ride is four generated exports plus its originals, so
+  // putting the bikes first means a garage full of photos survives a runaway
+  // ride list hitting MAX_ARCHIVE_BYTES rather than being the thing cut off.
+  //
+  // A MISSING FILE IS SKIPPED RATHER THAN FAILING THE EXPORT, the same rule the
+  // ride originals follow below: the row said there was a photo, the directory
+  // is read at a different moment, and a backup missing one picture is worth far
+  // more than no backup at all.
+  for (const entry of manifest.bikes) {
+    if (!entry.photo) continue
+    const buf = await readBikePhoto(user.id, entry.id)
+    if (buf) add(entry.photo, buf)
   }
 
   for (let i = 0; i < owned.length; i++) {
