@@ -802,7 +802,7 @@ function feedbackFab(area?: string): string {
         <button type="button" class="fab-item" data-open-notes data-fab-notes>
           <span class="fab-item-mark fab-item-mark--notes">{raw(icon('info'))}</span>
           <span class="fab-item-label">
-            What's new
+            What’s new
             {/* The build is here rather than in a title attribute: this is the
                 one surface where a rider is already looking for it, and a
                 tooltip is not reachable by touch at all.
@@ -864,7 +864,7 @@ function releaseNotesModal(): string {
           &times;
         </button>
         <h2 id="rn-title" class="rn-title">
-          What's new
+          What’s new
         </h2>
         {/* The version a rider is actually running, beside the notes that say
             what it contains. This is the answer to "which build did I see that
@@ -886,7 +886,7 @@ function releaseNotesModal(): string {
             same content, server-rendered. */}
         <div class="modal-body rn-body" id="rn-body" data-src="/api/release-notes">
           <p class="rn-loading">
-            <a href="/release-notes">Read what's new</a>
+            <a href="/release-notes">Read what’s new</a>
           </p>
         </div>
       </div>
@@ -946,7 +946,7 @@ function siteFooter(splash: boolean): string {
               anyway give the inner link no keyboard focus, so it would be a
               link only a mouse could follow. Two controls, two jobs: the date
               opens the notes, the hash opens the commit. */}
-          <button type="button" class="site-footer-version" data-open-notes title="See what's new">
+          <button type="button" class="site-footer-version" data-open-notes title="See what’s new">
             {APP_VERSION}
           </button>
           {BUILD_SHA && (

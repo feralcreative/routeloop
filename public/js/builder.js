@@ -5124,12 +5124,12 @@
     // The server sends the name for the same reason firstIssue() renders
     // `route 2` rather than `routes.1` — an answer they can act on without
     // counting.
-    "no-routes": "Plan the main group's route to the destination first—that is the road a meeting point sits on.",
+    "no-routes": "Plan the main group’s route to the destination first—that is the road a meeting point sits on.",
     // A REAL ANSWER, not a failure. Groups approaching a destination from
     // opposite sides have nowhere sensible to meet short of it, and offering the
     // least bad option would be worse than saying so.
     "none-viable":
-      "No meeting point works without sending somebody a long way round. Check that every group's route ends at the same place.",
+      "No meeting point works without sending somebody a long way round. Check that every group’s route ends at the same place.",
   };
 
   /**
@@ -6321,7 +6321,7 @@
     // warning is to drag one there.
     el.textContent =
       esc(longest.name) +
-      " has the farthest to ride. Pinning a closer group's clock asks them to leave earlier—drag " +
+      " has the farthest to ride. Pinning a closer group’s clock asks them to leave earlier—drag " +
       esc(longest.name) +
       " to the top to make it the main group.";
   }

@@ -225,7 +225,7 @@ const Actions = ({ last, sendLabel }: { last: boolean; sendLabel?: string }) => 
 
 const KindFork = ({ area }: { area: string }) => (
   <>
-    <h1>What's going on?</h1>
+    <h1>What’s going on?</h1>
     <form method="get" action="/feedback" class="fb-fork">
       {area && <input type="hidden" name="area" value={area} />}
       {KIND_ORDER.map((k) => (
@@ -272,10 +272,10 @@ const BodyScreen = ({ d, kind, last, error }: { d: Draft; kind: FeedbackKind; la
     </textarea>
     <p class="fb-example">
       {kind === 'bug'
-        ? 'Something like: "I hit save on my Blue Ridge route and the map went white."'
+        ? 'Something like: “I hit save on my Blue Ridge route and the map went white.”'
         : kind === 'idea'
-          ? "Doesn't have to be polished. Half-formed is fine."
-          : "Ask it however you'd say it out loud."}
+          ? 'Doesn’t have to be polished. Half-formed is fine.'
+          : 'Ask it however you’d say it out loud.'}
     </p>
     <p class="fb-help">Wearing gloves? Tap the mic on your keyboard and just talk.</p>
     {kind === 'question' && <div class="fb-faq" id="fb-faq" hidden></div>}
@@ -295,7 +295,7 @@ const ContextScreen = ({ d, last }: { d: Draft; last: boolean }) => (
       {d.context}
     </textarea>
     <p class="fb-example">
-      Like: "Planning a 3-route trip through Colorado and I couldn't figure out where I'd end up each night."
+      Like: “Planning a 3-route trip through Colorado and I couldn’t figure out where I’d end up each night.”
     </p>
     <Carry d={d} except="context" />
     <Actions last={last} />
@@ -380,7 +380,7 @@ const PhotoScreen = ({ d }: { d: Draft }) => (
   <>
     <h1>Got a picture of it?</h1>
     <p class="fb-help">
-      A screenshot beats a thousand words. If you already took one, it's probably at the top of your photos.
+      A screenshot beats a thousand words. If you already took one, it’s probably at the top of your photos.
     </p>
     {/*
       No `capture` attribute. Setting capture="environment" forces the camera and
@@ -518,14 +518,14 @@ feedbackRoutes.post('/feedback', requireActive, requireSameOrigin, async (c) => 
       c,
       (
         <>
-          <h1>That's a lot of reports</h1>
+          <h1>That’s a lot of reports</h1>
           <p class="fb-help">
-            You've sent {SUBMIT_LIMIT} in the last hour, which is where we stop for now. Nothing you sent is lost. Give
+            You’ve sent {SUBMIT_LIMIT} in the last hour, which is where we stop for now. Nothing you sent is lost. Give
             it a few minutes and the form will work again.
           </p>
           <p>
             <a class="btn" href="/feedback/mine">
-              See what you've sent
+              See what you’ve sent
             </a>
           </p>
         </>
@@ -588,14 +588,14 @@ feedbackRoutes.get('/feedback/thanks', requireActive, async (c) => {
     <>
       <h1>Got it. Thanks.</h1>
       <p class="fb-help">A real person reads every one of these — usually same route.</p>
-      <p class="fb-help">We grabbed the technical bits automatically, so you don't have to explain any of it.</p>
+      <p class="fb-help">We grabbed the technical bits automatically, so you don’t have to explain any of it.</p>
       {found && <p class="fb-ref">Your report: #{found.report.id}</p>}
       {/* Deliberately NOT "it's on the board". The board is moderated, and that
           message would be a lie the first time something is declined. */}
-      {found?.report.kind === 'idea' && <p class="fb-help">If it's a good fit you'll see it turn up on the board.</p>}
+      {found?.report.kind === 'idea' && <p class="fb-help">If it’s a good fit you’ll see it turn up on the board.</p>}
       <p class="fb-after">
         <a class="btn" href="/feedback/mine">
-          See what you've sent
+          See what you’ve sent
         </a>{' '}
         <a class="linkbtn" href="/">
           Back to Routeloop
@@ -611,7 +611,7 @@ feedbackRoutes.get('/feedback/mine', requireActive, async (c) => {
   const rows = await listMine(me.id)
   const body = (
     <>
-      <h1>What you've sent</h1>
+      <h1>What you’ve sent</h1>
       {rows.length === 0 ? (
         <p class="fb-help">
           Nothing yet. <a href="/feedback">Tell us something</a> — it genuinely helps.
@@ -718,7 +718,7 @@ feedbackRoutes.get('/feedback/:publicId', requireActive, async (c) => {
       {r.publicResponse && <p class="fb-response">{r.publicResponse}</p>}
       <p class="fb-after">
         <a class="linkbtn" href="/feedback/mine">
-          Back to what you've sent
+          Back to what you’ve sent
         </a>
       </p>
     </>

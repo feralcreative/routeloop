@@ -922,7 +922,7 @@ function builderHtml(
             <button type="button" class="route-add" id="route-add" title="Add a route">+ Route</button>
           </div>
 
-          <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
+          <!-- Select mode’s action bar, filled by renderSelectBar() in builder.js
                and hidden whenever state.select is null. It sits above the route
                list rather than floating over it so it cannot cover the very rows
                being ticked. -->
@@ -950,7 +950,7 @@ function builderHtml(
           <!-- THE MEETING-POINT BUTTON IS STATIC MARKUP AND SITS BELOW .tab-actions,
                which is the only way to get "Add a group" above it: the group rows and
                this button used to be one innerHTML in #sg-body, so nothing could be
-               placed between them. Ziad's call, 2026-09-05. Being static also means
+               placed between them. Ziad’s call, 2026-09-05. Being static also means
                #sg-meet-out is no longer destroyed by renderSubgroups(), so a proposal
                survives a re-render by not being rebuilt at all—state.meet is still
                what it is drawn from, because taking one point re-renders the rows.
@@ -963,7 +963,7 @@ function builderHtml(
                  road has to be able to say so without leaving the panel. Session
                  state, not a column: it is a question about this press, and a
                  ride-level answer is a schema change for a number the planner
-                 re-asks the moment the road changes. Ziad's call, 2026-09-06. -->
+                 re-asks the moment the road changes. Ziad’s call, 2026-09-06. -->
             <label class="sg-divert" for="sg-divert">
               <span>within</span>
               <input type="number" id="sg-divert" min="1" max="200" step="5" value="25" inputmode="numeric" />
@@ -1211,7 +1211,7 @@ ${
 
                They are .tb-inline-icon rather than <img>, so hydrateIcons() in
                builder.js inlines the SVG and its fill="currentColor" can take
-               the button's color—including the 0.35 opacity of the disabled
+               the button’s color—including the 0.35 opacity of the disabled
                state. An <img> cannot inherit color and would stay black while
                the button grayed out around it. -->
           <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>

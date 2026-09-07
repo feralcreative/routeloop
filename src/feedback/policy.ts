@@ -57,8 +57,8 @@ export type KindMeta = {
 
 export const KIND_META: Record<FeedbackKind, KindMeta> = {
   bug: {
-    label: "Something's broken",
-    blurb: "It didn't work, looked wrong, or wouldn't load",
+    label: "Something’s broken",
+    blurb: "It didn’t work, looked wrong, or wouldn’t load",
     prompt: 'What happened?',
     asksArea: true,
     asksFrequency: true,
@@ -70,8 +70,8 @@ export const KIND_META: Record<FeedbackKind, KindMeta> = {
     wantable: false,
   },
   idea: {
-    label: "I've got an idea",
-    blurb: "Something Routeloop should do that it doesn't",
+    label: "I’ve got an idea",
+    blurb: "Something Routeloop should do that it doesn’t",
     prompt: 'What do you wish Routeloop did?',
     asksArea: true,
     asksFrequency: false,
@@ -81,7 +81,7 @@ export const KIND_META: Record<FeedbackKind, KindMeta> = {
     wantable: true,
   },
   question: {
-    label: "I've got a question",
+    label: "I’ve got a question",
     blurb: 'Not sure how something works? Ask away',
     prompt: 'What do you want to know?',
     asksArea: false,
@@ -163,7 +163,7 @@ export const FREQUENCIES = [
   { id: 'every_time', label: 'Every time' },
   { id: 'sometimes', label: 'Sometimes' },
   { id: 'once', label: 'Just the once so far' },
-  { id: 'unknown', label: "Don't know" },
+  { id: 'unknown', label: "Don’t know" },
 ] as const
 
 export type FrequencyId = (typeof FREQUENCIES)[number]['id']
@@ -172,7 +172,7 @@ export type FrequencyId = (typeof FREQUENCIES)[number]['id']
  *  phrased as a sentence a rider would say out loud. */
 export const IMPACTS = [
   { id: 'nice', label: 'Nice to have' },
-  { id: 'often', label: "I'd use it a lot" },
+  { id: 'often', label: "I’d use it a lot" },
   { id: 'every_ride', label: 'I work around this every single ride' },
 ] as const
 
@@ -224,14 +224,14 @@ export type StatusMeta = {
 }
 
 export const STATUS_META: Record<FeedbackStatus, StatusMeta> = {
-  new: { label: "We've seen it", sub: "Read it, haven't dug in yet", closed: false },
+  new: { label: "We’ve seen it", sub: "Read it, haven’t dug in yet", closed: false },
   needs_info: {
     label: 'We need one more thing from you',
     sub: 'Check your email—we asked a question',
     closed: false,
   },
-  confirmed: { label: "Yep, that's a bug", sub: "We reproduced it. It's ours to fix.", closed: false },
-  planned: { label: "We're going to build this", sub: "Not started yet, but it's happening", closed: false },
+  confirmed: { label: "Yep, that’s a bug", sub: "We reproduced it. It’s ours to fix.", closed: false },
+  planned: { label: "We’re going to build this", sub: "Not started yet, but it’s happening", closed: false },
   in_progress: { label: 'In the shop', sub: 'Being worked on right now', closed: false },
   shipped: {
     label: 'Fixed and live',
@@ -241,18 +241,18 @@ export const STATUS_META: Record<FeedbackStatus, StatusMeta> = {
   },
   on_list: { label: 'On the list', sub: 'Good idea, not soon. Still counting wants.', closed: false },
   not_doing: {
-    label: "We're not doing this one",
+    label: "We’re not doing this one",
     // The reason is publicResponse, and the queue should refuse to save this
     // status without one. A bare "no" is worse than no answer at all.
     sub: 'Always paired with a one-line reason',
     closed: true,
   },
   no_repro: {
-    label: "We couldn't make it happen",
+    label: "We couldn’t make it happen",
     sub: 'Tell us more if you see it again',
     closed: true,
   },
-  by_design: { label: "That's how it works on purpose", sub: 'Explains why, links to the FAQ', closed: true },
+  by_design: { label: "That’s how it works on purpose", sub: 'Explains why, links to the FAQ', closed: true },
 }
 
 /** The label for this status as this kind of report. */
@@ -274,7 +274,7 @@ export function statusLabel(status: FeedbackStatus, kind: FeedbackKind): string 
 export const BANNED_WORDS: readonly string[] = [
   'triaged',
   'backlog',
-  "won't fix",
+  "won’t fix",
   'wontfix',
   'p0',
   'p1',

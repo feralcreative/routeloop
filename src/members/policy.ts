@@ -207,7 +207,7 @@ export const RSVP_LABELS: Record<Rsvp, string> = {
   invited: 'Not answered',
   going: 'Going',
   maybe: 'Maybe',
-  declined: "Can't make it",
+  declined: "Can’t make it",
 }
 
 /**

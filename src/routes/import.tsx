@@ -266,7 +266,7 @@ importRoutes.get('/import', requireActive, async (c) => {
             <>
               <p class="lede">
                 Find the rides you want, pick a format for each, and take the lot as one zip. A multi-route ride can
-                also come down as a zip of one file per route, from the ride's own page.
+                also come down as a zip of one file per route, from the ride’s own page.
               </p>
 
               {/*
@@ -316,7 +316,7 @@ importRoutes.get('/import', requireActive, async (c) => {
               */}
               <noscript>
                 <p class="notice">
-                  Searching needs JavaScript. Every ride's own page has its downloads — <a href="/rides">your rides</a>.
+                  Searching needs JavaScript. Every ride’s own page has its downloads — <a href="/rides">your rides</a>.
                 </p>
               </noscript>
             </>

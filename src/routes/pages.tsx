@@ -294,7 +294,7 @@ pageRoutes.get('/faq', (c) =>
 // open, so the notes are not on every HTML response for a dialog most riders
 // never open.
 pageRoutes.get('/release-notes', (c) =>
-  render(c, "What's new", content('release-notes.html'), 'content-page release-notes-page'),
+  render(c, "What’s new", content('release-notes.html'), 'content-page release-notes-page'),
 )
 pageRoutes.get('/api/release-notes', (c) => c.html(content('release-notes.html')))
 pageRoutes.get('/privacy', (c) =>

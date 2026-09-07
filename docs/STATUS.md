@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Branch:** `feat/account-and-preferences`, eight commits ahead of `main`. **2,537 tests across 101 files** (2 skipped, 2,539 total)
+**Branch:** `feat/account-and-preferences`, nine commits ahead of `main`. **2,550 tests across 102 files** (2 skipped, 2,552 total)
 **Not pushed.** The branch is local; the push and the PR are yours.
 **Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
 **[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
@@ -38,6 +38,8 @@ Ziad's call, in the same sprint. **Your picture moved into Who you are**, where 
 **The Home base copy says what the code does, which is not what was asked for.** Ziad asked for "changing a ride to public automatically swaps out your Home Base"—`offerPublicStart()` ASKS with a confirm, fires on any level above private rather than public alone, and does nothing at all when no public starting point is set. Shown the gap, he kept the confirm and took the accurate copy. The mirror block was wrong in the same direction and was fixed with it.
 
 **[#282](https://github.com/feralcreative/routeloop/issues/282), and it is the biggest thing found this sprint.** `--white` is the PAGE SURFACE token, near-black under a dark scheme—so twelve rules painting `color: $white` on a colored field rendered near-black ink on a saturated ground. **`.btn` was one of them, which is every button in the app, at 2.67:1.** So were the Range button, the fuel-empty `E`, three map tooltips, the search badge, the queue count and the survey's selected ratings. `sign-field()`'s own comment predicted it, deferred it and never measured it. `test/palette-contrast.test.ts` could not have caught it—it audits the palette and was right throughout; the defect was the stylesheet pairing a correct field with the wrong ink token. `test/sign-legend.test.ts` compiles the sheet and looks for the pairing. Found while building the `?` badge on the same construction, which had it too.
+
+**Straight quotes swept out of visible copy**, and it is enforceable rather than a one-time pass: `utils/smart-quotes.mjs` with `check:quotes`/`fix:quotes` and a hook line, mirroring the dash tightener. 94 sites. It cannot be a line regex the way the dash tightener is—a straight quote is usually a string delimiter, so a careless sweep breaks the parse rather than the prose. The safe rule is that an apostrophe between two word characters is a contraction everywhere. Three near-misses are pinned as tests because all three actually happened, each caught by diffing before writing.
 
 **The `/feedback` kind cards became signs**—red, orange, green down the page, which is what the three mean rather than a palette applied down a list. The orange takes a black legend and a black keyline because `$detour` is a black-legend field; giving all three white ink to make them "consistent" is the change to refuse. Pinned to the light palette like the rest of that flow, so each pair has one ratio: 5.89, 6.59, 7.27.
 

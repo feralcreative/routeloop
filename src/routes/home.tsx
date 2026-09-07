@@ -427,7 +427,7 @@ function FirstRun() {
           </span>
         </li>
         <li>
-          <strong>Share it, or don't</strong>
+          <strong>Share it, or don’t</strong>
           <span>
             Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until you
             change it.
