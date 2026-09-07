@@ -77,6 +77,74 @@
   }
 }
 
+// THE SAVE STATE IS A BORDER ON THE GROUP, since 2026-09-07. Ziad's call: every
+// option saves itself and the Save buttons go, so the thing that used to be a
+// button plus a "Saved" chip is now the edge of the group it belongs to.
+//
+// **AMBER IS UNSAVED, NOT RED**, and that is the one place this departs from how
+// it was asked for. `error` already owns red and a failed save is the state a
+// rider must not mistake for anything else — in this app's own vocabulary red is
+// a verdict and amber is advice, which is exactly the difference between "you
+// have not saved yet" and "this did not save".
+//
+// A BORDER THAT IS ALWAYS THERE, transparent at rest rather than absent. Adding
+// a border on the first keystroke would move every control in the group down by
+// two pixels as the rider typed.
+//
+// `$pending` and not `$warning` for the amber: `$warning` is a black-legend field
+// tuned to carry type, and as a hairline on white it measures about 2.2:1. Same
+// trap the split dialog's warning line records.
+.setting-form,
+.profile-form fieldset {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  // The border has to have somewhere to sit or it draws on top of the controls.
+  padding: 0.75rem 0.9rem;
+  margin: 0 -0.9rem;
+  transition: border-color 0.18s ease;
+
+  &[data-save="dirty"],
+  &[data-save="saving"] {
+    border-color: $pending;
+  }
+
+  &[data-save="saved"] {
+    border-color: $go;
+  }
+
+  &[data-save="error"] {
+    border-color: $stop;
+  }
+}
+
+//@ Motion — the transition is the only movement here, and it goes with the rest
+@media (prefers-reduced-motion: reduce) {
+  .setting-form,
+  .profile-form fieldset {
+    transition: none;
+  }
+}
+
+// SAVING IS AMBER TOO, NOT A THIRD COLOR, and the difference is a pulse rather
+// than a hue. Three colors for four states asks a rider to learn a legend; what
+// they actually need to know is "not yet" against "done", and the pulse says the
+// app is working on it without introducing a fourth thing to remember.
+[data-save="saving"] {
+  animation: save-pulse 1s ease-in-out infinite;
+}
+
+@keyframes save-pulse {
+  50% {
+    border-color: color-mix(in oklab, #{$pending}, transparent 55%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-save="saving"] {
+    animation: none;
+  }
+}
+
 // PLACES TO AVOID (#271). The one setting on this page that is free text rather
 // than a radio group, so it is the one that needs a measure of its own — a box
 // running the full page width invites a paragraph, and what is wanted is a short
@@ -165,6 +233,17 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+// EMPTY ONCE THE BUTTON IS HIDDEN, which is the ordinary state with script on:
+// the group's border says saved and this row has nothing left in it. `:empty`
+// will not match — it still holds whitespace and the hidden button — so the
+// collapse is keyed on having no VISIBLE child, which is what `:has()` can ask.
+// Declared after the rule above so it wins on order at equal specificity... it
+// is not equal: `:not(:has(…))` adds nothing, so the selector is one class and
+// this has to come second. Keep them adjacent.
+.setting-actions:not(:has(> *:not([hidden]))) {
+  display: none;
 }
 
 .setting-note {

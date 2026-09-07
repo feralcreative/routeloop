@@ -111,6 +111,11 @@ export async function accountPage(
 
   const tabOn = (t: AccountTab) => opts.tab === t
 
+  // THE CHIP IS THE NO-SCRIPT PATH NOW. With autosave running, the border on the
+  // group says dirty/saving/saved and this never renders — a `?saved=` query only
+  // comes back from a real form POST, which happens with script off or after an
+  // autosave failure has handed the button back. Kept for those two cases rather
+  // than deleted.
   const Saved = ({ when }: { when: boolean }) => (when ? <span class="form-ok">Saved</span> : <></>)
 
   const body = (
@@ -209,7 +214,7 @@ export async function accountPage(
             script this page does not otherwise want, and the choice applies on
             save, which is one click away and unambiguous.
           */}
-          <form method="post" action="/settings/appearance" class="setting-form">
+          <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
             <div class="three-col">
               <fieldset class="choice-set">
                 <legend class="choice-legend">Palette</legend>
@@ -254,7 +259,7 @@ export async function accountPage(
             </div>
 
             <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                 Save
               </button>
               <Saved when={on('appearance')} />
@@ -291,7 +296,7 @@ export async function accountPage(
             */}
             <section class="setting" id="units">
               <h3>Distances</h3>
-              <form method="post" action="/settings/units" class="setting-form">
+              <form method="post" action="/settings/units" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Units</legend>
                   {UNITS_CHOICES.map((choice) => (
@@ -308,7 +313,7 @@ export async function accountPage(
                   ))}
                 </fieldset>
                 <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                     Save
                   </button>
                   <Saved when={on('units')} />
@@ -318,7 +323,7 @@ export async function accountPage(
 
             <section class="setting" id="dates">
               <h3>Dates</h3>
-              <form method="post" action="/settings/date-format" class="setting-form">
+              <form method="post" action="/settings/date-format" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Date format</legend>
                   {DATE_FORMAT_CHOICES.map((choice) => (
@@ -332,7 +337,7 @@ export async function accountPage(
                   ))}
                 </fieldset>
                 <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                     Save
                   </button>
                   <Saved when={on('dates')} />
@@ -350,7 +355,7 @@ export async function accountPage(
             */}
             <section class="setting" id="clock">
               <h3>Clock</h3>
-              <form method="post" action="/settings/clock" class="setting-form">
+              <form method="post" action="/settings/clock" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Clock</legend>
                   {CLOCK_CHOICES.map((choice) => (
@@ -364,7 +369,7 @@ export async function accountPage(
                   ))}
                 </fieldset>
                 <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                     Save
                   </button>
                   <Saved when={on('clock')} />
@@ -374,7 +379,7 @@ export async function accountPage(
 
             <section class="setting" id="stop-durations">
               <h3>Stop durations</h3>
-              <form method="post" action="/settings/duration-format" class="setting-form">
+              <form method="post" action="/settings/duration-format" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Duration format</legend>
                   {DURATION_FORMAT_CHOICES.map((choice) => (
@@ -393,7 +398,7 @@ export async function accountPage(
                   ))}
                 </fieldset>
                 <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                     Save
                   </button>
                   <Saved when={on('duration')} />
@@ -410,7 +415,7 @@ export async function accountPage(
             */}
             <section class="setting" id="volume">
               <h3>Fuel volume</h3>
-              <form method="post" action="/settings/volume" class="setting-form">
+              <form method="post" action="/settings/volume" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Fuel volume</legend>
                   {VOLUME_CHOICES.map((choice) => (
@@ -422,7 +427,7 @@ export async function accountPage(
                   ))}
                 </fieldset>
                 <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                     Save
                   </button>
                   <Saved when={on('volume')} />
@@ -453,7 +458,7 @@ export async function accountPage(
             chips, the category searches, the search along a route. <b>Nothing is ever hidden</b>: the one time you are
             out of fuel with one in front of you is the time this must not have taken it&nbsp;away.
           </p>
-          <form method="post" action="/settings/avoid" class="setting-form">
+          <form method="post" action="/settings/avoid" class="setting-form" data-autosave>
             <p class="field">
               <span class="label-row">
                 <label for="f-avoid">One per line, or separated by commas</label>
@@ -470,7 +475,7 @@ export async function accountPage(
               </textarea>
             </p>
             <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                 Save
               </button>
               <Saved when={on('avoid')} />
@@ -551,6 +556,7 @@ export async function accountPage(
     // `data-tabs` attribute is read by, and without it the two tabs are two
     // buttons that do nothing — the panels are server-rendered into the right
     // state, so a missing script fails silently rather than loudly.
-    scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  ${opts.scripts ?? ''}`,
+    scripts: `<script src="${asset('/js/tabs.js')}" defer></script>
+  <script src="${asset('/js/autosave.js')}" defer></script>\n  ${opts.scripts ?? ''}`,
   })
 }
