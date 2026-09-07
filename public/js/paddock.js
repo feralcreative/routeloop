@@ -124,6 +124,16 @@
       "</select></label>" +
       field(bike, "usableRangeMi", "Range (mi)", 'type="number" min="1" step="1" placeholder="unmeasured"') +
       field(bike, "comfortRangeMi", "Comfortable (mi)", 'type="number" min="1" step="1" placeholder="unmeasured"') +
+      // THE UNIT COMES FROM THE SERVER, never from a constant here. `tankUnit`
+      // is the rider's own resolved preference (#270), so this file owns no
+      // conversion and no opinion about gallons — the same reason the ranges
+      // arrive already in miles.
+      field(
+        bike,
+        "tank",
+        "Tank (" + esc(bike.tankUnit || "gal") + ")",
+        'type="number" min="0.1" step="0.1" placeholder="unmeasured"',
+      ) +
       "</div>" +
       '<div class="bike-actions">' +
       (bike.isDefault ? "" : '<button type="button" class="linkbtn" data-act="default">Make default</button>') +
@@ -185,6 +195,7 @@
       fuelType: read("fuelType") || "gas",
       usableRangeMi: read("usableRangeMi"),
       comfortRangeMi: read("comfortRangeMi"),
+      tank: read("tank"),
     };
   }
 

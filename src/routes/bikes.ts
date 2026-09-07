@@ -14,7 +14,9 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { bikeInput, bikeLabel, canAddBike, MAX_BIKES, metersToMiles } from '../bikes/policy'
+import { bikeInput, bikeLabel, canAddBike, MAX_BIKES, metersToMiles, mlToTank, tankRefusal } from '../bikes/policy'
+import { volumeFor } from '../views/prefs'
+import { volumeUnit } from '../views/volume'
 import {
   clearBikePhoto,
   countBikes,
@@ -45,7 +47,7 @@ export const bikesRoutes = new Hono<AuthEnv>()
  * `label` is computed rather than sent as three fields for the client to
  * assemble, so the fallback rule lives in exactly one place.
  */
-const serialize = (bike: BikeRow) => ({
+const serialize = (bike: BikeRow, liters: boolean) => ({
   id: bike.id,
   label: bikeLabel(bike),
   nickname: bike.nickname,
@@ -55,6 +57,12 @@ const serialize = (bike: BikeRow) => ({
   fuelType: bike.fuelType,
   usableRangeMi: bike.usableRangeM == null ? null : metersToMiles(bike.usableRangeM),
   comfortRangeMi: bike.comfortRangeM == null ? null : metersToMiles(bike.comfortRangeM),
+  // THE TANK GOES OUT IN THE RIDER'S OWN UNIT WITH ITS LABEL BESIDE IT, so the
+  // Paddock renders "4.2 gal" without owning a conversion — the same reason the
+  // ranges go out in miles. A browser that had to know the storage unit is a
+  // second place to change when #150 lands.
+  tank: bike.tankMl == null ? null : mlToTank(bike.tankMl, liters),
+  tankUnit: volumeUnit(liters ? 'liters' : 'gallons'),
   isDefault: bike.isDefault,
   // `?v=` is the fingerprint, which is what lets the route below serve the image
   // immutable: a changed picture is a changed URL. Same trick as a ride card's
@@ -69,8 +77,9 @@ const idOf = (raw: string): number | null => {
 
 bikesRoutes.get('/api/bikes', requireActiveApi, async (c) => {
   const user = currentUser(c)
+  const liters = (await volumeFor(c)) === 'liters'
   const rows = await listBikes(user.id)
-  return c.json({ bikes: rows.map(serialize), max: MAX_BIKES })
+  return c.json({ bikes: rows.map((b) => serialize(b, liters)), max: MAX_BIKES })
 })
 
 bikesRoutes.post('/api/bikes', requireActiveApi, requireSameOrigin, async (c) => {
@@ -79,8 +88,15 @@ bikesRoutes.post('/api/bikes', requireActiveApi, requireSameOrigin, async (c) =>
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid bike' }, 400)
   if (!canAddBike(await countBikes(user.id))) return c.json({ error: `Bike limit reached (${MAX_BIKES})` }, 409)
 
-  const row = await createBike(user.id, parsed.data)
-  return row ? c.json(serialize(row), 201) : c.json({ error: 'could not add that bike' }, 500)
+  const liters = (await volumeFor(c)) === 'liters'
+  // THE UNIT-AWARE HALF OF THE TANK CHECK. bikeInput validates against the
+  // looser ceiling because it does not know the rider's unit; this is where it
+  // is known, and skipping it hands a gallons rider a 500 from ck_bike_tank for
+  // a number the form appeared to accept.
+  const tankBad = tankRefusal(parsed.data.tank, liters)
+  if (tankBad) return c.json({ error: tankBad }, 400)
+  const row = await createBike(user.id, parsed.data, liters)
+  return row ? c.json(serialize(row, liters), 201) : c.json({ error: 'could not add that bike' }, 500)
 })
 
 bikesRoutes.put('/api/bikes/:id', requireActiveApi, requireSameOrigin, async (c) => {
@@ -90,10 +106,13 @@ bikesRoutes.put('/api/bikes/:id', requireActiveApi, requireSameOrigin, async (c)
   const parsed = bikeInput.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid bike' }, 400)
 
-  const row = await updateBike(user.id, id, parsed.data)
+  const liters = (await volumeFor(c)) === 'liters'
+  const tankBad = tankRefusal(parsed.data.tank, liters)
+  if (tankBad) return c.json({ error: tankBad }, 400)
+  const row = await updateBike(user.id, id, parsed.data, liters)
   // Undefined covers both "no such bike" and "not yours", and answers the same
   // way for each — a 403 would confirm the row exists.
-  return row ? c.json(serialize(row)) : c.json({ error: 'not found' }, 404)
+  return row ? c.json(serialize(row, liters)) : c.json({ error: 'not found' }, 404)
 })
 
 bikesRoutes.delete('/api/bikes/:id', requireActiveApi, requireSameOrigin, async (c) => {
@@ -155,7 +174,7 @@ bikesRoutes.post(
     // by the account purge.
     await writeBikePhoto(user.id, id, processed.data)
     const row = await setBikePhoto(user.id, id, { hash: processed.hash, bytes: processed.data.length })
-    return row ? c.json(serialize(row)) : c.json({ error: 'not found' }, 404)
+    return row ? c.json(serialize(row, (await volumeFor(c)) === 'liters')) : c.json({ error: 'not found' }, 404)
   },
 )
 

@@ -73,7 +73,9 @@ The drawer header carried an X beside the collapse button, and Ziad's call is th
 
 **[shipped] Import / Export is one page.** `/import` grew an export half rather than a second page being created beside it—the URL already exists, the FAQ links to it, and import is the primary action. The label in the menu is "Import / Export". **This is built**, not pending: `src/routes/import.tsx` renders `<h1>Import / Export</h1>` over two `.transfer-head` sections, and the export half lists the rider's own rides with a per-format download row. It read as an open decision here until 2026-08-16 and misled a planning pass; the URL keeps the singular name it shipped under.
 
-**[decided 2026-08-16] Settings is renamed Preferences, and the canonical URL is `/prefs`.**
+**[superseded 2026-09-07] Settings is renamed Preferences, and the canonical URL is `/prefs`.**
+
+**Superseded by #269, and struck rather than left to be rediscovered.** Settings and Profile became one page with two tabs on 2026-09-07, and one of those tabs is called **Preferences**—so the word is now the name of half the page rather than a candidate name for the whole of it, and renaming the page to Preferences would give it a Preferences tab and a Profile tab, which is worse than what it replaced. `/settings` stays the URL and the label. Everything below is kept because the POST-redirect trap it identifies is real and would apply to any future rename; nothing in it has been built.
 
 The label everywhere a rider reads it is **Preferences**. The URL is the short form on purpose—it is typed and shared more than it is read, and `/preferences` earns nothing for its extra six characters.
 

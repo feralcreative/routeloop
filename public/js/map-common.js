@@ -1290,11 +1290,15 @@
   function fmtStamp(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleString([], {
+    // The rider's own date format and clock, not the browser's (#270) — see
+    // TBFmt in site.js, which reads both off <html>.
+    var pref = (window.TBFmt && window.TBFmt.timePrefs()) || {};
+    return d.toLocaleString(pref.locale, {
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      hour12: pref.hour12,
       timeZone: "UTC",
     });
   }

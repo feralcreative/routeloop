@@ -65,8 +65,13 @@
     offsetAtMoment,
     activeAt,
     activeAtMoment,
-    fmtMoment,
+    fmtMoment: fmtMomentRaw,
   } = window.TBTime;
+
+  // ride-time.js is a PURE helper and reads no DOM, so the rider's date format
+  // and clock are handed to it rather than looked up inside (#270). One wrapper
+  // here keeps all five call sites reading exactly as they did.
+  const fmtMoment = (s) => fmtMomentRaw(s, window.TBFmt && window.TBFmt.timePrefs());
 
   // Twistiness, computed here rather than read from the ride: the stored figure
   // is whatever the geometry looked like at the last save, and this panel has to
@@ -2117,16 +2122,23 @@
     setBedtimeMarks(state.map, spots);
   }
 
-  /** 960 → "4:00 PM", in the rider's own date format. The panel says the time
-   *  back to them in the form they read everywhere else, not the 24-hour string
-   *  the input stores. */
+  /** 960 → "4:00 PM", in the rider's own date format and clock. The panel says
+   *  the time back to them in the form they read everywhere else, not the
+   *  24-hour string the input stores.
+   *
+   *  IT USED TO PASS `undefined` AND SO USED THE BROWSER'S LOCALE (#270), which
+   *  made the comment above false: a rider who chose day-first dates or a
+   *  24-hour clock got neither here. TBFmt reads both off <html>, where
+   *  layout.tsx stamps them. */
   function fmtClockMin(min) {
     if (min == null) return "";
-    // An arbitrary UTC date carrying that time of route, formatted in UTC — the
+    // An arbitrary UTC date carrying that time of day, formatted in UTC — the
     // same trick every other clock in this app uses, and for the same reason: a
     // wall clock must not be re-read in the browser's zone.
-    return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(undefined, {
+    var pref = (window.TBFmt && window.TBFmt.timePrefs()) || {};
+    return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(pref.locale, {
       timeStyle: "short",
+      hour12: pref.hour12,
       timeZone: "UTC",
     });
   }
@@ -5923,7 +5935,8 @@
       // The road is drawn and undoable either way; only the rider record can fail
       // on its own, and a rider who is told nothing would read the split as done.
       const ok = await writeSplitRiders(result, choice);
-      if (!ok) toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
+      if (!ok)
+        toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
     });
   }
 

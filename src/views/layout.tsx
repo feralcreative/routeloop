@@ -70,6 +70,13 @@ export type NavKey =
   // 'rides': /friends became a tab of the riders screen (#179), both its URLs
   // set 'riders', and a key no NavItem carries is an aria-current that is wired
   // and can never fire.
+  // 'profile' AND 'settings' NOW NAME TWO DOORS INTO ONE PAGE (#269), which is
+  // why both survive the merge. The rule on this union is that a key no NavItem
+  // carries is an aria-current that is wired and can never fire — and both are
+  // still carried and both still fire, because the account menu keeps an item
+  // for each and /profile and /settings each set their own. Collapsing them to
+  // one key would mark BOTH items current on every visit, which is worse than
+  // the duplication it would be tidying away.
   | 'profile'
   | 'settings'
   | 'trash'
@@ -618,6 +625,16 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
         <span class="nav-account-name">{user.displayName}</span>
       </summary>
       <div class="nav-sub-items">
+        {/* BOTH ITEMS POINT AT ONE PAGE NOW (#269), the way /friends and
+            /riders do — Settings and Profile are two tabs of /settings, and each
+            URL opens its own. They stay TWO items rather than becoming one,
+            because a rider looking for their profile looks for the word
+            "profile", and the whole point of the merge is that they should not
+            have to know which page it was filed on.
+
+            EACH KEEPS ITS OWN KEY, so exactly one is marked current. Giving both
+            the same key marked both on every visit, which is the failure this
+            union's rule is the mirror image of. */}
         <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
         {/* FRIENDS IS NOT HERE ANY MORE, as of 2026-08-29 (#179). It sat under
             the account on the grounds that "/riders is the roster — everyone —
@@ -931,13 +948,30 @@ export function page(opts: PageOpts): string {
   // palette before the first paint.
   // Read off the user rather than passed in, so all 32 call sites get it without
   // being touched — see the note in src/auth/session.ts about why.
-  const u = opts.user as (UserRow & { theme?: string; scheme?: string; motion?: string }) | null
+  const u = opts.user as
+    (UserRow & { theme?: string; scheme?: string; motion?: string; dateFormat?: string; clock?: string }) | null
   const theme = opts.theme ?? u?.theme
   const scheme = opts.scheme ?? u?.scheme
   const motion = opts.motion ?? u?.motion
   const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
   const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
   const motionAttr_ = motion && motion !== 'system' ? ` data-motion="${esc(motion)}"` : ''
+  // TWO MORE STAMPS, AND THEY ARE FOR THE CLIENT RATHER THAN FOR THE CSS (#270).
+  // Three client formatters — fmtClockMin in builder.js, fmtStamp in
+  // map-common.js and fmtMoment in ride-time.js — were calling
+  // `toLocaleTimeString(undefined, …)`, which is the BROWSER's locale and not
+  // the rider's choice, so a rider who asked for 24-hour time got it in the
+  // printed roadbook and nowhere else. site.js reads these two off <html> and
+  // hands them to all three.
+  //
+  // `data-clock` IS OMITTED FOR `locale`, the same rule `data-motion` follows
+  // for `system`: the absence IS the state, and the date format beside it is
+  // what answers instead. `data-date-format` is always stamped, because there is
+  // no absent case — every rider has one, from the column or from the header.
+  const dateFormat = (opts.user ? u?.dateFormat : undefined) ?? 'en-US'
+  const clock = u?.clock
+  const localeAttr_ = ` data-date-format="${esc(dateFormat)}"`
+  const clockAttr_ = clock && clock !== 'locale' ? ` data-clock="${esc(clock)}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -948,7 +982,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

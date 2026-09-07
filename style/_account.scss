@@ -77,6 +77,26 @@
   }
 }
 
+// PLACES TO AVOID (#271). The one setting on this page that is free text rather
+// than a radio group, so it is the one that needs a measure of its own — a box
+// running the full page width invites a paragraph, and what is wanted is a short
+// list. 60ch matches the prose cap directly above it, so the field, the label
+// and the explanation all share one edge.
+#avoid {
+  .field {
+    max-width: 60ch;
+  }
+
+  textarea {
+    width: 100%;
+    // Vertical only. A textarea a rider can drag WIDER escapes the measure the
+    // rule above exists to set, and there is nothing here worth reading at 200
+    // characters a line.
+    resize: vertical;
+    font: inherit;
+  }
+}
+
 // A radio group drawn as a stack of rows rather than as a form: each choice
 // carries its own worked example, because the labels alone ("Hours", "Minutes")
 // do not tell a rider what they are about to see in the field. The example is

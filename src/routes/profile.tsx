@@ -3,14 +3,14 @@
 // working without JavaScript, and a form plus one re-render is less code than an
 // endpoint plus a client script. Validation still runs through the same zod
 // helpers as the ride APIs so the two paths cannot drift.
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { sanitizeText } from '../maps/kml'
-import { page } from '../views/layout'
+import { accountPage } from '../views/account-page'
 import { asset } from '../views/assets'
 import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAYS } from '../auth/username'
 import { usernameSchema } from '../auth/username'
@@ -109,7 +109,7 @@ function fieldErrors(e: z.ZodError): FieldErrors {
   return out
 }
 
-function loadProfile(userId: number): Promise<UserProfileRow | undefined> {
+export function loadProfile(userId: number): Promise<UserProfileRow | undefined> {
   return db
     .select()
     .from(userProfiles)
@@ -180,14 +180,14 @@ function Check(o: { name: string; label: string; values: Record<string, unknown>
 function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   if (rows.length < 2) return <></> // nothing to show a rider who has only ever had one
   const now = Date.now()
-  const route = (d: Date) => d.toISOString().slice(0, 10)
+  const day = (d: Date) => d.toISOString().slice(0, 10)
   const released = rows.filter((r) => r.releasedAt)
   if (released.length === 0) return <></>
   return (
     <div class="handle-history">
       <p class="field-hint">
-        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take
-        it while you think it over.
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take it
+        while you think it over.
       </p>
       <ul>
         {released.map((r) => {
@@ -197,8 +197,8 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
             <li>
               <span class="handle">@{r.username}</span>{' '}
               <span class="handle-dates">
-                {route(r.claimedAt)} – {route(r.releasedAt!)}
-                {held ? `${SEP}yours to reclaim until ${route(until)}` : ''}
+                {day(r.claimedAt)} – {day(r.releasedAt!)}
+                {held ? `${SEP}yours to reclaim until ${day(until)}` : ''}
               </span>
             </li>
           )
@@ -208,14 +208,27 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   )
 }
 
-function renderProfile({ user, values, errors, saved, history }: RenderArgs): string {
+/**
+ * The Profile PANEL, not a page (#269).
+ *
+ * Settings and Profile are one page with two tabs now, so this returns markup
+ * for a panel and src/views/account-page.tsx wraps it. The split is what keeps
+ * the imports one-directional: that module takes this as a string and imports
+ * nothing from here, so there is no cycle to reason about.
+ *
+ * `<h1>` became `<h2>` with the move — the page already has one, and two would
+ * be two documents in one.
+ */
+export function profilePanel({ user, values, errors, saved, history }: RenderArgs): string {
   const v = values
   // The session carries `avatarBytes` so the nav can prefer an upload over the
   // provider picture; the same value is what decides whether Remove is offered.
   const hasUpload = ((user as { avatarBytes?: number }).avatarBytes ?? 0) > 0
-  const body = (
+  return (
     <>
-      <h1>Your profile</h1>
+      {/* NO HEADING OF ITS OWN. account-page.tsx heads the page "Your profile"
+          when this tab is the one open, and the tab itself is labelled Profile —
+          a third copy inside the panel is the same words three times. */}
       {saved && <p class="notice">Profile saved.</p>}
       {errors && Object.keys(errors).length > 0 && <p class="notice is-error">Some fields need attention.</p>}
 
@@ -485,20 +498,26 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
       </form>
     </>
   ).toString()
-
-  return page({
-    title: 'Your profile',
-    user,
-    navKey: 'profile',
-    body,
-    // Only the token: profile.js geocodes the address so the builder can read
-    // coordinates straight off the profile instead of looking them up per ride.
-    scripts: `<script src="${asset('/js/profile.js')}" defer></script>
-    <script src="${asset('/js/avatar.js')}" defer></script>
-  <script src="${asset('/js/places.js')}" defer></script>
-  <script src="${asset('/js/paddock.js')}" defer></script>`,
-  })
 }
+
+/**
+ * What the Profile panel needs loaded.
+ *
+ * LOADED WHICHEVER TAB IS OPEN, because both panels are in the DOM and a rider
+ * can switch to Profile without a round trip — deferring these until the tab
+ * opens would mean a first click into the Paddock that does nothing.
+ *
+ * profile.js geocodes the address so the builder can read coordinates straight
+ * off the profile instead of looking them up per ride.
+ */
+export const PROFILE_SCRIPTS = `<script src="${asset('/js/profile.js')}" defer></script>
+  <script src="${asset('/js/avatar.js')}" defer></script>
+  <script src="${asset('/js/places.js')}" defer></script>
+  <script src="${asset('/js/paddock.js')}" defer></script>`
+
+/** The whole page with the Profile tab open. */
+const renderProfile = (args: RenderArgs, c: Context<AuthEnv>): Promise<string> =>
+  accountPage(c, { tab: 'profile', profile: profilePanel(args), scripts: PROFILE_SCRIPTS })
 
 // --- Routes -----------------------------------------------------------------
 
@@ -507,12 +526,15 @@ profileRoutes.get('/profile', requireActive, async (c) => {
   const profile = await loadProfile(user.id)
 
   return c.html(
-    renderProfile({
-      user,
-      saved: c.req.query('saved') === '1',
-      values: { ...profile, username: user.username ?? '', displayName: user.displayName },
-      history: await usernameHistoryFor(user.id),
-    }),
+    await renderProfile(
+      {
+        user,
+        saved: c.req.query('saved') === '1',
+        values: { ...profile, username: user.username ?? '', displayName: user.displayName },
+        history: await usernameHistoryFor(user.id),
+      },
+      c,
+    ),
   )
 })
 
@@ -524,7 +546,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
   // Re-render with what they typed, not with what is in the database — losing a
   // form's worth of input to one bad field is the thing this avoids.
   if (!parsed.success) {
-    return c.html(renderProfile({ user, values: raw, errors: fieldErrors(parsed.error) }), 400)
+    return c.html(await renderProfile({ user, values: raw, errors: fieldErrors(parsed.error) }, c), 400)
   }
 
   const p = parsed.data
@@ -574,7 +596,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         free.reason === 'taken'
           ? 'that username is taken'
           : `that username was released recently and is held until ${free.until.toISOString().slice(0, 10)}`
-      return c.html(renderProfile({ user, values: raw, errors: { username: message } }), 400)
+      return c.html(await renderProfile({ user, values: raw, errors: { username: message } }, c), 400)
     }
   }
 
@@ -651,7 +673,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     // The unique index is the last line of defense on a concurrent claim.
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('uq_username_lower')) {
-      return c.html(renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }), 409)
+      return c.html(await renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }, c), 409)
     }
     throw err
   }

@@ -179,6 +179,40 @@ The diverge half of #67. A planner picks a stop, says who leaves and where they 
 
 **Nothing here needed a schema change, a migration or a new endpoint.** `PUT /api/rides/:id/route-riders/:uid` has always accepted per-rider groups and had no client caller; `groupsRiddenAs()` and `ridersWhoRodeAs()` were written as scaffolding for this and had none either.
 
+## Settings and Profile become one page, 2026-09-07
+
+Two pages and two account-menu items, and the split answered no question a rider was asking: both are "the things about me I can change", so somebody looking for one had to already know which page it had been filed on. They are two tabs of `/settings` now, and `/profile` opens its own—the `/riders` and `/friends` arrangement exactly, kept rather than redirected because both are linked from the menu and from bookmarks.
+
+**Both `NavKey`s survived, which reverses what the issue asked for.** #269 says one page means one key. That is right when one page has one door, and this one has two: the account menu keeps an item for each, so a single key marked BOTH items `aria-current` on every visit. The union's actual rule is that a key no NavItem carries can never fire; both are carried, both fire, and nothing is dead. The heading, the browser title and the key all follow the door, so a rider who pressed "Your profile" does not land on a page headed Settings.
+
+**Rejected: rendering the panels one at a time.** `tabs.js` swaps `hidden` client-side with no round trip, so a panel that is not in the DOM is a tab that does nothing. Both are rendered, which costs one extra query on each door and is what makes the switch instant.
+
+**Rejected: composing the page in either route module.** `settings.tsx` would have to import `profile.tsx` while `profile.tsx` imported it back—an ES module cycle that happens to work only because every binding is called at request time. `src/views/account-page.tsx` takes the profile panel as an already-rendered string instead, so the imports run one way.
+
+## The clock gets its own axis, 2026-09-07
+
+`user_profiles.date_format` stores real BCP-47 tags precisely so Intl decides digit order, padding and the twelve-versus-twenty-four-hour clock together, and `fmtClock` asks for `timeStyle: 'short'` rather than spelling out `hour`/`minute` because spelling them out imposed our padding on every locale. Both still hold. What the arrangement could not express is an American who wants twenty-four-hour time—the only way to give them one was `en-GB`, and `24/08/2026` with it. That is a real rider, so this reverses the recorded call, narrowly: `clock` is `locale` / `h12` / `h24`, `locale` is the default and is the old behavior exactly, and the override is **`hour12` alone**.
+
+**The consequence to state rather than treat as a bug:** `en-GB` with `h12` returns `04:30 pm`, padded, because en-GB's short pattern is a two-digit hour field and `hour12` swaps the cycle without touching the width. Unpadding it means spelling out `hour`/`minute`, which is the mistake being avoided.
+
+**It uncovered a second thing nobody had filed.** Three client formatters passed `undefined` as the locale—the browser's, not the rider's—so the date-format preference had never reached the builder or the map at all. It was true on the printed roadbook and nowhere on screen. `layout.tsx` stamps both values on `<html>` and `window.TBFmt` is the single reader.
+
+## Fuel volume arrives with a surface, not ahead of one, 2026-09-07
+
+#270 asked for a gallons-or-liters choice and noted that nothing in the app renders a volume. That was the thing to settle first: a preference that prints nowhere is a control that does nothing. So `bikes.tank_ml` landed with it, mirroring `usable_range_m` exactly—metric storage, `src/bikes/policy.ts` as the only place the units meet, and the Paddock's Tank field as the surface that reads it.
+
+**`auto` is the default and follows `units`, which is a default rather than a derivation.** Deriving outright would leave a metric rider no way to ask for gallons; defaulting means they never have to ask for liters. The two explicit members are how a rider says otherwise, which is what keeps it the third axis #270 asks for.
+
+**There is deliberately no imperial-gallon member.** It differs from the US gallon by about a fifth, so offering both is offering a way to be wrong by twenty percent on a fuel calculation, and a rider who wants it is better served by liters—which every UK forecourt sells in anyway.
+
+## The avoid list is a weighting, and it runs in the caller, 2026-09-07
+
+A rider's list of places to push down a place search (#271). Two things were settled.
+
+**It never removes anything.** The one time a rider is out of fuel with an ARCO in front of them is the time this must not have hidden it. That is also what makes approximate name matching acceptable: the cost of a false match is one result ranked lower rather than a station that does not exist.
+
+**It runs after the cache, not inside `src/maps/places.ts`.** That module is a proxy plus a cache keyed on the query, so ranking inside it would either fragment the cache per rider—paying Google again for a search somebody else already made—or serve a list pre-ranked for whoever asked first, and both failures are invisible. `POST /api/places/search` applies it to what the cache hands back. It deliberately does not reach the meeting-point proposer, whose `gas_station` matching exists to guarantee the group can fill up.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.

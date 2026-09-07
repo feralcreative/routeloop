@@ -390,13 +390,21 @@
   // carried as UTC — see the header of public/js/route-clock.js. Formatting in the
   // browser's zone is what made the timeline and the printed roadbook disagree
   // by the viewer's offset.
-  const fmtMoment = (s) =>
-    new Date(s * 1000).toLocaleString(undefined, {
+  //
+  // `pref` IS PASSED IN RATHER THAN READ OFF `document`, because this module is
+  // one of the fourteen pure client helpers — it is eval'd by its own test with
+  // no DOM at all, and a `document.documentElement` here would take that test
+  // with it. builder.js reads it from TBFmt and hands it over; an absent one
+  // leaves both fields undefined, which is the browser locale and exactly what
+  // this did before the preference existed.
+  const fmtMoment = (s, pref) =>
+    new Date(s * 1000).toLocaleString((pref && pref.locale) || undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      hour12: pref && pref.hour12,
       timeZone: "UTC",
     });
 

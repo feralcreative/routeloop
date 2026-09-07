@@ -17,6 +17,8 @@ import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
 import { type AddressHit, type GoogleComponent, addressParts } from '../maps/address'
 import { searchPlaces } from '../maps/places'
+import { demoteAvoided, parseAvoidList } from '../places/avoid'
+import { avoidListFor } from '../views/prefs'
 
 export const routingRoutes = new Hono<AuthEnv>()
 
@@ -496,7 +498,18 @@ routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requi
   // caches each paying for what the other already knows. This route's job is now
   // the gate and the status codes.
   const out = await searchPlaces(parsed.data, GMAPS_SERVER_KEY)
-  if (out.ok) return c.json({ places: out.places })
+  if (out.ok) {
+    // THE RIDER'S AVOID LIST IS APPLIED HERE, AFTER THE CACHE, AND NOT INSIDE
+    // searchPlaces (#271). That cache is keyed on the query, so ranking inside
+    // it would either fragment it per rider — paying Google again for a search
+    // somebody else already made — or serve a list pre-ranked for whoever asked
+    // first. Both are invisible. See src/places/avoid.ts.
+    //
+    // A DEMOTION AND NEVER A REMOVAL: the list still holds every result Google
+    // returned, in Text Search's own order within each half.
+    const terms = parseAvoidList(await avoidListFor(c))
+    return c.json({ places: demoteAvoided(out.places, terms) })
+  }
 
   if (out.error === 'unconfigured') return c.json({ error: 'place search is not configured' }, 503)
   if (out.error === 'blocked') {

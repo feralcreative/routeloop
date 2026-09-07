@@ -541,6 +541,43 @@
 
   // Named for the feature rather than for its shape, so the next helper that
   // lands in this file cannot silently replace it.
+  // THE RIDER'S OWN DATE FORMAT AND CLOCK, read once off <html> (#270).
+  //
+  // WHY THIS EXISTS AT ALL. Three client formatters — fmtClockMin in builder.js,
+  // fmtStamp in map-common.js and fmtMoment in ride-time.js — all called
+  // toLocaleString with `undefined` or `[]` as the locale, which is the
+  // BROWSER's, not the rider's. So the date-format preference reached the
+  // printed roadbook and nothing on screen, and a rider who set 24-hour time
+  // would have got it in exactly one place.
+  //
+  // HERE RATHER THAN IN A FOURTH CLIENT MODULE because site.js is already loaded
+  // by page() on every surface including the builder and the viewer, and a new
+  // file needs a <script> line in builder.ts as well — two edits, the second of
+  // which fails silently. See the AGENTS.md note on that trap.
+  //
+  // READ ONCE AND CACHED. Neither attribute changes without a page load: both
+  // are server-rendered, and saving either preference is a form POST and a
+  // redirect.
+  var fmtPrefs = null;
+  function timePrefs() {
+    if (fmtPrefs) return fmtPrefs;
+    var el = document.documentElement;
+    var clock = el.getAttribute("data-clock");
+    fmtPrefs = {
+      // The tag, for toLocaleString's first argument. Falling back to undefined
+      // rather than to "en-US" keeps a page rendered without the stamp — a
+      // fragment, a test harness — behaving exactly as it did before.
+      locale: el.getAttribute("data-date-format") || undefined,
+      // undefined LEAVES THE DECISION WITH THE LOCALE, which is what `locale`
+      // means and what the absence of the attribute encodes. It spreads into an
+      // options object as a no-op, the same rule hour12For() follows server-side.
+      hour12: clock === "h12" ? true : clock === "h24" ? false : undefined,
+    };
+    return fmtPrefs;
+  }
+
+  window.TBFmt = { timePrefs: timePrefs };
+
   window.TBBanner = { refresh: refreshBanner };
 
   function initBanner() {

@@ -36,8 +36,7 @@ const SOURCES = sourceFiles('src')
 // Every unit `interval` accepts. Postgres also takes plurals and a handful of
 // abbreviations; the whole word is what this codebase writes, so the check is on
 // the singular stem and anything else is a typo or a bad rename.
-const INTERVAL_UNITS =
-  /^(microsecond|millisecond|second|minute|hour|day|week|month|year|decade|century|millennium)s?$/
+const INTERVAL_UNITS = /^(microsecond|millisecond|second|minute|hour|day|week|month|year|decade|century|millennium)s?$/
 
 describe('SQL interval literals', () => {
   it('names a unit Postgres accepts', () => {

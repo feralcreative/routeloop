@@ -11,6 +11,8 @@ import { db } from '../db/index'
 import { sessions, userProfiles, users, type UserRow } from '../db/schema'
 import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
 import { type Motion, toMotion } from '../views/motion'
+import { type Clock, toClock } from '../views/clock'
+import { type DateFormat, toDateFormat } from '../views/date-format'
 
 // Renamed with the product on 2026-08-11. No legacy name is read: these cookies
 // are host-scoped with no `domain` attribute, so moving the canonical host to
@@ -54,16 +56,30 @@ export async function createSession(userId: number): Promise<string> {
 }
 
 /**
- * The signed-in rider, plus the three appearance values the shell needs.
+ * The signed-in rider, plus the display values the shell needs.
  *
- * `theme`, `scheme` and `motion` are widened onto the user rather than returned beside it
- * because `page()` takes a user and nothing else that could carry them. They are
- * DISPLAY values and belong to no table row on their own — `user_profiles` holds
- * them, `users` does not — which is why this is a composed type rather than a
- * change to UserRow.
+ * `theme`, `scheme` and `motion` are widened onto the user rather than returned
+ * beside it because `page()` takes a user and nothing else that could carry
+ * them. They are DISPLAY values and belong to no table row on their own —
+ * `user_profiles` holds them, `users` does not — which is why this is a composed
+ * type rather than a change to UserRow.
+ *
+ * `dateFormat` AND `clock` JOINED THEM ON 2026-09-07 (#270), for the same reason
+ * and to answer a new one: the CLIENT formats times too, and it was calling
+ * `toLocaleTimeString(undefined, …)` — the BROWSER's locale, not the rider's
+ * choice. So a rider who asked for a 24-hour clock got one in the printed
+ * roadbook and not in the builder. Stamping both on <html> is what lets the
+ * three client formatters read the same answer the server used.
  */
 export type SessionUser = {
-  user: UserRow & { theme: Theme; scheme: Scheme; motion: Motion; avatarBytes: number }
+  user: UserRow & {
+    theme: Theme
+    scheme: Scheme
+    motion: Motion
+    dateFormat: DateFormat
+    clock: Clock
+    avatarBytes: number
+  }
   sessionId: string
 }
 
@@ -94,6 +110,8 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: userProfiles.theme,
       scheme: userProfiles.scheme,
       motion: userProfiles.motion,
+      dateFormat: userProfiles.dateFormat,
+      clock: userProfiles.clock,
       avatarBytes: userProfiles.avatarBytes,
     })
     .from(sessions)
@@ -123,6 +141,8 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: toTheme(row.theme),
       scheme: toScheme(row.scheme),
       motion: toMotion(row.motion),
+      dateFormat: toDateFormat(row.dateFormat),
+      clock: toClock(row.clock),
       // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
       // `users.avatar_url` is write-once from Google sign-in and a rider cannot
       // change it; an upload is a deliberate choice and outranks it. Zero means

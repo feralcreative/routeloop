@@ -19,7 +19,7 @@ import { loadRideForExport, type ExportPoint, type ExportRoute } from '../maps/e
 import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
-import { dateFormatFor } from '../views/prefs'
+import { clockFor, dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
 import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
@@ -156,6 +156,10 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // dateFormatFor — a shared ride is printable by anyone, so this route has to
   // work with no user at all.
   const dateFormat = await dateFormatFor(c)
+  // The rider's own clock beside their own date order (#270). Signed-out — a
+  // shared ride is printable by anyone — resolves to `locale`, which is what the
+  // date format alone already said.
+  const clock = await clockFor(c)
 
   // The same visibility gate the viewer uses — literally the same function now.
   // A roadbook is the ride, rendered differently; it must not be a way around
@@ -286,7 +290,9 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                           {/* Blank until the first fuel stop: "miles since fuel" has no
                               answer before there has been any. */}
                           <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
-                          {r.startAt && <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat) : '—'}</td>}
+                          {r.startAt && (
+                            <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat, clock) : '—'}</td>
+                          )}
                           <td class="rb-num">
                             {row.point.durationMin ? fmtDuration(row.point.durationMin * 60) : '—'}
                           </td>

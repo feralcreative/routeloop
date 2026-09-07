@@ -68,8 +68,10 @@ export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'min
 // stays a timestamp, ride.json stays ISO, every export is unaffected.
 //
 // The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
-// does the formatting and the clock and the number grouping follow the date order
-// instead of needing their own setting. Canonical metadata and the formatters
+// does the formatting and the number grouping follows the date order instead of
+// needing its own setting. THE CLOCK FOLLOWED TOO UNTIL 2026-09-07, when it got
+// its own column beside this one (#270) — it still follows by DEFAULT, and
+// `clock` overrides `hour12` alone. See the clockEnum below. Canonical metadata and the formatters
 // live in src/views/date-format.ts; keep these three in step with the array
 // there, which test/date-format.test.ts pins.
 export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
@@ -91,6 +93,30 @@ export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
 // road distance in MILES, so deriving would hand every British rider kilometers
 // they never asked for. See src/views/units.ts.
 export const unitsEnum = pgEnum('units', ['imperial', 'metric'])
+
+// Twelve- or twenty-four-hour time. A THIRD MEMBER RATHER THAN A BOOLEAN, and
+// `locale` is the default because it is what the app already did: `date_format`
+// stores real BCP-47 tags precisely so Intl decides digit order, padding and the
+// clock together, and `fmtClock` asks for `timeStyle: 'short'` rather than
+// spelling out hour/minute — which would impose our padding on every locale.
+//
+// THIS REVERSES THAT CALL NARROWLY AND DELIBERATELY (#270). Ziad's call,
+// 2026-09-07. An American who wants twenty-four-hour time is a real rider and
+// there was no way to give them one without also giving them 24/08/2026. The
+// override is `hour12` alone — `timeStyle: 'short'` stays, so the locale still
+// decides the date order, the padding and the separator, and `locale` keeps the
+// old behavior exactly for everybody who does not touch it.
+export const clockEnum = pgEnum('clock', ['locale', 'h12', 'h24'])
+
+// Gallons or liters. A THIRD AXIS beside `units` and `date_format`, for the same
+// reason `units` is its own enum rather than derived from the date format: a
+// rider can want miles and a metric fuel volume, or the reverse.
+//
+// `auto` FOLLOWS `units` AND IS THE DEFAULT, which is not the same as folding
+// the two together. Deriving would leave a metric rider no way to ask for
+// gallons; defaulting means they never have to ask for liters. See
+// src/views/volume.ts.
+export const volumeUnitsEnum = pgEnum('volume_units', ['auto', 'gallons', 'liters'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -344,6 +370,23 @@ export const userProfiles = pgTable('user_profiles', {
   // there is no Accept-Units.
   motion: motionEnum('motion').notNull().default('system'),
   units: unitsEnum('units').notNull().default('imperial'),
+  // Defaulted for the same reason as the five above: no third state for a reader
+  // to interpret. Neither is seeded from a header — `clock` delegates to the
+  // rider's date format through its own `locale` member, which is the same
+  // mechanism `motion` uses for the browser, and there is no Accept-Volume.
+  clock: clockEnum('clock').notNull().default('locale'),
+  volumeUnits: volumeUnitsEnum('volume_units').notNull().default('auto'),
+  // Places to push DOWN a place search, one per line or separated by commas or
+  // semicolons (#271). FREE TEXT AND NOT A JOIN TABLE: the intended use is as
+  // loose as it sounds — a category like "fast food" and one chain by name in
+  // the same list — so there is nothing to normalize against and no fixed set of
+  // brands for anybody to maintain.
+  //
+  // A WEIGHTING AND NEVER A FILTER, which is what makes free text safe here. A
+  // false match costs one result ranked lower, and the one time a rider is out
+  // of fuel with an ARCO in front of them is the time this must not have hidden
+  // it. See src/places/avoid.ts.
+  avoidPlaces: varchar('avoid_places', { length: 1000 }),
   // Contact details, each behind its own share flag (#183).
   //
   // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four
@@ -427,6 +470,15 @@ export const bikes = pgTable(
     // supermoto are not the same route, and the number a rider would give changes
     // with which one is in the garage.
     comfortRangeM: integer('comfort_range_m'),
+    // Tank capacity in MILLILITERS, typed in gallons or liters — the same unit
+    // boundary `usable_range_m` follows, and src/bikes/policy.ts is again the
+    // only place the two meet. Stored metric because #150 will switch the site
+    // over, and a value stored in whatever unit somebody typed drifts on every
+    // round trip.
+    //
+    // NULLABLE, AND NULL IS NOT ZERO. Most riders will never fill it in, and a
+    // tank of zero is a different claim from a tank nobody has measured.
+    tankMl: integer('tank_ml'),
     // The photo's bookkeeping, mirroring rides.thumb_hash: the hash is a
     // fingerprint that lets the route serve the image immutable, because a
     // changed picture is a changed URL.
@@ -460,6 +512,10 @@ export const bikes = pgTable(
     // 1,240 miles, comfortably past any production motorcycle — and exists so a
     // fat-fingered entry cannot poison a fuel-stop calculation downstream.
     check('ck_bike_range', sql`${t.usableRangeM} is null or (${t.usableRangeM} > 0 and ${t.usableRangeM} <= 2000000)`),
+    // 100 L, comfortably past any production motorcycle, for the same reason the
+    // range ceiling exists: a fat-fingered entry must not poison a fuel
+    // calculation downstream.
+    check('ck_bike_tank', sql`${t.tankMl} is null or (${t.tankMl} > 0 and ${t.tankMl} <= 100000)`),
     check(
       'ck_bike_comfort',
       sql`${t.comfortRangeM} is null or (${t.comfortRangeM} > 0 and ${t.comfortRangeM} <= 2000000)`,
