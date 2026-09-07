@@ -9,8 +9,38 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font: 300 16px/1.5 $font, system-ui, sans-serif;
+  font:
+    300 16px/1.5 $font,
+    system-ui,
+    sans-serif;
   color: $text;
+}
+
+// FORM CONTROLS DO NOT INHERIT THE PAGE FONT, AND THE SITE HAD BEEN RENDERING
+// ARIAL BECAUSE OF IT. Ziad spotted it on /feedback, 2026-09-07.
+//
+// A `<button>`, `<input>`, `<select>` or `<textarea>` takes a UA default face
+// rather than inheriting — it is one of the last places the platform still
+// overrides the author — so any control that does not set its own font renders
+// in the system sans. `.field input` in _forms.scss and `.btn` both set theirs,
+// which is why this went unseen: the two controls that did NOT were the release
+// notes' close button, on every page in the app, and the three kind cards on
+// /feedback, whose entire label and blurb were Arial.
+//
+// **`font-family` ALONE AND NOT THE `font` SHORTHAND.** `font: inherit` is the
+// usual form of this reset and it also resets size, weight and line-height —
+// which would silently resize every control in the app that has been relying on
+// a UA default for one of them. The face is the thing that is wrong; nothing
+// else here is.
+//
+// **NOT A GENERAL RESET.** There is deliberately no global `box-sizing` reset in
+// style/ (see the note in _forms.scss about `.btn-stop`), and this is not the
+// start of one — it names four elements and fixes one property on them.
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 // THE STAGE BANNER'S RESERVE ON ORDINARY PAGES. `.tb-banner` is `position:

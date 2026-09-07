@@ -229,7 +229,12 @@ const KindFork = ({ area }: { area: string }) => (
     <form method="get" action="/feedback" class="fb-fork">
       {area && <input type="hidden" name="area" value={area} />}
       {KIND_ORDER.map((k) => (
-        <button class="fb-card" type="submit" name="kind" value={k}>
+        // `data-kind` RATHER THAN A CLASS PER KIND, matching how the rest of
+        // the app hangs behavior and styling off data attributes (`data-tabs`,
+        // `data-paddock`). It also means the sign colors below are keyed on the
+        // value the form actually submits, so a kind renamed in KIND_ORDER
+        // loses its color loudly rather than keeping somebody else's.
+        <button class="fb-card" data-kind={k} type="submit" name="kind" value={k}>
           <span class="fb-card-label">{KIND_META[k].label}</span>
           <span class="fb-card-blurb">{KIND_META[k].blurb}</span>
         </button>
