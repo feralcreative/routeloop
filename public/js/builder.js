@@ -2505,8 +2505,10 @@
     markDirty();
   }
 
-  // The row menu's Move up / Move down, and the keyboard path. `i` indexes
-  // route.points and both kinds get it now — a POI has an order to change.
+  // The grip's arrow keys. It was also the row menu's Move up / Move down until
+  // those came off — the grip is a real <button> now and carries the keyboard
+  // path on its own. `i` indexes route.points and both kinds get it — a POI has
+  // an order to change.
   function movePoint(i, dir) {
     const r = editIndex();
     if (r == null) return;
@@ -6792,12 +6794,25 @@
       i +
       '" data-route="' +
       routeIndex +
+      '" data-uid="' +
+      esc(point.uid || "") +
       '">' +
       '<div class="row-main">' +
       // Both kinds reorder now — a POI has a place in the list of its own, so
       // there is one gesture with one meaning rather than a drag that reordered
       // a stop and repositioned a POI's pin.
-      '<span class="row-drag" title="Drag to reorder" aria-hidden="true"></span>' +
+      //
+      // A REAL <button> WITH ARROW KEYS, which is what carries the two properties
+      // Move up / Move down used to: a keyboard path, and reordering that still
+      // works when the SortableJS CDN does not. It was a `<span aria-hidden>` and
+      // the menu items were the only way to do either — so removing them without
+      // this would have left the point list the one list in the builder you
+      // cannot reorder from a keyboard. `.route-drag` and `.sg-drag` are already
+      // this, which is why neither of their menus carries move items either.
+      '<button type="button" class="row-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+      ' aria-label="Reorder ' +
+      esc(point.name || "this point") +
+      '"></button>' +
       // THE CHECKBOX REPLACES THE NUMBER rather than joining it. A 380px row has
       // no spare width and .row-name is already the thing that shrinks; the stop
       // number is the one element that is redundant while you are ticking boxes,
@@ -6887,17 +6902,41 @@
       ">" +
       rolePickerHtml(point) +
       "</div>" +
+      // A note that has been written stays visible on the row. The textarea moved
+      // into the details panel, so without this a rider's own note would be
+      // behind a menu item and two clicks away — and a note is the kind of thing
+      // you write in order to see it while planning. Read-only, one line,
+      // ellipsised: pressing it is what the panel is for.
+      (point.description
+        ? '<p class="row-note" title="' + esc(point.description) + '">' + esc(point.description) + "</p>"
+        : "") +
+      // TWO NOTES BOXES, ONE PANEL, AND THE SPLIT INSIDE IT IS LOAD-BEARING.
+      // `.row-desc` writes `point.description`, which is PUBLIC — it is on
+      // `points`, in the payload, in ride.json and in every export. `.detail-body`
+      // holds what detailsHtml() renders, including the owner-only notes box that
+      // writes `point_details.notes`.
+      //
+      // The public one is OUTSIDE `.detail-body` because that body is re-rendered
+      // on its own whenever a link is added or removed, and it used to be the
+      // WHOLE panel that was replaced — so a rider typing a note who then pressed
+      // Add link lost it. #188 reached from inside the details panel.
+      //
+      // A role change is a different case and is not what this guards: that goes
+      // through renderRouteList(), which rebuilds the row entirely and closes the
+      // panel. Nothing is lost there because `input` has already written the note
+      // into state, exactly as it did when the textarea lived on the row.
+      '<div class="row-details" hidden>' +
+      '<label class="detail-field detail-desc"><span>Notes everyone on the ride can see</span>' +
       '<textarea class="row-desc" name="' +
       kind +
       "-notes-" +
       i +
-      '" maxlength="2000" placeholder="Notes (optional)"' +
-      (point.description ? "" : " hidden") +
-      ">" +
+      '" maxlength="2000" placeholder="Where to park, what the turn looks like, why we are stopping">' +
       esc(point.description) +
-      "</textarea>" +
-      '<div class="row-details" hidden>' +
+      "</textarea></label>" +
+      '<div class="detail-body">' +
       detailsHtml(point, kind, i) +
+      "</div>" +
       "</div>" +
       "</li>"
     );
@@ -6985,8 +7024,12 @@
       ">Add link</button></div>";
 
     out +=
-      '<label class="detail-field detail-notes"><span>Private notes</span>' +
-      '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, where to park, who to ask for">' +
+      // "Only you" rather than "Private", because the box above it in this same
+      // panel is also a notes box and the whole difference between them is who
+      // reads it. A label that names the audience answers that where one naming
+      // the sensitivity leaves the rider to infer it.
+      '<label class="detail-field detail-notes"><span>Notes only you can see</span>' +
+      '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, confirmation number, who to ask for">' +
       esc(d.notes || "") +
       "</textarea></label>";
 
@@ -7567,6 +7610,32 @@
       "</span>";
   }
 
+  /**
+   * Keep the row's read-only note line in step with the box being typed into.
+   *
+   * The line and the textarea render from one value, `point.description`, but
+   * they are drawn at different times: the line by `pointRowHtml` and the box by
+   * whatever the rider is doing right now. A re-render would reconcile them and
+   * is exactly what must not happen here — the caret is in the textarea.
+   *
+   * Creates and removes the element rather than hiding it, because an empty note
+   * is not a note: a `<p>` left in place would take its own margin and put a gap
+   * under every row nobody has written on. Inserted before `.row-details` so it
+   * lands where `pointRowHtml` puts it and a later re-render changes nothing.
+   */
+  function syncRowNote(row, point) {
+    const text = point.description || "";
+    let el = row.querySelector(".row-note");
+    if (!text) return el && el.remove();
+    if (!el) {
+      el = document.createElement("p");
+      el.className = "row-note";
+      row.insertBefore(el, row.querySelector(".row-details"));
+    }
+    el.textContent = text;
+    el.title = text;
+  }
+
   // Delegated events for both lists.
   function wireList(listEl) {
     listEl.addEventListener("input", (e) => {
@@ -7581,7 +7650,15 @@
         "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className,
       );
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
-      if (e.target.classList.contains("row-desc")) point.description = e.target.value;
+      if (e.target.classList.contains("row-desc")) {
+        point.description = e.target.value;
+        // PATCHED IN PLACE, NEVER RE-RENDERED. The preview line on the row is
+        // built from the same value, so without this it holds whatever the note
+        // said when the row was last drawn — and this handler cannot call
+        // renderRouteList(), which would destroy the textarea being typed in and
+        // drop focus to <body>. #188, and the same treatment togglePref uses.
+        syncRowNote(row, point);
+      }
       // The detail fields, all of them, through one branch. `data-field` is what
       // makes that possible — adding a field to detailsHtml needs nothing here.
       //
@@ -7638,6 +7715,36 @@
       if (!point) return;
       e.target.value = DUR.format(point.durationMin, durFormat);
     });
+
+    // THE KEYBOARD HALF OF THE DRAG HANDLE, and the reason Move up / Move down
+    // could be taken off the row menu at all. Those two items were the point
+    // list's only keyboard reorder and its only path when the SortableJS CDN
+    // fails, so `.row-drag` had to stop being a `<span aria-hidden>` first.
+    // Mirrors the route grip's handler on #route-list exactly.
+    //
+    // preventDefault because the drawer scrolls, and an arrow key that both moves
+    // the point and scrolls the panel loses the row off the screen.
+    listEl.addEventListener("keydown", (e) => {
+      const grip = e.target.closest(".row-drag");
+      if (!grip) return;
+      const dir = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const row = grip.closest(".point-row");
+      if (!row) return;
+      // movePoint() works on the ACTIVE route and a row can belong to one that is
+      // not it, the same reason every other handler here calls setActive first.
+      setActive(Number(row.dataset.route));
+      const uid = row.dataset.uid;
+      movePoint(Number(row.dataset.i), dir);
+      // renderList() has replaced the button that was focused, so focus goes back
+      // on the same POINT's grip at its new index — BY UID, because the index is
+      // precisely the thing that just changed. Same rule as the route grip and
+      // `.sg-drag`.
+      const moved = uid && listEl.querySelector('.point-row[data-uid="' + CSS.escape(uid) + '"] .row-drag');
+      if (moved) moved.focus();
+    });
+
     listEl.addEventListener("click", (e) => {
       // BEFORE THE .point-row LOOKUP, because a via row is not one — every
       // handler below resolves a row to state.routes[route].points[i], and there is
@@ -7657,20 +7764,16 @@
       if (btn.classList.contains("row-menu-item")) {
         const act = btn.dataset.act;
         closeRowMenu();
-        if (act === "notes") {
-          const ta = row.querySelector(".row-desc");
-          ta.hidden = false;
-          ta.focus();
-          return;
-        }
         if (act === "details") {
           const box = row.querySelector(".row-details");
           // Re-rendered on open rather than only at row build time, because the
           // rider may have changed the stop's roles since — and roles are what
-          // decide which fields show.
-          box.innerHTML = detailsHtml(point, row.dataset.kind, i);
+          // decide which fields show. ONLY `.detail-body` is rewritten: the
+          // rider-visible note sits outside it precisely so a role change cannot
+          // destroy what is being typed into it.
+          box.querySelector(".detail-body").innerHTML = detailsHtml(point, row.dataset.kind, i);
           box.hidden = false;
-          const first = box.querySelector("input, textarea");
+          const first = box.querySelector("textarea, input");
           if (first) first.focus();
           return;
         }
@@ -7678,10 +7781,7 @@
         if (act === "save-place") return savePointAsPlace(point);
         if (act === "duplicate") return duplicatePoint(row.dataset.kind, i);
         if (act === "delete") return deletePoint(i);
-        if (act === "up") return movePoint(i, -1);
-        if (act === "down") return movePoint(i, 1);
-        if (act === "promote") return setPointKind(i, "stop");
-        if (act === "demote") return setPointKind(i, "poi");
+        if (act === "kind") return setPointKind(i, point.kind === "stop" ? "poi" : "stop");
         if (act === "select") return startSelect("point");
         if (act === "split") return splitRouteHere(Number(row.dataset.route), i);
         return;
@@ -7691,7 +7791,7 @@
         if (!point.details) point.details = blankDetails();
         if (point.details.links.length >= MAX_LINKS) return toast("Up to " + MAX_LINKS + " links per stop", true);
         point.details.links.push({ label: "", url: "" });
-        const box = row.querySelector(".row-details");
+        const box = row.querySelector(".detail-body");
         box.innerHTML = detailsHtml(point, row.dataset.kind, i);
         const inputs = box.querySelectorAll(".detail-link input");
         if (inputs.length) inputs[inputs.length - 2].focus();
@@ -7702,7 +7802,7 @@
         beginEdit("remove link");
         const n = Number(btn.closest(".detail-link").dataset.link);
         if (point.details) point.details.links.splice(n, 1);
-        row.querySelector(".row-details").innerHTML = detailsHtml(point, row.dataset.kind, i);
+        row.querySelector(".detail-body").innerHTML = detailsHtml(point, row.dataset.kind, i);
         markDirty();
         return;
       }
@@ -7797,31 +7897,39 @@
   // panel redesign exists to remove. Both hosts therefore need
   // `position: relative` — .point-row and .route-head both have it.
   //
-  // Move up / Move down are on the POINT menu only. They are not redundant with
-  // the drag handle there, because .row-drag is aria-hidden and a drag handle
-  // cannot be operated from a keyboard — they are also what still works if the
-  // SortableJS CDN fails. A DAY's grip is a real <button> with arrow keys wired
-  // on #route-list, so the route menu needs no equivalent.
+  // NEITHER MENU CARRIES MOVE UP / MOVE DOWN ANY MORE. They were on the point
+  // menu because `.row-drag` was a `<span aria-hidden>` — so they were its only
+  // keyboard reorder and its only path when the SortableJS CDN fails. The grip
+  // is a real <button> with arrow keys now, the same as `.route-drag` and
+  // `.sg-drag`, and that is what carries both properties. Do not re-add the items
+  // without first making the grip a span again, because then the properties go
+  // with them.
   const MENU_ITEMS = [
-    { act: "notes", label: "Edit notes" },
-    { act: "details", label: "Reservation & details" },
+    // ONE DOOR TO BOTH NOTES. "Edit notes" opened `.row-desc` and this opened a
+    // panel with a "Private notes" box in it, so a rider had two items leading to
+    // two boxes with nothing saying which was which — and the difference is the
+    // one thing about them worth knowing. Both live in the panel now, labelled.
+    { act: "details", label: "Notes, reservations & details" },
     { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
-    // PROMOTION ALSO LIVES HERE, and no longer only here. Picking a category
-    // promotes a point on its own as of 2026-08-24 — tagging it Gas already says
-    // you mean to stop — so these two items are the path for what a category
-    // cannot say: a stop with no reason given, and taking one back without having
-    // to find which tag to remove.
+    // ONE ITEM, NOT TWO, AND IT IS ABSENT ON A TAGGED STOP. Picking a category
+    // promotes a point on its own and clearing the last one demotes it again — so
+    // on a point that carries categories this item would be a second way to say
+    // what the chips already say, which is what "Make this a POI" had become.
     //
-    // Kept keyboard-reachable and reversible, which matters because a
-    // mis-promotion would otherwise cost a delete and a re-add and take the
-    // point's notes and details with it.
-    { act: "promote", label: "Make this a stop", when: (pt) => pt.kind !== "stop" },
-    // Clears the categories with it, or the point would come straight back as a
-    // stop the next time anything re-derived the kind from its roles — and it
-    // would read as a POI that is somehow tagged Gas.
-    { act: "demote", label: "Make this a POI", when: (pt) => pt.kind === "stop" },
+    // What a category cannot say is a stop with no reason given, which imports and
+    // the first-point rule both produce, so the item survives for exactly that:
+    // a POI with nothing to untag, and a roleless stop with nothing to untag. On
+    // a tagged stop the chips are the answer and this is hidden.
+    //
+    // Kept reversible, which matters because a mis-promotion would otherwise cost
+    // a delete and a re-add and take the point's notes and details with it.
+    {
+      act: "kind",
+      label: (pt) => (pt.kind === "stop" ? "Make this a POI" : "Make this a stop"),
+      when: (pt) => pt.kind !== "stop" || !(pt.roles || []).length,
+    },
     // No longer stopOnly: a POI has a place in the list of its own now.
     // ANCHORED BY UID, which is the point's identity across a save — its id
     // churns on every PUT and cannot be referenced. The comment survives the
@@ -7832,8 +7940,6 @@
     // place — splitting at the first or last point would leave a route with one
     // point and no legs, which the API refuses and payload() drops whole.
     { act: "split", label: "End the route here" },
-    { act: "up", label: "Move up" },
-    { act: "down", label: "Move down" },
     { act: "delete", label: "Delete", danger: true },
   ];
 
@@ -7902,22 +8008,23 @@
   function toggleRowMenu(row, btn) {
     const i = Number(row.dataset.i);
     const route = editRoute();
-    const last = route ? route.points.length - 1 : 0;
     const point = route && route.points[i];
     if (!point) return;
-    // Promote and demote are ABSENT rather than disabled — unlike the ends below
-    // — because exactly one of the pair applies to any row and showing the other
-    // greyed out would say a point can be made into what it already is.
+    // The kind item is ABSENT rather than disabled on a tagged stop — unlike the
+    // split below — because the categories are the control there and a greyed
+    // duplicate of them says nothing a rider can act on.
     //
     // Demoting the route's last stop IS shown and disabled: it is a real action
     // that is unavailable right now for a reason worth stating, and setPointKind
     // says which.
+    //
+    // `label` may be a function of the point, because the kind item is one item
+    // saying two things rather than the pair it replaced.
     const items = MENU_ITEMS.filter((m) => !m.when || m.when(point)).map((m) => ({
       ...m,
+      label: typeof m.label === "function" ? m.label(point) : m.label,
       off:
-        (m.act === "up" && i === 0) ||
-        (m.act === "down" && i === last) ||
-        (m.act === "demote" && stopsOf(route).length <= 1) ||
+        (m.act === "kind" && point.kind === "stop" && stopsOf(route).length <= 1) ||
         (m.act === "split" && !SPLIT.canSplitAt(route, i)),
     }));
     openMenu(row, btn, items);

@@ -1569,6 +1569,13 @@
     .row-drag {
       position: relative;
       flex: none;
+      // It is a <button> now, exactly as .route-drag and .sg-drag are — it carries
+      // the arrow-key reordering that Move up / Move down used to — so the UA's
+      // button chrome has to come off.
+      padding: 0;
+      border: none;
+      appearance: none;
+      font: inherit;
       // THE ENTIRE LEFT SIDE OF THE ROW, edge to edge. `align-self: stretch`
       // alone is not enough and that is the trap: it stretches to .row-main,
       // while the vertical padding belongs to .point-row OUTSIDE it, so the tab
@@ -1632,6 +1639,14 @@
 
       &:active {
         cursor: grabbing;
+      }
+
+      // The grip is a tab flush with the row's own edge, so an outline drawn
+      // outside it is clipped by the card. Inset, and on the tab's own rounded
+      // side, so a keyboard rider can see which row they are about to move.
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: -2px;
       }
     }
     .row-main {
@@ -1839,6 +1854,25 @@
       resize: vertical;
     }
 
+    // The written note, read-only, on the row. The textarea moved into the
+    // details panel and a note a rider has already written should not need two
+    // clicks to see — that is what it was written for.
+    //
+    // ONE LINE AND ELLIPSISED, with the whole text in a `title`: a note can run to
+    // 2000 characters and a row that grows to hold one buries the ride. Pressing
+    // the ⋮ is how you read and edit the rest.
+    //
+    // Indented to clear the grip so it lines up with the row's own name rather
+    // than starting at the card's edge.
+    .row-note {
+      margin: 0.15em 0 0 1.9em;
+      font-size: 0.72em;
+      color: $text-l40;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     // The reservation panel. Hidden until the row menu opens it, because a stop
     // carrying a confirmation number is the exception — a panel of empty inputs
     // under every row would bury the ride it belongs to.
@@ -1879,6 +1913,22 @@
       textarea {
         min-height: 3.5em;
         resize: vertical;
+      }
+    }
+
+    // The rider-visible note, first in the panel and ruled off from everything
+    // below it. The rule is the whole point: what follows is the owner-only half,
+    // and two notes boxes with nothing between them is exactly the confusion that
+    // merging "Edit notes" into this panel was meant to end.
+    .detail-desc {
+      padding-bottom: 0.6em;
+      margin-bottom: 0.1em;
+      border-bottom: 1px solid $grey;
+
+      // It carries .row-desc for the undo handling and the input listener, whose
+      // own margin is from when it sat on the row. The label owns the spacing here.
+      .row-desc {
+        margin: 0;
       }
     }
 
