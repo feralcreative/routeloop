@@ -205,8 +205,15 @@ describe('the format identifier', () => {
     expect(isDurationFormat('seconds')).toBe(false)
   })
 
+  // ORDER-INDEPENDENT SINCE 2026-09-07, and the looseness is deliberate rather
+  // than a weakening. The page reads minutes, hours, hours-and-minutes — shortest
+  // form to longest — and the enum reads hours, hm, minutes, because a pgEnum's
+  // member order is fixed once created and cannot follow a layout decision. What
+  // still has to hold is that neither list gains or loses a member, which is what
+  // this now says.
   it('offers every format on the settings page, each with a worked example', () => {
-    expect(DURATION_FORMAT_CHOICES.map((c) => c.id)).toEqual([...DURATION_FORMATS])
+    expect([...DURATION_FORMAT_CHOICES.map((c) => c.id)].sort()).toEqual([...DURATION_FORMATS].sort())
+    expect(DURATION_FORMAT_CHOICES).toHaveLength(DURATION_FORMATS.length)
     // Ninety minutes is the example because it is the value that looks
     // different in all three — that is the question the page is asking.
     expect(new Set(DURATION_FORMAT_CHOICES.map((c) => c.example)).size).toBe(3)

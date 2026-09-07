@@ -185,8 +185,18 @@ export function durationInputMode(format: DurationFormat): string {
 // For the Settings page: the label and a worked example per format. Ninety
 // minutes is the example everywhere because it is the value that looks different
 // in all three, which is the entire question being asked.
+/**
+ * The settings page's radio set, in READING ORDER rather than in the enum's.
+ *
+ * Ziad's call, 2026-09-07: minutes, then decimal hours, then hours and minutes.
+ * It runs shortest-form to longest, which is the order the three actually differ
+ * in — and it is deliberately NOT `DURATION_FORMATS`' order, because that one is
+ * a pgEnum's member order and is fixed once created. The two lists answering to
+ * different rules is the point; `test/duration.test.ts` pins that both hold
+ * every member exactly once rather than that they match.
+ */
 export const DURATION_FORMAT_CHOICES: { id: DurationFormat; label: string; example: string }[] = [
+  { id: 'minutes', label: 'Minutes', example: formatDuration(90, 'minutes') },
   { id: 'hours', label: 'Hours', example: formatDuration(90, 'hours') },
   { id: 'hm', label: 'Hours and minutes', example: formatDuration(90, 'hm') },
-  { id: 'minutes', label: 'Minutes', example: formatDuration(90, 'minutes') },
 ]
