@@ -246,7 +246,7 @@ $sign-arrow-bearings: (
   // which is the same mechanism run the other way.
   flex-direction: row-reverse;
   background: $interstate;
-  color: $white;
+  color: $ink-light;
   border-radius: 10px;
   // The legend is nudged down a tenth of an em, chosen by eye against the real
   // login form rather than derived. `align-items: center` centers the text's
@@ -273,7 +273,7 @@ $sign-arrow-bearings: (
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 0 0 3px $interstate,
-    inset 0 0 0 5px $white;
+    inset 0 0 0 5px $ink-light;
 
   // The directional arrow, as an inline SVG in a background rather than markup:
   // the treatment stays a class you add, with nothing to remember to put inside
@@ -407,7 +407,7 @@ $sign-arrow-bearings: (
     background: $lit;
     box-shadow:
       inset 0 0 0 3px $lit,
-      inset 0 0 0 5px $white;
+      inset 0 0 0 5px $ink-light;
   }
 
   &:focus-visible {
@@ -535,17 +535,24 @@ $octagon: polygon(
 // it under black. Both follow from which ink the field carries, so both hang off
 // the one argument and a caller cannot set one and forget the other.
 @mixin sign-field($field, $dark-ink: false) {
-  // $white and not $ink-light, deliberately, because that is what the base rule
-  // above already bakes into its keyline and this mixin's whole job is to
-  // restate that ring in a new field color. The two differ under a dark scheme —
-  // see the note on "PAGE SURFACES, not legends" in _palette.scss — so the
-  // white-legend signs are arguably wrong there and were before this parameter
-  // existed. Changing it belongs with the base rule and every button that reads
-  // it, not here.
+  // **$ink-light AND NOT $white, AS OF 2026-09-07, AND THE OLD NOTE HERE WAS
+  // RIGHT THAT IT MATTERED.** It read "the white-legend signs are arguably wrong
+  // there and were before this parameter existed", and deferred: changing it
+  // belongs with the base rule and every button that reads it. It was never
+  // measured. `--white` is the PAGE SURFACE rather than the color white — under
+  // a dark scheme it is the page's own near-black — so every guide sign in the
+  // app rendered a near-black legend on its green field at **2.67:1**, below the
+  // 4.5:1 the palette audit holds everything else to, on every page. Measured in
+  // the browser while a new `?` badge was being built on the same construction.
+  //
+  // `$ink-light` is the literal legend white and is scheme-invariant, which is
+  // what a sign's legend actually is — a yield sign takes black ink at night
+  // too. The base rule above now bakes the same token into its keyline, so this
+  // mixin restates what is really there rather than what used to be.
   //
   // @if rather than the if() function: Dart Sass deprecates that syntax
   // ([if-function]) because both arms are evaluated whichever one is returned.
-  $ink: $white;
+  $ink: $ink-light;
 
   @if $dark-ink {
     $ink: $ink-dark;

@@ -105,10 +105,14 @@
 // other two take white. The green is Material Green 800 rather than $gpx, which
 // is Green 600 and lands at 3.3:1 behind white — the same family's darker step,
 // for the same reason DARK.url in the email palette is Blue 300 rather than $url.
+// $ink-light AND NOT $white for the two solid tones, since 2026-09-07: `--white`
+// is the PAGE SURFACE and is the page's own near-black under a dark scheme, so
+// the selected option's ink followed the page instead of staying a legend. The
+// paragraph above is measuring the color white, which is what these now are.
 $rate-tones: (
   "no": (
     $kml,
-    $white,
+    $ink-light,
   ),
   "maybe": (
     $accent,
@@ -116,7 +120,7 @@ $rate-tones: (
   ),
   "yes": (
     $interstate,
-    $white,
+    $ink-light,
   ),
 );
 

@@ -1080,7 +1080,7 @@ table.route-table {
   &[aria-pressed="true"]:focus-visible {
     background: $stop;
     border-color: $stop;
-    color: $white;
+    color: $ink-light;
   }
 }
 
@@ -1325,7 +1325,7 @@ table.route-table {
   font-size: 12px;
   // 1, so the glyph's own box does not push it off the disc's center.
   line-height: 1;
-  color: $white;
+  color: $ink-light;
   cursor: default;
 }
 
@@ -1344,7 +1344,7 @@ table.route-table {
   padding: 0.2em 0.5em;
   border-radius: 4px;
   background: $tarmac;
-  color: $white;
+  color: $ink-light;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.5;
@@ -1745,7 +1745,7 @@ body.is-arming #map div {
   padding: 0.2em 0.5em;
   border-radius: 4px;
   background: $tarmac;
-  color: $white;
+  color: $ink-light;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.5;
@@ -1919,7 +1919,7 @@ body.is-arming #map div {
   padding: 0.15em 0.45em;
   border-radius: 4px;
   background: $tarmac;
-  color: $white;
+  color: $ink-light;
   font-size: 0.7rem;
   opacity: 0;
   pointer-events: none;

@@ -633,43 +633,88 @@
 }
 
 .help-dot {
-  // A real <button>, so `popovertarget` works and the keyboard reaches it. The
-  // reset is what stops the browser's button chrome, since there is no global
-  // one in style/.
+  // A BLUE GUIDE SIGN AT BADGE SCALE. Ziad's call, 2026-09-07: blue field, white
+  // legend, keyline set in from the edge — the same construction `sign-field()`
+  // draws on a `.btn`, which is why this reads as part of the app rather than as
+  // a generic help icon.
+  //
+  // **$disabled IS THE APP'S BLUE SIGN FIELD AND IT IS NAMED FOR A SIGN, NOT FOR
+  // A STATE.** It is the disabled-parking blue, and US signage puts a white
+  // legend on blue for motorist services — which is what a help affordance is.
+  // It is already in WHITE_LEGEND in test/palette-contrast.test.ts, so white on
+  // it is measured across all six palettes rather than assumed. Do not reach for
+  // $brand or $signal here: neither is audited as a field carrying white.
+  //
+  // **THE KEYLINE IS 1px INSET BY 1px, NOT 3px BY 5px.** The guide sign's own
+  // numbers are for a button with 1.4rem of padding, and _chrome.scss records
+  // why `.btn-sm` opts out of the treatment entirely: a compact control is
+  // mostly keyline once those are set inside it. Scaled down, the construction
+  // survives; copied verbatim, the glyph disappears.
+  //
+  // **IT IS NO LONGER THE QUIET AFFORDANCE `.faq-link` IS**, and that is the
+  // trade. That one sits at 45% opacity on the reasoning that a `?` is something
+  // you look for when stuck rather than something competing with the controls
+  // around it. A filled blue badge competes on purpose — these carry the only
+  // instructions the field has now, so they have to be findable rather than
+  // discreet.
   appearance: none;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   flex: 0 0 auto;
   box-sizing: border-box;
-  width: 1.25em;
-  height: 1.25em;
+  // Larger than .faq-link's 1.25em, because a keyline and a glyph have to fit
+  // inside it now rather than a glyph alone.
+  width: 1.45em;
+  height: 1.45em;
   padding: 0;
-  margin-left: 0.35em;
-  background: none;
-  border: 1px solid $grey;
+  margin-left: 0.4em;
+  background: $disabled;
+  // **$ink-light AND NOT $white, AND THIS IS THE ONE TRAP IN THE WHOLE RULE.**
+  // `--white` is the PAGE SURFACE rather than the color white — under a dark
+  // scheme it is the page's own near-black — so `color: $white` here painted a
+  // near-black `?` on a blue field and measured 2.52, 1.71 and 2.30 in the three
+  // dark palettes. Nearly invisible, and it looked perfect in the light scheme
+  // it was built in. `$ink-light` is the literal legend white, scheme-invariant,
+  // which is what a sign's legend actually is: a yield sign takes black ink at
+  // night too. The `sign-field()` mixin in _chrome.scss records the same problem
+  // and leaves it, because changing it there means changing every button that
+  // reads it — that is not a reason to add a new instance of it here.
+  color: $ink-light;
+  border: 0;
   border-radius: 50%;
-  color: $text;
-  opacity: 0.45;
   font: inherit;
   font-size: 0.75em;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
+  // The field repainted at 1px, then white at 2px: what survives is a 1px white
+  // ring inset by 1px. Inset shadows follow the border-radius, so the ring
+  // curves with the circle on its own.
+  box-shadow:
+    inset 0 0 0 1px $disabled,
+    inset 0 0 0 2px $ink-light;
   // Named per field by the wrapper's --anchor, so the bubble below can find
   // exactly this dot. Ignored by a browser with no anchor positioning.
   anchor-name: var(--anchor);
 
+  // Lit differently, not a different sign — the guide sign's own rule, and both
+  // inset layers move together for the same reason they do there. color-mix in
+  // oklab rather than a `-d8` token, because every color here is a `var()` and
+  // Sass has no value to darken.
   &:hover,
   &:focus-visible {
-    opacity: 1;
-    border-color: $url;
-    color: $url;
+    $lit: color-mix(in oklab, #{$disabled}, black 12%);
+
+    background: $lit;
+    box-shadow:
+      inset 0 0 0 1px $lit,
+      inset 0 0 0 2px $ink-light;
   }
 
   &:focus-visible {
     outline: 2px solid $brand;
-    outline-offset: 1px;
+    outline-offset: 2px;
   }
 }
 
