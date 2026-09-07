@@ -555,9 +555,12 @@
   // file needs a <script> line in builder.ts as well — two edits, the second of
   // which fails silently. See the AGENTS.md note on that trap.
   //
-  // READ ONCE AND CACHED. Neither attribute changes without a page load: both
-  // are server-rendered, and saving either preference is a form POST and a
-  // redirect.
+  // READ ONCE AND CACHED, WITH A WAY TO FORGET. Both attributes are
+  // server-rendered, so on every page but one they cannot change without a load.
+  // The exception is /settings, where saving a preference is an autosave rather
+  // than a POST and a redirect — autosave.js re-stamps <html> and calls forget()
+  // so the next read is the rider's new answer rather than the one they arrived
+  // with.
   var fmtPrefs = null;
   function timePrefs() {
     if (fmtPrefs) return fmtPrefs;
@@ -576,7 +579,12 @@
     return fmtPrefs;
   }
 
-  window.TBFmt = { timePrefs: timePrefs };
+  window.TBFmt = {
+    timePrefs: timePrefs,
+    forget: function () {
+      fmtPrefs = null;
+    },
+  };
 
   window.TBBanner = { refresh: refreshBanner };
 

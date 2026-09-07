@@ -34,6 +34,47 @@
   // nothing, which is the same reason the ride's own Saved chip fades.
   const SETTLE_MS = 2000;
 
+  // WHAT A SAVED SETTING CHANGES ON <html>, AND WHY IT HAS TO.
+  //
+  // The palettes all live in one stylesheet keyed on these attributes, and
+  // layout.tsx stamps them server-side — so the old form POST repainted the page
+  // by RELOADING it. Autosave removed the reload, which meant picking Dark saved
+  // the choice and changed nothing on screen. Re-stamping is the whole fix: no
+  // stylesheet is refetched, the browser just re-resolves the custom properties.
+  //
+  // THE "STAMP NOTHING" VALUE IS PART OF THE TABLE, mirroring layout.tsx exactly.
+  // `default` is the bare `:root` block, and `system` for scheme and motion is
+  // load-bearing rather than tidy: there is no `data-scheme="system"` rule and
+  // there cannot be one, because the server does not know the reader's OS
+  // setting — the ABSENCE is what lets prefers-color-scheme answer. Stamping the
+  // word would match nothing and pin the rider to light.
+  const STAMP = {
+    theme: { attr: "data-theme", bare: "default" },
+    scheme: { attr: "data-scheme", bare: "system" },
+    motion: { attr: "data-motion", bare: "system" },
+    dateFormat: { attr: "data-date-format", bare: null },
+    clock: { attr: "data-clock", bare: "locale" },
+  };
+
+  function restamp(form) {
+    const root = document.documentElement;
+    let touched = false;
+    Object.keys(STAMP).forEach((name) => {
+      const field = form.elements[name];
+      if (!field) return;
+      const value = field.value;
+      if (value === undefined) return;
+      const { attr, bare } = STAMP[name];
+      if (value === bare) root.removeAttribute(attr);
+      else root.setAttribute(attr, value);
+      touched = true;
+    });
+    // TBFmt reads the two formatting attributes ONCE and caches, on the
+    // reasoning that neither changes without a page load. That was true until
+    // this function existed, so it is told to forget.
+    if (touched && window.TBFmt && window.TBFmt.forget) window.TBFmt.forget();
+  }
+
   function init(group) {
     const form = group.matches("form") ? group : group.querySelector("form");
     if (!form || !form.action) return;
@@ -76,6 +117,9 @@
         // is what a 303 looks like through `redirect: manual`. Treating that as
         // failure is the trap here — it is the ordinary success path.
         if (res.type !== "opaqueredirect" && !res.ok) throw new Error(String(res.status));
+        // AFTER the save, not before: a palette that flips and then fails to
+        // store is a page lying about what it holds.
+        restamp(form);
         say("saved");
       } catch {
         // Nothing is reverted. What the rider chose is still on screen and the
