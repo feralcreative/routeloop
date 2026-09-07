@@ -630,6 +630,34 @@
 .field-help {
   display: inline-flex;
   align-items: center;
+  // RAISED 0.15em OFF THE LABEL BESIDE IT. Ziad's call, 2026-09-07.
+  // The row centers the badge against the label's line box, and a line box is
+  // taller than the letters in it — so a circle centered in one sits low against
+  // the type it annotates, which reads as sagging rather than as centered.
+  //
+  // RELATIVE, NOT A MARGIN OR A TRANSFORM. A margin would change the row's
+  // height and push the field below it; `position: relative` moves the drawing
+  // and leaves the layout where it was, which is the whole point — the badge is
+  // being aligned to the type, not given room. A transform would do the same but
+  // creates a containing block, and this element sits between the anchor and its
+  // popover.
+  //
+  // ON THE WRAPPER RATHER THAN ON THE BUTTON, because an `em` resolves against
+  // the element's own font-size and the button's is 0.6 of this one — the same
+  // shift declared there would come out at 1.4px instead of 2.4. The wrapper
+  // sits in the row's own 16px context, which is the type "next to it".
+  position: relative;
+  top: -0.15em;
+  // 0.3em MORE AIR BETWEEN THE LABEL AND THE BADGE, and it is ON TOP OF the
+  // button's own 0.4em rather than replacing it. Ziad's call, 2026-09-07.
+  //
+  // The two are declared in different contexts on purpose and it is worth
+  // knowing which is which: the button's `em` is its own 0.6 font-size, so its
+  // 0.4em is 3.8px, and this one is the row's 16px, so 0.3em is 4.8px. The gap a
+  // reader sees is the sum, about 8.6px. Moving the whole gap here would be
+  // tidier and would silently change it, because the two ems are not the same
+  // size.
+  margin-left: 0.3em;
 }
 
 .help-dot {
