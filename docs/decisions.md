@@ -163,6 +163,22 @@ A shaping point is dropped wherever the rider's pointer lands, which is routinel
 
 **It reports whether anything moved, and a move marks the ride dirty.** The edit that triggered the route already did, but the autosave is on a three-second timer and a fast response can land after that save has gone, which would leave the snapped coordinates unsaved with nothing to say so.
 
+## Splitting a group off tags the main group, 2026-09-07
+
+The diverge half of #67. A planner picks a stop, says who leaves and where they are going, and gets the route cut there, the road onward tagged to whoever carries on, and a new route for the leavers. Repeat at the same stop for as many groups as the ride needs, as long as every group keeps a rider.
+
+**The continuation is tagged rather than left shared, and that is the whole decision.** `null` on a route means everyone rides it, and after a split not everyone does. Leaving it shared reads as smaller and is not: `strandOf` is a group's own routes plus every SHARED one, so the leavers' strand would swallow the main group's entire onward road. That is the ride-34 origin bug and the stage Oakland-to-Ensenada bug arriving a third time, and it would surface in the planner's per-group export and in `junctions()` claiming the continuation belongs to everybody.
+
+**Rejected: move `strandOf`'s readers onto `route_riders` resolution instead.** That is the right long-term answer and AGENTS.md already names it as the contract-phase work, but it is a rewrite of `export.ts`, the viewer's dimming, `ride.json` and the rendezvous proposer, with no client-side mirror of `resolveRouteRiders` to render from. It belongs on its own branch rather than attached to a dialog.
+
+**The price is two mirrored corrections, both to code that assumed the main group is never tagged.** `startRouteOf()` searches for a group's own route and falls back to the strand; with the continuation tagged, that search returns the road AFTER the split and the ride's real origin is never reached. It takes an `isMain` argument now, and `groupStartHtml()` mirrors it. `longestApproach()` summed every route a group rode alone, which was the same thing while the only private routes were feeders—a tagged Main would own the rest of the ride, win every time, and silence the fairness note on exactly the rides with the most groups. It counts only routes before the first shared one, which is what "approach" meant.
+
+**The peel-off route goes to the end of the route list, and that is correctness rather than layout.** `resolveRouteRiders` is a linear walk carrying a set forward, so a route spliced in beside the cut makes every later route inherit the leavers, silently. `.row-splitoff` is what makes the distant route legible: a button on the last point of the road they left, naming the group and their destination and jumping to their route.
+
+**A second group leaves from the same stop through `canPeelOffAt`, not `canSplitAt`.** After the first pass the stop is the first point of the continuation, and `canSplitAt` refuses index 0—so the second group could never leave from the same place. A split boundary is a route that starts there, so index 0 is allowed and makes no cut. Three ways of detecting the boundary were rejected first: by point uid (the carried copy gets a fresh one and records no link), by recording the link (a field the payload strips, so it needs a column), and by coordinates (which collides with duplicating a point).
+
+**Nothing here needed a schema change, a migration or a new endpoint.** `PUT /api/rides/:id/route-riders/:uid` has always accepted per-rider groups and had no client caller; `groupsRiddenAs()` and `ridersWhoRodeAs()` were written as scaffolding for this and had none either.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.

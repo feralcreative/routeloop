@@ -160,10 +160,84 @@
     return best;
   }
 
+  /**
+   * Where a GROUP may be peeled off, which is not the same question as where a
+   * route may be cut.
+   *
+   * **A SPLIT BOUNDARY IS A ROUTE THAT STARTS THERE, AND THERE IS NOTHING ELSE TO
+   * DETECT.** The first pass at a stop cuts the route, so the stop becomes the
+   * last point of the first half and the FIRST point of the continuation — and
+   * `canSplitAt` refuses index 0, which would make a second group impossible to
+   * peel off at the same place. Index 0 is exactly the case that means "this
+   * route already begins here", so it is allowed and no cut is made.
+   *
+   * Three mechanisms for recognising the boundary were rejected before this one.
+   * By point uid is impossible: `splitRouteAt` mints a fresh uid for the carried
+   * copy and records no link back. Recording the link needs a field the payload
+   * schema strips and a column to make it survive a save, which is a schema
+   * change for a fact the route order already carries. By coordinates collides
+   * with duplicating a point, which deliberately puts a copy on top of its
+   * original.
+   *
+   * It also covers a case that is not a second pass at all: splitting at the
+   * ride's own origin, where two groups set off from one place in different
+   * directions.
+   *
+   * The LAST point of a route stays refused. Their road already ends there, so
+   * there is nothing to carry on down and nothing to peel off from.
+   */
+  function canPeelOffAt(route, i) {
+    return i === 0 || canSplitAt(route, i);
+  }
+
+  /**
+   * Who is left on the road after a group peels off.
+   *
+   * Ids, deduplicated, in the order they were riding. A leaver who was not on
+   * this stretch in the first place is ignored rather than being an error —
+   * "splitting off somebody who is not here" is not a thing anyone means, and
+   * the picker only offers riders who are.
+   */
+  function remainingRiders(current, leaving) {
+    var gone = {};
+    (leaving || []).forEach(function (id) {
+      gone[id] = true;
+    });
+    var seen = {};
+    var out = [];
+    (current || []).forEach(function (id) {
+      if (gone[id] || seen[id]) return;
+      seen[id] = true;
+      out.push(id);
+    });
+    return out;
+  }
+
+  /**
+   * Whether this split may be made at all.
+   *
+   * **EVERY GROUP KEEPS A RIDER, THE ONE CARRYING ON INCLUDED.** Ziad's call,
+   * 2026-09-07. A group of nobody is not a group, and a road with nobody on it is
+   * not a road anybody is riding — so peeling off the whole set leaves the
+   * continuation describing a ride that does not happen, which is worse than
+   * refusing. Both halves are checked here rather than only the leavers, because
+   * the rule is about the PAIR: the interesting refusal is the last pass at a
+   * stop, where enough groups have already gone that Main has one rider left.
+   */
+  function canSplitRiders(current, leaving) {
+    var going = remainingRiders(leaving || [], []).filter(function (id) {
+      return (current || []).indexOf(id) >= 0;
+    });
+    return going.length > 0 && remainingRiders(current, going).length > 0;
+  }
+
   window.TBSplit = {
     canSplitAt: canSplitAt,
+    canPeelOffAt: canPeelOffAt,
     splitPoints: splitPoints,
     splitRouteAt: splitRouteAt,
     splitIndexAtDistance: splitIndexAtDistance,
+    remainingRiders: remainingRiders,
+    canSplitRiders: canSplitRiders,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -62,9 +62,23 @@ export function strandOf<T extends StrandRoute>(routes: T[], subgroupId: number 
  * THE FALLBACK IS THE STRAND, NOT NULL. A group with no route of its own is one
  * that rides only shared routes, and where the shared road starts is the only
  * honest answer available for it.
+ *
+ * `isMain` REVERSES THAT RULE, AND IT EXISTS BECAUSE SPLITTING TAGS THE MAIN
+ * GROUP. Ziad's call, 2026-09-07. The `.find` above assumes the main group is
+ * never tagged — true until a group peels off, which tags the road the rest of
+ * them carry on down so it stays out of the leavers' strand. For the main group
+ * a shared route sorting ahead of their own is not somebody else's start, it is
+ * theirs: they ride the shared road from position 0. So the main group takes
+ * `strand[0]` and skips the search, which for an untagged ride is the same route
+ * it was already returning.
  */
-export function startRouteOf<T extends StrandRoute>(routes: T[], subgroupId: number): T | null {
+export function startRouteOf<T extends StrandRoute>(
+  routes: T[],
+  subgroupId: number,
+  isMain = false,
+): T | null {
   const strand = strandOf(routes, subgroupId)
+  if (isMain) return strand[0] ?? null
   return strand.find((d) => d.subgroupId === subgroupId) ?? strand[0] ?? null
 }
 

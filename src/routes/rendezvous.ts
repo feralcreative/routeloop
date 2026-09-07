@@ -165,7 +165,12 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // WHERE THEY SET OFF IS THEIR OWN DAY, NOT `strand[0]` — see startRouteOf().
     // A shared route sorting ahead of a group's own route used to become its origin,
     // which handed every satellite the same starting point.
-    const startRoute = startRouteOf(all, g.id)
+    //
+    // `isPrimary` reverses that, for the same reason it selects the strand above:
+    // the main group rides the shared road from position 0, and once a split has
+    // tagged their continuation the search would return that instead of the
+    // ride's actual origin.
+    const startRoute = startRouteOf(all, g.id, isPrimary)
     const origin = startRoute && originOf.get(startRoute.id)
     if (!origin) return null
     const track: Track = []

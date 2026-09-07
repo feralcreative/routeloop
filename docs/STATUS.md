@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Updated:** 2026-09-06
+**Branch:** `feat/split-a-group-off`, branched off `refactor/row-menu` which is one commit ahead of `main`. Neither pushed, no PR. **2,479 tests across 95 files** (2 skipped, 2,481 total)
 **Branch:** `fix/plan-meet-trunk`, eleven commits ahead of `main` plus uncommitted work, **not pushed**, no PR. **2,428 tests across 94 files** (2 skipped, 2,430 total)
 **Merged 2026-09-03 as [#238](https://github.com/feralcreative/routeloop/pull/238):** the builder routing sprint, closing [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226), plus [#234](https://github.com/feralcreative/routeloop/issues/234)–[#237](https://github.com/feralcreative/routeloop/issues/237) filed retroactively. [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned.
 **Closes, when the next PR merges:** [#233](https://github.com/feralcreative/routeloop/issues/233).
@@ -11,6 +11,22 @@
 **Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
 **Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
 **For:** the next agent, or the owner returning cold
+
+## Splitting a group off, 2026-09-07
+
+The diverge half of [#67](https://github.com/feralcreative/routeloop/issues/67), and the mirror of the meet that shipped in [#263](https://github.com/feralcreative/routeloop/pull/263)/[#264](https://github.com/feralcreative/routeloop/pull/264). Pick a stop, say who leaves and where they are going: the route is cut there, the road onward is tagged to whoever carries on, and the leavers get a route of their own. Repeat at the same stop for as many groups as the ride needs, as long as every group keeps a rider.
+
+**No schema change, no migration, no new endpoint.** `PUT /api/rides/:id/route-riders/:uid` already took per-rider groups and had no client caller; `groupsRiddenAs()` and `ridersWhoRodeAs()` were written as scaffolding for exactly this and had none either. `payloadFor()` now sends `lastRiders` per group, which is what prefills "split off as VMCSC again" with the right people ticked.
+
+**The main group gets tagged for the first time**, because `null` means everyone rides a route and after a split not everyone does. Leaving the continuation shared would put the main group's whole onward road into the leavers' strand—the ride-34 origin bug and the stage Oakland-to-Ensenada bug a third time. It costs `startRouteOf()` an `isMain` argument, mirrored by `groupStartHtml()`, and narrows `longestApproach()` to routes before the first shared one so the fairness note keeps working.
+
+**Three bugs found in the browser rather than by reasoning.** The save has to come before the rider writes, always—a split mints two route uids and `payloadFor` answers from the database, so a PUT sent first is answered without them and the panel draws no group on either new route; gating that on "is this a new group" made it depend on which group was picked. The split line matched on coordinates alone, which put it on all three routes carrying the stop plus every other group's peel-off row: three splits, eight lines. And it was coloured `$signal` text that could not be pressed, on a route deliberately parked at the bottom of the list—it is a real button that jumps there now.
+
+**Verified on ride 34** with three groups and three riders: two splits at one stop, the second taking the no-cut path, departures solved from the arrival, `route_riders` written on both routes, junctions reporting the departures, and one undo taking a whole pass back with `reconcileRouteRiders` cleaning up behind it.
+
+## The point row menu, cut from eleven items to seven, 2026-09-07
+
+On `refactor/row-menu`, the prerequisite branch. Move up / Move down came off and `.row-drag` became a real `<button>` with arrow keys—those two items were the point list's only keyboard reorder and its only path when the SortableJS CDN fails, so the grip had to carry both first. "Edit notes" merged into the details panel as a labelled rider-visible box beside the private one, with a read-only preview on the row. "Make this a POI" folded into one item that flips its label and is absent on a tagged stop, where clearing the last category already demotes.
 
 ## A route is a route—the rename shipped, 2026-09-06
 
