@@ -1018,17 +1018,20 @@ table.route-table {
   // showing. An outline for "on" and an outline for "off" would leave the word
   // doing all the work, which is what made the old pair unreadable at a glance.
   &[aria-pressed="true"] {
-    background: $brand;
-    border-color: $brand;
-    color: $white;
+    // $disabled and not $brand, for the reason .time-scope-set states below: a
+    // link color lifted for a dark page is the wrong field for white ink.
+    background: $disabled;
+    border-color: $disabled;
+    // $ink-light, not $white — see #282.
+    color: $ink-light;
   }
 
   // Hover must not repaint a filled button back to an outline — the base rule's
   // hover only touches color and border, so it is stated again here.
   &[aria-pressed="true"]:hover,
   &[aria-pressed="true"]:focus-visible {
-    color: $white;
-    border-color: $brand;
+    color: $ink-light;
+    border-color: $disabled;
   }
 
   &[hidden] {
@@ -1036,29 +1039,88 @@ table.route-table {
   }
 }
 
-// The scope toggle keeps the brand blue in BOTH states, so "Ride" is the same
-// control unfilled rather than a greyed-out one. The base rule's neutral border
-// and text would read as disabled next to a filled sibling.
-#time-scope {
-  border-color: $brand;
-  color: $brand;
+// THE SCOPE CONTROL IS A DOUBLE-SIDED PILL: Route and Ride side by side, the one
+// you are on filled. Ziad's call, 2026-09-07.
+//
+// It was a single button that relabeled itself, which was already the second
+// shape — the first said what a click would DO ("Whole ride") and riders read
+// that word as their current scope. Saying the state instead fixed that and left
+// the other half of the choice invisible, which a pill does not.
+//
+// ONE PILL, TWO SEGMENTS, no gap: the shared border is what makes it read as a
+// choice between two things rather than two buttons that happen to be adjacent.
+// Same construction as `.add-corridor` in _builder.scss, in this bar's own
+// brand-blue idiom rather than that drawer's neutral one.
+.time-scope-set {
+  flex: none;
+  display: inline-flex;
+  align-items: stretch;
+  // 24px is WCAG 2.2 SC 2.5.8 and it is declared in PIXELS for the reason
+  // .time-scope states: an em box sized to hit 24 at one root size drops under
+  // it at another.
+  min-height: 24px;
+  // $disabled AND NOT $brand, AND THE DIFFERENCE IS MEASURED. $brand is a LINK
+  // color: the dark scheme LIFTS it so it stays legible as text on a near-black
+  // page, which is the opposite of what a field carrying white ink needs — white
+  // on it measures 2.75, 3.66 and 2.97 in the three dark palettes. $disabled is
+  // the app's blue SIGN FIELD, named for the disabled-parking sign rather than
+  // for a state, and it is in WHITE_LEGEND in test/palette-contrast.test.ts, so
+  // white on it is measured across all six at 7.69, 11.33 and 8.42. Same reason
+  // the help badge in _forms.scss uses it. Related to #282 but a different
+  // cause: there the INK token was wrong, here it is the FIELD.
+  border: 1px solid $disabled;
+  border-radius: 999px;
+  // The segments paint their fill right up to this radius, so the corners have
+  // to be clipped or the fill squares them off.
+  overflow: hidden;
 
-  &:hover,
-  &:focus-visible {
-    color: $brand;
-    border-color: $brand;
+  &[hidden] {
+    display: none;
+  }
+}
+
+.time-seg {
+  // No global border-box reset in this stylesheet — see AGENTS.md.
+  box-sizing: border-box;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15em 0.6em;
+  border: 0;
+  background: transparent;
+  color: $disabled;
+  font: inherit;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+
+  + .time-seg {
+    border-left: 1px solid $disabled;
   }
 
-  // RESTATED HERE, and it is not redundant: an id selector outranks
-  // `.time-scope[aria-pressed="true"]`, so without this the rule above wins and
-  // the filled state renders brand text on a brand fill — invisible. Same
-  // reason #range-ring repeats its own pressed block.
-  &[aria-pressed="true"],
-  &[aria-pressed="true"]:hover,
-  &[aria-pressed="true"]:focus-visible {
-    background: $brand;
-    border-color: $brand;
-    color: $white;
+  // BLUE IN BOTH STATES, so the unfilled half is the same control rather than a
+  // greyed-out one. A neutral "off" segment beside a filled sibling reads as
+  // disabled, which is the thing this pill exists to stop.
+  &:hover {
+    background: color-mix(in oklab, #{$disabled}, transparent 88%);
+  }
+
+  &[aria-pressed="true"] {
+    background: $disabled;
+    // $ink-light AND NOT $white. `--white` is the PAGE SURFACE and is the page's
+    // own near-black under a dark scheme, so `color: $white` on a brand fill
+    // rendered a near-black legend on blue — the same defect #282 fixed across
+    // twelve other rules, and this control was written after that sweep.
+    color: $ink-light;
+  }
+
+  // Inside the pill's own clipped corners an outset ring is cut off, so it goes
+  // inward. Same reason .scope-btn does it.
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: -2px;
   }
 }
 

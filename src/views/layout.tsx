@@ -484,7 +484,28 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
             leaves it hidden on a one-route ride where the two scopes are the same
             slider. */}
         {opts.scopeToggle ? (
-          <button type="button" class="time-scope" id="time-scope" aria-pressed="false" hidden></button>
+          /* A DOUBLE-SIDED PILL, NOT ONE BUTTON THAT RELABELS ITSELF. Ziad's
+             call, 2026-09-07, and it finishes what the 2026-08-31 change
+             started: that one made the single button say which scope was ON
+             rather than what a click would do, because "Whole ride" while in
+             route scope had riders reading the word "ride" as their state. A
+             two-segment control removes the question entirely — both options
+             are on screen, and the filled one is where you are.
+
+             `role="group"` rather than a radiogroup: these are two buttons that
+             each carry `aria-pressed`, which is what a toggle pair is, and a
+             radio group would promise arrow-key roving that the bar does not
+             implement. renderTimeScope() fills in the pressed states and the
+             titles, and hides the whole pill on a one-route ride where the two
+             scopes are the same slider. */
+          <div class="time-scope-set" id="time-scope" role="group" aria-label="What the slider covers" hidden>
+            <button type="button" class="time-seg" data-scope="route" aria-pressed="true">
+              Route
+            </button>
+            <button type="button" class="time-seg" data-scope="ride" aria-pressed="false">
+              Ride
+            </button>
+          </div>
         ) : (
           ''
         )}

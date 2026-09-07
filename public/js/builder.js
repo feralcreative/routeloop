@@ -6937,31 +6937,34 @@
     refreshDerived();
   }
 
-  // The bar's own button. Says what clicking it will DO rather than what the
-  // slider currently is — a two-state control labeled with its current state
-  // reads as a status line, and riders press it expecting to get what it says.
+  // The bar's own scope control: two segments of one pill, Route and Ride.
+  //
+  // BOTH LABELS ARE ON SCREEN, WHICH IS THE THIRD SHAPE THIS HAS TAKEN. It was
+  // one button reading "Whole ride" — the ACTION — and a rider glancing at it
+  // saw the word "ride" and believed that was their scope. It became one button
+  // reading its own STATE, which fixed that and left the other half of the
+  // choice invisible. A pill says both and fills the one you are on. Ziad's
+  // call, 2026-09-07.
   function renderTimeScope() {
-    const btn = $("time-scope");
-    if (!btn) return;
-    // THE LABEL IS THE STATE, NOT THE ACTION. It read "Whole ride" while in route
-    // scope — naming what a click would DO — and a rider glancing at it saw the
-    // word "ride" and believed they were scrubbing the ride. Ziad's call,
-    // 2026-08-31. It now says which scope is on, and the color says it twice:
-    // Route is filled, Ride is not.
+    const set = $("time-scope");
+    if (!set) return;
     const onRoute = state.timeScope === "route";
-    btn.textContent = onRoute ? "Route" : "Ride";
-    btn.title = onRoute
-      ? "Scrubbing this route. Switch to the whole ride"
-      : "Scrubbing the whole ride. Switch to this route";
-    btn.setAttribute("aria-label", btn.title);
-    // Pressed is the DEFAULT here, which is unusual and deliberate: it tracks
-    // the label rather than the non-default state, so the filled look and the
-    // word always agree.
-    btn.setAttribute("aria-pressed", String(onRoute));
-    // Nothing to widen to on a single-route ride, and a button that returns the
-    // same slider is a control that does nothing. Hidden rather than disabled:
-    // it is in a one-line bar where a dead button is pure noise.
-    btn.hidden = state.routes.length < 2;
+    set.querySelectorAll(".time-seg").forEach((seg) => {
+      const on = (seg.dataset.scope === "route") === onRoute;
+      // aria-pressed on each segment rather than aria-checked on a radiogroup:
+      // these are two toggles, and a radiogroup promises arrow-key roving this
+      // bar does not implement.
+      seg.setAttribute("aria-pressed", String(on));
+      seg.classList.toggle("is-on", on);
+      seg.title =
+        seg.dataset.scope === "route"
+          ? "The slider covers the route you are editing"
+          : "The slider covers the whole ride";
+    });
+    // Nothing to widen to on a single-route ride, and a control that returns the
+    // same slider does nothing. Hidden rather than disabled: it is in a one-line
+    // bar where a dead control is pure noise.
+    set.hidden = state.routes.length < 2;
   }
 
   // #229's fuel ring toggle. Mirrored by the same function in viewer.js, which
@@ -10286,7 +10289,12 @@
   // the panel went from one visible route to all of them.
   function wireRoutes() {
     $("time-slider").addEventListener("input", (e) => setMoment(momentFromSlider(Number(e.target.value))));
-    $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "route" ? "ride" : "route"));
+    // Delegated on the pill, so the two segments need no handler each and
+    // renderTimeScope can rewrite them freely.
+    $("time-scope")?.addEventListener("click", (e) => {
+      const seg = e.target.closest(".time-seg");
+      if (seg) setTimeScope(seg.dataset.scope === "ride" ? "ride" : "route");
+    });
     // Repaints rather than re-rendering: the ring is a map overlay, so nothing
     // in the panel changes and rebuilding the route list would cost a rider the
     // field they are typing in — the #188 shape, reached from a map control.
