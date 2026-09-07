@@ -82,8 +82,8 @@ export const toDateFormat = (v: unknown): DateFormat =>
  * setting shows only what it decides.
  */
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
-  { id: 'en-US', label: 'Month first', example: '8/24/2026' },
-  { id: 'en-GB', label: 'Day first', example: '24/08/2026' },
+  { id: 'en-US', label: 'Month first', example: '08-24-2026' },
+  { id: 'en-GB', label: 'Day first', example: '24-08-2026' },
   { id: 'en-CA', label: 'Year first', example: '2026-08-24' },
 ]
 
@@ -103,8 +103,35 @@ export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: stri
 // did not change; what they are handed did.
 const UTC = { timeZone: 'UTC' } as const
 
-/** 8/24/2026 · 24/08/2026 · 2026-08-24 */
-export const fmtDateNumeric = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, UTC)
+/**
+ * 08-24-2026 · 24-08-2026 · 2026-08-24 — dashes and two digits, in the rider's
+ * own order.
+ *
+ * **THE LOCALE DECIDES THE ORDER AND NOTHING ELSE HERE.** Ziad's call,
+ * 2026-09-07. It used to hand the whole decision to Intl, which meant three
+ * different separators and three different paddings as well as three orders:
+ * `8/24/2026`, `24/08/2026`, `2026-08-24`. The order is the thing a rider chose;
+ * the rest was just what each locale happens to do, and reading a column of
+ * dates that change shape as well as sequence is harder than reading one that
+ * does not.
+ *
+ * **THIS IS THE OPPOSITE CALL TO `fmtClock`'s AND BOTH ARE RIGHT.** That one
+ * refuses to spell out `hour`/`minute` precisely so the locale keeps its own
+ * padding, because a 24-hour locale pads and a 12-hour one does not and neither
+ * is our business. Here the padding IS the point: two digits always, so the
+ * fields line up.
+ *
+ * **JOINED FROM PARTS RATHER THAN STRING-REPLACING THE SEPARATOR.** A `/` swap
+ * works on the three locales shipped today and silently would not on a fourth —
+ * `de-DE` separates with `.` — so the parts are read and the literals are
+ * replaced rather than patched.
+ */
+export const fmtDateNumeric = (d: Date, f: DateFormat): string =>
+  new Intl.DateTimeFormat(f, { year: 'numeric', month: '2-digit', day: '2-digit', ...UTC })
+    .formatToParts(d)
+    .filter((p) => p.type !== 'literal')
+    .map((p) => p.value)
+    .join('-')
 
 /** Monday, August 24 — the roadbook's day heading. */
 export const fmtDateLong = (d: Date, f: DateFormat): string =>
