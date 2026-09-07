@@ -30,6 +30,20 @@
 
 **Needs a browser pass.** The CSS class rename and the wire-format keys are the half no test covers, and a wire key is what silently loaded zero days when this rename ran in the other direction on 2026-08-09.
 
+## A route carries a SET of groups, not one—2026-09-06
+
+**Found in the browser, on the staged meet-up this branch made possible.** With VMCSF and VMCSC merged at Morgan Hill and VMCSLO still riding their approach, the shared route was tagged **Everyone**—because `routes.subgroup_id` is one nullable id and one id cannot say "these two of the three". Ziad's call: the single select becomes a checkbox list, and ticking Everyone ticks every group.
+
+**A rider's group is now a per-route fact.** `route_riders.subgroup_id` is who they are RIDING AS on one stretch; `ride_members.subgroup_id` stays as who they BELONG to on the ride. A group is not deleted when it merges, it stops applying—VMCSC survives on the route it rode as VMCSC, which is what a later split reads back.
+
+**The ticks are derived from home groups, never from the stored one.** Once VMCSC merges their stored group is null, so ticking from stored values would tick nothing and the route would read as everybody's—the exact lie being replaced.
+
+**Verified live on ride 34**: route 1 carries VMCSF, route 2 carries VMCSC with rider 4 stored as riding-as-VMCSC, route 3 carries **both** with everyone stored as main. `routes.subgroup_id` derived alongside—VMCSF, VMCSC, null—so `strandOf`, the proposer and the viewer dimming keep working untouched.
+
+**Two bugs caught in that browser pass**, both silent: the PUT answered with bare routes and no derived `groups`, so the panel drew "Nobody yet" the moment anything was ticked; and `applyRouteGroups` read `state.days`, hand-written after the rename into a codebase that had moved to `state.routes`, so no write fired at all.
+
+**Split scaffolding only.** `groupsRiddenAs()` and `ridersWhoRodeAs()` exist and are tested; the picker is its own branch. The last grouping wins rather than the union, because membership changes between the outward leg and the way home.
+
 ## Who is on which stretch of road—2026-09-06
 
 **The model changed and `days.subgroup_id` is no longer the answer to "who rides this".** Ziad's call, after describing the ride that breaks the old one: ride to Portland, a friend joins as far as Seattle, they peel off, carry on to Vancouver—and then the harder version, three riders joining together and ONE of them leaving further down the road. A route carried one subgroup and a rider belonged to one subgroup for the whole ride, so those three share a group and there was no way to say only one of them carries on.
