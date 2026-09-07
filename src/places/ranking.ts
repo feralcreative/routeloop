@@ -1,4 +1,8 @@
-// A rider's own list of places to push DOWN a place search (#271).
+// A rider's own lists of places to push DOWN and UP a place search (#271).
+//
+// **TWO LISTS AND ONE PASS, since 2026-09-07.** Avoid came first and favor is
+// its mirror: same free text, same loose matching, same promise that nothing is
+// added or removed. Ziad's call.
 //
 // **A WEIGHTING AND NEVER A FILTER, AND THAT IS THE WHOLE SAFETY ARGUMENT.**
 // Every rider has places they will not stop at for reasons no default can guess
@@ -36,8 +40,9 @@ export type Named = { name: string }
 
 /** A rider will not read past this many entries and Text Search returns twenty
  *  results, so a list longer than this is a paste accident rather than an answer.
- *  The column caps the text at 1,000 characters; this caps the terms. */
-export const MAX_AVOID_TERMS = 40
+ *  The column caps the text at 1,000 characters; this caps the terms. Applies to
+ *  each list separately — they are two questions. */
+export const MAX_TERMS = 40
 
 /** Shortest term worth matching. One and two characters match half the map —
  *  "BP" is a real brand and a real substring of a hundred other names — and a
@@ -55,42 +60,56 @@ const MIN_TERM = 3
  * Lowercased and de-duplicated, so the matcher below can be a plain `includes`
  * and the same brand typed twice does not demote anything twice.
  */
-export function parseAvoidList(raw: string | null | undefined): string[] {
+export function parseTerms(raw: string | null | undefined): string[] {
   if (!raw) return []
   const seen = new Set<string>()
   for (const part of raw.split(/[,;\n\r]+/)) {
     const t = part.trim().toLowerCase().replace(/\s+/g, ' ')
     if (t.length >= MIN_TERM) seen.add(t)
-    if (seen.size >= MAX_AVOID_TERMS) break
+    if (seen.size >= MAX_TERMS) break
   }
   return [...seen]
 }
 
-/** Whether one result is named by the list. Substring, case-insensitive, on the
- *  NAME alone — never the address, or "Shell" in "Shell Beach Road" demotes a
- *  perfectly good diner. */
-export const isAvoided = (place: Named, terms: string[]): boolean => {
+/** Whether one result is named by a list — either list, which is why it is not
+ *  called `isAvoided` any more. Substring, case-insensitive, on the NAME alone:
+ *  never the address, or "Shell" in "Shell Beach Road" moves a perfectly good
+ *  diner. */
+export const matchesAny = (place: Named, terms: string[]): boolean => {
   if (terms.length === 0) return false
   const name = place.name.toLowerCase()
   return terms.some((t) => name.includes(t))
 }
 
 /**
- * The same results, with anything the rider named moved to the back.
+ * The same results, ordered by the rider's two lists: favored first, then
+ * everything they said nothing about, then avoided.
  *
- * **STABLE, WHICH IS THE PART THAT MATTERS.** Text Search's own order is a
- * ranking this app has no better answer than, so within each half the original
- * order is preserved exactly and the only thing that changed is which half a
- * result is in. Sorting by a score would quietly re-rank the ones nobody
- * mentioned.
+ * **ONE PARTITION INTO THREE, NOT TWO PASSES.** Promoting and then demoting
+ * would work and would hide the interesting case: a term in BOTH lists. Three
+ * buckets in one walk makes the tie a decision rather than an accident of which
+ * pass ran second — and the decision is that **FAVOR WINS**, because a rider who
+ * has named something twice has said the second thing more recently in the only
+ * sense that matters, and being shown a place you asked for is a smaller wrong
+ * than being denied one.
  *
- * Returns the SAME array contents, never a shorter one. A caller that wants to
- * know which are demoted asks `isAvoided`.
+ * **STABLE WITHIN EACH BUCKET**, for the reason it always has: Text
+ * Search's own order is a ranking this app has no better answer than, so the
+ * only thing that may change is which bucket a result is in.
+ *
+ * Returns the SAME contents, never fewer. Nothing is added either — a favored
+ * place that the search did not return is not conjured up, because that would be
+ * a different search rather than a different order.
  */
-export function demoteAvoided<T extends Named>(places: T[], terms: string[]): T[] {
-  if (terms.length === 0) return places
-  const keep: T[] = []
-  const push: T[] = []
-  for (const p of places) (isAvoided(p, terms) ? push : keep).push(p)
-  return keep.concat(push)
+export function rankPlaces<T extends Named>(places: T[], favor: string[], avoid: string[]): T[] {
+  if (favor.length === 0 && avoid.length === 0) return places
+  const up: T[] = []
+  const mid: T[] = []
+  const down: T[] = []
+  for (const p of places) {
+    if (matchesAny(p, favor)) up.push(p)
+    else if (matchesAny(p, avoid)) down.push(p)
+    else mid.push(p)
+  }
+  return up.concat(mid, down)
 }

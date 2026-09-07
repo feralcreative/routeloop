@@ -62,6 +62,7 @@ async function prefsFor(userId: number) {
       clock: userProfiles.clock,
       volumeUnits: userProfiles.volumeUnits,
       avoidPlaces: userProfiles.avoidPlaces,
+      favorPlaces: userProfiles.favorPlaces,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -73,6 +74,7 @@ async function prefsFor(userId: number) {
     clock: toClock(p?.clock),
     volumeUnits: toVolumeUnits(p?.volumeUnits),
     avoidPlaces: p?.avoidPlaces ?? '',
+    favorPlaces: p?.favorPlaces ?? '',
   }
 }
 
@@ -98,10 +100,10 @@ export async function accountPage(
   // has. Merging the pages merged the query string with it, and leaving it off
   // told every rider who saved their profile that their account was no longer
   // scheduled for deletion.
-  const FORM_SAVED = ['duration', 'dates', 'appearance', 'units', 'clock', 'volume', 'avoid', '1']
+  const FORM_SAVED = ['duration', 'dates', 'appearance', 'units', 'clock', 'volume', 'avoid', 'favor', '1']
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
-  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces } = await prefsFor(user.id)
+  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces } = await prefsFor(user.id)
   const dateFormat = await dateFormatFor(c)
   // `locale` is stored and not offered — see resolveClock in views/clock.ts.
   const resolvedClock = resolveClock(clock, dateFormat)
@@ -482,45 +484,78 @@ export async function accountPage(
           grid above: everything in Units is a radio group about how a figure is
           WRITTEN, and this is free text that changes what a search ANSWERS.
         */}
-        <section class="setting-topic" id="avoid">
-          <h2>Places to avoid</h2>
-          {/*
-            THE PROMISE STAYS VISIBLE AND THE FORMAT GOES IN THE BUBBLE, which is
-            the line the `?` affordance is drawn on everywhere (#268): what a
-            rider needs to read BEFORE they act stays as prose, and how to fill
-            one box in goes behind the dot. A rider who believes this HIDES a
-            station will not use it near empty — which is exactly when a station
-            they dislike is still the right answer — so that sentence can never
-            be a click away.
-          */}
+        {/*
+          TWO LISTS, 50/50, AND THEY ARE TWO GROUPS RATHER THAN ONE. Ziad's call,
+          2026-09-07. A single field with a leading `-` or `+` would be one box
+          and a syntax to learn; the point of these is that a rider types "ARCO,
+          Costco Gas" the way they would say it, so two boxes ask two plain
+          questions. It also means each saves on its own — the autosave posts
+          whichever group changed, and the border says which.
+        */}
+        <section class="setting-topic" id="places">
+          <h2>Places and brands</h2>
           <p>
-            Somewhere you would rather not stop? Name it here and it drops to the bottom of every place search — the gas
-            chips, the category searches, the search along a route. <b>Nothing is ever hidden</b>: the one time you are
-            out of fuel with one in front of you is the time this must not have taken it&nbsp;away.
+            Somewhere you always head for, or would rather not stop at? Name it and every place search puts it where you
+            want it — the gas chips, the category searches, the search along a route. <b>Nothing is added or hidden</b>:
+            the one time you are out of fuel with a station in front of you is the time this must not have taken
+            it&nbsp;away.
           </p>
-          <form method="post" action="/settings/avoid" class="setting-form" data-autosave>
-            <p class="field">
-              <span class="label-row">
-                <label for="f-avoid">One per line, or separated by commas</label>
-                {raw(
-                  fieldHelp(
-                    'avoid',
-                    'what to put in your avoid list',
-                    'A brand or a kind of place, either works — ARCO, Costco Gas, fast food. Matched loosely against the name, so short words catch more than you mean.',
-                  ),
-                )}
-              </span>
-              <textarea id="f-avoid" name="avoidPlaces" rows={4} maxlength={1000}>
-                {avoidPlaces}
-              </textarea>
-            </p>
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                Save
-              </button>
-              <Saved when={on('avoid')} />
-            </div>
-          </form>
+
+          <div class="two-col">
+            <section class="setting" id="avoid">
+              <h3>Places and brands to avoid</h3>
+              <form method="post" action="/settings/avoid" class="setting-form" data-autosave>
+                <p class="field">
+                  <span class="label-row">
+                    <label for="f-avoid">One per line, or separated by commas</label>
+                    {raw(
+                      fieldHelp(
+                        'avoid',
+                        'what to put in your avoid list',
+                        'A brand or a kind of place, either works — ARCO, Costco Gas, fast food. Matched loosely against the name, so short words catch more than you mean.',
+                      ),
+                    )}
+                  </span>
+                  <textarea id="f-avoid" name="avoidPlaces" rows={4} maxlength={1000}>
+                    {avoidPlaces}
+                  </textarea>
+                </p>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('avoid')} />
+                </div>
+              </form>
+            </section>
+
+            <section class="setting" id="favor">
+              <h3>Places and brands to favor</h3>
+              <form method="post" action="/settings/favor" class="setting-form" data-autosave>
+                <p class="field">
+                  <span class="label-row">
+                    <label for="f-favor">One per line, or separated by commas</label>
+                    {raw(
+                      fieldHelp(
+                        'favor',
+                        'what to put in your favor list',
+                        'A brand or a kind of place, either works — Shell, In-N-Out, diner. Matched loosely against the name, so short words catch more than you mean.',
+                      ),
+                    )}
+                  </span>
+                  <textarea id="f-favor" name="favorPlaces" rows={4} maxlength={1000}>
+                    {favorPlaces}
+                  </textarea>
+                </p>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('favor')} />
+                </div>
+              </form>
+            </section>
+          </div>
         </section>
 
         <section class="gtfo">

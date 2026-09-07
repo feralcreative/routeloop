@@ -14,7 +14,7 @@
 // lives in account-page.tsx now, and `1` had to join it: the profile form
 // redirects to `?saved=1` and always has, so merging the pages merged the query
 // string with it.
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
@@ -265,24 +265,33 @@ settingsRoutes.post('/settings/volume', requireActive, requireSameOrigin, async 
 // is truncated rather than refused, because the only way to send more is to
 // hand-craft the request and the honest answer to that is the same as the answer
 // to an unrecognized enum value above.
-settingsRoutes.post('/settings/avoid', requireActive, requireSameOrigin, async (c) => {
+//
+// TWO HANDLERS AND NOT ONE TAKING A DIRECTION, because they are two boxes with
+// two Save states and the autosave posts whichever group changed. One endpoint
+// would have to be told which column it was writing, and a request that named
+// the wrong one would move a rider's list from one side to the other.
+const writeList = (column: 'avoidPlaces' | 'favorPlaces', anchor: string) => async (c: Context<AuthEnv>) => {
   const user = currentUser(c)
   const body = await c.req.parseBody()
-  const typed = typeof body.avoidPlaces === 'string' ? body.avoidPlaces.trim().slice(0, 1000) : ''
-  // Empty to null, so clearing the box removes the value rather than storing ''.
-  // Two representations of "nothing here" means every reader has to test for
-  // both — the same rule the places writer follows.
-  const avoidPlaces = typed === '' ? null : typed
+  const raw = body[column]
+  const typed = typeof raw === 'string' ? raw.trim().slice(0, 1000) : ''
+  // Empty to null, so clearing the box removes the value rather than storing
+  // ''. Two representations of "nothing here" means every reader has to test
+  // for both — the same rule the places writer follows.
+  const value = typed === '' ? null : typed
 
   await db
     .insert(userProfiles)
     .values({
       userId: user.id,
-      avoidPlaces,
+      [column]: value,
       dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
       updatedAt: new Date(),
     })
-    .onConflictDoUpdate({ target: userProfiles.userId, set: { avoidPlaces, updatedAt: new Date() } })
+    .onConflictDoUpdate({ target: userProfiles.userId, set: { [column]: value, updatedAt: new Date() } })
 
-  return c.redirect('/settings?saved=avoid#avoid', 303)
-})
+  return c.redirect(`/settings?saved=${anchor}#${anchor}`, 303)
+}
+
+settingsRoutes.post('/settings/avoid', requireActive, requireSameOrigin, writeList('avoidPlaces', 'avoid'))
+settingsRoutes.post('/settings/favor', requireActive, requireSameOrigin, writeList('favorPlaces', 'favor'))

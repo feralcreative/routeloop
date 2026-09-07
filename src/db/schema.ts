@@ -394,6 +394,18 @@ export const userProfiles = pgTable('user_profiles', {
   // of fuel with an ARCO in front of them is the time this must not have hidden
   // it. See src/places/avoid.ts.
   avoidPlaces: varchar('avoid_places', { length: 1000 }),
+  // The mirror of the column above: places to push UP a place search. Same free
+  // text, same loose matching, same length. Ziad's call, 2026-09-07.
+  //
+  // TWO COLUMNS AND NOT ONE SIGNED LIST. A single field with a leading `-` or `+`
+  // would be one column and a syntax to learn, and the whole point of these is
+  // that a rider types "ARCO, Costco Gas" the way they would say it. Two boxes
+  // ask two plain questions.
+  //
+  // NOTHING STOPS A TERM APPEARING IN BOTH, and the ranking resolves it rather
+  // than the schema refusing it — see src/places/ranking.ts. A CHECK could not
+  // express it anyway, since matching is substring and approximate.
+  favorPlaces: varchar('favor_places', { length: 1000 }),
   // Contact details, each behind its own share flag (#183).
   //
   // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four

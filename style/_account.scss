@@ -181,16 +181,19 @@
 // running the full page width invites a paragraph, and what is wanted is a short
 // list. 60ch matches the prose cap directly above it, so the field, the label
 // and the explanation all share one edge.
+// The two place lists, side by side. Full width each inside their own half —
+// the 60ch measure the single box carried was about a lone field on a wide page,
+// and half a column is already narrower than that.
+#favor,
 #avoid {
   .field {
-    max-width: 60ch;
+    max-width: none;
   }
 
   textarea {
     width: 100%;
-    // Vertical only. A textarea a rider can drag WIDER escapes the measure the
-    // rule above exists to set, and there is nothing here worth reading at 200
-    // characters a line.
+    // Vertical only. A textarea a rider can drag WIDER escapes its own column,
+    // and there is nothing here worth reading at 200 characters a line.
     resize: vertical;
     font: inherit;
   }

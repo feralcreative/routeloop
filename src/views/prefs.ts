@@ -114,7 +114,10 @@ export async function appearanceFor(c: Context<AuthEnv>): Promise<{ theme: Theme
 }
 
 /**
- * The rider's avoid list, as they typed it (#271).
+ * The rider's two place lists, as they typed them (#271).
+ *
+ * ONE QUERY FOR BOTH, because they are two columns on one row and every caller
+ * needs the pair — a search is ranked by favor AND avoid in one pass.
  *
  * RAW TEXT RATHER THAN PARSED TERMS, so the parsing stays in the pure module
  * that is tested with no database — this file's whole job is asking a question
@@ -124,15 +127,15 @@ export async function appearanceFor(c: Context<AuthEnv>): Promise<{ theme: Theme
  * which parses to an empty list and orders nothing. There is no header
  * equivalent and there could not be one.
  */
-export async function avoidListFor(c: Context<AuthEnv>): Promise<string | null> {
+export async function placeListsFor(c: Context<AuthEnv>): Promise<{ favor: string | null; avoid: string | null }> {
   const user = c.get('user')
-  if (!user) return null
+  if (!user) return { favor: null, avoid: null }
   const [p] = await db
-    .select({ avoidPlaces: userProfiles.avoidPlaces })
+    .select({ favorPlaces: userProfiles.favorPlaces, avoidPlaces: userProfiles.avoidPlaces })
     .from(userProfiles)
     .where(eq(userProfiles.userId, user.id))
     .limit(1)
-  return p?.avoidPlaces ?? null
+  return { favor: p?.favorPlaces ?? null, avoid: p?.avoidPlaces ?? null }
 }
 
 /**

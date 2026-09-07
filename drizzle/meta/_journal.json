@@ -239,6 +239,13 @@
       "when": 1788805981014,
       "tag": "0033_right_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788820408663,
+      "tag": "0034_lean_the_captain",
+      "breakpoints": true
     }
   ]
 }

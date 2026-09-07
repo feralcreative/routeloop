@@ -17,8 +17,8 @@ import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
 import { type AddressHit, type GoogleComponent, addressParts } from '../maps/address'
 import { searchPlaces } from '../maps/places'
-import { demoteAvoided, parseAvoidList } from '../places/avoid'
-import { avoidListFor } from '../views/prefs'
+import { parseTerms, rankPlaces } from '../places/ranking'
+import { placeListsFor } from '../views/prefs'
 
 export const routingRoutes = new Hono<AuthEnv>()
 
@@ -499,16 +499,17 @@ routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requi
   // the gate and the status codes.
   const out = await searchPlaces(parsed.data, GMAPS_SERVER_KEY)
   if (out.ok) {
-    // THE RIDER'S AVOID LIST IS APPLIED HERE, AFTER THE CACHE, AND NOT INSIDE
-    // searchPlaces (#271). That cache is keyed on the query, so ranking inside
-    // it would either fragment it per rider — paying Google again for a search
-    // somebody else already made — or serve a list pre-ranked for whoever asked
-    // first. Both are invisible. See src/places/avoid.ts.
+    // THE RIDER'S TWO PLACE LISTS ARE APPLIED HERE, AFTER THE CACHE, AND NOT
+    // INSIDE searchPlaces (#271). That cache is keyed on the query, so ranking
+    // inside it would either fragment it per rider — paying Google again for a
+    // search somebody else already made — or serve a list pre-ranked for whoever
+    // asked first. Both are invisible. See src/places/ranking.ts.
     //
-    // A DEMOTION AND NEVER A REMOVAL: the list still holds every result Google
-    // returned, in Text Search's own order within each half.
-    const terms = parseAvoidList(await avoidListFor(c))
-    return c.json({ places: demoteAvoided(out.places, terms) })
+    // AN ORDER AND NEVER A MEMBERSHIP: the response still holds every result
+    // Google returned and nothing it did not, in Text Search's own order within
+    // each of the three buckets.
+    const lists = await placeListsFor(c)
+    return c.json({ places: rankPlaces(out.places, parseTerms(lists.favor), parseTerms(lists.avoid)) })
   }
 
   if (out.error === 'unconfigured') return c.json({ error: 'place search is not configured' }, 503)
