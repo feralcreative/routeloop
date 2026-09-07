@@ -138,22 +138,48 @@ function Field(o: {
   type?: string
   hint?: string
   autocomplete?: string
+  /**
+   * A sigil drawn INSIDE the field, ahead of what the rider types — `$` for a
+   * Cashtag, `@` for a Venmo handle.
+   *
+   * IT IS NOT PART OF THE VALUE, and the POST handler strips a leading one for
+   * exactly that reason: a rider who types the `$` they can already see would
+   * otherwise store `$ziad` in a field the app renders a `$` in front of, and
+   * every surface that ever prints it reads `$$ziad`. Same argument as the
+   * social handles, which strip a leading `@` and a pasted URL.
+   *
+   * `aria-hidden`, because it is decoration over an input the label already
+   * names. What it says in words belongs in `hint`, which is announced.
+   */
+  prefix?: string
 }) {
   const err = o.errors?.[o.name as keyof ProfileValues]
   const raw = o.values[o.name]
   const value = raw == null ? '' : String(raw)
+  const input = (
+    <input
+      id={`f-${o.name}`}
+      name={o.name}
+      type={o.type ?? 'text'}
+      value={value}
+      autocomplete={o.autocomplete}
+      aria-invalid={err ? 'true' : undefined}
+      aria-describedby={err ? `e-${o.name}` : undefined}
+    />
+  )
   return (
     <p class={`field${err ? ' has-error' : ''}`}>
       <label for={`f-${o.name}`}>{o.label}</label>
-      <input
-        id={`f-${o.name}`}
-        name={o.name}
-        type={o.type ?? 'text'}
-        value={value}
-        autocomplete={o.autocomplete}
-        aria-invalid={err ? 'true' : undefined}
-        aria-describedby={err ? `e-${o.name}` : undefined}
-      />
+      {o.prefix ? (
+        <span class="field-prefixed">
+          <span class="field-prefix" aria-hidden="true">
+            {o.prefix}
+          </span>
+          {input}
+        </span>
+      ) : (
+        input
+      )}
       {err && (
         <span class="field-error" id={`e-${o.name}`}>
           {err}
@@ -238,20 +264,108 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
         `full-span`: it belongs to the whole form, not to the left column.
       */}
       <form class="profile-form two-col" method="post" action="/profile">
-        <fieldset>
+        {/*
+          THE PICTURE IS IN HERE NOW, AND ITS OWN COMMENT SAID IT SHOULD BE.
+          Ziad's call, 2026-09-07: it sat between Splitting costs and Phone, six
+          fieldsets down from the name it is a picture OF, under a note reading
+          "AT THE TOP, BESIDE THE NAME". It had drifted from the place #99 put it.
+
+          FULL-SPAN, WHICH IS ALSO WHAT PAIRS THE TWO ADDRESSES BELOW. `two-col`
+          places its children in order, so with this taking a whole row Home base
+          and Public starting point become the next pair — and those two are the
+          one place on this form where a rider is genuinely comparing two answers
+          side by side. Without it they land in different rows with unrelated
+          blocks beside them.
+        */}
+        <fieldset class="full-span who-you-are">
           <legend>Who you are</legend>
-          <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
-          <Field
-            name="username"
-            label="Username"
-            values={v}
-            errors={errors}
-            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
-          />
-          <HistoryBlock rows={history ?? []} />
-          <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
-          <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
-          <Check name="shareLastName" label="Show my last name to other riders" values={v} />
+          <div class="who-grid">
+            <div class="who-fields">
+              <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
+              <Field
+                name="username"
+                label="Username"
+                values={v}
+                errors={errors}
+                hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+              />
+              <HistoryBlock rows={history ?? []} />
+              <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
+              <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
+              <Check name="shareLastName" label="Show my last name to other riders" values={v} />
+            </div>
+
+            {/*
+            #99. AT THE TOP, BESIDE THE NAME, because that is what it is a picture
+            OF — and because a rider looking for it looks where their face already
+            appears in the nav.
+
+            THE WHOLE BLOCK IS PROGRESSIVE. With script off there is no crop box
+            and no upload: the file input and its buttons live inside
+            #avatar-crop's controls, which avatar.js reveals. What a no-script
+            rider sees is their current picture and nothing that lies about being
+            usable. An upload needs a canvas to crop in, and there is no honest
+            server-side fallback for "position this circle".
+          */}
+            <div class="avatar-block">
+              <h3>Your picture</h3>
+              <div class="avatar-now">
+                {avatarSrc(user) ? (
+                  <img
+                    id="avatar-current"
+                    class="avatar-preview"
+                    src={avatarSrc(user)!}
+                    alt=""
+                    width="96"
+                    height="96"
+                  />
+                ) : (
+                  <>
+                    <img id="avatar-current" class="avatar-preview" alt="" width="96" height="96" hidden />
+                    <span id="avatar-initials" class="avatar-preview is-initials" aria-hidden="true">
+                      {(user.displayName || '?').trim().charAt(0).toUpperCase()}
+                    </span>
+                  </>
+                )}
+                <div class="avatar-acts">
+                  {/* Hidden and clicked by the button, so the control reads as a
+                    button rather than as a file input — and so it can sit beside
+                    Remove without the two looking like different kinds of thing. */}
+                  <input type="file" id="avatar-file" accept="image/jpeg,image/png" hidden />
+                  <button type="button" class="btn btn-quiet" id="avatar-open" hidden>
+                    Choose a picture
+                  </button>
+                  <button type="button" class="btn btn-quiet" id="avatar-remove" hidden={!hasUpload}>
+                    Remove
+                  </button>
+                  <p class="field-hint">
+                    JPEG or PNG, up to 1&nbsp;MB. Stored square and shown round; we re-encode it and strip the location
+                    your camera put&nbsp;in&nbsp;it.
+                  </p>
+                </div>
+              </div>
+
+              <div id="avatar-crop" hidden>
+                {/* 320 is the canvas's PIXEL size and the stylesheet may display it
+                  smaller — avatar.js scales pointer deltas by the ratio, so the
+                  two are allowed to differ. */}
+                <canvas id="avatar-canvas" width="320" height="320"></canvas>
+                <label class="avatar-zoom-row">
+                  <span>Zoom</span>
+                  <input type="range" id="avatar-zoom" min="1" max="4" step="0.01" value="1" />
+                </label>
+                <div class="avatar-acts">
+                  <button type="button" class="btn" id="avatar-save">
+                    Use this
+                  </button>
+                  <button type="button" class="btn btn-quiet" id="avatar-cancel">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <p class="save-status" id="avatar-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
         </fieldset>
 
         <fieldset>
@@ -296,10 +410,65 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
         <fieldset>
           <legend>Splitting costs</legend>
           <p class="field-hint">Optional. For settling up on hotels, gas and meals along a ride.</p>
-          <Field name="cashApp" label="Cash App" values={v} errors={errors} />
-          <Field name="venmo" label="Venmo" values={v} errors={errors} />
-          <Field name="paypal" label="PayPal" values={v} errors={errors} />
-          <Field name="zelle" label="Zelle" values={v} errors={errors} />
+          {/*
+            THE SIGIL EACH SERVICE ACTUALLY USES, drawn in the field rather than
+            asked for (#183 follow-up, Ziad's call 2026-09-07). Cash App writes a
+            Cashtag as `$name` and Venmo writes a handle as `@name`, so a rider
+            typing one into a field that already shows it stores it twice — which
+            is why the handler strips a leading sigil, the same way it strips one
+            off a social handle.
+
+            ZELLE GETS NONE, AND THAT IS THE ANSWER RATHER THAN AN OMISSION: a
+            Zelle account is reached by US mobile number or email address, not by
+            a handle, so there is no sigil to draw and the hint says what to put
+            there instead.
+
+            EVERY ONE OF THEM IS `autocomplete="off"`, AND THAT IS A DATA FIX
+            RATHER THAN A PREFERENCE. Chrome autofills a field it cannot place by
+            guessing from the label, and an autofill fires a real `input` event —
+            which profile.js's idle autosave cannot tell from typing. So a rider
+            who merely OPENED this page had their display name written into Cash
+            App and a saved username into Venmo, silently, and the next thing to
+            read those handles would have offered strangers a payment address
+            nobody chose. Seen live, on this page, during the browser pass that
+            added the sigils. The socials block carries it for the same reason,
+            and the Public starting point block already did.
+          */}
+          <Field
+            name="cashApp"
+            label="Cash App"
+            values={v}
+            errors={errors}
+            prefix="$"
+            hint="Your Cashtag."
+            autocomplete="off"
+          />
+          <Field
+            name="venmo"
+            label="Venmo"
+            values={v}
+            errors={errors}
+            prefix="@"
+            hint="Your Venmo username."
+            autocomplete="off"
+          />
+          <Field
+            name="paypal"
+            label="PayPal"
+            values={v}
+            errors={errors}
+            prefix="@"
+            hint="Your PayPal.Me name."
+            autocomplete="off"
+          />
+          <Field
+            name="zelle"
+            label="Zelle"
+            values={v}
+            errors={errors}
+            hint="The phone number or email your Zelle is registered to."
+            autocomplete="off"
+          />
           <Check name="sharePaymentHandles" label="Share these with riders on my rides" values={v} />
         </fieldset>
 
@@ -314,69 +483,6 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           the same as agreeing to publish it, which is the whole reason the
           existing block works the way it does.
         */}
-        {/*
-          #99. AT THE TOP, BESIDE THE NAME, because that is what it is a picture
-          OF — and because a rider looking for it looks where their face already
-          appears in the nav.
-
-          THE WHOLE BLOCK IS PROGRESSIVE. With script off there is no crop box
-          and no upload: the file input and its buttons live inside
-          #avatar-crop's controls, which avatar.js reveals. What a no-script
-          rider sees is their current picture and nothing that lies about being
-          usable. An upload needs a canvas to crop in, and there is no honest
-          server-side fallback for "position this circle".
-        */}
-        <fieldset class="avatar-block">
-          <legend>Your picture</legend>
-          <div class="avatar-now">
-            {avatarSrc(user) ? (
-              <img id="avatar-current" class="avatar-preview" src={avatarSrc(user)!} alt="" width="96" height="96" />
-            ) : (
-              <>
-                <img id="avatar-current" class="avatar-preview" alt="" width="96" height="96" hidden />
-                <span id="avatar-initials" class="avatar-preview is-initials" aria-hidden="true">
-                  {(user.displayName || '?').trim().charAt(0).toUpperCase()}
-                </span>
-              </>
-            )}
-            <div class="avatar-acts">
-              {/* Hidden and clicked by the button, so the control reads as a
-                  button rather than as a file input — and so it can sit beside
-                  Remove without the two looking like different kinds of thing. */}
-              <input type="file" id="avatar-file" accept="image/jpeg,image/png" hidden />
-              <button type="button" class="btn btn-quiet" id="avatar-open" hidden>
-                Choose a picture
-              </button>
-              <button type="button" class="btn btn-quiet" id="avatar-remove" hidden={!hasUpload}>
-                Remove
-              </button>
-              <p class="field-hint">
-                JPEG or PNG, up to 1&nbsp;MB. Stored square and shown round; we re-encode it and strip the location your
-                camera put&nbsp;in&nbsp;it.
-              </p>
-            </div>
-          </div>
-
-          <div id="avatar-crop" hidden>
-            {/* 320 is the canvas's PIXEL size and the stylesheet may display it
-                smaller — avatar.js scales pointer deltas by the ratio, so the
-                two are allowed to differ. */}
-            <canvas id="avatar-canvas" width="320" height="320"></canvas>
-            <label class="avatar-zoom-row">
-              <span>Zoom</span>
-              <input type="range" id="avatar-zoom" min="1" max="4" step="0.01" value="1" />
-            </label>
-            <div class="avatar-acts">
-              <button type="button" class="btn" id="avatar-save">
-                Use this
-              </button>
-              <button type="button" class="btn btn-quiet" id="avatar-cancel">
-                Cancel
-              </button>
-            </div>
-          </div>
-          <p class="save-status" id="avatar-status" role="status" aria-live="polite"></p>
-        </fieldset>
 
         <fieldset>
           <legend>Phone</legend>
@@ -396,10 +502,10 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           <p class="field-hint">
             Optional. Your handle, not the whole link — paste a URL and we will take the handle out&nbsp;of&nbsp;it.
           </p>
-          <Field name="instagram" label="Instagram" values={v} errors={errors} />
-          <Field name="facebook" label="Facebook" values={v} errors={errors} />
-          <Field name="youtube" label="YouTube" values={v} errors={errors} />
-          <Field name="strava" label="Strava" values={v} errors={errors} />
+          <Field name="instagram" label="Instagram" values={v} errors={errors} autocomplete="off" />
+          <Field name="facebook" label="Facebook" values={v} errors={errors} autocomplete="off" />
+          <Field name="youtube" label="YouTube" values={v} errors={errors} autocomplete="off" />
+          <Field name="strava" label="Strava" values={v} errors={errors} autocomplete="off" />
           <Check name="shareSocials" label="Show these on my profile" values={v} />
         </fieldset>
 
@@ -579,6 +685,28 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     // original would store the separators as though they were one.
     return bare ? bare.replace(/^@+/, '') || null : null
   }
+
+  // A PAYMENT HANDLE, WITHOUT THE SIGIL THE FIELD ALREADY DRAWS.
+  //
+  // Cash App writes a Cashtag as `$name` and Venmo writes a handle as `@name`,
+  // and those fields render the character ahead of the input — so a rider who
+  // types the one they can see would store it, and every surface that ever
+  // prints the value reads `$$ziad`. Stripping it here is the same reasoning as
+  // the social handles above, one character further out.
+  //
+  // IT REUSES `handle()` RATHER THAN BEING A SECOND NORMALIZER, because a rider
+  // pastes `cash.app/$ziad` and `venmo.com/u/ziad` exactly as readily as they
+  // paste an Instagram URL, and one implementation is one thing to get right.
+  //
+  // ZELLE DOES NOT GO THROUGH IT, and that is deliberate: a Zelle account is
+  // reached by phone number or email address, and `handle()` is built to take
+  // the last path segment of a URL. It would leave an email alone today, but the
+  // field is not a handle and treating it as one is the kind of thing that
+  // stops being harmless the first time somebody widens the helper.
+  const money = (s: string) => {
+    const bare = handle(s)
+    return bare ? bare.replace(/^[$@]+/, '') || null : null
+  }
   const username = p.username ? sanitizeText(p.username) : null
 
   // Only a real change goes through the claim path: re-saving the form with the
@@ -635,9 +763,10 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         shareLastName: p.shareLastName,
         addHomeToRides: p.addHomeToRides,
         sharePaymentHandles: p.sharePaymentHandles,
-        cashApp: text(p.cashApp),
-        venmo: text(p.venmo),
-        paypal: text(p.paypal),
+        cashApp: money(p.cashApp),
+        venmo: money(p.venmo),
+        paypal: money(p.paypal),
+        // Plain text: a phone number or an email, not a handle. See money() above.
         zelle: text(p.zelle),
         sharePhone: p.sharePhone,
         phone: text(p.phone),

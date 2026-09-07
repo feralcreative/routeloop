@@ -530,6 +530,44 @@
     appearance: auto;
   }
 
+  // A SIGIL DRAWN INSIDE THE FIELD — `$` for a Cashtag, `@` for a Venmo handle.
+  //
+  // ABSOLUTELY POSITIONED OVER THE INPUT'S OWN LEFT PADDING, rather than the
+  // input being unbordered inside a bordered wrapper. That second shape is the
+  // usual one and it means restating the border, the radius and the focus ring
+  // on a second selector — three rules that then have to be kept in step with
+  // the input rule above forever, and the focus outline is the one that goes
+  // wrong quietly.
+  //
+  // NESTED IN `.field` RATHER THAN WRITTEN AT THE TOP LEVEL, and that is not
+  // tidiness: the padding below has to OUTRANK `.field input:not(…):not(…)`
+  // above, which carries two attribute selectors. A top-level `.field-prefixed
+  // input` loses to it silently — the sigil draws, the padding does not apply,
+  // and the first character a rider types lands underneath it.
+  .field-prefixed {
+    position: relative;
+    display: block;
+
+    .field-prefix {
+      position: absolute;
+      // Matches the input's own left padding above, so the sigil sits exactly
+      // where the first typed character would have.
+      left: 0.7rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: $neutral-57;
+      // LOAD-BEARING: without it a click on the sigil lands on a span and the
+      // field never takes focus, which reads as a dead spot at the exact place
+      // a rider aims for when the box is empty.
+      pointer-events: none;
+    }
+
+    // Room for the sigil plus the gap a character would have had after it.
+    input:not([type="checkbox"]):not([type="radio"]) {
+      padding-left: 1.7rem;
+    }
+  }
+
   &.has-error input,
   &.has-error select,
   &.has-error textarea {

@@ -385,6 +385,41 @@
   }
 }
 
+// WHO YOU ARE, which is the one fieldset on this form holding two unlike things:
+// the identity fields, and the picture they are a picture OF.
+//
+// FULL-SPAN AND THEN TWO COLUMNS OF ITS OWN, rather than letting the picture be
+// a sibling cell of `.two-col`. As a sibling it took a whole grid cell for a
+// 96px circle and four controls, and it pushed Home base and Public starting
+// point into different rows — those two are the one place on this form where a
+// rider is genuinely comparing two answers, so they have to sit side by side.
+//
+// The picture is on the RIGHT and its track is fixed: it is 96px of circle plus
+// two short buttons, so a fractional track would stretch it across half the page
+// at wide widths and leave the fields cramped beside it.
+.who-you-are .who-grid {
+  display: grid;
+  gap: 1.5rem 2rem;
+  align-items: start;
+}
+
+//@ LG ≥992px — the same breakpoint `.two-col` splits at, so the inner columns
+//@ appear exactly when the outer ones do.
+@media (min-width: 992px) {
+  .who-you-are .who-grid {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+}
+
+// It was a <fieldset> with a <legend> and is a <div> with an <h3> now, because a
+// fieldset nested in a fieldset gives one block two legends and reads as two
+// forms. Sized to match `.setting-topic h3` — a label for a column, not a
+// heading competing with the legend above it.
+.avatar-block > h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
 // --- Avatar (#99) ------------------------------------------------------------
 //
 // STORED SQUARE, SHOWN ROUND. Nothing circular is written to disk — a round
