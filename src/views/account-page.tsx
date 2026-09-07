@@ -34,7 +34,7 @@ import { userProfiles } from '../db/schema'
 import { DELETION_HOLD_DAYS } from '../account/policy'
 import { DURATION_FORMAT_CHOICES, toDurationFormat } from '../maps/duration'
 import { DATE_FORMAT_CHOICES } from './date-format'
-import { CLOCK_CHOICES, toClock } from './clock'
+import { CLOCK_CHOICES, resolveClock, toClock } from './clock'
 import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
@@ -103,6 +103,8 @@ export async function accountPage(
   const on = (name: string) => savedQuery === name
   const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces } = await prefsFor(user.id)
   const dateFormat = await dateFormatFor(c)
+  // `locale` is stored and not offered — see resolveClock in views/clock.ts.
+  const resolvedClock = resolveClock(clock, dateFormat)
   // Straight off the session rather than a second query — validateSessionToken
   // already left-joins user_profiles for exactly this, and the values are
   // coerced there so there is no null to interpret here.
@@ -393,7 +395,12 @@ export async function accountPage(
                   <legend class="visually-hidden">Clock</legend>
                   {CLOCK_CHOICES.map((choice) => (
                     <label class="choice">
-                      <input type="radio" name="clock" value={choice.id} checked={choice.id === clock} />
+                      {/* CHECKED AGAINST THE RESOLVED VALUE, not the stored one.
+                          Every rider who has never touched this carries `locale`,
+                          which is no longer offered — so without resolving, none
+                          of the two would be selected and the control would look
+                          broken on the page most riders open first. */}
+                      <input type="radio" name="clock" value={choice.id} checked={choice.id === resolvedClock} />
                       <span class="choice-label">{choice.label}</span>
                       <span class="choice-example">
                         reads <b>{choice.example}</b>

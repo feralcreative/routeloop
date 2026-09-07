@@ -59,10 +59,38 @@ export const hour12For = (clock: Clock): boolean | undefined =>
  */
 export const clockAttr = (c: Clock): string | null => (c === 'locale' ? null : c)
 
-/** The settings page's radio set. The examples are the SAME instant in all
- *  three, which is the question being asked. */
-export const CLOCK_CHOICES: { id: Clock; label: string; example: string }[] = [
-  { id: 'locale', label: 'Follow my date format', example: '9:05 AM or 09:05' },
+/**
+ * What `locale` actually means for a rider, resolved from their date format.
+ *
+ * **THE CONTROL OFFERS TWO ANSWERS AND THE COLUMN STORES THREE.** Ziad's call,
+ * 2026-09-07: "Follow my date format" came off the settings page, because a
+ * third option that only says "one of the other two" is a question about the
+ * question. `locale` stays in the enum — it is the default every existing rider
+ * carries, and dropping an enum member is a migration over live rows for a
+ * change that is about a form.
+ *
+ * So a rider stored as `locale` sees the concrete option their date format
+ * implies, already selected, and the first time they touch the control it stores
+ * concretely and stops following. Nothing is backfilled and nothing is lost.
+ *
+ * **ASKED OF Intl RATHER THAN TABULATED.** Which locales run to twenty-four is
+ * exactly the knowledge `date_format` exists to borrow, and a hardcoded list
+ * here would be a second answer to drift from it — `en-GB` is the 24-hour one
+ * today, and a fourth member added later would silently default to 12 under a
+ * table and be right under this.
+ */
+export const resolveClock = (clock: Clock, dateFormat: string): 'h12' | 'h24' => {
+  if (clock !== 'locale') return clock
+  const opts = new Intl.DateTimeFormat(dateFormat, { timeStyle: 'short' }).resolvedOptions()
+  return opts.hour12 ? 'h12' : 'h24'
+}
+
+/** The settings page's radio set. The examples are the SAME instant in both,
+ *  which is the question being asked.
+ *
+ *  TWO ENTRIES, NOT THREE — see resolveClock above for where `locale` went and
+ *  why it is still a member of the type. */
+export const CLOCK_CHOICES: { id: Exclude<Clock, 'locale'>; label: string; example: string }[] = [
   { id: 'h12', label: '12-hour', example: '9:05 AM' },
   { id: 'h24', label: '24-hour', example: '09:05' },
 ]

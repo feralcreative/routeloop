@@ -84,7 +84,7 @@ export const toDateFormat = (v: unknown): DateFormat =>
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
   { id: 'en-US', label: 'Month first', example: '8/24/2026' },
   { id: 'en-GB', label: 'Day first', example: '24/08/2026' },
-  { id: 'en-CA', label: 'Year first (ISO)', example: '2026-08-24' },
+  { id: 'en-CA', label: 'Year first', example: '2026-08-24' },
 ]
 
 // UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a

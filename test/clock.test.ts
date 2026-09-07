@@ -5,7 +5,7 @@
 // locale too, which is the exact mistake fmtClock's own comment records having
 // been made once. So these assert the override AND what it leaves alone.
 import { describe, expect, it } from 'vitest'
-import { CLOCK_CHOICES, CLOCKS, clockAttr, DEFAULT_CLOCK, hour12For, toClock } from '../src/views/clock'
+import { CLOCK_CHOICES, CLOCKS, clockAttr, DEFAULT_CLOCK, hour12For, resolveClock, toClock } from '../src/views/clock'
 import { fmtClock } from '../src/views/date-format'
 
 const at = (h: number, m: number) => new Date(Date.UTC(2026, 7, 24, h, m))
@@ -97,8 +97,45 @@ describe('fmtClock', () => {
   })
 })
 
+// THE CONTROL OFFERS TWO ANSWERS AND THE COLUMN STORES THREE. "Follow my date
+// format" came off the page on 2026-09-07 — a third option that only says "one
+// of the other two" is a question about the question — and `locale` stayed in
+// the enum, because it is the default every existing rider carries and dropping
+// an enum member is a migration over live rows for a change about a form.
+describe('resolveClock', () => {
+  it('leaves an explicit answer alone', () => {
+    expect(resolveClock('h12', 'en-GB')).toBe('h12')
+    expect(resolveClock('h24', 'en-US')).toBe('h24')
+  })
+
+  // ASKED OF Intl RATHER THAN TABULATED, so a fourth date format added later is
+  // right without anyone remembering to extend a list.
+  it('follows the date format when nobody has chosen', () => {
+    expect(resolveClock('locale', 'en-US')).toBe('h12')
+    expect(resolveClock('locale', 'en-CA')).toBe('h12')
+    expect(resolveClock('locale', 'en-GB')).toBe('h24')
+  })
+
+  // The failure this prevents: every rider who has never touched the control
+  // carries `locale`, so without resolving, NEITHER option would be selected on
+  // the page most of them open first.
+  it('always answers with something the control can select', () => {
+    for (const c of CLOCKS) {
+      for (const f of ['en-US', 'en-GB', 'en-CA']) {
+        expect(CLOCK_CHOICES.map((x) => x.id)).toContain(resolveClock(c, f))
+      }
+    }
+  })
+})
+
 describe('CLOCK_CHOICES', () => {
-  it('offers every member exactly once', () => {
-    expect(CLOCK_CHOICES.map((c) => c.id).sort()).toEqual([...CLOCKS].sort())
+  it('offers the two concrete answers and not the delegating one', () => {
+    expect(CLOCK_CHOICES.map((c) => c.id)).toEqual(['h12', 'h24'])
+    expect(CLOCK_CHOICES.map((c) => c.id)).not.toContain('locale')
+  })
+
+  it('keeps locale in the type, because it is what is stored', () => {
+    expect(CLOCKS).toContain('locale')
+    expect(DEFAULT_CLOCK).toBe('locale')
   })
 })
