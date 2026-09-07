@@ -209,10 +209,12 @@ export async function accountPage(
             made in the same breath; motion is the same kind of answer to the
             same question and joins them rather than getting a fourth endpoint.
 
-            The page renders in the rider's CURRENT palette while they choose.
-            There is no live preview and deliberately so — a preview would need
+  THERE IS A LIVE PREVIEW NOW, AND THAT REVERSES THE NOTE THAT WAS HERE.
+            It read: no live preview, deliberately, because "a preview would need
             script this page does not otherwise want, and the choice applies on
-            save, which is one click away and unambiguous.
+            save". Both halves stopped being true on 2026-09-07 — the page
+            autosaves and re-stamps <html>, so the whole page IS the preview and
+            the palette bar below is the part of it a rider can point at.
           */}
           <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
             <div class="three-col">
@@ -257,6 +259,37 @@ export async function accountPage(
                 ))}
               </fieldset>
             </div>
+
+            {/*
+              THE PALETTE ITSELF, ABOVE THE SAVE ROW. Ziad's call, 2026-09-07,
+              and it supersedes the note above this form saying there is
+              deliberately no live preview — that reasoning was "a preview would
+              need script on a page that has none, and the choice applies on
+              save". Both halves stopped being true when the page started
+              autosaving and re-stamping <html>.
+
+              NO JAVASCRIPT AT ALL. Every swatch is a `var()`, and the palettes
+              are one stylesheet keyed on the attributes restamp() writes — so
+              the bar changes with the choice for free, and it cannot disagree
+              with what the app is actually painting, because it IS what the app
+              is painting.
+
+              THE SIGN FIELDS, IN SIGNAL ORDER, because those are the colors a
+              rider meets: red on a road they cannot ride, amber on advice, green
+              on a guide sign. The neutrals are left out — a strip of greys says
+              nothing about which palette is on.
+
+              `aria-hidden`, and the radio labels are what carry the meaning. Ten
+              unlabelled swatches announce as nothing useful, and each option
+              already says what it is in words.
+            */}
+            <p class="palette-bar" aria-hidden="true">
+              {['stop', 'detour', 'warning', 'yield', 'go', 'interstate', 'disabled', 'recreation', 'tarmac'].map(
+                (token) => (
+                  <span class="palette-chip" style={`background: var(--${token})`}></span>
+                ),
+              )}
+            </p>
 
             <div class="setting-actions">
               <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>

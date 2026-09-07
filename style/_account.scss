@@ -77,6 +77,37 @@
   }
 }
 
+// THE PALETTE, SHOWN AS ITSELF. Ziad's call, 2026-09-07.
+//
+// Every chip is a `var()` on a token the theme redefines, so the bar follows the
+// choice with no script and cannot drift from what the app paints — it is not a
+// picture OF the palette, it is the palette. `restamp()` in autosave.js flips
+// the attribute and this repaints with everything else.
+//
+// ONE ROW THAT WRAPS RATHER THAN A GRID: nine chips is a strip on any width the
+// settings column takes, and a grid would leave a ragged last row on a phone.
+.palette-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0.25rem 0 0;
+  // Clipped so the chips square off against one another and the strip reads as
+  // one object rather than nine.
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.palette-chip {
+  flex: 1 1 1.5rem;
+  height: 1.5rem;
+  // No global border-box reset in this stylesheet — see AGENTS.md.
+  box-sizing: border-box;
+  // A hairline so a chip that lands near the page color still has an edge. The
+  // high-contrast palette lightens several fields, which is exactly when a
+  // borderless swatch disappears into the card behind it.
+  border: 1px solid $grey;
+}
+
 // THE SAVE STATE IS A BORDER ON THE GROUP, since 2026-09-07. Ziad's call: every
 // option saves itself and the Save buttons go, so the thing that used to be a
 // button plus a "Saved" chip is now the edge of the group it belongs to.
