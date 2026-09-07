@@ -30,6 +30,18 @@
 
 **Needs a browser pass.** The CSS class rename and the wire-format keys are the half no test covers, and a wire key is what silently loaded zero days when this rename ran in the other direction on 2026-08-09.
 
+## The legacy tag erased itself, and it took meeting points with it—2026-09-06
+
+**Caught on stage within minutes of the merge, before any prod deploy.** A new ride from Oakland to Ensenada with SC and SLO groups proposed all of its meeting points in Oakland.
+
+**Cause: `writeLegacyRouteGroup()` derived `routes.subgroup_id` from riders' HOME groups alone.** On a ride where nobody has been assigned a home group—every ride until somebody uses the Riders tab—every rider resolves to null, and the function wrote that null over a perfectly good tag. Untagging a feeder route makes `startRouteOf()` fall back to `strand[0]`, which is the main group's own route, so every joining group was handed the main group's start as its origin. Diverts came out at zero and the earliest point on the road won, which is the start. This is the 2026-09-05 origin bug arriving from the other end.
+
+**Two fixes, and the second is the one that matters for repair.** A derivation that learns nothing no longer writes. And the tag is derived from the PER-ROUTE group first, home groups only as a fallback—which is both the more direct reading and the only one that lets the checkbox control put a tag back. Deriving from home groups alone left the damage unrepairable through the UI.
+
+**Reproduced locally end to end**, with the pure proposer cleared first: given correct origins it offers SC candidates 51–72 miles along and SLO 201–222, so the geometry was never at fault. `test/route-riders.test.ts` pins the rule.
+
+**Stage carries damaged data.** Any feeder route whose group control was touched before this fix has a null tag. Re-tick the group on that route to restore it.
+
 ## A route carries a SET of groups, not one—2026-09-06
 
 **Found in the browser, on the staged meet-up this branch made possible.** With VMCSF and VMCSC merged at Morgan Hill and VMCSLO still riding their approach, the shared route was tagged **Everyone**—because `routes.subgroup_id` is one nullable id and one id cannot say "these two of the three". Ziad's call: the single select becomes a checkbox list, and ticking Everyone ticks every group.
