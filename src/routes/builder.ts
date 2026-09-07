@@ -1143,7 +1143,7 @@ ${
   rideId && standing.isOwner
     ? `        <div class="builder-danger">
           <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
-          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} routes.</span>
+          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
         </div>`
     : ''
 }

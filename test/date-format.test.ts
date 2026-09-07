@@ -89,7 +89,7 @@ describe('guessing from Accept-Language', () => {
   })
 
   it('reads the region off a locale it does not stock', () => {
-    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // route first
+    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // day first
     expect(fromAcceptLanguage('fr-FR')).toBe('en-GB')
     expect(fromAcceptLanguage('pt-BR')).toBe('en-GB')
     expect(fromAcceptLanguage('ja-JP')).toBe('en-CA') // year first

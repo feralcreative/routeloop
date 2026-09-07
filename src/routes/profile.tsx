@@ -186,7 +186,7 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   return (
     <div class="handle-history">
       <p class="field-hint">
-        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} routes, so nobody else can take
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take
         it while you think it over.
       </p>
       <ul>
@@ -233,7 +233,7 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
             label="Username"
             values={v}
             errors={errors}
-            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} routes.`}
+            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
           />
           <HistoryBlock rows={history ?? []} />
           <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />

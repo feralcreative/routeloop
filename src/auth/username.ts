@@ -97,7 +97,7 @@ export async function checkAvailability(name: string, selfUserId: number, exec: 
       sql`lower(${usernameHistory.username}) = lower(${name})
           and ${usernameHistory.userId} <> ${selfUserId}
           and ${usernameHistory.releasedAt} is not null
-          and ${usernameHistory.releasedAt} > now() - ${sql.raw(`interval '${USERNAME_HOLD_DAYS} routes'`)}`,
+          and ${usernameHistory.releasedAt} > now() - ${sql.raw(`interval '${USERNAME_HOLD_DAYS} days'`)}`,
     )
     .orderBy(sql`${usernameHistory.releasedAt} desc`)
     .limit(1)

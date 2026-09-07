@@ -10,7 +10,7 @@
 //
 // THE `deleted_at is null` IN THE SUM BELOW IS LOAD-BEARING. Trashing a ride
 // frees its quota on the spot, while the row and its files stay put for thirty
-// routes. Drop that predicate and this sweep adds those bytes straight back within
+// days. Drop that predicate and this sweep adds those bytes straight back within
 // five minutes — the rider watches their meter fall, then silently rise again,
 // and every trash is undone as far as the allowance is concerned.
 //   - `sum(rides.size_bytes)` — the actual total. `size_bytes` is a GENERATED

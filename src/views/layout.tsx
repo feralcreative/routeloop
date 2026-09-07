@@ -688,7 +688,7 @@ function feedbackFab(area?: string): string {
   // and every other support widget uses, so a tester arrives already knowing
   // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
   //
-  // It was two permanent marks for most of that route, which cost one fewer tap on
+  // It was two permanent marks for most of that day, which cost one fewer tap on
   // a bug report and bought a second piece of chrome on every screen forever.
   // The convention is one affordance for the same reason: the errands behind it
   // are occasional, and a dock that grows a mark per errand is a menu that

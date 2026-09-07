@@ -61,7 +61,7 @@ export const toDateFormat = (v: unknown): DateFormat =>
 /** The settings page's radio set. `example` is the same instant in all three. */
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
   { id: 'en-US', label: 'Month first', example: '8/24/2026, 9:05 AM' },
-  { id: 'en-GB', label: 'Route first', example: '24/08/2026, 09:05' },
+  { id: 'en-GB', label: 'Day first', example: '24/08/2026, 09:05' },
   { id: 'en-CA', label: 'Year first (ISO)', example: '2026-08-24, 9:05 a.m.' },
 ]
 
@@ -84,7 +84,7 @@ const UTC = { timeZone: 'UTC' } as const
 /** 8/24/2026 · 24/08/2026 · 2026-08-24 */
 export const fmtDateNumeric = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, UTC)
 
-/** Monday, August 24 — the roadbook's route heading. */
+/** Monday, August 24 — the roadbook's day heading. */
 export const fmtDateLong = (d: Date, f: DateFormat): string =>
   d.toLocaleDateString(f, { weekday: 'long', month: 'long', day: 'numeric', ...UTC })
 

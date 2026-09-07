@@ -836,7 +836,7 @@ export const rides = pgTable(
     // later must not retroactively move a purge date a rider was already shown.
     //
     // Recomputed on every trash, which is ALSO what makes the reset work: taking
-    // a ride out of the bin and putting it back sets a fresh 30 routes with no
+    // a ride out of the bin and putting it back sets a fresh 30 days with no
     // separate mechanism.
     purgeAfter: timestamp('purge_after'),
     // Claimed by the purge before it starts, so a crash cannot wedge the row and

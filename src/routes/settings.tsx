@@ -300,7 +300,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
             <h3>Delete Me</h3>
             <p>
               Hide your profile and every ride from the site straight away, and schedule the lot to be destroyed in{' '}
-              {DELETION_HOLD_DAYS} routes. Nothing is destroyed before then, and Save Me undoes it at any point.
+              {DELETION_HOLD_DAYS} days. Nothing is destroyed before then, and Save Me undoes it at any point.
             </p>
           </div>
           <a class="btn btn-sign btn-stop" href="/account/delete">
@@ -312,7 +312,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
           <div>
             <h3>Save Me</h3>
             <p>
-              Change your mind after Delete Me. Any time inside the {DELETION_HOLD_DAYS} routes it is one click and
+              Change your mind after Delete Me. Any time inside the {DELETION_HOLD_DAYS} days it is one click and
               nothing was ever lost — you will find it waiting on the page you land on when you sign in.
             </p>
           </div>

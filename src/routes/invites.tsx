@@ -208,7 +208,7 @@ inviteRoutes.post('/i/accept', requireAuth, async (c) => {
 // --- Admin -------------------------------------------------------------------
 
 const MAX_SEATS = 50
-const MAX_ROUTES = 90
+const MAX_DAYS = 90
 
 const createSchema = z
   .object({
@@ -218,7 +218,7 @@ const createSchema = z
     email: z.string().trim().max(255).default(''),
     label: z.string().trim().max(120).default(''),
     maxUses: z.coerce.number().int().min(1).max(MAX_SEATS).default(1),
-    routes: z.coerce.number().int().min(1).max(MAX_ROUTES).default(14),
+    days: z.coerce.number().int().min(1).max(MAX_DAYS).default(14),
   })
   .refine((v) => v.grantsBeta || v.grantsSurvey, { message: 'Pick at least one thing to grant', path: ['grants'] })
   .refine((v) => v.kind !== 'email' || normalizeEmail(v.email) !== '', {
@@ -338,8 +338,8 @@ function CreateForm() {
           </span>
         </p>
         <p class="field">
-          <label for="f-routes">Good for, in routes</label>
-          <input id="f-routes" name="routes" type="number" min={1} max={MAX_ROUTES} value="14" />
+          <label for="f-days">Good for, in days</label>
+          <input id="f-days" name="days" type="number" min={1} max={MAX_DAYS} value="14" />
         </p>
         <p>
           <button class="btn" type="submit">
@@ -401,7 +401,7 @@ inviteRoutes.post('/admin/invites', requireManageRiders, requireSameOrigin, asyn
     // kinds in the WRITE rather than in the form means a hand-built POST cannot
     // turn a "private link" into a 50-seat one.
     maxUses: v.kind === 'group' ? v.maxUses : 1,
-    expiresAt: new Date(Date.now() + v.routes * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(Date.now() + v.days * 24 * 60 * 60 * 1000),
     createdBy: me.id,
   })
 
@@ -415,7 +415,7 @@ inviteRoutes.post('/admin/invites', requireManageRiders, requireSameOrigin, asyn
       await sendTemplate(email, inviteEmail, {
         url,
         what: grantsSentence(invite),
-        expiry: `${v.routes} ${v.routes === 1 ? 'route' : 'routes'}`,
+        expiry: `${v.days} ${v.days === 1 ? 'day' : 'days'}`,
       })
     } catch (err) {
       console.error('[invite] send failed:', err instanceof Error ? err.message : err)
