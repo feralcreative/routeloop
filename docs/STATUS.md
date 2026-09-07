@@ -1,16 +1,45 @@
 # Status and handoff
 
-**Branch:** `main`, clean and in sync with `origin/main`. Nothing in flight. **2,479 tests across 95 files** (2 skipped, 2,481 total)
-**Merged 2026-09-07 as [#276](https://github.com/feralcreative/routeloop/pull/276):** the split sprint, closing [#274](https://github.com/feralcreative/routeloop/issues/274) (the row menu) and [#275](https://github.com/feralcreative/routeloop/issues/275) (splitting a group off). Stage auto-deployed from the merge and went green. **Prod has NOT been deployed**—it is still on [#264](https://github.com/feralcreative/routeloop/pull/264).
-**Merged 2026-09-03 as [#238](https://github.com/feralcreative/routeloop/pull/238):** the builder routing sprint, closing [#232](https://github.com/feralcreative/routeloop/issues/232), [#29](https://github.com/feralcreative/routeloop/issues/29), [#28](https://github.com/feralcreative/routeloop/issues/28), [#40](https://github.com/feralcreative/routeloop/issues/40) and [#226](https://github.com/feralcreative/routeloop/issues/226), plus [#234](https://github.com/feralcreative/routeloop/issues/234)–[#237](https://github.com/feralcreative/routeloop/issues/237) filed retroactively. [#30](https://github.com/feralcreative/routeloop/issues/30) was closed as not planned.
-**Closes, when the next PR merges:** [#233](https://github.com/feralcreative/routeloop/issues/233).
-**Filed retroactively and closed 2026-09-05, all on this branch:** [#241](https://github.com/feralcreative/routeloop/issues/241) group start form, [#242](https://github.com/feralcreative/routeloop/issues/242) a meeting point per group, [#243](https://github.com/feralcreative/routeloop/issues/243) Groups-panel undo, [#244](https://github.com/feralcreative/routeloop/issues/244) the public point address, [#245](https://github.com/feralcreative/routeloop/issues/245) the waypoint popup, [#246](https://github.com/feralcreative/routeloop/issues/246) the insert `+`, [#247](https://github.com/feralcreative/routeloop/issues/247) 1Password, [#248](https://github.com/feralcreative/routeloop/issues/248) shaping points across a delete. **[#239](https://github.com/feralcreative/routeloop/issues/239) stays OPEN**—it was filed up front and closes when the PR merges.
-**Closes, when it merges:** [#49](https://github.com/feralcreative/routeloop/issues/49), [#50](https://github.com/feralcreative/routeloop/issues/50) and [#54](https://github.com/feralcreative/routeloop/issues/54). [#229](https://github.com/feralcreative/routeloop/issues/229) was raised out loud and closed during the sprint. **[#220](https://github.com/feralcreative/routeloop/issues/220) stays OPEN**—its fuel half is done and its food-and-rest half is a later sprint.
-**Closes, when it merges:** [#188](https://github.com/feralcreative/routeloop/issues/188), [#189](https://github.com/feralcreative/routeloop/issues/189), [#184](https://github.com/feralcreative/routeloop/issues/184), [#179](https://github.com/feralcreative/routeloop/issues/179), [#173](https://github.com/feralcreative/routeloop/issues/173), [#172](https://github.com/feralcreative/routeloop/issues/172) and [#194](https://github.com/feralcreative/routeloop/issues/194)—which clears `area:chrome`, `area:dashboard` and `area:account`. [#193](https://github.com/feralcreative/routeloop/issues/193) was found during the sprint's browser pass and closed in it; [#192](https://github.com/feralcreative/routeloop/issues/192) was split out of #179 and left open.
-**Closes, when it merges:** [#190](https://github.com/feralcreative/routeloop/issues/190). [#32](https://github.com/feralcreative/routeloop/issues/32) was re-scoped to real-time co-editing only, its turn-based half superseded by suggestions.
-**Closes, when it merges:** [#129](https://github.com/feralcreative/routeloop/issues/129), [#131](https://github.com/feralcreative/routeloop/issues/131), [#35](https://github.com/feralcreative/routeloop/issues/35) and [#13](https://github.com/feralcreative/routeloop/issues/13)—which clears `area:import-export` entirely. [#130](https://github.com/feralcreative/routeloop/issues/130), the content-width prerequisite, was already closed.
-**Closes, when it merges:** [#67](https://github.com/feralcreative/routeloop/issues/67) and [#52](https://github.com/feralcreative/routeloop/issues/52). Merged before it, in order: the recycle bin as [#149](https://github.com/feralcreative/routeloop/pull/149), the Paddock as [#151](https://github.com/feralcreative/routeloop/pull/151), the rider and access layer as [#152](https://github.com/feralcreative/routeloop/pull/152), and membership and voting as [#153](https://github.com/feralcreative/routeloop/pull/153).
+**Branch:** `feat/account-and-preferences`, two commits ahead of `main`. **2,525 tests across 99 files** (2 skipped, 2,527 total)
+**Not pushed.** The branch is local; the push and the PR are yours.
+**Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
+**[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
+**Merged 2026-09-07 as [#276](https://github.com/feralcreative/routeloop/pull/276) and [#278](https://github.com/feralcreative/routeloop/pull/278):** the split sprint, closing [#274](https://github.com/feralcreative/routeloop/issues/274), [#275](https://github.com/feralcreative/routeloop/issues/275) and [#277](https://github.com/feralcreative/routeloop/issues/277). Stage auto-deployed and went green. **Prod has NOT been deployed**—it is still on [#264](https://github.com/feralcreative/routeloop/pull/264), so it has the #279 bug and none of the split work.
 **For:** the next agent, or the owner returning cold
+
+## The day→route rename swept calendar days, 2026-09-07
+
+[#279](https://github.com/feralcreative/routeloop/issues/279), found while surveying `area:account` and fixed first. The 2026-09-06 rename replaced the word "day" wherever it appeared, including the calendar sense AGENTS.md reserves by name—"the thirty-day trash hold".
+
+**One of them was invalid SQL and is live in production.** `checkAvailability()` built `interval '30 routes'`, which Postgres rejects outright, so every username change 500'd from the moment [#263](https://github.com/feralcreative/routeloop/pull/263) merged. Verified against the dev database, and verified fixed in the browser: a rename now works and the thirty-day hold window renders its reclaim date.
+
+**The rest was copy across the whole account surface.** The bin read "17 routes left", `/account/gone` counted down "30 routes from now", `/profile` held a released name for "30 routes", the admin invite form asked for an expiry "in routes" over a field it multiplies by 86,400,000, the invite email promised "14 routes", and the date-format setting offered "Route first".
+
+**Nothing caught any of it, which is the part that got a test.** The interval is built by interpolation so it is a plain string to the typechecker, and CI runs no Postgres. `test/calendar-day-copy.test.ts` reads the source as text: every `interval '…'` literal names a unit Postgres accepts, no `*_DAYS` constant is printed beside "route", and `daysUntilPurge` is not bound to a name that says routes. It was checked against the real bug before being kept.
+
+Genuine route counts were left alone—the FAQ's 31, `/brand`'s palette length, the stats average, and every `routes/*.ts` in a comment.
+
+## Settings and Profile are one page, 2026-09-07
+
+[#269](https://github.com/feralcreative/routeloop/issues/269). Two tabs of `/settings`, with `/profile` opening its own—the `/riders` and `/friends` arrangement, kept rather than redirected. `src/views/account-page.tsx` composes it and imports neither route module: the profile panel arrives as an already-rendered string, so the imports run one way instead of through a cycle.
+
+**Both `NavKey`s survived, which reverses what the issue asked for**, and Ziad confirmed it: one page means one key when it has one door, and this has two. A single key marked BOTH account-menu items `aria-current` on every visit. The heading, the browser title and the key all follow whichever door was used.
+
+**`tabs.js` has to be in `scripts` and its absence fails silently**—the panels are server-rendered into the right state, so a missing script is two tabs that do nothing rather than a broken page. It shipped that way for one build during the sprint.
+
+## The clock, fuel volume and an avoid list, 2026-09-07
+
+[#270](https://github.com/feralcreative/routeloop/issues/270) and [#271](https://github.com/feralcreative/routeloop/issues/271).
+
+**"How things read" is Units**, and the clock is its own axis—a narrow reversal of a recorded call, made deliberately as one. The override is `hour12` alone, so the padding, the separator and the AM/PM spelling stay with the locale. The consequence to expect: `en-GB` with a 12-hour clock returns `04:30 pm`, padded, because en-GB's short pattern is a two-digit hour field.
+
+**It uncovered a second thing nobody had filed.** `fmtClockMin`, `fmtStamp` and `fmtMoment` all passed `undefined` as the locale, so the date-format preference had never reached the builder or the map—it was true on the printed roadbook and nowhere on screen. `layout.tsx` stamps `data-date-format` and `data-clock` on `<html>`; `window.TBFmt` in `site.js` is the single reader; `ride-time.js` takes them as an argument because it is a pure helper.
+
+**Fuel volume arrived with a surface rather than ahead of one.** `bikes.tank_ml` mirrors `usable_range_m` exactly, and the Paddock's Tank field is what reads the preference. **`bikeInput` cannot do the whole check**—it does not know which unit the rider reads in, so it validates against the litre ceiling and a gallons rider typing 30 passes it and violates `ck_bike_tank`. `tankRefusal` runs in the route where the unit is known. Found in the browser rather than by reasoning.
+
+**The avoid list demotes and never removes**, and runs in the caller rather than inside `places.ts` because that cache is keyed on the query. **Verified with one billed Text Search**, approved: "gas station" near Oakland came back with all twenty results and the three ARCOs at the bottom. `aramco gas` correctly did not match.
+
+**`drizzle/0032` is additive throughout**—two enums, three columns with defaults or nullable, and a CHECK on a column the previous release never writes. Safe in one deploy.
 
 ## Splitting a group off, 2026-09-07
 
