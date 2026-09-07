@@ -40,7 +40,7 @@ import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { dateFormatFor } from './prefs'
-import { page } from './layout'
+import { fieldHelp, page } from './layout'
 import { asset } from './assets'
 
 export type AccountTab = 'preferences' | 'profile'
@@ -439,24 +439,35 @@ export async function accountPage(
         */}
         <section class="setting-topic" id="avoid">
           <h2>Places to avoid</h2>
+          {/*
+            THE PROMISE STAYS VISIBLE AND THE FORMAT GOES IN THE BUBBLE, which is
+            the line the `?` affordance is drawn on everywhere (#268): what a
+            rider needs to read BEFORE they act stays as prose, and how to fill
+            one box in goes behind the dot. A rider who believes this HIDES a
+            station will not use it near empty — which is exactly when a station
+            they dislike is still the right answer — so that sentence can never
+            be a click away.
+          */}
           <p>
             Somewhere you would rather not stop? Name it here and it drops to the bottom of every place search — the gas
-            chips, the category searches, the search along a route.
+            chips, the category searches, the search along a route. <b>Nothing is ever hidden</b>: the one time you are
+            out of fuel with one in front of you is the time this must not have taken it&nbsp;away.
           </p>
           <form method="post" action="/settings/avoid" class="setting-form">
             <p class="field">
-              <label for="f-avoid">One per line, or separated by commas</label>
+              <span class="label-row">
+                <label for="f-avoid">One per line, or separated by commas</label>
+                {raw(
+                  fieldHelp(
+                    'avoid',
+                    'what to put in your avoid list',
+                    'A brand or a kind of place, either works — ARCO, Costco Gas, fast food. Matched loosely against the name, so short words catch more than you mean.',
+                  ),
+                )}
+              </span>
               <textarea id="f-avoid" name="avoidPlaces" rows={4} maxlength={1000}>
                 {avoidPlaces}
               </textarea>
-              {/* THE PROMISE IS THE WHOLE FEATURE AND IT IS STATED IN PLACE. A
-                  rider who thinks this hides a station will not use it near
-                  empty, which is exactly when a station they dislike is still
-                  the right answer. */}
-              <span class="field-hint">
-                Nothing is ever hidden — the one time you are out of fuel with one in front of you is the time this must
-                not have taken it away. Brands and categories both work: <b>ARCO, Costco Gas, fast&nbsp;food</b>.
-              </span>
             </p>
             <div class="setting-actions">
               <button type="submit" class="btn btn-sign arrow-right arrow-n">

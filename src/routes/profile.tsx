@@ -20,7 +20,11 @@ import { bodyLimit } from 'hono/body-limit'
 import { MAX_IMAGE_BYTES, UPLOAD_REFUSAL_MESSAGES, checkUpload } from '../images/policy'
 import { PROCESSED_MIME } from '../images/process'
 import { deleteAvatar, processAvatar, readAvatar, writeAvatar } from '../account/avatar'
-import { avatarSrc } from '../views/layout'
+import { avatarSrc, fieldHelp } from '../views/layout'
+// ALIASED, BECAUSE `Field` ALREADY HAS A LOCAL `raw` — the unparsed value out
+// of the values map. A bare import would be shadowed inside exactly the function
+// that needs it, and the failure is a type error rather than anything readable.
+import { raw as rawHtml } from 'hono/html'
 import { SEP } from '../views/sep'
 
 export const profileRoutes = new Hono<AuthEnv>()
@@ -153,6 +157,29 @@ function Field(o: {
    * names. What it says in words belongs in `hint`, which is announced.
    */
   prefix?: string
+  /**
+   * Instructions for THIS field, behind a `?` beside its label (#268).
+   *
+   * `help` VS `hint`, AND THE LINE BETWEEN THEM IS WHAT A RIDER NEEDS BEFORE
+   * THEY ACT. Instructions — what shape a Cashtag is, what a name defaults to —
+   * are what somebody looks for when they are stuck, so they go behind the dot
+   * and stop taking up a line under every field forever. A DISCLOSURE is the
+   * opposite: what a section does with an address, or who a value is shared
+   * with, has to be read before the rider fills the box in, and behind a click
+   * is where most people never see it. Those stay as `hint`, or as prose above
+   * the fields.
+   */
+  help?: string
+  /**
+   * What the help button is CALLED, when the field's own label is not enough on
+   * its own.
+   *
+   * Home base and Public starting point both label their name field "Name it",
+   * which is right under a section heading and ambiguous the moment a screen
+   * reader lists the page's buttons — two of them reading "More about Name it"
+   * and neither saying which. Found in the accessibility tree, not by eye.
+   */
+  helpLabel?: string
 }) {
   const err = o.errors?.[o.name as keyof ProfileValues]
   const raw = o.values[o.name]
@@ -170,7 +197,18 @@ function Field(o: {
   )
   return (
     <p class={`field${err ? ' has-error' : ''}`}>
-      <label for={`f-${o.name}`}>{o.label}</label>
+      {/* THE DOT IS INSIDE THE LABEL ELEMENT AND THE BUTTON IS NOT A LABEL FOR
+          THE INPUT. A <label> forwards a click to the control it names, so a
+          `?` sitting loose inside one would focus the field instead of opening
+          the bubble — the button's own handler runs first and `popovertarget`
+          still fires, but focus lands in the box behind it, which reads as the
+          dot being broken. `pointer-events` cannot fix it either, since the
+          button has to be pressable. So the label wraps only its text and the
+          help sits beside it in a flex row. */}
+      <span class="label-row">
+        <label for={`f-${o.name}`}>{o.label}</label>
+        {o.help ? rawHtml(fieldHelp(o.name, o.helpLabel ?? o.label, o.help)) : null}
+      </span>
       {o.prefix ? (
         <span class="field-prefixed">
           <span class="field-prefix" aria-hidden="true">
@@ -293,7 +331,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
                   label="Username"
                   values={v}
                   errors={errors}
-                  hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+                  help={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
                 />
               </div>
               {/* FULL WIDTH AND OUTSIDE THE PAIR. It belongs to the username
@@ -419,7 +457,8 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             label="Name it"
             values={v}
             errors={errors}
-            hint={'What a stop here is called on a ride. “Bill’s apartment”, “the shop”. Defaults to Home.'}
+            help={'What a stop here is called on a ride. “Bill’s apartment”, “the shop”. Defaults to Home.'}
+            helpLabel="the name of your home base"
             autocomplete="off"
           />
           <Field name="addressLine" label="Address" values={v} errors={errors} autocomplete="street-address" />
@@ -452,7 +491,8 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             label="Name it"
             values={v}
             errors={errors}
-            hint={'What it shows up as. “Chevron on Main”, “Peet’s at the plaza”.'}
+            help={'What it shows up as. “Chevron on Main”, “Peet’s at the plaza”.'}
+            helpLabel="the name of your public starting point"
           />
           <Field name="startAddressLine" label="Address" values={v} errors={errors} autocomplete="off" />
           <Field name="startCity" label="City" values={v} errors={errors} autocomplete="off" />
@@ -496,7 +536,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             values={v}
             errors={errors}
             prefix="$"
-            hint="Your Cashtag."
+            help="Your Cashtag."
             autocomplete="off"
           />
           <Field
@@ -505,7 +545,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             values={v}
             errors={errors}
             prefix="@"
-            hint="Your Venmo username."
+            help="Your Venmo username."
             autocomplete="off"
           />
           <Field
@@ -514,7 +554,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             values={v}
             errors={errors}
             prefix="@"
-            hint="Your PayPal.Me name."
+            help="Your PayPal.Me name."
             autocomplete="off"
           />
           <Field
@@ -522,7 +562,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             label="Zelle"
             values={v}
             errors={errors}
-            hint="The phone number or email your Zelle is registered to."
+            help="The phone number or email your Zelle is registered to."
             autocomplete="off"
           />
           <Check name="sharePaymentHandles" label="Share these with riders on my rides" values={v} />

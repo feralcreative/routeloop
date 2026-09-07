@@ -535,6 +535,55 @@ const SITE_LINKS: { href: string; label: string }[] = [
 // where following a link means abandoning an unsaved ride: the beforeunload
 // guard would catch it, but making someone answer "are you sure" to read a
 // definition is a bad trade.
+/**
+ * A `?` beside one field, holding that field's own instructions.
+ *
+ * **THE SECOND `?` IN THIS FILE, AND IT IS NOT `faqLink()`.** That one answers a
+ * SITE-WIDE question and leaves the page to do it — the FAQ is the right home
+ * for "what is the difference between a stop and a POI". This one answers a
+ * question about ONE control, which #268 argues belongs beside the control: a
+ * rider does not leave the page, does not lose the field they were typing in,
+ * and does not scan a long document for the paragraph matching the box in front
+ * of them. Ziad's call, 2026-09-07: instructions for a specific field go in a
+ * bubble rather than sitting under it as permanent grey text.
+ *
+ * **NATIVE `popover`, NO JAVASCRIPT AT ALL.** `popovertarget` gives the toggle,
+ * Escape, light-dismiss and the top layer for free, and #268 says to reach for
+ * that before building one. The top layer is also what makes it immune to being
+ * clipped by whatever the field sits inside.
+ *
+ * **POSITIONED BY CSS ANCHOR POSITIONING WHERE THERE IS ANY, AND CENTERED WHERE
+ * THERE IS NOT.** A top-layer element has no natural relationship to its button,
+ * so without `anchor-name` it lands wherever the viewport puts it. Firefox has
+ * not shipped anchor positioning — the same row `typography.md` records for
+ * `text-wrap: pretty` — so the `@supports` fallback in _forms.scss puts the
+ * bubble near the top of the screen instead. Still readable, still dismissible,
+ * still says the right thing: degraded, not broken.
+ *
+ * **THE ID HAS TO BE UNIQUE ON THE PAGE**, and it is derived from the field name
+ * rather than being passed in, because a duplicate would make one button open
+ * another field's bubble and nothing would say so.
+ *
+ * **IT IS FOR INSTRUCTIONS, NOT FOR DISCLOSURES.** Anything a rider needs to
+ * read BEFORE they act — what a section does with their address, what is shared
+ * with whom — stays visible as prose. A privacy statement behind a click is a
+ * privacy statement most people never see.
+ */
+export const fieldHelp = (name: string, label: string, text: string): string =>
+  (
+    // `--anchor` sits on the WRAPPER because both children read it: the button
+    // sets `anchor-name` from it and the bubble sets `position-anchor` to it,
+    // and an anchor name has to be a dashed-ident unique to this field.
+    <span class="field-help" style={`--anchor: --a-${name}`}>
+      <button type="button" class="help-dot" popovertarget={`help-${name}`} aria-label={`More about ${label}`}>
+        ?
+      </button>
+      <span class="help-bubble" id={`help-${name}`} popover="auto">
+        {text}
+      </span>
+    </span>
+  ).toString()
+
 export const faqLink = (anchor: string, what: string): string =>
   (
     <a

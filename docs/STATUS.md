@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Branch:** `feat/account-and-preferences`, five commits ahead of `main`. **2,535 tests across 101 files** (2 skipped, 2,537 total)
+**Branch:** `feat/account-and-preferences`, six commits ahead of `main`. **2,535 tests across 101 files** (2 skipped, 2,537 total)
 **Not pushed.** The branch is local; the push and the PR are yours.
 **Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
 **[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
@@ -36,6 +36,8 @@ Ziad's call, in the same sprint. **Your picture moved into Who you are**, where 
 **Display name pairs with Username and First with Last**, and Home base now carries a "Name it" field of its own—`user_profiles.home_label`, mirroring `start_label` including the fallback living in code, so clearing it goes back to "Home" rather than storing it. `builder.js` hardcoded that word, which is right for most riders and wrong for anyone whose home base is the shop.
 
 **The Home base copy says what the code does, which is not what was asked for.** Ziad asked for "changing a ride to public automatically swaps out your Home Base"—`offerPublicStart()` ASKS with a confirm, fires on any level above private rather than public alone, and does nothing at all when no public starting point is set. Shown the gap, he kept the confirm and took the accurate copy. The mirror block was wrong in the same direction and was fixed with it.
+
+**Field instructions moved into `?` bubbles**—the field-level half of [#268](https://github.com/feralcreative/routeloop/issues/268). `fieldHelp()` in `views/layout.tsx`, native `popover` with no script: Escape, light-dismiss and the top layer come free, and CSS anchor positioning puts the bubble under its own dot with a centered fallback for Firefox, which has not shipped it. The line drawn is what a rider needs to read BEFORE they act: instructions go behind the dot, disclosures stay as prose. Two things found doing it—the dot cannot sit inside the `<label>` or the field takes focus behind the bubble, and two fields both labelled "Name it" gave two buttons the same accessible name.
 
 **Two data bugs found while doing it, both fixed and both now guarded.** The payment sigils had shipped into the whole-form handler alone, so the same typed value stored `$ziad` from the autosave and `ziad` from the Save button—the form has two write paths and every normalizer has to appear in both. And the account archive was missing the three preference columns added earlier in this sprint, under a comment warning about exactly that; **the whole Paddock was missing too**, so "everything the app holds about you" had never included a rider's bikes or their photos. `test/archive-completeness.test.ts` compares `schema.ts` against `archive.ts` as text for both tables—note its own first version matched two-space indentation only and so read `bikes` as three columns and passed, which the sanity floor caught.
 

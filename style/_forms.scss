@@ -490,6 +490,21 @@
     font-size: 0.92rem;
   }
 
+  // THE LABEL AND ITS `?` ON ONE LINE, and the label element wraps only its own
+  // text. A <label> forwards a click to the control it names, so a help button
+  // nested inside one would focus the field behind the bubble it just opened —
+  // which reads as the dot being broken. The row is the wrapper instead.
+  .label-row {
+    display: flex;
+    align-items: center;
+    // The label carries the gap below it, so the row must not add a second one.
+    margin-bottom: 0.3rem;
+
+    label {
+      margin-bottom: 0;
+    }
+  }
+
   // `select` and `textarea` joined `input` here when the survey arrived. Before
   // that neither had any styling at all — the one `<select>` on /import rendered
   // as the platform default beside inputs that did not.
@@ -596,6 +611,120 @@
     // does not, and stretching makes the shorter box grow to match a line of
     // grey text underneath its neighbour.
     align-items: start;
+  }
+}
+
+// A `?` BESIDE ONE FIELD, HOLDING THAT FIELD'S OWN INSTRUCTIONS (#268).
+//
+// Ziad's call, 2026-09-07: instructions for a specific field go in a bubble
+// rather than sitting under it as permanent grey text. Anything a rider needs to
+// read BEFORE they act — what a section does with their address, what is shared
+// with whom — stays visible as prose, because a disclosure behind a click is a
+// disclosure most people never see.
+//
+// The dot matches `.faq-link` in _builder.scss deliberately: two different `?`
+// affordances that looked different would read as two different kinds of thing,
+// when what they have in common — press this if you are stuck — is the point.
+// That one is scoped inside `.builder-panel` and this one is not, which is why
+// the declarations are repeated rather than shared.
+.field-help {
+  display: inline-flex;
+  align-items: center;
+}
+
+.help-dot {
+  // A real <button>, so `popovertarget` works and the keyboard reaches it. The
+  // reset is what stops the browser's button chrome, since there is no global
+  // one in style/.
+  appearance: none;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 1.25em;
+  height: 1.25em;
+  padding: 0;
+  margin-left: 0.35em;
+  background: none;
+  border: 1px solid $grey;
+  border-radius: 50%;
+  color: $text;
+  opacity: 0.45;
+  font: inherit;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  // Named per field by the wrapper's --anchor, so the bubble below can find
+  // exactly this dot. Ignored by a browser with no anchor positioning.
+  anchor-name: var(--anchor);
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    border-color: $url;
+    color: $url;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 1px;
+  }
+}
+
+// THE BUBBLE ITSELF. `popover` puts it in the top layer, which is what makes it
+// immune to being clipped by whatever the field sits inside — and gives Escape
+// and light-dismiss with no script at all.
+.help-bubble {
+  // A popover's default is `position: fixed` with a UA margin and border; all
+  // three are replaced rather than tweaked.
+  position: fixed;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(28ch, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  background: $white;
+  color: $text;
+  border: 1px solid $grey;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  // Normal weight, because it lands beside a bold label and a bold bubble reads
+  // as a warning rather than as an aside.
+  font-weight: 400;
+}
+
+//@ Anchor positioning — Chromium and Safari. The bubble hangs under its own dot.
+@supports (anchor-name: --x) {
+  .help-bubble {
+    position-anchor: var(--anchor);
+    // Below the dot and left-aligned to it, flipping above when there is no room
+    // underneath — which is what position-try-fallbacks is for.
+    position-area: block-end span-inline-end;
+    margin-top: 0.4rem;
+    position-try-fallbacks:
+      flip-block,
+      flip-inline,
+      flip-block flip-inline;
+  }
+}
+
+//@ No anchor positioning — Firefox, as of September 2026, the same row
+//@ typography.md records for text-wrap: pretty. A top-layer element has no
+//@ natural relationship to its button, so rather than landing wherever the
+//@ viewport puts it, it is CENTERED NEAR THE TOP. Readable, dismissible, and
+//@ saying the right thing: degraded, not broken. Re-check this when Firefox
+//@ ships anchor positioning, at which point this block can go.
+@supports not (anchor-name: --x) {
+  .help-bubble {
+    top: 4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(32ch, calc(100vw - 2rem));
   }
 }
 
