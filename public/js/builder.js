@@ -4076,8 +4076,24 @@
     if (!data || !Array.isArray(data.routes)) return;
     const byUid = {};
     for (const r of data.routes) byUid[r.uid] = r;
+    // BOTH DIRECTIONS OF THE GROUP MAP, because the two identifier spaces meet
+    // here exactly as they do on the Riders tab: this file holds a group by UID
+    // (the client mints those) while `route_riders.subgroup_id` and the resolved
+    // sets are numeric IDS the server owns. Built once per load rather than
+    // looked up per row.
+    const groups = data.groups || (state.routeRiders && state.routeRiders.groups) || [];
+    const idOfGroup = {};
+    const uidOfGroup = {};
+    for (const g of groups) {
+      idOfGroup[g.uid] = g.id;
+      uidOfGroup[g.id] = g.uid;
+    }
     state.routeRiders = {
       byUid: byUid,
+      groups: groups,
+      idOfGroup: idOfGroup,
+      uidOfGroup: uidOfGroup,
+      groupIds: idOfGroup,
       junctions: data.junctions || [],
       // Only present on the GET. A write answers with the resolution and not
       // with the roster, which does not change, so the held one is kept.
@@ -4239,34 +4255,118 @@
 
   // The picker that sits in a route header. Empty string when the ride has no
   // subgroups, so routeSectionHtml concatenates nothing.
+  /**
+   * Which groups ride this route, as a checkbox list.
+   *
+   * **IT WAS A SINGLE SELECT AND A SINGLE SELECT COULD NOT TELL THE TRUTH.**
+   * Ziad's call, 2026-09-06, from watching a staged meet-up: with VMCSF and
+   * VMCSC merged but VMCSLO still on their approach, the shared route was tagged
+   * "Everyone" — because one id cannot say "these two of the three". A route
+   * carries a SET of groups now.
+   *
+   * **THE TICKS ARE DERIVED FROM WHO IS ON THE ROUTE, BY THEIR HOME GROUP**, and
+   * that is what makes them honest. Once VMCSC joins the main group their stored
+   * group on that route is null, so reading stored values would tick nothing.
+   * `groupsOnRoute()` server-side does the deriving and sends `groups`; this
+   * only renders it.
+   *
+   * **Everyone is a shortcut, not a value.** Ticking it ticks every group, which
+   * is what "everybody rides this" means now that the set is the answer — and it
+   * shows ticked exactly when every group is on the route, so it cannot claim
+   * more than the boxes below it.
+   *
+   * **A `<details>` so it is one line until opened.** A route head has a grip, a
+   * twirl, a number, a title, a rider pill and a menu already; three checkboxes
+   * laid out flat would double its height on every route of every ride.
+   */
   function routeSubgroupHtml(route, r) {
-    if (state.meta.subgroups.length === 0) return "";
+    const groups = state.meta.subgroups;
+    if (groups.length === 0) return "";
+    const rr = routeRidersOf(route);
+    // Until the resolution lands there is nothing honest to tick, and guessing
+    // "Everyone" is the exact claim this control exists to stop making.
+    if (!rr) return "";
+    const on = new Set((rr.groups || []).map((g) => (g == null ? "" : String(g))));
+    const mainUid = groups[0] && groups[0].uid;
+    const idOf = (g) => (state.routeRiders && state.routeRiders.groupIds && state.routeRiders.groupIds[g.uid]) || null;
+    const ticked = (g) => {
+      const id = idOf(g);
+      if (id != null && on.has(String(id))) return true;
+      // AND THE MAIN GROUP ALSO OWNS THE NULL ENTRY, which is not the same thing
+      // as being it. A rider explicitly assigned to the main group carries its
+      // real id; a rider assigned to no group at all carries null and is riding
+      // with everybody, which is the main group by definition. Both tick the
+      // first box. Reading only the null was the first version and it left the
+      // main group unticked on every route of a ride whose roster was filled in
+      // properly — which is most of them.
+      return g.uid === mainUid && on.has("");
+    };
+    const all = groups.every(ticked);
+    const label = all
+      ? "Everyone"
+      : groups
+          .filter(ticked)
+          .map((g) => g.name)
+          .join(", ") || "Nobody yet";
     return (
-      '<select class="route-subgroup" data-route="' +
+      '<details class="route-groups" data-route="' +
       r +
-      '" title="Which group rides this route"' +
-      ' aria-label="Group for route ' +
-      routeNumber(r) +
       '">' +
-      // "Everyone" is the null option and it is FIRST, because it is what every
-      // route is until somebody says otherwise and what most routes stay.
-      '<option value=""' +
-      (route.subgroupUid ? "" : " selected") +
-      ">Everyone</option>" +
-      state.meta.subgroups
+      '<summary title="Which groups ride this route">' +
+      esc(label) +
+      "</summary>" +
+      '<div class="route-groups-list">' +
+      '<label class="route-group-all"><input type="checkbox" data-group="*"' +
+      (all ? " checked" : "") +
+      "> Everyone</label>" +
+      groups
         .map(
           (g) =>
-            '<option value="' +
+            '<label><input type="checkbox" data-group="' +
             esc(g.uid) +
             '"' +
-            (route.subgroupUid === g.uid ? " selected" : "") +
-            ">" +
+            (ticked(g) ? " checked" : "") +
+            "> " +
             esc(g.name) +
-            "</option>",
+            "</label>",
         )
         .join("") +
-      "</select>"
+      "</div></details>"
     );
+  }
+
+  /**
+   * Apply a tick: put every member of the chosen groups on this route.
+   *
+   * **MORE THAN ONE GROUP MEANS THEY ARE RIDING TOGETHER, SO THEY RIDE AS THE
+   * MAIN GROUP.** Ziad's call, 2026-09-06: when a group joins, those riders
+   * become part of the main group and their own group stops applying — it does
+   * not disappear, it stays on the feeder route they rode as it, which is what a
+   * later split reads back. One group ticked is a feeder, so its riders keep
+   * that group here.
+   *
+   * Goes through the same PUT the rider picker uses, because it is the same
+   * fact: who is on this route, and as what.
+   */
+  function applyRouteGroups(r, uids) {
+    const route = state.routes[r];
+    if (!route || !route.uid) return;
+    const rr = state.routeRiders;
+    if (!rr) return;
+    const chosen = new Set(uids);
+    const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    const feeder = chosen.size === 1 ? [...chosen][0] : null;
+    const riders = [];
+    for (const m of rr.riders || []) {
+      // Same rule in the other direction: no home group means riding with
+      // everybody, which is the main group.
+      const homeUid = m.group == null ? mainUid : rr.uidOfGroup[m.group] || mainUid;
+      if (!chosen.has(homeUid)) continue;
+      // Riding as their own group only when theirs is the ONLY group here.
+      const asGroup = feeder && feeder === homeUid && homeUid !== mainUid ? rr.idOfGroup[homeUid] : null;
+      riders.push({ id: m.riderId, group: asGroup == null ? null : asGroup });
+    }
+    putRouteRiders(route.uid, riders);
   }
 
   function renderSubgroups() {
@@ -9476,6 +9576,9 @@
       }
       if (btn.classList.contains("pref-btn")) return togglePref(r, btn);
       if (btn.classList.contains("route-riders")) return openRouteRiders(Number(btn.dataset.route));
+      // The group checkboxes are inside a <details> in the route head. Delegated
+      // like everything else here, because renderRoutes() replaces the lot.
+      if (btn.dataset && btn.dataset.group) return;
       if (btn.classList.contains("route-rev")) return reverseRoute();
       if (btn.classList.contains("route-menu-btn")) {
         return toggleRouteMenu(sec.querySelector(".route-head"), btn, r);
@@ -9526,6 +9629,28 @@
       setActive(r);
       const route = state.routes[r];
       if (!route) return;
+      // WHICH GROUPS RIDE THIS ROUTE. Delegated here rather than bound per box,
+      // because renderRoutes() replaces every head. Ticking Everyone ticks the
+      // lot — it is a shortcut over the boxes below it, not a value of its own,
+      // so it is read back out of them rather than stored.
+      if (e.target.dataset && e.target.dataset.group) {
+        const box = e.target.closest(".route-groups");
+        const all = e.target.dataset.group === "*";
+        if (all) {
+          box.querySelectorAll('input[data-group]:not([data-group="*"])').forEach((i) => {
+            i.checked = e.target.checked;
+          });
+        }
+        const uids = [...box.querySelectorAll('input[data-group]:not([data-group="*"]):checked')].map(
+          (i) => i.dataset.group,
+        );
+        // NOBODY IS NOT A STATE THIS CONTROL CAN SET. A route ridden by no group
+        // is a route nobody rides, which payload() drops whole — so unticking
+        // the last box is read as "go back to inheriting", the same answer the
+        // rider picker's "Same as before" gives.
+        applyRouteGroups(r, uids);
+        return;
+      }
       if (e.target.classList.contains("route-color")) {
         beginEdit("recolor route", "route-color:" + r);
         route.color = e.target.value;

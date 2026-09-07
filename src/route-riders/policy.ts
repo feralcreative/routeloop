@@ -29,15 +29,27 @@
  */
 export type RouteRef = { uid: string; position: number }
 
-/** One route's explicit roster, as stored. Rows are an OVERRIDE; see below. */
-export type RouteRiderRef = { routeUid: string; riderId: number }
+/**
+ * One route's explicit roster, as stored. Rows are an OVERRIDE; see below.
+ *
+ * `subgroupId` is WHO THEY ARE RIDING AS on this route, which is not the group
+ * they belong to on the ride. Null is the MAIN group — everybody together — and
+ * not "no group": see the column's own comment in schema.ts.
+ */
+export type RouteRiderRef = { routeUid: string; riderId: number; subgroupId: number | null }
+
+/** A rider on a route, and the group they are riding as there. */
+export type RouteRider = { id: number; group: number | null }
 
 /** A route with the riders actually on it, after the walk. */
 export type ResolvedRoute = {
   uid: string
   position: number
-  /** Sorted, so two resolutions of the same ride compare equal and a junction
-   *  can be found by set difference rather than by order. */
+  /** Sorted by rider id, so two resolutions of the same ride compare equal and a
+   *  junction can be found by set difference rather than by order. */
+  riders: RouteRider[]
+  /** Just the ids, for the callers that only ask about membership. Derived here
+   *  rather than at four call sites so there is one definition of the order. */
   riderIds: number[]
   /** Whether this route said who was on it, or inherited. Rendered rather than
    *  used for logic — a planner needs to know which routes they have actually
@@ -74,17 +86,19 @@ export type ResolvedRoute = {
  * `junctions()` does.
  */
 export function resolveRouteRiders(routes: RouteRef[], explicit: RouteRiderRef[], roster: number[]): ResolvedRoute[] {
-  const byRoute = new Map<string, number[]>()
+  const byRoute = new Map<string, RouteRider[]>()
   for (const r of explicit) {
     const list = byRoute.get(r.routeUid)
-    if (list) list.push(r.riderId)
-    else byRoute.set(r.routeUid, [r.riderId])
+    const one = { id: r.riderId, group: r.subgroupId }
+    if (list) list.push(one)
+    else byRoute.set(r.routeUid, [one])
   }
 
   const out: ResolvedRoute[] = []
   // The whole roster is the seed, not an empty set: a ride nobody has answered
-  // for is one everybody is on, which is every ordinary tour.
-  let carried = [...roster].sort((a, b) => a - b)
+  // for is one everybody is on, which is every ordinary tour — and they are on it
+  // as the MAIN group, which is what a null group means.
+  let carried: RouteRider[] = [...roster].sort((a, b) => a - b).map((id) => ({ id, group: null }))
 
   for (const d of routes) {
     const own = byRoute.get(d.uid)
@@ -92,12 +106,87 @@ export function resolveRouteRiders(routes: RouteRef[], explicit: RouteRiderRef[]
     // `route_riders` cascades from `rides` and from `users`, so a removal from the
     // ROSTER leaves rows behind. Filtering here means the resolution is correct
     // before anybody gets round to reconciling.
-    const kept = own ? own.filter((id) => roster.includes(id)) : []
+    const kept = own ? own.filter((r) => roster.includes(r.id)) : []
     const explicitHere = kept.length > 0
-    if (explicitHere) carried = [...new Set(kept)].sort((a, b) => a - b)
-    out.push({ uid: d.uid, position: d.position, riderIds: carried, explicit: explicitHere })
+    if (explicitHere) {
+      // THE GROUP IS CARRIED FORWARD WITH THE RIDER, not just their presence.
+      // That is the whole point of storing it per route: a rider inherits both
+      // "still riding" and "still riding as VMCSC" until something says
+      // otherwise, so a feeder that spans two routes needs one answer and not
+      // two. Deduplicated on id, last write winning, because a row set arrives
+      // from one write and cannot meaningfully name a rider twice.
+      const seen = new Map<number, RouteRider>()
+      for (const r of kept) seen.set(r.id, r)
+      carried = [...seen.values()].sort((a, b) => a.id - b.id)
+    }
+    out.push({
+      uid: d.uid,
+      position: d.position,
+      riders: carried,
+      riderIds: carried.map((r) => r.id),
+      explicit: explicitHere,
+    })
   }
   return out
+}
+
+/**
+ * Which groups a route carries, for the checkbox list on its row.
+ *
+ * **DERIVED FROM WHO IS ON IT, BY THEIR HOME GROUP — NOT FROM WHAT IS STORED
+ * HERE.** That distinction is the whole reason the control can be honest. Once
+ * VMCSC joins the main group their stored group on that route is null, so
+ * reading the stored value would tick nothing and the route would look like
+ * everybody's — which is exactly the "Everyone" lie this replaces. Reading each
+ * rider's HOME group instead ticks VMCSF and VMCSC on the shared stretch and
+ * leaves VMCSLO unticked while they are still on their approach.
+ *
+ * `home` is `ride_members.subgroup_id` per rider: which group they belong to on
+ * this ride, which never changes as they merge and split.
+ */
+export function groupsOnRoute(route: ResolvedRoute, home: Map<number, number | null>): Array<number | null> {
+  const out = new Set<number | null>()
+  for (const r of route.riders) out.add(home.get(r.id) ?? null)
+  return [...out].sort((a, b) => (a ?? -1) - (b ?? -1))
+}
+
+/**
+ * Every group a rider has ridden as, most recent route first.
+ *
+ * **SCAFFOLDING FOR THE SPLIT PICKER**, which is its own branch. When VMCSC
+ * peels off for home, the planner should be offered "split off as VMCSC again"
+ * with those riders already ticked rather than having to rebuild the group by
+ * hand — and the only record that VMCSC ever existed as a riding set is the
+ * route they rode as it. Most recent first because the last grouping is the one
+ * a planner is most likely to mean.
+ *
+ * Nulls are dropped: riding as the main group is not a grouping anybody splits
+ * back into.
+ */
+export function groupsRiddenAs(resolved: ResolvedRoute[], riderId: number): number[] {
+  const out: number[] = []
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    const mine = resolved[i].riders.find((r) => r.id === riderId)
+    if (mine?.group != null && !out.includes(mine.group)) out.push(mine.group)
+  }
+  return out
+}
+
+/**
+ * The riders who last rode as a given group, for the split picker to prefill.
+ *
+ * Scaffolding, like `groupsRiddenAs`. It reads the LAST route that group rode
+ * rather than the union of every one: VMCSC's membership can have changed
+ * between the outward leg and the way home, and the most recent answer is the
+ * one a planner means by "the same lot again". The picker makes it editable,
+ * which is what covers the two riders who carry on to Oakland.
+ */
+export function ridersWhoRodeAs(resolved: ResolvedRoute[], subgroupId: number): number[] {
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    const mine = resolved[i].riders.filter((r) => r.group === subgroupId)
+    if (mine.length > 0) return mine.map((r) => r.id).sort((a, b) => a - b)
+  }
+  return []
 }
 
 /** A place where the set of people riding together changes. */

@@ -2686,6 +2686,75 @@
   }
 }
 
+// WHICH GROUPS RIDE THIS ROUTE. A <details> so it is one line until opened: a
+// route head already carries a grip, a twirl, a number, a title, a rider pill
+// and a menu, and three checkboxes laid flat would double its height on every
+// route of every ride.
+//
+// The summary reads the ticked names, or "Everyone" when they are all on — so
+// the closed state says the same thing the open one does, which is the whole
+// reason the single select was replaced.
+.route-groups {
+  flex: none;
+  max-width: 10em;
+  font-size: 0.7em;
+
+  summary {
+    padding: 0.2em 0.45em;
+    border: 1px solid $grey;
+    border-radius: 999px;
+    background: $white;
+    color: $neutral-50;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      border-color: $neutral-76;
+      color: $neutral-29;
+    }
+  }
+
+  // ABSOLUTE, so opening it does not push the rows below it down. The head is
+  // `position: relative` already, for the row menu.
+  &[open] .route-groups-list {
+    position: absolute;
+    z-index: 5;
+    margin-top: 0.25rem;
+    padding: 0.4rem 0.5rem;
+    display: grid;
+    gap: 0.2rem;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: $white;
+    box-shadow: 0 6px 18px $panel-shadow;
+    white-space: nowrap;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  // The shortcut sits above the groups it controls, with a rule under it: it is
+  // a different KIND of tick — it says something about all of them — and reading
+  // as a fourth group is what would make it confusing.
+  .route-group-all {
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.1rem;
+    border-bottom: 1px solid $grey;
+    font-weight: 600;
+  }
+}
+
 // WHO IS ON THIS STRETCH OF ROAD, in the route head beside the group picker.
 //
 // A BUTTON RATHER THAN A LABEL, because the set is editable and a click target

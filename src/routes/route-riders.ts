@@ -17,10 +17,37 @@ import { Hono } from 'hono'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { ownRide } from './maps'
 import { roster } from '../members/service'
+import { subgroupsOf } from '../subgroups/service'
 import { resolvedRoutes, setRouteRiders } from '../route-riders/service'
-import { riderJunctions } from '../route-riders/policy'
+import { groupsOnRoute, riderJunctions } from '../route-riders/policy'
 
 export const routeRiderRoutes = new Hono<AuthEnv>()
+
+/**
+ * The one shape both the read and the write answer with.
+ *
+ * **THE WRITE HAS TO RETURN WHAT THE READ DOES, AND RETURNING LESS WAS A REAL
+ * BUG.** The PUT answered with bare `routes`, so the derived `groups` were
+ * absent from its response — and the panel, which renders its checkboxes from
+ * that field, drew every route as "Nobody yet" the moment a planner ticked
+ * anything. One builder means the two cannot drift again.
+ *
+ * **HOME GROUPS ARE WHAT THE TICKS ARE DERIVED FROM.** Once a group merges, its
+ * riders' stored group on that route is null, so ticking from stored values
+ * would tick nothing. `groupsOnRoute()` reads which group each rider BELONGS to
+ * instead, which is what lets a shared route say "VMCSF, VMCSC" while a third
+ * group is still on its approach rather than claiming everybody.
+ */
+async function payloadFor(rideId: number) {
+  const [routes, members, groups] = await Promise.all([resolvedRoutes(rideId), roster(rideId), subgroupsOf(rideId)])
+  const home = new Map(members.map((m) => [m.riderId, m.subgroupId]))
+  return {
+    routes: routes.map((r) => ({ ...r, groups: groupsOnRoute(r, home) })),
+    junctions: riderJunctions(routes),
+    riders: members.map((m) => ({ riderId: m.riderId, displayName: m.displayName, group: m.subgroupId })),
+    groups: groups.map((g) => ({ id: g.id, uid: g.uid, name: g.name, color: g.color })),
+  }
+}
 
 /**
  * Every route with the riders on it, the junctions that fall out, and the roster
@@ -36,12 +63,7 @@ routeRiderRoutes.get('/api/rides/:id/route-riders', requireActiveApi, async (c) 
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  const [routes, members] = await Promise.all([resolvedRoutes(ride.id), roster(ride.id)])
-  return c.json({
-    routes,
-    junctions: riderJunctions(routes),
-    riders: members.map((m) => ({ riderId: m.riderId, displayName: m.displayName })),
-  })
+  return c.json(await payloadFor(ride.id))
 })
 
 /**
@@ -64,16 +86,26 @@ routeRiderRoutes.put('/api/rides/:id/route-riders/:uid', requireActiveApi, requi
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  const body = (await c.req.json().catch(() => null)) as { riderIds?: unknown } | null
-  const raw = body?.riderIds
+  // `riders` is [{id, group}]; `group` null means riding as the MAIN group,
+  // which is what everybody on a shared stretch is. A bare id list is still
+  // accepted and read as "all riding as the main group", because that is what a
+  // rider picker with no group control was saying.
+  const body = (await c.req.json().catch(() => null)) as { riders?: unknown; riderIds?: unknown } | null
+  const raw = Array.isArray(body?.riders) ? body.riders : body?.riderIds
   if (!Array.isArray(raw)) return c.json({ error: 'bad request' }, 400)
-  const riderIds = raw.map(Number).filter((n) => Number.isInteger(n))
-  if (riderIds.length !== raw.length) return c.json({ error: 'bad request' }, 400)
+  const riders: Array<{ id: number; group: number | null }> = []
+  for (const item of raw) {
+    const id = typeof item === 'number' ? item : Number((item as { id?: unknown })?.id)
+    if (!Number.isInteger(id)) return c.json({ error: 'bad request' }, 400)
+    const g = typeof item === 'number' ? null : (item as { group?: unknown })?.group
+    const group = g == null ? null : Number(g)
+    if (group !== null && !Number.isInteger(group)) return c.json({ error: 'bad request' }, 400)
+    riders.push({ id, group })
+  }
 
-  await setRouteRiders(ride.id, c.req.param('uid'), riderIds)
+  await setRouteRiders(ride.id, c.req.param('uid'), riders)
   // The RESOLVED state back, not an ok. One route's override changes every
   // route after it that inherits, so a client patching its own copy from the
   // request it just sent would be wrong from the next route on.
-  const routes = await resolvedRoutes(ride.id)
-  return c.json({ routes, junctions: riderJunctions(routes) })
+  return c.json(await payloadFor(ride.id))
 })

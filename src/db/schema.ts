@@ -1897,6 +1897,28 @@ export const routeRiders = pgTable(
     riderId: bigint('rider_id', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    // WHICH GROUP THEY ARE RIDING AS, ON THIS ROUTE. Ziad's call, 2026-09-06,
+    // and it is a DIFFERENT QUESTION from `ride_members.subgroup_id`, which is
+    // the group a rider BELONGS to on this ride — their home group, the one they
+    // set off with. This is who they are riding as on one stretch: VMCSC on
+    // their own feeder, the main group from the moment they join it.
+    //
+    // A GROUP DOES NOT GET DELETED WHEN IT MERGES, IT JUST STOPS APPLYING. VMCSC
+    // survives on the route it rode as VMCSC, which is exactly what a later split
+    // reads back to offer "split off as VMCSC again" with those riders prefilled
+    // — the common case on the way home, and the reason this is stored per route
+    // rather than as a flag on the group.
+    //
+    // NULL MEANS THE MAIN GROUP, not "no group". Everyone riding together is
+    // riding as the main group, and the main group is `subgroups[0]` rather than
+    // a row anything points at — so a null here says "with everybody", which is
+    // what an inherited row on a shared route should say.
+    //
+    // `set null` on delete, matching `routes.subgroup_id` before it: deleting a
+    // group makes its routes everybody's rather than destroying them.
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references(() => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.rideId, t.routeUid, t.riderId] }), index('idx_route_rider_ride').on(t.rideId)],

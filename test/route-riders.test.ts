@@ -7,6 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   firstRouteFor,
+  groupsOnRoute,
+  groupsRiddenAs,
+  ridersWhoRodeAs,
   resolveRouteRiders,
   riderJunctions,
   routesForRider,
@@ -16,8 +19,13 @@ import {
 
 const routes = (n: number): RouteRef[] => Array.from({ length: n }, (_, i) => ({ uid: `r${i + 1}`, position: i }))
 
+/** Riders on a route, all riding as the MAIN group — which is what null means. */
 const on = (routeUid: string, ...riderIds: number[]): RouteRiderRef[] =>
-  riderIds.map((riderId) => ({ routeUid, riderId }))
+  riderIds.map((riderId) => ({ routeUid, riderId, subgroupId: null }))
+
+/** Riders on a route riding as a named group: a feeder. */
+const onAs = (routeUid: string, subgroupId: number, ...riderIds: number[]): RouteRiderRef[] =>
+  riderIds.map((riderId) => ({ routeUid, riderId, subgroupId }))
 
 describe('resolveRouteRiders', () => {
   // The ordinary tour: nine routes, nobody has answered anything.
@@ -75,6 +83,79 @@ describe('resolveRouteRiders', () => {
   it('ignores rows for a route that is not in the list', () => {
     const out = resolveRouteRiders(routes(1), on('gone', 1), [1, 2])
     expect(out[0].riderIds).toEqual([1, 2])
+  })
+})
+
+// WHO YOU ARE RIDING AS, WHICH IS NOT WHO YOU BELONG TO. Ziad's call,
+// 2026-09-06: a VMCSC rider is in VMCSC on their own feeder and in the main group
+// from the moment they join it — and VMCSC survives on that feeder route, which
+// is what a later split reads back to offer "split off as VMCSC again".
+//
+// The worked ride: VMCSF (rider 1) rides r1 alone. VMCSC (riders 2 and 3) rides
+// r2 as VMCSC. They merge on r3. VMCSLO (rider 4) rides r4 as VMCSLO. Everyone
+// is together from r5.
+describe('riding as a group', () => {
+  const HOME = new Map<number, number | null>([
+    [1, null], // VMCSF is the main group
+    [2, 10],
+    [3, 10], // VMCSC
+    [4, 20], // VMCSLO
+  ])
+  const resolved = resolveRouteRiders(
+    routes(5),
+    [...on('r1', 1), ...onAs('r2', 10, 2, 3), ...on('r3', 1, 2, 3), ...onAs('r4', 20, 4), ...on('r5', 1, 2, 3, 4)],
+    [1, 2, 3, 4],
+  )
+
+  it('carries the group forward with the rider, not just their presence', () => {
+    // r2 says VMCSC; nothing says otherwise until r3, so an unanswered route in
+    // between would still be VMCSC.
+    expect(resolved[1].riders).toEqual([
+      { id: 2, group: 10 },
+      { id: 3, group: 10 },
+    ])
+  })
+
+  it('puts them in the main group once they merge, and keeps VMCSC on the feeder', () => {
+    expect(resolved[2].riders.every((r) => r.group === null)).toBe(true)
+    // The feeder still remembers. This is what a split reads back.
+    expect(resolved[1].riders.every((r) => r.group === 10)).toBe(true)
+  })
+
+  // THE "EVERYONE" LIE, AND THE REASON THE TICKS ARE DERIVED FROM HOME GROUPS.
+  // On r3 every rider's STORED group is null, so reading that would tick nothing
+  // and the route would read as everybody's — while VMCSLO is still on their
+  // approach. Reading each rider's home group says VMCSF and VMCSC and no more.
+  it('reports the groups a route carries from home groups, not stored ones', () => {
+    expect(groupsOnRoute(resolved[2], HOME)).toEqual([null, 10]) // VMCSF + VMCSC
+    expect(groupsOnRoute(resolved[3], HOME)).toEqual([20]) // VMCSLO alone
+    expect(groupsOnRoute(resolved[4], HOME)).toEqual([null, 10, 20]) // everyone
+  })
+
+  it('remembers every group a rider has ridden as, most recent first', () => {
+    expect(groupsRiddenAs(resolved, 2)).toEqual([10])
+    expect(groupsRiddenAs(resolved, 4)).toEqual([20])
+    // Rider 1 has only ever ridden as the main group, which is not a grouping
+    // anybody splits back into.
+    expect(groupsRiddenAs(resolved, 1)).toEqual([])
+  })
+
+  it('hands the split picker the riders who last rode as a group', () => {
+    expect(ridersWhoRodeAs(resolved, 10)).toEqual([2, 3])
+    expect(ridersWhoRodeAs(resolved, 20)).toEqual([4])
+    expect(ridersWhoRodeAs(resolved, 99)).toEqual([])
+  })
+
+  // THE MOST RECENT ANSWER, NOT THE UNION. VMCSC's membership can change between
+  // the outward leg and the way home — Ziad's own case is two of them carrying on
+  // to Oakland — so "the same lot again" means whoever rode as it LAST.
+  it('takes the last grouping when a group has ridden more than once', () => {
+    const again = resolveRouteRiders(
+      routes(3),
+      [...onAs('r1', 10, 2, 3), ...on('r2', 2, 3), ...onAs('r3', 10, 3)],
+      [2, 3],
+    )
+    expect(ridersWhoRodeAs(again, 10)).toEqual([3])
   })
 })
 
