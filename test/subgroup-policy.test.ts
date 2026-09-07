@@ -156,3 +156,63 @@ describe('neverConverges', () => {
     expect(neverConverges(ride(SEA, SEA))).toBe(false)
   })
 })
+
+// A GROUP PEELING OFF, which is the mirror of a meet and the shape #67's diverge
+// half produces. The ride is: everybody together (shared), then the road the rest
+// of them carry on down TAGGED WITH MAIN, then the leavers' own route.
+//
+// Main being tagged at all is new — it is what keeps the continuation out of the
+// leavers' strand — and this describe is where the consequences are pinned.
+describe('a group splitting off', () => {
+  const MAIN = 4
+  const VMCSC = 5
+  //          0: everybody   1: main carries on   2: VMCSC go home
+  const split = ride(null, MAIN, VMCSC)
+
+  // THE ASSERTION THAT ENCODES WHY THE CONTINUATION IS TAGGED. Left shared, it
+  // would land in the leavers' strand and hand them the main group's onward road
+  // — the ride-34 origin bug and the stage Oakland-to-Ensenada bug in a third
+  // costume.
+  it('keeps the main group’s onward road out of the leavers’ strand', () => {
+    expect(strandOf(split, VMCSC).map((d) => d.position)).toEqual([0, 2])
+    expect(strandOf(split, MAIN).map((d) => d.position)).toEqual([0, 1])
+  })
+
+  // Derived from route order with no column and no flag, exactly as a meet is: a
+  // shared route followed by tagged ones is one split at one boundary, naming
+  // everybody who diverges there rather than one junction per group.
+  it('derives one split at the boundary, naming both groups', () => {
+    expect(junctions(split)).toEqual([{ position: 1, kind: 'split', subgroupIds: [MAIN, VMCSC] }])
+  })
+
+  // THE REGRESSION THIS FEATURE CREATES, and the reason startRouteOf grew a
+  // parameter. `strand.find(tagged)` assumes the main group is never tagged; once
+  // it is, the search returns the CONTINUATION and the ride's real origin at
+  // position 0 is never reached.
+  it('would give the main group the split stop as its origin without isMain', () => {
+    expect(startRouteOf(split, MAIN)?.position).toBe(1)
+    expect(startRouteOf(split, MAIN, true)?.position).toBe(0)
+  })
+
+  // The leavers keep the ordinary rule: their own route is where they set off
+  // from, which for a split is the road away from the stop.
+  it('still reads a joining group’s own route as its origin', () => {
+    expect(startRouteOf(split, VMCSC)?.position).toBe(2)
+  })
+
+  // isMain must change nothing on the ordinary ride, which is every ride that has
+  // never split: the main group tags no route, so both readings are strand[0].
+  it('changes nothing on a ride that has never split', () => {
+    const plain = ride(null, null, SF)
+    expect(startRouteOf(plain, SEA, true)).toBe(startRouteOf(plain, SEA))
+    expect(startRouteOf(plain, SEA, true)?.position).toBe(0)
+  })
+
+  // Pinned rather than assumed: tagging Main means a two-group ride now reports
+  // two active subgroups where a shared-continuation version reported one.
+  it('counts the main group as a subgroup once it is tagged', () => {
+    expect(activeSubgroupIds(split)).toEqual([MAIN, VMCSC])
+    expect(hasSubgroups(split)).toBe(true)
+    expect(neverConverges(split)).toBe(false)
+  })
+})

@@ -19,7 +19,7 @@ import { ownRide } from './maps'
 import { roster } from '../members/service'
 import { subgroupsOf } from '../subgroups/service'
 import { resolvedRoutes, setRouteRiders } from '../route-riders/service'
-import { groupsOnRoute, riderJunctions } from '../route-riders/policy'
+import { groupsOnRoute, riderJunctions, ridersWhoRodeAs } from '../route-riders/policy'
 
 export const routeRiderRoutes = new Hono<AuthEnv>()
 
@@ -37,6 +37,16 @@ export const routeRiderRoutes = new Hono<AuthEnv>()
  * would tick nothing. `groupsOnRoute()` reads which group each rider BELONGS to
  * instead, which is what lets a shared route say "VMCSF, VMCSC" while a third
  * group is still on its approach rather than claiming everybody.
+ *
+ * **`lastRiders` IS WHAT MAKES "SPLIT OFF AS VMCSC AGAIN" POSSIBLE**, and it is
+ * why `ridersWhoRodeAs()` was written. A group is not deleted when it merges, it
+ * stops applying — it survives on the route it rode as itself — so the split
+ * picker can offer that group back with the right people already ticked instead
+ * of asking the planner to rebuild it by hand. Derived here rather than mirrored
+ * client-side because the resolution is already in hand, and it reads the LAST
+ * route the group rode rather than the union: membership changes between the
+ * outward leg and the way home, and "the same lot again" means whoever rode as it
+ * last. The picker makes it editable, which covers the two who carry on.
  */
 async function payloadFor(rideId: number) {
   const [routes, members, groups] = await Promise.all([resolvedRoutes(rideId), roster(rideId), subgroupsOf(rideId)])
@@ -45,7 +55,13 @@ async function payloadFor(rideId: number) {
     routes: routes.map((r) => ({ ...r, groups: groupsOnRoute(r, home) })),
     junctions: riderJunctions(routes),
     riders: members.map((m) => ({ riderId: m.riderId, displayName: m.displayName, group: m.subgroupId })),
-    groups: groups.map((g) => ({ id: g.id, uid: g.uid, name: g.name, color: g.color })),
+    groups: groups.map((g) => ({
+      id: g.id,
+      uid: g.uid,
+      name: g.name,
+      color: g.color,
+      lastRiders: ridersWhoRodeAs(routes, g.id),
+    })),
   }
 }
 

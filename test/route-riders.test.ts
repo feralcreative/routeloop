@@ -258,3 +258,74 @@ describe('one of three peels off', () => {
     expect(firstRouteFor(resolved, 99)).toBe(null)
   })
 })
+
+// A GROUP PEELING OFF, and specifically WHERE its route may sit in the list.
+//
+// resolveRouteRiders is a linear walk carrying a set forward, so a route's
+// position decides what every route after it inherits. That makes placement a
+// correctness question rather than a presentation one, which is the whole reason
+// this describe exists.
+describe('a group splitting off', () => {
+  const VMCSC = 10
+  const ROSTER = [1, 2, 3]
+
+  // Ride: everybody together, then Main carries on, then more of Main's road,
+  // then VMCSC's route home LAST.
+  const listed = routes(4)
+
+  // THE TEST THAT CATCHES THE PLACEMENT BUG. With the peel-off route last, the
+  // main group's later routes inherit the CONTINUATION's set. Splice it in at r3
+  // instead — reading better in the route list — and r4 silently inherits the
+  // leavers, in the panel and in every per-rider export, with nothing raised.
+  it('leaves the main group’s later routes inheriting the continuation', () => {
+    const out = resolveRouteRiders(listed, [...on('r2', 1), ...onAs('r4', VMCSC, 2, 3)], ROSTER)
+    expect(out.map((d) => d.riderIds)).toEqual([[1, 2, 3], [1], [1], [2, 3]])
+  })
+
+  // The same facts in the wrong order, kept as the counter-example so the rule is
+  // not re-litigated by someone who finds the list ugly.
+  it('poisons everything after it when the peel-off route is spliced in early', () => {
+    const out = resolveRouteRiders(listed, [...on('r2', 1), ...onAs('r3', VMCSC, 2, 3)], ROSTER)
+    expect(out[3].riderIds).toEqual([2, 3])
+    expect(out[3].explicit).toBe(false)
+  })
+
+  // The junction is derived from the set difference, so the split reports itself
+  // with no column and no flag — the mirror of a rider joining.
+  it('reports the leavers as leaving at the continuation', () => {
+    const out = resolveRouteRiders(listed, [...on('r2', 1), ...onAs('r4', VMCSC, 2, 3)], ROSTER)
+    expect(riderJunctions(out)).toEqual([
+      { position: 1, joined: [], left: [2, 3] },
+      { position: 3, joined: [2, 3], left: [1] },
+    ])
+  })
+
+  // WHAT THE SPLIT PICKER READS BACK. The group stopped applying when it merged,
+  // but it survives on the route it rode as itself, which is what lets a later
+  // pass offer "split off as VMCSC again" with the right people already ticked.
+  it('remembers who rode as the group, for the next split', () => {
+    const out = resolveRouteRiders(listed, [...on('r2', 1), ...onAs('r4', VMCSC, 2, 3)], ROSTER)
+    expect(ridersWhoRodeAs(out, VMCSC)).toEqual([2, 3])
+    expect(groupsRiddenAs(out, 2)).toEqual([VMCSC])
+    expect(groupsRiddenAs(out, 1)).toEqual([])
+  })
+
+  // A second pass at the same stop: VMCSC peels off, and only one of them comes
+  // back for the next leg. The LAST grouping wins, which is what "the same lot
+  // again" means when membership has changed since.
+  it('takes the last membership when a group rides twice', () => {
+    const twice = routes(5)
+    const out = resolveRouteRiders(
+      twice,
+      [...onAs('r2', VMCSC, 2, 3), ...on('r3', 1, 2, 3), ...onAs('r5', VMCSC, 3)],
+      ROSTER,
+    )
+    expect(ridersWhoRodeAs(out, VMCSC)).toEqual([3])
+  })
+
+  // A rider who rode as nobody in particular has no group to be offered back.
+  it('offers nothing back for a rider who only ever rode as the main group', () => {
+    const out = resolveRouteRiders(listed, on('r2', 1, 2, 3), ROSTER)
+    expect(ridersWhoRodeAs(out, VMCSC)).toEqual([])
+  })
+})

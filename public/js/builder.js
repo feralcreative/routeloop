@@ -3943,7 +3943,10 @@
       e.target.disabled = true;
       e.target.textContent = "Saving…";
       try {
-        await save();
+        // saveNow(), not save(): awaiting save() while the autosave is already in
+        // flight returns immediately having written nothing, and this button's
+        // whole job is that the group exists on the server afterwards.
+        await saveNow();
       } finally {
         ridersStale();
       }
@@ -4240,18 +4243,35 @@
     return el;
   }
 
-  async function putRouteRiders(uid, riderIds) {
-    if (!state.rideId) return;
+  /**
+   * Set who rides one route.
+   *
+   * `riders` is either bare ids or `{id, group}` objects, and the endpoint has
+   * always taken both — `riderIds` is the key either way. The object form says
+   * who they are RIDING AS on this stretch, which is what a feeder tag and a
+   * split both need; the picker sends bare ids because ticking names on a route
+   * says nothing about grouping.
+   *
+   * Returns whether it landed, because the split writes two routes and has to
+   * know whether the first one took before it attempts the second.
+   */
+  async function putRouteRiders(uid, riders) {
+    if (!state.rideId) return false;
     try {
       const res = await fetch("/api/rides/" + state.rideId + "/route-riders/" + encodeURIComponent(uid), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riderIds: riderIds }),
+        body: JSON.stringify({ riderIds: riders }),
       });
-      if (!res.ok) return toast("Could not set who rides that route", true);
+      if (!res.ok) {
+        toast("Could not set who rides that route", true);
+        return false;
+      }
       applyRouteRiders(await res.json());
+      return true;
     } catch (err) {
       toast("Could not set who rides that route", true);
+      return false;
     }
   }
 
@@ -4528,8 +4548,14 @@
    */
   function groupStartHtml(groupUid) {
     const active = ALT.activeRoutes(state.routes);
-    const own = active.find((d) => d.subgroupUid === groupUid);
-    const route = own || active.find((d) => !d.subgroupUid);
+    // THE MAIN GROUP TAKES THE FIRST ROUTE OF ITS STRAND AND SKIPS THE SEARCH,
+    // mirroring `startRouteOf`'s `isMain`. Since splitting tags the main group's
+    // continuation, searching for their own tagged route now finds the road AFTER
+    // a split and this line would name the split stop as where the ride begins.
+    // For the main group a shared route ahead of their own is theirs.
+    const isMain = state.meta.subgroups[0] && state.meta.subgroups[0].uid === groupUid;
+    const strand = active.filter((d) => !d.subgroupUid || d.subgroupUid === groupUid);
+    const route = isMain ? strand[0] : active.find((d) => d.subgroupUid === groupUid) || strand[0];
     const pt = route && route.points && route.points[0];
     if (!pt) return "";
     const name = pt.name || pt.address || "";
@@ -5781,6 +5807,433 @@
     return g ? g.name : "that group";
   };
 
+  /**
+   * The dialog's own events. Bound once, when it is built.
+   *
+   * The destination search is `openNewGroup()`'s, verbatim in shape: a 300ms
+   * debounce, a three-character floor, and a `seq` counter so a slow response for
+   * an old query cannot overwrite a fast one for the current query. Coordinates
+   * are fetched only for the PICK, because Place Details bills per call and a
+   * rider typing a town name would otherwise spend one per keystroke.
+   */
+  function wireSplitDialog(el) {
+    const close = () => {
+      if (typeof el.close === "function" && el.open) el.close();
+      else el.removeAttribute("open");
+    };
+    const destField = el.querySelector(".split-dest");
+    const hitList = el.querySelector(".split-hits");
+    let hits = [];
+    let seq = 0;
+    let timer = null;
+
+    el.querySelector(".split-group").addEventListener("change", () => renderSplitPicks(el));
+    el.querySelector(".split-name").addEventListener("input", () => refreshSplitGo(el));
+    el.querySelector(".rider-picks").addEventListener("change", () => refreshSplitGo(el));
+    el.querySelector("[data-split-cancel]").addEventListener("click", close);
+
+    destField.addEventListener("input", () => {
+      // Typing invalidates a pick: the field no longer names the place whose
+      // coordinates are held, and committing those would send them somewhere the
+      // rider is no longer looking at.
+      el.dataset.dest = "";
+      refreshSplitGo(el);
+      clearTimeout(timer);
+      const q = destField.value.trim();
+      if (q.length < 3) {
+        hitList.hidden = true;
+        return;
+      }
+      timer = setTimeout(async () => {
+        const mine = ++seq;
+        const found = await searchPlaces(state.map, q).catch(() => []);
+        if (mine !== seq) return;
+        hits = found || [];
+        hitList.innerHTML = hits.length
+          ? hits
+              .map(
+                (h, n) =>
+                  '<li><button type="button" class="split-hit" data-i="' +
+                  n +
+                  '">' +
+                  esc(h.name) +
+                  (h.context ? ' <span class="split-ctx">' + esc(h.context) + "</span>" : "") +
+                  "</button></li>",
+              )
+              .join("")
+          : '<li class="split-empty">No matches on screen—zoom out to search wider.</li>';
+        hitList.hidden = false;
+      }, 300);
+    });
+
+    hitList.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".split-hit");
+      if (!btn) return;
+      const h = hits[Number(btn.dataset.i)];
+      if (!h) return;
+      const picked = await h.resolve().catch(() => null);
+      if (!picked) return toast("Could not locate that place", true);
+      destField.value = picked.name;
+      el.dataset.dest = JSON.stringify(picked);
+      hitList.hidden = true;
+      refreshSplitGo(el);
+    });
+
+    el.querySelector("[data-split-go]").addEventListener("click", async (e) => {
+      const r = Number(el.dataset.route);
+      const i = Number(el.dataset.i);
+      const route = state.routes[r];
+      const rr = routeRidersOf(route);
+      if (!route || !rr) return close();
+      const riderIds = [...el.querySelectorAll(".rider-picks input:checked")].map((x) => Number(x.value));
+      let groupUid = el.querySelector(".split-group").value;
+      // A NEW GROUP IS MINTED BEFORE THE SAVE, because the save is what creates
+      // it: reconcileSubgroups matches on the uid this file holds. Never promoted
+      // — subgroups[0] is the main group and taking that slot from underneath the
+      // ride would re-point every meeting-point proposal at a road nobody planned.
+      if (!groupUid) {
+        const name = el.querySelector(".split-name").value.trim();
+        const g = {
+          uid: uid(),
+          name: name || "Group " + (state.meta.subgroups.length + 1),
+          color: ROUTE_COLORS[state.meta.subgroups.length % ROUTE_COLORS.length],
+        };
+        state.meta.subgroups.push(g);
+        state.meta.primarySubgroup = state.meta.subgroups[0].uid;
+        groupUid = g.uid;
+        ridersStale();
+      }
+      const choice = {
+        groupUid: groupUid,
+        riderIds: riderIds,
+        onRoute: rr.riderIds || [],
+        destination: JSON.parse(el.dataset.dest),
+      };
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = "Splitting…";
+      const result = splitGroupOffAt(r, i, choice);
+      if (!result) {
+        btn.textContent = "Split";
+        refreshSplitGo(el);
+        return;
+      }
+      close();
+      btn.textContent = "Split";
+      // The road is drawn and undoable either way; only the rider record can fail
+      // on its own, and a rider who is told nothing would read the split as done.
+      const ok = await writeSplitRiders(result, choice);
+      if (!ok) toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
+    });
+  }
+
+  /**
+   * The split dialog, built once and appended to `<body>`.
+   *
+   * A DIALOG FOR THE SAME REASON THE RIDER PICKER IS ONE: this asks three
+   * questions — who leaves, which of them, and where they are going — and a
+   * 380px drawer row has nowhere to put that. `showModal()` needs the top layer,
+   * which is why it is appended to `<body>`, and both buttons carry `.btn`
+   * because the panel's own button rules are nested inside `.builder-panel` and a
+   * dialog in the top layer is not.
+   *
+   * THE GROUP LIST COMES FROM THE SERVER, NOT FROM `state.meta.subgroups`. Both
+   * lists have the same groups in them, but only the server's carries the numeric
+   * id `route_riders.subgroup_id` needs beside the uid this file holds — the same
+   * boundary the Riders tab lives on.
+   */
+  function splitGroupDialog() {
+    let el = $("tb-split");
+    if (el) return el;
+    el = document.createElement("dialog");
+    el.id = "tb-split";
+    el.className = "modal";
+    el.setAttribute("aria-labelledby", "tb-split-title");
+    el.innerHTML =
+      '<h2 id="tb-split-title"></h2>' +
+      '<div class="modal-body">' +
+      '<p class="modal-lede"></p>' +
+      '<label class="split-lab" for="tb-split-group">Who is leaving?</label>' +
+      '<select id="tb-split-group" class="split-group"></select>' +
+      '<input class="split-name" id="tb-split-name" type="text" maxlength="80" autocomplete="off"' +
+      ' data-1p-ignore placeholder="Name for the new group" aria-label="Name for the new group" hidden>' +
+      '<ul class="rider-picks"></ul>' +
+      '<p class="split-warn" hidden></p>' +
+      '<label class="split-lab" for="tb-split-dest">Where are they headed?</label>' +
+      '<input class="split-dest" id="tb-split-dest" type="text" autocomplete="off" data-1p-ignore' +
+      ' spellcheck="false" placeholder="Town, address or place">' +
+      '<ul class="split-hits" hidden></ul>' +
+      "</div>" +
+      '<div class="modal-error-acts">' +
+      '<button type="button" class="btn btn-quiet" data-split-cancel>Cancel</button>' +
+      '<button type="button" class="btn" data-split-go disabled>Split</button>' +
+      "</div>";
+    document.body.appendChild(el);
+    wireSplitDialog(el);
+    return el;
+  }
+
+  /**
+   * Open the split dialog on a stop.
+   *
+   * Only riders who are ON this stretch are offered — splitting off somebody who
+   * is not there is not a thing anyone means — and the group picker prefills from
+   * `lastRiders`, which is `ridersWhoRodeAs()` server-side: the people who last
+   * rode as that group. Editable afterwards, which is what covers the one or two
+   * who carry on rather than going home with their own lot.
+   */
+  function openSplitGroup(r, i) {
+    const route = state.routes[r];
+    const rr = routeRidersOf(route);
+    const roster = (state.routeRiders && state.routeRiders.riders) || [];
+    if (!route || !rr || roster.length < 2) return;
+    const el = splitGroupDialog();
+    el.dataset.route = r;
+    el.dataset.i = i;
+    const stop = route.points[i];
+    el.querySelector("#tb-split-title").textContent = "Split a group off at " + (stop.name || "this stop");
+    el.querySelector(".modal-lede").textContent =
+      "They ride on from here to somewhere of their own. Everyone else carries on as planned.";
+    const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    el.querySelector(".split-group").innerHTML =
+      state.meta.subgroups
+        .filter((g) => g.uid !== mainUid)
+        .map((g) => '<option value="' + esc(g.uid) + '">' + esc(g.name) + "</option>")
+        .join("") + '<option value="">A new group…</option>';
+    el.querySelector(".split-name").value = "";
+    el.querySelector(".split-dest").value = "";
+    el.querySelector(".split-hits").hidden = true;
+    el.dataset.dest = "";
+    renderSplitPicks(el);
+    if (typeof el.showModal === "function") {
+      if (!el.open) el.showModal();
+    } else {
+      el.setAttribute("open", "");
+    }
+    el.querySelector(".split-group").focus();
+  }
+
+  /** The rider list, re-drawn whenever the chosen group changes so the prefill
+   *  follows it. Ticks come from `lastRiders`; the list is who is on the route. */
+  function renderSplitPicks(el) {
+    const route = state.routes[Number(el.dataset.route)];
+    const rr = routeRidersOf(route);
+    const roster = (state.routeRiders && state.routeRiders.riders) || [];
+    const onRoute = new Set((rr && rr.riderIds) || []);
+    const uid = el.querySelector(".split-group").value;
+    const g = (state.routeRiders.groups || []).find((x) => x.uid === uid);
+    const pre = new Set((g && g.lastRiders) || []);
+    el.querySelector(".rider-picks").innerHTML = roster
+      .filter((m) => onRoute.has(m.riderId))
+      .map(
+        (m) =>
+          '<li><label><input type="checkbox" value="' +
+          m.riderId +
+          '"' +
+          (pre.has(m.riderId) ? " checked" : "") +
+          "> " +
+          esc(m.displayName) +
+          "</label></li>",
+      )
+      .join("");
+    el.querySelector(".split-name").hidden = uid !== "";
+    refreshSplitGo(el);
+  }
+
+  /** Everything the Split button waits for, in one place so the reason a rider
+   *  cannot press it is always the one shown beside the list. */
+  function refreshSplitGo(el) {
+    const route = state.routes[Number(el.dataset.route)];
+    const rr = routeRidersOf(route);
+    const onRoute = (rr && rr.riderIds) || [];
+    const picked = [...el.querySelectorAll(".rider-picks input:checked")].map((x) => Number(x.value));
+    const uid = el.querySelector(".split-group").value;
+    const named = uid !== "" || el.querySelector(".split-name").value.trim() !== "";
+    const dest = el.dataset.dest !== "";
+    const okRiders = SPLIT.canSplitRiders(onRoute, picked);
+    const warn = el.querySelector(".split-warn");
+    // EVERY GROUP KEEPS A RIDER, THE ONE CARRYING ON INCLUDED, and the reason is
+    // stated in place rather than as a toast after a press that does nothing.
+    if (picked.length && !okRiders) {
+      warn.textContent =
+        picked.length >= onRoute.length
+          ? "Somebody has to carry on—leave at least one rider on the road ahead."
+          : "Nobody would be riding this.";
+      warn.hidden = false;
+    } else {
+      warn.hidden = true;
+    }
+    el.querySelector("[data-split-go]").disabled = !(okRiders && named && dest);
+  }
+
+  /**
+   * Peel a group off the ride at a stop: the structural half.
+   *
+   * THE MIRROR OF `cutSharedStretch`, AND DELIBERATELY SO. Accepting a meeting
+   * point cuts the main group's route at the meet and leaves the tail UNTAGGED,
+   * because from there everybody rides together. A split is the same cut read the
+   * other way: from this stop onward the set comes APART, so the tail is tagged
+   * with whoever carries on and the leavers get a route of their own.
+   *
+   * **THE CONTINUATION IS TAGGED WITH WHOEVER KEEPS RIDING IT, WHICH MEANS THE
+   * MAIN GROUP GETS TAGGED FOR THE FIRST TIME.** Ziad's call, 2026-09-07. `null`
+   * means EVERYONE rides a route, and after a split not everyone does — so
+   * leaving the continuation shared is a false statement, and an expensive one:
+   * `strandOf` is a group's own routes plus every SHARED one, so the leavers'
+   * strand would swallow the main group's entire onward road. That is the ride-34
+   * origin bug and the stage Oakland-to-Ensenada bug in a third costume. It costs
+   * `startRouteOf` a parameter — see the isMain note there — and `groupStartHtml`
+   * and `longestApproach` the same correction client-side.
+   *
+   * **THE PEEL-OFF ROUTE GOES TO THE END OF THE LIST, NOT BESIDE THE CUT.**
+   * `resolveRouteRiders` is a linear walk carrying a set forward, so a route
+   * spliced in mid-list makes every route AFTER it inherit the leavers — silently,
+   * in the panel and in every per-rider export. `test/route-riders.test.ts` pins
+   * both readings against each other. It is also the principled mirror of the
+   * meet's "after the last approach": the peel-off belongs after everything the
+   * continuing group rides.
+   *
+   * **NOTHING IS RE-ROUTED EXCEPT THE ONE NEW LEG.** The cut hands existing legs
+   * to the two halves untouched, and the only Routes request is the leavers' road
+   * from the stop to where they are going.
+   *
+   * `choice` is `{ groupUid, riderIds, destination }`. Returns the peel-off route's
+   * uid and the continuation's, for the rider half to write against.
+   */
+  function splitGroupOffAt(r, i, choice) {
+    const route = state.routes[r];
+    const g = subgroupByUid(choice.groupUid);
+    if (!route || !g) return null;
+    const cutting = SPLIT.canSplitAt(route, i);
+    // GUARDS BEFORE beginEdit, like every other refusal in this file — a refused
+    // split must push no undo step. Two routes are added when the stop is interior
+    // and one when the route already begins there.
+    if (!SPLIT.canPeelOffAt(route, i)) return null;
+    if (state.routes.length + (cutting ? 2 : 1) > MAX_ROUTES) {
+      toast("Route limit reached (" + MAX_ROUTES + ")", true);
+      return null;
+    }
+
+    const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    const stop = route.points[i];
+    // THE ARRIVAL, NOT THE NEXT MORNING, which is where this diverges from
+    // splitRouteHere for the same reason cutSharedStretch does: a rider splitting
+    // a route by hand is usually marking where they slept, and here everybody
+    // arrives and one lot turns off. Null on an undated ride, which is ordinary.
+    const startS = routeStartS(route);
+    const toStop = startS == null ? null : elapsedToPointS(route, i);
+    const arrival = startS == null || toStop == null ? null : startS + toStop;
+    const arriveIso = arrival == null ? null : new Date(Math.floor(arrival / 60) * 60 * 1000).toISOString();
+
+    beginEdit("split a group off");
+
+    let continuation = route;
+    if (cutting) {
+      const cut = SPLIT.splitRouteAt(route, i, uid);
+      continuation = cut.second;
+      continuation.subgroupUid = route.subgroupUid || mainUid;
+      continuation.title = "";
+      // A COLOR THAT IS NOT ITS NEIGHBOR'S, the same rule splitRouteHere follows.
+      const used = new Set(state.routes.map((d) => d.color));
+      continuation.color =
+        ROUTE_COLORS.find((c) => !used.has(c)) || ROUTE_COLORS[state.routes.length % ROUTE_COLORS.length];
+      state.routes.splice(r, 1, cut.first, continuation);
+      // splitRouteHere omits this and gets away with it because the identity check
+      // in computeLeg discards a stale response; the sequence array still ends up
+      // one short of the route array, so every index past `r` is reading the wrong
+      // entry. Splice it here rather than inherit the bug.
+      state.legSeq.splice(r + 1, 0, []);
+      syncEnd(cut.first);
+      if (arriveIso) continuation.startAt = arriveIso;
+      if (state.active > r) state.active += 1;
+    } else if (route.subgroupUid == null && mainUid) {
+      // No cut to make: the route already begins at this stop. It still has to
+      // stop claiming everybody, for the same reason the cut half does.
+      continuation.subgroupUid = mainUid;
+    }
+
+    // The leavers' road. seedGroupRoute()'s recipe, plus a destination — and it
+    // builds its own first point rather than reusing splitRouteAt's carried copy,
+    // which drops `address`.
+    const peel = newRoute(g.color);
+    peel.subgroupUid = g.uid;
+    peel.title = "";
+    peel.points.push(newPoint(stop.lng, stop.lat, stop.name, stop.address));
+    ensureRouteHasStop(peel);
+    if (!peel.points[0].roles.length) peel.points[0].roles = ["start"];
+    const dest = choice.destination;
+    peel.points.push(newPoint(dest.lngLat[0], dest.lngLat[1], dest.name, dest.address));
+    peel.legs.push(straightLeg([stop.lng, stop.lat], dest.lngLat));
+    peel.startAt = arriveIso || continuation.startAt || null;
+    state.routes.push(peel);
+    state.legSeq.push([]);
+
+    // ONE ROUTES REQUEST AND ONE UNDO STEP. addPoint() would push a second,
+    // uncoalesced `beginEdit("add point")`, and a single undo has to give back the
+    // ride the planner was looking at rather than half of this.
+    computeLeg(state.routes.length - 1, 0);
+
+    renderRoutes();
+    rebuildLayers();
+    renderMarkers();
+    refreshDerived();
+    markDirty();
+    // The continuation, not the new route: a second group peels off from the same
+    // stop, which is now its first row.
+    goToRoute(state.routes.indexOf(continuation));
+    return { peelUid: peel.uid, continueUid: continuation.uid, arrival: arrival, cut: cutting };
+  }
+
+  /**
+   * Peel a group off: the rider half, which is what makes the split a fact rather
+   * than two routes that happen to be drawn.
+   *
+   * **A BRAND-NEW GROUP HAS NO SERVER ID UNTIL A SAVE, AND WRITING WITHOUT ONE
+   * FAILS SILENTLY.** `reconcileSubgroups` inside the ordinary save is the only
+   * thing that creates a subgroup from planner intent, matched on the uid the
+   * client minted — and `setRouteRiders` coerces a group id it does not recognise
+   * to null rather than refusing, so a write that ran too early would say the
+   * leavers ride as the main group and look like it worked. So: mutate, save,
+   * re-read, then write. This is the Riders tab's `#riders-save` gap closed in
+   * the place it actually bites.
+   *
+   * **AN ENDPOINT THAT CREATES ONE GROUP WAS REJECTED**, and the reason is worth
+   * keeping: `reconcileSubgroups` deletes stored subgroups whose uid is absent
+   * from the payload, so an autosave whose body was serialized before the group
+   * existed would delete the row the endpoint had just inserted, silently.
+   *
+   * **THE PEEL-OFF ROUTE IS WRITTEN FIRST.** If the second write fails the leavers
+   * are named on both roads, which the panel shows and one press fixes; the other
+   * order makes them vanish from everything after the boundary.
+   */
+  async function writeSplitRiders(result, choice) {
+    // SAVE FIRST, ALWAYS, AND NOT ONLY FOR A NEW GROUP. The split MINTS TWO ROUTE
+    // UIDS, and `payloadFor` builds its answer from the routes the database holds
+    // — so a PUT sent before the ride saves is answered with a list that does not
+    // contain the routes just written to, and `applyRouteRiders` then replaces the
+    // client's map with that list. The rows land (route_uid has no foreign key and
+    // the next save's reconcile keeps them, because the uid is in the payload by
+    // then) and the panel is left drawing no group and no riders on either new
+    // route until something else re-reads. Seen live on ride 34.
+    //
+    // Gating this on a new group was the first version and it made the failure
+    // depend on which group was chosen, which is the worst kind of intermittent.
+    const saved = await saveNow();
+    if (!saved) return false;
+    await loadRouteRiders();
+    const groupId = state.routeRiders && state.routeRiders.idOfGroup[choice.groupUid];
+    if (groupId == null) return false;
+    const staying = SPLIT.remainingRiders(choice.onRoute, choice.riderIds);
+    const leaving = choice.riderIds.map((id) => ({ id: id, group: groupId }));
+    // Riding as the MAIN group is null, not the main group's own id — see the
+    // route_riders column comment. Everybody carrying on together is the main
+    // group whatever they set off as.
+    const carrying = staying.map((id) => ({ id: id, group: null }));
+    const ok = await putRouteRiders(result.peelUid, leaving);
+    if (!ok) return false;
+    return await putRouteRiders(result.continueUid, carrying);
+  }
+
   // MOVING A GROUP IS THE ONLY WAY TO CHANGE WHICH IS MAIN. `subgroups[0]` is
   // the main group by definition, so promotion and reordering are one operation
   // rather than two that could disagree — and `primarySubgroup` is re-derived
@@ -5860,13 +6313,28 @@
       " to the top to make it the main group.";
   }
 
-  // Longest by planned riding time across the routes that group rides on its own
-  // — the shared routes are the same for everybody and cancel out.
+  /**
+   * Longest by planned riding time across the routes that group rides ALONE
+   * BEFORE THE FIRST SHARED ONE — the shared routes are the same for everybody
+   * and cancel out.
+   *
+   * **AN APPROACH IS WHAT YOU RIDE TO GET THERE, AND THE RIDE HOME IS NOT ONE.**
+   * It counted every route a group rode on its own, which was the same thing
+   * while the only private routes were feeders. Splitting ends that: it tags the
+   * main group's continuation, so Main would own the whole rest of the ride, win
+   * every time, and `renderAnchorNote()` would clear itself — the note that
+   * exists to stop a planner pinning a near group's clock going silent on exactly
+   * the rides with the most groups on them. Cutting at the first shared route is
+   * what "approach" meant all along.
+   */
   function longestApproach() {
+    const active = ALT.activeRoutes(state.routes);
+    const met = active.findIndex((d) => !d.subgroupUid);
+    const approach = met < 0 ? active : active.slice(0, met);
     let best = null;
     let bestS = -1;
     for (const g of state.meta.subgroups) {
-      const s = state.routes
+      const s = approach
         .filter((d) => d.subgroupUid === g.uid)
         .reduce((n, d) => n + d.legs.reduce((m, l) => m + (l.durationS || 0), 0), 0);
       if (s > bestS) {
@@ -6783,6 +7251,76 @@
     return '<div class="row-dist"' + (dry ? ' data-dry="1"' : "") + ">" + parts.join("") + "</div>";
   }
 
+  /**
+   * "VMCSC split off here → Santa Cruz", on the row of the stop they left at.
+   *
+   * THE PEEL-OFF ROUTE IS AT THE BOTTOM OF THE LIST AND THIS IS WHAT MAKES THAT
+   * READABLE. Its position is a correctness constraint rather than a choice —
+   * `resolveRouteRiders` is a linear walk, so a route spliced in beside the cut
+   * poisons everything after it — which leaves the group's road a long way from
+   * the stop they left at. The consequence sits beside the choice, the same shape
+   * the bedtime band and the lodging offer take.
+   *
+   * DERIVED FROM THE ROUTES, NEVER STORED. A route tagged with a group whose first
+   * point is this one IS the split; nothing needs a column, and the line survives a
+   * reload rather than being a fact only the acting session knows. Same reasoning
+   * as `junctions()` server-side.
+   *
+   * Matched on COORDINATES rather than uid, because `splitRouteAt` mints a fresh
+   * uid for the carried copy and records no link back to the point it came from.
+   * Duplicating a point puts a copy on top of its original, so this can in
+   * principle name a group at a duplicated stop — a wrong label on a line, which
+   * is the cheap end of getting it wrong.
+   *
+   * **ON THE LAST POINT OF A ROUTE AND NOWHERE ELSE**, which is what keeps it to
+   * one line per split. The stop exists on three routes after a split — the road
+   * they were all on, the continuation, and the leavers' own — and rendering
+   * wherever the coordinates matched put the line on all of them, plus on every
+   * OTHER group's peel-off row at the same stop. Measured on ride 34: three
+   * splits produced eight lines. The road they were riding together is where
+   * "they split off here" reads; the continuation already says "D leaves here" on
+   * its riders pill, and a peel-off route saying a group left here IS the route.
+   *
+   * The consequence to state rather than treat as a bug: a split at the ride's
+   * very first point has no route ending there, so it gets no line. The riders
+   * pill still reports it.
+   */
+  function splitOffHtml(point, i, routeIndex) {
+    const route = state.routes[routeIndex];
+    if (!route || i !== route.points.length - 1) return "";
+    const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
+    const here = (d) => {
+      const first = d.points[0];
+      return first && first.lat === point.lat && first.lng === point.lng;
+    };
+    const left = ALT.activeRoutes(state.routes).filter(
+      (d) => d.subgroupUid && d.subgroupUid !== mainUid && d !== route && here(d),
+    );
+    if (!left.length) return "";
+    // A REAL BUTTON THAT GOES THERE, not a coloured sentence. The peel-off route
+    // is at the bottom of the list by construction, which is the whole reason
+    // this line exists — so the line has to be the way to it, and $signal text
+    // that cannot be pressed is the exact thing #232 established a map dot must
+    // not be. Keyed by uid because the index changes on every later split.
+    return left
+      .map((d) => {
+        const g = subgroupByUid(d.subgroupUid);
+        const dest = d.points[d.points.length - 1];
+        const to = d.points.length > 1 && dest.name ? " → " + esc(dest.name) : "";
+        const name = esc((g && g.name) || "A group");
+        return (
+          '<button type="button" class="row-splitoff" data-splitoff="' +
+          esc(d.uid) +
+          '" title="Go to their route">' +
+          name +
+          " splits off here" +
+          to +
+          "</button>"
+        );
+      })
+      .join("");
+  }
+
   // `n` is the row's stop number, or null for a POI — worked out by orderedRows()
   // because it counts stops only and `i` indexes the whole list.
   function pointRowHtml(kind, point, i, routeIndex, n, dist) {
@@ -6902,6 +7440,7 @@
       ">" +
       rolePickerHtml(point) +
       "</div>" +
+      splitOffHtml(point, i, routeIndex) +
       // A note that has been written stays visible on the row. The textarea moved
       // into the details panel, so without this a rider's own note would be
       // behind a menu item and two clicks away — and a note is the kind of thing
@@ -7784,6 +8323,7 @@
         if (act === "kind") return setPointKind(i, point.kind === "stop" ? "poi" : "stop");
         if (act === "select") return startSelect("point");
         if (act === "split") return splitRouteHere(Number(row.dataset.route), i);
+        if (act === "split-group") return openSplitGroup(Number(row.dataset.route), i);
         return;
       }
       if (btn.classList.contains("detail-link-add")) {
@@ -7804,6 +8344,13 @@
         if (point.details) point.details.links.splice(n, 1);
         row.querySelector(".detail-body").innerHTML = detailsHtml(point, row.dataset.kind, i);
         markDirty();
+        return;
+      }
+      if (btn.classList.contains("row-splitoff")) {
+        // BY uid, never by the index this row was rendered with: a later split
+        // pushes routes onto the end and every index after it moves.
+        const to = state.routes.findIndex((d) => d.uid === btn.dataset.splitoff);
+        if (to >= 0) goToRoute(to);
         return;
       }
       if (btn.classList.contains("row-split-offer")) {
@@ -7940,6 +8487,12 @@
     // place — splitting at the first or last point would leave a route with one
     // point and no legs, which the API refuses and payload() drops whole.
     { act: "split", label: "End the route here" },
+    // #67's diverge half. Shown and DISABLED rather than hidden, the same as the
+    // cut above and for the same reason: "why can I not split a group off here"
+    // is worth answering in place. It has three refusals — a ride of one rider,
+    // a route that already ends at this stop, and a ride with no groups to peel
+    // off — and toggleRowMenu picks the one that applies.
+    { act: "split-group", label: "Split a group off here" },
     { act: "delete", label: "Delete", danger: true },
   ];
 
@@ -7992,6 +8545,10 @@
           ' data-act="' +
           m.act +
           '"' +
+          // WHY it is disabled, on the item itself. A disabled control with no
+          // reason is what the split item was written not to be, and a `title` is
+          // the only place a reason fits inside a 380px menu.
+          (m.title ? ' title="' + esc(m.title) + '"' : "") +
           (m.off ? " disabled" : "") +
           ">" +
           esc(m.label) +
@@ -8003,6 +8560,27 @@
     menuOpener = btn;
     const first = menu.querySelector(".row-menu-item:not([disabled])");
     if (first) first.focus();
+  }
+
+  /**
+   * Why a group cannot be peeled off here, or null when it can be.
+   *
+   * A SENTENCE RATHER THAN A BOOLEAN, because the item is shown disabled and a
+   * greyed control with no reason is the thing #49's split item exists not to be.
+   * The order is the order a planner meets them: no groups to peel off at all,
+   * then nobody to peel off, then this particular stop.
+   */
+  function splitGroupRefusal(route, i) {
+    const roster = (state.routeRiders && state.routeRiders.riders) || [];
+    if (!state.rideId) return "Save the ride first—a split is a change to who rides which road.";
+    if (state.meta.subgroups.length < 2 && roster.length < 2) {
+      return "There is nobody to split off—you are the only rider on this ride.";
+    }
+    if (roster.length < 2) return "There is nobody to split off—add riders to the ride first.";
+    const rr = routeRidersOf(route);
+    if (rr && (rr.riderIds || []).length < 2) return "Only one rider is on this stretch, so nobody can leave it.";
+    if (!SPLIT.canPeelOffAt(route, i)) return "This route ends here—split from the route that carries on.";
+    return null;
   }
 
   function toggleRowMenu(row, btn) {
@@ -8025,7 +8603,9 @@
       label: typeof m.label === "function" ? m.label(point) : m.label,
       off:
         (m.act === "kind" && point.kind === "stop" && stopsOf(route).length <= 1) ||
-        (m.act === "split" && !SPLIT.canSplitAt(route, i)),
+        (m.act === "split" && !SPLIT.canSplitAt(route, i)) ||
+        (m.act === "split-group" && splitGroupRefusal(route, i) !== null),
+      title: m.act === "split-group" ? splitGroupRefusal(route, i) : null,
     }));
     openMenu(row, btn, items);
   }
@@ -9349,6 +9929,36 @@
   // them to add one. Reset when nothing is being dropped, so the next episode
   // warns again.
   let warnedDropped = false;
+
+  /**
+   * Save and actually wait for it to have landed.
+   *
+   * **`save()` CANNOT BE AWAITED, AND THAT IS A LATENT BUG EVERYWHERE IT IS.** It
+   * opens with `if (state.saving) return`, so awaiting it while the three-second
+   * autosave is already in flight returns immediately having written nothing —
+   * and it re-queues rather than completing when the rider edited during the
+   * request. `#riders-save` has always had this and mostly gets away with it,
+   * because the worst case there is a stale picker. The split flow cannot: it
+   * reads a brand-new group's server id back out of the write, and a save that
+   * quietly did not happen means the id does not exist and `setRouteRiders`
+   * SILENTLY coerces the unknown group to null — a peel-off route that claims
+   * everybody rides as the main group.
+   *
+   * Polls rather than hooking the request, because the thing being waited for is
+   * "the tree is clean", which a re-queued save satisfies only on its second
+   * pass. Bounded, so a ride that will not save reports false instead of hanging
+   * the dialog: a conflict or a stale revision leaves `state.dirty` set forever
+   * and the ordinary save-error modal is what tells the rider about it.
+   */
+  async function saveNow(tries) {
+    const limit = tries || 12;
+    for (let n = 0; n < limit; n++) {
+      if (!state.saving) save();
+      await new Promise((done) => setTimeout(done, 250));
+      if (!state.dirty && !state.saving) return true;
+    }
+    return false;
+  }
 
   async function save() {
     if (state.saving) return;

@@ -227,3 +227,80 @@ describe('cutting at a distance', () => {
     expect(S.splitIndexAtDistance(d, 150 * MI, D.cumulativeM)).toBe(1)
   })
 })
+
+// Peeling a GROUP off at a stop (#67's diverge half). A different question from
+// where a route may be CUT, and the difference is index 0.
+describe('canPeelOffAt', () => {
+  const d = (): Route => ({ ...route(), points: [pt('A'), pt('B'), pt('C')], legs: [leg(10), leg(10)] })
+
+  // THE WHOLE SECOND-PASS RULE, in one assertion. After one group peels off, the
+  // stop is the FIRST point of the continuation — so a rule that reused
+  // canSplitAt would make a second group impossible to peel off at the same
+  // place, which is exactly what "as many groups as they need" asks for.
+  it('allows the first point where canSplitAt refuses it', () => {
+    expect(S.canSplitAt(d(), 0)).toBe(false)
+    expect(S.canPeelOffAt(d(), 0)).toBe(true)
+  })
+
+  it('allows an interior point, like a cut', () => {
+    expect(S.canPeelOffAt(d(), 1)).toBe(true)
+  })
+
+  // Their road already ends there, so there is nothing to carry on down and
+  // nothing to peel off from.
+  it('refuses the last point', () => {
+    expect(S.canPeelOffAt(d(), 2)).toBe(false)
+  })
+
+  it('refuses a non-index', () => {
+    expect(S.canPeelOffAt(d(), 1.5)).toBe(false)
+    expect(S.canPeelOffAt(d(), -1)).toBe(false)
+  })
+})
+
+describe('remainingRiders', () => {
+  it('takes the leavers out and keeps riding order', () => {
+    expect(S.remainingRiders([3, 1, 2], [1])).toEqual([3, 2])
+  })
+
+  it('ignores a leaver who was never on this stretch', () => {
+    expect(S.remainingRiders([1, 2], [9])).toEqual([1, 2])
+  })
+
+  it('deduplicates', () => {
+    expect(S.remainingRiders([1, 1, 2], [])).toEqual([1, 2])
+  })
+
+  it('is empty when everybody leaves', () => {
+    expect(S.remainingRiders([1, 2], [2, 1])).toEqual([])
+  })
+})
+
+// EVERY GROUP KEEPS A RIDER, THE ONE CARRYING ON INCLUDED. The rule is about the
+// PAIR of routes, which is why it cannot live in setRouteRiders — that writes one.
+describe('canSplitRiders', () => {
+  it('allows a split that leaves somebody on each road', () => {
+    expect(S.canSplitRiders([1, 2, 3], [2, 3])).toBe(true)
+  })
+
+  it('refuses taking everybody', () => {
+    expect(S.canSplitRiders([1, 2], [1, 2])).toBe(false)
+  })
+
+  it('refuses taking nobody', () => {
+    expect(S.canSplitRiders([1, 2], [])).toBe(false)
+  })
+
+  // The interesting refusal, and the one a planner actually hits: enough groups
+  // have already peeled off that the road ahead is down to one rider.
+  it('refuses the pass that would empty the group carrying on', () => {
+    expect(S.canSplitRiders([1, 2], [2])).toBe(true)
+    expect(S.canSplitRiders([1], [1])).toBe(false)
+  })
+
+  // A leaver who is not on the stretch cannot make a split legal by being named.
+  it('ignores leavers who are not on the route', () => {
+    expect(S.canSplitRiders([1, 2], [9])).toBe(false)
+    expect(S.canSplitRiders([1, 2], [2, 9])).toBe(true)
+  })
+})

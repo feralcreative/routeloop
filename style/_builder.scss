@@ -1854,6 +1854,41 @@
       resize: vertical;
     }
 
+    // "VMCSC splits off here → Santa Cruz". The peel-off route has to sit at the
+    // BOTTOM of the list — a route spliced in beside the cut makes everything
+    // after it inherit the leavers — so without this the only sign a group left
+    // is a route a long way down the panel.
+    //
+    // $signal, the same as `.route-riders.is-junction`, and for the same reason:
+    // somebody peeling off is the plan working, not a warning. Indented to clear
+    // the grip so it lines up with the row's name.
+    // A real <button>, so the UA chrome comes off. It has to be pressable rather
+    // than merely coloured: the route it names is at the BOTTOM of the panel by
+    // construction, so this line is the way to it, and $signal text that does
+    // nothing when pressed is what a dot on a map must never be.
+    .row-splitoff {
+      display: block;
+      margin: 0.15em 0 0 1.9em;
+      padding: 0;
+      border: none;
+      background: none;
+      text-align: left;
+      font: inherit;
+      font-size: 0.72em;
+      font-weight: 600;
+      color: $signal;
+      cursor: pointer;
+
+      &:hover {
+        text-decoration: underline;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: 1px;
+      }
+    }
+
     // The written note, read-only, on the row. The textarea moved into the
     // details panel and a note a rider has already written should not need two
     // clicks to see — that is what it was written for.
@@ -2866,6 +2901,92 @@
       background: rgba(0, 0, 0, 0.04);
     }
   }
+}
+
+// The split dialog. Outside .builder-panel like .rider-picks above it, because a
+// <dialog> in the top layer is not inside the panel however it reads in source —
+// which is also why its buttons carry .btn rather than inheriting the panel's.
+.split-lab {
+  display: block;
+  margin: 0.7rem 0 0.2rem;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.split-group,
+.split-name,
+.split-dest {
+  width: 100%;
+  // NO GLOBAL BORDER-BOX RESET IN style/, so a 100% width plus padding renders
+  // wider than its container and pushes the dialog out. Every fixed-size box here
+  // sets its own; this is three of them.
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.9em;
+  padding: 0.4em 0.5em;
+  border: 1px solid $grey;
+  border-radius: 5px;
+}
+
+.split-name {
+  margin-top: 0.35rem;
+}
+
+// The reason the Split button is disabled, in place rather than as a toast after
+// a press that does nothing. Amber and not red: leaving too few riders behind is
+// a decision the planner is being stopped from making by accident, not a fault.
+//
+// $pending AND NOT $warning, which is the trap `.row-dist-dry` sits next to.
+// $warning is a BLACK-legend field color — it is what a warning diamond is
+// painted, not what text is set in — and it is measured at about 2.2:1 on white
+// in the high-contrast theme. $pending is the derivation that exists to survive
+// as text and is pinned as such by test/palette-contrast.ts. This is a sentence
+// a rider has to READ to know why a button will not press.
+.split-warn {
+  margin: 0.4rem 0 0;
+  font-size: 0.8em;
+  color: $pending;
+}
+
+.split-hits {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+  border: 1px solid $grey;
+  border-radius: 5px;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.split-hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.4em 0.5em;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.split-ctx,
+.split-empty {
+  color: $neutral-50;
+  font-size: 0.85em;
+}
+
+.split-empty {
+  padding: 0.4em 0.5em;
 }
 
 // WAS the two axes, whose clock and which of their events. The event select
