@@ -22,9 +22,10 @@
 // whose members differ in lightness would imply one. Fixing Y and varying only
 // hue is what makes it a categorical palette rather than an accidental ramp.
 //
-// The chroma is the largest every hue can hold at that luminance — the ring is
-// only as saturated as its weakest hue, or it stops being one ring. Yellow-green
-// is the binding constraint, which is why the whole set reads slightly muted.
+// EACH HUE TAKES ITS OWN MAXIMUM CHROMA at that luminance. It used to take the
+// weakest hue's, which left fifteen of the seventeen at about half strength and
+// the whole set washed out. What makes it one ring is the equal LUMINANCE, not
+// an equal chroma — see the note above the loop.
 import { writeFileSync } from 'node:fs'
 
 const COUNT = 17
@@ -74,10 +75,8 @@ function solveL(C, h, targetY) {
 
 const hueAt = (i) => (START_HUE + (i * STRIDE * 360) / COUNT) % 360
 
-// The weakest hue sets the chroma for all seventeen.
-let chroma = 0.4
-for (let i = 0; i < COUNT; i++) {
-  const h = hueAt(i)
+/** The most chroma this hue can hold at the target luminance and stay in sRGB. */
+function maxChroma(h) {
   let lo = 0
   let hi = 0.4
   for (let k = 0; k < 40; k++) {
@@ -86,13 +85,35 @@ for (let i = 0; i < COUNT; i++) {
     if (inGamut(rgb) && Math.abs(luminance(rgb) - TARGET_Y) < 1e-4) lo = mid
     else hi = mid
   }
-  chroma = Math.min(chroma, lo)
+  return lo
 }
 
+// EACH HUE TAKES ITS OWN MAXIMUM, since 2026-09-07. It used to take the weakest
+// hue's — one chroma for all seventeen — on the reasoning that a ring is only as
+// saturated as its weakest member or it stops being one ring. That is true of
+// the CHROMA NUMBER and false of what the eye reads: yellow-green can hold about
+// half the chroma of blue at this luminance, so pinning everything to it left
+// fifteen hues at half strength and the whole set looked washed out beside the
+// rest of the app. Ziad's call: they were ugly.
+//
+// WHAT ACTUALLY MAKES IT ONE RING IS THE LUMINANCE, AND THAT IS UNCHANGED. Every
+// entry still sits at TARGET_Y, which is the property the categorical claim
+// rests on — a set whose members differ in LIGHTNESS reads as a ramp and implies
+// a rank the roles do not have. Chroma carries no such implication: nobody reads
+// a more saturated bar as ranking above a duller one, and the contrast window
+// below is a function of luminance alone, so every one of the four assertions in
+// test/role-colors.test.ts is untouched by this.
+//
+// The consequence to state rather than treat as a bug: the ring is no longer
+// uniform in saturation, and the yellow-green is visibly duller than the blue
+// beside it. That is the gamut, not the derivation — it is the honest maximum
+// for that hue at this lightness, and the alternative is dulling sixteen hues to
+// match it.
 const ring = []
 for (let i = 0; i < COUNT; i++) {
   const h = hueAt(i)
-  ring.push(hex(oklchToLinear(solveL(chroma, h, TARGET_Y), chroma, h)))
+  const c = maxChroma(h)
+  ring.push(hex(oklchToLinear(solveL(c, h, TARGET_Y), c, h)))
 }
 
 // Same order as ROLES in src/maps/roles.ts. Kept here as a literal rather than
@@ -104,7 +125,7 @@ const ROLES = [
 ]
 
 const width = Math.max(...ROLES.map((r) => r.length))
-console.log(`OKLCH chroma ${chroma.toFixed(4)}, target Y ${TARGET_Y}, hue ${START_HUE} + ${STRIDE}/${COUNT} turns\n`)
+console.log(`OKLCH per-hue max chroma, target Y ${TARGET_Y}, hue ${START_HUE} + ${STRIDE}/${COUNT} turns\n`)
 for (let i = 0; i < COUNT; i++) {
   console.log(`  ${ROLES[i].padEnd(width)}: '${ring[i]}', // ${hueAt(i).toFixed(1).padStart(5)}°`)
 }

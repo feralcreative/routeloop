@@ -11,8 +11,15 @@
 //
 //   - Equal lightness is what makes it categorical. Seventeen roles have no rank,
 //     and a ring whose members differ in lightness would imply one.
-//   - The chroma is the largest every hue can hold at that lightness, which is
-//     why the set reads a little muted. Yellow-green is the binding hue.
+//   - EACH HUE TAKES ITS OWN MAXIMUM CHROMA at that lightness, since 2026-09-07.
+//     It used to take the WEAKEST hue's, which is true to "one ring" as a number
+//     and false to what the eye reads: yellow-green holds about half the chroma
+//     of blue here, so pinning all seventeen to it left fifteen at half strength
+//     and the set looked washed out beside the rest of the app. Ziad's call.
+//     What makes it one ring is the equal LUMINANCE, which is unchanged — a set
+//     differing in lightness reads as a ramp and implies a rank these roles do
+//     not have, and chroma carries no such implication. The contrast window is a
+//     function of luminance alone, so every assertion in the test still holds.
 //   - The hues are walked with a stride of 7, coprime with 17. Same seventeen
 //     evenly spaced hues, but consecutive roles land ~148 degrees apart, so two
 //     roles adjacent in the chart are never adjacent in hue.
@@ -36,23 +43,23 @@
 import { ROLES, type Role } from './roles'
 
 export const ROLE_COLORS: Record<Role, string> = {
-  start: '#ae645f',
-  finish: '#248770',
-  home: '#97689f',
-  meet: '#7c7c32',
-  split: '#547ab2',
-  gas: '#aa6848',
+  start: '#f20028',
+  finish: '#00896f',
+  home: '#ce00ea',
+  meet: '#7d7d00',
+  split: '#0073f7',
+  gas: '#c95500',
   charge: '#008786',
-  break: '#a4658c',
-  camp: '#628243',
-  hotel: '#6e74b3',
-  food: '#a06e36',
-  coffee: '#13849a',
-  drinks: '#ac6376',
-  grocery: '#458659',
-  view: '#856eac',
-  poi: '#90762d',
-  wtf: '#3680a9',
+  break: '#e100ac',
+  camp: '#548600',
+  hotel: '#6962ff',
+  food: '#ac6900',
+  coffee: '#00849c',
+  drinks: '#ec0072',
+  grocery: '#008b46',
+  view: '#9e47ff',
+  poi: '#967400',
+  wtf: '#0081b7',
 }
 
 /**
