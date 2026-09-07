@@ -98,8 +98,8 @@ describe('parseStoredName', () => {
   })
 
   // Strictness is what stops a stray file being attributed to a ride. `19-0.kml`
-  // is not a name this app writes — day 0 is written bare — so reading it as
-  // ride 19 day 0 would mean two different names claiming the same slot.
+  // is not a name this app writes — route 0 is written bare — so reading it as
+  // ride 19 route 0 would mean two different names claiming the same slot.
   it('refuses names this app would never write', () => {
     for (const name of ['19-0.kml', '019.kml', '19-01.gpx', '19.KML', '19.kmz', '19.txt', '-1.kml', '19-.kml']) {
       expect(parseStoredName(name), name).toBeNull()

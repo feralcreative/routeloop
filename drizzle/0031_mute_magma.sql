@@ -1,0 +1,2 @@
+ALTER TABLE "route_riders" ADD COLUMN "subgroup_id" bigint;--> statement-breakpoint
+ALTER TABLE "route_riders" ADD CONSTRAINT "route_riders_subgroup_id_ride_subgroups_id_fk" FOREIGN KEY ("subgroup_id") REFERENCES "public"."ride_subgroups"("id") ON DELETE set null ON UPDATE no action;

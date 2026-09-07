@@ -138,7 +138,7 @@ describe('titleFrom', () => {
   })
 
   it('keeps a question mark, which carries meaning', () => {
-    expect(titleFrom('Where did my day 3 go? It was there yesterday.')).toBe('Where did my day 3 go?')
+    expect(titleFrom('Where did my route 3 go? It was there yesterday.')).toBe('Where did my route 3 go?')
   })
 
   it('keeps an exclamation mark', () => {
@@ -152,7 +152,7 @@ describe('titleFrom', () => {
 
   it('cuts a long unpunctuated body at a word boundary', () => {
     const body =
-      'I was planning a three day ride through the Cascades and the whole thing disappeared when I tapped save on the second day'
+      'I was planning a three route ride through the Cascades and the whole thing disappeared when I tapped save on the second route'
     const out = titleFrom(body)
     expect(out.length).toBeLessThanOrEqual(TITLE_MAX)
     expect(out.endsWith('…')).toBe(true)
@@ -203,7 +203,7 @@ describe('areaFromPath', () => {
   })
 
   it('ignores a query string and a fragment', () => {
-    expect(areaFromPath('/build?day=2#top')).toBe('planning')
+    expect(areaFromPath('/build?route=2#top')).toBe('planning')
   })
 
   it('ignores a trailing slash', () => {

@@ -1,4 +1,4 @@
-// Who is in a ride right now, and which day each of them is working on.
+// Who is in a ride right now, and which route each of them is working on.
 //
 // IN MEMORY, AND THAT IS CORRECT HERE RATHER THAN A SHORTCUT. One color serves
 // at a time — the proxy points at exactly one, see live_color() — and the
@@ -9,10 +9,10 @@
 // shared store for state whose entire lifetime is a browser tab being open.
 //
 // **NOTHING HERE PREVENTS DATA LOSS, AND IT MUST NEVER BE RELIED ON TO.** A
-// claim is a courtesy that stops two riders picking up the same day by accident.
+// claim is a courtesy that stops two riders picking up the same route by accident.
 // It vanishes on restart, on a dropped connection, and on a rider whose laptop
-// slept. What actually protects the work is the day hash checked on every write
-// — see src/maps/day-merge.ts — which is durable and needs no cooperation.
+// slept. What actually protects the work is the route hash checked on every write
+// — see src/maps/route-merge.ts — which is durable and needs no cooperation.
 
 /** One open stream. `send` is the SSE writer; it must never throw, because a
  *  publish walks every connection and one broken socket must not stop the rest
@@ -22,15 +22,15 @@ export type Conn = {
   rideId: number
   riderId: number
   name: string
-  /** Which day this rider is editing, or null for "just watching". */
-  dayUid: string | null
+  /** Which route this rider is editing, or null for "just watching". */
+  routeUid: string | null
   send: (event: string, data: unknown) => void
   close: () => void
 }
 
 /** What a subscriber is told about everyone else. Deliberately not the whole
  *  Conn: `id` is an internal handle and `send` is a function. */
-export type PresenceRow = { riderId: number; name: string; dayUid: string | null }
+export type PresenceRow = { riderId: number; name: string; routeUid: string | null }
 
 const rooms = new Map<number, Set<Conn>>()
 let nextId = 1
@@ -54,14 +54,14 @@ export function roomOf(rideId: number): Set<Conn> {
  *
  *  ONE ROW PER RIDER, NOT PER CONNECTION. A rider with the ride open in two tabs
  *  is one person, and showing them twice reads as a second collaborator who does
- *  not exist. The day reported is the first connection that claims one, so a
+ *  not exist. The route reported is the first connection that claims one, so a
  *  second idle tab does not blank out what the working tab is doing. */
 export function presenceOf(rideId: number): PresenceRow[] {
   const byRider = new Map<number, PresenceRow>()
   for (const c of rooms.get(rideId) ?? []) {
     const prev = byRider.get(c.riderId)
-    if (!prev) byRider.set(c.riderId, { riderId: c.riderId, name: c.name, dayUid: c.dayUid })
-    else if (prev.dayUid === null && c.dayUid !== null) prev.dayUid = c.dayUid
+    if (!prev) byRider.set(c.riderId, { riderId: c.riderId, name: c.name, routeUid: c.routeUid })
+    else if (prev.routeUid === null && c.routeUid !== null) prev.routeUid = c.routeUid
   }
   return [...byRider.values()]
 }
@@ -101,16 +101,16 @@ export function leave(conn: Conn): void {
   else publishPresence(conn.rideId)
 }
 
-/** What a rider is working on now. Returns false if the day is already held by
+/** What a rider is working on now. Returns false if the route is already held by
  *  somebody else, in which case the caller keeps whatever it had. */
-export function setClaim(conn: Conn, dayUid: string | null): boolean {
-  if (dayUid !== null) {
+export function setClaim(conn: Conn, routeUid: string | null): boolean {
+  if (routeUid !== null) {
     for (const other of rooms.get(conn.rideId) ?? []) {
-      if (other !== conn && other.riderId !== conn.riderId && other.dayUid === dayUid) return false
+      if (other !== conn && other.riderId !== conn.riderId && other.routeUid === routeUid) return false
     }
   }
-  if (conn.dayUid === dayUid) return true
-  conn.dayUid = dayUid
+  if (conn.routeUid === routeUid) return true
+  conn.routeUid = routeUid
   publishPresence(conn.rideId)
   return true
 }

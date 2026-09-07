@@ -1,8 +1,8 @@
-// What a day asks of the router, beyond where it goes.
+// What a route asks of the router, beyond where it goes.
 //
 // #29. A rider planning a Saturday in the hills and a Monday slog home wants two
 // different answers from the same router, which is why this hangs off a DAY
-// rather than off a ride: the transit day takes the interstate on purpose.
+// rather than off a ride: the transit route takes the interstate on purpose.
 //
 // **THIS IS THE HALF GOOGLE CAN ACTUALLY EXPRESS, AND THAT IS THE WHOLE SCOPE.**
 // Routes API v2 takes `routeModifiers`, which covers tolls, highways and
@@ -20,14 +20,14 @@
 import { z } from 'zod'
 
 /**
- * A day's routing preferences.
+ * A route's routing preferences.
  *
  * STRICT, because this is the one payload field whose value is stored as jsonb
  * rather than into a typed column — an open object would let a hostile save park
  * arbitrary keys in the row. Every member is optional and every absent member
  * means false; there is no explicit `false` to distinguish from an absent one,
  * which is what keeps two spellings of "no preference" from hashing differently
- * in dayRevision().
+ * in routeRevision().
  */
 export const routePrefsSchema = z
   .object({
@@ -47,7 +47,7 @@ export type RoutePrefs = z.infer<typeof routePrefsSchema>
  * TWO LISTS, AND CONFLATING THEM SENDS GOOGLE A FIELD IT REJECTS.
  *
  * `AVOID_FLAGS` are the three things Routes API v2's `routeModifiers` actually
- * accepts. `FLAGS` is everything a day can ask for, which is what normalizing,
+ * accepts. `FLAGS` is everything a route can ask for, which is what normalizing,
  * hashing and cache-keying have to cover — `preferTwisty` changes the road that
  * comes back, so it belongs in all three of those and in none of the request's
  * modifiers.
@@ -62,8 +62,8 @@ const FLAGS = [...AVOID_FLAGS, 'preferTwisty'] as const
  * The preferences with nothing set, collapsed to null.
  *
  * NULL AND `{}` AND `{avoidTolls: false}` ARE ONE STATE AND MUST STORE AS ONE.
- * A day carrying `{}` and a day carrying null are the same day, and if they
- * reach dayRevision() as different strings then toggling a flag on and back off
+ * A route carrying `{}` and a route carrying null are the same route, and if they
+ * reach routeRevision() as different strings then toggling a flag on and back off
  * makes a rider's next autosave conflict with a save nobody else made. This is
  * the only place that decision is taken.
  */
@@ -77,7 +77,7 @@ export function normalizePrefs(prefs: RoutePrefs | null | undefined): RoutePrefs
 /**
  * Google's `routeModifiers`, or undefined when there is nothing to ask for.
  *
- * UNDEFINED RATHER THAN AN OBJECT OF FALSES, so a day with no preferences sends
+ * UNDEFINED RATHER THAN AN OBJECT OF FALSES, so a route with no preferences sends
  * the request it sent before this feature existed — byte for byte, which is what
  * keeps every already-cached route a hit rather than silently re-billing the
  * whole corpus on the deploy that lands this.
@@ -95,7 +95,7 @@ export function toRouteModifiers(prefs: RoutePrefs | null | undefined): Record<s
  * Should this leg be routed by asking for alternates and picking the twistiest?
  *
  * Its own function rather than a field read at the call site, so the one place
- * that decides it is here beside everything else about a day's preferences.
+ * that decides it is here beside everything else about a route's preferences.
  */
 export function wantsTwisty(prefs: RoutePrefs | null | undefined): boolean {
   return normalizePrefs(prefs)?.preferTwisty === true
@@ -116,7 +116,7 @@ export function prefsKey(prefs: RoutePrefs | null | undefined): string {
   return FLAGS.filter((f) => norm[f]).join(',')
 }
 
-/** A rider-facing summary, for the builder's day row. Empty when nothing is set. */
+/** A rider-facing summary, for the builder's route row. Empty when nothing is set. */
 export function describePrefs(prefs: RoutePrefs | null | undefined): string {
   const norm = normalizePrefs(prefs)
   if (!norm) return ''

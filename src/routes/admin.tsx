@@ -41,7 +41,17 @@ type RiderRow = {
 const fmtDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '—')
 
 // A single status-changing button, as its own form so it works without script.
-function ActionForm({ id, status, label, cls }: { id: number; status: 'active' | 'blocked'; label: string; cls: string }) {
+function ActionForm({
+  id,
+  status,
+  label,
+  cls,
+}: {
+  id: number
+  status: 'active' | 'blocked'
+  label: string
+  cls: string
+}) {
   return (
     <form method="post" action={`/admin/riders/${id}`}>
       <input type="hidden" name="status" value={status} />
@@ -84,7 +94,8 @@ function RiderRowView({ rider, meId }: { rider: RiderRow; meId: number }) {
           {handle ? `${SEP}${handle}` : ''}
         </span>
         <span class="rider-meta">
-          joined {fmtDate(rider.createdAt)}{SEP}last seen {fmtDate(rider.lastLoginAt)}
+          joined {fmtDate(rider.createdAt)}
+          {SEP}last seen {fmtDate(rider.lastLoginAt)}
         </span>
       </span>
       <span class="rider-status">
@@ -125,10 +136,7 @@ adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
       lastLoginAt: users.lastLoginAt,
     })
     .from(users)
-    .orderBy(
-      sql`case ${users.status} when 'pending' then 0 when 'active' then 1 else 2 end`,
-      desc(users.createdAt),
-    )
+    .orderBy(sql`case ${users.status} when 'pending' then 0 when 'active' then 1 else 2 end`, desc(users.createdAt))
 
   const pending = riders.filter((r) => r.status === 'pending').length
 
@@ -216,7 +224,7 @@ adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, as
 //
 // Deliberately thin. It lists what is there and the one number worth surfacing
 // before you click — how many riders are waiting — and nothing else. A dashboard
-// that duplicates each page's own summary goes stale the day one of them changes.
+// that duplicates each page's own summary goes stale the route one of them changes.
 adminRoutes.get('/admin', requireManageRiders, async (c) => {
   const me = currentUser(c)
 

@@ -33,7 +33,7 @@ export type RideQuery = {
   /** Inclusive start of the range a date term named. */
   from: Date | null
   /** EXCLUSIVE end, so a whole month is one `>= from AND < to` with no
-   *  arithmetic about how many days it has and no midnight edge to get wrong. */
+   *  arithmetic about how many routes it has and no midnight edge to get wrong. */
   to: Date | null
   /** 1-12, set ONLY when a month was named with no year — "august" means every
    *  August, and a range cannot say that. Mutually exclusive with from/to. */
@@ -52,10 +52,10 @@ export type RideQuery = {
 
 const EMPTY: RideQuery = { text: null, from: null, to: null, month: null, loose: false }
 
-/** UTC, because a day's clock is a wall clock carried as UTC and every surface
+/** UTC, because a route's clock is a wall clock carried as UTC and every surface
  *  in this app reads it back with `timeZone: 'UTC'`. A range built in the
  *  server's zone would put a ride on the wrong side of a month boundary for
- *  eight hours of every day. */
+ *  eight hours of every route. */
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d))
 
 /**

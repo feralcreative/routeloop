@@ -1,7 +1,7 @@
 // The tab strip, for any surface that wants one.
 //
 // TWO SURFACES USE THIS AND THAT IS WHY IT EXISTS. The builder's panel got tabs
-// on 2026-08-26 and the dashboard's ride lists got them the same day; the
+// on 2026-08-26 and the dashboard's ride lists got them the same route; the
 // keyboard behavior is identical on both, and two copies of a roving tabindex is
 // two things to get subtly different. The CSS is NOT shared — a 380px drawer and
 // a page-width strip want different metrics — but the behavior is.

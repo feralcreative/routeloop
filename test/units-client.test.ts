@@ -21,7 +21,7 @@ beforeAll(() => {
 
 const UNITS = ['imperial', 'metric'] as const
 
-// Meters, chosen to cover a short leg, a long day and a ride-length total, plus
+// Meters, chosen to cover a short leg, a long route and a ride-length total, plus
 // the degenerate zero.
 const METERS = [0, 1, 1000, 1609.344, 42195, 160934.4, 3_300_000]
 

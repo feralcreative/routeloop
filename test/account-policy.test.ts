@@ -2,7 +2,7 @@
 //
 // The boundary cases are the ones that matter: 'due' is what makes a purge
 // eligible to run, so getting the comparison wrong by one tick either strands an
-// account forever or destroys one a day early.
+// account forever or destroys one a route early.
 //
 // The refusal guards matter for a different reason. Both exist to stop the app
 // reaching a state where nobody can open /admin — which would mean nobody can
@@ -20,7 +20,7 @@ import {
 } from '../src/account/policy'
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
-const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000)
+const route = (n: number) => new Date(NOW.getTime() + n * 86_400_000)
 
 const fields = (over: Partial<DeletionFields> = {}): DeletionFields => ({
   deletionRequestedAt: null,
@@ -29,11 +29,11 @@ const fields = (over: Partial<DeletionFields> = {}): DeletionFields => ({
 })
 
 describe('purgeDateFor', () => {
-  it('is the hold, in days, after the request', () => {
-    expect(purgeDateFor(NOW).toISOString()).toBe(day(DELETION_HOLD_DAYS).toISOString())
+  it('is the hold, in routes, after the request', () => {
+    expect(purgeDateFor(NOW).toISOString()).toBe(route(DELETION_HOLD_DAYS).toISOString())
   })
 
-  it('keeps the time of day, so the deadline is a moment and not a date', () => {
+  it('keeps the time of route, so the deadline is a moment and not a date', () => {
     expect(purgeDateFor(NOW).getUTCHours()).toBe(NOW.getUTCHours())
   })
 })
@@ -45,20 +45,20 @@ describe('deletionState', () => {
   })
 
   it('is scheduled inside the hold', () => {
-    const u = fields({ deletionRequestedAt: NOW, purgeAfter: day(DELETION_HOLD_DAYS) })
+    const u = fields({ deletionRequestedAt: NOW, purgeAfter: route(DELETION_HOLD_DAYS) })
     expect(deletionState(u, NOW)).toBe('scheduled')
-    expect(deletionState(u, day(29))).toBe('scheduled')
+    expect(deletionState(u, route(29))).toBe('scheduled')
     expect(isLeaving(u)).toBe(true)
   })
 
   it('is due once the deadline has passed', () => {
-    const u = fields({ deletionRequestedAt: NOW, purgeAfter: day(DELETION_HOLD_DAYS) })
-    expect(deletionState(u, day(31))).toBe('due')
+    const u = fields({ deletionRequestedAt: NOW, purgeAfter: route(DELETION_HOLD_DAYS) })
+    expect(deletionState(u, route(31))).toBe('due')
   })
 
   // The boundary. Exactly-at-the-deadline counts as due; one tick before does not.
   it('treats the deadline itself as due, and the tick before it as not', () => {
-    const purgeAfter = day(DELETION_HOLD_DAYS)
+    const purgeAfter = route(DELETION_HOLD_DAYS)
     const u = fields({ deletionRequestedAt: NOW, purgeAfter })
 
     expect(deletionState(u, purgeAfter)).toBe('due')
@@ -69,37 +69,37 @@ describe('deletionState', () => {
   // A row should never look like this. Reading it as 'due' would destroy an
   // account on the strength of a half-written row, so it reads as scheduled.
   it('refuses to call a row due when it carries no deadline', () => {
-    expect(deletionState(fields({ deletionRequestedAt: NOW }), day(365))).toBe('scheduled')
+    expect(deletionState(fields({ deletionRequestedAt: NOW }), route(365))).toBe('scheduled')
   })
 
   // purge_after is the promise that was made. Reading the state from
   // requested_at plus the constant would let a later change to
   // DELETION_HOLD_DAYS move a date a rider was already shown.
   it('reads the stored deadline rather than recomputing it', () => {
-    const u = fields({ deletionRequestedAt: NOW, purgeAfter: day(90) })
-    expect(deletionState(u, day(31))).toBe('scheduled')
+    const u = fields({ deletionRequestedAt: NOW, purgeAfter: route(90) })
+    expect(deletionState(u, route(31))).toBe('scheduled')
   })
 })
 
 describe('daysUntilPurge', () => {
-  it('counts whole days left', () => {
-    const u = fields({ deletionRequestedAt: NOW, purgeAfter: day(DELETION_HOLD_DAYS) })
+  it('counts whole routes left', () => {
+    const u = fields({ deletionRequestedAt: NOW, purgeAfter: route(DELETION_HOLD_DAYS) })
     expect(daysUntilPurge(u, NOW)).toBe(30)
-    expect(daysUntilPurge(u, day(29))).toBe(1)
+    expect(daysUntilPurge(u, route(29))).toBe(1)
   })
 
-  // Rounds up, so the last partial day reads as "1 day" to someone deciding
-  // whether to hit Save Me rather than as "0 days".
-  it('rounds a part-day up', () => {
-    const purgeAfter = day(DELETION_HOLD_DAYS)
+  // Rounds up, so the last partial route reads as "1 route" to someone deciding
+  // whether to hit Save Me rather than as "0 routes".
+  it('rounds a part-route up', () => {
+    const purgeAfter = route(DELETION_HOLD_DAYS)
     const u = fields({ deletionRequestedAt: NOW, purgeAfter })
     expect(daysUntilPurge(u, new Date(purgeAfter.getTime() - 3600_000))).toBe(1)
   })
 
   it('is zero once the deadline has passed', () => {
-    const u = fields({ deletionRequestedAt: NOW, purgeAfter: day(DELETION_HOLD_DAYS) })
-    expect(daysUntilPurge(u, day(31))).toBe(0)
-    expect(daysUntilPurge(u, day(DELETION_HOLD_DAYS))).toBe(0)
+    const u = fields({ deletionRequestedAt: NOW, purgeAfter: route(DELETION_HOLD_DAYS) })
+    expect(daysUntilPurge(u, route(31))).toBe(0)
+    expect(daysUntilPurge(u, route(DELETION_HOLD_DAYS))).toBe(0)
   })
 })
 

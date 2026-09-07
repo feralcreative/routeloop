@@ -177,7 +177,7 @@
 // Pushed to the bottom of the tile with margin-top:auto rather than sitting
 // directly under the label, because .stat-tile is a flex column and the tiles in
 // a row have different label lengths — "roads you insisted on" wraps to two lines
-// where "days" does not. Without this the comparison rows sit at different
+// where "routes" does not. Without this the comparison rows sit at different
 // heights across the row and the eye cannot scan them.
 //
 // Deliberately quiet. The rider's own figure is the headline at 2rem/800; these
@@ -532,7 +532,7 @@
 
 // A ride the sweep has not reached yet, or one with no geometry to draw. Takes
 // the record's own accent rather than a color from the ride: a record card has no
-// day color to fall back on, and a flat band of the accent it already carries
+// route color to fall back on, and a flat band of the accent it already carries
 // reads as part of the card instead of as a failure.
 .record-face.is-blank {
   background: var(--record-accent);
@@ -943,4 +943,3 @@
 // two surfaces — the dashboard's ride lists and the riders screen (#179) — so
 // they belong with the site-wide chrome rather than in the dashboard's file.
 // The behavior was always shared: public/js/tabs.js.
-

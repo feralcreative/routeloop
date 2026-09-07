@@ -13,7 +13,7 @@ import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { esc } from '../views/esc'
 import { contrast, readTokens, type Literal, type Token } from '../views/tokens'
-import { DAY_COLORS } from '../maps/palette'
+import { ROUTE_COLORS } from '../maps/palette'
 import { SEP } from '../views/sep'
 
 export const brandRoutes = new Hono<AuthEnv>()
@@ -114,7 +114,7 @@ brandRoutes.get('/brand', requireActive, (c) => {
 
     <p class="brand-summary">
       <strong>${colors.length}</strong> color tokens${SEP}
-      <strong>${DAY_COLORS.length}</strong> day colors${SEP}
+      <strong>${ROUTE_COLORS.length}</strong> route colors${SEP}
       <strong>${untokenized.length}</strong> hexes with no token, used <strong>${strayTotal}</strong> times
     </p>
 
@@ -122,16 +122,16 @@ brandRoutes.get('/brand', requireActive, (c) => {
     <p class="brand-sub">In the order they appear in the file, each with the comment that explains why it exists.</p>
     <ul class="brand-grid">${colors.map((t) => swatch(t, palette)).join('')}</ul>
 
-    <h2>Day palette</h2>
+    <h2>Route palette</h2>
     <p class="brand-sub">
-      From <code>src/maps/palette.ts</code>, walked in order so a multi-day ride gets distinct days without the rider
-      picking each one. A ride longer than ${DAY_COLORS.length} days wraps and repeats.
+      From <code>src/maps/palette.ts</code>, walked in order so a multi-route ride gets distinct routes without the
+      rider picking each one. A ride longer than ${ROUTE_COLORS.length} routes wraps and repeats.
     </p>
-    <ol class="brand-days">
-      ${DAY_COLORS.map(
-        (hex, i) => `<li class="brand-day">
+    <ol class="brand-routes">
+      ${ROUTE_COLORS.map(
+        (hex, i) => `<li class="brand-route">
           <span class="brand-dot" style="background:${esc(hex)}"></span>
-          <span class="brand-day-meta"><b>Day ${i + 1}</b><code>${esc(hex)}</code></span>
+          <span class="brand-route-meta"><b>Route ${i + 1}</b><code>${esc(hex)}</code></span>
         </li>`,
       ).join('')}
     </ol>

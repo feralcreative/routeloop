@@ -9,8 +9,8 @@ export { esc } from './esc'
 import { esc } from './esc'
 import { raw } from 'hono/html'
 import { asset } from './assets'
-import { IS_DEV } from '../config'
-import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD } from '../version'
+import { IS_DEV, IS_STAGE } from '../config'
+import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
 import { liveReloadScript } from '../dev/livereload'
 
@@ -385,7 +385,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
 //   .panel-contents  the ONLY part that scrolls, and it takes whatever height is
 //                    left. This is what stops the drawer growing and shrinking
 //                    with its own content.
-//   .drawer-foot     pinned to the bottom edge. The builder puts the day
+//   .drawer-foot     pinned to the bottom edge. The builder puts the route
 //                    scrubber here; the viewer passes nothing and it collapses.
 //
 // THE LOGO LIVES HERE NOW rather than floating over the map. SiteHeader drops it
@@ -396,9 +396,9 @@ export function panelShell(o: {
   titleHtml?: string
   extraClass?: string
   contents: string
-  /** Pinned to the drawer's bottom edge. The builder's day scrubber. */
+  /** Pinned to the drawer's bottom edge. The builder's route scrubber. */
   footer?: string
-  /** Shown only while collapsed, in the rail. The builder's day dots. */
+  /** Shown only while collapsed, in the rail. The builder's route dots. */
   rail?: string
 }): string {
   return (
@@ -434,7 +434,7 @@ export function panelShell(o: {
       {/*
         The rail's own contents, hidden until .collapsed. Rendered even when
         empty so the collapsed drawer has something to be, and aria-hidden while
-        expanded so its duplicate day controls are not announced twice.
+        expanded so its duplicate route controls are not announced twice.
       */}
       <div class="drawer-rail" aria-hidden="true">
         {o.rail ? raw(o.rail) : ''}
@@ -468,13 +468,13 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
         <div class="time-readout" id="time-readout"></div>
         {/* BUILDER ONLY, and the argument is what makes that explicit rather
             than a class the viewer has to remember not to style. The builder's
-            slider spans the day being edited (see state.timeScope in
+            slider spans the route being edited (see state.timeScope in
             builder.js) and this widens it to the ride; the viewer's spans the
             ride already, because reading a ride is not editing one and there is
-            no active day there to scope to.
+            no active route there to scope to.
 
             Ships with no label and hidden: renderTimeScope() fills both in, and
-            leaves it hidden on a one-day ride where the two scopes are the same
+            leaves it hidden on a one-route ride where the two scopes are the same
             slider. */}
         {opts.scopeToggle ? (
           <button type="button" class="time-scope" id="time-scope" aria-pressed="false" hidden></button>
@@ -688,7 +688,7 @@ function feedbackFab(area?: string): string {
   // and every other support widget uses, so a tester arrives already knowing
   // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
   //
-  // It was two permanent marks for most of that day, which cost one fewer tap on
+  // It was two permanent marks for most of that route, which cost one fewer tap on
   // a bug report and bought a second piece of chrome on every screen forever.
   // The convention is one affordance for the same reason: the errands behind it
   // are occasional, and a dock that grows a mark per errand is a menu that
@@ -739,8 +739,19 @@ function feedbackFab(area?: string): string {
             What's new
             {/* The build is here rather than in a title attribute: this is the
                 one surface where a rider is already looking for it, and a
-                tooltip is not reachable by touch at all. */}
-            <span class="fab-item-sub">{APP_VERSION}</span>
+                tooltip is not reachable by touch at all.
+
+                It carries the SHA because THE BUILDER AND THE VIEWER RENDER NO
+                FOOTER — `variant: 'map'` skips .page-wrap, which is what wraps
+                siteFooter() — so this and the notes modal are the only places
+                the two most-used screens can say what they are running. Plain
+                text rather than a link: the whole row is already a button that
+                opens the notes, and a link inside it is the same trap the
+                footer comment describes. */}
+            <span class="fab-item-sub">
+              {APP_VERSION}
+              {BUILD_SHA && <span class="fab-item-sha"> · {BUILD_SHA}</span>}
+            </span>
           </span>
         </button>
         <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
@@ -794,6 +805,14 @@ function releaseNotesModal(): string {
             on", and it is why the string is in the footer too. */}
         <p class="rn-version">
           <span class="rn-version-label">You are on</span> <code>{APP_VERSION}</code>
+          {BUILD_SHA && (
+            <>
+              {' '}
+              <a class="rn-sha" href={commitUrl(BUILD_SHA)} rel="noreferrer">
+                <code>{BUILD_SHA}</code>
+              </a>
+            </>
+          )}
           {IS_DEV_BUILD && <span class="rn-version-dev"> — a local build, not a deploy</span>}
         </p>
         {/* Filled by site.js on first open. The <noscript> is the honest
@@ -805,6 +824,37 @@ function releaseNotesModal(): string {
           </p>
         </div>
       </div>
+    </div>
+  ).toString()
+}
+
+/**
+ * "This is staging, do not plan a real ride here."
+ *
+ * Stage renders identically to production, so the only thing standing between a
+ * rider and a lost ride is this bar — `db-clone prod stage` drops staging's
+ * database and replaces it, and nothing warns anybody first.
+ *
+ * ON EVERY PAGE, INCLUDING THE SPLASH AND BOTH MAP PAGES. It is emitted above
+ * the `variant === 'splash'` check in page() deliberately: the signed-out
+ * landing page is where somebody arrives at the wrong host, and the builder is
+ * where they would lose the most. That is also why it cannot be dismissed.
+ *
+ * `.tb-banner` is the existing page-top banner and `is-stage` is a modifier on
+ * it, following `is-recover` rather than adding a second component. It is
+ * `position: fixed` like the rest of that class, so the space it takes comes
+ * from --banner-h — see style/_map.scss.
+ *
+ * `role="status"` rather than `alert`: it is a standing fact about the whole
+ * site, not something that just happened, and `alert` interrupts a screen
+ * reader mid-sentence on every single page load.
+ */
+function stageBanner(): string {
+  if (!IS_STAGE) return ''
+  return (
+    <div class="tb-banner is-stage" role="status">
+      <strong>Staging.</strong> Rides planned here are wiped whenever this environment is refreshed from production.{' '}
+      <a href="https://routeloop.app">Go to the real&nbsp;site</a>
     </div>
   ).toString()
 }
@@ -823,18 +873,24 @@ function siteFooter(splash: boolean): string {
           {/* A button, not a link: it opens the modal on the page you are
               already on. It degrades to the real page when scripting is off,
               which is what the href on the <noscript> path covers — see
-              releaseNotesModal. The build SHA rides in the title for a bug
-              report that needs to name an exact tree; it is deliberately not
-              rendered, because a hex string beside a date invites a rider to
-              quote the wrong one. */}
-          <button
-            type="button"
-            class="site-footer-version"
-            data-open-notes
-            title={BUILD_SHA ? `Build ${BUILD_SHA} — see what's new` : "See what's new"}
-          >
+              releaseNotesModal.
+
+              THE SHA IS A SIBLING OF THE BUTTON, NOT INSIDE IT. An anchor
+              nested in a button is invalid, and the browsers that render it
+              anyway give the inner link no keyboard focus, so it would be a
+              link only a mouse could follow. Two controls, two jobs: the date
+              opens the notes, the hash opens the commit. */}
+          <button type="button" class="site-footer-version" data-open-notes title="See what's new">
             {APP_VERSION}
           </button>
+          {BUILD_SHA && (
+            <>
+              {' · '}
+              <a class="site-footer-sha" href={commitUrl(BUILD_SHA)} rel="noreferrer" title="See this commit on GitHub">
+                {BUILD_SHA}
+              </a>
+            </>
+          )}
         </p>
       )}
     </footer>
@@ -844,7 +900,13 @@ function siteFooter(splash: boolean): string {
 export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
-  const htmlClass = isMap ? ' class="map-page"' : ''
+  // `has-stage-banner` is what reserves the space the stage banner occupies. It
+  // is server-rendered rather than set by script for the same reason the three
+  // appearance attributes below are: the reserve has to be right at the FIRST
+  // paint, or every page on stage starts with its header under the banner and
+  // jumps once site.js measures. See --banner-h in style/_map.scss.
+  const htmlClasses = [isMap ? 'map-page' : '', IS_STAGE ? 'has-stage-banner' : ''].filter(Boolean).join(' ')
+  const htmlClass = htmlClasses ? ` class="${htmlClasses}"` : ''
 
   // THE THREE APPEARANCE ATTRIBUTES, read by style/_theme.scss and the
   // `motion()` mixin in style/_motion.scss.
@@ -935,6 +997,7 @@ export function page(opts: PageOpts): string {
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
+${stageBanner()}
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
 ${body}
 ${opts.user && variant !== 'splash' ? feedbackFab(opts.feedbackArea) : ''}

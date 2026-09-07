@@ -1,11 +1,11 @@
-// Cutting one day into two (#49, and #54's mechanic).
+// Cutting one route into two (#49, and #54's mechanic).
 //
 // The property that matters most is that nothing is lost and nothing is
-// invented: every leg the rider drew ends up on exactly one of the two days, and
+// invented: every leg the rider drew ends up on exactly one of the two routes, and
 // no leg is created. A split that re-routed would spend a Routes call per leg
 // and could come back with a different road than the one on screen.
 //
-// The second is that the split point exists on BOTH days — you ride to the hotel
+// The second is that the split point exists on BOTH routes — you ride to the hotel
 // and you set off from it — with a distinct uid on the copy, because
 // `points.uid` is the identity that survives every save and two points sharing
 // one collide.
@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 
 type Point = { uid: string; kind: 'stop' | 'poi'; lat: number; lng: number; name: string; roles?: string[] }
 type Leg = { distanceM: number }
-type Day = {
+type Route = {
   uid: string
   title: string
   color: string
@@ -32,8 +32,8 @@ let D: any
 
 beforeAll(() => {
   const win: Record<string, unknown> = {}
-  new Function('window', readFileSync('public/js/day-split.js', 'utf8'))(win)
-  new Function('window', readFileSync('public/js/day-distance.js', 'utf8'))(win)
+  new Function('window', readFileSync('public/js/route-split.js', 'utf8'))(win)
+  new Function('window', readFileSync('public/js/route-distance.js', 'utf8'))(win)
   S = win.TBSplit
   D = win.TBDistance
 })
@@ -53,8 +53,8 @@ const pt = (name: string, roles: string[] = []): Point => ({
 const leg = (miles: number): Leg => ({ distanceM: miles * MI })
 
 /** Home → 100 → Shell → 90 → Hotel → 80 → Lunch → 70 → End */
-const day = (): Day => ({
-  uid: 'day000000001',
+const route = (): Route => ({
+  uid: 'route000000001',
   title: 'A long one',
   color: '#0000cc',
   startAt: '2026-08-01T09:00:00.000Z',
@@ -66,44 +66,44 @@ const day = (): Day => ({
   legs: [leg(100), leg(90), leg(80), leg(70)],
 })
 
-describe('where a day may be cut', () => {
+describe('where a route may be cut', () => {
   it('offers every interior point', () => {
-    expect(S.splitPoints(day())).toEqual([1, 2, 3])
+    expect(S.splitPoints(route())).toEqual([1, 2, 3])
   })
 
-  // Splitting at either end leaves a day with one point and no legs — a day that
+  // Splitting at either end leaves a route with one point and no legs — a route that
   // goes nowhere, which the API refuses and payload() drops whole.
   it('refuses the first and last point', () => {
-    const d = day()
+    const d = route()
     expect(S.canSplitAt(d, 0)).toBe(false)
     expect(S.canSplitAt(d, d.points.length - 1)).toBe(false)
-    expect(S.splitDayAt(d, 0, mint)).toBeNull()
+    expect(S.splitRouteAt(d, 0, mint)).toBeNull()
   })
 
   it('refuses an out-of-range or non-integer index', () => {
-    expect(S.canSplitAt(day(), -1)).toBe(false)
-    expect(S.canSplitAt(day(), 99)).toBe(false)
-    expect(S.canSplitAt(day(), 1.5)).toBe(false)
+    expect(S.canSplitAt(route(), -1)).toBe(false)
+    expect(S.canSplitAt(route(), 99)).toBe(false)
+    expect(S.canSplitAt(route(), 1.5)).toBe(false)
   })
 
-  it('offers nothing on a day too short to cut', () => {
-    const short: Day = { ...day(), points: [pt('A'), pt('B')], legs: [leg(10)] }
+  it('offers nothing on a route too short to cut', () => {
+    const short: Route = { ...route(), points: [pt('A'), pt('B')], legs: [leg(10)] }
     expect(S.splitPoints(short)).toEqual([])
     expect(S.splitIndexAtDistance(short, 5 * MI, D.cumulativeM)).toBeNull()
   })
 })
 
 describe('the cut itself', () => {
-  it('puts the split point at the end of the first day and the start of the second', () => {
-    const r = S.splitDayAt(day(), 2, mint)
+  it('puts the split point at the end of the first route and the start of the second', () => {
+    const r = S.splitRouteAt(route(), 2, mint)
     expect(r.first.points.map((p: Point) => p.name)).toEqual(['Home', 'Shell', 'Hotel'])
     expect(r.second.points.map((p: Point) => p.name)).toEqual(['Hotel', 'Lunch', 'End'])
   })
 
   // NOTHING LOST, NOTHING INVENTED. Four legs in, four legs out, split 2/2.
   it('hands every leg to exactly one side and creates none', () => {
-    const d = day()
-    const r = S.splitDayAt(d, 2, mint)
+    const d = route()
+    const r = S.splitRouteAt(d, 2, mint)
     expect(r.first.legs).toHaveLength(2)
     expect(r.second.legs).toHaveLength(2)
     expect(r.first.legs.concat(r.second.legs)).toEqual(d.legs)
@@ -111,7 +111,7 @@ describe('the cut itself', () => {
 
   it('leaves each half with one fewer leg than it has points', () => {
     for (const i of [1, 2, 3]) {
-      const r = S.splitDayAt(day(), i, mint)
+      const r = S.splitRouteAt(route(), i, mint)
       expect(r.first.legs).toHaveLength(r.first.points.length - 1)
       expect(r.second.legs).toHaveLength(r.second.points.length - 1)
     }
@@ -121,8 +121,8 @@ describe('the cut itself', () => {
   // the delete-and-reinsert of every save; two points sharing one would have the
   // merge, the comments and the point details all pointing at the wrong row.
   it('gives the carried copy a uid of its own', () => {
-    const d = day()
-    const r = S.splitDayAt(d, 2, mint)
+    const d = route()
+    const r = S.splitRouteAt(d, 2, mint)
     const original = r.first.points[2]
     const copy = r.second.points[0]
     expect(copy.uid).not.toBe(original.uid)
@@ -131,48 +131,48 @@ describe('the cut itself', () => {
     expect(copy.lng).toBe(original.lng)
   })
 
-  it('gives the new day a uid of its own', () => {
-    const d = day()
-    const r = S.splitDayAt(d, 2, mint)
+  it('gives the new route a uid of its own', () => {
+    const d = route()
+    const r = S.splitRouteAt(d, 2, mint)
     expect(r.first.uid).toBe(d.uid)
     expect(r.second.uid).not.toBe(d.uid)
   })
 
-  // The hotel is recorded once, on the day that rode to it. Duplicating the tag
+  // The hotel is recorded once, on the route that rode to it. Duplicating the tag
   // would double-count it everywhere roles are summed — including the fuel math,
   // which would read a copied `gas` as a second refuelling stop.
   it('strips the roles from the carried copy and leaves the original tagged', () => {
-    const r = S.splitDayAt(day(), 2, mint)
+    const r = S.splitRouteAt(route(), 2, mint)
     expect(r.first.points[2].roles).toEqual(['hotel'])
     expect(r.second.points[0].roles).toEqual([])
   })
 
-  it('carries the copy as a stop, so the new day is never all POIs', () => {
-    const d = day()
+  it('carries the copy as a stop, so the new route is never all POIs', () => {
+    const d = route()
     d.points[2].kind = 'poi'
-    const r = S.splitDayAt(d, 2, mint)
+    const r = S.splitRouteAt(d, 2, mint)
     expect(r.second.points[0].kind).toBe('stop')
   })
 
-  it('does not mutate the day it was given', () => {
-    const d = day()
+  it('does not mutate the route it was given', () => {
+    const d = route()
     const before = JSON.parse(JSON.stringify(d))
-    S.splitDayAt(d, 2, mint)
+    S.splitRouteAt(d, 2, mint)
     expect(d).toEqual(before)
   })
 
-  // Object.assign would hand the new day the old one's name, and two days both
+  // Object.assign would hand the new route the old one's name, and two routes both
   // called "Napa to Reno" is worse than one called nothing — the rider cannot
-  // tell them apart in the rail, the day list, or a vote.
-  it('does not hand the old day’s title to the new one', () => {
-    const r = S.splitDayAt(day(), 2, mint)
+  // tell them apart in the rail, the route list, or a vote.
+  it('does not hand the old route’s title to the new one', () => {
+    const r = S.splitRouteAt(route(), 2, mint)
     expect(r.first.title).toBe('A long one')
     expect(r.second.title).toBe('')
   })
 
   it('keeps the ride-level facts on the first half', () => {
-    const d = day()
-    const r = S.splitDayAt(d, 2, mint)
+    const d = route()
+    const r = S.splitRouteAt(d, 2, mint)
     expect(r.first.title).toBe(d.title)
     expect(r.first.color).toBe(d.color)
     expect(r.first.startAt).toBe(d.startAt)
@@ -180,15 +180,15 @@ describe('the cut itself', () => {
 
   // Two alternates are two answers to the same stretch of road. Cutting one in
   // half leaves a group whose members no longer cover the same ground.
-  it('never hands an alt grouping to the new day', () => {
-    const d: Day = { ...day(), altGroup: 3, altActive: false }
-    const r = S.splitDayAt(d, 2, mint)
+  it('never hands an alt grouping to the new route', () => {
+    const d: Route = { ...route(), altGroup: 3, altActive: false }
+    const r = S.splitRouteAt(d, 2, mint)
     expect(r.second.altGroup).toBeNull()
     expect(r.second.altActive).toBe(true)
   })
 
-  it('leaves the new day undated for the caller to seed', () => {
-    const r = S.splitDayAt(day(), 2, mint)
+  it('leaves the new route undated for the caller to seed', () => {
+    const r = S.splitRouteAt(route(), 2, mint)
     expect(r.second.startAt).toBeNull()
     expect(r.second.endAt).toBeNull()
   })
@@ -197,29 +197,29 @@ describe('the cut itself', () => {
 describe('cutting at a distance', () => {
   // Cumulative: Home 0, Shell 100, Hotel 190, Lunch 270, End 340.
   it('finds the point nearest the target', () => {
-    expect(S.splitIndexAtDistance(day(), 190 * MI, D.cumulativeM)).toBe(2)
-    expect(S.splitIndexAtDistance(day(), 105 * MI, D.cumulativeM)).toBe(1)
+    expect(S.splitIndexAtDistance(route(), 190 * MI, D.cumulativeM)).toBe(2)
+    expect(S.splitIndexAtDistance(route(), 105 * MI, D.cumulativeM)).toBe(1)
   })
 
   // NEAREST, NOT FIRST-PAST. Asking for 300 with points at 270 and 340 means
   // 270; first-past hands back a 40-mile overshoot on a number chosen on purpose.
   it('goes back rather than overshooting', () => {
-    expect(S.splitIndexAtDistance(day(), 300 * MI, D.cumulativeM)).toBe(3)
-    expect(S.splitIndexAtDistance(day(), 200 * MI, D.cumulativeM)).toBe(2)
+    expect(S.splitIndexAtDistance(route(), 300 * MI, D.cumulativeM)).toBe(3)
+    expect(S.splitIndexAtDistance(route(), 200 * MI, D.cumulativeM)).toBe(2)
   })
 
   it('clamps to a legal cut rather than the true nearest point', () => {
     // 0 is nearest to a target of zero, but it is not a legal split.
-    expect(S.splitIndexAtDistance(day(), 0, D.cumulativeM)).toBe(1)
+    expect(S.splitIndexAtDistance(route(), 0, D.cumulativeM)).toBe(1)
     // And the far end lands on the last interior point, never the final one.
-    expect(S.splitIndexAtDistance(day(), 9999 * MI, D.cumulativeM)).toBe(3)
+    expect(S.splitIndexAtDistance(route(), 9999 * MI, D.cumulativeM)).toBe(3)
   })
 
-  // A shorter first day is the recoverable mistake — the rider adds to it. The
+  // A shorter first route is the recoverable mistake — the rider adds to it. The
   // longer one means riding past where they meant to stop.
   it('keeps the earlier point on a tie', () => {
-    const d: Day = {
-      ...day(),
+    const d: Route = {
+      ...route(),
       points: [pt('A'), pt('B'), pt('C'), pt('D')],
       legs: [leg(100), leg(100), leg(100)],
     }

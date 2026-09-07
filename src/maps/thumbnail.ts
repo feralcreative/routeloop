@@ -1,4 +1,4 @@
-// A ride's picture of itself: geometry and day colors in, a Google Static Maps
+// A ride's picture of itself: geometry and route colors in, a Google Static Maps
 // request out. Pure — no Postgres, no fetch, no environment beyond the key
 // handed to the one function that needs it — which is what lets
 // test/thumbnail.test.ts assert the URL limit without a database. Same shape of
@@ -9,7 +9,7 @@
 // nothing and themes for free — but a bare squiggle falls flat, and the SKU is
 // inside its free tier at beta scale. See item 28 in docs/ROADMAP.md.
 import { createHash } from 'node:crypto'
-import { activeDays, type AltDay } from './alts'
+import { activeRoutes, type AltRoute } from './alts'
 
 // What Google renders: 320x200 at scale 2 is 640x400 actual pixels, which is
 // exactly the 640 cap on the Essentials tier — going wider silently drops to the
@@ -33,7 +33,7 @@ export const THUMB_SCALE = 2
 // Static Maps is GET-only and its URLs are capped at 8192 characters. This is
 // the real constraint on the whole design, and the reason simplification below
 // targets a POINT BUDGET rather than a distance tolerance: a tolerance chosen to
-// look right on a day ride blows the limit on a dense 8-day import, and the
+// look right on a short ride blows the limit on a dense 8-route import, and the
 // failure is a 4xx at fetch time rather than anything a test would have seen.
 //
 // ~330 points encodes to roughly 2 KB, measured against the dev corpus during
@@ -44,7 +44,7 @@ export const URL_MAX_CHARS = 8192
 export const POINT_BUDGET = 330
 
 // The line as drawn. Weight 3 reads at 640px wide without turning a switchback
-// into a blob; the day color carries the meaning.
+// into a blob; the route color carries the meaning.
 const PATH_WEIGHT = 3
 
 // One desaturated style for every theme, not one per theme. Item 20 brings three
@@ -70,22 +70,22 @@ const MAP_STYLES = [
   'feature:poi|visibility:off',
   'feature:transit|visibility:off',
   'feature:administrative|visibility:off',
-  // Near-neutral ground so the day colors are the only saturated thing in the
+  // Near-neutral ground so the route colors are the only saturated thing in the
   // frame. -95 rather than -100 keeps a hint of green and blue, which is what
   // stops it reading as a fax.
   'feature:all|element:geometry|saturation:-95|lightness:35',
 ]
 
-// AltDay rather than a plain `active: boolean`, so the alternate rule is read
+// AltRoute rather than a plain `active: boolean`, so the alternate rule is read
 // from src/maps/alts.ts rather than restated here. It is not the bare column: a
-// day with no group is active whatever `alt_active` says, and `activeDays()` is
+// route with no group is active whatever `alt_active` says, and `activeRoutes()` is
 // the single source of truth for that. Restating it as `d.altActive` would be a
 // second definition that could drift from the one the builder and the save path
 // share.
-export type ThumbDay = AltDay & {
-  /** The day's concatenated leg geometry, `[lng, lat]` like everywhere else. */
+export type ThumbRoute = AltRoute & {
+  /** The route's concatenated leg geometry, `[lng, lat]` like everywhere else. */
   geometry: [number, number][]
-  /** `#rrggbb`, from `days.color`. */
+  /** `#rrggbb`, from `routes.color`. */
   color: string
 }
 
@@ -117,7 +117,7 @@ function perpDist(p: [number, number], a: [number, number], b: [number, number],
   return Math.hypot(px - t * bx, py - t * by)
 }
 
-// Douglas-Peucker, iterative rather than recursive: an 8,473-point day recurses
+// Douglas-Peucker, iterative rather than recursive: an 8,473-point route recurses
 // deeply enough to be worth not finding out about in production.
 function douglasPeucker(track: [number, number][], epsilon: number, kx: number): [number, number][] {
   if (track.length < 3) return track.slice()
@@ -154,8 +154,8 @@ function douglasPeucker(track: [number, number][], epsilon: number, kx: number):
  * rather than choosing one.
  *
  * A budget is the thing the URL limit actually constrains, and no fixed
- * tolerance maps onto it: the same epsilon that leaves a 40-mile day at 60
- * points leaves an 8-day import at 4,000. Twenty iterations lands within a point
+ * tolerance maps onto it: the same epsilon that leaves a 40-mile route at 60
+ * points leaves an 8-route import at 4,000. Twenty iterations lands within a point
  * or two of the budget on every track in the dev corpus, and the loop is over
  * tolerances rather than over the track, so the cost is 20 DP passes and not
  * anything quadratic.
@@ -234,13 +234,13 @@ function pathColor(hex: string): string {
 }
 
 /**
- * Splits the point budget across the days, in proportion to how many points
+ * Splits the point budget across the routes, in proportion to how many points
  * each one actually has.
  *
- * Proportional rather than equal: a ride whose day 1 is a 300-mile slab and
- * whose day 2 is forty miles of switchbacks should not spend half its budget
- * straightening the switchbacks. Every drawn day gets at least 2 points, so a
- * short day is a line rather than nothing.
+ * Proportional rather than equal: a ride whose route 1 is a 300-mile slab and
+ * whose route 2 is forty miles of switchbacks should not spend half its budget
+ * straightening the switchbacks. Every drawn route gets at least 2 points, so a
+ * short route is a line rather than nothing.
  */
 function shareBudget(counts: number[], budget: number): number[] {
   const total = counts.reduce((a, b) => a + b, 0)
@@ -264,15 +264,15 @@ function shareBudget(counts: number[], budget: number): number[] {
  *     or an error message is exactly how it would.
  *
  * Returns null when there is nothing to draw — a ride with stops but no legs is
- * a real state, and so is one whose only days are losing alternates. The caller
+ * a real state, and so is one whose only routes are losing alternates. The caller
  * shows the color swatch instead.
  */
-export function thumbnailRequest(days: ThumbDay[]): string | null {
+export function thumbnailRequest(routes: ThumbRoute[]): string | null {
   // Losing alternates are excluded here rather than by the caller filtering the
-  // array. Only active days count and there is no single place that enforces it
+  // array. Only active routes count and there is no single place that enforces it
   // — see AGENTS.md — so a new surface has to opt in, and the safest way to opt
   // in is to make it impossible to opt out.
-  const drawn = activeDays(days).filter((d) => d.geometry.length >= 2)
+  const drawn = activeRoutes(routes).filter((d) => d.geometry.length >= 2)
   if (!drawn.length) return null
 
   const budgets = shareBudget(
@@ -287,14 +287,14 @@ export function thumbnailRequest(days: ThumbDay[]): string | null {
     ...MAP_STYLES.map((v) => `style=${encodeURIComponent(v)}`),
   ]
 
-  drawn.forEach((day, i) => {
-    const simplified = simplifyToBudget(day.geometry, budgets[i])
+  drawn.forEach((route, i) => {
+    const simplified = simplifyToBudget(route.geometry, budgets[i])
     const enc = encodePolyline(simplified)
     // `enc:` values are appended raw rather than percent-encoded. The encoded
     // polyline alphabet is printable ASCII including `\` and `?`, and Google
     // documents `enc:` as taking the raw string — encoding it here is a
     // documented way to get an empty map back.
-    params.push(`path=${encodeURIComponent(`color:${pathColor(day.color)}|weight:${PATH_WEIGHT}|`)}enc:${enc}`)
+    params.push(`path=${encodeURIComponent(`color:${pathColor(route.color)}|weight:${PATH_WEIGHT}|`)}enc:${enc}`)
   })
 
   return `/maps/api/staticmap?${params.join('&')}`
@@ -308,7 +308,7 @@ export function thumbnailUrl(request: string, key: string): string {
 /**
  * The stored fingerprint of a request.
  *
- * Everything that changes the picture — the geometry, the day colors, the size,
+ * Everything that changes the picture — the geometry, the route colors, the size,
  * the style — is already in the request string, so an identical request cannot
  * produce a different image. That is what lets the sweep skip a ride whose edit
  * did not move the route: retitling, changing a stop's dwell, flipping

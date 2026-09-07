@@ -176,7 +176,7 @@ describe('what a planner is shown', () => {
     expect(unsociableDepartures(s)).toEqual([SACRAMENTO])
   })
 
-  // The hour is read in UTC because a day's clock is a wall clock at the
+  // The hour is read in UTC because a route's clock is a wall clock at the
   // departure point carried as UTC. Converting here would be the bug that
   // comment exists to prevent.
   it('reads the hour in UTC rather than in the process zone', () => {

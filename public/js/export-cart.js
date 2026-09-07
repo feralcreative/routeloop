@@ -48,7 +48,7 @@
     });
   }
 
-  // UTC, like every other date this app prints: a day's clock is a wall clock at
+  // UTC, like every other date this app prints: a route's clock is a wall clock at
   // the departure point and is never converted into the reader's zone.
   function fmtDate(iso) {
     if (!iso) return "";

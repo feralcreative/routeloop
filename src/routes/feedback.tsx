@@ -290,7 +290,7 @@ const ContextScreen = ({ d, last }: { d: Draft; last: boolean }) => (
       {d.context}
     </textarea>
     <p class="fb-example">
-      Like: "Planning a 3-day trip through Colorado and I couldn't figure out where I'd end up each night."
+      Like: "Planning a 3-route trip through Colorado and I couldn't figure out where I'd end up each night."
     </p>
     <Carry d={d} except="context" />
     <Actions last={last} />
@@ -582,7 +582,7 @@ feedbackRoutes.get('/feedback/thanks', requireActive, async (c) => {
   const body = (
     <>
       <h1>Got it. Thanks.</h1>
-      <p class="fb-help">A real person reads every one of these — usually same day.</p>
+      <p class="fb-help">A real person reads every one of these — usually same route.</p>
       <p class="fb-help">We grabbed the technical bits automatically, so you don't have to explain any of it.</p>
       {found && <p class="fb-ref">Your report: #{found.report.id}</p>}
       {/* Deliberately NOT "it's on the board". The board is moderated, and that
@@ -726,7 +726,7 @@ feedbackRoutes.get('/feedback/:publicId', requireActive, async (c) => {
 // A worklist, not a report. It answers one question — what needs a decision —
 // and every control on it is a form that POSTs to the handler below, because a
 // moderation surface that needs JavaScript is a moderation surface that stops
-// working the day something else on the page throws.
+// working the route something else on the page throws.
 //
 // **Nothing here is rider-facing, so this is the one place `priority` is
 // rendered.** A rider seeing "your bug is P3" is a support incident; see the

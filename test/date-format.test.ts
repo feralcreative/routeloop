@@ -41,7 +41,7 @@ describe('the three digit orders', () => {
   })
 
   it('reads the same instant in UTC for every format', () => {
-    // Not the server's zone. days.start_at holds the wall-clock time the rider
+    // Not the server's zone. routes.start_at holds the wall-clock time the rider
     // typed, so reading it anywhere else shifts every printed time by the offset
     // between the server and the rider — hours wrong on a printed roadbook.
     for (const f of DATE_FORMATS) expect(fmtDateNumeric(D, f), f).toContain('24')
@@ -89,7 +89,7 @@ describe('guessing from Accept-Language', () => {
   })
 
   it('reads the region off a locale it does not stock', () => {
-    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // day first
+    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // route first
     expect(fromAcceptLanguage('fr-FR')).toBe('en-GB')
     expect(fromAcceptLanguage('pt-BR')).toBe('en-GB')
     expect(fromAcceptLanguage('ja-JP')).toBe('en-CA') // year first

@@ -11,27 +11,28 @@ import { z } from 'zod'
 // Only the transaction type is needed here; the queries all run on the `tx`
 // the caller passes in.
 import type { db } from '../db/index'
-import { days as daysTable, pointDetails, points as pointsTable, routeLegs, timeAnchorEnum } from '../db/schema'
+import { routes as routesTable, pointDetails, points as pointsTable, routeLegs, timeAnchorEnum } from '../db/schema'
 import { METERS_PER_MILE, sanitizeText, trackMeters, round6, type Track } from './kml'
 import { MAX_ROLES_PER_POINT, ROLES } from './roles'
 import { twistiness } from './twist'
 import { fields } from './fields'
-import { activeDays, resolveAltGroups } from './alts'
+import { activeRoutes, resolveAltGroups } from './alts'
 import { ensureUids } from './uid'
-import { dayRevision } from './day-revision'
+import { routeRevision } from './route-revision'
 import { normalizePrefs, routePrefsSchema } from './route-prefs'
 import { reconcileVotes } from '../votes/service'
+import { reconcileRouteRiders } from '../route-riders/service'
 import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
 
-// 31 rather than 30: a month-long ride plus the day you get home.
-export const MAX_DAYS = 31
+// 31 rather than 30: a month-long ride plus the route you get home.
+export const MAX_ROUTES = 31
 
-// One cap over both kinds now that a day is one ordered list. It is the old
+// One cap over both kinds now that a route is one ordered list. It is the old
 // MAX_STOPS plus MAX_POIS, so no ride that was legal before this change becomes
 // illegal after it — the two caps could each be met independently.
 export const MAX_POINTS = 400
-// Kept, but the reason changed on 2026-08-24. It used to bound promotion — a day
+// Kept, but the reason changed on 2026-08-24. It used to bound promotion — a route
 // of 400 POIs must not become 400 routing anchors and 399 Directions calls — and
 // that no longer applies: 400 points are 399 legs whatever their kinds, and
 // promoting one is a flag flip that routes nothing. What it still bounds is the
@@ -89,9 +90,13 @@ const pointSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   name: z.string().max(255).default(''),
+  // The place's own address, public — see points.address. Optional and
+  // defaulted, so an older tab, a native file written before this shipped and
+  // every lossy import stay valid; none of them carries one.
+  address: z.string().max(300).nullable().default(null),
   description: z.string().max(2000).default(''),
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
-  durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
+  durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 routes
   // Meaningful on a meeting point and nowhere else, and null is not zero — see
   // points.slack_min in src/db/schema.ts. Optional and defaulted so every native
   // file and every in-flight save from an older tab stays valid.
@@ -109,7 +114,7 @@ const pointSchema = z.object({
 export type PointInput = z.infer<typeof pointSchema>
 
 /**
- * The stops of a day, in order.
+ * The stops of a route, in order.
  *
  * NOT the leg math any more. Every point anchors a leg as of 2026-08-24, so this
  * survives for the surfaces that care whether a rider means to stop: the
@@ -126,14 +131,14 @@ const legSchema = z.object({
   viaPoints: z.array(lngLat).max(MAX_VIAS_PER_LEG).default([]),
 })
 
-const daySchema = z
+const routeSchema = z
   .object({
     // WHOSE DAY THIS IS, by the subgroup's uid rather than its id — the client
-    // mints a subgroup and tags days with it before the server has ever seen
+    // mints a subgroup and tags routes with it before the server has ever seen
     // one, so an id could not appear here. Null means everyone rides it, which
-    // is what every day of every ride that predates #67 carries.
+    // is what every route of every ride that predates #67 carries.
     subgroupUid: z.string().max(12).nullable().default(null),
-    // The day's durable identity — see src/maps/uid.ts. Optional and repaired
+    // The route's durable identity — see src/maps/uid.ts. Optional and repaired
     // rather than rejected, for exactly the reasons a point's is: an old tab, a
     // native JSON file written before this shipped, and every lossy import
     // arrive without one. ensureUids() settles them per ride below.
@@ -149,7 +154,7 @@ const daySchema = z
     // rider already downloaded — and every in-flight save from a tab opened
     // before this shipped — valid without a format-version bump.
     //
-    // Bounded to the day cap because the value is a partition key the server
+    // Bounded to the route cap because the value is a partition key the server
     // renumbers densely anyway (see resolveAltGroups); the bound is only here so
     // a hostile payload cannot write an arbitrary smallint into the column.
     //
@@ -161,7 +166,7 @@ const daySchema = z
       .number()
       .int()
       .min(0)
-      .max(MAX_DAYS - 1)
+      .max(MAX_ROUTES - 1)
       .nullable()
       .default(null),
     altActive: z.boolean().default(true),
@@ -176,7 +181,7 @@ const daySchema = z
   // whatever kind either end is. Ziad's call, 2026-08-24.
   //
   // This used to count in stops, and the consequence was the report that changed
-  // it: a new day with a start and one POI drew two dots and no road, because
+  // it: a new route with a start and one POI drew two dots and no road, because
   // there was nothing the router had been asked to join.
   .refine((r) => r.legs.length === Math.max(0, r.points.length - 1), {
     message: 'legs must connect consecutive points (points - 1 legs)',
@@ -184,19 +189,19 @@ const daySchema = z
   // Still capped, though it no longer bounds the leg array — MAX_POINTS does
   // that. This bounds the roadbook's numbered rows and the hand-off URL.
   .refine((r) => stopsOf(r.points).length <= MAX_STOPS, {
-    message: `a day may have at most ${MAX_STOPS} stops`,
+    message: `a route may have at most ${MAX_STOPS} stops`,
   })
-  // AT LEAST ONE STOP PER DAY. Note this is no longer about routing: a day of
+  // AT LEAST ONE STOP PER DAY. Note this is no longer about routing: a route of
   // nothing but POIs draws a complete road now, because every point anchors a
   // leg. It survives for the surfaces that count stops rather than points — the
   // roadbook numbers its rows from them, the Google Maps hand-off is built from
   // them, and `start`/`finish` are roles on a stop.
   //
-  // The builder upholds it by promoting the first point of every day on the spot,
+  // The builder upholds it by promoting the first point of every route on the spot,
   // so a rider never meets this message; it is here for a hand-written payload
   // and for a native file from some future client.
   .refine((r) => stopsOf(r.points).length >= 1, {
-    message: 'a day needs at least one stop',
+    message: 'a route needs at least one stop',
   })
 
 /** A named set of riders sharing an approach. Ids never appear in a payload —
@@ -213,31 +218,38 @@ export const ridePayload = z
     description: fields.description.default(''),
     visibility: fields.visibility.default('private'),
     external_url: fields.external_url.default(''),
-    // SUBGROUPS ARE RIDE-LEVEL, not day-level, because several days reference
+    // SUBGROUPS ARE RIDE-LEVEL, not route-level, because several routes reference
     // one and a rider is assigned to one across the whole ride. Bounded to the
-    // day cap for the same reason alt_group is: a hostile payload should not be
+    // route cap for the same reason alt_group is: a hostile payload should not be
     // able to insert an arbitrary number of rows.
-    subgroups: z.array(subgroupSchema).max(MAX_DAYS).default([]),
+    subgroups: z.array(subgroupSchema).max(MAX_ROUTES).default([]),
     // Which subgroup's clock is pinned, and whose route is the spine. Two keys
     // although the builder asks once — see rides.primary_subgroup_id.
     primarySubgroup: z.string().max(12).nullable().default(null),
     trunkSubgroup: z.string().max(12).nullable().default(null),
+    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, minutes from midnight, as a
+    // wall clock at the departure point — see rides.stop_by_min. Bounded to a
+    // real time of route so a hostile payload cannot write an arbitrary integer
+    // into the column, and nullable-with-a-default like every field added since
+    // subgroups, so a native file written before this stays valid with no
+    // format-version bump.
+    stopByMin: z.number().int().min(0).max(1439).nullable().default(null),
     timeAnchor: z.enum(timeAnchorEnum.enumValues).default('departure'),
-    days: z.array(daySchema).min(1).max(MAX_DAYS),
+    routes: z.array(routeSchema).min(1).max(MAX_ROUTES),
   })
   .refine(
-    (p) => p.days.reduce((n, r) => n + r.legs.reduce((m, l) => m + l.geometry.length, 0), 0) <= MAX_PTS_PER_RIDE,
+    (p) => p.routes.reduce((n, r) => n + r.legs.reduce((m, l) => m + l.geometry.length, 0), 0) <= MAX_PTS_PER_RIDE,
     { message: `ride exceeds ${MAX_PTS_PER_RIDE} track points` },
   )
 
 export type RidePayload = z.infer<typeof ridePayload>
 
-/** One day, on its own. Exported so a suggestion can be validated against the
- *  SAME schema the builder's save uses — a second definition of what a day is
+/** One route, on its own. Exported so a suggestion can be validated against the
+ *  SAME schema the builder's save uses — a second definition of what a route is
  *  would drift, and a suggestion that parsed here and failed on accept would be
  *  a proposal nobody could take. */
-export const dayPayload = daySchema
-export type DayPayload = z.infer<typeof daySchema>
+export const routePayload = routeSchema
+export type RoutePayload = z.infer<typeof routeSchema>
 
 // --- Integrity + persistence ----------------------------------------------
 
@@ -247,7 +259,7 @@ export type DayPayload = z.infer<typeof daySchema>
 // deviates > 15 % from the haversine length of the submitted geometry is
 // replaced by the haversine value, so spoofing is bounded.
 export function normalize(p: RidePayload): void {
-  for (const r of p.days) {
+  for (const r of p.routes) {
     r.title = sanitizeText(r.title)
     for (const s of r.points) {
       s.lat = round6(s.lat)
@@ -264,9 +276,9 @@ export function normalize(p: RidePayload): void {
   }
   // Last, and before rideTotals runs: a group of one is dissolved, exactly one
   // member of each surviving group is active, and the ids come out dense. The
-  // totals below count active days only, so the election has to have happened
+  // totals below count active routes only, so the election has to have happened
   // by the time they are computed. See src/maps/alts.ts.
-  resolveAltGroups(p.days)
+  resolveAltGroups(p.routes)
 }
 
 // Ride-level caches derived from the normalized payload.
@@ -284,7 +296,7 @@ export function rideTotals(p: RidePayload) {
   let meters = 0
   let seconds = 0
   let stops = 0
-  for (const r of activeDays(p.days)) {
+  for (const r of activeRoutes(p.routes)) {
     meters += r.legs.reduce((n, l) => n + l.distanceM, 0)
     seconds += r.legs.reduce((n, l) => n + l.durationS, 0)
     // Dwell from BOTH kinds: time spent at a viewpoint is time spent.
@@ -295,7 +307,7 @@ export function rideTotals(p: RidePayload) {
 }
 
 // Inserts the ride graph. Callers run this inside a transaction,
-// on a ride that has no days (fresh insert or after a full-replace delete).
+// on a ride that has no routes (fresh insert or after a full-replace delete).
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 /**
  * What a save does about `point_details`.
@@ -326,44 +338,44 @@ export async function insertRideGraph(
   p: RidePayload,
   detailsMode: DetailsMode = 'reconcile',
 ): Promise<void> {
-  // Collected across every day and reconciled once at the end — see
+  // Collected across every route and reconciled once at the end — see
   // writePointDetails below for why this cannot ride along with the points.
   const details: Array<{ uid: string; d: PointDetailsInput }> = []
   const liveUids: string[] = []
-  // ONE SETTLE OVER THE WHOLE RIDE, because uq_day_ride_uid is scoped to the
-  // ride. Points settle per day for the same reason theirs is scoped per day.
-  const daysWithUids = ensureUids(p.days)
-  const liveDayUids = daysWithUids.map((d) => d.uid)
-  // BEFORE THE DAYS, because days.subgroup_id is resolved through the map this
-  // returns and a payload can create a subgroup and tag a day with it in the
+  // ONE SETTLE OVER THE WHOLE RIDE, because uq_route_ride_uid is scoped to the
+  // ride. Points settle per route for the same reason theirs is scoped per route.
+  const routesWithUids = ensureUids(p.routes)
+  const liveRouteUids = routesWithUids.map((d) => d.uid)
+  // BEFORE THE DAYS, because routes.subgroup_id is resolved through the map this
+  // returns and a payload can create a subgroup and tag a route with it in the
   // same save. Reconciled by uid rather than deleted and re-inserted like every
   // other child of a ride, because ride_members.subgroup_id points at these rows
   // — see reconcileSubgroups.
   const subgroupIds = await reconcileSubgroups(tx, rideId, p.subgroups)
 
-  for (let ri = 0; ri < daysWithUids.length; ri++) {
-    const r = daysWithUids[ri]
+  for (let ri = 0; ri < routesWithUids.length; ri++) {
+    const r = routesWithUids[ri]
     const legDistM = r.legs.map((l) => l.distanceM)
     const track = r.legs.flatMap((l) => l.geometry) as Track
     const twist = twistiness(track)
-    // POINT UIDS ARE SETTLED BEFORE THE DAY IS WRITTEN, because the day's hash
-    // covers them. Settling after would hash a freshly-created day with a list
-    // of empty uids, and the next load would return the real ones — a day that
+    // POINT UIDS ARE SETTLED BEFORE THE DAY IS WRITTEN, because the route's hash
+    // covers them. Settling after would hash a freshly-created route with a list
+    // of empty uids, and the next load would return the real ones — a route that
     // conflicts with itself, permanently, on a ride nobody else has touched.
     //
 
-    // SETTLED BEFORE THE DAY IS WRITTEN, because the day's hash covers the point
-    // uids. Settling after would hash a freshly-created day with a list of empty
-    // ones, and the next load would return the real ones — a day that conflicts
+    // SETTLED BEFORE THE DAY IS WRITTEN, because the route's hash covers the point
+    // uids. Settling after would hash a freshly-created route with a list of empty
+    // ones, and the next load would return the real ones — a route that conflicts
     // with itself, permanently, on a ride nobody else has touched.
     //
-    // One settle over the whole day. The unique index is per day across both
+    // One settle over the whole route. The unique index is per route across both
     // kinds, so the lists could never have been settled separately without
     // risking a POI and a stop sharing a uid.
     const withUids = ensureUids(r.points)
 
-    const [day] = await tx
-      .insert(daysTable)
+    const [route] = await tx
+      .insert(routesTable)
       .values({
         rideId,
         position: ri,
@@ -379,33 +391,33 @@ export async function insertRideGraph(
         endAt: r.endAt ? new Date(r.endAt) : null,
         distanceM: legDistM.reduce((a, b) => a + b, 0),
         durationS: r.legs.reduce((n, l) => n + l.durationS, 0),
-        // null rather than 0 for a day with nothing to measure — see schema.ts.
+        // null rather than 0 for a route with nothing to measure — see schema.ts.
         twistinessDpm: twist?.dpm ?? null,
         twistinessBestDpm: twist?.bestDpm ?? null,
         // Written as normalize() left them. Note distance_m and duration_s above
-        // are NOT zeroed for a losing alternate: they describe that day's own
+        // are NOT zeroed for a losing alternate: they describe that route's own
         // legs, which is a true thing about it and what the viewer legend and
         // the roadbook want when they choose to show it. Only the RIDE-level
         // totals exclude it.
         altGroup: r.altGroup,
         altActive: r.altActive,
         // Normalized on the way in so `{}` and null cannot both reach the
-        // column — two spellings of one state would make dayRevision() disagree
+        // column — two spellings of one state would make routeRevision() disagree
         // with itself and manufacture a save conflict nobody caused.
         routePrefs: normalizePrefs(r.routePrefs),
         // THE ONLY PLACE A DAY IS HASHED. loadRidePayload returns this column
         // VERBATIM rather than recomputing from the rows it read, and that is
         // what makes the whole scheme safe: if the read recomputed, the write
         // shape and the read shape would have to stay identical field for field
-        // forever, and the first divergence would make every day conflict with
+        // forever, and the first divergence would make every route conflict with
         // itself on every save with nothing to point at. Stored once, echoed
         // back, compared to itself.
-        contentHash: dayRevision({ ...r, uid: r.uid, points: withUids }),
+        contentHash: routeRevision({ ...r, uid: r.uid, points: withUids }),
       })
       .returning()
 
     // Cumulative distance is the prefix sum of leg distances, and `prefix[i]` is
-    // how far into the day `points[i]` sits.
+    // how far into the route `points[i]` sits.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
     // ONE ALGORITHM FOR BOTH KINDS, where there used to be two. A stop's
@@ -417,13 +429,14 @@ export async function insertRideGraph(
     // projection is null on a trackless import. Promotion no longer changes a
     // point's stored distance either, which is one fewer thing a flag flip does.
     const pointRows = withUids.map((s, i) => ({
-      dayId: day.id,
+      routeId: route.id,
       kind: s.kind,
       // The rider's order, dense over both kinds.
       position: i,
       lat: s.lat,
       lng: s.lng,
       name: s.name,
+      address: s.address || null,
       description: s.description || null,
       roles: s.roles,
       durationMin: s.durationMin,
@@ -441,7 +454,7 @@ export async function insertRideGraph(
     if (r.legs.length > 0) {
       await tx.insert(routeLegs).values(
         r.legs.map((l, i) => ({
-          dayId: day.id,
+          routeId: route.id,
           position: i,
           geometry: l.geometry as Track,
           distanceM: l.distanceM,
@@ -454,7 +467,7 @@ export async function insertRideGraph(
 
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
-  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor)
+  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor, p.stopByMin)
   if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
   // THE THIRD RECONCILIATION, AND THE ONE THAT GOES THE OTHER WAY. The two
   // around it DELETE what has lost its uid; this one clears the anchor and keeps
@@ -462,11 +475,22 @@ export async function insertRideGraph(
   // those — see the table's own comment in schema.ts. It runs whoever is saving,
   // owner or editor: a demotion loses nothing, so there is no `preserve` case.
   await demoteOrphanComments(tx, rideId, liveUids)
-  // Same reconciliation, one level up. A vote whose day left the payload has to
+  // Same reconciliation, one level up. A vote whose route left the payload has to
   // go, or a deleted alternate keeps counting toward a tally forever — the
   // identical trap point_details carries, for the identical reason: alt_votes
-  // cascades from `rides`, so a save that deletes every day takes none of them.
-  await reconcileVotes(tx, rideId, liveDayUids)
+  // cascades from `rides`, so a save that deletes every route takes none of them.
+  await reconcileVotes(tx, rideId, liveRouteUids)
+  // THE FOURTH, and the same trap a fourth time: `route_riders` keys on routes.uid
+  // and cascades from `rides`, so a route that leaves the payload takes none of
+  // its roster with it. Left alone, a deleted route keeps saying who was on it
+  // — and a uid that later gets reused inherits a set nobody chose.
+  //
+  // It runs for EVERY saver, owner or editor, like the comment demotion above
+  // and unlike point_details. There is no `preserve` case because there is
+  // nothing private here to destroy: who is on a route is already visible to
+  // everyone the roster is visible to, so an editor's save carries the same
+  // rows the owner's would.
+  await reconcileRouteRiders(tx, rideId, liveRouteUids)
 }
 
 // Empty string to null, so clearing a field removes the value rather than
@@ -480,10 +504,10 @@ const orNull = (v: string): string | null => {
 /**
  * Reconciles a ride's private stop details against the payload just written.
  *
- * This runs AFTER the day loop and outside it, and both matter.
+ * This runs AFTER the route loop and outside it, and both matter.
  *
  * `point_details` is keyed by `(ride_id, uid)` and cascades from `rides`, not
- * from `days` — so the `delete(days)` that opens every save does NOT take it
+ * from `routes` — so the `delete(routes)` that opens every save does NOT take it
  * with it, which is the whole reason a stop's confirmation number survives a
  * save at all. The flip side is that nothing else cleans it up: a stop the rider
  * deleted leaves its details behind forever unless this removes them. Hence the

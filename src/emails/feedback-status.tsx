@@ -85,7 +85,7 @@ export const feedbackStatusEmail = defineEmail<Props>({
     statusLabel: 'Built and live',
     statusSub: 'Go try it',
     title: 'Show me where I would end up each night',
-    response: 'Day-end towns now show on the timeline.',
+    response: 'Route-end towns now show on the timeline.',
     publicId: '0XpUREEtUt4FwTnE9c1cYf',
     onBoard: true,
   },

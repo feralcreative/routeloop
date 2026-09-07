@@ -120,7 +120,7 @@ export const canComment = (m: MemberFields | null): boolean => atLeast(m, 'comme
 export const canSuggest = (m: MemberFields | null): boolean => atLeast(m, 'suggest')
 
 /**
- * Whether `m` may write to the ride itself — days, points, legs, alts.
+ * Whether `m` may write to the ride itself — routes, points, legs, alts.
  *
  * Named for the membership question rather than called `canEditRide`, because
  * src/routes/maps.ts already exports that name for the OWNERSHIP question the

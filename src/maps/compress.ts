@@ -1,6 +1,6 @@
 // Stored originals are kept brotli-compressed on disk.
 //
-// WHY BROTLI AND NOT GZIP. Measured on a real 8-day GPX import in `storage/`:
+// WHY BROTLI AND NOT GZIP. Measured on a real 8-route GPX import in `storage/`:
 // 834,594 B raw, 115,046 B at gzip -9, 59,895 B at brotli q11 — 7.3x against
 // 13.9x. Both codecs are in Node core, so the better ratio costs nothing but the
 // compression time, and that is paid once at import rather than on every read.
@@ -35,7 +35,7 @@ export const BR_EXT = '.br'
  * A ceiling on what one file may decompress to.
  *
  * These are files this app wrote, not attacker-supplied archives, so this is not
- * the defence that `src/maps/zip.ts` needs on the way in — it is a guard against
+ * the defense that `src/maps/zip.ts` needs on the way in — it is a guard against
  * a corrupt or hand-edited file turning a download into an out-of-memory. Set
  * from the import body limit rather than invented: nothing larger than that
  * could have been stored in the first place.

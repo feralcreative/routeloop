@@ -2,12 +2,13 @@ import 'dotenv/config'
 import { access, readFile } from 'node:fs/promises'
 import { newUid } from '../maps/uid'
 import { seedOwner } from '../members/service'
+import { seedMainGroup } from '../subgroups/service'
 import { sql } from 'drizzle-orm'
 import { db } from './index'
-import { users, rides, days, points, routeLegs } from './schema'
+import { users, rides, routes, points, routeLegs } from './schema'
 import { METERS_PER_MILE, processKml } from '../maps/kml'
 import { mapFilePath, readMapFile } from '../maps/storage'
-import { splitDayTrack } from '../maps/track-split'
+import { splitRouteTrack } from '../maps/track-split'
 
 // Dev seed: one user + the sample ride, structured rows extracted from a real
 // KML — so dev exercises the same rows the import pipeline and the builder
@@ -65,7 +66,7 @@ async function main() {
   if (kml.track.length < 2) throw new Error(`${kmlPath} has no usable track`)
 
   // ONE LEG PER PAIR OF POINTS, cut from the KML track — the same shape the
-  // import path writes, and the shape daySchema requires.
+  // import path writes, and the shape routeSchema requires.
   //
   // This used to write the whole track as a SINGLE leg alongside N stops, which
   // was the pre-track-split import shape: a seeded sample ride could not be
@@ -75,7 +76,7 @@ async function main() {
   // Computed up here with the parse rather than after the inserts, so the ride's
   // stop_count can be taken from it — and so anything it can throw on throws
   // while the database is still intact.
-  const split = splitDayTrack(kml.track, kml.points)
+  const split = splitRouteTrack(kml.track, kml.points)
 
   await db.execute(sql`TRUNCATE rides, user_identities, users RESTART IDENTITY CASCADE`)
 
@@ -99,7 +100,7 @@ async function main() {
       source: 'imported',
       gpxPresent: true,
       totalMiles: (kml.trackMeters / METERS_PER_MILE).toFixed(1),
-      // The stops of the SPLIT list, not the raw KML waypoint count. splitDayTrack
+      // The stops of the SPLIT list, not the raw KML waypoint count. splitRouteTrack
       // can synthesize an endpoint, and a point it places is not necessarily a
       // stop — so the raw count drifts from what rideTotals() would compute for
       // the same ride.
@@ -110,9 +111,12 @@ async function main() {
     .returning()
 
   await seedOwner(db, ride.id, u.id)
+  // The sample ride gets its main group too, so a seeded database looks like
+  // one the app made rather than one missing a thing every real ride has.
+  await seedMainGroup(db, ride.id)
 
   const [route] = await db
-    .insert(days)
+    .insert(routes)
     .values({ rideId: ride.id, position: 0, uid: newUid(), color: '#0066cc', distanceM: distM })
     .returning()
 
@@ -122,7 +126,7 @@ async function main() {
   if (split.points.length > 0) {
     await db.insert(points).values(
       split.points.map((p, i) => ({
-        dayId: route.id,
+        routeId: route.id,
         kind: p.kind === 'poi' ? ('poi' as const) : ('stop' as const),
         position: i,
         uid: newUid(),
@@ -136,9 +140,11 @@ async function main() {
     )
   }
   if (split.legs.length > 0) {
-    await db.insert(routeLegs).values(
-      split.legs.map((l, i) => ({ dayId: route.id, position: i, geometry: l.geometry, distanceM: l.distanceM })),
-    )
+    await db
+      .insert(routeLegs)
+      .values(
+        split.legs.map((l, i) => ({ routeId: route.id, position: i, geometry: l.geometry, distanceM: l.distanceM })),
+      )
   }
 
   console.log(

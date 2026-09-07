@@ -6,7 +6,7 @@
 // be one small file somebody can read in full.
 //
 // WHAT IT ACTUALLY CHANGES is which alternate counts toward a ride: `alt_active`
-// and nothing else. It never deletes, never routes, and never touches a day that
+// and nothing else. It never deletes, never routes, and never touches a route that
 // is not part of a group. A ride with no deadline is never selected at all —
 // `alt_votes_close_at` is null for every ride that existed before this landed
 // and for every ride whose owner has not asked for one.
@@ -26,7 +26,7 @@ export const RESOLVE_SWEEP_INTERVAL_MS = 10 * 60_000
 export const MAX_RESOLVE_PER_SWEEP = 50
 
 /**
- * Resolve every ride whose vote has closed, returning how many days changed.
+ * Resolve every ride whose vote has closed, returning how many routes changed.
  *
  * **`alt_votes_close_at` IS CLEARED AS PART OF RESOLVING**, and that is what
  * makes this idempotent: a ride is selected because it has a deadline in the

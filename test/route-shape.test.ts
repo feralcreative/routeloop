@@ -98,6 +98,62 @@ describe('nearestVertexIndex', () => {
   })
 })
 
+describe('snapToTrack', () => {
+  // A due-east road along the equator, so degrees and meters stay legible.
+  const ROAD = [
+    [0, 0],
+    [0.01, 0],
+    [0.02, 0],
+  ]
+
+  it('pulls a point off the road onto the perpendicular foot', () => {
+    const hit = S.snapToTrack(ROAD, [0.005, 0.001], 0)
+    expect(hit.lngLat).toEqual([0.005, 0])
+    expect(hit.segmentIndex).toBe(0)
+  })
+
+  it('projects onto a segment rather than snapping to a vertex', () => {
+    // The nearest VERTEX is 0.01 away; the nearest point on the road is not.
+    const hit = S.snapToTrack(ROAD, [0.0151, 0.0005], 0)
+    expect(hit.lngLat).toEqual([0.0151, 0])
+    expect(S.nearestVertexIndex(ROAD, [0.0151, 0.0005])).toBe(2)
+  })
+
+  it('clamps to the ends rather than running off them', () => {
+    expect(S.snapToTrack(ROAD, [-0.5, 0.001], 0).lngLat).toEqual([0, 0])
+    expect(S.snapToTrack(ROAD, [0.5, 0.001], 0).lngLat).toEqual([0.02, 0])
+  })
+
+  it('leaves a point already on the road where it is', () => {
+    const hit = S.snapToTrack(ROAD, [0.015, 0], 0)
+    expect(hit.lngLat).toEqual([0.015, 0])
+  })
+
+  it('honors the order floor, so two vias cannot swap', () => {
+    // Both drops are nearest the FIRST segment, but the second must not be
+    // allowed to land behind the first — that is the bow tie.
+    const first = S.snapToTrack(ROAD, [0.006, 0.001], 0)
+    const second = S.snapToTrack(ROAD, [0.004, 0.001], first.segmentIndex)
+    expect(second.lngLat[0]).toBeGreaterThanOrEqual(0.004)
+    expect(second.segmentIndex).toBeGreaterThanOrEqual(first.segmentIndex)
+  })
+
+  it('survives a duplicated vertex', () => {
+    const withDup = [
+      [0, 0],
+      [0.01, 0],
+      [0.01, 0],
+      [0.02, 0],
+    ]
+    expect(S.snapToTrack(withDup, [0.01, 0.001], 0).lngLat).toEqual([0.01, 0])
+  })
+
+  it('has nothing to say about a track with fewer than two vertices', () => {
+    expect(S.snapToTrack([], [0, 0], 0)).toBe(null)
+    expect(S.snapToTrack([[0, 0]], [0, 0], 0)).toBe(null)
+  })
+})
+
 describe('viaInsertIndex', () => {
   const span = { startIndex: 0, endIndex: 30 }
 
@@ -182,7 +238,7 @@ describe('pointAtDistance', () => {
     expect(p[0]).toBeCloseTo(1.5, 4)
   })
 
-  // Dropping a POI below every other row asks for the end of the day, and
+  // Dropping a POI below every other row asks for the end of the route, and
   // builder.js passes Infinity to say so.
   it('clamps past the end rather than running off it', () => {
     expect(S.pointAtDistance(EAST, DEG_M * 99)).toEqual([3, 0])
@@ -304,5 +360,59 @@ describe('circlePath', () => {
     expect(S.circlePath(center, 0)).toBeNull()
     expect(S.circlePath(center, -5)).toBeNull()
     expect(S.circlePath(null, 100)).toBeNull()
+  })
+})
+
+// Re-joining a route after points are removed.
+//
+// This is the arithmetic that decides whether a rider's hand-drawn shaping
+// points survive a delete. Getting it wrong is silent both ways: too wide a
+// span throws away a leg nothing touched (and pays the router to redraw it),
+// too narrow a one drops the vias of a leg that was swallowed.
+describe('rejoinSpans', () => {
+  it('leaves an untouched route as one span per leg', () => {
+    expect(S.rejoinSpans(4, [])).toEqual([
+      { from: 0, to: 0 },
+      { from: 1, to: 1 },
+      { from: 2, to: 2 },
+    ])
+  })
+
+  // Removing point 2 of 0..3 merges legs 1 and 2 into one and leaves leg 0 alone.
+  it('merges the two legs either side of a removed point', () => {
+    expect(S.rejoinSpans(4, [2])).toEqual([
+      { from: 0, to: 0 },
+      { from: 1, to: 2 },
+    ])
+  })
+
+  // The ends are not a merge: there is only ever one leg to lose.
+  it('drops one leg at either end of the route', () => {
+    expect(S.rejoinSpans(4, [0])).toEqual([
+      { from: 1, to: 1 },
+      { from: 2, to: 2 },
+    ])
+    expect(S.rejoinSpans(4, [3])).toEqual([
+      { from: 0, to: 0 },
+      { from: 1, to: 1 },
+    ])
+  })
+
+  it('swallows every leg across a run of removed points', () => {
+    expect(S.rejoinSpans(6, [1, 2, 3])).toEqual([
+      { from: 0, to: 3 },
+      { from: 4, to: 4 },
+    ])
+  })
+
+  it('takes the removals in any order, and repeated', () => {
+    expect(S.rejoinSpans(6, [3, 1, 3, 2])).toEqual(S.rejoinSpans(6, [1, 2, 3]))
+  })
+
+  it('has no spans when fewer than two points survive', () => {
+    expect(S.rejoinSpans(3, [0, 1])).toEqual([])
+    expect(S.rejoinSpans(3, [0, 1, 2])).toEqual([])
+    expect(S.rejoinSpans(1, [])).toEqual([])
+    expect(S.rejoinSpans(0, [])).toEqual([])
   })
 })

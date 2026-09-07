@@ -1,5 +1,5 @@
 // The unified ride viewer: renders ride.json (window.TB.rideUrl) on Google Maps.
-// Ports the legacy legend/day-table behavior: per-day visibility
+// Ports the legacy legend/route-table behavior: per-route visibility
 // checkboxes, mileage, hover highlight/dim, download buttons, arrow toggle.
 (function () {
   "use strict";
@@ -48,7 +48,7 @@
   // computing them, so it never touches window.TBTwist.twistiness itself.
   const { twistLabel } = window.TBTwist;
 
-  // Numbering and the active-day filter. The server has already resolved the
+  // Numbering and the active-route filter. The server has already resolved the
   // grouping before ride.json is written, so the viewer only ever reads — it
   // never calls resolveAltGroups. See public/js/alts.js.
   const ALT = window.TBAlt;
@@ -64,13 +64,13 @@
     // because it is the answer the scrubber was given a range for — a reader
     // who finds a 300-mile circle in the way turns it off.
     ringOn: true,
-    // per day: { visible, markers: [{ marker, el }] } — the element is kept
+    // per route: { visible, markers: [{ marker, el }] } — the element is kept
     // alongside the marker because dimming and hiding are CSS on our own DOM,
     // not map state.
-    days: [],
+    routes: [],
     // The timeline's position in epoch seconds, or null for "no moment chosen".
     moment: null,
-    // The day the pointer is over, if any. Hovering is a momentary question —
+    // The route the pointer is over, if any. Hovering is a momentary question —
     // "which one is this?" — so while it lasts it outranks the timeline, and
     // releasing it puts the timeline's emphasis straight back.
     hover: null,
@@ -78,7 +78,7 @@
 
   function allTrackPoints() {
     const pts = [];
-    for (const r of state.ride.days) {
+    for (const r of state.ride.routes) {
       // NOT `pts.push(...r.track)`. Spread passes every element as its own
       // ARGUMENT, so a long track blows the engine's argument limit — roughly
       // 65k in Safari and 125k in V8 — and throws
@@ -96,17 +96,17 @@
     return pts;
   }
 
-  function place(day, point, kind, mileage) {
-    const el = markerElement(point, day.color, kind);
+  function place(route, point, kind, mileage) {
+    const el = markerElement(point, route.color, kind);
     const marker = addMarker(state.map, [point.lng, point.lat], el, { title: point.name || "" });
-    attachPopup(state.map, marker, popupHtml(point, day.color, mileage));
+    attachPopup(state.map, marker, popupHtml(point, route.color, mileage));
     return { marker, el };
   }
 
-  function renderDay(i, day) {
+  function renderRoute(i, route) {
     const rs = { visible: true, markers: [] };
-    state.days[i] = rs;
-    if (day.track.length >= 2) addRouteLayers(state.map, i, day.track, day.color);
+    state.routes[i] = rs;
+    if (route.track.length >= 2) addRouteLayers(state.map, i, route.track, route.color);
 
     // ONE LOOP OVER ONE LIST. ride.json sent `stops` and `pois` as two arrays
     // until 2026-08-24 and this walked them separately, which meant a POI's
@@ -114,57 +114,57 @@
     // Every point is on the road now, so they all go through stopMileages in the
     // rider's order and a POI carrying a `gas` role resets the range like any
     // other point would.
-    const mileages = stopMileages(day.points);
-    day.points.forEach((point, i) => {
-      rs.markers.push(place(day, point, point.kind, mileages[i]));
+    const mileages = stopMileages(route.points);
+    route.points.forEach((point, i) => {
+      rs.markers.push(place(route, point, point.kind, mileages[i]));
     });
   }
 
   function setVisible(i, visible) {
-    state.days[i].visible = visible;
+    state.routes[i].visible = visible;
     setRouteVisible(state.map, i, visible, state.arrowsOn);
-    state.days[i].markers.forEach(({ el }) => {
+    state.routes[i].markers.forEach(({ el }) => {
       el.style.display = visible ? "" : "none";
     });
-    // Hiding a day drops any leg highlight in the engine, so repaint rather
+    // Hiding a route drops any leg highlight in the engine, so repaint rather
     // than assume the timeline's emphasis survived.
     paintFocus();
   }
 
   // The one place emphasis is decided. Hovering a legend row and scrubbing the
-  // timeline both want to single a day out, so they resolve here instead of
+  // timeline both want to single a route out, so they resolve here instead of
   // fighting over setRouteDim — before this, leaving a hovered row undimmed
   // everything and silently threw the timeline's state away.
   function paintFocus() {
-    const active = state.moment == null ? null : activeAtMoment(state.ride.days, state.moment);
+    const active = state.moment == null ? null : activeAtMoment(state.ride.routes, state.moment);
     const hovering = state.hover != null;
-    const lit = hovering ? state.hover : active && active.dayIndex;
+    const lit = hovering ? state.hover : active && active.routeIndex;
     const dimming = hovering || active != null;
 
     // WHOSE PATH THIS READER IS ON. `mySubgroup` is derived server-side from
     // membership — #67's "highlight my path" without anybody being asked — and
     // is null for a planner, a stranger with the link, and a rider in no group.
-    // A day belonging to somebody else's approach is dimmed the same way an
-    // unfocused day is, and STAYS dimmed while hovering or scrubbing: it is a
-    // fact about the day rather than about what is focused, like ghosting.
+    // A route belonging to somebody else's approach is dimmed the same way an
+    // unfocused route is, and STAYS dimmed while hovering or scrubbing: it is a
+    // fact about the route rather than about what is focused, like ghosting.
     //
-    // The whole shape is still drawn. ride.json tags every day rather than
+    // The whole shape is still drawn. ride.json tags every route rather than
     // filtering, for exactly this reason — feeders converging and the trunk
     // drawn once is the picture, and a filtered payload could not make it.
     const mine = state.ride.mySubgroup || null;
     const focusing = mine != null;
 
-    state.ride.days.forEach((r, j) => {
+    state.ride.routes.forEach((r, j) => {
       const theirs = focusing && r.subgroupUid != null && r.subgroupUid !== mine;
       const dim = theirs || (dimming && j !== lit);
       const ghost = r.altGroup != null && !r.altActive;
       setRouteDim(state.map, j, dim);
-      // Ghosting is a fact about the day, not about what is focused, so it is
+      // Ghosting is a fact about the route, not about what is focused, so it is
       // set here alongside dim rather than once at load: rebuildLayers-style
-      // churn aside, this is the one function that owns how a day looks.
+      // churn aside, this is the one function that owns how a route looks.
       setRouteGhost(state.map, j, ghost);
-      state.days[j].markers.forEach(({ el }) => {
-        // A ghost's pins go quieter than a dimmed day's and stay that way when
+      state.routes[j].markers.forEach(({ el }) => {
+        // A ghost's pins go quieter than a dimmed route's and stay that way when
         // it is the focused one — the line is dashed underneath them, and full
         // -strength markers on a dashed line read as the route you are riding.
         el.style.opacity = ghost ? "0.25" : dim ? "0.3" : "";
@@ -173,18 +173,18 @@
 
     // The leg highlight answers "where is the rider at this moment", which a
     // hover is not asking — so a hover suppresses it rather than leaving a
-    // bright leg stranded on a day the pointer is not on.
-    const day = !hovering && active && active.dayIndex != null ? state.ride.days[active.dayIndex] : null;
-    const leg = day && active.legIndex != null ? day.legs[active.legIndex] : null;
-    if (leg) setLegHighlight(state.map, active.dayIndex, leg.startIndex, leg.endIndex);
+    // bright leg stranded on a route the pointer is not on.
+    const route = !hovering && active && active.routeIndex != null ? state.ride.routes[active.routeIndex] : null;
+    const leg = route && active.legIndex != null ? route.legs[active.legIndex] : null;
+    if (leg) setLegHighlight(state.map, active.routeIndex, leg.startIndex, leg.endIndex);
     else clearLegHighlight(state.map);
 
     // A HOVER SUPPRESSES THE DOT, exactly as it suppresses the highlight above,
-    // and for the same reason: hovering a legend row asks "which day is this",
+    // and for the same reason: hovering a legend row asks "which route is this",
     // which is not a question about where anybody would be at any moment.
     //
     // CLEARED HERE RATHER THAN BY PASSING NULL: null now means "no moment
-    // chosen", which paintMoment draws at the start of the first day, and that
+    // chosen", which paintMoment draws at the start of the first route, and that
     // is the opposite of suppression.
     if (hovering) setMomentOverlay(state.map, null);
     else paintMoment(active);
@@ -194,7 +194,7 @@
    * The moment dot, the fuel ring around it, and where the tank runs dry.
    *
    * THE RING'S RADIUS IS THE FUEL LEFT — see public/js/range-circle.js. Mirrors
-   * paintMoment() in builder.js; the two differ only in where the day's track
+   * paintMoment() in builder.js; the two differ only in where the route's track
    * and the range come from, which is why the arithmetic is in a shared module
    * rather than written twice.
    */
@@ -203,14 +203,14 @@
     // the note on paintMoment() in builder.js. `state.moment` is null until a
     // reader drags, and drawing nothing until then hid the range ring, the E
     // markers and the closed stretch behind a gesture nobody was told to make.
-    const at = active || { dayIndex: 0, pointIndex: 0, legIndex: null, legFraction: null };
-    const day = at.dayIndex != null ? state.ride.days[at.dayIndex] : null;
+    const at = active || { routeIndex: 0, pointIndex: 0, legIndex: null, legFraction: null };
+    const route = at.routeIndex != null ? state.ride.routes[at.routeIndex] : null;
     active = at;
-    const track = day && day.track;
+    const track = route && route.track;
     if (!track || !track.length) return setMomentOverlay(state.map, null);
 
-    const cum = DIST.cumulativeM(day);
-    const distM = RANGE.distanceAtMoment(day, active, cum);
+    const cum = DIST.cumulativeM(route);
+    const distM = RANGE.distanceAtMoment(route, active, cum);
     if (distM == null) return setMomentOverlay(state.map, null);
     const here = pointAtDistance(track, distM);
     if (!here) return setMomentOverlay(state.map, null);
@@ -228,16 +228,16 @@
     // when they want the route back. Everything range-derived is behind it now;
     // the moment dot is not, because where the rider is is not a fuel fact.
     const on = state.ringOn;
-    const reach = on ? RANGE.fuelReachM(day, distM, cum, role, range) : null;
+    const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
     const walls = on
-      ? RANGE.dryDistancesM(day, distM, cum, role, range)
+      ? RANGE.dryDistancesM(route, distM, cum, role, range)
           .map((d) => pointAtDistance(track, d))
           .filter(Boolean)
       : [];
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
-    const gap = on ? RANGE.dryStretch(day, distM, cum, role, range) : null;
+    const gap = on ? RANGE.dryStretch(route, distM, cum, role, range) : null;
     setMomentOverlay(
       state.map,
       here,
@@ -248,7 +248,7 @@
       // quarters — the ring is the one part of the fuel overlay that is a
       // quantity rather than a verdict. Computed even when the overlay is off,
       // which costs nothing and keeps the tone right the instant it comes back.
-      RANGE.ringTone(RANGE.tankUsed(day, distM, cum, role, range)),
+      RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range)),
     );
   }
 
@@ -262,7 +262,7 @@
    * has to be a polyline — google.maps.Circle has no dash support at all.
    *
    * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
-   * day the rider runs dry on and they are not on a day they do not — see
+   * route the rider runs dry on and they are not on a route they do not — see
    * fuelReachM(), and note that drawing this from the wall is what made the
    * ring disappear for good after a rider's last refuel.
    */
@@ -284,7 +284,7 @@
   function renderTimeline() {
     const wrap = document.getElementById("ride-timeline");
     if (!wrap) return; // legacy shell renders no timeline
-    const span = rideSpan(state.ride.days);
+    const span = rideSpan(state.ride.routes);
     // A ride nobody has dated has no timeline to offer, and an empty slider
     // would be a control that does nothing. Hidden outright rather than
     // disabled — unlike the builder, a viewer cannot fix it by typing a date.
@@ -295,13 +295,13 @@
     const slider = document.getElementById("time-slider");
     const readout = document.getElementById("time-readout");
     // THE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK. rideSpan() is
-    // first-departure to last-arrival, so on a multi-day ride most of the
+    // first-departure to last-arrival, so on a multi-route ride most of the
     // travel was nights in hotels — the reader spent more of the drag in
-    // "between days", with nothing on the map, than on the road. The value is
-    // an OFFSET into the concatenated day spans; `state.moment` stays an epoch
+    // "between routes", with nothing on the map, than on the road. The value is
+    // an OFFSET into the concatenated route spans; `state.moment` stays an epoch
     // second, because everything downstream reads wall clock. See
     // rideSegments() in ride-time.js.
-    const segs = rideSegments(state.ride.days);
+    const segs = rideSegments(state.ride.routes);
     slider.min = "0";
     slider.max = String(segmentsTotalS(segs));
     slider.value = String(state.moment == null ? 0 : offsetAtMoment(segs, state.moment));
@@ -318,21 +318,27 @@
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
     }
-    const a = activeAtMoment(state.ride.days, state.moment);
-    const multi = state.ride.days.length > 1;
-    const dayName = (i) => state.ride.days[i].title || (multi ? "Day " + (i + 1) : state.ride.title);
+    const a = activeAtMoment(state.ride.routes, state.moment);
+    const multi = state.ride.routes.length > 1;
+    const routeName = (i) => state.ride.routes[i].title || (multi ? "Route " + (i + 1) : state.ride.title);
     let what;
-    if (a.dayIndex == null) {
-      what = "between days";
+    if (a.routeIndex == null) {
+      what = "between routes";
     } else if (a.legIndex != null) {
-      what = dayName(a.dayIndex) + SEP + "leg " + (a.legIndex + 1) + " of " + state.ride.days[a.dayIndex].legs.length;
+      what =
+        routeName(a.routeIndex) +
+        SEP +
+        "leg " +
+        (a.legIndex + 1) +
+        " of " +
+        state.ride.routes[a.routeIndex].legs.length;
     } else {
-      // ONE INDEX into the day's own points array, matching what the builder
+      // ONE INDEX into the route's own points array, matching what the builder
       // reads. It used to be a stopIndex or a poiIndex, each into its own
       // filtered array — see the note in ride-time.js on why that is a trap.
-      const pt = a.pointIndex == null ? null : state.ride.days[a.dayIndex].points[a.pointIndex];
+      const pt = a.pointIndex == null ? null : state.ride.routes[a.routeIndex].points[a.pointIndex];
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
-      what = dayName(a.dayIndex) + SEP + "at " + ((pt && pt.name) || fallback);
+      what = routeName(a.routeIndex) + SEP + "at " + ((pt && pt.name) || fallback);
     }
     say(fmtMoment(state.moment) + SEP + what);
   }
@@ -341,7 +347,7 @@
     const slider = document.getElementById("time-slider");
     if (!slider) return;
     slider.addEventListener("input", () => {
-      state.moment = momentAtOffset(rideSegments(state.ride.days), Number(slider.value));
+      state.moment = momentAtOffset(rideSegments(state.ride.routes), Number(slider.value));
       paintFocus();
       renderTimeline();
     });
@@ -380,7 +386,7 @@
 
   function dlButton(href, label, download, title) {
     return (
-      '<a class="day-dl-btn" href="' +
+      '<a class="route-dl-btn" href="' +
       esc(href) +
       '"' +
       (title ? ' title="' + esc(title) + '"' : "") +
@@ -392,7 +398,7 @@
   }
 
   // The numbers behind the label, on hover. The best stretch is only mentioned
-  // when it is meaningfully better than the day as a whole — on a uniformly
+  // when it is meaningfully better than the route as a whole — on a uniformly
   // twisty road it is the same figure twice.
   function twistDetail(r) {
     // Converted for display; the BAND LABEL beside it is looked up from the mile
@@ -411,18 +417,18 @@
   }
 
   function buildLegend() {
-    const table = document.querySelector(".day-table");
+    const table = document.querySelector(".route-table");
     if (!table) return;
-    const days = state.ride.days;
-    const multi = days.length > 1;
-    // "Day 3" / "Day 3b" rather than the row index — a ride with two alternates
-    // for Thursday has more rows than it has days, and numbering by row would
+    const routes = state.ride.routes;
+    const multi = routes.length > 1;
+    // "Route 3" / "Route 3b" rather than the row index — a ride with two alternates
+    // for Thursday has more rows than it has routes, and numbering by row would
     // say it is longer than it is. See public/js/alts.js.
-    const ordinals = ALT.dayOrdinals(days);
-    const anyAlt = days.some((r) => r.altGroup != null);
-    table.innerHTML = days
+    const ordinals = ALT.routeOrdinals(routes);
+    const anyAlt = routes.some((r) => r.altGroup != null);
+    table.innerHTML = routes
       .map((r, i) => {
-        const name = r.title || (multi ? "Day " + ordinals[i] : state.ride.title);
+        const name = r.title || (multi ? "Route " + ordinals[i] : state.ride.title);
         const ghost = r.altGroup != null && !r.altActive;
         // BOTH MEMBERS ARE BADGED, not only the loser. A single "alternate" tag
         // on one row leaves the reader wondering what it is an alternate TO;
@@ -430,12 +436,14 @@
         const badge =
           r.altGroup == null
             ? ""
-            : '<span class="day-alt' +
+            : '<span class="route-alt' +
               (ghost ? "" : " is-on") +
               '" title="' +
               (ghost
-                ? "An alternative to day " + esc(ordinals[i].replace(/[a-z]+$/, "")) + ". Not counted in the ride total."
-                : "The route counted in the ride total. This day has alternatives.") +
+                ? "An alternative to route " +
+                  esc(ordinals[i].replace(/[a-z]+$/, "")) +
+                  ". Not counted in the ride total."
+                : "The route counted in the ride total. This one has alternatives.") +
               '">' +
               (ghost ? "alternative" : "riding this") +
               "</span>";
@@ -443,46 +451,46 @@
         // being edited, so the stored figure is current by definition. The
         // builder does the opposite, and twist.js says why.
         //
-        // Null means nothing has measured this day — a row stored before the
+        // Null means nothing has measured this route — a row stored before the
         // column existed, or one with no geometry. Rendering null as "Straight"
         // would be a claim the data does not support, so it says nothing.
         const twist = twistLabel(r.twistinessDpm)
-          ? '<span class="day-twist" title="' +
+          ? '<span class="route-twist" title="' +
             esc(twistDetail(r)) +
             '">' +
             esc(twistLabel(r.twistinessDpm)) +
             "</span>"
           : "";
-        // The group's own name and color, on days that belong to one. Nothing at
+        // The group's own name and color, on routes that belong to one. Nothing at
         // all on a ride with no subgroups, which is nearly every ride.
         const group = (state.ride.subgroups || []).find((g) => g.uid === r.subgroupUid) || null;
         const groupBadge = group
-          ? '<span class="day-group" style="--sg-color:' + esc(group.color) + '">' + esc(group.name) + "</span>"
+          ? '<span class="route-group" style="--sg-color:' + esc(group.color) + '">' + esc(group.name) + "</span>"
           : "";
         return (
-          '<tr class="day-row' +
+          '<tr class="route-row' +
           (ghost ? " is-alt" : "") +
           (group && state.ride.mySubgroup && group.uid !== state.ride.mySubgroup ? " is-theirs" : "") +
           '" data-i="' +
           i +
           '">' +
-          '<td><label class="day-toggle" style="--day-color:' +
+          '<td><label class="route-toggle" style="--route-color:' +
           esc(r.color) +
           '">' +
           '<input type="checkbox" checked data-i="' +
           i +
           '">' +
-          '<span class="day-name">' +
+          '<span class="route-name">' +
           esc(name) +
           "</span></label>" +
           badge +
           groupBadge +
           twist +
           "</td>" +
-          // The day's own mileage either way. A losing alternate really is that
+          // The route's own mileage either way. A losing alternate really is that
           // long — it is just not part of the ride, which is what the badge and
           // the total below say.
-          '<td class="day-miles">' +
+          '<td class="route-miles">' +
           U.distanceFromMiles(Number(r.distanceMi), UNITS).toFixed(1) +
           " " +
           U.distanceUnit(UNITS) +
@@ -493,20 +501,20 @@
 
     // A TOTAL ROW, but only once a ride has alternates in it. With ghosts in the
     // table the mileage column no longer adds up to anything a reader can get
-    // to, and they will try — so the sum of the days that count is stated
+    // to, and they will try — so the sum of the routes that count is stated
     // rather than left to be inferred from a column that does not agree with
     // it. On a ride with no alternates the column does add up and the row would
     // be noise, so it is not rendered.
     if (anyAlt) {
-      const counted = ALT.activeDays(days).reduce((n, r) => n + Number(r.distanceMi), 0);
-      const n = ALT.activeDayCount(days);
+      const counted = ALT.activeRoutes(routes).reduce((n, r) => n + Number(r.distanceMi), 0);
+      const n = ALT.activeRouteCount(routes);
       table.insertAdjacentHTML(
         "beforeend",
-        '<tr class="day-total"><td>' +
+        '<tr class="route-total"><td>' +
           n +
-          (n === 1 ? " day" : " days") +
+          (n === 1 ? " route" : " routes") +
           ", not counting alternatives</td>" +
-          '<td class="day-miles">' +
+          '<td class="route-miles">' +
           U.distanceFromMiles(counted, UNITS).toFixed(1) +
           " " +
           U.distanceUnit(UNITS) +
@@ -541,20 +549,20 @@
       dls.push(dlButton(state.ride.externalUrl, "URL", false));
     }
     if (dls.length) {
-      table.innerHTML += '<tr class="day-downloads-row"><td colspan="2">' + dls.join(" ") + "</td></tr>";
+      table.innerHTML += '<tr class="route-downloads-row"><td colspan="2">' + dls.join(" ") + "</td></tr>";
     }
 
-    // The per-day archives, on their own row and only for a multi-day ride.
+    // The per-route archives, on their own row and only for a multi-route ride.
     // Its own row rather than four more buttons on the one above: these answer
     // a different question — not "this ride as a file" but "this ride as one
-    // file per day" — and they are the only download that gets a date onto
-    // every day, since a GPX or KML cannot carry one internally.
-    if (state.ride.dayZipBase) {
+    // file per route" — and they are the only download that gets a date onto
+    // every route, since a GPX or KML cannot carry one internally.
+    if (state.ride.routeZipBase) {
       const zips = ["gpx", "kml", "geojson", "csv"]
         .map(
           (f) =>
-            '<a class="day-zip" download href="' +
-            esc(state.ride.dayZipBase) +
+            '<a class="route-zip" download href="' +
+            esc(state.ride.routeZipBase) +
             "/" +
             f +
             '">' +
@@ -564,12 +572,12 @@
         .join(" ");
       // The label links to the FAQ rather than explaining itself here. The
       // panel is 380px wide and the answer to "why are the names like that"
-      // is three paragraphs — see /faq#one-file-per-day.
+      // is three paragraphs — see /faq#one-file-per-route.
       table.innerHTML +=
-        '<tr class="day-downloads-row day-zip-row"><td colspan="2">' +
-        '<a class="day-zip-label" href="/faq#one-file-per-day" target="_blank" rel="noopener" ' +
-        'title="One file per day, named so they re-import in order and dated">' +
-        "One file per day (zip)</a>: " +
+        '<tr class="route-downloads-row route-zip-row"><td colspan="2">' +
+        '<a class="route-zip-label" href="/faq#one-file-per-route" target="_blank" rel="noopener" ' +
+        'title="One file per route, named so they re-import in order and dated">' +
+        "One file per route (zip)</a>: " +
         zips +
         "</td></tr>";
     }
@@ -577,7 +585,7 @@
     table.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => {
       cb.addEventListener("change", () => setVisible(Number(cb.dataset.i), cb.checked));
     });
-    table.querySelectorAll(".day-row").forEach((row) => {
+    table.querySelectorAll(".route-row").forEach((row) => {
       row.addEventListener("mouseenter", () => highlight(Number(row.dataset.i)));
       row.addEventListener("mouseleave", () => highlight(null));
     });
@@ -592,7 +600,7 @@
       state.ride = ride;
       state.map = await initMap("map");
 
-      ride.days.forEach((day, i) => renderDay(i, day));
+      ride.routes.forEach((route, i) => renderRoute(i, route));
       // Paint once the layers exist. paintFocus() is "the one place emphasis is
       // decided" and that has to include the state a ride LOADS in, not only
       // what a hover or a scrub changes it to — a losing alternate is ghosted
@@ -629,7 +637,7 @@
       if (arrowToggle) {
         arrowToggle.addEventListener("change", () => {
           state.arrowsOn = arrowToggle.checked;
-          ride.days.forEach((_, i) => setRouteVisible(state.map, i, state.days[i].visible, state.arrowsOn));
+          ride.routes.forEach((_, i) => setRouteVisible(state.map, i, state.routes[i].visible, state.arrowsOn));
           paintFocus(); // setRouteVisible repaints, which drops the leg highlight
         });
       }

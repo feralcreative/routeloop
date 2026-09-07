@@ -225,7 +225,7 @@ describe('the roadbook prints the same "hm" the builder does', () => {
     return h > 0 ? `${h}h ${m}m` : `${m}m`
   }
 
-  it('agrees on every positive duration up to a full day', () => {
+  it('agrees on every positive duration up to a full route', () => {
     for (let m = 1; m <= 1440; m++) {
       expect(hoursMinutes(m)).toBe(roadbook(m * 60))
     }

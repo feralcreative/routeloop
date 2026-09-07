@@ -1,6 +1,6 @@
 // The arithmetic behind drag-to-shape.
 //
-// A day is drawn as ONE polyline — the concatenated geometry of all its legs —
+// A route is drawn as ONE polyline — the concatenated geometry of all its legs —
 // so a drag gives back a vertex index into that flat path and nothing else. The
 // map layer has no idea where one leg ends and the next begins. Turning that
 // index back into "leg 3, between via 1 and via 2" is this file's whole job.
@@ -13,7 +13,7 @@
 (function (window) {
   "use strict";
 
-  // Which leg owns a vertex of the day's flat track?
+  // Which leg owns a vertex of the route's flat track?
   //
   // `spans` comes from trackAndSpans() and is index-aligned with legs: spans[i]
   // is {startIndex, endIndex} for legs[i], or null when that leg has no
@@ -78,6 +78,73 @@
     return best;
   }
 
+  // Where on a routed road does a shaping point actually sit?
+  //
+  // A shaping point is dropped wherever the rider's pointer lands, which is a
+  // coordinate in a field, on a river, or fifty meters into the wrong side of a
+  // divided highway. Routes then snaps it to WHATEVER road is nearest and routes
+  // through that — so the road that comes back can be a frontage road, the
+  // opposite side of a divided highway, or an entirely different street, and the handle left
+  // sitting in the field says nothing about which. The rider sees a route that
+  // does not match the hint they gave and has no way to tell why.
+  //
+  // The fix is free, because the answer is already in hand: the routed geometry
+  // IS the road Google chose, so projecting the dropped point onto it gives the
+  // coordinate the router actually used. Nothing new is requested and no second
+  // API is spoken — see the note in builder.js's computeLeg for why this runs
+  // after the response rather than before the request.
+  //
+  // PROJECTED ONTO THE NEAREST SEGMENT, NOT SNAPPED TO THE NEAREST VERTEX. A
+  // routed polyline is sparse on a long straight — vertices can be miles apart
+  // on an interstate — so a vertex snap can move a handle further than the
+  // original error and put it past an interchange the rider was aiming at. The
+  // perpendicular foot is on the road either way and is the nearest such point.
+  //
+  // `fromSegment` is the order floor. Vias are sent to the router in array order
+  // and the order IS the route, so two of them that snap out of order make the
+  // leg double back — the bow tie viaInsertIndex exists to prevent, arriving by
+  // another door. Snapping each in turn from where the last one landed keeps the
+  // list monotonic along the road.
+  //
+  // Squared degrees with a cosine correction, for the reason nearestVertexIndex
+  // uses them: this ranks candidate segments against each other over a few
+  // miles, where a real haversine buys nothing and costs a trig call per vertex.
+  function snapToTrack(track, lngLat, fromSegment) {
+    if (!track || track.length < 2) return null;
+    const [lng, lat] = lngLat;
+    const k = Math.cos((lat * Math.PI) / 180);
+    const lo = Math.max(0, Math.min(fromSegment || 0, track.length - 2));
+    let best = null;
+    let bestD = Infinity;
+    for (let i = lo; i < track.length - 1; i++) {
+      const ax = track[i][0] * k;
+      const ay = track[i][1];
+      const bx = track[i + 1][0] * k;
+      const by = track[i + 1][1];
+      const vx = bx - ax;
+      const vy = by - ay;
+      const len2 = vx * vx + vy * vy;
+      // A zero-length segment is a duplicated vertex; its foot is the vertex.
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((lng * k - ax) * vx + (lat - ay) * vy) / len2));
+      const px = ax + t * vx;
+      const py = ay + t * vy;
+      const dx = px - lng * k;
+      const dy = py - lat;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = {
+          // Back out of the cosine correction: the projection was done in a
+          // scaled x, so the longitude it produces is scaled too.
+          lngLat: [+(px / k).toFixed(6), +py.toFixed(6)],
+          segmentIndex: i,
+          t,
+        };
+      }
+    }
+    return best;
+  }
+
   // Where in a leg's existing via list does a newly dropped one belong?
   //
   // Vias are sent to the router in array order, so the order IS the route. Drop
@@ -105,7 +172,7 @@
   //
   // Added for drag-to-reorder a POI. A POI has no stored order — ride-graph.ts
   // writes `position: null` for every one of them and its place in the list is
-  // its projected distance along the day's track — so dragging one has nothing
+  // its projected distance along the route's track — so dragging one has nothing
   // to reorder. It moves the pin instead: dropped between two stops, the POI
   // relocates to the point on the road between them. This is the half that turns
   // "between those two rows" back into a coordinate.
@@ -135,7 +202,7 @@
       }
       acc += seg;
     }
-    // Past the end — a drop below the last row asks for the end of the day.
+    // Past the end — a drop below the last row asks for the end of the route.
     return track[track.length - 1].slice();
   }
 
@@ -175,7 +242,7 @@
    * FOR DRAWING A CIRCLE AS A POLYLINE, which is the only way to get a dashed
    * or dotted one: google.maps.Circle has strokeWeight, strokeColor and
    * strokeOpacity and no dash support at all, while a Polyline can carry
-   * repeating icons — the same mechanism dashIcons() uses for a ghosted day.
+   * repeating icons — the same mechanism dashIcons() uses for a ghosted route.
    *
    * Geodesic rather than a flat ellipse, so it stays a true constant-distance
    * ring at any latitude. The last point repeats the first, so the caller draws
@@ -195,9 +262,7 @@
     for (var i = 0; i <= n; i++) {
       var brg = ((i % n) / n) * 2 * Math.PI;
       var lat2 = Math.asin(sinLat1 * Math.cos(d) + cosLat1 * Math.sin(d) * Math.cos(brg));
-      var lng2 =
-        lng1 +
-        Math.atan2(Math.sin(brg) * Math.sin(d) * cosLat1, Math.cos(d) - sinLat1 * Math.sin(lat2));
+      var lng2 = lng1 + Math.atan2(Math.sin(brg) * Math.sin(d) * cosLat1, Math.cos(d) - sinLat1 * Math.sin(lat2));
       out.push([lng2 / rad, lat2 / rad]);
     }
     return out;
@@ -205,16 +270,48 @@
 
   // Mirrors haversineTrack() in builder.js and the constant in twist.js. Both
   // use the IUGG mean radius; keep the three in step.
+  // Which original legs make up each leg of a route after some points are removed?
+  //
+  // Leg k joins points k and k+1, so a route of n points has n-1 legs. Take some
+  // points out and the survivors are re-joined in order: the leg between
+  // survivors S[j] and S[j+1] covers every original leg from S[j] through
+  // S[j+1]-1. A span of ONE is a leg the removal never touched — same two
+  // points, same road, keep it whole rather than paying the router to be told
+  // so. A span of more than one is a merge, and the shaping points of every leg
+  // it swallowed are still hints about a road between two points that both
+  // survive, so they are carried across in order.
+  //
+  // Returned as index pairs rather than as legs: building a leg needs a distance
+  // and a placeholder geometry, which is builder.js's business and not this
+  // file's. `removed` may be in any order and may repeat.
+  function rejoinSpans(nPoints, removed) {
+    const gone = new Set(removed || []);
+    const kept = [];
+    for (let i = 0; i < nPoints; i++) if (!gone.has(i)) kept.push(i);
+    const spans = [];
+    for (let j = 0; j < kept.length - 1; j++) spans.push({ from: kept[j], to: kept[j + 1] - 1 });
+    return spans;
+  }
+
   function haversineM(a, b) {
     const rad = Math.PI / 180;
     const dLat = (b[1] - a[1]) * rad;
     const dLng = (b[0] - a[0]) * rad;
-    const h =
-      Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
     return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
   }
 
   // haversineM is exported so range-circle.js can measure the straight line
   // between two points on a track without keeping a fourth copy of the formula.
-  window.TBShape = { legAtVertex, nearestVertexIndex, viaInsertIndex, pointAtDistance, sliceBetween, circlePath, haversineM };
+  window.TBShape = {
+    legAtVertex,
+    nearestVertexIndex,
+    snapToTrack,
+    viaInsertIndex,
+    pointAtDistance,
+    sliceBetween,
+    circlePath,
+    haversineM,
+    rejoinSpans,
+  };
 })(typeof window !== "undefined" ? window : this);

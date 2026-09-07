@@ -6,10 +6,10 @@ import { readFile } from 'node:fs/promises'
 import type { Server as HttpServer } from 'node:http'
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db/index'
-import { rides, days as daysTable, points as pointsTable, routeLegs, type RideRow, type UserRow } from './db/schema'
+import { rides, routes as routesTable, points as pointsTable, routeLegs, type RideRow, type UserRow } from './db/schema'
 import { withSession, type AuthEnv } from './auth/middleware'
 import { METERS_PER_MILE, type Track } from './maps/kml'
-import { DAY_COLORS } from './maps/palette'
+import { ROUTE_COLORS } from './maps/palette'
 import { ROLE_META } from './maps/roles'
 import { buildNativeJson, loadNativeRide, loadRideForExport, rideStartDate } from './maps/export'
 import { DOWNLOADS, originalIsCurrent, storedExtFor } from './maps/downloads'
@@ -40,6 +40,7 @@ import { suggestionRoutes } from './routes/suggestions'
 import { rosterRoutes } from './routes/roster'
 import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
+import { routeRiderRoutes } from './routes/route-riders'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
@@ -238,6 +239,7 @@ app.route('/', liveRoutes)
 app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
+app.route('/', routeRiderRoutes)
 app.route('/', friendRoutes)
 // Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not
 // catch them anyway — kept together with the other rider-facing modules.
@@ -278,7 +280,7 @@ app.get('/m/:slug', async (c) => {
   const label = builderLabel(member)
   const builderLink = label ? { href: `/builder/${m.id}`, label } : null
   // One shell for both sources. ride.json has served them identically since the
-  // timeline work added per-leg spans — an imported ride is one day with one
+  // timeline work added per-leg spans — an imported ride is one route with one
   // leg — so the ported engine renders it without special-casing.
   // THE RANGE IS FOR MEMBERS ONLY, AND IT IS TRIMMED TO TWO FIELDS.
   //
@@ -331,8 +333,12 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   // number to a public viewer by accident, and joining here would give that back.
   const details = await detailsForViewer(m.id, m.ownerId, c.get('user'))
 
-  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, m.id)).orderBy(daysTable.position)
-  if (dayRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, m.id))
+    .orderBy(routesTable.position)
+  if (routeRows.length === 0) return c.json({ error: 'not found' }, 404) // pre-pivot rows: legacy viewer only
 
   // Subgroups reach the client BY UID, never by id — the same rule the builder
   // payload follows, and the reason is stronger here: this is a public document
@@ -341,13 +347,13 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
   const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
   const subgroupUidOf = new Map(strand.all.map((g) => [g.id, g.uid]))
 
-  const daysOut = []
-  for (const r of dayRows) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
+  const routesOut = []
+  for (const r of routeRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
     const legs = await db
       .select({ geometry: routeLegs.geometry, distanceM: routeLegs.distanceM, durationS: routeLegs.durationS })
       .from(routeLegs)
-      .where(eq(routeLegs.dayId, r.id))
+      .where(eq(routeLegs.routeId, r.id))
       .orderBy(routeLegs.position)
 
     // Concatenate leg geometries and record where each leg lands in the result.
@@ -394,12 +400,15 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       lat: p.lat,
       lng: p.lng,
       name: p.name,
+      // Public — see points.address. This is the one the popup prints under the
+      // name; the owner-only one on point_details is carried by `details`.
+      address: p.address,
       description: p.description ?? '',
       roles: p.roles,
       distFromStartMi: p.distFromStartM == null ? null : Math.round((p.distFromStartM / METERS_PER_MILE) * 10) / 10,
     })
-    daysOut.push({
-      // WHOSE DAY THIS IS, by subgroup uid. EVERY day is sent, tagged rather
+    routesOut.push({
+      // WHOSE DAY THIS IS, by subgroup uid. EVERY route is sent, tagged rather
       // than filtered, for exactly the reason the losing alternates are: the
       // viewer draws the whole converge-and-split shape — feeders converging,
       // the trunk drawn once — and dims the ones this reader is not on. A
@@ -415,25 +424,25 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       endAt: r.endAt?.toISOString() ?? null,
       distanceMi: Math.round((r.distanceM / METERS_PER_MILE) * 10) / 10,
       // Degrees of heading change per mile, and the same over the twistiest
-      // 20-mile stretch. Null on any day stored before the column existed, or
+      // 20-mile stretch. Null on any route stored before the column existed, or
       // one with no geometry at all — a client must not render null as 0.
       twistinessDpm: r.twistinessDpm,
       twistinessBestDpm: r.twistinessBestDpm,
-      // ALTERNATES. Every day is sent, losing ones included — ride.json is what
+      // ALTERNATES. Every route is sent, losing ones included — ride.json is what
       // the viewer draws from, and it has to draw the alternates in order to
       // ghost them. This is the opposite choice from the lossy exports, which
       // never see a losing alternate at all; the difference is that a viewer can
       // show "this is an option" and a GPX file cannot.
       //
       // altGroup is a within-this-ride partition key and nothing more. A client
-      // may compare two days' values and must not store one.
+      // may compare two routes' values and must not store one.
       altGroup: r.altGroup,
       altActive: r.altActive,
       track,
       // Each entry spans [startIndex, endIndex] of `track`. Note durationS is
       // 0 for a leg the router never answered for, the same as it is in the
       // builder — a client wanting a time for one of those estimates it from
-      // distanceM rather than treating the day as that much shorter.
+      // distanceM rather than treating the route as that much shorter.
       legs: legsOut,
       // ONE ORDERED LIST, both kinds, `kind` on each element — the same shape
       // the builder payload and the native JSON have carried since 2026-08-23.
@@ -476,17 +485,17 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     gpxUrl: `/api/public/maps/${m.slug}/gpx`,
     geojsonUrl: `/api/public/maps/${m.slug}/geojson`,
     csvUrl: `/api/public/maps/${m.slug}/csv`,
-    // The only lossless one — days, colors, times and via points survive it.
+    // The only lossless one — routes, colors, times and via points survive it.
     nativeUrl: `/api/public/maps/${m.slug}/${NATIVE_EXT}`,
-    // One file per day, zipped and named by the convention. Offered only for a
-    // multi-day ride: a one-day ride zips to an archive holding the file you
+    // One file per route, zipped and named by the convention. Offered only for a
+    // multi-route ride: a one-route ride zips to an archive holding the file you
     // could have downloaded directly, which is a worse version of the button
     // sitting next to it.
-    dayZipBase: daysOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
+    routeZipBase: routesOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
     // A page, not a file: the printable stop-by-stop sheet.
     roadbookUrl: `/m/${m.slug}/roadbook`,
     externalUrl: m.externalUrl || null,
-    days: daysOut,
+    routes: routesOut,
   })
 })
 
@@ -494,9 +503,9 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
 // folder of them re-imports as the ride it came from rather than as whatever
 // order the browser happened to list them in.
 //
-// A whole-ride download carries the ride's start date and no day field: it is
-// all the days, so there is no one day to name. The per-day zip below is what
-// gets a date onto each individual day, which for GPX and KML is the only place
+// A whole-ride download carries the ride's start date and no route field: it is
+// all the routes, so there is no one route to name. The per-route zip below is what
+// gets a date onto each individual route, which for GPX and KML is the only place
 // a date can survive at all.
 async function attachment(m: RideRow, ext: string): Promise<string> {
   const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext })
@@ -526,7 +535,7 @@ app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/
     // a PUBLIC ride's native JSON gets the same file without them.
     await detailsForViewer(m.id, m.ownerId, c.get('user')),
   )
-  if ((native.ride as { days: unknown[] }).days.length === 0) return c.text('Not found', 404)
+  if ((native.ride as { routes: unknown[] }).routes.length === 0) return c.text('Not found', 404)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=utf-8',
@@ -538,17 +547,17 @@ app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/
   return new Response(buildNativeJson(native), { headers })
 })
 
-// One file per day, zipped, each named by the convention.
+// One file per route, zipped, each named by the convention.
 //
 // This is the download that makes a round trip lossless for the formats that
-// are not: a day's date cannot live inside a GPX or a KML, so it lives in the
-// filename, and one file per day is what gives every day a filename of its own.
-// Drag the archive back into /import and the ride comes back with its days in
+// are not: a route's date cannot live inside a GPX or a KML, so it lives in the
+// filename, and one file per route is what gives every route a filename of its own.
+// Drag the archive back into /import and the ride comes back with its routes in
 // order and dated.
 //
 // Always generated, never streamed from stored originals. A stored file is one
 // file for the whole ride by definition — an imported ride's original has no
-// per-day split to hand back — so preferring it here would silently answer a
+// per-route split to hand back — so preferring it here would silently answer a
 // different question than the one asked.
 //
 // Its own path segment rather than a `.zip` suffix on the existing route: a
@@ -596,30 +605,35 @@ app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => 
   if (!m || !spec) return c.text('Not found', 404)
 
   // #67's per-rider export: a member downloads their own approach plus the
-  // shared days, not everybody's. Derived from membership, `?group=all` for the
+  // shared routes, not everybody's. Derived from membership, `?group=all` for the
   // whole ride. `?group` is ignored entirely on a ride with no subgroups.
   const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
-  if (ride.days.length === 0) return c.text('Not found', 404)
+  const ride = await loadRideForExport(
+    m.id,
+    { title: m.title, description: m.description },
+    strand.subgroupId,
+    strand.routeUids,
+  )
+  if (ride.routes.length === 0) return c.text('Not found', 404)
 
-  const files = ride.days.map((day, i) => ({
+  const files = ride.routes.map((route, i) => ({
     name: buildExportName({
       ride: m.title,
-      day: i + 1,
-      date: day.startAt,
-      title: day.title,
+      route: i + 1,
+      date: route.startAt,
+      title: route.title,
       ext: format,
     }),
-    // One day, built by the same serializer the whole-ride download uses —
-    // there is no second code path for a day, only a ride that happens to have
-    // one day in it. firstDay keeps that day calling itself day i+1.
-    body: Buffer.from(spec.build({ ...ride, days: [day] }, i + 1), 'utf8'),
+    // One route, built by the same serializer the whole-ride download uses —
+    // there is no second code path for a route, only a ride that happens to have
+    // one route in it. firstRoute keeps that route calling itself route i+1.
+    body: Buffer.from(spec.build({ ...ride, routes: [route] }, i + 1), 'utf8'),
   }))
 
   // The ride's own start date on every entry, so extracting an archive does not
   // stamp a rider's files with today. Falls back to the zip epoch, which is
   // what keeps an undated ride's archive byte-identical between exports.
-  const zip = buildZip(files, ride.days[0].startAt ?? undefined)
+  const zip = buildZip(files, ride.routes[0].startAt ?? undefined)
   const name = buildExportName({ ride: m.title, date: await rideStartDate(m.id), ext: `${format}.zip` })
 
   return new Response(zip, {
@@ -658,7 +672,7 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
   // EXCEPT WHEN A STRAND WAS ASKED FOR. A stored original is the whole ride as
   // it was uploaded and knows nothing about subgroups, so handing it to a rider
   // who asked for their own approach would answer a different question than the
-  // one they asked — silently, and with more days than they expect. An imported
+  // one they asked — silently, and with more routes than they expect. An imported
   // ride has no subgroups in practice, so this branch is nearly always taken.
   if (spec.hasStored(m) && originalIsCurrent(m) && strand.subgroupId === undefined) {
     // readMapFile, not mapFilePath + readFile: the file may be under either
@@ -673,8 +687,13 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
     // restore, and the rows are still enough to build a usable file.
   }
 
-  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, strand.subgroupId)
-  if (ride.days.length === 0) return c.text('Not found', 404) // pre-pivot rows
+  const ride = await loadRideForExport(
+    m.id,
+    { title: m.title, description: m.description },
+    strand.subgroupId,
+    strand.routeUids,
+  )
+  if (ride.routes.length === 0) return c.text('Not found', 404) // pre-pivot rows
   return new Response(spec.build(ride), { headers })
 })
 
@@ -760,14 +779,14 @@ function viewerPanel(
           )}
         </div>
         {/*
-          The timeline used to sit here, between the details and the day table.
+          The timeline used to sit here, between the details and the route table.
           It is now a bar across the bottom edge of the map — rideTimeline() in
           src/views/layout.tsx, rendered beside the panel rather than inside it.
           Every ride still gets it, and it still hides itself when a ride carries
           no dates, which is the same answer the opt-in used to give imports.
         */}
-        <div class="days">
-          <table class="day-table"></table>
+        <div class="routes">
+          <table class="route-table"></table>
           <label class="toggle-checkbox">
             <input type="checkbox" id="toggle-arrows" checked />
             Show Direction of Travel
@@ -820,7 +839,7 @@ function viewHtml(
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
-      dayColors: DAY_COLORS,
+      routeColors: ROUTE_COLORS,
       units,
       range,
     },
@@ -830,7 +849,7 @@ function viewHtml(
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/alts.js')}" defer></script>
   <script src="${asset('/js/route-shape.js')}" defer></script>
-  <script src="${asset('/js/day-distance.js')}" defer></script>
+  <script src="${asset('/js/route-distance.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>`,
   })

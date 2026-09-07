@@ -54,7 +54,7 @@ export const schemeAttr = (s: Scheme): string | null => (s === 'system' ? null :
 
 /** The preferences page's radio sets. */
 export const THEME_CHOICES: { id: Theme; label: string; hint: string }[] = [
-  { id: 'default', label: 'Road sign', hint: 'The green, red, and amber of US highway signs.' },
+  { id: 'default', label: 'Default', hint: 'The green, red, and amber of US highway signs.' },
   {
     id: 'contrast',
     label: 'High contrast',

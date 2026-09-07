@@ -24,7 +24,7 @@
 <details class="qa" id="gps-ignores-route">
   <summary>Why does my GPS ignore the route I planned?</summary>
   <div class="qa-answer">
-    <p>Because it isn’t following your line—it’s re-routing between your stops. Give a navigation app two points a long way apart and it picks its own way between them, usually the fast way and rarely the good one. Miss a turn and it can throw out the rest of the day.</p>
+    <p>Because it isn’t following your line—it’s re-routing between your stops. Give a navigation app two points a long way apart and it picks its own way between them, usually the fast way and rarely the good one. Miss a turn and it can throw out the rest of the route.</p>
     <p>The fix is to leave it no room. Put enough intermediate points along the route and there’s never a stretch long enough for the app to form an opinion. Doing that by hand is miserable, which is why Routeloop does it for you.</p>
   </div>
 </details>
@@ -33,7 +33,7 @@
   <summary>How is this different from Google Maps?</summary>
   <div class="qa-answer">
     <p>Google My Maps caps at about ten waypoints and one route per layer, and you can’t navigate from a custom map. Google Maps proper will reroute you onto whatever it considers efficient, which is rarely the road you wanted.</p>
-    <p>Routeloop gives you 200 stops a day across 31 days, no layers to fight, and no opinion about your route. Whatever you plan is visible on one map at once, all of it, however many days it runs.</p>
+    <p>Routeloop gives you 200 stops a route across 31 routes, no layers to fight, and no opinion about the road you take. Whatever you plan is visible on one map at once, all of it, however far it runs.</p>
   </div>
 </details>
 
@@ -41,7 +41,7 @@
   <summary>How is this different from the other route planners?</summary>
   <div class="qa-answer">
     <p>Most of them are navigation apps with a planner bolted on, and the planning is usually fine. Where they fall down is the hand-off—the moment you dump a GPX into your device and it does something else entirely.</p>
-    <p>That’s the part Routeloop is built around. Beyond it: stop counts in the hundreds rather than the low teens, the whole multi-day ride on one map instead of one route at a time, and share links that open for someone with no account.</p>
+    <p>That’s the part Routeloop is built around. Beyond it: stop counts in the hundreds rather than the low teens, the whole ride on one map instead of one stretch at a time, and share links that open for someone with no account.</p>
   </div>
 </details>
 
@@ -55,10 +55,10 @@
 </details>
 
 <details class="qa" id="limits">
-  <summary>How many stops, days or miles can one ride have?</summary>
+  <summary>How many stops, routes or miles can one ride have?</summary>
   <div class="qa-answer">
-    <p>Up to 31 days, 200 stops a day, and no cap on distance.</p>
-    <p>Those are the real numbers, and I’d rather give you them than say “unlimited” and have you find the wall. A month of riding at two hundred stops a day is not a ride anyone takes—the caps exist so one runaway import can’t take the site down, not to ration what you plan.</p>
+    <p>Up to 31 routes, 200 stops a route, and no cap on distance.</p>
+    <p>Those are the real numbers, and I’d rather give you them than say “unlimited” and have you find the wall. A month of riding at two hundred stops a route is not a ride anyone takes—the caps exist so one runaway import can’t take the site down, not to ration what you plan.</p>
     <p>For comparison: Google My Maps stops you at about ten waypoints.</p>
   </div>
 </details>
@@ -70,9 +70,9 @@
     <ul>
       <li>A <strong>waypoint</strong> keeps the route on the road you meant. Nothing happens there, you don’t stop, and it exists only to stop the router taking a different way round.</li>
       <li>A <strong>POI</strong> is something worth knowing about—a vista, a museum, a diner someone told you about. You might stop, you might not. The road is not drawn through it.</li>
-      <li>A <strong>stop</strong> is a stop. Fuel, food, a night’s sleep. The route goes through it, and it takes time out of the day.</li>
+      <li>A <strong>stop</strong> is a stop. Fuel, food, a night’s sleep. The route goes through it, and it takes time out of the route.</li>
     </ul>
-    <p><strong>Every point you drop is a POI to begin with.</strong> Drop pins wherever you are thinking of going, in whatever order, then promote the ones the route actually has to pass through—“Make this a stop” in the row’s ⋮ menu. That is when the road gets drawn. The first point of each day is promoted for you, because a day has to start somewhere.</p>
+    <p><strong>Every point you drop is a POI to begin with.</strong> Drop pins wherever you are thinking of going, in whatever order, then promote the ones the route actually has to pass through—“Make this a stop” in the row’s ⋮ menu. That is when the road gets drawn. The first point of each route is promoted for you, because a route has to start somewhere.</p>
     <p>Changed your mind? “Make this a POI” puts it back. Nothing moves either way, and the point keeps its notes, its categories and its reservation details.</p>
     <p>The distinction matters when the plan leaves Routeloop: exports can carry stops and shaping points differently, and getting it wrong is how routes arrive on a GPS looking nothing like what you planned.</p>
   </div>
@@ -81,7 +81,7 @@
 <details class="qa" id="stop-categories">
   <summary>Can I say what kind of stop it is?</summary>
   <div class="qa-answer">
-    <p>Yes. Seventeen roles—fuel, food, coffee, drinks, hotel, camp, grocery, viewpoint, meeting point and the rest—so a day reads at a glance instead of being seventeen identical pins.</p>
+    <p>Yes. Seventeen roles—fuel, food, coffee, drinks, hotel, camp, grocery, viewpoint, meeting point and the rest—so a route reads at a glance instead of being seventeen identical pins.</p>
     <p>They earn their keep on export too: a stop tagged as fuel can be treated differently from a scenic detour by whatever you hand the file to.</p>
   </div>
 </details>
@@ -92,7 +92,7 @@
     <p>It’s a rough measure of how much the road bends, worked out from the shape of your route.</p>
     <p>Routeloop walks the line every 25 meters and adds up how far the direction changes. A road that runs dead straight adds nothing. A road that turns constantly adds a lot. Divide by the miles and you get one number, which becomes one of five words: <strong>Straight</strong>, <strong>Mostly straight</strong>, <strong>Some curves</strong>, <strong>Twisty</strong> or <strong>Very twisty</strong>. Hover the label to see the number behind it.</p>
     <p>It counts <em>bends</em>, not junctions. Turning left at a crossroads onto another straight road barely registers; a mountain pass that never stops curving registers a lot.</p>
-    <p>A whole day gets averaged, which can be unfair to a good road—forty brilliant miles and two hundred of motorway average out to something dull. So the hover also tells you about the best twenty-mile stretch of the day, when that stretch is meaningfully better than the rest of it. That second number is usually the one worth paying attention to.</p>
+    <p>A whole route gets averaged, which can be unfair to a good road—forty brilliant miles and two hundred of slab average out to something dull. So the hover also tells you about the best twenty-mile stretch of the route, when that stretch is meaningfully better than the rest of it. That second number is usually the one worth paying attention to.</p>
     <p>Because it comes from the shape of the line and nothing else, it works on rides you imported as well as ones you built here.</p>
   </div>
 </details>
@@ -100,32 +100,32 @@
 <details class="qa" id="import-a-route">
   <summary>Can I import a route I already have?</summary>
   <div class="qa-answer">
-    <p>Yes—KML, KMZ, GPX, GeoJSON and CSV, plus a <code>.zip</code> of any of them. Drop the files onto the import page and each one becomes a day of one ride.</p>
-    <p>What you get back is an editable ride, not a picture of one. The file is pulled apart into stops and legs you can drag, rename, reorder and add days to. Most tools import a track as a single frozen line; if that’s all you needed you could have kept the file.</p>
+    <p>Yes—KML, KMZ, GPX, GeoJSON and CSV, plus a <code>.zip</code> of any of them. Drop the files onto the import page and each one becomes a route of one ride.</p>
+    <p>What you get back is an editable ride, not a picture of one. The file is pulled apart into stops and legs you can drag, rename, reorder and add routes to. Most tools import a track as a single frozen line; if that’s all you needed you could have kept the file.</p>
   </div>
 </details>
 
 <details class="qa" id="file-names">
   <summary>Why do the files I download have such long names?</summary>
   <div class="qa-answer">
-    <p>Because the name is doing a job. A file called <code>routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx</code> says which ride it belongs to, that it’s day 2, when that day starts, and what you called it—so when you drag a folder of them back in, your ride comes back in the right order with its dates intact.</p>
+    <p>Because the name is doing a job. A file called <code>routeloop_big-sur-run_d02_2026-08-14_lost-coast.gpx</code> says which ride it belongs to, that it’s route 2, when that route starts, and what you called it—so when you drag a folder of them back in, your ride comes back in the right order with its dates intact.</p>
     <p>That matters more than it sounds. <strong>A GPX or KML file has nowhere inside it to put a date.</strong> Your GPS reads those formats, so if you export a planned ride and bring it back, the schedule is the one thing that would otherwise be lost. Putting it in the filename is the only place it survives.</p>
     <p>Nothing is required to follow this. Files you named yourself import exactly as they always did, in the order you picked them.</p>
   </div>
 </details>
 
-<details class="qa" id="one-file-per-day">
-  <summary>Can I get one file per day instead of the whole ride in one?</summary>
+<details class="qa" id="one-file-per-route">
+  <summary>Can I get one file per route instead of the whole ride in one?</summary>
   <div class="qa-answer">
-    <p>Yes, for any ride with more than one day. Under the download buttons there’s a <em>One file per day (zip)</em> row—pick a format and you get an archive with one correctly named file per day, ready to load onto a GPS a day at a time.</p>
-    <p>Drop that archive back onto the import page and you get the whole ride back, days in order and dated.</p>
+    <p>Yes, for any ride with more than one route. Under the download buttons there’s a <em>One file per route (zip)</em> row—pick a format and you get an archive with one correctly named file per route, ready to load onto a GPS one route at a time.</p>
+    <p>Drop that archive back onto the import page and you get the whole ride back, routes in order and dated.</p>
   </div>
 </details>
 
 <details class="qa" id="on-a-phone">
   <summary>Can I plan on my phone?</summary>
   <div class="qa-answer">
-    <p>It runs in a phone browser, and a shared ride reads fine on one. Building a multi-day ride is a big-screen job today.</p>
+    <p>It runs in a phone browser, and a shared ride reads fine on one. Building a multi-route ride is a big-screen job today.</p>
   </div>
 </details>
 

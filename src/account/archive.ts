@@ -53,7 +53,7 @@ export const rideDirFor = (slug: string): string => `rides/${slug}`
 
 export type ArchiveRideInput = {
   ride: RideRow
-  /** From rideStartDate() — the ride's first dated day, or null when nothing is dated. */
+  /** From rideStartDate() — the ride's first dated route, or null when nothing is dated. */
   startDate: Date | null
   /** What is actually on disk for this ride, from listOwnerFiles(). */
   originals: StoredFile[]
@@ -72,7 +72,7 @@ export type ArchiveOriginal = {
   path: string
   /** From the closed STORED_EXTS list, because it named a file this app wrote. */
   ext: StoredExt
-  /** The day's position within a multi-file import; 0 for a single-file one. */
+  /** The route's position within a multi-file import; 0 for a single-file one. */
   index: number
 }
 
@@ -246,7 +246,7 @@ function archiveRide({ ride, startDate, originals }: ArchiveRideInput): ArchiveR
     purgeAfter: iso(ride.purgeAfter),
     native: nameFor(NATIVE_EXT),
     exports,
-    // Kept under their on-disk names. The index is what says which day of a
+    // Kept under their on-disk names. The index is what says which route of a
     // folder import a file was, and nothing else records that.
     originals: originals.map((f) => ({
       path: `${dir}/originals/${f.index === 0 ? `${f.rideId}.${f.ext}` : `${f.rideId}-${f.index}.${f.ext}`}`,
@@ -280,7 +280,7 @@ export function readmeText(archive: AccountArchive): string {
     '',
     'rides/         One directory per ride. Each holds the same ride in five',
     '               formats. The .routeloop.json is the lossless one and the only',
-    '               one that carries day order, dates and via points—GPX and KML',
+    '               one that carries route order, dates and via points—GPX and KML',
     '               cannot hold a schedule, which is why the dates are in the',
     '               filenames instead. Drag any single file into /import and it',
     '               behaves exactly as it does on the site.',

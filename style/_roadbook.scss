@@ -33,7 +33,7 @@
     font-style: italic;
   }
 
-  .rb-day {
+  .rb-route {
     margin: 0 0 2rem;
 
     h2 {
@@ -45,14 +45,14 @@
     }
   }
 
-  .rb-day-swatch {
+  .rb-route-swatch {
     display: inline-block;
     width: 0.85em;
     height: 0.85em;
     border-radius: 3px;
   }
 
-  .rb-day-meta {
+  .rb-route-meta {
     margin: 0 0 0.6rem;
     color: $neutral-36;
     font-size: 0.9rem;
@@ -103,7 +103,7 @@
   }
 
   // A POI is not a stop and must not read as one at a glance — it is a thing
-  // worth seeing, not a place the day is planned around.
+  // worth seeing, not a place the route is planned around.
   .rb-poi {
     color: $neutral-36;
 
@@ -141,9 +141,13 @@
 //@ Print — US Letter, which is what docs/ targets everywhere else
 @media print {
   .roadbook-page {
-    // Chrome is for navigating; paper has nothing to navigate to.
+    // Chrome is for navigating; paper has nothing to navigate to. The stage
+    // banner joins the list for a second reason: it is fixed, so left in it
+    // would print on EVERY sheet of a roadbook a rider is carrying in a tank
+    // bag, and the one thing that sheet has to be is the route.
     .site-header,
     .site-footer,
+    .tb-banner,
     .no-print {
       display: none !important;
     }
@@ -159,9 +163,9 @@
     color: $black;
     font-size: 10.5pt;
 
-    // A day split across a page boundary is the one thing that makes this
+    // A route split across a page boundary is the one thing that makes this
     // sheet useless — you are looking for stop 6 and it is on the other side.
-    .rb-day {
+    .rb-route {
       page-break-inside: avoid;
       break-inside: avoid;
       margin-bottom: 1.2rem;
@@ -170,7 +174,7 @@
     .rb-table {
       font-size: 9.5pt;
 
-      // Repeat the header when a long day does have to break.
+      // Repeat the header when a long route does have to break.
       thead {
         display: table-header-group;
       }
@@ -193,7 +197,7 @@
     // Ink is expensive and grey is unreadable on a cheap printer.
     .rb-summary,
     .rb-note,
-    .rb-day-meta,
+    .rb-route-meta,
     .rb-roles,
     .rb-desc,
     .rb-n,
@@ -206,10 +210,10 @@
       font-size: 8.5pt;
     }
 
-    // The swatch is the only color worth spending: it is what matches a day on
-    // the sheet to the same day on the map. Forced, because browsers strip
+    // The swatch is the only color worth spending: it is what matches a route on
+    // the sheet to the same route on the map. Forced, because browsers strip
     // backgrounds when printing by default.
-    .rb-day-swatch {
+    .rb-route-swatch {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
       border: 1px solid $black;

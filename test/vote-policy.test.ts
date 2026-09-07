@@ -2,7 +2,7 @@
 //
 // The tie cases carry this file, because a tie is the ordinary state rather
 // than the edge one — a three-member ride with two alternates ties the moment
-// anybody abstains, and every ride ties at 0–0 on the day it is created. A rule
+// anybody abstains, and every ride ties at 0–0 on the route it is created. A rule
 // that elected a winner from a tie would silently rewrite which road a ride
 // takes, on no information, on a schedule.
 import { describe, expect, it } from 'vitest'

@@ -40,7 +40,7 @@ import { fmtRideDistance, rideCards } from '../views/cards'
 import { type Units, distanceUnit } from '../views/units'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, days as daysTable, type RideRow, type Rsvp } from '../db/schema'
+import { rides, routes as routesTable, type RideRow, type Rsvp } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
@@ -105,7 +105,7 @@ const RIDE_CEILING = 500
 // neither of the others has anywhere to put. A flag meaning "am I the owner"
 // plus a flag meaning "am I a member" is two booleans encoding three cards.
 //
-// No color block: `ridesImOn` does not join days, and a fourth query per
+// No color block: `ridesImOn` does not join routes, and a fourth query per
 // dashboard render to tint a short list is not worth it. CardFace draws the
 // thumbnail when there is one and a neutral field when there is not.
 function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; units: Units }) {
@@ -116,7 +116,8 @@ function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; unit
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}
+            {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -140,7 +141,8 @@ function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | nu
         <span class="ride-card-body">
           <span class="ride-card-title">{ride.title}</span>
           <span class="ride-card-meta">
-            {ride.stopCount} stops{SEP}{fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
+            {ride.stopCount} stops{SEP}
+            {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
         </span>
       </a>
@@ -297,7 +299,7 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
 // the color together, so a fifth record cannot arrive with one and not the other.
 //
 // EACH RECORD SHOWS THE MAP OF THE RIDE THAT HOLDS IT, and links to it, since
-// 2026-08-26. Two of the four had no ride to name before that — the longest day
+// 2026-08-26. Two of the four had no ride to name before that — the longest route
 // and the twistiest stretch were `max()` aggregates — so shape.ts and query.ts
 // both changed to carry a slug for all four.
 //
@@ -328,7 +330,7 @@ function Records({ records }: { records: RecordTile[] }) {
 //
 // A SPAN WHEN THERE IS NO SLUG, rather than an anchor with no href. All four
 // records carry one today, so this is the branch that never runs — and it runs
-// the day a fifth record is a figure about the rider rather than about a ride,
+// the route a fifth record is a figure about the rider rather than about a ride,
 // which is exactly when nobody will be looking at this file.
 function RecordCard({ r }: { r: RecordTile }) {
   const inner = (
@@ -405,30 +407,30 @@ function FirstRun() {
     <section class="first-run">
       <h2>Nothing planned yet</h2>
       <p class="lede">
-        Plan a multi-day ride on one map, then take it with you. Once you have one, this page fills up with what
-        you have covered — miles, days, the stops you keep making, and the twistiest roads you have picked.
+        Plan a multi-route ride on one map, then take it with you. Once you have one, this page fills up with what you
+        have covered — miles, routes, the stops you keep making, and the twistiest roads you have picked.
       </p>
 
       <ol class="first-run-steps">
         <li>
           <strong>Build the route</strong>
           <span>
-            Drop stops day by day, drag the line onto the road you actually want, and mark the places you will ride
+            Drop stops route by route, drag the line onto the road you actually want, and mark the places you will ride
             past without stopping.
           </span>
         </li>
         <li>
           <strong>Take it with you</strong>
           <span>
-            Hand the day off to Google Maps on your phone, or export GPX, KML, GeoJSON or CSV for whatever is on the
+            Hand the route off to Google Maps on your phone, or export GPX, KML, GeoJSON or CSV for whatever is on the
             bars.
           </span>
         </li>
         <li>
           <strong>Share it, or don't</strong>
           <span>
-            Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until
-            you change it.
+            Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until you
+            change it.
           </span>
         </li>
       </ol>
@@ -443,8 +445,8 @@ function FirstRun() {
       </p>
 
       <p class="first-run-aside">
-        Not sure where to start? <a href="/explore">See what other people have planned</a> and clone one as a
-        starting point.
+        Not sure where to start? <a href="/explore">See what other people have planned</a> and clone one as a starting
+        point.
       </p>
     </section>
   )
@@ -527,12 +529,12 @@ homeRoutes.get('/', requireActive, async (c) => {
     loadStats(user.id),
     cachedUsedBytes(user.id),
     db
-      .select({ ride: rides, color: daysTable.color })
+      .select({ ride: rides, color: routesTable.color })
       .from(rides)
-      .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
       .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
       // updatedAt, not createdAt. /rides sorted by creation because it was a
-      // catalogue; this list has to do that job AND the "pick up where you left
+      // catalog; this list has to do that job AND the "pick up where you left
       // off" one the strip above it used to do, and the ride you touched last is
       // the answer to the second.
       .orderBy(desc(rides.updatedAt))
@@ -631,7 +633,12 @@ homeRoutes.get('/', requireActive, async (c) => {
                   {s.saddle.hours} hours riding{s.saddle.estimated && '*'}
                 </span>
               )}
-              {s.twist && <>{SEP}{s.twist.label} overall</>}
+              {s.twist && (
+                <>
+                  {SEP}
+                  {s.twist.label} overall
+                </>
+              )}
             </span>
           </section>
 
@@ -739,12 +746,25 @@ homeRoutes.get('/', requireActive, async (c) => {
             */}
             <h2>Rides</h2>
             <div class="page-tabs" role="tablist" aria-label="Rides" data-tabs>
-              <button type="button" class="page-tab is-active" role="tab" id="tab-mine"
-                      aria-controls="rides-mine" aria-selected="true">
+              <button
+                type="button"
+                class="page-tab is-active"
+                role="tab"
+                id="tab-mine"
+                aria-controls="rides-mine"
+                aria-selected="true"
+              >
                 Your rides <span class="tab-count">{stats.totals.rides}</span>
               </button>
-              <button type="button" class="page-tab" role="tab" id="tab-friends"
-                      aria-controls="rides-friends" aria-selected="false" tabindex={-1}>
+              <button
+                type="button"
+                class="page-tab"
+                role="tab"
+                id="tab-friends"
+                aria-controls="rides-friends"
+                aria-selected="false"
+                tabindex={-1}
+              >
                 Friends <span class="tab-count">{friendly.length}</span>
               </button>
               {/*
@@ -753,12 +773,26 @@ homeRoutes.get('/', requireActive, async (c) => {
                 riders you chose to watch, then everyone. Following after Public
                 would put the general case in the middle of two specific ones.
               */}
-              <button type="button" class="page-tab" role="tab" id="tab-following"
-                      aria-controls="rides-following" aria-selected="false" tabindex={-1}>
+              <button
+                type="button"
+                class="page-tab"
+                role="tab"
+                id="tab-following"
+                aria-controls="rides-following"
+                aria-selected="false"
+                tabindex={-1}
+              >
                 Following <span class="tab-count">{feed.length}</span>
               </button>
-              <button type="button" class="page-tab" role="tab" id="tab-public"
-                      aria-controls="rides-public" aria-selected="false" tabindex={-1}>
+              <button
+                type="button"
+                class="page-tab"
+                role="tab"
+                id="tab-public"
+                aria-controls="rides-public"
+                aria-selected="false"
+                tabindex={-1}
+              >
                 Public <span class="tab-count">{publik.length}</span>
               </button>
             </div>
@@ -768,7 +802,13 @@ homeRoutes.get('/', requireActive, async (c) => {
               the viewer's own, so each carries a visibility pill and an edit
               link that the other two tabs must never show.
             */}
-            <div class="page-tabpanel is-active" role="tabpanel" id="rides-mine" aria-labelledby="tab-mine" tabindex={0}>
+            <div
+              class="page-tabpanel is-active"
+              role="tabpanel"
+              id="rides-mine"
+              aria-labelledby="tab-mine"
+              tabindex={0}
+            >
               <ul class="ride-cards ride-cards--dense">
                 {visibleRides.map((r) => (
                   <OwnRideCard {...r} units={units} />
@@ -789,7 +829,14 @@ homeRoutes.get('/', requireActive, async (c) => {
               those are the next tab, and a ride in both reads as a duplicate
               rather than as two answers.
             */}
-            <div class="page-tabpanel" role="tabpanel" id="rides-friends" aria-labelledby="tab-friends" tabindex={0} hidden>
+            <div
+              class="page-tabpanel"
+              role="tabpanel"
+              id="rides-friends"
+              aria-labelledby="tab-friends"
+              tabindex={0}
+              hidden
+            >
               {raw(
                 rideCards(friendly, false, {
                   units,
@@ -805,7 +852,14 @@ homeRoutes.get('/', requireActive, async (c) => {
               the tab, because a rider whose feed is empty has almost always not
               followed anybody rather than followed quiet people.
             */}
-            <div class="page-tabpanel" role="tabpanel" id="rides-following" aria-labelledby="tab-following" tabindex={0} hidden>
+            <div
+              class="page-tabpanel"
+              role="tabpanel"
+              id="rides-following"
+              aria-labelledby="tab-following"
+              tabindex={0}
+              hidden
+            >
               {raw(
                 rideCards(feed, false, {
                   units,
@@ -825,7 +879,14 @@ homeRoutes.get('/', requireActive, async (c) => {
               "what is happening" and /explore is still the surface that ranks —
               which is what the link below it is for.
             */}
-            <div class="page-tabpanel" role="tabpanel" id="rides-public" aria-labelledby="tab-public" tabindex={0} hidden>
+            <div
+              class="page-tabpanel"
+              role="tabpanel"
+              id="rides-public"
+              aria-labelledby="tab-public"
+              tabindex={0}
+              hidden
+            >
               {raw(
                 rideCards(publik, false, {
                   units,

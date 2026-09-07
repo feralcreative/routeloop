@@ -1,7 +1,7 @@
-// A suggestion is a proposal against a day AS IT WAS.
+// A suggestion is a proposal against a route AS IT WAS.
 //
 // The rule under the most pressure here is that STALENESS IS DERIVED. Nothing
-// sweeps, nothing is invalidated on save, and a day edited and then edited back
+// sweeps, nothing is invalidated on save, and a route edited and then edited back
 // correctly stops being stale — which is the case a stored flag gets wrong and
 // the reason this is a fingerprint comparison rather than a column.
 import { describe, expect, it } from 'vitest'
@@ -9,10 +9,10 @@ import {
   canDecide,
   canPropose,
   canWithdraw,
-  dayFingerprint,
+  routeFingerprint,
   isActionable,
   suggestionState,
-  type DayShape,
+  type RouteShape,
   type SuggestionFields,
 } from '../src/suggestions/policy'
 import type { MemberFields } from '../src/members/policy'
@@ -30,8 +30,8 @@ const member = (over: Partial<MemberFields> = {}): MemberFields => ({
 })
 const owner = member({ riderId: OWNER, role: 'owner' })
 
-const day = (over: Partial<DayShape> = {}): DayShape => ({
-  uid: 'day1',
+const route = (over: Partial<RouteShape> = {}): RouteShape => ({
+  uid: 'route1',
   points: [
     { uid: 'p1', lng: -122.1, lat: 37.5, kind: 'stop' },
     { uid: 'p2', lng: -121.9, lat: 37.8, kind: 'poi' },
@@ -42,79 +42,79 @@ const day = (over: Partial<DayShape> = {}): DayShape => ({
 const suggestion = (over: Partial<SuggestionFields> = {}): SuggestionFields => ({
   id: 5,
   authorId: AUTHOR,
-  dayUid: 'day1',
-  baseFingerprint: dayFingerprint(day()),
+  routeUid: 'route1',
+  baseFingerprint: routeFingerprint(route()),
   resolvedAt: null,
   outcome: null,
   ...over,
 })
 
-describe('dayFingerprint', () => {
-  it('is stable for the same day', () => {
-    expect(dayFingerprint(day())).toBe(dayFingerprint(day()))
+describe('routeFingerprint', () => {
+  it('is stable for the same route', () => {
+    expect(routeFingerprint(route())).toBe(routeFingerprint(route()))
   })
 
   it('changes when a point moves', () => {
-    const moved = day({ points: [{ uid: 'p1', lng: -122.2, lat: 37.5, kind: 'stop' }, day().points[1]] })
-    expect(dayFingerprint(moved)).not.toBe(dayFingerprint(day()))
+    const moved = route({ points: [{ uid: 'p1', lng: -122.2, lat: 37.5, kind: 'stop' }, route().points[1]] })
+    expect(routeFingerprint(moved)).not.toBe(routeFingerprint(route()))
   })
 
   it('changes when points are reordered', () => {
-    expect(dayFingerprint(day({ points: [...day().points].reverse() }))).not.toBe(dayFingerprint(day()))
+    expect(routeFingerprint(route({ points: [...route().points].reverse() }))).not.toBe(routeFingerprint(route()))
   })
 
   it('changes when a point is promoted, because that is a thing worth suggesting', () => {
-    const promoted = day({ points: [day().points[0], { ...day().points[1], kind: 'stop' }] })
-    expect(dayFingerprint(promoted)).not.toBe(dayFingerprint(day()))
+    const promoted = route({ points: [route().points[0], { ...route().points[1], kind: 'stop' }] })
+    expect(routeFingerprint(promoted)).not.toBe(routeFingerprint(route()))
   })
 
   it('changes when a point is added or removed', () => {
-    expect(dayFingerprint(day({ points: [day().points[0]] }))).not.toBe(dayFingerprint(day()))
+    expect(routeFingerprint(route({ points: [route().points[0]] }))).not.toBe(routeFingerprint(route()))
   })
 
   // Float noise from a re-route must not invalidate every pending suggestion on
   // the owner's next idle autosave.
   it('ignores movement below about a meter', () => {
-    const jittered = day({
-      points: day().points.map((p) => ({ ...p, lng: p.lng + 0.0000004, lat: p.lat - 0.0000003 })),
+    const jittered = route({
+      points: route().points.map((p) => ({ ...p, lng: p.lng + 0.0000004, lat: p.lat - 0.0000003 })),
     })
-    expect(dayFingerprint(jittered)).toBe(dayFingerprint(day()))
+    expect(routeFingerprint(jittered)).toBe(routeFingerprint(route()))
   })
 
   // A rename or a recolor is not something a suggestion is about, and folding
   // either in would make it invalidate proposals it has nothing to do with.
   it('is not affected by anything outside the points', () => {
-    expect(dayFingerprint({ ...day(), uid: 'other' })).toBe(dayFingerprint(day()))
+    expect(routeFingerprint({ ...route(), uid: 'other' })).toBe(routeFingerprint(route()))
   })
 })
 
 describe('suggestionState', () => {
-  it('is pending while the day still looks the way it did', () => {
-    expect(suggestionState(suggestion(), dayFingerprint(day()))).toBe('pending')
+  it('is pending while the route still looks the way it did', () => {
+    expect(suggestionState(suggestion(), routeFingerprint(route()))).toBe('pending')
   })
 
-  it('is stale once the day has changed', () => {
-    const moved = day({ points: [day().points[0]] })
-    expect(suggestionState(suggestion(), dayFingerprint(moved))).toBe('stale')
+  it('is stale once the route has changed', () => {
+    const moved = route({ points: [route().points[0]] })
+    expect(suggestionState(suggestion(), routeFingerprint(moved))).toBe('stale')
   })
 
   // Nothing to apply it to.
-  it('is stale when the day is gone entirely', () => {
+  it('is stale when the route is gone entirely', () => {
     expect(suggestionState(suggestion(), null)).toBe('stale')
   })
 
   // The case a stored flag gets wrong, and the reason this is derived.
-  it('goes back to pending if the day is edited and then edited BACK', () => {
+  it('goes back to pending if the route is edited and then edited BACK', () => {
     const s = suggestion()
-    const moved = day({ points: [day().points[0]] })
-    expect(suggestionState(s, dayFingerprint(moved))).toBe('stale')
-    expect(suggestionState(s, dayFingerprint(day()))).toBe('pending')
+    const moved = route({ points: [route().points[0]] })
+    expect(suggestionState(s, routeFingerprint(moved))).toBe('stale')
+    expect(suggestionState(s, routeFingerprint(route()))).toBe('pending')
   })
 
-  it('reports the outcome once resolved, whatever the day now looks like', () => {
+  it('reports the outcome once resolved, whatever the route now looks like', () => {
     const done = suggestion({ resolvedAt: new Date(), outcome: 'accepted' })
     expect(suggestionState(done, null)).toBe('accepted')
-    expect(suggestionState(done, dayFingerprint(day()))).toBe('accepted')
+    expect(suggestionState(done, routeFingerprint(route()))).toBe('accepted')
   })
 })
 

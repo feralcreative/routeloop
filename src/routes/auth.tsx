@@ -86,7 +86,7 @@ authRoutes.get('/login', (c) => {
       user: null,
       variant: 'splash',
       body: (
-        <SplashPage eyebrow="Plan the whole ride" heading="Every day. Every detail.">
+        <SplashPage eyebrow="Plan the whole ride" heading="Every route. Every detail.">
           <p class="splash-copy">
             Build motorcycle rides and road trips, organize the details that matter, and share the complete plan with
             the whole group.

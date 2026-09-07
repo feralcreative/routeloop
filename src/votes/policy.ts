@@ -6,10 +6,10 @@
 //
 // THE HARD PART IS THAT A TIE IS THE COMMON CASE, not the edge one. A ride with
 // three members and two alternates ties whenever one abstains, and a ride with
-// nobody voting ties at 0–0 on the first day it exists. So "what happens on a
+// nobody voting ties at 0–0 on the first route it exists. So "what happens on a
 // tie" is not a rule tucked in at the end; it is most of the behavior.
 
-/** One alternate's standing. `uid` is the day's — see days.uid in schema.ts. */
+/** One alternate's standing. `uid` is the route's — see routes.uid in schema.ts. */
 export type Tally = {
   uid: string
   votes: number

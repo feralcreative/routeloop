@@ -67,8 +67,8 @@ export function trashState(row: TrashFields, now: Date): TrashState {
 export const isTrashed = (row: TrashFields): boolean => row.deletedAt != null
 
 /**
- * Whole days left, rounded up so the last partial day still reads as "1 day"
- * rather than "0 days" to someone deciding whether to restore. Zero once the
+ * Whole routes left, rounded up so the last partial route still reads as "1 route"
+ * rather than "0 routes" to someone deciding whether to restore. Zero once the
  * deadline has passed.
  */
 export function daysUntilPurge(row: TrashFields, now: Date): number {

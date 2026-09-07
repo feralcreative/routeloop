@@ -23,7 +23,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import {
-  days as daysTable,
+  routes as routesTable,
   ridePermEnum,
   rides,
   rsvpEnum,
@@ -228,8 +228,12 @@ function MemberRow({
       {/* WHICH APPROACH THEY ARE ON, and this one IS the owner's to set —
           unlike the RSVP beside it. Being on the Oakland run is a fact about
           the plan rather than a statement by the rider, and the planner is the
-          one who knows it. Renders nothing on a ride with no subgroups. */}
-      {subgroups.length > 0 &&
+          one who knows it. NOTHING UNTIL THERE ARE TWO GROUPS, not until there
+          is one: every ride carries a seeded group of one as of 2026-09-03, so
+          `> 0` would put a picker with a single option on every rider of every
+          ride. A group is only a question worth asking once there is another
+          one to be on. Same threshold the builder's panel uses. */}
+      {subgroups.length > 1 &&
         (canAssign ? (
           <form method="post" action={`/m/${slug}/riders/group`} class="roster-rsvp">
             <input type="hidden" name="rider" value={String(m.riderId)} />
@@ -273,12 +277,12 @@ function MemberRow({
 function Ballot({
   g,
   slug,
-  dayTitles,
+  routeTitles,
   open,
 }: {
   g: VoteGroup
   slug: string
-  dayTitles: Map<string, string>
+  routeTitles: Map<string, string>
   open: boolean
 }) {
   const total = g.tallies.reduce((n, t) => n + t.votes, 0)
@@ -295,8 +299,8 @@ function Ballot({
       <ul class="ballot-list">
         {g.tallies.map((t) => (
           <li class={t.active ? 'is-active' : ''}>
-            <span class="ballot-day">
-              {dayTitles.get(t.uid) || 'Untitled day'}
+            <span class="ballot-route">
+              {routeTitles.get(t.uid) || 'Untitled route'}
               {t.active && <span class="roster-role">Riding this</span>}
             </span>
             {/* A count of zero is still shown here, unlike hasVotes above.
@@ -308,7 +312,7 @@ function Ballot({
               <Verb
                 action="vote"
                 slug={slug}
-                fields={{ day: t.uid }}
+                fields={{ route: t.uid }}
                 label={g.mine === t.uid ? 'Your pick' : 'Pick this'}
                 variant={g.mine === t.uid ? '' : 'btn-quiet'}
               />
@@ -377,20 +381,20 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   if (!found) return c.text('Not found', 404)
   const { ride, role } = found
 
-  const [members, groups, dayRows, friends, dateFormat, range, myGarage, subgroups] = await Promise.all([
+  const [members, groups, routeRows, friends, dateFormat, range, myGarage, subgroups] = await Promise.all([
     roster(ride.id),
     voteGroups(ride.id, user.id),
     db
-      .select({ uid: daysTable.uid, title: daysTable.title, position: daysTable.position })
-      .from(daysTable)
-      .where(eq(daysTable.rideId, ride.id)),
+      .select({ uid: routesTable.uid, title: routesTable.title, position: routesTable.position })
+      .from(routesTable)
+      .where(eq(routesTable.rideId, ride.id)),
     canInvite(role) ? invitableFriends(ride.id, user.id) : Promise.resolve([]),
     dateFormatFor(c),
     groupRange(ride.id),
     listBikes(user.id),
     subgroupsOf(ride.id),
   ])
-  const dayTitles = new Map(dayRows.map((d) => [d.uid, d.title || `Day ${d.position + 1}`]))
+  const routeTitles = new Map(routeRows.map((d) => [d.uid, d.title || `Route ${d.position + 1}`]))
   // From the roster rather than a second query: the row is already loaded and
   // `null` there means "my default", which the select renders as its first
   // option.
@@ -510,7 +514,7 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
           <h2>The vote</h2>
           <Deadline closeAt={ride.altVotesCloseAt} dateFormat={dateFormat} open={open} />
           {groups.map((g) => (
-            <Ballot g={g} slug={ride.slug} dayTitles={dayTitles} open={open} />
+            <Ballot g={g} slug={ride.slug} routeTitles={routeTitles} open={open} />
           ))}
           {role === 'owner' && (
             <div class="roster-row roster-owner-acts">
@@ -536,7 +540,7 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
 
 /**
  * A deadline is a WALL CLOCK at the ride, carried as UTC — the same rule
- * days.start_at follows, and for the same reason: a vote closing "at 6pm" means
+ * routes.start_at follows, and for the same reason: a vote closing "at 6pm" means
  * 6pm where the ride is, whoever set it and wherever they are. Nothing here
  * converts it into anyone's local time, so the digits typed are the digits
  * stored and every surface reads it back with timeZone: 'UTC'.
@@ -550,7 +554,7 @@ const ERRORS: Record<string, string> = {
   full: 'This ride is full.',
   'unknown-rider': 'No such rider.',
   closed: 'Voting has closed on this ride.',
-  'not-an-alternate': 'That day is not one of a set of alternatives.',
+  'not-an-alternate': 'That route is not one of a set of alternatives.',
   refused: 'That is not something you can do here.',
 }
 
@@ -595,8 +599,7 @@ rosterRoutes.post('/m/:slug/riders/perm', requireActive, requireSameOrigin, asyn
   if (!found) return c.text('Not found', 404)
   const form = await c.req.parseBody()
   const rider = Number(form.rider)
-  const ok =
-    Number.isInteger(rider) && isPerm(form.perm) && (await setPerm(found.ride.id, user.id, rider, form.perm))
+  const ok = Number.isInteger(rider) && isPerm(form.perm) && (await setPerm(found.ride.id, user.id, rider, form.perm))
   return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
 })
 
@@ -658,8 +661,8 @@ rosterRoutes.post('/m/:slug/riders/vote', requireActive, requireSameOrigin, asyn
   // otherwise let anyone on the internet pick which road it takes.
   if (!found) return c.text('Not found', 404)
   const form = await c.req.parseBody()
-  const day = typeof form.day === 'string' ? form.day : ''
-  const res = await castVote(found.ride.id, user.id, day)
+  const route = typeof form.route === 'string' ? form.route : ''
+  const res = await castVote(found.ride.id, user.id, route)
   return c.redirect(back(found.ride.slug, res.ok ? undefined : res.reason), 303)
 })
 
@@ -684,7 +687,7 @@ rosterRoutes.post('/m/:slug/riders/deadline', requireActive, requireSameOrigin, 
   // An empty field clears the deadline, which returns the ride to an advisory
   // tally. `${raw}:00Z` rather than new Date(raw): a datetime-local value has no
   // zone, so parsing it plainly would read it in the SERVER's zone and store an
-  // instant that drifts with TZ — the trap days.start_at documents at length.
+  // instant that drifts with TZ — the trap routes.start_at documents at length.
   const closeAt = raw ? new Date(`${raw}:00Z`) : null
   if (closeAt && Number.isNaN(closeAt.getTime())) return c.redirect(back(found.ride.slug, 'refused'), 303)
   await db.update(rides).set({ altVotesCloseAt: closeAt }).where(eq(rides.id, found.ride.id))

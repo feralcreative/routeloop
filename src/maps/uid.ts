@@ -1,6 +1,6 @@
 // A point's durable identity, generated and validated in one place.
 //
-// Why a uid exists at all: `PUT /api/rides/:id` deletes and re-inserts every day
+// Why a uid exists at all: `PUT /api/rides/:id` deletes and re-inserts every route
 // and point on every save — accepted deliberately on 2026-08-15 — so `points.id`
 // churns constantly and cannot be referenced across a save. Rich stop details is
 // the first feature that needs a point to keep its identity, and this is what it
@@ -13,7 +13,7 @@
 import { randomBytes } from 'node:crypto'
 
 // Lowercase base36. Twelve characters is ~62 bits, which is far more than a
-// per-day uniqueness requirement needs — but the uid also travels in native JSON
+// per-route uniqueness requirement needs — but the uid also travels in native JSON
 // exports, so two riders merging files should not collide either.
 //
 // No uppercase, deliberately: the uid ends up in URLs and in hand-typed test
@@ -38,7 +38,7 @@ export function isUid(v: unknown): v is string {
  * is not, and nothing is authorized by knowing one — but because the server
  * mints these in a loop when a legacy payload arrives without them, and a
  * seeded or low-entropy PRNG producing a repeat inside one save would violate
- * the per-day unique index and fail the whole request.
+ * the per-route unique index and fail the whole request.
  *
  * Rejection sampling on a 256-value byte would bias toward the first 4 symbols
  * (256 % 36 = 4), so bytes ≥ 252 are discarded rather than folded.

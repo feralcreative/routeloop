@@ -2,7 +2,7 @@
 //
 // #50: "a how far off route will you go? slider, then surface candidate stops
 // inside that corridor". Searching near a ROUTE is a different question from
-// searching near a POINT, and the difference is this file — on a long day the
+// searching near a POINT, and the difference is this file — on a long route the
 // question is never "what is near this pin", it is "what can I reach without
 // losing an hour".
 //
@@ -26,6 +26,11 @@
 
   var R = 6371008.8; // IUGG mean radius, matching haversineM in route-shape.js
   var RAD = Math.PI / 180;
+
+  // What /api/places/search accepts, and therefore the real ceiling on how much
+  // corridor one search can reach. Not a preference — the proxy rejects more.
+  var MAX_RADIUS_M = 50000;
+  var MIN_RADIUS_M = 500;
 
   /** Meters per degree of latitude, and of longitude at this latitude. */
   function scaleAt(lat) {
@@ -55,9 +60,9 @@
 
   /**
    * How far off the route a place is, in meters. Null for a track with nothing
-   * in it — an unrouted day has no road to be off.
+   * in it — an unrouted route has no road to be off.
    *
-   * A ONE-POINT TRACK IS NOT AN ERROR: a day with a single point is a real,
+   * A ONE-POINT TRACK IS NOT AN ERROR: a route with a single point is a real,
    * saveable shape, and the honest answer there is the distance to that point.
    */
   function offRouteM(lngLat, track) {
@@ -125,8 +130,8 @@
    * in builder.js takes `h.lngLat` — this function was the one place that
    * expected a loose `{lng, lat}` pair, which nothing produces. So placeLngLat()
    * returned null for every result, withinCorridor() skipped all of them, and
-   * ALONG THE DAY answered \"no gas within 15 mi of this day\" on a route that is
-   * lined with gas stations. It failed on every day of every ride from the day
+   * ALONG THE DAY answered \"no gas within 15 mi of this route\" on a route that is
+   * lined with gas stations. It failed on every route of every ride from the route
    * #50 shipped, and looked like a routing or a radius problem because the
    * arithmetic underneath it is correct. The unit test missed it for the reason
    * these are always missed: its fixture built the shape the helper wanted
@@ -154,7 +159,7 @@
   }
 
   /**
-   * Where along a day to run a corridor search, and how wide to bias each one.
+   * Where along a route to run a corridor search, and how wide to bias each one.
    * Returns `[{ atM, radiusM }]`, distances along the track from its start.
    *
    * IN HERE RATHER THAN IN THE CLICK HANDLER, for the reason drag-index.js is a
@@ -164,38 +169,74 @@
    *
    * **ONE CALL CANNOT ENUMERATE A LONG CORRIDOR.** Text Search takes a
    * locationBias, which REORDERS rather than restricts, and answers with at most
-   * twenty hits. Anchored once at the midpoint of a 300-mile day those twenty
+   * twenty hits. Anchored once at the midpoint of a 300-mile route those twenty
    * are drawn from an area far larger than the corridor, so the stations
    * actually on the road can miss the list while the filter works perfectly.
    *
    * SPACED BY THE CORRIDOR'S OWN DIAMETER, so consecutive samples overlap rather
    * than leaving a gap as wide as the thing being looked for. Each sits at the
    * CENTER of its span, never at distance zero, where half the radius would hang
-   * off the back of the day.
+   * off the back of the route.
    *
    * CAPPED, because Text Search is billed per REQUEST — the cap is the ceiling
-   * on what one chip tap can spend, so a day long enough to reach it gets
+   * on what one chip tap can spend, so a route long enough to reach it gets
    * coverage that thins rather than a bill that grows with its length.
    */
   function corridorSamples(totalM, corridorM, maxSamples) {
     if (!(totalM > 0) || !(corridorM > 0)) return [];
     var cap = maxSamples > 0 ? Math.floor(maxSamples) : 1;
-    var n = Math.max(1, Math.min(cap, Math.ceil(totalM / (2 * corridorM))));
-    var step = totalM / n;
-    // Half a span reaches the neighboring samples; the corridor width on top of
-    // that reaches the places the filter is about to accept. Clamped to the
-    // 500m–50km the proxy accepts, so a very long or very short span still asks
-    // a question the endpoint will answer.
+
+    // ENOUGH SAMPLES THAT THE CIRCLES ACTUALLY TOUCH, which is what this
+    // function always claimed and stopped doing the moment the clamp was added.
     //
+    // The radius wants to be `step / 2 + corridorM` so consecutive circles
+    // overlap. The proxy accepts at most 50 km, so past a certain route length the
+    // clamp silently cut the reach and left HOLES — measured on a real 593-mile
+    // route: six samples 99 miles apart with a radius clamped from 95 miles to 31,
+    // so 37 miles between every pair of circles went unsearched and the answer
+    // to "gas between Burbank and Anaheim" was nothing at all. The comment above
+    // the old radius said the circles overlapped; it had been false for every
+    // route over about 190 miles.
+    //
+    // So the COUNT is derived from the reach rather than the reach being
+    // squeezed to fit a fixed count: at most 2 × MAX_RADIUS_M of corridor per
+    // sample. A short route needs fewer samples than the old fixed six, which is
+    // cheaper as well as more correct — a 300-mile route drops from six searches
+    // to five.
+    // `want` is the MINIMUM that covers the route given the clamp. The second term
+    // is the older, denser rule — one sample per corridor diameter — and it is
+    // kept as a floor rather than replaced, because geometric coverage is not
+    // the whole story: `locationBias` only REORDERS, so a circle that covers a
+    // span still returns its twenty results ranked around the CENTER, and a
+    // station near the edge of a sparsely anchored circle can simply not make
+    // the list. More anchors is more chances. The cap is what bounds the bill.
+    var want = Math.ceil(totalM / (2 * MAX_RADIUS_M));
+    var n = Math.max(1, Math.min(cap, Math.max(want, Math.ceil(totalM / (2 * corridorM)))));
+    var step = totalM / n;
     // CEIL RATHER THAN ROUND, because the proxy wants an integer and rounding a
     // reach DOWN is exactly what opens the gap this radius exists to close. At a
-    // day of precisely 2 × corridorM × cap the two are equal to the meter, and
+    // route of precisely 2 × corridorM × cap the two are equal to the meter, and
     // Math.round took a third of a meter off it — invisible in use and wrong in
     // the one direction that matters.
-    var radiusM = Math.max(500, Math.min(50000, Math.ceil(step / 2 + corridorM)));
+    var radiusM = Math.max(MIN_RADIUS_M, Math.min(MAX_RADIUS_M, Math.ceil(step / 2 + corridorM)));
     var out = [];
     for (var i = 0; i < n; i++) out.push({ atM: (i + 0.5) * step, radiusM: radiusM });
     return out;
+  }
+
+  /**
+   * Whether the samples cover the whole route, or leave gaps between the circles.
+   *
+   * FALSE IS A REAL ANSWER AND HAS TO BE SHOWN. Even with the count derived
+   * above, a long enough route runs into `cap` and the circles stop touching
+   * again — and a partly searched route that reports nothing is indistinguishable
+   * from a stretch of road with no fuel on it. That was the whole defect: the
+   * rider is entitled to know which of the two they are looking at.
+   */
+  function samplesCoverAll(samples, totalM) {
+    if (!samples || !samples.length || !(totalM > 0)) return false;
+    var step = totalM / samples.length;
+    return 2 * samples[0].radiusM >= step;
   }
 
   window.TBCorridor = {
@@ -203,5 +244,6 @@
     withinCorridor: withinCorridor,
     placeLngLat: placeLngLat,
     corridorSamples: corridorSamples,
+    samplesCoverAll: samplesCoverAll,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -48,7 +48,7 @@ const ride = (over: Partial<RideRow> = {}): RideRow =>
     ownerId: 2,
     slug: 'aB3xY7kLmN9pQrS2tUvWxY',
     title: 'Big Sur run',
-    description: 'Two days down the coast',
+    description: 'Two routes down the coast',
     visibility: 'unlisted',
     source: 'imported',
     externalUrl: null,
@@ -78,7 +78,7 @@ const input = (over: Partial<AccountArchiveInput> = {}): AccountArchiveInput => 
 })
 
 describe('accountArchiveName', () => {
-  it('names itself after the rider and the day', () => {
+  it('names itself after the rider and the route', () => {
     expect(accountArchiveName(user(), AT)).toBe('routeloop-account_ziad_2026-08-14.zip')
   })
 
@@ -93,9 +93,7 @@ describe('accountArchiveName', () => {
   // slugField owns every field in a filename and a name is not a place for case
   // to be significant.
   it('never comes out nameless', () => {
-    expect(accountArchiveName(user({ username: null }), AT)).toBe(
-      'routeloop-account_ziad-260801t2220z_2026-08-14.zip',
-    )
+    expect(accountArchiveName(user({ username: null }), AT)).toBe('routeloop-account_ziad-260801t2220z_2026-08-14.zip')
     expect(accountArchiveName(user({ username: null, publicId: null }), AT)).toContain('rider-2')
   })
 })

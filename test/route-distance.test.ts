@@ -1,6 +1,6 @@
-// How far into the day, and how far since the last fuel stop (#220).
+// How far into the route, and how far since the last fuel stop (#220).
 //
-// day-distance.js is a plain IIFE that assigns window.TBDistance, so it loads by
+// route-distance.js is a plain IIFE that assigns window.TBDistance, so it loads by
 // evaluating it against a stub global rather than importing — the same
 // arrangement as ride-time.js, twist.js and the other pure client helpers.
 //
@@ -13,13 +13,13 @@ import { readFileSync } from 'node:fs'
 
 type Point = { kind: 'stop' | 'poi'; name?: string; roles?: string[] }
 type Leg = { distanceM: number }
-type Day = { points: Point[]; legs: Leg[] }
+type Route = { points: Point[]; legs: Leg[] }
 
 let D: any
 
 beforeAll(() => {
   const win: Record<string, unknown> = {}
-  new Function('window', readFileSync('public/js/day-distance.js', 'utf8'))(win)
+  new Function('window', readFileSync('public/js/route-distance.js', 'utf8'))(win)
   D = win.TBDistance
 })
 
@@ -31,25 +31,25 @@ const poi = (name: string, roles: string[] = []): Point => ({ kind: 'poi', name,
 const leg = (miles: number): Leg => ({ distanceM: mi(miles) })
 
 /** Home → 100mi → Gas → 80mi → Lunch → 60mi → Motel */
-const day = (): Day => ({
+const route = (): Route => ({
   points: [stop('Home', ['start']), stop('Shell', ['gas']), stop('Lunch', ['food']), stop('Motel', ['hotel'])],
   legs: [leg(100), leg(80), leg(60)],
 })
 
 describe('cumulative distance', () => {
   it('starts at zero and sums the legs before each point', () => {
-    expect(D.cumulativeM(day()).map((m: number) => Math.round(m / MI))).toEqual([0, 100, 180, 240])
+    expect(D.cumulativeM(route()).map((m: number) => Math.round(m / MI))).toEqual([0, 100, 180, 240])
   })
 
   it('is always as long as the points array, so a row index indexes it', () => {
-    const d = day()
+    const d = route()
     expect(D.cumulativeM(d)).toHaveLength(d.points.length)
   })
 
   // A POI is ON the route and anchors a leg. Skipping them would under-report
   // every distance after the first one.
   it('counts a POI like any other point', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home'), poi('Overlook'), stop('Motel')],
       legs: [leg(40), leg(60)],
     }
@@ -59,56 +59,56 @@ describe('cumulative distance', () => {
   // Mid-edit reality: a stop dropped on the map has no leg until the router
   // answers, and the row still has to render.
   it('treats an unrouted leg as zero rather than breaking the sum', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('A'), stop('B'), stop('C')],
       legs: [{ distanceM: 0 }, leg(50)],
     }
     expect(D.cumulativeM(d).map((m: number) => Math.round(m / MI))).toEqual([0, 0, 50])
   })
 
-  it('survives a day with fewer legs than it needs', () => {
-    const d: Day = { points: [stop('A'), stop('B'), stop('C')], legs: [leg(30)] }
+  it('survives a route with fewer legs than it needs', () => {
+    const d: Route = { points: [stop('A'), stop('B'), stop('C')], legs: [leg(30)] }
     expect(D.cumulativeM(d).map((m: number) => Math.round(m / MI))).toEqual([0, 30, 30])
   })
 
-  it('is empty for a day with no points', () => {
+  it('is empty for a route with no points', () => {
     expect(D.cumulativeM({ points: [], legs: [] })).toEqual([])
     expect(D.totalM({ points: [], legs: [] })).toBe(0)
   })
 
-  it('totals the whole day', () => {
-    expect(Math.round(D.totalM(day()) / MI)).toBe(240)
+  it('totals the whole route', () => {
+    expect(Math.round(D.totalM(route()) / MI)).toBe(240)
   })
 })
 
 describe('distance since the last refuel', () => {
-  it('counts from the start of the day until the first fuel stop', () => {
-    expect(D.sinceRefuelM(day(), 'gas').map((m: number) => Math.round(m / MI))).toEqual([0, 0, 80, 140])
+  it('counts from the start of the route until the first fuel stop', () => {
+    expect(D.sinceRefuelM(route(), 'gas').map((m: number) => Math.round(m / MI))).toEqual([0, 0, 80, 140])
   })
 
   // THE READING THAT LOOKS WRONG AND IS NOT. At the pump the tank is full, so
   // the row reads zero rather than the 100 miles that got you there.
   it('resets to zero at the fuel stop itself', () => {
-    expect(Math.round(D.sinceRefuelM(day(), 'gas')[1] / MI)).toBe(0)
+    expect(Math.round(D.sinceRefuelM(route(), 'gas')[1] / MI)).toBe(0)
   })
 
   it('resets again at every subsequent fuel stop', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home'), stop('Shell', ['gas']), stop('Arco', ['gas']), stop('Motel')],
       legs: [leg(100), leg(90), leg(70)],
     }
     expect(D.sinceRefuelM(d, 'gas').map((m: number) => Math.round(m / MI))).toEqual([0, 0, 0, 70])
   })
 
-  it('is just the cumulative distance on a day with no fuel stop at all', () => {
-    const d: Day = { points: [stop('A'), stop('B'), stop('C')], legs: [leg(50), leg(60)] }
+  it('is just the cumulative distance on a route with no fuel stop at all', () => {
+    const d: Route = { points: [stop('A'), stop('B'), stop('C')], legs: [leg(50), leg(60)] }
     expect(D.sinceRefuelM(d, 'gas')).toEqual(D.cumulativeM(d))
   })
 
   // gas and charge are the same event seen from two kinds of bike. An electric
   // rider passing a Chevron has refuelled nothing.
   it('ignores a gas stop when the bike takes charge, and the reverse', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home'), stop('Shell', ['gas']), stop('Supercharger', ['charge']), stop('Motel')],
       legs: [leg(100), leg(50), leg(40)],
     }
@@ -117,7 +117,7 @@ describe('distance since the last refuel', () => {
   })
 
   it('counts a fuel stop that also carries other categories', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('Home'), stop('Truck stop', ['gas', 'food']), stop('Motel')],
       legs: [leg(120), leg(60)],
     }
@@ -125,7 +125,7 @@ describe('distance since the last refuel', () => {
   })
 
   it('reads a point with no roles at all without throwing', () => {
-    const d: Day = { points: [{ kind: 'stop' }, { kind: 'stop' }], legs: [leg(20)] }
+    const d: Route = { points: [{ kind: 'stop' }, { kind: 'stop' }], legs: [leg(20)] }
     expect(D.sinceRefuelM(d, 'gas').map((m: number) => Math.round(m / MI))).toEqual([0, 20])
   })
 })
@@ -133,30 +133,30 @@ describe('distance since the last refuel', () => {
 describe('running dry', () => {
   it('finds the first point past the range', () => {
     // 240 miles total, one fuel stop at 100. The last leg puts 140 on the tank.
-    expect(D.firstDryPoint(day(), 'gas', mi(120))).toBe(3)
+    expect(D.firstDryPoint(route(), 'gas', mi(120))).toBe(3)
   })
 
   it('is null when every gap is inside the range', () => {
-    expect(D.firstDryPoint(day(), 'gas', mi(200))).toBeNull()
+    expect(D.firstDryPoint(route(), 'gas', mi(200))).toBeNull()
   })
 
   // NULL MEANS NOBODY MEASURED IT. A warning built on an invented range is worse
   // than no warning because it looks like one — the same argument null
   // twistiness makes.
   it('is null when no range is known, and never a guess', () => {
-    expect(D.firstDryPoint(day(), 'gas', null)).toBeNull()
-    expect(D.firstDryPoint(day(), 'gas', undefined)).toBeNull()
+    expect(D.firstDryPoint(route(), 'gas', null)).toBeNull()
+    expect(D.firstDryPoint(route(), 'gas', undefined)).toBeNull()
   })
 
   it('treats a zero or negative range as unknown rather than as always dry', () => {
-    expect(D.firstDryPoint(day(), 'gas', 0)).toBeNull()
-    expect(D.firstDryPoint(day(), 'gas', -1)).toBeNull()
+    expect(D.firstDryPoint(route(), 'gas', 0)).toBeNull()
+    expect(D.firstDryPoint(route(), 'gas', -1)).toBeNull()
   })
 
-  // A day already wrong at point 2 is wrong at 3 and 4 as well. Flagging all of
+  // A route already wrong at point 2 is wrong at 3 and 4 as well. Flagging all of
   // them turns one problem into a column of red.
   it('reports only the first breach', () => {
-    const d: Day = {
+    const d: Route = {
       points: [stop('A'), stop('B'), stop('C'), stop('D')],
       legs: [leg(200), leg(200), leg(200)],
     }
@@ -164,7 +164,74 @@ describe('running dry', () => {
   })
 
   it('does not flag a point sitting exactly on the range', () => {
-    const d: Day = { points: [stop('A'), stop('B')], legs: [leg(150)] }
+    const d: Route = { points: [stop('A'), stop('B')], legs: [leg(150)] }
     expect(D.firstDryPoint(d, 'gas', mi(150))).toBeNull()
+  })
+})
+
+// WHERE A MEETING POINT GOES (#239's placement half). The proposer measures a
+// candidate along the main group's strand, and this is the walk back from that
+// distance to a route and a slot in its point list. It replaced "before the last
+// point", which is exact on a start-and-destination route and put the meet after
+// every stop the rider had planned on a route that had any.
+describe('placing a point by distance into the route', () => {
+  it('lands inside the leg the distance falls on', () => {
+    // Home 0, Shell 100, Lunch 180, Motel 240.
+    expect(D.insertIndexAtM(route(), mi(50))).toBe(1)
+    expect(D.insertIndexAtM(route(), mi(140))).toBe(2)
+    expect(D.insertIndexAtM(route(), mi(200))).toBe(3)
+  })
+
+  // A distance sitting exactly on a point goes AFTER it: the rider is standing
+  // there, and a meet placed before a stop they have already reached would send
+  // them back up the road for it.
+  it('puts a distance landing on a point after that point', () => {
+    expect(D.insertIndexAtM(route(), mi(100))).toBe(2)
+    expect(D.insertIndexAtM(route(), mi(180))).toBe(3)
+  })
+
+  it('appends past the end of the route rather than clamping inside it', () => {
+    expect(D.insertIndexAtM(route(), mi(240))).toBe(4)
+    expect(D.insertIndexAtM(route(), mi(9999))).toBe(4)
+  })
+
+  // The geometric answer, with no floor. "Never before a group's start" is a
+  // rule about what a meeting point means and belongs to the caller.
+  it('applies no floor of its own at zero', () => {
+    expect(D.insertIndexAtM(route(), 0)).toBe(1)
+    expect(D.insertIndexAtM(route(), -1)).toBe(1)
+  })
+
+  it('answers zero for a route with no points', () => {
+    expect(D.insertIndexAtM({ points: [], legs: [] }, mi(10))).toBe(0)
+  })
+
+  const strand = (): Route[] => [
+    { points: [stop('A'), stop('B')], legs: [leg(100)] },
+    { points: [stop('C'), stop('D'), stop('E')], legs: [leg(50), leg(50)] },
+  ]
+
+  it('finds the route a strand distance falls on, and the slot within it', () => {
+    expect(D.placeAlongStrand(strand(), mi(40))).toEqual({ index: 0, at: 1 })
+    expect(D.placeAlongStrand(strand(), mi(130))).toEqual({ index: 1, at: 1 })
+    expect(D.placeAlongStrand(strand(), mi(180))).toEqual({ index: 1, at: 2 })
+  })
+
+  // The boundary goes to the route that ENDS there: that point is a place the
+  // rider planned, where the next route's first point is the same place again.
+  it('gives a route boundary to the route that ends on it', () => {
+    expect(D.placeAlongStrand(strand(), mi(100))).toEqual({ index: 0, at: 2 })
+  })
+
+  // The server measures along stored geometry and the builder along the legs in
+  // memory, so the two totals differ by meters. A meet at the very end of the
+  // road must not fall off it.
+  it('lands on the last route when the distance overshoots the strand', () => {
+    expect(D.placeAlongStrand(strand(), mi(9999))).toEqual({ index: 1, at: 3 })
+  })
+
+  it('is null for an empty strand, which is a group with no road', () => {
+    expect(D.placeAlongStrand([], mi(10))).toBeNull()
+    expect(D.placeAlongStrand(null, mi(10))).toBeNull()
   })
 })

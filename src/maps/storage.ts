@@ -19,8 +19,8 @@ export const STORAGE = resolve(process.env.STORAGE_PATH ?? './storage')
 export const STORED_EXTS = ['kml', 'gpx', 'geojson', 'csv', 'json'] as const
 export type StoredExt = (typeof STORED_EXTS)[number]
 
-// A ride imported from several files keeps each one. `index` is the day's
-// position, so day 2 of a folder import lands at `{mapId}-1.gpx`. Day 0 keeps
+// A ride imported from several files keeps each one. `index` is the route's
+// position, so route 2 of a folder import lands at `{mapId}-1.gpx`. Route 0 keeps
 // the bare `{mapId}.{ext}` name, which is what every single-file import has
 // always written and what the rows already on disk are called.
 const MAX_SOURCE_FILES = 30
@@ -187,7 +187,7 @@ export type StoredFile = {
  * The inverse of the naming rule in mapFilePath: `19.kml` and `19-2.gpx` back
  * into their parts, anything else to null.
  *
- * Strict on purpose, so it is a true inverse. `19-0.kml` is rejected because day
+ * Strict on purpose, so it is a true inverse. `19-0.kml` is rejected because route
  * 0 is written bare, and a name that round-trips to a different name would let a
  * stray file be attributed to a ride it does not belong to.
  */
@@ -206,7 +206,7 @@ export function parseStoredName(fileName: string): StoredFile | null {
   if (!Number.isSafeInteger(rideId) || rideId <= 0 || String(rideId) !== m[1]) return null
   const compressed = m[4] !== undefined
 
-  // Absent means day 0. Present means it must not be 0, and must not be padded.
+  // Absent means route 0. Present means it must not be 0, and must not be padded.
   if (m[2] === undefined) return { rideId, index: 0, ext, compressed }
   const index = Number(m[2])
   if (index <= 0 || index >= MAX_SOURCE_FILES || String(index) !== m[2]) return null

@@ -5,11 +5,11 @@
 // dashboard's month labels and number grouping. The BUILDER was already correct
 // and always has been, because `<input type="datetime-local">` renders in the
 // viewer's own locale and hands back an ISO string regardless. So a rider outside
-// the US planned a day in `24/08/2026` and printed a roadbook that said
+// the US planned a route in `24/08/2026` and printed a roadbook that said
 // `08/24/2026` — the same product disagreeing with itself.
 //
 // A DISPLAY LAYER ONLY, exactly like src/maps/duration.ts, whose shape this
-// follows. Nothing here touches storage: `days.start_at` stays a timestamp with
+// follows. Nothing here touches storage: `routes.start_at` stays a timestamp with
 // an offset, `ride.json` stays ISO, and every export is untouched.
 //
 // THE MEMBERS ARE REAL LOCALE TAGS, and that is the one judgement call worth
@@ -27,10 +27,10 @@
 // `fmtCount` in src/stats/shape.ts still carry a hardcoded 'en-US', because all
 // three members shipped here are English and group identically as 1,234 — so
 // threading a format through ten call sites in a pure module would change nothing
-// anyone can see. `fmtNumber` exists for the day a member like `de-DE` (1.234)
+// anyone can see. `fmtNumber` exists for the route a member like `de-DE` (1.234)
 // lands, which is when that churn starts buying something.
 //
-// THREE MEMBERS, ONE PER DIGIT ORDER, not a catalogue of locales. Verified
+// THREE MEMBERS, ONE PER DIGIT ORDER, not a catalog of locales. Verified
 // against Intl rather than assumed:
 //
 //   en-US  8/24/2026    Monday, August 24    9:05 AM
@@ -61,7 +61,7 @@ export const toDateFormat = (v: unknown): DateFormat =>
 /** The settings page's radio set. `example` is the same instant in all three. */
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
   { id: 'en-US', label: 'Month first', example: '8/24/2026, 9:05 AM' },
-  { id: 'en-GB', label: 'Day first', example: '24/08/2026, 09:05' },
+  { id: 'en-GB', label: 'Route first', example: '24/08/2026, 09:05' },
   { id: 'en-CA', label: 'Year first (ISO)', example: '2026-08-24, 9:05 a.m.' },
 ]
 
@@ -73,7 +73,7 @@ export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: stri
 // departure means 9am where the bike is, whether they planned it from home or
 // from London two weeks before flying out — so nothing converts it into anyone's
 // local time, ever. The value rides in as though it were UTC (see the header of
-// public/js/day-clock.js, which is the only place that conversion happens), so
+// public/js/route-clock.js, which is the only place that conversion happens), so
 // reading it back as UTC returns the digits the rider typed.
 //
 // Until that call this file rendered UTC over a value the builder had stored in
@@ -84,7 +84,7 @@ const UTC = { timeZone: 'UTC' } as const
 /** 8/24/2026 · 24/08/2026 · 2026-08-24 */
 export const fmtDateNumeric = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, UTC)
 
-/** Monday, August 24 — the roadbook's day heading. */
+/** Monday, August 24 — the roadbook's route heading. */
 export const fmtDateLong = (d: Date, f: DateFormat): string =>
   d.toLocaleDateString(f, { weekday: 'long', month: 'long', day: 'numeric', ...UTC })
 
@@ -142,8 +142,38 @@ export function fromAcceptLanguage(header: string | undefined | null): DateForma
 // Day-first is the majority of the world; this is not exhaustive and does not
 // need to be. Anything absent gets the default and one click to fix it.
 const DAY_FIRST_REGIONS = new Set([
-  'GB', 'IE', 'AU', 'NZ', 'ZA', 'IN', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'PT', 'BR', 'AR', 'MX', 'CL',
-  'PL', 'RU', 'TR', 'GR', 'DK', 'NO', 'FI', 'CZ', 'AT', 'CH', 'ID', 'TH', 'VN', 'PH', 'MY',
+  'GB',
+  'IE',
+  'AU',
+  'NZ',
+  'ZA',
+  'IN',
+  'DE',
+  'FR',
+  'ES',
+  'IT',
+  'NL',
+  'BE',
+  'PT',
+  'BR',
+  'AR',
+  'MX',
+  'CL',
+  'PL',
+  'RU',
+  'TR',
+  'GR',
+  'DK',
+  'NO',
+  'FI',
+  'CZ',
+  'AT',
+  'CH',
+  'ID',
+  'TH',
+  'VN',
+  'PH',
+  'MY',
 ])
 
 const YEAR_FIRST_REGIONS = new Set(['CA', 'JP', 'CN', 'KR', 'TW', 'HU', 'LT', 'SE'])

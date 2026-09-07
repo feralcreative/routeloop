@@ -106,7 +106,7 @@ describe('ensureUids', () => {
   })
 
   // Duplicating a stop in the builder is one click, and a client that copies the
-  // row copies its uid. Two points sharing a uid would violate the per-day unique
+  // row copies its uid. Two points sharing a uid would violate the per-route unique
   // index and 500 the whole save.
   it('breaks a tie so a duplicated stop cannot collide', () => {
     const u = newUid()
@@ -123,19 +123,19 @@ describe('ensureUids', () => {
 // The payload contract. These run through the real schema rather than a copy,
 // so a field renamed in ride-graph.ts fails here.
 describe('the details payload', () => {
-  const day = (stop: Record<string, unknown>) => ({
+  const route = (stop: Record<string, unknown>) => ({
     title: '',
     color: '#0000cc',
     points: [{ kind: 'stop' as const, lat: 38, lng: -122, ...stop }],
     legs: [],
   })
   const parse = (stop: Record<string, unknown>) =>
-    ridePayload.safeParse({ title: 'T', description: '', visibility: 'private', days: [day(stop)] })
+    ridePayload.safeParse({ title: 'T', description: '', visibility: 'private', routes: [route(stop)] })
 
   it('accepts a stop with no details at all', () => {
     const r = parse({})
     expect(r.success).toBe(true)
-    if (r.success) expect(r.data.days[0].points[0].details).toBeNull()
+    if (r.success) expect(r.data.routes[0].points[0].details).toBeNull()
   })
 
   it('accepts a filled-in stop', () => {
@@ -143,7 +143,7 @@ describe('the details payload', () => {
       details: { confirmation: 'ABC123', notes: 'gate code 4417', links: [{ label: 'Book', url: 'https://ex.com' }] },
     })
     expect(r.success).toBe(true)
-    if (r.success) expect(r.data.days[0].points[0].details?.confirmation).toBe('ABC123')
+    if (r.success) expect(r.data.routes[0].points[0].details?.confirmation).toBe('ABC123')
   })
 
   // A link is rendered as an href, so http(s)-only — the same rule the ride's

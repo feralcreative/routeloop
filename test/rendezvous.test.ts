@@ -11,7 +11,15 @@
 // trunk running away from everybody has no answer at all. A proposer that
 // always returns something is worse than one that sometimes says no.
 import { describe, expect, it } from 'vitest'
-import { divertMi, proposeRendezvous, type FuelCandidate } from '../src/subgroups/rendezvous'
+import {
+  clampDivert,
+  divertMi,
+  proposeGroupMeet,
+  proposeRendezvous,
+  worstDivertMi,
+  type FuelCandidate,
+  type GroupRoute,
+} from '../src/subgroups/rendezvous'
 import type { Track } from '../src/maps/kml'
 
 /** Due east along 40°N, one vertex every 0.05° — roughly every 4.3 km. */
@@ -48,6 +56,51 @@ describe('proposeRendezvous', () => {
     // Sitting just south of the trunk, joining it costs almost nothing.
     expect(divertMi(out[0])).toBeLessThan(15)
     expect(out[0].divertM).toBeGreaterThanOrEqual(0)
+  })
+
+  // #239, AND THE REASON EVERY TEST ABOVE MISSED IT. The trunk they run on is a
+  // straight line of latitude, so its road length and its straight-line length
+  // are the same number and the two ways of measuring the remainder cannot be
+  // told apart. Real roads bend. The divert used to add the remainder ALONG THE
+  // TRUNK to a straight-line direct, so every curve after the candidate was
+  // billed to the joining group as a detour they had chosen — on a trunk of
+  // ordinary sinuosity that is tens of miles against a 25-mile budget, and the
+  // whole route gets refused.
+  const zigzag = (fromLng: number, toLng: number, lat = 40, amp = 0.35): Track => {
+    const out: Track = []
+    let i = 0
+    for (let lng = fromLng; lng <= toLng + 1e-9; lng += 0.05, i++) {
+      out.push([Math.round(lng * 1e6) / 1e6, lat + (i % 2 === 0 ? amp : -amp)])
+    }
+    return out
+  }
+
+  it('does not bill the trunk’s own bends to the joining group', () => {
+    const bent = zigzag(-122, -117)
+    // The same origin as the straight case: a little south of the trunk, a
+    // third of the way along. Joining here is nearly free either way — the
+    // group is going east regardless — and it is the ROAD that wanders, not
+    // them.
+    const out = proposeRendezvous(bent, [-120.5, 39.5])
+    expect(out.length).toBeGreaterThan(0)
+    expect(divertMi(out[0])).toBeLessThan(15)
+  })
+
+  it('never reports a negative divert, on any trunk', () => {
+    // The dogleg cost of going via a point instead of straight past it, which
+    // the triangle inequality puts at or above zero. A mixed-metric formula has
+    // no such floor and can hand a rider a meeting point that saves them miles.
+    for (const trunk of [TRUNK, zigzag(-122, -117)]) {
+      for (const origin of [
+        [-120, 39.6],
+        [-121.8, 39.0],
+        [-119, 40.2],
+      ] as [number, number][]) {
+        for (const r of proposeRendezvous(trunk, origin)) {
+          expect(r.divertM).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
   })
 
   it('prefers joining at a shallow angle over arriving perpendicular', () => {
@@ -160,5 +213,251 @@ describe('near-duplicates', () => {
 
   it('honors the limit', () => {
     expect(proposeRendezvous(TRUNK, [-120, 39.6], [], {}, 1)).toHaveLength(1)
+  })
+})
+
+// Meeting the MAIN group on their own road — the question a planner actually
+// has. Everyone is going to the same place from different places, the main
+// group's route is the ride, and the others join it.
+//
+// THE GEOMETRY IS A Y. The main group sets off from the west at 40°N and rides
+// due east to the destination. A second group starts at 39°N and its road bends
+// up to join that line at the fork, which is the point most of these are about.
+// THE DIVERT BUDGET IS A RIDER-FACING NUMBER SINCE 2026-09-06, so it arrives
+// over HTTP and has to be treated as hostile. Empty is the one that matters: a
+// number box the rider cleared posts "", and Number("") is 0, which would refuse
+// every candidate on the ride and read as the feature being broken.
+describe('clampDivert', () => {
+  it('leaves a sane number alone, from either a form or JSON', () => {
+    expect(clampDivert(25)).toBe(25)
+    expect(clampDivert('40')).toBe(40)
+    expect(clampDivert(' 12 ')).toBe(12)
+  })
+
+  it('holds the floor and the ceiling', () => {
+    expect(clampDivert(0)).toBe(1)
+    expect(clampDivert(-500)).toBe(1)
+    expect(clampDivert(9000)).toBe(200)
+  })
+
+  it('is undefined for anything unusable, so the caller keeps its own default', () => {
+    expect(clampDivert('')).toBeUndefined()
+    expect(clampDivert('   ')).toBeUndefined()
+    expect(clampDivert(undefined)).toBeUndefined()
+    expect(clampDivert(null)).toBeUndefined()
+    expect(clampDivert('twenty')).toBeUndefined()
+    expect(clampDivert(NaN)).toBeUndefined()
+    expect(clampDivert({})).toBeUndefined()
+  })
+
+  it('spreads as a no-op when it declines, leaving DEFAULTS in place', () => {
+    // The shape the route actually builds. `{ maxDivertMi: undefined }` must not
+    // override the proposer's own 25 — which it would if the value were read
+    // with a plain `??` rather than spread over the defaults.
+    const straight = (a: [number, number], b: [number, number]): Track => {
+      const out: Track = []
+      for (let k = 0; k <= 120; k++) out.push([a[0] + ((b[0] - a[0]) * k) / 120, a[1] + ((b[1] - a[1]) * k) / 120])
+      return out
+    }
+    const main: GroupRoute = { id: 'n', origin: [-122, 40], track: straight([-122, 40], [-117, 40]) }
+    const join: GroupRoute = { id: 's', origin: [-122, 39.6], track: straight([-122, 39.6], [-117, 40]) }
+    const declined = proposeGroupMeet(main, [join], [], { maxDivertMi: clampDivert('') })
+    const plain = proposeGroupMeet(main, [join])
+    expect(plain.length).toBeGreaterThan(0)
+    expect(declined.map((m) => m.alongM)).toEqual(plain.map((m) => m.alongM))
+  })
+
+  // THE DIAL ACTUALLY MOVES THE ANSWER, which is the whole reason it got a
+  // control: an earliest-acceptable rule lands NEAR its limit, so widening the
+  // budget should bring the meeting point earlier along the main group's road.
+  it('a wider budget buys an earlier meeting point', () => {
+    const straight = (a: [number, number], b: [number, number]): Track => {
+      const out: Track = []
+      for (let k = 0; k <= 120; k++) out.push([a[0] + ((b[0] - a[0]) * k) / 120, a[1] + ((b[1] - a[1]) * k) / 120])
+      return out
+    }
+    const main: GroupRoute = { id: 'n', origin: [-122, 40], track: straight([-122, 40], [-117, 40]) }
+    // Well south of the road, so joining it early is expensive and joining it
+    // late is cheap — the shape the budget is a dial on.
+    const join: GroupRoute = { id: 's', origin: [-121, 39], track: straight([-121, 39], [-117, 40]) }
+    const tight = proposeGroupMeet(main, [join], [], { maxDivertMi: clampDivert(10) })
+    const wide = proposeGroupMeet(main, [join], [], { maxDivertMi: clampDivert(60) })
+    expect(tight.length).toBeGreaterThan(0)
+    expect(wide.length).toBeGreaterThan(0)
+    expect(wide[0].alongM).toBeLessThan(tight[0].alongM)
+  })
+})
+
+describe('proposeGroupMeet', () => {
+  /** Straight line between two points, one vertex every ~1 km, end included. */
+  const leg = (a: [number, number], b: [number, number]): Track => {
+    const out: Track = []
+    const steps = 120
+    for (let k = 0; k <= steps; k++) out.push([a[0] + ((b[0] - a[0]) * k) / steps, a[1] + ((b[1] - a[1]) * k) / steps])
+    return out
+  }
+
+  const DEST: [number, number] = [-117, 40]
+  const FORK: [number, number] = [-119, 40]
+
+  const north: GroupRoute = { id: 'n', origin: [-122, 40], track: leg([-122, 40], DEST) }
+  const south: GroupRoute = {
+    id: 's',
+    origin: [-122, 39],
+    // West to the fork by way of a bend, then the shared road east.
+    track: [...leg([-122, 39], FORK), ...leg(FORK, DEST)],
+  }
+
+  // THE EARLIEST ACCEPTABLE POINT, NOT THE CHEAPEST — the point of a group ride
+  // is to ride as a group, so what is minimized is the distance covered apart.
+  // The divert is a limit on what that may cost somebody, not the goal.
+  it('proposes the earliest meeting point everybody can still reach', () => {
+    const out = proposeGroupMeet(north, [south])
+    expect(out.length).toBeGreaterThan(0)
+    // WEST of the fork at -119: the southern group pays a few miles to join
+    // sooner rather than riding to where the roads happen to converge.
+    expect(out[0].at[0]).toBeLessThan(-119.5)
+    expect(worstDivertMi(out[0])).toBeLessThanOrEqual(25)
+    // Ordered earliest-first, which is what makes the first row the one to take.
+    for (let i = 1; i < out.length; i++) expect(out[i].alongM).toBeGreaterThan(out[i - 1].alongM)
+  })
+
+  // AND THE CONVERGENCE IS STILL FOUND when nothing earlier is affordable —
+  // which is the case the scoring used to reach by default. Tightening the
+  // allowance is what proves the fork is chosen on its merits rather than
+  // because it happened to be cheapest.
+  it('falls back to where the roads already converge, at no cost to anybody', () => {
+    const out = proposeGroupMeet(north, [south], [], { maxDivertMi: 0.5 })
+    expect(out.length).toBeGreaterThan(0)
+    // The fork, give or take the sampler's 2 km step.
+    expect(out[0].at[0]).toBeGreaterThan(-119.2)
+    expect(out[0].at[0]).toBeLessThan(-118.6)
+    expect(worstDivertMi(out[0])).toBe(0)
+    // Both groups ride through it, which is what makes it free. A convergence
+    // detector was not needed to find this — it falls out of the scoring.
+    expect(out[0].diverts.every((d) => d.onRoute)).toBe(true)
+  })
+
+  // THE MAIN GROUP CAN NEVER BE THE ONE JOINING, which the signature enforces
+  // rather than the body: they are two arguments, so there is no list a feeder's
+  // road could win from. Asserted through the behavior anyway — every candidate
+  // lies on the main group's own track, and they never pay a divert.
+  it('only ever proposes points on the main group’s road', () => {
+    const out = proposeGroupMeet(north, [south])
+    expect(out.length).toBeGreaterThan(0)
+    for (const m of out) {
+      expect(m.alongM).toBeGreaterThan(0)
+      // Due east at 40°N is the main group's line, and nothing else is on it.
+      expect(m.at[1]).toBeCloseTo(40, 6)
+      expect(m.diverts.find((d) => d.id === 'n')).toEqual({ id: 'n', divertM: 0, approachDeg: 0, onRoute: true })
+    }
+  })
+
+  // THE FAIRNESS TERM, AND IT IS THE ONE THAT MUST BE ON THE WORST GROUP. A
+  // budget spent in TOTAL lets several groups' convenience be paid for by one,
+  // which is the silent unfairness #67 asks the app not to commit on the
+  // planner's behalf.
+  it('caps the worst single group rather than the total', () => {
+    // Far to the south, so joining the northern road at all is a long haul.
+    const far: GroupRoute = { id: 'f', origin: [-121, 36], track: leg([-121, 36], DEST) }
+    for (const m of proposeGroupMeet(north, [far])) {
+      expect(worstDivertMi(m)).toBeLessThanOrEqual(25)
+    }
+    // Tightening the allowance is what proves the refusal is this constraint:
+    // the same pair, offerable at 25 miles and not at 1.
+    expect(proposeGroupMeet(north, [far], [], { maxDivertMi: 1 })).toEqual([])
+  })
+
+  // A MEETING POINT SHOULD BE A GAS STATION. Everyone arrives needing fuel and a
+  // forecourt is somewhere you can actually wait, so a station on the road beats
+  // the anonymous stretch of highway it snapped to.
+  it('offers a station as itself, not as the road vertex beside it', () => {
+    // A few hundred meters north of the main group's line, which is inside
+    // ON_ROUTE_M, so it snaps to the road for ranking and keeps its own place.
+    const station: FuelCandidate = {
+      at: [-120.5, 40.004],
+      roles: ['gas'],
+      name: 'Shell',
+      address: '1 Main St, Somewhere, CA 90000',
+    }
+    // `fuelOnly`, which is how the route asks: the ranking prefers the earliest
+    // viable point, so without it a station further along the road is crowded
+    // out by plain vertices and "no station here" is reported for a road that
+    // has one.
+    const out = proposeGroupMeet(north, [south], [station], { fuelOnly: true })
+    const fuel = out.find((m) => m.isFuel)
+    expect(fuel).toBeTruthy()
+    // Nothing BUT stations under that flag.
+    expect(out.every((m) => m.isFuel)).toBe(true)
+    // THE FORECOURT, not the highway: a rider sent to a station has to be
+    // sent to the station.
+    expect(fuel!.at).toEqual([-120.5, 40.004])
+    expect(fuel!.name).toBe('Shell')
+    expect(fuel!.address).toBe('1 Main St, Somewhere, CA 90000')
+    // Ranked by distance along the ROAD, which comes from the snapped vertex.
+    expect(fuel!.alongM).toBeGreaterThan(0)
+  })
+
+  it('ignores a station that is not on the main group’s road', () => {
+    // Two degrees of latitude off the line is not a detour, it is a different
+    // county — dropped by ON_ROUTE_M rather than offered and ranked last.
+    const far: FuelCandidate = { at: [-120.5, 42], roles: ['gas'], name: 'Far Shell' }
+    expect(proposeGroupMeet(north, [south], [far], { fuelOnly: true })).toEqual([])
+  })
+
+  it('has no question to answer when nobody is joining', () => {
+    expect(proposeGroupMeet(north, [])).toEqual([])
+  })
+
+  // The main group's road IS the road. With no route on it there is nowhere to
+  // put a meeting point, however well planned the joining groups are — the
+  // caller says so in its own words rather than reporting "nowhere works".
+  it('has nothing to offer when the main group has not planned a route', () => {
+    const bare: GroupRoute = { id: 'n', origin: [-122, 40], track: [[-122, 40]] }
+    expect(proposeGroupMeet(bare, [south])).toEqual([])
+  })
+
+  // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE, so where its
+  // own track happens to end is not consulted. That is usually the last place
+  // they have got round to planning — on the ride this was first tried against,
+  // the second group's route ended at a coffee shop in their own town, and a
+  // filter that dropped them for it made the whole ride answer "nowhere works".
+  it('ignores where a joining group’s own route ends', () => {
+    // Same origin as `south`, but its road wanders off to the south-east and
+    // stops nowhere near the destination.
+    const wandering: GroupRoute = { id: 'w', origin: [-122, 39], track: leg([-122, 39], [-119, 37]) }
+    const out = proposeGroupMeet(north, [wandering])
+    expect(out.length).toBeGreaterThan(0)
+    expect(out[0].diverts.map((d) => d.id)).toContain('w')
+  })
+
+  // What DOES refuse them is the ordinary cap, with a number behind it: a group
+  // whose start is genuinely nowhere near the main group's road cannot be given
+  // a meeting point on it at any price.
+  it('refuses a joining group whose start is too far off the road', () => {
+    const distant: GroupRoute = { id: 'd', origin: [-121, 30], track: [[-121, 30]] }
+    expect(proposeGroupMeet(north, [distant])).toEqual([])
+  })
+
+  it('leaves real road ahead of every meet it offers', () => {
+    for (const m of proposeGroupMeet(north, [south])) {
+      expect(m.sharedFraction).toBeGreaterThanOrEqual(0.2)
+    }
+  })
+
+  // A JOINING group with one point and no legs is a route somebody started and has
+  // not planned. It has an origin, so it is still somebody who has to get there
+  // and is still scored — dropping it would propose a meeting point the other
+  // groups love and this one cannot reach.
+  it('still counts an unrouted joining group’s divert', () => {
+    const bare: GroupRoute = { id: 'b', origin: [-121, 38], track: [[-121, 38]] }
+    const out = proposeGroupMeet(north, [south, bare])
+    expect(out.length).toBeGreaterThan(0)
+    for (const m of out) expect(m.diverts.map((d) => d.id)).toContain('b')
+    // And it moves the answer: the third group is south-east of the fork, so the
+    // meet the other two would have had to themselves is pulled along the main
+    // group's road toward somewhere all three can reach.
+    const pair = proposeGroupMeet(north, [south])
+    expect(out[0].at[0]).toBeGreaterThan(pair[0].at[0])
   })
 })

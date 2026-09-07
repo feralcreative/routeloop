@@ -181,9 +181,9 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
       <section class="setting-topic" id="how-things-read">
         <h2>How things read</h2>
         <p>
-          Three choices about writing rather than about data. Every one of them changes how a figure is printed and
-          none of them changes the figure — your rides, the roadbook and every export are unaffected, and you can
-          switch back whenever you&nbsp;like.
+          Three choices about writing rather than about data. Every one of them changes how a figure is printed and none
+          of them changes the figure — your rides, the roadbook and every export are unaffected, and you can switch back
+          whenever you&nbsp;like.
         </p>
 
         <div class="three-col">
@@ -245,7 +245,6 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
                 {savedDates ? <span class="form-ok">Saved</span> : null}
               </div>
             </form>
-
           </section>
 
           <section class="setting" id="stop-durations">
@@ -277,7 +276,6 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
             </form>
           </section>
         </div>
-
       </section>
 
       <section class="gtfo">
@@ -302,7 +300,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
             <h3>Delete Me</h3>
             <p>
               Hide your profile and every ride from the site straight away, and schedule the lot to be destroyed in{' '}
-              {DELETION_HOLD_DAYS} days. Nothing is destroyed before then, and Save Me undoes it at any point.
+              {DELETION_HOLD_DAYS} routes. Nothing is destroyed before then, and Save Me undoes it at any point.
             </p>
           </div>
           <a class="btn btn-sign btn-stop" href="/account/delete">
@@ -314,7 +312,7 @@ settingsRoutes.get('/settings', requireActive, async (c) => {
           <div>
             <h3>Save Me</h3>
             <p>
-              Change your mind after Delete Me. Any time inside the {DELETION_HOLD_DAYS} days it is one click and
+              Change your mind after Delete Me. Any time inside the {DELETION_HOLD_DAYS} routes it is one click and
               nothing was ever lost — you will find it waiting on the page you land on when you sign in.
             </p>
           </div>

@@ -13,6 +13,33 @@ body {
   color: $text;
 }
 
+// THE STAGE BANNER'S RESERVE ON ORDINARY PAGES. `.tb-banner` is `position:
+// fixed` — it has to be, because on a map page there is no flow to sit in — so
+// on a chrome page it paints straight over .site-header unless the body is
+// pushed down by exactly its height.
+//
+// Scoped to the class rather than applied unconditionally because --banner-h is
+// 0px everywhere else and a `padding-top: 0` on every page is a rule that says
+// nothing. Map pages are excluded: they offset each fixed element individually
+// against the same variable (see _map.scss), and padding the body there would
+// shrink the full-viewport map by the banner's height a second time.
+html.has-stage-banner:not(.map-page) body {
+  padding-top: var(--banner-h, 0px);
+}
+
+//@ Print — the banner is hidden on paper, so its reserve must go too
+//
+// Here rather than in _roadbook.scss beside the rule that hides the banner,
+// because the reserve is created here and a reader of this rule has to be able
+// to see it undone. It also has to outrank the selector above, which is two
+// classes and two elements deep — a plain `.roadbook-page` in a print block
+// loses to it and leaves an inch of blank paper at the top of every sheet.
+@media print {
+  html.has-stage-banner:not(.map-page) body {
+    padding-top: 0;
+  }
+}
+
 html.map-page,
 html.map-page body {
   font: 300 14px/1.1em $font;

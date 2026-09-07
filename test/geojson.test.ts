@@ -60,7 +60,7 @@ describe('processGeoJson', () => {
     const r = processGeoJson(fc([feature(line([SF, OAK])), feature(long)]))
     expect(r.tracks).toHaveLength(2)
     // `track` is the first line, not the longest — the file's order is the
-    // day order, and a longer day two does not make it day one.
+    // route order, and a longer route two does not make it route one.
     expect(r.track).toHaveLength(2)
     expect(r.tracks[1].track).toHaveLength(4)
   })
@@ -166,11 +166,11 @@ describe('processGeoJson', () => {
 describe('buildGeoJson → processGeoJson round-trip', () => {
   const ride: ExportRide = {
     title: 'Bodega weekend',
-    description: 'two days',
+    description: 'two routes',
     hiddenAlts: 0,
-    days: [
+    routes: [
       {
-        title: 'Day 1',
+        title: 'Route 1',
         color: '#cc0000',
         distanceM: 16000,
         durationS: 0,
@@ -208,7 +208,7 @@ describe('buildGeoJson → processGeoJson round-trip', () => {
   const out = processGeoJson(buildGeoJson(ride))
 
   it('returns the same geometry, in the same order', () => {
-    expect(out.track).toEqual(ride.days[0].track)
+    expect(out.track).toEqual(ride.routes[0].track)
   })
 
   // Everything the app models, not just the geometry: roles, the stop/POI
@@ -248,7 +248,7 @@ describe('buildGeoJson → processGeoJson round-trip', () => {
   it('emits valid JSON that other tools can read', () => {
     const parsed = JSON.parse(buildGeoJson(ride))
     expect(parsed.type).toBe('FeatureCollection')
-    // One LineString for the day plus one Point per stop.
+    // One LineString for the route plus one Point per stop.
     expect(parsed.features).toHaveLength(3)
     expect(parsed.features[0].properties.stroke).toBe('#cc0000')
     // The prefixed name is what a tool showing only a label will display.

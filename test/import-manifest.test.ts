@@ -3,7 +3,7 @@
 //
 // The rule this file exists to pin is the strict one — one entry per posted
 // file, in order, names matching — because the failure it prevents is invisible:
-// a manifest applied to the wrong file dates day 2 with day 3's date and nothing
+// a manifest applied to the wrong file dates route 2 with route 3's date and nothing
 // anywhere raises it.
 import { describe, expect, it } from 'vitest'
 import { parseWallClock, readManifest } from '../src/maps/manifest'
@@ -30,8 +30,8 @@ describe('parseWallClock', () => {
     expect(parseWallClock('  2026-08-24  ')?.toISOString()).toBe('2026-08-24T00:00:00.000Z')
   })
 
-  it('refuses a day that does not exist rather than rolling it forward', () => {
-    // Date.UTC(2026, 1, 31) is 3 March. A silently moved day is worse than a
+  it('refuses a route that does not exist rather than rolling it forward', () => {
+    // Date.UTC(2026, 1, 31) is 3 March. A silently moved route is worse than a
     // refusal the rider can see.
     expect(parseWallClock('2026-02-31')).toBeNull()
     expect(parseWallClock('2026-13-01')).toBeNull()
@@ -49,7 +49,7 @@ describe('parseWallClock', () => {
     }
   })
 
-  it('takes a leap day in a leap year and refuses it otherwise', () => {
+  it('takes a leap route in a leap year and refuses it otherwise', () => {
     expect(parseWallClock('2028-02-29')?.toISOString()).toBe('2028-02-29T00:00:00.000Z')
     expect(parseWallClock('2026-02-29')).toBeNull()
   })
@@ -99,7 +99,7 @@ describe('readManifest', () => {
   })
 
   it('treats an empty or whitespace title as no title', () => {
-    // A rider who cleared the box means the day has no name. Storing "" would
+    // A rider who cleared the box means the route has no name. Storing "" would
     // put an empty legend on the roadbook.
     const r = readManifest(json([entry('a.gpx', '   ')]), ['a.gpx'])
     expect(r.ok).toBe(true)
@@ -117,7 +117,7 @@ describe('readManifest', () => {
   it('gives a zip an entry that carries nothing', () => {
     // The browser cannot read inside an archive, so its row exists only to keep
     // the positions lining up.
-    const r = readManifest(json([entry('day-1.gpx', 'Coast'), entry('rest.zip')]), ['day-1.gpx', 'rest.zip'])
+    const r = readManifest(json([entry('route-1.gpx', 'Coast'), entry('rest.zip')]), ['route-1.gpx', 'rest.zip'])
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.entries[1]).toEqual({ fileName: 'rest.zip', title: null, startAt: null })

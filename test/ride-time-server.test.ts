@@ -37,7 +37,7 @@ const LEGS = [
   { name: 'a whole imported track as one leg', durationS: 0, distanceM: 834594 },
   { name: 'zero-length, two points in one place', durationS: 0, distanceM: 0 },
   { name: 'a negative duration, which is still not a measurement', durationS: -1, distanceM: 5000 },
-  { name: 'one metre', durationS: 0, distanceM: 1 },
+  { name: 'one meter', durationS: 0, distanceM: 1 },
   { name: 'measured at zero distance', durationS: 60, distanceM: 0 },
 ]
 
@@ -53,7 +53,7 @@ describe('the rule', () => {
 
   it('is zero for a leg with neither, rather than guessing', () => {
     // Two points in the same place get a zero-length leg deliberately —
-    // splitDayTrack produces them. A guess here would invent time out of nothing.
+    // splitRouteTrack produces them. A guess here would invent time out of nothing.
     expect(legIsEstimated({ durationS: 0, distanceM: 0 })).toBe(false)
     expect(legDurationS({ durationS: 0, distanceM: 0 })).toBe(0)
   })

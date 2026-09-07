@@ -25,7 +25,7 @@
 // Turns first. The places a router can plausibly diverge are the places the
 // route turned — a junction taken left is a junction it could take straight
 // through — so points are scored by heading change and the sharpest win. That
-// is the same signal `twist.ts` scores a day's roads by, asked a different
+// is the same signal `twist.ts` scores a route's roads by, asked a different
 // question.
 //
 // Then the leftovers go into the longest unpinned runs. Curvature cannot see
@@ -62,7 +62,7 @@ export type ExpandOptions = {
 export type Expansion = {
   points: Track
   // What the caller can honestly claim afterwards: the longest stretch left
-  // unpinned. On a 250-mile day with 9 points this is ~25 miles, which is not
+  // unpinned. On a 250-mile route with 9 points this is ~25 miles, which is not
   // a guarantee of anything and should not be presented as one.
   longestGapM: number
   // Total route length, so a caller can put the gap in proportion.

@@ -148,6 +148,17 @@ h1 {
     opacity: 0.6;
     cursor: default;
   }
+
+  // THE `display` ABOVE OUTRANKS THE UA SHEET'S `[hidden] { display: none }`,
+  // so without this line the attribute does nothing to any button in the app.
+  // It cost a layout bug on the builder's Groups tab: "Add a group" sets
+  // `hidden` while its form is open, stayed in the flex row anyway, and the
+  // full-width form was laid out beside it and overflowed the panel by the
+  // button's own width. Same trap as .row-roles and .sg-meet — fixed here
+  // because it is a property of every `.btn`, not of one screen.
+  &[hidden] {
+    display: none;
+  }
 }
 
 // Highway guide-sign treatment: green field, white legend, and a white keyline
@@ -443,7 +454,7 @@ $sign-arrow-bearings: (
 // reset in this stylesheet — every other fixed-size box in the app sets its own.
 // Without it `width` and `aspect-ratio` describe the CONTENT box, the 1.5rem of
 // padding lands outside them, and the sign renders 24px wider than it says. That
-// is how it shipped for a day, and the tell was the legend refusing to wrap at
+// is how it shipped for a route, and the tell was the legend refusing to wrap at
 // any viewport: it was being handed the full declared width to fit in.
 //
 // The legend is left at the same size as every other button's — Ziad's call,
@@ -713,7 +724,7 @@ ul.cards {
 // --- Ride cards (#135) -------------------------------------------------------
 //
 // A ride in a list shows its ROUTE, not just its title. The thumbnail was an
-// interim 160x100 chip at the head of a row from the day it shipped (#116) —
+// interim 160x100 chip at the head of a row from the route it shipped (#116) —
 // this is what it was always going to become.
 //
 // A SEPARATE CLASS FROM `ul.cards`, which stays exactly as it was. That one is
@@ -819,15 +830,15 @@ ul.cards {
 }
 
 // The fallback, when a ride has not been swept yet or has no geometry to draw.
-// A flat field of the day color at the same size as a picture — a card that is
+// A flat field of the route color at the same size as a picture — a card that is
 // short where its neighbors have a face reads as broken rather than as pending.
-// The color block standing in for a picture. The day color arrives inline; this
+// The color block standing in for a picture. The route color arrives inline; this
 // is the fallback for a ride that has no color either.
 //
 // A LITERAL AND NOT A TOKEN, deliberately: `#0000cc` is the schema default for
-// `days.color` and it is not a design decision this stylesheet gets to make — a
-// themed token here would draw a blank card in a color no day in the database
-// has. It moved out of cards.tsx on 2026-08-26 so a record card, which has no day
+// `routes.color` and it is not a design decision this stylesheet gets to make — a
+// themed token here would draw a blank card in a color no route in the database
+// has. It moved out of cards.tsx on 2026-08-26 so a record card, which has no route
 // color to inherit, could fall back to its own accent instead.
 .ride-card-face.is-blank {
   aspect-ratio: 16 / 10;
@@ -1015,6 +1026,34 @@ ul.cards {
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   cursor: pointer;
+
+  &:hover {
+    color: $brand;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+// The commit, beside the version. Monospaced because it is a hash and the
+// footer's own face is proportional, which makes a hex string read as a word.
+// `nowrap` for the same reason the version has it: this is a value somebody is
+// meant to compare across two environments, and half of it on the next line is
+// half of it misread.
+.site-footer-sha {
+  // The same stack _survey.scss uses. There is no $mono token — this app has
+  // had exactly one monospaced surface until now, and inventing a token for the
+  // second means adding it to _palette.scss too or it silently resolves to
+  // nothing. Worth doing on the third.
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 
   &:hover {
     color: $brand;
@@ -1443,7 +1482,7 @@ ul.cards {
   }
 }
 
-.ballot-day {
+.ballot-route {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -1600,7 +1639,7 @@ ul.cards {
 // overriding half of it. Two small rules beat one rule with a page's worth of
 // exceptions.
 //
-// NOT STICKY. The panel's strip sticks because a rider scrolls a day list past
+// NOT STICKY. The panel's strip sticks because a rider scrolls a route list past
 // it and has to get back; this one sits at the bottom of a page they scrolled TO,
 // and a bar that detached itself over the stats above would be the only such
 // thing on the page.

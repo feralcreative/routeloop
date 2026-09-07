@@ -43,11 +43,11 @@ export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'priva
 // contradiction #143 was written with: one group setting the departure while
 // another is pinned at 9am is two anchors, and only one can hold.
 //
-//   departure  the primary group leaves at their day's start_at; everyone else
+//   departure  the primary group leaves at their route's start_at; everyone else
 //              is solved so they arrive at the meet when that group does
 //   meet       the first meet happens at a fixed time; every group, primary
 //              included, is solved backwards from it
-//   arrival    the primary group reaches the end of the day at a fixed time
+//   arrival    the primary group reaches the end of the route at a fixed time
 export const timeAnchorEnum = pgEnum('time_anchor', ['departure', 'meet', 'arrival'])
 // Three ways to hand out access, and the difference is not only max_uses. An
 // 'email' invite is bound to an address and mailed; a 'link' is one URL handed
@@ -64,7 +64,7 @@ export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
 // there, which test/duration.test.ts also pins.
 export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
 // How a DATE and a clock are written, per rider. Same arrangement as the enum
-// above: a display layer over storage that is untouched by it — days.start_at
+// above: a display layer over storage that is untouched by it — routes.start_at
 // stays a timestamp, ride.json stays ISO, every export is unaffected.
 //
 // The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
@@ -201,7 +201,7 @@ export const users = pgTable(
     // 100 MB, raised from 25 when stored originals started being compressed.
     //
     // The rise is the POINT of that change rather than a side effect: brotli
-    // takes a real 8-day GPX import from 834 kB to 60 kB, so the same disk now
+    // takes a real 8-route GPX import from 834 kB to 60 kB, so the same disk now
     // holds an order of magnitude more ride. Quota accounting deliberately still
     // counts the UNCOMPRESSED size — an allowance must not depend on how well a
     // rider's file happened to zip — so the way that saving reaches them is a
@@ -210,8 +210,8 @@ export const users = pgTable(
     // Only IMPORTED files count against this — a ride built in the builder writes
     // nothing to disk — and one import is stored three times over: the original
     // upload byte-for-byte, plus a generated KML and a generated GPX, which is
-    // what size_bytes on rides sums. Call it 0.3–1 MB per imported riding day, so
-    // 25 MB is roughly 25–80 days.
+    // what size_bytes on rides sums. Call it 0.3–1 MB per imported riding route, so
+    // 25 MB is roughly 25–80 routes.
     //
     // The number is bounded below by two things, and moving it down further
     // breaks one of them: the 16 MB per-request body limit in routes/maps.ts, and
@@ -394,7 +394,7 @@ export const fuelTypeEnum = pgEnum('fuel_type', ['gas', 'electric'])
 // RANGE IS STORED IN METERS, although the rider types miles.
 //
 // Both spellings exist in this schema already — `route_legs.distance_m` and
-// `days.distance_m` are meters, `rides.total_miles` is miles as a cache — so
+// `routes.distance_m` are meters, `rides.total_miles` is miles as a cache — so
 // this is a choice rather than a convention to follow. Meters, because #150 will
 // let a rider switch the whole site to metric, and a value stored in the unit
 // somebody happened to type drifts on every round trip: a rider entering 300 km
@@ -424,7 +424,7 @@ export const bikes = pgTable(
     usableRangeM: integer('usable_range_m'),
     // How far this rider is good for on THIS bike before they want off it.
     // On the bike rather than on the rider, deliberately: a tourer and a
-    // supermoto are not the same day, and the number a rider would give changes
+    // supermoto are not the same route, and the number a rider would give changes
     // with which one is in the garage.
     comfortRangeM: integer('comfort_range_m'),
     // The photo's bookkeeping, mirroring rides.thumb_hash: the hash is a
@@ -659,7 +659,7 @@ export const inviteRedemptions = pgTable(
 // answers is jsonb and the question set lives in src/survey/questions.ts, so
 // changing a question is a code change and never a migration. That is the whole
 // point: drizzle-kit push is the only migration tool here and it is dangerous,
-// so this feature is deliberately DDL-free after day one.
+// so this feature is deliberately DDL-free after route one.
 //
 // $type<> is a compile-time claim Postgres does not enforce. EVERY read goes
 // through parseAnswers(), which is lenient by design — a draft written under
@@ -687,7 +687,7 @@ export const surveyResponses = pgTable(
 )
 
 // The shareable package (docs/ideas.md), and the top of the hierarchy:
-// ride > day > leg > stop/POI. The slug is the share id; visibility gates. Byte
+// ride > route > leg > stop/POI. The slug is the share id; visibility gates. Byte
 // columns describe imported originals on disk and drive quota — native rides
 // have zero bytes and no files. totalMiles/totalDurationS/stopCount are caches
 // recomputed on every save/import.
@@ -714,27 +714,54 @@ export const rides = pgTable(
     // rewrites which road a ride takes, unattended, on a site real riders have
     // accounts on, should be a thing the owner asked for.
     altVotesCloseAt: timestamp('alt_votes_close_at', { withTimezone: true }),
-    // WHOSE CLOCK IS FIXED. Not a decision the app can make fairly on its own:
+    // THE MAIN GROUP: whose clock is fixed AND, since #239, whose road every
+    // other group joins when a meeting point is proposed. Not a decision the app
+    // can make fairly on its own:
     // 3 miles against 60 to a 6am meet is unfair, the same two distances to a
     // 10am meet heading the other way is not, and only the planner knows which
     // they are looking at. #67 is explicit that the DEFAULT must not be the
     // planner's own group — it is the one most likely to be nearest the meet,
     // so that default reproduces the unfair case every time and the planner
     // does not notice, being the one who rode three miles.
-    primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
-      onDelete: 'set null',
-    }),
-    // WHOSE ROUTE IS THE SPINE a rendezvous is proposed against. A SEPARATE
-    // COLUMN from the one above although the UI asks once, because the two come
-    // apart: they are the same group when Sacramento joins Oakland's run to the
-    // Sierras, and they are not the same thing at all when Seattle and San
-    // Francisco meet in eastern Oregon — there is no trunk there and the ride
-    // starts at the meet. #67 says keep them separate in the model and this is
-    // that.
+    primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references(
+      (): AnyPgColumn => rideSubgroups.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    // DEAD AS OF 2026-09-03 (#239) AND READ BY NOTHING. It held whose route a
+    // rendezvous was proposed against, kept separate from the column above on
+    // the reasoning that the two come apart — the same group when Sacramento
+    // joins Oakland's run to the Sierras, not the same thing at all when Seattle
+    // and San Francisco meet in eastern Oregon. That reasoning is struck rather
+    // than deleted so it is not rediscovered and acted on: `primary_subgroup_id`
+    // now carries both axes, because one main group is what a planner holds in
+    // their head and two controls asking nearly the same question is what made
+    // the feature unusable.
+    //
+    // The column stays because dropping one is two deploys under the
+    // expand/contract rule, and it costs nothing where it is.
     trunkSubgroupId: bigint('trunk_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
       onDelete: 'set null',
     }),
     timeAnchor: timeAnchorEnum('time_anchor').notNull().default('departure'),
+    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, as minutes from midnight —
+    // 960 is 4pm. Null means they have not said, which is most rides, and the
+    // whole feature is quiet until they do.
+    //
+    // A WALL CLOCK, LIKE `routes.start_at` AND FOR THE SAME REASON. "I like to
+    // stop by four" means four where the bike is, whether that is Oakland or
+    // Ensenada — see the route-clock rule in AGENTS.md. Minutes from midnight
+    // rather than a `time` column because there is no date to attach it to and
+    // no zone to interpret it in: it is a time of route and nothing else, and an
+    // integer cannot accidentally acquire either.
+    //
+    // PER RIDE rather than per rider or per route. Ziad's call, 2026-09-03: a
+    // relaxed tour and a hard push to the border want different answers, and the
+    // setting travels with the ride when it is shared — where a rider preference
+    // would not, and a per-route one would ask nine times for an answer that is
+    // the same on all nine.
+    stopByMin: integer('stop_by_min'),
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
@@ -764,7 +791,7 @@ export const rides = pgTable(
     // one, and the export path checks `hasStored` before it looks at this at
     // all. Nullable with no default for the reason `deleted_at` gives above — a
     // default would stamp a timestamp onto every existing row and claim their
-    // originals were written the day the column was added, which for a ride
+    // originals were written the route the column was added, which for a ride
     // edited since would be exactly backwards.
     originalStoredAt: timestamp('original_stored_at'),
     // Must include every byte column. used_bytes is incremented by the app on
@@ -809,7 +836,7 @@ export const rides = pgTable(
     // later must not retroactively move a purge date a rider was already shown.
     //
     // Recomputed on every trash, which is ALSO what makes the reset work: taking
-    // a ride out of the bin and putting it back sets a fresh 30 days with no
+    // a ride out of the bin and putting it back sets a fresh 30 routes with no
     // separate mechanism.
     purgeAfter: timestamp('purge_after'),
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
@@ -830,8 +857,8 @@ export const rides = pgTable(
     // database guarantees to be monotonic.
     //
     // It covers the RIDE-level fields only: title, description, visibility, the
-    // subgroups and the anchors. Days are merged per uid and carry their own
-    // hash, because refusing a whole save because somebody renamed day 4 is what
+    // subgroups and the anchors. Routes are merged per uid and carry their own
+    // hash, because refusing a whole save because somebody renamed route 4 is what
     // makes concurrent editing unusable rather than safe.
     rev: bigint('rev', { mode: 'number' }).notNull().default(0),
 
@@ -860,20 +887,20 @@ export const rides = pgTable(
   ],
 )
 
-// One day within a ride: ordered stops joined by routed legs. The time model
+// One route within a ride: ordered stops joined by routed legs. The time model
 // (startAt/endAt) exists now so the timeline slider is pure UI later.
-// distanceM/durationS are caches over the day's legs.
+// distanceM/durationS are caches over the route's legs.
 //
 // Called `routes` until 2026-08-09, which collided twice: with `route` meaning
 // a whole ride in the import copy, and with the ~130 `adminRoutes`/`app.route()`
 // identifiers that mean HTTP handlers. Every rider-facing surface already said
-// "day" — the builder slider, the viewer legend, DAY_COLORS, the `d02` filename
+// "route" — the builder slider, the viewer legend, ROUTE_COLORS, the `d02` filename
 // field — so the table moved to meet them rather than the other way around.
 //
-// A day is a *position* within a ride, not a calendar date: two days can share
-// a date, and a ride with no dates at all still has days.
-export const days = pgTable(
-  'days',
+// A route is a *position* within a ride, not a calendar date: two routes can share
+// a date, and a ride with no dates at all still has routes.
+export const routes = pgTable(
+  'routes',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     rideId: bigint('ride_id', { mode: 'number' })
@@ -885,7 +912,7 @@ export const days = pgTable(
     // A WALL CLOCK AT THE DEPARTURE POINT, CARRIED AS UTC — not an instant.
     // Ziad's call, 2026-08-24: a time is a time is a time at the departure
     // point, so a 9am departure is 9am where the bike is and nothing converts it
-    // into anyone's local time. `public/js/day-clock.js` is the only place the
+    // into anyone's local time. `public/js/route-clock.js` is the only place the
     // conversion between this and an input field happens; read its header first.
     //
     // The type stays `timestamptz` even though the value is now naive, and that
@@ -898,65 +925,67 @@ export const days = pgTable(
     endAt: timestamp('end_at', { withTimezone: true }),
     distanceM: integer('distance_m').notNull().default(0),
     durationS: integer('duration_s').notNull().default(0),
-    // How twisty the day's roads are, in degrees of heading change per mile.
+    // How twisty the route's roads are, in degrees of heading change per mile.
     // See src/maps/twist.ts. Computed from geometry at write time in both the
     // builder save and the KML/GPX import, so imported rides get one too.
     //
     // Nullable on purpose, and null is NOT the same as 0: 0 claims the road is
     // straight, null says nothing has measured it. Every row predating this
-    // column is null until utils/backfill-twistiness.ts runs, and a day with
+    // column is null until utils/backfill-twistiness.ts runs, and a route with
     // no legs stays null forever.
     twistinessDpm: integer('twistiness_dpm'),
-    // The same figure over the twistiest 20-mile stretch of the day, which is
-    // the number that actually tells a rider whether to go — a day average
+    // The same figure over the twistiest 20-mile stretch of the route, which is
+    // the number that actually tells a rider whether to go — a route average
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
     // THE DAY'S DURABLE IDENTITY, and the same answer points.uid is to the same
-    // problem — see src/maps/uid.ts. `days.id` churns on every save because the
-    // builder's PUT deletes and re-inserts every day, and `alt_group` below is
+    // problem — see src/maps/uid.ts. `routes.id` churns on every save because the
+    // builder's PUT deletes and re-inserts every route, and `alt_group` below is
     // renumbered densely from 0 every time, so NEITHER can be referenced from
     // another table. A vote on an alternate is the first feature that needs a
-    // day to keep its identity across a save, and this is what it keeps.
+    // route to keep its identity across a save, and this is what it keeps.
     //
     // Client-minted, exactly like a point's: same alphabet, same length, or the
     // save 400s. Backfilled for every pre-existing row in drizzle/0015.
     uid: varchar('uid', { length: 12 }).notNull(),
     // WHOSE DAY THIS IS. Null means everyone rides it — the trunk — and that is
-    // the value every day that predates #67 carries, which is why this needed
+    // the value every route that predates #67 carries, which is why this needed
     // no backfill.
     //
     // A subgroup owns a SUBSEQUENCE of the ride's positions rather than a
-    // parallel numbering of its own, so uq_day_ride_pos is untouched and a
-    // multi-day approach is simply more days: Seattle takes 0 and 1, SF takes
-    // 2, the trunk takes 3. Which days happen on the same calendar day is
+    // parallel numbering of its own, so uq_route_ride_pos is untouched and a
+    // multi-route approach is simply more routes: Seattle takes 0 and 1, SF takes
+    // 2, the trunk takes 3. Which routes happen on the same calendar route is
     // carried by start_at, which already exists.
     //
-    // `set null` on delete: removing a subgroup makes its days everyone's
+    // `set null` on delete: removing a subgroup makes its routes everyone's
     // rather than destroying them. Losing a rider's planned road because they
     // renamed a group wrong would be the place_groups mistake over again.
-    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
     // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
     // owns every rule about these two columns.
     //
     // A WITHIN-PAYLOAD PARTITION KEY, NOT A STABLE ID. `alt_group` is rewritten
-    // densely from 0 on every save and means only "these days are siblings".
+    // densely from 0 on every save and means only "these routes are siblings".
     // Nothing may store it, join to it from another table, or expect the value
     // a rider saw yesterday. That is forced rather than chosen: the autosave in
-    // src/routes/builder.ts deletes every day of a ride and reinserts it, so no
-    // `days.id` survives a save and a real foreign key has nothing to point at.
+    // src/routes/builder.ts deletes every route of a ride and reinserts it, so no
+    // `routes.id` survives a save and a real foreign key has nothing to point at.
     //
-    // Null means a plain day. A group always has at least two members — one is
+    // Null means a plain route. A group always has at least two members — one is
     // dissolved back to null — so a non-null value here is never alone.
     altGroup: smallint('alt_group'),
     // Which member of the group counts. Meaningless while alt_group is null,
-    // and forced true there so a stale false cannot hide a plain day from every
+    // and forced true there so a stale false cannot hide a plain route from every
     // mileage total in the app.
     //
     // NOT NULL DEFAULT true is what makes this migration need no backfill:
     // `alt_group IS NULL, alt_active = TRUE` is already a true description of
     // every row that existed before it, so every stored rides.total_miles and
-    // every dashboard figure stays correct on the day it lands. Contrast
+    // every dashboard figure stays correct on the route it lands. Contrast
     // twistiness_dpm above, which needed utils/backfill-twistiness.ts.
     altActive: boolean('alt_active').notNull().default(true),
     // WHAT THIS DAY ASKS OF THE ROUTER — see src/maps/route-prefs.ts, which owns
@@ -964,7 +993,7 @@ export const days = pgTable(
     //
     // PER DAY RATHER THAN PER RIDE, Ziad's call 2026-09-02: a Saturday in the
     // hills and the Monday slog home want opposite answers from the same router,
-    // and a ride-level setting makes the rider choose which day to serve.
+    // and a ride-level setting makes the rider choose which route to serve.
     //
     // NULLABLE WITH NO DEFAULT, which is what makes this safe in one deploy
     // under the expand/contract rule: null means no preference, every row that
@@ -978,51 +1007,51 @@ export const days = pgTable(
     // cannot park arbitrary keys in the row.
     routePrefs: jsonb('route_prefs').$type<RoutePrefs>(),
     // WHAT THIS DAY CONTAINED WHEN IT WAS LAST WRITTEN — see
-    // src/maps/day-revision.ts. It is what lets a save merge per day instead of
-    // refusing whole, so two riders on different days of one ride never collide.
+    // src/maps/route-revision.ts. It is what lets a save merge per route instead of
+    // refusing whole, so two riders on different routes of one ride never collide.
     //
     // STORED RATHER THAN COMPUTED ON READ, and that is the point of the column:
     // the merge needs one cheap `select uid, content_hash` to decide, where
-    // recomputing would mean loading every point and every leg of every day on
-    // every save — roughly 2N queries on a 31-day ride, at a 3-second autosave
-    // cadence. Only the days that actually conflict are then loaded in full,
+    // recomputing would mean loading every point and every leg of every route on
+    // every save — roughly 2N queries on a 31-route ride, at a 3-second autosave
+    // cadence. Only the routes that actually conflict are then loaded in full,
     // which is normally none of them.
     //
-    // NULLABLE, and null means UNKNOWN rather than changed. Every day written
-    // before this column existed carries one, and mergeDays() takes the client's
+    // NULLABLE, and null means UNKNOWN rather than changed. Every route written
+    // before this column existed carries one, and mergeRoutes() takes the client's
     // version on an unknown — so the first save of an old ride behaves exactly
     // as it did before. Refusing on a null would have made this migration an
     // outage instead of an addition.
     contentHash: varchar('content_hash', { length: 32 }),
   },
   (t) => [
-    uniqueIndex('uq_day_ride_pos').on(t.rideId, t.position),
-    // Scoped to the ride rather than global, the same way uq_point_day_uid is
-    // scoped to the day: a uid is unique where it is REFERENCED FROM, and
-    // alt_votes is keyed by (ride_id, day_uid). A global unique index would also
+    uniqueIndex('uq_route_ride_pos').on(t.rideId, t.position),
+    // Scoped to the ride rather than global, the same way uq_point_route_uid is
+    // scoped to the route: a uid is unique where it is REFERENCED FROM, and
+    // alt_votes is keyed by (ride_id, route_uid). A global unique index would also
     // make importing a native JSON file twice fail on the second copy.
-    uniqueIndex('uq_day_ride_uid').on(t.rideId, t.uid),
+    uniqueIndex('uq_route_ride_uid').on(t.rideId, t.uid),
     // A TRIPWIRE, NOT A GATE. resolveAltGroups() is total and always elects
     // exactly one active member, so this should be unreachable — it is here to
     // turn a hole in that function into a loud failure rather than a quietly
     // stored ride whose mileage is wrong. Partial, because the pair is only
-    // meaningful for grouped days: without the WHERE, every plain day in a ride
+    // meaningful for grouped routes: without the WHERE, every plain route in a ride
     // would collide on (ride_id, NULL).
-    uniqueIndex('uq_day_alt_active')
+    uniqueIndex('uq_route_alt_active')
       .on(t.rideId, t.altGroup)
       .where(sql`${t.altActive} and ${t.altGroup} is not null`),
   ],
 )
 
-// The dots (docs/ideas.md). EVERY point in a day is ordered — `position` is the
+// The dots (docs/ideas.md). EVERY point in a route is ordered — `position` is the
 // rider's own sequence and is set for both kinds. `kind` says only whether the
 // point anchors routing: a stop does and a POI does not, so legs connect
 // consecutive STOPS while POIs sit between them without bending the road.
 //
 // Ziad's call, 2026-08-23, and it replaced a model where only stops carried a
 // position and a POI's place in the list was DERIVED by projecting it onto the
-// day's track. That derivation had no answer before a route existed — every POI
-// on a trackless day reported distance 0 — and the new model needs one, because
+// route's track. That derivation had no answer before a route existed — every POI
+// on a trackless route reported distance 0 — and the new model needs one, because
 // a point now starts life as a POI and is promoted later. Promotion is a flag
 // flip that moves nothing.
 //
@@ -1032,15 +1061,28 @@ export const points = pgTable(
   'points',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    dayId: bigint('day_id', { mode: 'number' })
+    routeId: bigint('route_id', { mode: 'number' })
       .notNull()
-      .references(() => days.id, { onDelete: 'cascade' }),
+      .references(() => routes.id, { onDelete: 'cascade' }),
     kind: pointKindEnum('kind').notNull(),
-    // The rider's order within the day, for BOTH kinds. Dense from 0.
+    // The rider's order within the route, for BOTH kinds. Dense from 0.
     position: smallint('position').notNull(),
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
+    // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC — which is what makes it a
+    // column here rather than a field on point_details. Ziad's call,
+    // 2026-09-04: the popup names a place and a rider reading a shared ride has
+    // no way to tell which Shell in Bakersfield is meant.
+    //
+    // `point_details.address` is a DIFFERENT field and stays where it is: that
+    // one is owner-only, typed by hand, and sits beside the confirmation number
+    // and the gate code. This one is what Google answered when the point was
+    // added, and it goes out in ride.json to every viewer.
+    //
+    // Null is the ordinary state: a point dropped on the map has no address to
+    // carry, and nothing geocodes one after the fact.
+    address: varchar('address', { length: 300 }),
     description: varchar('description', { length: 2000 }),
     roles: waypointRoleEnum('roles')
       .array()
@@ -1054,7 +1096,7 @@ export const points = pgTable(
     // The two behave differently and that is the whole reason for a second
     // column: dwell pushes the shared departure later for everybody, slack is a
     // margin ahead of it that absorbs one group running late without moving
-    // anyone. See daySchedule and solveStrands in src/subgroups/schedule.ts.
+    // anyone. See routeSchedule and solveStrands in src/subgroups/schedule.ts.
     //
     // Null is not zero. Null means nobody set any; 0 means none is wanted, and
     // a meet deliberately run to the minute is a real thing to say.
@@ -1062,7 +1104,7 @@ export const points = pgTable(
     distFromStartM: integer('dist_from_start_m'), // server-computed cumulative meters
     // The point's DURABLE identity, and the thing `id` is not.
     //
-    // `PUT /api/rides/:id` deletes and re-inserts every day and point on every
+    // `PUT /api/rides/:id` deletes and re-inserts every route and point on every
     // save — a deliberate decision on 2026-08-15, and autosave makes it happen
     // constantly. So `id` churns, and anything that referenced a point across a
     // save would silently lose it. Rich stop details is the first feature that
@@ -1081,12 +1123,12 @@ export const points = pgTable(
     uid: varchar('uid', { length: 12 }).notNull(),
   },
   (t) => [
-    // Now a real uniqueness constraint over every point in the day. It used to
+    // Now a real uniqueness constraint over every point in the route. It used to
     // lean on NULLS DISTINCT so that any number of POIs could coexist carrying
     // null; with position NOT NULL for both kinds there is nothing to except.
-    uniqueIndex('uq_point_day_pos').on(t.dayId, t.position),
-    index('idx_point_day').on(t.dayId),
-    uniqueIndex('uq_point_day_uid').on(t.dayId, t.uid),
+    uniqueIndex('uq_point_route_pos').on(t.routeId, t.position),
+    index('idx_point_route').on(t.routeId),
+    uniqueIndex('uq_point_route_uid').on(t.routeId, t.uid),
     check('ck_point_roles_max4', sql`cardinality(roles) <= 4`),
     // ck_point_stop_pos is gone: it said "a stop must have a position", which
     // the NOT NULL above now says about every point.
@@ -1115,7 +1157,7 @@ export const pointDetails = pgTable(
       .notNull()
       .references(() => rides.id, { onDelete: 'cascade' }),
     uid: varchar('uid', { length: 12 }).notNull(),
-    // Reservation and arrival. checkInAt/checkOutAt follow days.start_at exactly
+    // Reservation and arrival. checkInAt/checkOutAt follow routes.start_at exactly
     // — a hotel check-in is a wall-clock moment in a place, carried as UTC for
     // the reasons stated on that column.
     confirmation: varchar('confirmation', { length: 120 }),
@@ -1162,7 +1204,7 @@ export const pointDetails = pgTable(
  * what the commenter was looking at, not what the stop is called now.
  *
  * Cascades from `rides` like point_details, for the same reason — the builder
- * deletes every day and point on every save, and a comment that did not survive
+ * deletes every route and point on every save, and a comment that did not survive
  * that would not survive being written.
  */
 export const rideComments = pgTable(
@@ -1200,31 +1242,31 @@ export const rideComments = pgTable(
 
 // HOW A SUGGESTION ENDED, and only ever written together with resolved_at. There
 // is deliberately no `pending` member and no `stale` one: pending is resolved_at
-// being null, and stale is DERIVED from the target day's fingerprint. A member
+// being null, and stale is DERIVED from the target route's fingerprint. A member
 // for either would be a second answer to a question the data already answers,
-// and the stale one would additionally be wrong the moment a day was edited back.
+// and the stale one would additionally be wrong the moment a route was edited back.
 export const suggestionOutcomeEnum = pgEnum('suggestion_outcome', ['accepted', 'discarded', 'withdrawn'])
 
 /**
- * A proposed change to one day of a ride, waiting for an owner to take it or
+ * A proposed change to one route of a ride, waiting for an owner to take it or
  * leave it. #190.
  *
  * **A SUGGESTION IS A WHOLE DAY, NOT A FIELD-LEVEL DIFF.** The builder deletes
- * and re-inserts every day and point on every save, so there is no stable row to
+ * and re-inserts every route and point on every save, so there is no stable row to
  * hang a per-field change off — `uid` is the only identity that survives, and a
  * diff expressed in uids still has to be reconciled against an owner who has
- * been editing underneath. Storing the proposed day whole means accepting one is
+ * been editing underneath. Storing the proposed route whole means accepting one is
  * a replace, which is an operation this app already does on every save.
  *
  * **STALENESS IS DERIVED, NEVER STORED.** `base_fingerprint` is what the target
- * day looked like when the suggestion was made; a suggestion is stale when the
- * day's fingerprint no longer matches. Nothing has to sweep, nothing has to be
- * invalidated on save, and a day edited and then edited BACK correctly stops
+ * route looked like when the suggestion was made; a suggestion is stale when the
+ * route's fingerprint no longer matches. Nothing has to sweep, nothing has to be
+ * invalidated on save, and a route edited and then edited BACK correctly stops
  * being stale — which a stored flag would get wrong. Same reasoning as
  * junctions() in src/subgroups/policy.ts: the shape changes every time somebody
  * drags something, and a stored answer is wrong the first time they do.
  *
- * **THE TARGET IS A DAY `uid`, NEVER AN `id`.** days.id churns on every save.
+ * **THE TARGET IS A DAY `uid`, NEVER AN `id`.** routes.id churns on every save.
  * Same rule alt_votes follows and for the same reason.
  */
 export const rideSuggestions = pgTable(
@@ -1237,14 +1279,14 @@ export const rideSuggestions = pgTable(
     authorId: bigint('author_id', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    // Which day this proposes to replace.
-    dayUid: varchar('day_uid', { length: 12 }).notNull(),
-    // The proposed day, in the same shape the builder's PUT accepts for one.
+    // Which route this proposes to replace.
+    routeUid: varchar('route_uid', { length: 12 }).notNull(),
+    // The proposed route, in the same shape the builder's PUT accepts for one.
     // jsonb rather than a parallel set of tables: nothing queries across the
-    // inside of a suggestion, and a second copy of the day/point/leg schema is a
+    // inside of a suggestion, and a second copy of the route/point/leg schema is a
     // second place for the payload's shape to drift.
     payload: jsonb('payload').$type<unknown>().notNull(),
-    // What the day looked like when this was made. See the note above on why
+    // What the route looked like when this was made. See the note above on why
     // staleness is derived from this rather than stored beside it.
     baseFingerprint: varchar('base_fingerprint', { length: 64 }).notNull(),
     // Why. Optional, because the diff is usually the argument.
@@ -1271,17 +1313,17 @@ export const rideSuggestions = pgTable(
 // imported leg come from geometry, not from Directions, because an imported
 // ride never touches the router.
 //
-// Still `route_legs` after days stopped being called routes, deliberately: the
-// "route" here is the path a day traces, which is what these legs compose, not
+// Still `route_legs` after routes stopped being called routes, deliberately: the
+// "route" here is the path a route traces, which is what these legs compose, not
 // a reference to the renamed table. The column below is the reference, and it
 // moved.
 export const routeLegs = pgTable(
   'route_legs',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    dayId: bigint('day_id', { mode: 'number' })
+    routeId: bigint('route_id', { mode: 'number' })
       .notNull()
-      .references(() => days.id, { onDelete: 'cascade' }),
+      .references(() => routes.id, { onDelete: 'cascade' }),
     position: smallint('position').notNull(),
     geometry: jsonb('geometry').$type<[number, number][]>().notNull(), // [lng,lat] pairs, 6-decimal
     distanceM: integer('distance_m').notNull().default(0),
@@ -1291,7 +1333,7 @@ export const routeLegs = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
   },
-  (t) => [uniqueIndex('uq_leg_day_pos').on(t.dayId, t.position)],
+  (t) => [uniqueIndex('uq_leg_route_pos').on(t.routeId, t.position)],
 )
 
 // One submission of any kind — a bug, an idea or a question. The word is
@@ -1568,7 +1610,7 @@ export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
 //
 // THE MEMBER ORDER IS NOT THE RANK AND CANNOT BE REORDERED LATER. Same trap as
 // visibilityEnum: `ALTER TYPE ... ADD VALUE` appends, so a pgEnum's order is
-// fixed the day it is created and putting a new rung "in the right place" means
+// fixed the route it is created and putting a new rung "in the right place" means
 // rebuilding every column using the type. Nothing may sort by this, compare two
 // members of it, or read one and decide what it outranks — PERM_RANK in
 // src/members/policy.ts is the only ordering, and every gate asks that.
@@ -1576,7 +1618,6 @@ export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
 // It happens to read in ascending order today. That is a convenience for a human
 // reading the file and is not something any code may rely on.
 export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
-
 
 // Distinct from role, because a rider who declined is still on the roster —
 // that is the whole reason the two are separate columns.
@@ -1587,12 +1628,12 @@ export const friendshipStatusEnum = pgEnum('friendship_status', ['pending', 'acc
 // A NAMED SET OF RIDERS SHARING AN APPROACH — the Oakland contingent, the
 // Sacramento contingent. The primitive #67 is built on.
 //
-// NOT CHURNED ON SAVE, unlike days and points. The builder's PUT deletes and
-// re-inserts every day of a ride, and if it did the same here every
+// NOT CHURNED ON SAVE, unlike routes and points. The builder's PUT deletes and
+// re-inserts every route of a ride, and if it did the same here every
 // ride_members.subgroup_id would be orphaned on the first edit. So
 // insertRideGraph reconciles these BY UID — upsert what the payload carries,
 // delete what it does not — which is why they have a uid at all and why ids
-// here are safe to reference where days' and points' are not.
+// here are safe to reference where routes' and points' are not.
 export const rideSubgroups = pgTable(
   'ride_subgroups',
   {
@@ -1600,14 +1641,14 @@ export const rideSubgroups = pgTable(
     rideId: bigint('ride_id', { mode: 'number' })
       .notNull()
       .references(() => rides.id, { onDelete: 'cascade' }),
-    // Client-minted, same alphabet and length as days.uid and points.uid — see
+    // Client-minted, same alphabet and length as routes.uid and points.uid — see
     // src/maps/uid.ts. It is what lets a payload reference a subgroup the
     // server has never seen.
     uid: varchar('uid', { length: 12 }).notNull(),
     name: varchar('name', { length: 80 }).notNull(),
-    // Its own, not borrowed from a day. A subgroup spans several days and its
+    // Its own, not borrowed from a route. A subgroup spans several routes and its
     // line on the map has to read as one thing across all of them, which the
-    // per-day palette cannot do.
+    // per-route palette cannot do.
     color: varchar('color', { length: 7 }).notNull().default('#0066cc'),
     position: smallint('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1619,7 +1660,7 @@ export const rideSubgroups = pgTable(
 // assume and none of them owns.
 //
 // LIVE SINCE #68 — the note that used to sit here saying the table was schema
-// only predates the invite path and was wrong from the day seedOwner() landed.
+// only predates the invite path and was wrong from the route seedOwner() landed.
 // Every ride insert seeds its owner a row here, in the same transaction.
 //
 // TWO AXES, THREE COLUMNS, AND THEY ARE ALL DIFFERENT QUESTIONS. `role` is who
@@ -1657,7 +1698,9 @@ export const rideMembers = pgTable(
     // #67 says so explicitly. `set null` rather than cascade, so deleting a
     // subgroup un-groups its riders instead of throwing them off the ride —
     // the same call place_groups made about its places.
-    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, { onDelete: 'set null' }),
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
     // WHICH BIKE THEY ARE BRINGING, which #52 needs and which a rider's default
     // bike cannot answer on its own: the whole point of owning two is that you
     // pick one per ride. Null falls back to their default — see bikesOnRide()
@@ -1773,13 +1816,13 @@ export const follows = pgTable(
   ],
 )
 
-// One member's pick among a day's alternates.
+// One member's pick among a route's alternates.
 //
-// KEYED BY (ride_id, day_uid), NOT BY day_id, and cascading from `rides` rather
-// than from `days` — the same arrangement point_details has and for the same
-// reason. The builder's PUT deletes and re-inserts every day of a ride on every
-// save, so a foreign key to `days` would take every vote with it the first time
-// anybody moved a stop. `days.uid` is what survives that.
+// KEYED BY (ride_id, route_uid), NOT BY route_id, and cascading from `rides` rather
+// than from `routes` — the same arrangement point_details has and for the same
+// reason. The builder's PUT deletes and re-inserts every route of a ride on every
+// save, so a foreign key to `routes` would take every vote with it the first time
+// anybody moved a stop. `routes.uid` is what survives that.
 //
 // The flip side is the same too: nothing cleans these up automatically, so
 // `reconcileVotes()` in src/votes/service.ts deletes rows whose uid left the
@@ -1791,7 +1834,7 @@ export const altVotes = pgTable(
     rideId: bigint('ride_id', { mode: 'number' })
       .notNull()
       .references(() => rides.id, { onDelete: 'cascade' }),
-    dayUid: varchar('day_uid', { length: 12 }).notNull(),
+    routeUid: varchar('route_uid', { length: 12 }).notNull(),
     userId: bigint('user_id', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -1806,15 +1849,84 @@ export const altVotes = pgTable(
     // What it CANNOT enforce is one vote per alt GROUP, because a group has no
     // durable id: it forms and dissolves as a rider edits, and `alt_group` is
     // renumbered on every save. castVote() resolves the group from the current
-    // days and clears the member's other votes in it. That rule lives in the
+    // routes and clears the member's other votes in it. That rule lives in the
     // service and nowhere else.
-    primaryKey({ columns: [t.rideId, t.dayUid, t.userId] }),
+    primaryKey({ columns: [t.rideId, t.routeUid, t.userId] }),
     index('idx_alt_vote_ride').on(t.rideId),
   ],
 )
 
+// WHO IS ON THIS STRETCH OF ROAD. Ziad's call, 2026-09-06, and it supersedes
+// `routes.subgroup_id` as the answer to that question without removing it.
+//
+// A SUBGROUP COULD NOT SAY IT. A route carried one subgroup or none, and a rider
+// belonged to one subgroup for the whole ride — so "three riders join at Portland
+// and one of them peels off at Eugene" had nowhere to live: those three share a
+// group, and the group is what a route is tagged with. Every real ride Ziad has
+// planned breaks it the same way, because the set of people riding together
+// changes for reasons that have nothing to do with where anybody set off from.
+//
+// SO THE PRIMITIVE IS THE RIDER, NOT THE GROUP. A group survives as a convenience
+// for assigning several riders at once and as the thing a meeting point is
+// proposed FOR — it still answers "where does this lot set off from" — but it is
+// no longer what says who rides a route.
+//
+// KEYED ON `route_uid` AND CASCADING FROM `rides`, NOT FROM `routes`. `routes.id`
+// churns on every save — the builder's PUT deletes and re-inserts the whole graph
+// — so an id here would be dangling the first time anybody moved a stop. Same
+// arrangement as `alt_votes` and `point_details`, and it carries the same
+// obligation: `reconcileRouteRiders()` deletes rows whose uid left the payload, and
+// `insertRideGraph` calls it. Skip that and a deleted route keeps its roster
+// forever.
+//
+// ROWS ARE AN OVERRIDE, AND THEIR ABSENCE IS NOT "NOBODY". A route with no rows
+// INHERITS the set from the route before it, and the first route of a ride with
+// no rows is ridden by the whole roster — Ziad's call, 2026-09-06, because that
+// is how a ride actually reads: you say who leaves and who joins, not who is
+// present on each of nine routes. `resolveRouteRiders()` in src/riders/policy.ts
+// is the walk, and it is the only place that rule lives. A route ridden by
+// nobody is not a thing anyone means, which is what makes the absence
+// unambiguous.
+export const routeRiders = pgTable(
+  'route_riders',
+  {
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    routeUid: varchar('route_uid', { length: 12 }).notNull(),
+    riderId: bigint('rider_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // WHICH GROUP THEY ARE RIDING AS, ON THIS ROUTE. Ziad's call, 2026-09-06,
+    // and it is a DIFFERENT QUESTION from `ride_members.subgroup_id`, which is
+    // the group a rider BELONGS to on this ride — their home group, the one they
+    // set off with. This is who they are riding as on one stretch: VMCSC on
+    // their own feeder, the main group from the moment they join it.
+    //
+    // A GROUP DOES NOT GET DELETED WHEN IT MERGES, IT JUST STOPS APPLYING. VMCSC
+    // survives on the route it rode as VMCSC, which is exactly what a later split
+    // reads back to offer "split off as VMCSC again" with those riders prefilled
+    // — the common case on the way home, and the reason this is stored per route
+    // rather than as a flag on the group.
+    //
+    // NULL MEANS THE MAIN GROUP, not "no group". Everyone riding together is
+    // riding as the main group, and the main group is `subgroups[0]` rather than
+    // a row anything points at — so a null here says "with everybody", which is
+    // what an inherited row on a shared route should say.
+    //
+    // `set null` on delete, matching `routes.subgroup_id` before it: deleting a
+    // group makes its routes everybody's rather than destroying them.
+    subgroupId: bigint('subgroup_id', { mode: 'number' }).references(() => rideSubgroups.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.rideId, t.routeUid, t.riderId] }), index('idx_route_rider_ride').on(t.rideId)],
+)
+
 export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
+export type RouteRiderRow = typeof routeRiders.$inferSelect
 export type FriendshipRow = typeof friendships.$inferSelect
 export type AltVoteRow = typeof altVotes.$inferSelect
 export type RideSubgroupRow = typeof rideSubgroups.$inferSelect
@@ -1830,7 +1942,7 @@ export type RidePerm = (typeof ridePermEnum.enumValues)[number]
 export type Rsvp = (typeof rsvpEnum.enumValues)[number]
 export type BikeRow = typeof bikes.$inferSelect
 export type RideRow = typeof rides.$inferSelect
-export type DayRow = typeof days.$inferSelect
+export type RouteRow = typeof routes.$inferSelect
 export type PointRow = typeof points.$inferSelect
 export type RouteLegRow = typeof routeLegs.$inferSelect
 export type FeedbackRow = typeof feedback.$inferSelect

@@ -1,8 +1,8 @@
 // Miles or kilometers, as a rider's own choice.
 //
 // A DISPLAY-TIME CONCERN AND NOTHING ELSE. The storage layer is already mixed
-// and stays that way: `route_legs.distance_m` and `days.distance_m` are meters,
-// `rides.total_miles` is a mileage cache, `days.twistiness_dpm` is degrees per
+// and stays that way: `route_legs.distance_m` and `routes.distance_m` are meters,
+// `rides.total_miles` is a mileage cache, `routes.twistiness_dpm` is degrees per
 // mile. Nothing here migrates — every formatter converts at the point it prints.
 //
 // **ITS OWN AXIS, NOT DERIVED FROM THE DATE FORMAT**, and #150 asked for that to
@@ -19,7 +19,7 @@
 //
 // FUEL AND VOLUME ARE NOT HERE, and their absence is deliberate rather than
 // unfinished. A bike's range is stored in meters and typed in miles
-// (src/bikes/policy.ts), so it follows this axis for free; litres-vs-gallons is a
+// (src/bikes/policy.ts), so it follows this axis for free; liters-vs-gallons is a
 // third question nothing in the app currently asks, and a member added here for
 // it would be a member no formatter reads.
 
@@ -58,7 +58,7 @@ export const distanceFromMiles = (miles: number, units: Units): number =>
 
 /** Degrees per mile to degrees per the rider's own unit.
  *
- *  A CONVERSION, NOT A RE-MEASUREMENT. `days.twistiness_dpm` is degrees of
+ *  A CONVERSION, NOT A RE-MEASUREMENT. `routes.twistiness_dpm` is degrees of
  *  heading change per mile; per kilometer is the same road described in smaller
  *  pieces, so the figure gets SMALLER — dividing by the miles in a km rather than
  *  multiplying. Getting this backwards makes every metric rider's roads look four

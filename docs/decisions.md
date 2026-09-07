@@ -113,6 +113,56 @@ Four terms, all measured in miles-equivalent so the weights are readable rather 
 
 **It can return nothing, and that is a real answer.** Two origins on opposite sides of a trunk running away from both have no sensible rendezvous, and offering the least bad one would be worse than saying so.
 
+## Accepting a meeting point cuts the days, 2026-09-06
+
+This reverses a call recorded on 2026-09-03, and the old reasoning is struck rather than left to be rediscovered: splitting each group's day at the meet was called tidier structure and separate work, with the row menu offered as the manual answer.
+
+**What that left behind is why it changed.** Accepting put the meeting point on every group's route, which is the part that changes the ride—and the main group's day then ran straight THROUGH it to the destination. So the road everybody was about to ride together stayed tagged to the main group, every other group was expected to ride a day that was not theirs, and the rider was told to go and cut it themselves from a menu on a row.
+
+**The tail is untagged, and that is the whole point.** A day with no subgroup is ridden by everyone, so the cut turns "the main group's road, which the others somehow join" into the shape #67 describes: one approach day per group, then a shared day. `junctions()` derives a MEET at that boundary with no column and no flag, because a run of tagged days followed by a shared one is exactly what it looks for.
+
+**The shared day goes after the last approach, not after the day it was cut from.** Position is order, and `strandOf` builds a group's strand as its own days plus every SHARED one in position order—so a shared day sitting ahead of a joining group's approach puts the ride home before the ride out. The main group's day is routinely first in the list and the approaches are appended after it, so the naive splice is wrong in the ordinary case rather than the exotic one.
+
+**It starts at the arrival rather than the next morning**, which is the opposite of what `splitDayHere` seeds and for a plain reason: a rider splitting a day by hand is usually marking where they slept, and here everybody meets and rides on.
+
+**Nothing to cut is an ordinary outcome and not a failure.** A main group whose day ENDS at the meeting point has no shared stretch; `canSplitAt` refuses the last point and the note says nothing about it.
+
+## The divert budget gets a control, 2026-09-06
+
+`maxDivertMi` was a guard against nonsense until the scoring was reversed on 2026-09-03. Once the rule became "the earliest acceptable point wins", the answer always lands NEAR the limit—so the limit became the dial that decides where a meeting point goes, and it was the one number nobody could touch.
+
+**Beside the button, not in ride preferences.** It is a question about the press being made: a planner handed three answers too far off their road has to be able to say so without leaving the panel.
+
+**Session state, not a column.** A ride-level answer is a schema change for a number the planner re-asks the moment the road changes, and it does not survive a reload on purpose—the default is what somebody should get for pressing the button on a ride they have just opened. `state.maxDivertMi` sits with `corridorOn` and `ringOn` for the same reason.
+
+**`clampDivert()` lives in the pure module, not in the route**, which is the rule-from-query split this project uses everywhere: a rider-facing number arrives over HTTP and cannot be trusted, and the clamp is testable with no database while the route is not.
+
+**An empty string is not zero, and it shipped wrong for an hour.** `Number('')` is 0 and 0 is finite, so a rider who CLEARED the number box was clamped up to the one-mile floor—which refuses every candidate on the ride and reads as the feature being broken rather than as a field left empty. Its own test caught it. `builder.js` carries the same guard, because the same arithmetic is on both sides.
+
+## Every ride gets its group on the server too, 2026-09-06
+
+A ride has at least one group, seeded rather than asked for. That seed was client-side, so a ride created by any other path—an upload, a clone, an API client, the seed script—arrived with none and stayed that way until somebody opened it in the builder.
+
+**`seedMainGroup()` runs beside `seedOwner()`** in all four creating transactions, so no NEW ride can be groupless whatever made it.
+
+**It asks whether the ride has one rather than inferring from the call site.** Two of the four paths run `insertRideGraph` first, which reconciles the payload's own subgroups—so an unconditional insert would give every ride saved from the builder a second, empty group named the same as the one it already has. `onConflictDoNothing` does not catch that: the uid is minted here and is new by construction, so there is no conflict to catch. Checking is the only form that is correct at all four sites in either order, which is also what makes it safe to call from a fifth.
+
+**There is still no backfill, and that half of the 2026-09-03 call stands.** A ride already stored without a group gets its own the first time the builder saves it, which is the repair that was already there. What changed is that the set of such rides stopped growing—without a data migration against live rider records.
+
+## A shaping point is snapped to the routed road, not to the drop, 2026-09-06
+
+A shaping point is dropped wherever the rider's pointer lands, which is routinely a coordinate that is not on any road—a field, a river, the wrong side of a divided highway, the frontage road running beside the one they meant. Routes accepts it and snaps it to whatever road is nearest, so the road that comes back is not reliably the road the rider pointed at. The handle then sits out in the field saying nothing about which road was chosen, the leg's geometry is the wrong one, and that wrong geometry is what every export and every hand-off to a nav app is built from.
+
+**The snap happens AFTER the response, from the routed geometry.** The road Google chose is already in hand, so projecting each via onto it costs nothing: no Roads API, no second credential on `GMAPS_SERVER_KEY`, and no request per drag. `snapToTrack()` in `route-shape.js` is the arithmetic and `snapVias()` in `builder.js` is the caller.
+
+**Roads API `snapToRoads` was the alternative and was rejected on cost.** It snaps BEFORE the request, so the handle would land correctly the first time instead of being corrected a moment later—which is genuinely nicer—but it is a billable call on a SKU this project does not currently enable, spent on every single drag of every shaping point. The correction after the fact buys the same road for nothing. **The consequence to state rather than treat as a bug: the handle moves once the response lands.** That is the price, and it is visible.
+
+**Projected onto the nearest segment, not snapped to the nearest vertex.** A routed polyline is sparse on a long straight—vertices can be miles apart on an interstate—so a vertex snap can move a handle further than the original error, and past the interchange the rider was aiming at. The perpendicular foot is on the road either way and is the nearest such point.
+
+**The vias are walked in order with each one's segment as the next one's floor.** Array order is the route, so two vias that snapped out of order would make the leg double back—the same bow tie `viaInsertIndex()` exists to prevent, arriving by another door.
+
+**It reports whether anything moved, and a move marks the ride dirty.** The edit that triggered the route already did, but the autosave is on a three-second timer and a fast response can land after that save has gone, which would leave the snapped coordinates unsaved with nothing to say so.
+
 ## The export filename carries four fields and no more
 
 The convention exists because GPX and KML cannot hold a **date**, and that is the field doing the work. The recurring temptation is to keep adding fields—roles, colors, dwell—which turns a filename into a second, weaker serialization format competing with Routeloop JSON. Visibility and timezone are excluded specifically: a file named `public` that publishes a ride on import is a footgun, and a filename claiming a zone would invent one.

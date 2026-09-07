@@ -117,7 +117,7 @@ describe('routePattern', () => {
   })
 
   it('drops a query string and a fragment', () => {
-    expect(B.routePattern('/build/Xk9?day=2#top')).toBe('/build/:slug')
+    expect(B.routePattern('/build/Xk9?route=2#top')).toBe('/build/:slug')
   })
 
   it('is total on junk', () => {

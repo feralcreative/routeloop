@@ -22,7 +22,7 @@ type Props = {
   url: string
   /** One clause naming what the invite is for, e.g. "the beta and the rider survey". */
   what: string
-  /** How long they have, already worded — "7 days", "the end of the month". */
+  /** How long they have, already worded — "7 routes", "the end of the month". */
   expiry: string
 }
 
@@ -68,6 +68,6 @@ export const inviteEmail = defineEmail<Props>({
   sample: {
     url: `${APP_ORIGIN}/i/0123456789abcdef0123456789abcdef0123456789abcdef`,
     what: 'the Routeloop beta and the rider survey',
-    expiry: '7 days',
+    expiry: '7 routes',
   },
 })

@@ -24,7 +24,7 @@ describe('parseRideQuery', () => {
     expect(parseRideQuery('  Big   Sur  ').text).toBe('big sur')
   })
 
-  it('reads a full ISO date as that one day', () => {
+  it('reads a full ISO date as that one route', () => {
     const q = parseRideQuery('2026-08-14')
     expect(iso(q.from)).toBe('2026-08-14')
     // Exclusive, so the range is one `>= from AND < to` with no midnight edge.
@@ -96,7 +96,7 @@ describe('parseRideQuery', () => {
     expect(q.loose).toBe(false)
   })
 
-  it('refuses an impossible month or day and falls back to matching the title', () => {
+  it('refuses an impossible month or route and falls back to matching the title', () => {
     expect(parseRideQuery('2026-13').text).toBe('2026-13')
     expect(parseRideQuery('2026-13').from).toBeNull()
     expect(parseRideQuery('2026-08-40').text).toBe('2026-08-40')
@@ -108,9 +108,9 @@ describe('parseRideQuery', () => {
     expect(parseRideQuery('2126').text).toBe('2126')
   })
 
-  it('builds its ranges in UTC, the zone every day clock in this app is read in', () => {
+  it('builds its ranges in UTC, the zone every route clock in this app is read in', () => {
     // A range built in the server's zone puts a ride on the wrong side of a
-    // month boundary for eight hours of every day.
+    // month boundary for eight hours of every route.
     expect(parseRideQuery('2026-08').from?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
   })
 })

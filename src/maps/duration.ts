@@ -17,7 +17,7 @@
 // settle it between them:
 //
 //   'hours'   — 1.50. Ziad's default. It sorts, it does arithmetic in your head,
-//               and it matches how riders talk about a day. TWO decimal places,
+//               and it matches how riders talk about a route. TWO decimal places,
 //               not one, and that is #189: at one place the smallest stop the
 //               format could hold was six minutes, every value off that grid was
 //               silently rewritten on the way out, and a quarter-hour stop was

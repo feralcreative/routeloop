@@ -19,7 +19,7 @@
 // finished — the page holds the files and posts them once, with this manifest
 // beside them in the same multipart body. The cost is stated rather than hidden:
 // **a zip cannot be reviewed**, because nothing unzips in the browser, so an
-// archive's days are still read on the way in.
+// archive's routes are still read on the way in.
 import { z } from 'zod'
 import { MAX_SOURCE_FILES } from './storage'
 
@@ -27,16 +27,16 @@ import { MAX_SOURCE_FILES } from './storage'
 export type ReviewEntry = {
   fileName: string
   /**
-   * The day's name, as the rider typed it. Null means they typed nothing.
+   * The route's name, as the rider typed it. Null means they typed nothing.
    *
-   * NOT "this day has no name" — the review table shows a name only when the
+   * NOT "this route has no name" — the review table shows a name only when the
    * FILENAME carried one, because nothing in the browser opens a GPX to read its
    * <trk><name>. So an empty box is an unanswered question, and the caller lets
    * the file's own name win. A typed name outranks everything. See the note in
-   * addDays in routes/maps.ts, which is where that precedence lives.
+   * addRoutes in routes/maps.ts, which is where that precedence lives.
    */
   title: string | null
-  /** The day's start, as a wall clock at the departure point carried as UTC.
+  /** The route's start, as a wall clock at the departure point carried as UTC.
    *  Null means undated. */
   startAt: Date | null
 }
@@ -45,12 +45,12 @@ export type ReviewEntry = {
  * A wall clock, from an `<input type="date">` or `<input type="datetime-local">`.
  *
  * PARSED AS UTC, and that is the rule the whole app follows rather than a
- * shortcut here: a day's clock is a wall clock at the departure point, carried
+ * shortcut here: a route's clock is a wall clock at the departure point, carried
  * as UTC and rendered with `timeZone: 'UTC'` everywhere. A rider in London
  * typing a California ride's 9am start means 9am in California. See
- * public/js/day-clock.js, which is the client half of the same conversion.
+ * public/js/route-clock.js, which is the client half of the same conversion.
  *
- * A bare date is undated-with-a-day rather than midnight-local — it becomes
+ * A bare date is undated-with-a-route rather than midnight-local — it becomes
  * midnight UTC, which is exactly what a filename's bare date already does
  * (parseDate in filename.ts), so a date typed here and a date read off a
  * filename land on the same instant.
@@ -64,7 +64,7 @@ export function parseWallClock(value: string): Date | null {
   if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null
   const date = new Date(Date.UTC(y, mo - 1, d, h, mi))
   // Round-tripped rather than trusted: Date.UTC rolls 31 February forward to
-  // 3 March without complaining, and a silently moved day is worse than a
+  // 3 March without complaining, and a silently moved route is worse than a
   // refusal a rider can see.
   if (date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null
   return date
@@ -75,14 +75,14 @@ export function parseWallClock(value: string): Date | null {
  * implied by, because the two together are what make this self-checking: an
  * entry has to name the file it lands on, so a manifest built against one
  * selection and posted with another is refused rather than applied to the wrong
- * day. That is the failure this whole feature invites — the rider edits, changes
+ * route. That is the failure this whole feature invites — the rider edits, changes
  * the selection, and the edits silently follow the index.
  */
 const entrySchema = z.object({
   fileName: z.string().min(1).max(255),
   // Empty string and absent are the same thing and both mean "no name": a text
   // input a rider cleared posts "", and coercing it to null here is what keeps
-  // the server from storing a day called "".
+  // the server from storing a route called "".
   title: z.string().trim().max(150).nullish(),
   startAt: z.string().trim().max(32).nullish(),
 })
@@ -96,18 +96,18 @@ export type ManifestResult = { ok: true; entries: ReviewEntry[] } | { ok: false;
  *
  * ONE ENTRY PER POSTED FILE, IN ORDER, AND THE NAMES MUST MATCH. Strict on
  * purpose, and the alternative is worse in a way that cannot be seen: matching
- * by name alone silently mis-assigns when two folders both hold `day-1.gpx`, and
+ * by name alone silently mis-assigns when two folders both hold `route-1.gpx`, and
  * matching by index alone silently mis-assigns when the selection changed after
  * the review. Requiring both means a disagreement is a 400 rather than a ride
- * whose second day is dated with the third day's date.
+ * whose second route is dated with the third route's date.
  *
  * A ZIP GETS AN ENTRY AND THE ENTRY DOES NOTHING. Its expanded files are not in
  * the manifest — the browser never saw them — so they keep everything
  * planImport() derives. The row exists so the positions still line up, and the
- * review table renders it as an archive whose days are read on upload.
+ * review table renders it as an archive whose routes are read on upload.
  *
  * ORDER IS THE POSTED ORDER, and the caller's job is only to stop re-sorting by
- * day number when a manifest is present. The client rebuilds its own file input
+ * route number when a manifest is present. The client rebuilds its own file input
  * in the order the rider dragged, so the two are the same list and the check
  * above is what proves it.
  */

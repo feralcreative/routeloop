@@ -30,7 +30,7 @@ export const ACCEPTED_TYPES = ['jpeg', 'png'] as const
 export type ImageType = (typeof ACCEPTED_TYPES)[number]
 
 /** 1 MB, from #99. It rejects most phone-camera output BEFORE any decode, which
- *  is the point: the cap is a defence, not a storage decision. */
+ *  is the point: the cap is a defense, not a storage decision. */
 export const MAX_IMAGE_BYTES = 1024 * 1024
 
 /**

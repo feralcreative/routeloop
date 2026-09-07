@@ -209,7 +209,7 @@
    * What the rider can actually see, as a circle: `{ near, radiusM }`, or null
    * before the map has settled.
    *
-   * THE SEARCH ANCHOR. Every "near" search used to anchor on the day's LAST
+   * THE SEARCH ANCHOR. Every "near" search used to anchor on the route's LAST
    * POINT, which is a place the rider can neither see nor move — so panning the
    * map changed nothing and a search for coffee while looking at Redding
    * answered around a hotel three hundred miles away. The viewport is the one
@@ -249,7 +249,7 @@
   //
   // Here rather than in builder.js because this file is the only one that names
   // a vendor API. The caller is the category search, which needs somewhere to
-  // anchor "coffee" when the rider has typed no place and the day has no points
+  // anchor "coffee" when the rider has typed no place and the route has no points
   // to work from.
   function mapCenter(map) {
     const c = map && map.getCenter && map.getCenter();
@@ -261,7 +261,7 @@
   const TRACK_OPACITY = 0.8;
   const DIM_OPACITY = 0.25;
   // A LOSING ALTERNATE. Between the other two on purpose: a ghost is quieter
-  // than the road you are riding and louder than a day you simply are not
+  // than the road you are riding and louder than a route you simply are not
   // looking at right now, because it is still a real option rather than
   // something out of focus.
   const GHOST_OPACITY = 0.35;
@@ -331,7 +331,7 @@
   }
 
   // GHOST BEATS DIM, in all three properties. A losing alternate that happens
-  // to be the focused day is still a losing alternate — the rider clicked into
+  // to be the focused route is still a losing alternate — the rider clicked into
   // it to edit it, which is exactly when they most need to see that it is the
   // one that does not count. Reading `dim` first would un-ghost it on focus.
   //
@@ -368,7 +368,7 @@
   //
   // It lives on the entry rather than only on the Polyline because
   // addRouteLayers destroys and rebuilds the line — rebuildLayers() runs on
-  // every day add, delete, reorder and recolor — so a flag set once at
+  // every route add, delete, reorder and recolor — so a flag set once at
   // construction would quietly vanish. paint() never touches clickable, so
   // once it is on the entry it survives every repaint.
   function addRouteLayers(map, id, track, color, opts) {
@@ -388,7 +388,7 @@
       dim: false,
       // On the entry rather than the Polyline for the same reason `shapeable`
       // is, and it is worth restating because it has bitten before:
-      // rebuildLayers() destroys and recreates every line on every day add,
+      // rebuildLayers() destroys and recreates every line on every route add,
       // delete, reorder and recolor, so a flag set on the Polyline alone would
       // vanish the next time a rider touched anything. A ghost that silently
       // becomes a solid line is a ride whose mileage and map disagree.
@@ -400,7 +400,7 @@
     layersOf(map).set(id, entry);
     // Re-arm: this line is brand new, and rebuildLayers() runs often enough
     // that a gesture wired only at onRouteShapeDrag() time would stop working
-    // the first time a day was added.
+    // the first time a route was added.
     const drag = shapeDrags.get(map);
     if (shapeable && drag && drag.arm) drag.arm(entry);
   }
@@ -445,7 +445,7 @@
   // Separate from setRouteDim rather than an argument to it, because the two
   // answer different questions and are owned by different code. `dim` is
   // transient — focus, legend hover, the timeline — and both clients rewrite it
-  // constantly. `ghost` is a fact about the ride: this day is an alternate that
+  // constantly. `ghost` is a fact about the ride: this route is an alternate that
   // lost. Folding them into one flag means whichever ran last wins, and the
   // symptom is an alternate that turns solid the moment you click it.
   function setRouteGhost(map, id, ghost) {
@@ -569,7 +569,7 @@
 
   // Small round dots rather than dashes: the ring is the quietest thing on the
   // map and a dashed edge reads as a route, which is what every other dashed
-  // line here means — see dashIcons() and the ghosted-day treatment.
+  // line here means — see dashIcons() and the ghosted-route treatment.
   function ringDots(color) {
     return [
       {
@@ -593,14 +593,14 @@
   // hazard tape rather than a road.
   //
   // WHY NOT DASH THE RED ITSELF. That was tried and reported as "dashed AND
-  // solid underneath", and the report was right: a day is drawn as ONE polyline
+  // solid underneath", and the report was right: a route is drawn as ONE polyline
   // (see route-shape.js and the note in AGENTS.md), so there is no way to blank
-  // the span of it the stretch covers. Gapping the red just let the day's own
+  // the span of it the stretch covers. Gapping the red just let the route's own
   // color through, and the eye read the continuous line beneath rather than the
   // gaps. Painting over it opaquely is the only way to make the road look
   // closed, so the dashes go ON the red instead of being made of it.
   //
-  // White, not the day's color: the whole point is that the day's line has been
+  // White, not the route's color: the whole point is that the route's line has been
   // covered, and tinting the dashes with it would put it straight back.
   function dryDashes() {
     return [
@@ -630,11 +630,11 @@
         // THE FILL ONLY, and a Polygon rather than a Circle. Circle cannot draw
         // a dashed or dotted edge — it has strokeWeight, strokeColor and
         // strokeOpacity and nothing else — so the edge is the polyline below,
-        // which carries repeating icons the way a ghosted day does. Once the
+        // which carries repeating icons the way a ghosted route does. Once the
         // edge is a path, the fill may as well take the same one: two overlays
         // built from one array cannot disagree about where the ring is.
         //
-        // Below the route lines, so a ring drawn over a day never obscures the
+        // Below the route lines, so a ring drawn over a route never obscures the
         // road it is a statement about.
         circle: new Maps.Polygon({
           map,
@@ -656,8 +656,8 @@
           // same mechanism dashIcons() uses. See ringDots().
           strokeOpacity: 0,
         }),
-        // A POOL, not one marker. There is a wall for every tankful the day
-        // needs (#220), so a 700-mile day with no pumps draws six or seven.
+        // A POOL, not one marker. There is a wall for every tankful the route
+        // needs (#220), so a 700-mile route with no pumps draws six or seven.
         // Grown on demand by wallMarkers() and never shrunk — the spares are
         // detached rather than destroyed, because a rider scrubbing back and
         // forth would otherwise rebuild them on every frame.
@@ -667,7 +667,7 @@
         // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
         // drag preview is 4, and this has to sit between them: above the
         // highlight, because a rider who scrubs INTO the dry stretch would
-        // otherwise have the bright day-colored highlight paint over the one
+        // otherwise have the bright route-colored highlight paint over the one
         // thing on screen telling them they cannot ride it; and below the drag
         // preview, which is the line following their pointer and must never be
         // obscured while they are holding it.
@@ -700,7 +700,7 @@
   // wrong: a route heading broadly north runs genuinely east-west for a mile
   // here and there, so a wall landing on one of those stretches stood vertical
   // against a northbound ride. Smoothing the heading over a wider chord was
-  // measured and trades one wrongness for another — on day 2 of ride 32 a
+  // measured and trades one wrongness for another — on route 2 of ride 32 a
   // five-mile window fixed the wall at mile 291 and broke the ones at 181 and
   // 621, where the bar would then visibly not be square to the road in front of
   // it. A sign is meant to be read upright, so it has no angle to get wrong.
@@ -813,7 +813,7 @@
       m.ringLine.setVisible(false);
     }
 
-    // Independent of the ring, and drawn whenever the day holds one. The ring
+    // Independent of the ring, and drawn whenever the route holds one. The ring
     // is how much fuel is left as the crow flies; this is where that runs out
     // on the road the rider is actually on, and the gap between them is the
     // cost of the bends.
@@ -977,6 +977,34 @@
   // builder.js both reached for `new mapboxgl.Marker` directly and both had to
   // change when the engine did. They go through these four functions now.
 
+  // THE MARKER Z-SCALE, WRITTEN DOWN IN ONE PLACE BECAUSE IT IS NOT ONE.
+  //
+  // Polylines never compete with markers — Google draws them in a lower pane —
+  // so the 0..4 values elsewhere in this file order the ROUTE against itself and
+  // have nothing to do with these. What follows is the marker order, low to
+  // high:
+  //
+  //   MARKER_Z        stops and POIs — the ride's own furniture
+  //   5               the fuel walls and the bedtime marks: warnings ABOUT the
+  //                   route, which must not be hidden behind a pin sitting on it
+  //   6               the moment dot — where the rider is right now
+  //   PREVIEW_Z       search results and meeting-point candidates
+  //
+  // **AN UNSET zIndex IS NOT A LOW ONE, AND THAT WAS THE BUG.** This function
+  // set none at all until 2026-09-06, so every stop and POI fell out of the
+  // scale into Google's default ordering, which places a marker by its VERTICAL
+  // POSITION — further south draws in front. So an ordinary gas-station pin
+  // covered a meeting-point candidate at zIndex 6, and whether it did depended
+  // on which of the two happened to be further down the screen. Reported as
+  // "number 3 is behind a gas station icon so I can't hover on it", and the
+  // positional part is the tell: it hid the dot and it took the POINTER with it,
+  // because for an advanced marker the DOM order follows the z-order.
+  //
+  // Give a new marker a number from this list rather than leaving it unset. An
+  // unset one is not neutral — it outranks things unpredictably.
+  const MARKER_Z = 4;
+  const PREVIEW_Z = 7;
+
   function addMarker(map, lngLat, element, opts) {
     requireInit("addMarker");
     const o = opts || {};
@@ -986,6 +1014,8 @@
       content: element,
       gmpDraggable: !!o.draggable,
       title: o.title || "",
+      // Explicit, and the whole point: see the scale above.
+      zIndex: MARKER_Z,
     });
   }
 
@@ -1058,10 +1088,18 @@
         // chosen — Place Details is billed per call, autocomplete is not.
         resolve: async () => {
           const place = prediction.toPlace();
-          await place.fetchFields({ fields: ["displayName", "location"] });
+          // `formattedAddress` rides along with no change to what this costs:
+          // Place Details is billed by the highest field tier requested, and it
+          // sits in the same Pro tier `displayName` already puts this call in.
+          // It is what the popup prints under the name — see points.address.
+          await place.fetchFields({ fields: ["displayName", "location", "formattedAddress"] });
           sessionToken = null;
           if (!place.location) return null;
-          return { lngLat: fromLatLng(place.location), name: place.displayName || "" };
+          return {
+            lngLat: fromLatLng(place.location),
+            name: place.displayName || "",
+            address: place.formattedAddress || "",
+          };
         },
       }));
   }
@@ -1189,8 +1227,14 @@
       "<div class='waypoint-tooltip-name'>" +
       esc(point.name || "") +
       "</div>" +
+      // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC. A popup naming "Shell"
+      // says nothing a rider can navigate by — Bakersfield has several — so the
+      // address Google gave when the point was added rides in ride.json for
+      // every viewer. Null for a point dropped on the map: nothing geocodes one
+      // after the fact, and an absent line is better than an invented one.
+      (point.address ? "<div class='waypoint-tooltip-addr'>" + esc(point.address) + "</div>" : "") +
       (point.description ? "<div class='waypoint-tooltip-desc'>" + esc(point.description) + "</div>" : "") +
-      detailsBlock(point.details)
+      detailsBlock(point.details, point.address)
     );
   }
 
@@ -1204,14 +1248,20 @@
   // Every value goes through esc(), links included, and the URL was already
   // constrained to http(s) at save time by fields.external_url — an href is the
   // one place esc() alone is not enough.
-  function detailsBlock(d) {
+  function detailsBlock(d, publicAddress) {
     if (!d) return "";
     let rows = "";
     if (d.confirmation) rows += numRow("Confirmation", esc(d.confirmation));
     if (d.checkInAt) rows += numRow("Check in", esc(fmtStamp(d.checkInAt)));
     if (d.checkOutAt) rows += numRow("Check out", esc(fmtStamp(d.checkOutAt)));
     if (d.phone) rows += numRow("Phone", "<a href='tel:" + esc(d.phone) + "'>" + esc(d.phone) + "</a>");
-    if (d.address) rows += numRow("Address", esc(d.address));
+    // Skipped when it is the same address the public half already printed. The
+    // owner's typed one and the point's own are two different fields and a stop
+    // taken from a saved place carries both, which read as the popup saying it
+    // twice.
+    if (d.address && d.address.trim() !== (publicAddress || "").trim()) {
+      rows += numRow("Address", esc(d.address));
+    }
     const links = (d.links || [])
       .filter((l) => l.url)
       .map(
@@ -1235,7 +1285,7 @@
   }
 
   // The stored value is the wall clock where the stop is, carried as UTC — see
-  // the header of public/js/day-clock.js. So UTC is what reads it back, and the
+  // the header of public/js/route-clock.js. So UTC is what reads it back, and the
   // rider sees the digits they typed wherever they are standing.
   function fmtStamp(iso) {
     const d = new Date(iso);
@@ -1284,22 +1334,70 @@
 
     let open = false;
     let pinned = false;
+    let hideTimer = null;
     const el = marker.content;
 
+    // CLOSING IS DELAYED AND OPENING IS NOT, AND THE POPUP ITSELF HOLDS IT OPEN.
+    // Two things made the hover flicker rather than settle. The window opens
+    // ANCHORED over the marker, so Google's own `.gm-style-iw-a` box lands on
+    // top of the dot the pointer is resting on — the browser then fires
+    // `mouseleave` on a pointer that never moved, the popup closes, the dot is
+    // uncovered, `mouseenter` fires, and the pair loops at frame rate. And the
+    // hit target is a 16px dot (`.tb-marker` is 0x0 by design), so the few
+    // pixels of travel between the dot and the window's tail count as leaving.
+    //
+    // The grace period covers the gap and the popup's own hover cancels it, so
+    // a rider can move onto the window to read it or follow a link. Closing on
+    // a timer rather than on the edge is what makes it feel solid; opening is
+    // still immediate, because a delay there reads as lag.
+    const HOVER_GRACE_MS = 140;
+
+    function cancelHide() {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    }
     function show() {
+      cancelHide();
       if (open) return;
       popup.open({ map, anchor: marker });
       open = true;
     }
     function hide() {
+      cancelHide();
       if (!open) return;
       popup.close();
       open = false;
     }
+    function scheduleHide() {
+      if (pinned) return;
+      cancelHide();
+      hideTimer = setTimeout(() => {
+        hideTimer = null;
+        if (!pinned) hide();
+      }, HOVER_GRACE_MS);
+    }
+
+    // Google re-parents the content node into its own box on every open, so the
+    // element that actually sits under the pointer is an ancestor we do not own
+    // and cannot bind until it exists. `domready` is when it does. The flag is
+    // per element, so a box Google reuses across opens is bound once and a box
+    // it rebuilds is bound again.
+    function bindPopupHover() {
+      const box = content.closest(".gm-style-iw-a") || content.parentElement;
+      if (!box || box.dataset.tbHoverBound === "1") return;
+      box.dataset.tbHoverBound = "1";
+      box.addEventListener("mouseenter", cancelHide);
+      box.addEventListener("mouseleave", () => {
+        if (!pinned) scheduleHide();
+      });
+    }
+    Core.event.addListener(popup, "domready", bindPopupHover);
 
     el.addEventListener("mouseenter", show);
     el.addEventListener("mouseleave", () => {
-      if (!pinned) hide();
+      if (!pinned) scheduleHide();
     });
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1309,6 +1407,7 @@
     });
     Core.event.addListener(popup, "closeclick", () => {
       pinned = false;
+      cancelHide();
       open = false;
     });
     return popup;
@@ -1368,7 +1467,7 @@
       // screen reader user is looking at.
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
-      // The rail's controls duplicate the day scrubber, so they are hidden from
+      // The rail's controls duplicate the route scrubber, so they are hidden from
       // assistive tech while the scrubber itself is on screen and exposed only
       // once it is not. The markup ships aria-hidden="true" to match the
       // expanded state it also ships in.
@@ -1409,7 +1508,19 @@
   // fuel walls above.
   const previews = new Map();
 
-  function previewOf(map) {
+  // NAMED FOR ITS FEATURE, and it has to be. It shipped as `previewOf` in #238
+  // and there was already a `previewOf` a few hundred lines up — the shape
+  // drag's preview polyline — so the later declaration silently replaced the
+  // earlier one for the whole IIFE. Dragging a leg onto another road then called
+  // this by mistake, got `{pins, onHover, onPick}` back, and died on
+  // `preview.setPath is not a function`. It broke the moment #238 merged and was
+  // reported the same route.
+  //
+  // Nothing catches that class of mistake for free: two function declarations in
+  // one scope is legal JavaScript, `node --check` accepts it, and the failure
+  // only appears when somebody uses the older feature. `test/map-globals.test.ts`
+  // is the guard now.
+  function searchPreviewOf(map) {
     let p = previews.get(map);
     if (!p) {
       p = { pins: [], onHover: null, onPick: null };
@@ -1469,12 +1580,20 @@
   /**
    * Draw one numbered dot per search result, or clear them with an empty list.
    *
-   * `items` is [{ lngLat, name }] in the order the dropdown shows them, so the
-   * number on a dot is the row it belongs to. `onHover(i | null)` fires when the
-   * pointer enters or leaves a dot.
+   * `items` is [{ lngLat, name, tip, label, color }] in the order the list shows
+   * them, so the number on a dot is the row it belongs to. `tip` is the hover
+   * text and `label` the accessible name; both fall back to `name`.
+   * `onHover(i | null)` fires when the pointer enters or leaves a dot.
+   *
+   * `color` is optional and exists because the dots serve two features that need
+   * opposite things from a color. A place search is offering places and the
+   * brand is right for it. A meeting-point proposal is drawn ON the main group's
+   * own route, so a brand-blue dot on a brand-blue road is invisible — the
+   * caller passes the JOINING group's color there. Omitted leaves the CSS to it,
+   * which is what keeps the search call site untouched.
    */
   function setSearchPreview(map, items, onHover, onPick) {
-    const p = previewOf(map);
+    const p = searchPreviewOf(map);
     p.onHover = onHover || null;
     p.onPick = onPick || null;
     const list = items || [];
@@ -1483,18 +1602,38 @@
         p.pins[i] = new Marker.AdvancedMarkerElement({
           map,
           content: previewEl(p, i),
-          // Above the route and the fuel walls: these are the thing being chosen
-          // right now, and they are gone the moment the dropdown closes.
-          zIndex: 6,
+          // ABOVE EVERY OTHER MARKER, not merely above the route and the fuel
+          // walls. These are the thing being chosen RIGHT NOW and they are gone
+          // the moment the dropdown closes, so nothing standing on the map has a
+          // better claim to the pixels — or to the pointer, which is what makes
+          // this a correctness rule rather than a visual one: a covered dot
+          // cannot be hovered, and hovering is how a candidate is read.
+          zIndex: PREVIEW_Z,
         });
       }
       p.pins[i].position = toLatLng(list[i].lngLat);
       p.pins[i].map = map;
       const dot = p.pins[i].content.firstChild;
       dot.classList.remove("is-lit");
+      // THE NUMBER IS THE CALLER'S WHEN IT OFFERS ONE. A place search numbers a
+      // single list 1..n and the index is that number. A meeting-point proposal
+      // draws several lists at once — one per joining group, each in that
+      // group's color — and each has to count from one, or the rider is reading
+      // dot 5 against a row labelled 2.
+      dot.textContent = String(list[i].num == null ? i + 1 : list[i].num);
+      // Cleared rather than left alone when there is no color: the pins are a
+      // POOL, so a dot the meeting-point proposal painted is the same element
+      // the next place search gets back, and an unset inline style is what lets
+      // the stylesheet's own color through again.
+      dot.style.background = list[i].color || "";
       // No role — it is a button, and announcing it as an image would take the
       // press away from anyone using a screen reader.
-      dot.setAttribute("aria-label", "Add " + (list[i].name || "result " + (i + 1)));
+      //
+      // `label` is the caller's, because the dots serve two features now and
+      // "Add" is only right for one of them: a place search adds a point, and a
+      // meeting-point proposal is a choice between candidates. Defaulted rather
+      // than required so the search call site is untouched.
+      dot.setAttribute("aria-label", list[i].label || "Add " + (list[i].name || "result " + (i + 1)));
       // ON HOVER, ONE AT A TIME. Painting every name on the map at once is the
       // thing that would be unreadable — twelve labels overlapping each other —
       // which is why the dot carries a NUMBER and the name arrives only when the
@@ -1504,6 +1643,219 @@
       tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
     }
     for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
+  }
+
+  // THE JOINING GROUPS' ROADS TO EACH CANDIDATE, so a rider can see what the
+  // three choices actually ask of everybody rather than comparing two numbers.
+  //
+  // POOLED AND DETACHED, never destroyed, the same as the preview dots and the
+  // fuel walls above: a rider pressing Find meeting points twice would
+  // otherwise rebuild every line, and there is one per candidate per joining
+  // group.
+  //
+  // These are REAL ROUTED PATHS — Ziad's call, 2026-09-03, over a dashed
+  // straight connector. The straight line is free and it lies about the
+  // distance on any road that bends, and the whole point of drawing them is to
+  // make the candidates comparable. The requests are the caller's to make and to
+  // cache; this file only draws what it is handed.
+  const approaches = new Map();
+
+  // NOT dashIcons(), which is tuned for a GHOSTED route and carries
+  // GHOST_OPACITY — an approach is a live annotation about a choice the rider is
+  // making right now, and at ghost opacity over busy tiles it is not readable.
+  // Dashed because it is not a route of the ride: nothing here is saved, and a
+  // solid line at rest would read as another route on the map.
+  // `color` is the joining group's, so a rider comparing three groups' roads can
+  // tell whose is whose — the same reason the candidate dots take it. Null falls
+  // back to the neutral pair, which is what a single unattributed approach wants
+  // and what this drew for every line before groups were colored.
+  //
+  // THE DASHES ARE THE RESTING STATE AND NOTHING ELSE — the hovered one is
+  // SOLID, see approachStyle() — so there is no `lit` parameter to get wrong.
+  // It had one while the highlight was opacity alone, and it went dead the route
+  // the hover became solid.
+  function approachDashes(color) {
+    return [
+      {
+        icon: {
+          path: "M 0,-1 0,1",
+          strokeColor: color || "#8a8a8a",
+          // HALF, AND THAT IS THE RESTING OPACITY OF EVERY APPROACH ON THE MAP.
+          // Ziad's call, 2026-09-05: it was 0.55, then 0.35 when the lit end
+          // went to 1 on the reasoning that a highlight is a ratio — and at
+          // 0.35 over busy tiles a road nobody is pointing at is nearly gone,
+          // which defeats the reason three of them are drawn at once. The
+          // contrast comes from solid-versus-dashed now, so the resting line
+          // can afford to be legible.
+          strokeOpacity: 0.5,
+          strokeWeight: 3,
+          scale: 3,
+        },
+        offset: "0",
+        repeat: "14px",
+      },
+    ];
+  }
+
+  /**
+   * The whole look of one approach, hovered or at rest.
+   *
+   * THE HOVERED ONE IS A SOLID LINE AT FULL OPACITY. Ziad's call, 2026-09-05,
+   * and it reverses the "dashed at every opacity" reasoning above: with three
+   * groups' roads on the map at once, a dashed line at opacity 1 beside dashed
+   * lines at half opacity is a difference the eye has to look for, and pointing at a row
+   * has to answer "which road is that" instantly. Solid versus dashed is a
+   * difference in KIND rather than in degree, so the one being pointed at stops
+   * competing with the others. The worry it was avoiding — an approach read as a
+   * planned route — is answered by the fact that it is solid only while the
+   * pointer is on its row, which is not a state anything saved is ever in.
+   *
+   * The dashes live in `icons` on a polyline whose own stroke is invisible, so
+   * the two states are mutually exclusive by construction: solid sets a real
+   * `strokeOpacity` and empties `icons`, dashed puts the stroke back to 0.
+   */
+  // THE zIndex IS IN HERE BECAUSE `Polyline` HAS NO `setZIndex()`. Markers and
+  // Circles do, which is what makes the call look reasonable and is why it went
+  // unnoticed: `line.setZIndex(...)` threw a TypeError on the FIRST line of the
+  // pool, inside a pointerenter handler, and took the rest of the loop with it —
+  // so hovering any row lit only the first candidate's road and every other row
+  // did nothing at all. Reported as "nothing but the very first route works",
+  // 2026-09-05. A polyline's z-order is an option like any other.
+  function approachStyle(lit, color) {
+    const zIndex = lit ? 3.7 : 3.6;
+    if (!lit) return { strokeOpacity: 0, strokeWeight: 3, icons: approachDashes(color), zIndex };
+    return { strokeColor: color || "#1f1f1f", strokeOpacity: 1, strokeWeight: 4, icons: [], zIndex };
+  }
+
+  function approachOf(map) {
+    let a = approaches.get(map);
+    if (!a) {
+      a = { lines: [] };
+      approaches.set(map, a);
+    }
+    return a;
+  }
+
+  /**
+   * Draw one line per joining-group approach.
+   *
+   * `paths` is [{ path, group }] where `path` is a [lng, lat] track and `group`
+   * is the candidate index it belongs to, so hovering a candidate can lift its
+   * own lines. An empty list clears them.
+   */
+  function setMeetApproaches(map, paths) {
+    const a = approachOf(map);
+    const list = paths || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!a.lines[i]) {
+        a.lines[i] = new Maps.Polyline({
+          map,
+          // Under the preview dots (6) and under the drag preview (4), above the
+          // route: it is an annotation ABOUT the dots, so it must not cover the
+          // thing being chosen, and a rider dragging the road must never lose
+          // their own line behind it.
+          zIndex: 3.6,
+          clickable: false,
+          ...approachStyle(false, null),
+        });
+      }
+      const line = a.lines[i];
+      line.setPath(list[i].path.map(toLatLng));
+      line.set("tbGroup", list[i].group);
+      // Kept on the overlay rather than in a parallel array, so a highlight pass
+      // repaints a line in its own color without the caller having to hand the
+      // whole set back in.
+      line.set("tbColor", list[i].color || null);
+      line.setOptions(approachStyle(false, list[i].color));
+      line.setMap(map);
+      line.setVisible(true);
+    }
+    for (let i = list.length; i < a.lines.length; i++) a.lines[i].setVisible(false);
+  }
+
+  /**
+   * Lift the approach belonging to one candidate, or put them all back at rest
+   * with null.
+   *
+   * Lifting is solid-versus-dashed, opacity and weight — never color, because
+   * these are all the same KIND of thing and recoloring one would read as a
+   * different one. The color a line already carries is its group's.
+   *
+   * NULL LEVELS THEM ALL DOWN, NOT ALL UP, and that was wrong here until
+   * 2026-09-05: `i == null` counted as lit for every line, so the initial paint
+   * showed them all at rest and a pointer leaving a row left them all lifted.
+   * Invisible while lifting was opacity alone; with a solid line it would put
+   * three solid roads on the map the moment the pointer moved off a row.
+   */
+  function highlightMeetApproaches(map, i) {
+    const a = approaches.get(map);
+    if (!a) return;
+    a.lines.forEach((line) => {
+      if (!line.getVisible()) return;
+      const lit = i != null && line.get("tbGroup") === i;
+      line.setOptions(approachStyle(lit, line.get("tbColor")));
+    });
+  }
+
+  // WHERE THE RIDER WILL BE AT BEDTIME, one per route that reaches the hour.
+  //
+  // POOLED AND DETACHED like every other transient marker in this file. Named
+  // for its feature rather than its shape — see the `previewOf` collision that
+  // took drag-to-shape out for a route.
+  const bedtimes = new Map();
+
+  function bedtimeOf(map) {
+    let b = bedtimes.get(map);
+    if (!b) {
+      b = { pins: [] };
+      bedtimes.set(map, b);
+    }
+    return b;
+  }
+
+  /**
+   * Draw a bed marker at each position, or clear them with an empty list.
+   *
+   * `spots` is [{ lngLat, label }]. A DISC WITH A GLYPH, the same construction
+   * as the fuel E: a bare dot on a line reads as another stop, which is the one
+   * thing this is not — it marks a moment, not a place the rider chose.
+   */
+  function setBedtimeMarks(map, spots) {
+    const b = bedtimeOf(map);
+    const list = spots || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!b.pins[i]) {
+        const el = document.createElement("div");
+        // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors
+        // its content at bottom-center, so a sized wrapper puts the anchor off
+        // the point. The child carries the size and the hover.
+        el.className = "tb-marker";
+        const disc = document.createElement("div");
+        disc.className = "tb-bed-disc";
+        disc.textContent = "\u{1F6CF}";
+        el.appendChild(disc);
+        const tip = document.createElement("span");
+        tip.className = "tb-bed-tip";
+        // aria-hidden, or the tip joins the marker's accessible name and it is
+        // read twice — the same rule the fuel wall's tooltip follows.
+        tip.setAttribute("aria-hidden", "true");
+        el.appendChild(tip);
+        b.pins[i] = new Marker.AdvancedMarkerElement({
+          map,
+          content: el,
+          // Above the ride's own pins and the fuel overlay, below the search
+          // dots: it is a standing annotation, and the dots are the thing being
+          // chosen right now. See the marker z-scale above addMarker().
+          zIndex: 5,
+        });
+      }
+      b.pins[i].position = toLatLng(list[i].lngLat);
+      b.pins[i].map = map;
+      const el = b.pins[i].content;
+      el.firstChild.setAttribute("aria-label", list[i].label || "Where you will be at bedtime");
+      el.lastChild.textContent = list[i].label || "";
+    }
+    for (let i = list.length; i < b.pins.length; i++) b.pins[i].map = null;
   }
 
   /** Lift one preview dot, or none with a null index. */
@@ -1545,6 +1897,9 @@
     setMomentOverlay,
     setSearchPreview,
     highlightSearchPreview,
+    setBedtimeMarks,
+    setMeetApproaches,
+    highlightMeetApproaches,
     iconSvg,
     initPanelToggle,
   };

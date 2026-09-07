@@ -23,7 +23,7 @@
   //   leg.geometry   never mutated in place — always replaced wholesale, so it
   //                  is SHARED by reference. This is what makes a snapshot
   //                  cost ~50 object copies instead of ~19,000 coordinate
-  //                  pairs for a long day, and what makes a 100-step stack
+  //                  pairs for a long route, and what makes a 100-step stack
   //                  affordable at all.
   //   leg.viaPoints  WAS in that category and no longer is. Drag-to-shape
   //                  splices into it in place, so it must be copied like
@@ -74,8 +74,23 @@
 
   function snapshot(state) {
     return {
-      meta: { ...state.meta },
-      days: (state.days || []).map(snapshotRoute),
+      meta: {
+        ...state.meta,
+        // THE SAME TRAP AS `roles` AND `viaPoints`, ONE LEVEL UP, and it was
+        // live from the route groups shipped. `{ ...state.meta }` is SHALLOW, so
+        // the snapshot pointed at the very array the Groups panel pushes to,
+        // splices out of and reorders — and every group object in it is written
+        // field by field by the name and color inputs. Undo restored a meta
+        // object whose subgroups had already moved on, so adding, renaming,
+        // recoloring, deleting or reordering a group could not be taken back
+        // and nothing said so.
+        //
+        // It surfaced when adding a group started seeding a route for it:
+        // undo took the route back and left the group, which is one gesture
+        // half-undone rather than an undo that quietly does nothing.
+        subgroups: (state.meta.subgroups || []).map((g) => ({ ...g })),
+      },
+      routes: (state.routes || []).map(snapshotRoute),
     };
   }
 
@@ -84,13 +99,13 @@
   // Two reasons, both load-bearing. A snapshot can be restored more than once
   // (undo, redo, undo again) and must not be aliased by the live state after
   // the first. And the async leg completion in builder.js guards on object
-  // identity — `state.days[r] !== day` — so fresh objects make an
+  // identity — `state.routes[r] !== route` — so fresh objects make an
   // in-flight routing response discard itself. Reuse the references and a
   // response that left before the undo lands on the leg after it.
   function restore(state, snap) {
     state.meta = { ...snap.meta };
-    state.days = snap.days.map(snapshotRoute);
-    // Sequence numbers indexed the old days. Anything still in flight is
+    state.routes = snap.routes.map(snapshotRoute);
+    // Sequence numbers indexed the old routes. Anything still in flight is
     // now unwanted, and a stale counter would let it through.
     state.legSeq = [];
     return state;
@@ -191,7 +206,7 @@
   }
 
   // Geometry is dropped on the way in, and this is the important decision in
-  // the file. A 300-mile day is roughly 19,000 coordinate pairs; a multi-day
+  // the file. A 300-mile route is roughly 19,000 coordinate pairs; a multi-route
   // ride serialized whole can pass the ~5 MB origin limit and take the write
   // down with it. Legs are derived data — the router can rebuild them — while
   // the points are the thing that cannot be recovered from anywhere. So a draft
@@ -203,8 +218,8 @@
   // shared its roles arrays with live state and wrote two dead empty arrays into
   // every stored draft. `details` is copied for the same reason it is in the undo
   // snapshot: the field editor assigns into that object and pushes to its links.
-  function stripped(days) {
-    return (days || []).map((r) => ({
+  function stripped(routes) {
+    return (routes || []).map((r) => ({
       ...r,
       points: (r.points || []).map((pt) => ({
         ...pt,
@@ -273,10 +288,10 @@
         rideId: rideId == null ? null : rideId,
         legsStripped: true,
         meta: { ...state.meta },
-        // From state.days, not payload(): payload() drops days with no
-        // stops, and a day you added and have not filled in yet is exactly
+        // From state.routes, not payload(): payload() drops routes with no
+        // stops, and a route you added and have not filled in yet is exactly
         // the kind of work a draft exists to keep.
-        days: stripped(state.days),
+        routes: stripped(state.routes),
       });
       const key = keyFor(rideId);
       try {
@@ -307,7 +322,7 @@
         return null;
       }
       // A draft from an older schema is discarded rather than guessed at.
-      if (!v || v.v !== DRAFT_VERSION || !Array.isArray(v.days)) {
+      if (!v || v.v !== DRAFT_VERSION || !Array.isArray(v.routes)) {
         safeRemove(keyFor(rideId));
         return null;
       }

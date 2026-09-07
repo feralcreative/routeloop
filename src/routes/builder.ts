@@ -1,18 +1,18 @@
 // The ride builder's API and page shells. A ride payload is the full graph —
-// ride meta + days + stops/POIs + routed legs — saved whole (PUT is a
-// full-replace inside one transaction). The builder MVP sent exactly one day;
-// the API accepted many from day one, and the builder caught up on 2026-07-30.
+// ride meta + routes + stops/POIs + routed legs — saved whole (PUT is a
+// full-replace inside one transaction). The builder MVP sent exactly one route;
+// the API accepted many from route one, and the builder caught up on 2026-07-30.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { mergeDays, storedUidsNeeded, type MergeResult } from '../maps/day-merge'
+import { mergeRoutes, storedUidsNeeded, type MergeResult } from '../maps/route-merge'
 import { publish } from '../live/hub'
 import { db } from '../db/index'
 import {
   rides,
-  days as daysTable,
+  routes as routesTable,
   points as pointsTable,
   routeLegs,
   userProfiles,
@@ -23,7 +23,7 @@ import {
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
 import { toDurationFormat, type DurationFormat } from '../maps/duration'
-import { DAY_COLORS } from '../maps/palette'
+import { ROUTE_COLORS } from '../maps/palette'
 import { detailsForViewer } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
@@ -34,6 +34,7 @@ import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { canClone } from '../access/policy'
 import { memberOrOwner, seedOwner } from '../members/service'
+import { seedMainGroup } from '../subgroups/service'
 import {
   canAdminister,
   canEditAsMember,
@@ -48,7 +49,7 @@ import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
 import { LIVE_RIDE } from '../trash/service'
 import {
-  MAX_DAYS,
+  MAX_ROUTES,
   MAX_STOPS,
   insertRideGraph,
   normalize,
@@ -78,10 +79,10 @@ const BODY_LIMIT = 8 * 1024 * 1024
  */
 const revField = z.coerce.number().int().nonnegative().optional()
 
-/** Every day uid the client held when it loaded, and the hash it saw. The WHOLE
- *  set, not a field on each day it still has — a day the rider deleted is absent
+/** Every route uid the client held when it loaded, and the hash it saw. The WHOLE
+ *  set, not a field on each route it still has — a route the rider deleted is absent
  *  from the payload and would carry nothing, and that is precisely the case
- *  mergeDays has to tell apart from a day somebody else added. */
+ *  mergeRoutes has to tell apart from a route somebody else added. */
 const baseField = z.record(z.string().max(12), z.string().max(32)).optional()
 
 async function parseRideBody(
@@ -99,7 +100,7 @@ async function parseRideBody(
   if (!parsed.success) return { error: firstIssue(parsed.error) }
   normalize(parsed.data)
   const rev = revField.safeParse((raw as { rev?: unknown } | null)?.rev)
-  const base = baseField.safeParse((raw as { dayBase?: unknown } | null)?.dayBase)
+  const base = baseField.safeParse((raw as { routeBase?: unknown } | null)?.routeBase)
   return {
     data: parsed.data,
     rev: rev.success ? rev.data : undefined,
@@ -119,7 +120,7 @@ const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ erro
 // is one flag over the whole app. So setting `TURNSTILE_SECRET_KEY` to arm the
 // upload pipeline, which is the thing it was written for and which does work,
 // would have made "Plan a ride" 403 for everybody. Dark code that breaks the
-// app the day a flag is flipped is worse than no code.
+// app the route a flag is flipped is worse than no code.
 //
 // Removed rather than fixed, because Turnstile answers "is this a human" and
 // this route already asks a HARDER question: `requireActiveApi` means an
@@ -160,6 +161,12 @@ builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit,
     // In the SAME transaction as the ride, so a ride never exists with an empty
     // roster — see seedOwner.
     await seedOwner(tx, ride.id, user.id)
+    // AND ITS MAIN GROUP, in the same transaction and for the same reason:
+    // every ride has at least one group, and the builder seeds that one
+    // CLIENT-SIDE — so a ride made by any other path arrived with none. It
+    // no-ops when the payload already brought one, which is why it is safe
+    // here whether insertRideGraph has already run or not.
+    await seedMainGroup(tx, ride.id)
     return ride
   })
   console.log(`[rides] user ${user.id} created ride ${created.id} (${created.stopCount} stops)`)
@@ -203,17 +210,24 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     return c.json({ error: 'not found' }, 404)
   }
 
-  const srcRoutes = await db.select().from(daysTable).where(eq(daysTable.rideId, src.id)).orderBy(daysTable.position)
+  const srcRoutes = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, src.id))
+    .orderBy(routesTable.position)
 
-  const payloadDays = []
+  const payloadRoutes = []
   for (const r of srcRoutes) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
-    const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
 
     const point = (p: (typeof pts)[number]) => ({
       lat: p.lat,
       lng: p.lng,
       name: p.name,
+      // Public, and part of the route being cloned — unlike `details` below,
+      // which is the private half and is dropped.
+      address: p.address,
       description: '',
       roles: p.roles,
       // A clone gets FRESH identities and NO private details, and both halves of
@@ -231,14 +245,14 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       details: null,
     })
 
-    payloadDays.push({
+    payloadRoutes.push({
       // A clone has no subgroups: the cloner is one person taking a copy, and
       // the original's approaches are about people who are not on their ride.
-      // The days come across as everyone's, which is what a solo ride is.
+      // The routes come across as everyone's, which is what a solo ride is.
       subgroupUid: null,
       // Fresh, exactly as a cloned point's is and for the same reason one level
       // up: a clone must not inherit the original's votes, and alt_votes is
-      // keyed by day uid. Null lets insertRideGraph mint one.
+      // keyed by route uid. Null lets insertRideGraph mint one.
       uid: null,
       title: r.title,
       color: r.color,
@@ -250,19 +264,19 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // what the author planned — "here are two ways to do Thursday" is the
       // thing being cloned, not incidental state — and dropping it would both
       // lose that and hand the clone a bigger mileage than the original, because
-      // the losing alternates would become ordinary days.
+      // the losing alternates would become ordinary routes.
       altGroup: r.altGroup,
       altActive: r.altActive,
       // Kept for the same reason the alternate is: what the author asked of the
-      // router is part of the plan being cloned, not incidental state. A day the
-      // author routed off the interstate becomes a day on it the moment this is
+      // router is part of the plan being cloned, not incidental state. A route the
+      // author routed off the interstate becomes a route on it the moment this is
       // dropped, and the clone's mileage would quietly disagree with the
       // original's for a reason nothing on screen explains.
       routePrefs: r.routePrefs,
       // ONE ORDERED LIST, and the read above is already ordered by position,
       // so the rider's own sequence clones intact. Both kinds carry a duration,
       // so a clone keeps the POI dwell too — dropping it would quietly shorten
-      // every cloned day.
+      // every cloned route.
       // slackMin comes across with the dwell: it is a property of the meeting
       // point the author planned, not of who is riding to it.
       points: pts.map((p) => ({ ...point(p), kind: p.kind, durationMin: p.durationMin, slackMin: p.slackMin })),
@@ -287,8 +301,9 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     subgroups: [],
     primarySubgroup: null,
     trunkSubgroup: null,
+    stopByMin: null,
     timeAnchor: 'departure',
-    days: payloadDays,
+    routes: payloadRoutes,
   }
 
   const created = await db.transaction(async (tx) => {
@@ -310,6 +325,12 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     // whoever took it, and copying the source's members would put a stranger on
     // a ride they were never invited to.
     await seedOwner(tx, ride.id, user.id)
+    // AND ITS MAIN GROUP, in the same transaction and for the same reason:
+    // every ride has at least one group, and the builder seeds that one
+    // CLIENT-SIDE — so a ride made by any other path arrived with none. It
+    // no-ops when the payload already brought one, which is why it is safe
+    // here whether insertRideGraph has already run or not.
+    await seedMainGroup(tx, ride.id)
     return ride
   })
 
@@ -319,8 +340,8 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
 
 // THIS CHURNS EVERY POINT AND DAY ID, ON PURPOSE, AND THE BUILDER NOW CALLS IT
 // CONSTANTLY. Decided 2026-08-15 while planning autosave (#89): the full replace
-// below deletes the ride's days — cascading to points and legs — and re-inserts
-// them, so `points.id` and `days.id` are different rows after every save. The
+// below deletes the ride's routes — cascading to points and legs — and re-inserts
+// them, so `points.id` and `routes.id` are different rows after every save. The
 // builder used to save when a rider pressed a button, perhaps a dozen times in a
 // session; it now flushes on idle, which is two orders of magnitude more often.
 //
@@ -402,7 +423,7 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     // The merged set has to be complete BEFORE insertRideGraph runs, because
     // that function reconciles votes, comments and point details against the uid
     // set of the payload it is given — reconcileVotes, demoteOrphanComments and
-    // writePointDetails all do. Hand it one rider's partial day list and it
+    // writePointDetails all do. Hand it one rider's partial route list and it
     // deletes the other rider's votes and orphans their comments, silently,
     // with nothing raised anywhere.
     //
@@ -410,38 +431,38 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     // between this select and the write below.
     let merge: MergeResult | null = null
     if (p_base !== undefined) {
-      const storedDays = await tx
-        .select({ uid: daysTable.uid, hash: daysTable.contentHash })
-        .from(daysTable)
-        .where(eq(daysTable.rideId, ride.id))
-      merge = mergeDays(
-        storedDays,
-        p.days.map((d) => d.uid ?? ''),
+      const storedRoutes = await tx
+        .select({ uid: routesTable.uid, hash: routesTable.contentHash })
+        .from(routesTable)
+        .where(eq(routesTable.rideId, ride.id))
+      merge = mergeRoutes(
+        storedRoutes,
+        p.routes.map((d) => d.uid ?? ''),
         p_base,
       )
       const needed = storedUidsNeeded(merge)
       if (needed.length > 0) {
         // ONLY ON THE CONFLICT PATH, which is normally never taken. Reusing
-        // loadRidePayload rather than writing a second day serializer is
+        // loadRidePayload rather than writing a second route serializer is
         // deliberate: two of those would drift, and the drift would show up as
-        // days quietly losing fields when they lose a merge.
+        // routes quietly losing fields when they lose a merge.
         //
         // The OWNER's payload, whoever is saving — details are stripped for a
-        // non-owner and re-inserting a stripped day would delete them. The
+        // non-owner and re-inserting a stripped route would delete them. The
         // non-owner save writes details in `preserve` mode for the same reason.
         const current = (await loadRidePayload(ride, { id: ride.ownerId })) as {
-          days: Array<Record<string, unknown>>
+          routes: Array<Record<string, unknown>>
         }
-        const byUid = new Map(current.days.map((d) => [d.uid as string, d]))
-        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
-        p.days = merge.decisions
+        const byUid = new Map(current.routes.map((d) => [d.uid as string, d]))
+        const sent = new Map(p.routes.map((d) => [d.uid ?? '', d]))
+        p.routes = merge.decisions
           .map((dec) => (dec.take === 'incoming' ? sent.get(dec.uid) : byUid.get(dec.uid)))
-          .filter(Boolean) as typeof p.days
+          .filter(Boolean) as typeof p.routes
       } else {
-        // Nothing contested. Reorder only, so a day another rider deleted is not
+        // Nothing contested. Reorder only, so a route another rider deleted is not
         // resurrected by this save.
-        const sent = new Map(p.days.map((d) => [d.uid ?? '', d]))
-        p.days = merge.decisions.map((dec) => sent.get(dec.uid)).filter(Boolean) as typeof p.days
+        const sent = new Map(p.routes.map((d) => [d.uid ?? '', d]))
+        p.routes = merge.decisions.map((dec) => sent.get(dec.uid)).filter(Boolean) as typeof p.routes
       }
     }
     const [written] = await tx
@@ -451,7 +472,7 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
         title: p.title,
         description: p.description || null,
         // VISIBILITY IS AN OWNER POWER AND THIS IS THE GATE. Edit means the
-        // builder — days, points, legs, alts — and not the decision about who
+        // builder — routes, points, legs, alts — and not the decision about who
         // gets to see the thing. The field is ignored rather than refused,
         // because the payload is a whole-ride replace sent by an autosave: a
         // 400 here would block every save an editor made over a value they were
@@ -469,7 +490,7 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
       // ride nobody else touched.
       .returning({ rev: rides.rev })
     // Full replace: routes cascade to points and legs.
-    await tx.delete(daysTable).where(eq(daysTable.rideId, ride.id))
+    await tx.delete(routesTable).where(eq(routesTable.rideId, ride.id))
     // `preserve` for a non-owner — see DetailsMode in ride-graph.ts. Their
     // payload carries no details because they were never sent any, and a
     // reconciling write would read that as the rider clearing every one.
@@ -477,9 +498,9 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     // Read back AFTER the write, so the client's next save is based on what is
     // actually stored rather than on what this request believed it wrote.
     const after = await tx
-      .select({ uid: daysTable.uid, hash: daysTable.contentHash })
-      .from(daysTable)
-      .where(eq(daysTable.rideId, ride.id))
+      .select({ uid: routesTable.uid, hash: routesTable.contentHash })
+      .from(routesTable)
+      .where(eq(routesTable.rideId, ride.id))
     return { rev: written.rev, merge, after }
   })
 
@@ -498,21 +519,21 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   // `by` rather than excluding the saver's connections: a rider can have the
   // ride open in two tabs, and the second one needs telling as much as anybody
   // else. The client ignores events carrying its own rider id.
-  publish(ride.id, 'days', {
+  publish(ride.id, 'routes', {
     by: user.id,
     rev: result.rev,
-    days: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
+    routes: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
   })
 
-  // dayBase goes straight back out so the builder can rebase without a reload.
+  // routeBase goes straight back out so the builder can rebase without a reload.
   // Without it the SECOND save of a session is based on hashes the first save
-  // invalidated, and every day reads as contested.
+  // invalidated, and every route reads as contested.
   return c.json({
     id: ride.id,
     slug: ride.slug,
     rev: result.rev,
-    dayBase: Object.fromEntries(result.after.filter((d) => d.hash !== null).map((d) => [d.uid, d.hash as string])),
-    // Named so the rider can be told which of their days did not land, rather
+    routeBase: Object.fromEntries(result.after.filter((d) => d.hash !== null).map((d) => [d.uid, d.hash as string])),
+    // Named so the rider can be told which of their routes did not land, rather
     // than watching them revert on the next render with no explanation.
     superseded: result.merge?.superseded ?? [],
     adopted: result.merge?.adopted ?? [],
@@ -523,19 +544,19 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
 //
 // The gate is `view`, not `edit`: the read-only builder is what a view-, comment-
 // or suggest-level rider gets, and it loads through here like any other.
-// The day behind a change notice. `view` is the floor, like the ride GET it
-// borrows: a comment- or suggest-level rider watching a day change is exactly
+// The route behind a change notice. `view` is the floor, like the ride GET it
+// borrows: a comment- or suggest-level rider watching a route change is exactly
 // who this is for.
-builderRoutes.get('/api/rides/:id/day/:uid', requireActiveApi, async (c) => {
+builderRoutes.get('/api/rides/:id/route/:uid', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
   if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
   // detailsForViewer is owner-only and blind to visibility, so a non-owner's
-  // copy of this day carries no confirmation numbers — the same boundary the
+  // copy of this route carries no confirmation numbers — the same boundary the
   // ride GET goes through, reached the same way rather than re-decided here.
-  const day = await loadDayPayload(found.ride, user, c.req.param('uid'))
-  if (!day) return c.json({ error: 'not found' }, 404)
-  return c.json({ day })
+  const route = await loadRoutePayload(found.ride, user, c.req.param('uid'))
+  if (!route) return c.json({ error: 'not found' }, 404)
+  return c.json({ route })
 })
 
 builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
@@ -548,25 +569,25 @@ builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
 /**
  * ONE DAY, for a builder catching up on somebody else's save.
  *
- * A change notice carries a day uid and its new hash; this is what the client
+ * A change notice carries a route uid and its new hash; this is what the client
  * fetches to act on it. A refetch of the whole ride would be the obvious
  * alternative and is not viable at editing speed: the body limit is 8 MB, the
- * ceilings are 31 days and 400 points, and leg geometry dominates — so a save
+ * ceilings are 31 routes and 400 points, and leg geometry dominates — so a save
  * every three seconds would move megabytes per notice, per watcher.
  *
- * Broadcasting the day over SSE instead has the same problem pointed the other
+ * Broadcasting the route over SSE instead has the same problem pointed the other
  * way, and would put a rider's stop details into a channel every member of the
  * ride is subscribed to.
  *
  * Built by picking out of loadRidePayload rather than by a query of its own.
- * That is deliberate and costs a little work on a rare path: a second day
- * serializer would drift from the first, and the drift would surface as days
+ * That is deliberate and costs a little work on a rare path: a second route
+ * serializer would drift from the first, and the drift would surface as routes
  * quietly losing fields only when they arrive over the live channel — which is
  * the hardest possible place to notice it.
  */
-export async function loadDayPayload(ride: RideRow, viewer: { id: number } | null, uid: string) {
-  const full = (await loadRidePayload(ride, viewer)) as { days: Array<{ uid?: string }> }
-  return full.days.find((d) => d.uid === uid) ?? null
+export async function loadRoutePayload(ride: RideRow, viewer: { id: number } | null, uid: string) {
+  const full = (await loadRidePayload(ride, viewer)) as { routes: Array<{ uid?: string }> }
+  return full.routes.find((d) => d.uid === uid) ?? null
 }
 
 export async function loadRidePayload(ride: RideRow, viewer: { id: number } | null) {
@@ -580,9 +601,13 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
   // blind to visibility. A non-owner gets an empty map, which is why a non-owner
   // save writes point_details in `preserve` mode — see the PUT above.
   const details = await detailsForViewer(ride.id, ride.ownerId, viewer)
-  const dayRows = await db.select().from(daysTable).where(eq(daysTable.rideId, ride.id)).orderBy(daysTable.position)
+  const routeRows = await db
+    .select()
+    .from(routesTable)
+    .where(eq(routesTable.rideId, ride.id))
+    .orderBy(routesTable.position)
   // BY UID, both here and in the payload the client sends back — ids never
-  // cross the wire, so `days[].subgroupUid` needs the map to be resolvable on
+  // cross the wire, so `routes[].subgroupUid` needs the map to be resolvable on
   // the way out as well as on the way in.
   const groups = await subgroupsOf(ride.id)
   const uidOf = new Map(groups.map((g) => [g.id, g.uid]))
@@ -602,30 +627,31 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
     subgroups: groups.map((g) => ({ uid: g.uid, name: g.name, color: g.color })),
     primarySubgroup: ride.primarySubgroupId ? (uidOf.get(ride.primarySubgroupId) ?? null) : null,
     trunkSubgroup: ride.trunkSubgroupId ? (uidOf.get(ride.trunkSubgroupId) ?? null) : null,
+    stopByMin: ride.stopByMin,
     timeAnchor: ride.timeAnchor,
-    days: [] as unknown[],
+    routes: [] as unknown[],
   }
-  for (const r of dayRows) {
-    const pts = await db.select().from(pointsTable).where(eq(pointsTable.dayId, r.id)).orderBy(pointsTable.position)
-    const legs = await db.select().from(routeLegs).where(eq(routeLegs.dayId, r.id)).orderBy(routeLegs.position)
-    out.days.push({
+  for (const r of routeRows) {
+    const pts = await db.select().from(pointsTable).where(eq(pointsTable.routeId, r.id)).orderBy(pointsTable.position)
+    const legs = await db.select().from(routeLegs).where(eq(routeLegs.routeId, r.id)).orderBy(routeLegs.position)
+    out.routes.push({
       // Out and straight back, like the uid below. Omitting it is how a rider's
       // whole subgroup assignment survives until they reload and is then gone.
       subgroupUid: r.subgroupId ? (uidOf.get(r.subgroupId) ?? null) : null,
-      // The day's uid, out and straight back on the next save — exactly what
+      // The route's uid, out and straight back on the next save — exactly what
       // the point comment below says about a stop's, and the same failure if it
-      // is omitted: the save mints a fresh one, uq_day_ride_uid is satisfied,
+      // is omitted: the save mints a fresh one, uq_route_ride_uid is satisfied,
       // and every vote cast on that alternate is reconciled away as belonging
-      // to a day that no longer exists. Nothing would raise anything.
+      // to a route that no longer exists. Nothing would raise anything.
       uid: r.uid,
-      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. dayRevision() runs in
+      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. routeRevision() runs in
       // exactly one place — the write, in insertRideGraph — and this hands back
       // what it stored. Recomputing would mean the write shape and this read
       // shape had to stay identical field for field forever, and the first time
-      // they drifted every day would conflict with itself on every save, on
+      // they drifted every route would conflict with itself on every save, on
       // rides nobody else had touched, with nothing to point at.
       //
-      // Null for a day written before the column existed. mergeDays() reads that
+      // Null for a route written before the column existed. mergeRoutes() reads that
       // as unknown and takes the client's version, which is what these rides did
       // before any of this.
       contentHash: r.contentHash,
@@ -640,7 +666,7 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
       altGroup: r.altGroup,
       altActive: r.altActive,
       // Same rule as the two above, and the same failure if it is omitted: the
-      // builder would send the next save back with no preference on the day and
+      // builder would send the next save back with no preference on the route and
       // the router would put the rider straight back on the interstate they
       // asked to avoid, silently, on a save they made for some other reason.
       routePrefs: r.routePrefs ?? null,
@@ -658,6 +684,7 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
         lat: p.lat,
         lng: p.lng,
         name: p.name,
+        address: p.address,
         description: p.description ?? '',
         roles: p.roles,
         durationMin: p.durationMin,
@@ -790,20 +817,20 @@ function builderHtml(
   // page with no fuel warning, rather than one claiming a range of zero.
   range: GroupRange = { miles: null, riderName: null, bikeLabel: null, unknown: 0, riders: 0, fuelType: null },
 ): string {
-  // The day slider is a focus control, not a navigation one: every day stays
+  // The route slider is a focus control, not a navigation one: every route stays
   // drawn on the map at all times and the slider only changes which one is
   // emphasized. Seeing the whole ride on one map is the product.
-  // Three bands, each naming the scope of what it holds: the ride, the day
-  // across all its days, and the one day being edited. Before this the panel was
-  // a flat run of divs and nothing said whether a given control changed one day
-  // or the whole ride — the day scrubber sat next to the day's own color
-  // picker, and the ride timeline sat between two day-level blocks.
+  // Three bands, each naming the scope of what it holds: the ride, the route
+  // across all its routes, and the one route being edited. Before this the panel was
+  // a flat run of divs and nothing said whether a given control changed one route
+  // or the whole ride — the route scrubber sat next to the route's own color
+  // picker, and the ride timeline sat between two route-level blocks.
   //
   // THE RIDE TIMELINE IS NO LONGER IN HERE. It moved to a bar across the bottom
   // edge of the map on 2026-08-15 — see rideTimeline() in src/views/layout.tsx
   // and .map-timeline in style/_map.scss. What is left in the second ride band is
-  // the day scrubber alone, and the two are not the same control: the scrubber
-  // picks which day you are EDITING and belongs beside the edit controls, the
+  // the route scrubber alone, and the two are not the same control: the scrubber
+  // picks which route you are EDITING and belongs beside the edit controls, the
   // timeline moves through what you are LOOKING AT and belongs over the map.
   // That split is what issue #93 asked for.
   //
@@ -828,8 +855,8 @@ function builderHtml(
   //   whole epic is about.
   // THREE TABS, and the ride's own fields above them. Adding riders and groups
   // to a panel that was already the densest surface in the app turned it into a
-  // scroll: the day list, the subgroup editor and a link to the roster all
-  // stacked in one column, with the day you were editing pushed below the fold
+  // scroll: the route list, the subgroup editor and a link to the roster all
+  // stacked in one column, with the route you were editing pushed below the fold
   // by a feature about people. Splitting it means only one of the three is ever
   // paying for vertical space.
   //
@@ -858,49 +885,49 @@ function builderHtml(
                   aria-controls="panel-riders" aria-selected="false" tabindex="-1">Riders <span class="tab-count" id="riders-count"></span></button>
         </div>`
 
-  // ROUTES. Everything that was in the panel about the road: the day list, the
-  // select-mode action bar, and + Day.
+  // ROUTES. Everything that was in the panel about the road: the route list, the
+  // select-mode action bar, and + Route.
   //
   // THE SEARCH BOX THAT WAS ONCE HERE IS GONE, and its absence is the point.
-  // One field above the day list had to guess which day a searched address
+  // One field above the route list had to guess which route a searched address
   // belonged to, and it guessed "whichever you touched last" — invisible until
-  // it is wrong, which is the moment you scroll to day 4, type an address and
-  // watch it land on day 2.
+  // it is wrong, which is the moment you scroll to route 4, type an address and
+  // watch it land on route 2.
   //
-  // Every day now ends in its own search row, built by addRowHtml() in
-  // builder.js, which knows its day and says so. The results dropdown is created
+  // Every route now ends in its own search row, built by addRowHtml() in
+  // builder.js, which knows its route and says so. The results dropdown is created
   // once on demand and moved to whichever row is asking; it is not in this
   // markup because no row owns it.
   //
-  // EVERY DAY, ALL THE TIME. This was one #day-band showing whichever day a
+  // EVERY DAY, ALL THE TIME. This was one #route-band showing whichever route a
   // slider at the bottom of the drawer had selected; the slider is gone and
-  // renderDays() in builder.js fills #day-list with one .day-section per day
+  // renderRoutes() in builder.js fills #route-list with one .route-section per route
   // instead. A fixed-height drawer has room to show the whole ride, so hiding
-  // all but one of its days was a constraint of the old floating panel rather
+  // all but one of its routes was a constraint of the old floating panel rather
   // than a decision.
   //
-  // The per-day controls are CLASSES, not ids—there are N of each—and every
-  // section and row carries data-day. wireDays() delegates on the container and
+  // The per-route controls are CLASSES, not ids—there are N of each—and every
+  // section and row carries data-route. wireRoutes() delegates on the container and
   // reads that attribute, which is also what keeps the existing edit handlers
-  // correct: touching anything inside a section makes that day active first, so
+  // correct: touching anything inside a section makes that route active first, so
   // editIndex() resolves to it.
   const routesTab = `        <div class="panel-tabpanel is-active" role="tabpanel" id="panel-routes" aria-labelledby="tab-routes" tabindex="0">
           <div class="tab-actions">
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
-            <button type="button" class="day-add" id="day-add" title="Add a day">+ Day</button>
+            <button type="button" class="route-add" id="route-add" title="Add a route">+ Route</button>
           </div>
 
           <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
-               and hidden whenever state.select is null. It sits above the day
+               and hidden whenever state.select is null. It sits above the route
                list rather than floating over it so it cannot cover the very rows
                being ticked. -->
           <div class="select-bar" id="select-bar" hidden></div>
 
-          <div class="day-list" id="day-list" data-duration-format="${prefs.durationFormat}"></div>
-          <p class="day-empty-hint" id="day-empty-hint" hidden>No days yet.</p>
+          <div class="route-list" id="route-list" data-duration-format="${prefs.durationFormat}"></div>
+          <p class="route-empty-hint" id="route-empty-hint" hidden>No routes yet.</p>
         </div>`
 
-  // GROUPS (#67). A named set of riders sharing an approach; a day belongs to
+  // GROUPS (#67). A named set of riders sharing an approach; a route belongs to
   // one or to nobody, and nobody means everyone rides it.
   //
   // THIS WAS A COLLAPSED <details> AND IS NOW A TAB BODY. The disclosure existed
@@ -915,6 +942,30 @@ function builderHtml(
           <div class="tab-actions">
             <button type="button" class="btn btn-sm btn-quiet" id="sg-add">Add a group</button>
           </div>
+          <!-- THE MEETING-POINT BUTTON IS STATIC MARKUP AND SITS BELOW .tab-actions,
+               which is the only way to get "Add a group" above it: the group rows and
+               this button used to be one innerHTML in #sg-body, so nothing could be
+               placed between them. Ziad's call, 2026-09-05. Being static also means
+               #sg-meet-out is no longer destroyed by renderSubgroups(), so a proposal
+               survives a re-render by not being rebuilt at all—state.meet is still
+               what it is drawn from, because taking one point re-renders the rows.
+               Hidden until the ride has a second group: one group has nobody to meet. -->
+          <div class="sg-meet-row" id="sg-meet-row" hidden>
+            <button type="button" class="btn btn-sm sg-meet" id="sg-meet-all">Find meeting points</button>
+            <!-- THE DIVERT DIAL. It sits BESIDE the button rather than in ride
+                 preferences because it is the one number that decides what comes
+                 back, and a planner who gets three answers too far off their
+                 road has to be able to say so without leaving the panel. Session
+                 state, not a column: it is a question about this press, and a
+                 ride-level answer is a schema change for a number the planner
+                 re-asks the moment the road changes. Ziad's call, 2026-09-06. -->
+            <label class="sg-divert" for="sg-divert">
+              <span>within</span>
+              <input type="number" id="sg-divert" min="1" max="200" step="5" value="25" inputmode="numeric" />
+              <span>mi detour</span>
+            </label>
+          </div>
+          <div class="sg-meet-out" id="sg-meet-out"></div>
         </div>`
 
   // RIDERS. Who is coming, what they are bringing, and which approach they are
@@ -973,6 +1024,11 @@ ${
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, friends, unlisted and public')}
+          </div>
+          <div class="meta-row meta-row--stopby">
+            <label for="ride-stop-by">Start looking for a bed at</label>
+            <input id="ride-stop-by" name="stopBy" type="time" step="900" title="When to start looking for somewhere to stay">
+            <button type="button" id="ride-stop-by-clear" class="btn btn-sm btn-quiet" hidden>Clear</button>
           </div>`
     : ''
 }
@@ -1021,7 +1077,7 @@ ${
   //
   // EVERY ENDPOINT ALREADY EXISTED AND WAS ALREADY GATED. #172 was UI only:
   // /api/public/maps/:slug/{gpx,kml,geojson,csv}, the native JSON, and the
-  // per-day zips all sit behind getViewable(), so a private ride's own owner
+  // per-route zips all sit behind getViewable(), so a private ride's own owner
   // could already download it by typing the URL. The export cart on /import is
   // a multi-ride picker built for batches, not for the ride you have open.
   //
@@ -1060,7 +1116,7 @@ ${
                   .map(
                     ([f, label]) =>
                       `<li><a data-export="${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/${f}?dl` : '#'}">${label}</a>` +
-                      ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per day</a></li>`,
+                      ` <a class="export-zip" data-export="zip/${f}" href="${slug ? `/api/public/maps/${encodeURIComponent(slug)}/zip/${f}` : '#'}">one file per route</a></li>`,
                   )
                   .join('\n              ')
               }
@@ -1087,7 +1143,7 @@ ${
   rideId && standing.isOwner
     ? `        <div class="builder-danger">
           <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
-          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
+          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} routes.</span>
         </div>`
     : ''
 }
@@ -1133,7 +1189,7 @@ ${
              aria-label="Ride name" title="Ride name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
-  // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the day list.
+  // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the route list.
   // It was `position: sticky; bottom: 0` inside .panel-contents-wrapper, which
   // is close but not the same thing: a sticky element still belongs to the
   // scroller, so it sat above the scrollbar and shifted with the list's own
@@ -1192,20 +1248,20 @@ ${
       extraClass: 'builder-panel',
       contents,
       footer: builderActions,
-      // THE FOOTER IS THE ACTION BAR. The day scrubber lived here for about an hour on 2026-08-16,
+      // THE FOOTER IS THE ACTION BAR. The route scrubber lived here for about an hour on 2026-08-16,
       // pinned to the drawer's bottom edge so it could not be shoved around by
-      // the day band it selected. Showing every day at once removed the thing it
+      // the route band it selected. Showing every route at once removed the thing it
       // selected between, so the control went with it.
       //
-      // The rail keeps a dot per day, but as a jump-to rather than a picker:
-      // clicking one scrolls that day's section into view and makes it active.
-      rail: `<div class="rail-days" id="rail-days"></div>`,
+      // The rail keeps a dot per route, but as a jump-to rather than a picker:
+      // clicking one scrolls that route's section into view and makes it active.
+      rail: `<div class="rail-routes" id="rail-routes"></div>`,
     })}\n\n  ${rideTimeline({ scopeToggle: true })}`,
     tb: {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,
       roles: ROLE_META,
-      dayColors: DAY_COLORS,
+      routeColors: ROUTE_COLORS,
       rideId,
       // For the Riders tab's link to the roster page. Null on a new ride, which
       // has no slug yet — showViewLink() in builder.js fills it in on the first
@@ -1261,9 +1317,9 @@ ${
   <script src="${asset('/js/drag-index.js')}" defer></script>
   <script src="${asset('/js/alts.js')}" defer></script>
   <script src="${asset('/js/place-query.js')}" defer></script>
-  <script src="${asset('/js/day-clock.js')}" defer></script>
-  <script src="${asset('/js/day-distance.js')}" defer></script>
-  <script src="${asset('/js/day-split.js')}" defer></script>
+  <script src="${asset('/js/route-clock.js')}" defer></script>
+  <script src="${asset('/js/route-distance.js')}" defer></script>
+  <script src="${asset('/js/route-split.js')}" defer></script>
   <script src="${asset('/js/corridor.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>`,

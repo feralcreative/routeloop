@@ -12,7 +12,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, days as daysTable, userProfiles, users } from '../db/schema'
+import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
@@ -61,7 +61,7 @@ const render = (c: Context, title: string, body: string, bodyClass: string, navK
 //
 // Paged rather than unbounded: this is the one query in the app whose row count
 // grows with the whole userbase rather than with one rider's data, so a bare
-// SELECT here is a slow page the day it matters. 24 a page, offset paging —
+// SELECT here is a slow page the route it matters. 24 a page, offset paging —
 // keyset would be better under real load but needs a stable tiebreak, and at
 // alpha scale offset is honest and simple.
 const PER_PAGE = 24
@@ -79,10 +79,10 @@ pageRoutes.get('/explore', async (c) => {
   // ride, because nothing on a rides row knows anything about its owner — this
   // query never looked at users at all before.
   const rows = await db
-    .select({ ride: rides, color: daysTable.color })
+    .select({ ride: rides, color: routesTable.color })
     .from(rides)
     .innerJoin(users, eq(users.id, rides.ownerId))
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     // LISTED_RIDE, not `visibility = 'public'` written out: /explore is a list
     // nobody asked for by name, and which levels belong in one is isListed()'s
     // call in src/access/policy.ts, not this query's. `friends` is deliberately
@@ -184,9 +184,9 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   if (!row?.username || row.status !== 'active' || row.deletionRequestedAt) return c.text('Not found', 404)
 
   const cards = await db
-    .select({ ride: rides, color: daysTable.color })
+    .select({ ride: rides, color: routesTable.color })
     .from(rides)
-    .leftJoin(daysTable, and(eq(daysTable.rideId, rides.id), eq(daysTable.position, 0)))
+    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
     // LISTED_RIDE for the same reason /explore uses it: a public profile is a
     // list, and an unlisted or friends-only ride has no business in one.
     .where(and(eq(rides.ownerId, row.id), LISTED_RIDE, LIVE_RIDE))

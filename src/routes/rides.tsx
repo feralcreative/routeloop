@@ -16,7 +16,7 @@
 // `/rides` was a 301 because that move was permanent and a cached redirect was
 // the desired outcome. This one is a layout decision about whether the stats and
 // the list belong on one page, and that decision has already been revisited once
-// in nine days. A 301 is close to irreversible in a browser that has seen it —
+// in nine routes. A 301 is close to irreversible in a browser that has seen it —
 // it would outlive any change of mind here, in a cache nobody can reach.
 import { Hono } from 'hono'
 import type { AuthEnv } from '../auth/middleware'

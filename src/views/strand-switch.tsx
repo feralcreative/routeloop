@@ -2,7 +2,7 @@
 // roadbook and the Google Maps hand-off.
 //
 // ONE COMPONENT BECAUSE THE ANSWER MUST NOT DIFFER between them. A rider who
-// reads "Seattle approach" on the roadbook and gets everybody's days in the
+// reads "Seattle approach" on the roadbook and gets everybody's routes in the
 // hand-off has been handed somebody else's morning at a fuel stop, which is the
 // exact failure #67's per-rider export exists to prevent.
 //
@@ -18,7 +18,10 @@ import type { Strand } from '../subgroups/service'
  * forward rather than this component knowing about them; `extra` is that.
  */
 export function StrandSwitch({ strand, base, extra = '' }: { strand: Strand; base: string; extra?: string }) {
-  if (strand.all.length === 0) return <></>
+  // TWO, NOT ONE. Every ride carries a seeded group of one as of 2026-09-03, and
+  // "Everybody's" versus the only group there is offers a choice between a thing
+  // and itself. The switch is for a ride that genuinely has separate approaches.
+  if (strand.all.length < 2) return <></>
   const q = (group: string) => `${base}?group=${group}${extra}`
   const mine = strand.group
 
@@ -27,7 +30,7 @@ export function StrandSwitch({ strand, base, extra = '' }: { strand: Strand; bas
       <p class="strand-who">
         {mine ? (
           <>
-            Your copy — <strong>{mine.name}</strong>. Your own approach and the days everyone rides.
+            Your copy — <strong>{mine.name}</strong>. Your own approach and the routes everyone rides.
           </>
         ) : (
           <>

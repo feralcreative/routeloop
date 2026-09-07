@@ -5,8 +5,8 @@
 // votes and subgroups.
 //
 // THE WHOLE HARD PART OF #190 IS IN THIS FILE, and it is one idea: a suggestion
-// is a proposal against a day AS IT WAS, so the only question that matters is
-// whether that day still looks the way it did.
+// is a proposal against a route AS IT WAS, so the only question that matters is
+// whether that route still looks the way it did.
 import { createHash } from 'node:crypto'
 import { canAdminister, canSuggest, type MemberFields } from '../members/policy'
 import type { SuggestionOutcome } from '../db/schema'
@@ -15,7 +15,7 @@ import type { SuggestionOutcome } from '../db/schema'
 export type SuggestionFields = {
   id: number
   authorId: number
-  dayUid: string
+  routeUid: string
   baseFingerprint: string
   resolvedAt: Date | null
   outcome: SuggestionOutcome | null
@@ -25,17 +25,17 @@ export type SuggestionFields = {
  *  stored — see the table's comment in schema.ts. */
 export type SuggestionState = 'pending' | 'stale' | SuggestionOutcome
 
-/** Enough of a day to fingerprint it. Deliberately not the whole row: a day's
+/** Enough of a route to fingerprint it. Deliberately not the whole row: a route's
  *  color and title change nothing about whether a proposed reroute still
  *  applies, and folding them in would make a rename invalidate every pending
- *  suggestion on that day. */
-export type DayShape = {
+ *  suggestion on that route. */
+export type RouteShape = {
   uid: string
   points: Array<{ uid: string; lng: number; lat: number; kind: string }>
 }
 
 /**
- * What a day looked like, as a short string.
+ * What a route looked like, as a short string.
  *
  * **WHAT IS IN IT IS THE WHOLE DESIGN.** The point uids in order, each with its
  * kind and its position rounded to about a meter. That is exactly the set of
@@ -52,17 +52,17 @@ export type DayShape = {
  * security boundary — nothing is trusted because its fingerprint matches, it is
  * only shown to a rider as "this still applies".
  */
-export function dayFingerprint(day: DayShape): string {
-  const parts = day.points.map((p) => `${p.uid}:${p.kind}:${p.lng.toFixed(5)},${p.lat.toFixed(5)}`)
+export function routeFingerprint(route: RouteShape): string {
+  const parts = route.points.map((p) => `${p.uid}:${p.kind}:${p.lng.toFixed(5)},${p.lat.toFixed(5)}`)
   return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32)
 }
 
 /**
  * Where a suggestion stands right now.
  *
- * `currentFingerprint` is null when the target day is GONE — deleted, or its uid
+ * `currentFingerprint` is null when the target route is GONE — deleted, or its uid
  * no longer in the ride — which counts as stale rather than as an error: the
- * proposal was about a day that does not exist any more and there is nothing to
+ * proposal was about a route that does not exist any more and there is nothing to
  * apply it to.
  *
  * A RESOLVED SUGGESTION IS NEVER STALE. Once it has been accepted, discarded or
@@ -74,7 +74,7 @@ export function suggestionState(s: SuggestionFields, currentFingerprint: string 
 }
 
 /** Whether a suggestion can still be acted on. A stale one cannot: applying a
- *  proposal made against a day that has since changed would silently throw away
+ *  proposal made against a route that has since changed would silently throw away
  *  whatever changed it. */
 export const isActionable = (state: SuggestionState): boolean => state === 'pending'
 

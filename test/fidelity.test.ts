@@ -12,9 +12,9 @@
 // field, fails here until the table is updated to say so on purpose.
 //
 // TWO DIRECTIONS, BECAUSE THEY DISAGREE. `writes` is what a third-party tool
-// opening the file sees; `reads` is what OUR importer gets back. Per-day color
+// opening the file sees; `reads` is what OUR importer gets back. Per-route color
 // is the worked example: KML and GeoJSON both write it, and nothing reads it
-// back, because a day's color is the viewer's business rather than the file's.
+// back, because a route's color is the viewer's business rather than the file's.
 // Collapsing the two columns would hide that.
 //
 // THE NATIVE JSON IS NOT IN THIS TABLE, and that is the point of it: it carries
@@ -27,16 +27,16 @@ import { processGeoJson } from '../src/maps/geojson'
 import { buildCsv, buildGeoJson, buildGpx, buildKml, type ExportRide } from '../src/maps/export'
 import { processGpx, processKml, type ExtractedRoute } from '../src/maps/kml'
 
-// One day, every field populated and each with a value distinctive enough to
+// One route, every field populated and each with a value distinctive enough to
 // grep the serialized file for. A null anywhere would make "the format dropped
 // it" and "we never gave it one" the same result.
 const RIDE: ExportRide = {
   title: 'Fidelity ride',
   description: 'Ride description.',
   hiddenAlts: 0,
-  days: [
+  routes: [
     {
-      title: 'Named day',
+      title: 'Named route',
       color: '#cc0000',
       distanceM: 12000,
       durationS: 3600,
@@ -95,7 +95,7 @@ const visible = (b: ExtractedRoute): string =>
 
 // `true` means the field survives, `false` means it does not. `null` means the
 // question does not apply to that format at all — a CSV holds no track, so
-// "does the track keep its day name" has no answer rather than a negative one.
+// "does the track keep its route name" has no answer rather than a negative one.
 type Verdict = boolean | null
 type Row = Record<FormatKey, Verdict>
 
@@ -151,23 +151,23 @@ field("the ride's description", {
   fromFile: (b) => visible(b).includes('Ride description.'),
 })
 
-// --- The day ----------------------------------------------------------------
+// --- The route ----------------------------------------------------------------
 
-// The one piece of day-level structure that makes the whole trip: a <trk>
-// name, a KML Folder, a GeoJSON feature name. It is what stops a three-day
-// export coming back as one flattened day.
-field("the day's name", {
+// The one piece of route-level structure that makes the whole trip: a <trk>
+// name, a KML Folder, a GeoJSON feature name. It is what stops a three-route
+// export coming back as one flattened route.
+field("the route's name", {
   writes: { GPX: true, KML: true, GeoJSON: true, CSV: false },
-  inFile: (s) => s.includes('Named day'),
+  inFile: (s) => s.includes('Named route'),
   reads: { GPX: true, KML: true, GeoJSON: true, CSV: null },
-  fromFile: (b) => b.tracks.some((t) => t.name === 'Named day'),
+  fromFile: (b) => b.tracks.some((t) => t.name === 'Named route'),
 })
 
 // Written by two formats and read back by none, on purpose. Color comes from
-// the upload form; a day's color is the viewer's business rather than the
+// the upload form; a route's color is the viewer's business rather than the
 // file's. KML reverses the bytes and prefixes alpha (`aabbggrr`), which is why
 // it is matched in its own spelling rather than as `cc0000`.
-field("the day's color", {
+field("the route's color", {
   writes: { GPX: false, KML: true, GeoJSON: true, CSV: false },
   inFile: (s) => /cc0000|ff0000cc/i.test(s),
   reads: all(false),
@@ -178,9 +178,9 @@ field("the day's color", {
 // a schedule, and GeoJSON — which has arbitrary properties and could — does not
 // either, so the four agree. This is the fact the filename convention exists to
 // work around: `src/maps/filename.ts` puts the date in the NAME, which is why a
-// day exported and re-imported keeps its date at all. Making a format carry it
+// route exported and re-imported keeps its date at all. Making a format carry it
 // is a decision, not a fix; see docs/decisions.md before changing this row.
-field("the day's start and end times", {
+field("the route's start and end times", {
   writes: all(false),
   inFile: (s) => /2026-08-27|T09:00|17:00/.test(s),
   reads: all(false),
@@ -191,14 +191,14 @@ field("the day's start and end times", {
 // whatever opens the file and reading them back would be trusting someone
 // else's arithmetic over our own. Both are recomputed from the geometry on the
 // way in — `trackMeters` for one, `twist.ts` for the other.
-field("the day's measured distance", {
+field("the route's measured distance", {
   writes: { GPX: false, KML: false, GeoJSON: true, CSV: false },
   inFile: (s) => /"distanceMi":7\.5/.test(s), // 12000 m, in miles
   reads: all(false),
   fromFile: (b) => visible(b).includes('"distanceMi"'),
 })
 
-field("the day's twistiness", {
+field("the route's twistiness", {
   writes: { GPX: false, KML: false, GeoJSON: true, CSV: false },
   inFile: (s) => /twistinessDpm/.test(s),
   reads: all(false),

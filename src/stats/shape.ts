@@ -37,7 +37,7 @@ export const ACTIVITY_MONTHS = 12
 
 export type RawTotals = {
   rides: number
-  days: number
+  routes: number
   legs: number
   /** Every dot: stops AND POIs. `rides.stop_count` counts only stops, so it is
    *  deliberately not the source here. */
@@ -77,7 +77,7 @@ export type RawMonth = { month: string; n: number }
  * The four records, each with the ride that holds it.
  *
  * EVERY record names a ride, which two of them did not until 2026-08-26. The
- * longest day and the twistiest stretch were `max()` aggregates, so the figure
+ * longest route and the twistiest stretch were `max()` aggregates, so the figure
  * arrived with no way back to the road it was set on — fine while a record was
  * four words and a numeral, and not fine once each one shows its map. query.ts
  * resolves both with an ordered `limit 1` now, the same shape the two "best
@@ -88,10 +88,10 @@ export type RawMonth = { month: string; n: number }
  * geometry never gets a picture at all. The card draws its own accent instead.
  */
 export type RawRecords = {
-  longestDayM: number | null
-  longestDayTitle: string | null
-  longestDaySlug: string | null
-  longestDayThumb: string | null
+  longestRouteM: number | null
+  longestRouteTitle: string | null
+  longestRouteSlug: string | null
+  longestRouteThumb: string | null
   biggestRideM: number | null
   biggestRideTitle: string | null
   biggestRideSlug: string | null
@@ -120,7 +120,7 @@ export type RawSpread = { avg: number; top: number }
 
 export type RawGlobal = {
   rides: RawSpread
-  days: RawSpread
+  routes: RawSpread
   legs: RawSpread
   points: RawSpread
 }
@@ -170,7 +170,7 @@ export const fmtCount = (n: number): string => n.toLocaleString('en-US')
  * An average count, for the comparison column beside a rider's own figure.
  *
  * ONE DECIMAL, AND ONLY WHEN IT SAYS SOMETHING. "6.7 rides" is a real difference
- * from 6; "13.0 days" is 13 with a decorative zero on it. Rounding everything to
+ * from 6; "13.0 routes" is 13 with a decorative zero on it. Rounding everything to
  * a whole number instead would be worse in the other direction — in a cohort this
  * small the averages are single digits, and "7" against a rider's own "7" reads
  * as a tie when they are actually ahead.
@@ -187,7 +187,7 @@ export function fmtAvg(n: number): string {
  * A lifetime total of riding time, as hours.
  *
  * HOURS AND NOTHING SMALLER, unlike the roadbook's `fmtDuration`, which prints
- * "4h 20m" for a single day. A minute is real information about one day and
+ * "4h 20m" for a single route. A minute is real information about one route and
  * noise across a hundred — "312h 47m" invites a precision the underlying figure
  * does not have, since some unknown share of it is estimated from distance.
  *
@@ -222,10 +222,10 @@ export type TwistRollup = { dpm: number; label: string; unit: string } | null
  * DISTANCE-WEIGHTED. The metric is degrees per mile, so the rollup is the total
  * degrees over the total miles — not the mean of the per-route numbers. Averaging
  * those would let a 30-mile breakfast loop count the same as a 300-mile transit
- * day, which is the exact mistake builder.js:1211-1255 documents on the client.
+ * route, which is the exact mistake builder.js:1211-1255 documents on the client.
  *
  * Returns null when nothing has been measured. That is NOT the same as zero:
- * `days.twistiness_dpm` is nullable and a null means no track was long enough
+ * `routes.twistiness_dpm` is nullable and a null means no track was long enough
  * to measure, while 0 is a genuine claim that the road is straight. Reporting an
  * unmeasured library as "Straight" would be a lie the rider cannot see through.
  */
@@ -266,7 +266,7 @@ export type RoleBar = {
  * Roles that describe the shape of a route rather than a choice the rider made.
  *
  * Every ride has a start and an end, so they arrive at the top of the histogram
- * with a count equal to the number of days and push everything interesting
+ * with a count equal to the number of routes and push everything interesting
  * into the bottom third. The chart is titled "what you stop for"; nobody stops
  * for the start.
  *
@@ -463,7 +463,7 @@ export function shapeStats(
 
   const tiles: Tile[] = [
     { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides), spread: spread(global?.rides) },
-    { label: t.days === 1 ? 'day' : 'days', value: fmtCount(t.days), spread: spread(global?.days) },
+    { label: t.routes === 1 ? 'route' : 'routes', value: fmtCount(t.routes), spread: spread(global?.routes) },
     // LEGS IS ON THIS LIST KNOWINGLY. A leg is an internal artifact, one per pair
     // of consecutive points, and it is not a unit any rider thinks in. It was put
     // in the scope deliberately on 2026-08-16 rather than by omission, so it is
@@ -524,18 +524,18 @@ export function shapeStats(
     ...(slug && thumb ? { thumbHash: thumb } : {}),
   })
 
-  if (r.longestDayM != null && r.longestDayM > 0) {
+  if (r.longestRouteM != null && r.longestRouteM > 0) {
     records.push({
-      label: 'Longest single day',
-      value: fmtDistance(r.longestDayM, units),
+      label: 'Longest single route',
+      value: fmtDistance(r.longestRouteM, units),
       unit: distanceUnit(units),
       // The ride's title, which this record did not carry before it had a
       // picture. A map with no name, on a card that links somewhere, asks the
       // rider to recognize their own route from 320 pixels of road.
-      hint: r.longestDayTitle ?? undefined,
+      hint: r.longestRouteTitle ?? undefined,
       kind: 'distance',
       numeric: true,
-      ...ride(r.longestDaySlug, r.longestDayThumb),
+      ...ride(r.longestRouteSlug, r.longestRouteThumb),
     })
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
