@@ -169,7 +169,7 @@ export async function setRouteRiders(
 async function writeLegacyRouteGroup(tx: Tx, rideId: number, routeUid: string): Promise<void> {
   const [rows, home] = await Promise.all([
     tx
-      .select({ riderId: routeRiders.riderId })
+      .select({ riderId: routeRiders.riderId, subgroupId: routeRiders.subgroupId })
       .from(routeRiders)
       .where(and(eq(routeRiders.rideId, rideId), eq(routeRiders.routeUid, routeUid))),
     tx
@@ -181,8 +181,33 @@ async function writeLegacyRouteGroup(tx: Tx, rideId: number, routeUid: string): 
   // it already was — there is nothing here to derive from and overwriting it
   // would throw away a tag the rider set on an earlier save.
   if (rows.length === 0) return
+  // **THE PER-ROUTE GROUP IS THE DIRECT ANSWER AND IS TRIED FIRST.** A rider
+  // riding AS VMCSC on this route says the route is VMCSC's, which is exactly
+  // what the tag means — and it is the only reading that lets the control put a
+  // tag back. Home groups are the fallback for rows written before per-route
+  // groups existed, and for the bare `riderIds` shape the endpoint still accepts.
+  const ridden = new Set(rows.map((r) => r.subgroupId))
   const homeOf = new Map(home.map((h) => [h.riderId, h.subgroupId]))
-  const groups = new Set(rows.map((r) => homeOf.get(r.riderId) ?? null))
+  const groups =
+    ridden.size === 1 && [...ridden][0] === null ? new Set(rows.map((r) => homeOf.get(r.riderId) ?? null)) : ridden
+  // **NOTHING LEARNED MEANS NOTHING WRITTEN, AND GETTING THIS WRONG BROKE
+  // MEETING POINTS ENTIRELY.** A ride where nobody has been given a home group —
+  // which is every ride until somebody uses the Riders tab, so nearly all of
+  // them — resolves every rider to null here. That is not "this route is
+  // everybody's", it is "this derivation has no opinion", and writing the null
+  // anyway ERASED the tag the payload had set.
+  //
+  // The consequence, seen on stage within minutes: untagging a feeder route
+  // makes `startRouteOf()` fall back to `strand[0]`, which is the main group's
+  // own route — so every joining group was handed the main group's start as its
+  // origin, every divert came out at zero, and a ride from Oakland to Ensenada
+  // proposed all of its meeting points in Oakland. That is the 2026-09-05 origin
+  // bug reintroduced from the other end.
+  //
+  // So: only overwrite when at least one rider carries a real home group. A
+  // stale tag on a shared route costs precision in a column that is already
+  // retired; a cleared tag on a feeder costs the whole feature.
+  if (groups.size === 1 && [...groups][0] === null) return
   const only = groups.size === 1 ? [...groups][0] : null
   await tx
     .update(routesTable)

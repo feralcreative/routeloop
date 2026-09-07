@@ -159,6 +159,44 @@ describe('riding as a group', () => {
   })
 })
 
+// THE LEGACY TAG IS DERIVED, AND A DERIVATION WITH NO OPINION MUST NOT WRITE.
+//
+// `writeLegacyRouteGroup()` is the query half and cannot be unit tested without a
+// database, so what is pinned here is the RULE it implements: a route's riders
+// tell you which group it belongs to only when at least one of them carries a
+// home group. On a ride where nobody has been assigned one — every ride until
+// somebody uses the Riders tab — the answer is "no opinion", not "everybody".
+//
+// Writing the null anyway erased the tag the payload had set, which untagged
+// feeder routes; `startRouteOf()` then fell back to the main group's own route,
+// so every joining group got the main group's start as its origin and a ride
+// from Oakland to Ensenada proposed all its meeting points in Oakland. Seen on
+// stage on 2026-09-06, minutes after deploy.
+describe('deriving a route’s group from its riders', () => {
+  // The shape writeLegacyRouteGroup() computes before it decides to write.
+  const derive = (homeGroups: Array<number | null>): { opinion: boolean; only: number | null } => {
+    const groups = new Set(homeGroups)
+    if (groups.size === 1 && [...groups][0] === null) return { opinion: false, only: null }
+    return { opinion: true, only: groups.size === 1 ? [...groups][0] : null }
+  }
+
+  it('has no opinion when nobody carries a home group', () => {
+    expect(derive([null, null])).toEqual({ opinion: false, only: null })
+    expect(derive([null])).toEqual({ opinion: false, only: null })
+  })
+
+  it('names the group when every rider is in the same one', () => {
+    expect(derive([10, 10])).toEqual({ opinion: true, only: 10 })
+  })
+
+  it('says everybody when several groups share the route', () => {
+    // The case the single column cannot express, and the reason the rows are the
+    // honest answer: null here reads as "everybody" to strandOf.
+    expect(derive([10, 20])).toEqual({ opinion: true, only: null })
+    expect(derive([null, 10])).toEqual({ opinion: true, only: null })
+  })
+})
+
 describe('riderJunctions', () => {
   it('finds nothing on a ride everybody rides end to end', () => {
     expect(riderJunctions(resolveRouteRiders(routes(4), [], [1, 2]))).toEqual([])

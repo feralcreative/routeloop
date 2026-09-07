@@ -30,6 +30,28 @@
 
 **Needs a browser pass.** The CSS class rename and the wire-format keys are the half no test covers, and a wire key is what silently loaded zero days when this rename ran in the other direction on 2026-08-09.
 
+## Meeting points in Oakland for a ride to Ensenada—2026-09-06
+
+**Reported on stage, reproduced on stage, and it was not the bug fixed an hour earlier.** Both satellites were offered gas stations in Oakland, each labelled "on their way"—which is the tell: the proposer thought VMCSC was already riding the road at Oakland.
+
+**`routeFor()` built a joining group's track from its STRAND.** A strand is a group's own routes plus every shared one, and a shared route is precisely the road they have not ridden yet. So each satellite's track WAS the main group's road: every candidate fell within `ON_ROUTE_M`, every divert came out at zero, and the earliest acceptable point won—the start.
+
+**Why it looked like a data problem.** The same ride shape worked earlier the same day on ride 34, whose main route was TAGGED VMCSF rather than shared—so it sat in nobody else's strand and the satellites' tracks were correctly empty. Ride 31's main route is tagged "everybody". The tags on stage were checked first and were intact, which is what ruled the earlier fix out.
+
+**A joining group's track is now its own routes only**; the primary keeps the strand, because for them the shared road is theirs. Pinned in `test/rendezvous.test.ts` by running both readings against one another: handed the main road a group pays zero everywhere and meets at the start; told the truth it pays a real divert and meets somewhere sensible.
+
+## The legacy tag erased itself, and it took meeting points with it—2026-09-06
+
+**Caught on stage within minutes of the merge, before any prod deploy.** A new ride from Oakland to Ensenada with SC and SLO groups proposed all of its meeting points in Oakland.
+
+**Cause: `writeLegacyRouteGroup()` derived `routes.subgroup_id` from riders' HOME groups alone.** On a ride where nobody has been assigned a home group—every ride until somebody uses the Riders tab—every rider resolves to null, and the function wrote that null over a perfectly good tag. Untagging a feeder route makes `startRouteOf()` fall back to `strand[0]`, which is the main group's own route, so every joining group was handed the main group's start as its origin. Diverts came out at zero and the earliest point on the road won, which is the start. This is the 2026-09-05 origin bug arriving from the other end.
+
+**Two fixes, and the second is the one that matters for repair.** A derivation that learns nothing no longer writes. And the tag is derived from the PER-ROUTE group first, home groups only as a fallback—which is both the more direct reading and the only one that lets the checkbox control put a tag back. Deriving from home groups alone left the damage unrepairable through the UI.
+
+**Reproduced locally end to end**, with the pure proposer cleared first: given correct origins it offers SC candidates 51–72 miles along and SLO 201–222, so the geometry was never at fault. `test/route-riders.test.ts` pins the rule.
+
+**Stage carries damaged data.** Any feeder route whose group control was touched before this fix has a null tag. Re-tick the group on that route to restore it.
+
 ## A route carries a SET of groups, not one—2026-09-06
 
 **Found in the browser, on the staged meet-up this branch made possible.** With VMCSF and VMCSC merged at Morgan Hill and VMCSLO still riding their approach, the shared route was tagged **Everyone**—because `routes.subgroup_id` is one nullable id and one id cannot say "these two of the three". Ziad's call: the single select becomes a checkbox list, and ticking Everyone ticks every group.

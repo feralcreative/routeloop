@@ -353,6 +353,36 @@ describe('proposeGroupMeet', () => {
     }
   })
 
+  // **A JOINING GROUP'S TRACK MUST NOT BE THE MAIN GROUP'S ROAD**, and this test
+  // exists because the route handler handed it exactly that. `routeFor()` built a
+  // group's track from its STRAND — its own routes plus every SHARED one — and a
+  // shared route is precisely the road they have not ridden yet, the road they
+  // are joining. So on a ride whose main route was tagged "everybody", each
+  // satellite's track was the main road, every candidate fell within ON_ROUTE_M
+  // of it, every divert came out at zero, and the earliest acceptable point won:
+  // the start.
+  //
+  // Seen on stage, 2026-09-06, Oakland to Ensenada — both satellites offered gas
+  // stations in Oakland, each labelled "on their way". The same shape worked when
+  // the main route happened to be TAGGED rather than shared, because then it was
+  // in nobody else's strand, which is what made it look like a data problem.
+  it('does not treat the main group’s road as a joining group’s own', () => {
+    const far: GroupRoute = { id: 'f', origin: [-121, 36], track: leg([-121, 36], DEST) }
+    // What the handler should build: the joining group has no road of its own yet.
+    const honest = proposeGroupMeet(north, [{ ...far, track: [] }])
+    // What it used to build: their "track" is the main group's road.
+    const asStrand = proposeGroupMeet(north, [{ ...far, track: north.track }])
+
+    expect(honest.length).toBeGreaterThan(0)
+    expect(asStrand.length).toBeGreaterThan(0)
+    // Handed the main road, the group pays nothing anywhere and the earliest
+    // point wins — which is the start.
+    expect(worstDivertMi(asStrand[0])).toBe(0)
+    expect(asStrand[0].alongM).toBeLessThan(honest[0].alongM)
+    // Told the truth, they pay a real divert and meet somewhere sensible.
+    expect(worstDivertMi(honest[0])).toBeGreaterThan(0)
+  })
+
   // THE FAIRNESS TERM, AND IT IS THE ONE THAT MUST BE ON THE WORST GROUP. A
   // budget spent in TOTAL lets several groups' convenience be paid for by one,
   // which is the silent unfairness #67 asks the app not to commit on the

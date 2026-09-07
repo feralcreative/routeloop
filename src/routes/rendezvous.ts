@@ -143,9 +143,25 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // restated here. It also means the two cases fall together: with no shared route
   // a strand is that group's own route, and with one the strands genuinely
   // overlap, which the proposer reads as a convergence costing nobody anything.
-  const routeFor = (g: (typeof groups)[number]): GroupRoute | null => {
+  const routeFor = (g: (typeof groups)[number], isPrimary: boolean): GroupRoute | null => {
     const strand = strandOf(all, g.id)
     if (strand.length === 0) return null
+    // **A JOINING GROUP'S ROAD IS ITS OWN ROUTES, NOT ITS STRAND.** A strand is a
+    // group's own routes PLUS every shared one — and a shared route is precisely
+    // the road they have not ridden yet, the road they are joining. Building
+    // their track from the strand hands them the main group's entire road as
+    // though it were theirs, so every candidate on it falls within ON_ROUTE_M,
+    // every divert comes out at zero, and the earliest acceptable point wins:
+    // the start.
+    //
+    // Seen on stage, 2026-09-06, on a ride from Oakland to Ensenada — both
+    // satellites were offered gas stations in Oakland, each labelled "on their
+    // way". The same ride shape worked when the main group's route happened to
+    // be TAGGED rather than shared, because then it was in nobody else's strand;
+    // that is what made this look like a data problem rather than a logic one.
+    //
+    // The primary keeps the strand, because for them the shared road IS theirs.
+    const own = isPrimary ? strand : strand.filter((d) => d.subgroupId === g.id)
     // WHERE THEY SET OFF IS THEIR OWN DAY, NOT `strand[0]` — see startRouteOf().
     // A shared route sorting ahead of a group's own route used to become its origin,
     // which handed every satellite the same starting point.
@@ -153,7 +169,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     const origin = startRoute && originOf.get(startRoute.id)
     if (!origin) return null
     const track: Track = []
-    for (const d of strand) {
+    for (const d of own) {
       for (const geom of byRoute.get(d.id) ?? []) {
         for (const v of geom) {
           // Drop the duplicate vertex at every joint, the same way the viewer's
@@ -201,11 +217,11 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // before the field existed, and "the first group" is what the planner would
   // say the main group was anyway.
   const primaryGroup = groups.find((g) => g.id === ride.primarySubgroupId) ?? groups[0]
-  const primary = routeFor(primaryGroup)
+  const primary = routeFor(primaryGroup, true)
   const joining: GroupRoute[] = []
   for (const g of groups) {
     if (g.id === primaryGroup.id) continue
-    const r = routeFor(g)
+    const r = routeFor(g, false)
     if (r) joining.push(r)
   }
 
