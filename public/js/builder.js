@@ -7261,16 +7261,27 @@
    * the stop they left at. The consequence sits beside the choice, the same shape
    * the bedtime band and the lodging offer take.
    *
-   * DERIVED FROM THE ROUTES, NEVER STORED. A route tagged with a group whose first
-   * point is this one IS the split; nothing needs a column, and the line survives a
-   * reload rather than being a fact only the acting session knows. Same reasoning
-   * as `junctions()` server-side.
+   * **A SPLIT IS RIDERS LEAVING, AND GEOMETRY CANNOT TELL IT FROM A MEET.** This
+   * gated on shape alone — a tagged non-main route whose first point is this one —
+   * and that is ALSO exactly what `cutJoiningTails()` leaves behind at a MEETING
+   * point: a joining group's road drawn past the meet, kept as a tagged route
+   * starting there. So a ride where three groups converged and nobody had split
+   * at all read "VMCSC splits off here" and "VMCSLO splits off here" at its two
+   * JOIN points. Reported on stage 2026-09-07, on a ride whose nine routes all
+   * carried the same four riders.
    *
-   * Matched on COORDINATES rather than uid, because `splitRouteAt` mints a fresh
-   * uid for the carried copy and records no link back to the point it came from.
-   * Duplicating a point puts a copy on top of its original, so this can in
-   * principle name a group at a duplicated stop — a wrong label on a line, which
-   * is the cheap end of getting it wrong.
+   * The gate is `riderJunctions()` instead: who is on this road and not on the one
+   * that follows it. That is the model's own answer to the question and it cannot
+   * confuse the two directions, because a meet has people joining and a split has
+   * people leaving. On that stage ride it reports nothing at either point, which
+   * is correct — nobody had left anything.
+   *
+   * Geometry still NAMES the group, because a rider leaving says nothing about
+   * which road they took. Matched on coordinates, because `splitRouteAt` mints a
+   * fresh uid for the carried copy and records no link back; duplicating a point
+   * puts a copy on top of its original, so this can in principle name the wrong
+   * group at a duplicated stop — a wrong label on a line the riders have to have
+   * left for at all, which is the cheap end of getting it wrong.
    *
    * **ON THE LAST POINT OF A ROUTE AND NOWHERE ELSE**, which is what keeps it to
    * one line per split. The stop exists on three routes after a split — the road
@@ -7288,14 +7299,32 @@
   function splitOffHtml(point, i, routeIndex) {
     const route = state.routes[routeIndex];
     if (!route || i !== route.points.length - 1) return "";
+    const rr = state.routeRiders;
+    const mine = rr && route.uid && rr.byUid[route.uid];
+    // Null until the resolution loads, and null for a route the server has not
+    // seen yet — a split's own two routes, until its save lands. Drawing nothing
+    // is the honest state: whether anybody left is exactly what is not known.
+    if (!mine) return "";
+    // WHO IS ON THIS ROAD AND NOT ON THE ONE THAT FOLLOWS IT. The junction is
+    // reported AT the following route, so it is read at this route's position
+    // plus one — server positions, not indexes into state.routes, because an
+    // inactive alternate sits in the array and not in the numbering.
+    const junction = (rr.junctions || []).find((j) => j.position === mine.position + 1);
+    const leavers = new Set((junction && junction.left) || []);
+    if (!leavers.size) return "";
     const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     const here = (d) => {
       const first = d.points[0];
       return first && first.lat === point.lat && first.lng === point.lng;
     };
-    const left = ALT.activeRoutes(state.routes).filter(
-      (d) => d.subgroupUid && d.subgroupUid !== mainUid && d !== route && here(d),
-    );
+    const left = ALT.activeRoutes(state.routes).filter((d) => {
+      if (!d.subgroupUid || d.subgroupUid === mainUid || d === route || !here(d)) return false;
+      // And it has to be a road one of the LEAVERS actually took. Without this a
+      // meet's leftover tail — tagged, starting here, riders unchanged — is named
+      // as the group that left, which is the bug this whole gate exists for.
+      const on = rr.byUid[d.uid];
+      return !!on && on.riderIds.some((id) => leavers.has(id));
+    });
     if (!left.length) return "";
     // A REAL BUTTON THAT GOES THERE, not a coloured sentence. The peel-off route
     // is at the bottom of the list by construction, which is the whole reason

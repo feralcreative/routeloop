@@ -329,3 +329,43 @@ describe('a group splitting off', () => {
     expect(ridersWhoRodeAs(out, VMCSC)).toEqual([])
   })
 })
+
+// A MEET IS NOT A SPLIT, AND GEOMETRY CANNOT TELL THEM APART.
+//
+// This is the shape reported on stage 2026-09-07: three groups converge, and
+// `cutJoiningTails()` leaves each joining group's road-past-the-meet as a route
+// of its own that STARTS at the meeting point. That is the same shape a peel-off
+// route has — tagged, non-main, beginning at the stop — so the builder's row line
+// gated on it called both join points splits. The rider sets are what tell the two
+// apart, and this pins that they do.
+describe('a meet is not a split', () => {
+  const ROSTER = [1, 9, 10, 12]
+  //  0 main approach (untagged)   1 VMCSC approach   2 VMCSC tail past the meet
+  //  3 shared                     4 VMCSLO approach  5 VMCSLO tail   6 shared
+  const converge = routes(7)
+
+  // Nobody has left anything: everyone rides everything, which is what a ride
+  // that has only ever converged looks like.
+  it('reports no junctions when every route carries the same riders', () => {
+    const out = resolveRouteRiders(converge, [], ROSTER)
+    expect(out.every((d) => d.riderIds.join() === '1,9,10,12')).toBe(true)
+    expect(riderJunctions(out)).toEqual([])
+  })
+
+  // Even stated explicitly on every route, rather than inherited — a planner who
+  // ticks everybody everywhere must not manufacture a departure.
+  it('reports no junctions when the same set is stated on every route', () => {
+    const explicit = converge.flatMap((d) => on(d.uid, ...ROSTER))
+    const out = resolveRouteRiders(converge, explicit, ROSTER)
+    expect(out.every((d) => d.explicit)).toBe(true)
+    expect(riderJunctions(out)).toEqual([])
+  })
+
+  // And the contrast, so the gate is pinned in both directions: the moment
+  // somebody actually stops riding, the junction names them and the route it
+  // happens at. That is the only condition the row line may draw on.
+  it('reports a departure the moment somebody actually leaves', () => {
+    const out = resolveRouteRiders(converge, on('r6', 1, 9), ROSTER)
+    expect(riderJunctions(out)).toEqual([{ position: 5, joined: [], left: [10, 12] }])
+  })
+})
