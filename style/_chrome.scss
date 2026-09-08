@@ -1759,3 +1759,60 @@ ul.cards {
     padding: 1.5rem 0;
   }
 }
+
+// THE FAQ POPOVER (#268). A `?` beside a control answers in place now instead of
+// sending a rider to /faq and leaving them to find their way back — on the
+// builder that meant abandoning a route mid-edit to read two sentences.
+//
+// NATIVE `popover`, so Escape, light-dismiss and the top layer come free and the
+// only script is the click that opens it. The top layer is also what keeps it
+// out of the builder panel's own clipping.
+//
+// CENTERED RATHER THAN ANCHORED, unlike the field-help bubble in _forms.scss,
+// and the difference is size: that one is a line and belongs beside its field,
+// where a FAQ answer is a paragraph or two and would hang off the edge of a
+// 380px drawer. A centered card is what it wants at this length, and it needs no
+// anchor positioning, so it behaves the same in every browser.
+.faq-pop {
+  position: fixed;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(46ch, calc(100vw - 2rem));
+  max-height: min(70vh, 40rem);
+  overflow-y: auto;
+  margin: 0;
+  padding: 1.1rem 1.3rem;
+  background: $white;
+  color: $text;
+  border: 1px solid $grey;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 28%);
+  font-size: 0.95rem;
+  line-height: 1.55;
+
+  &::backdrop {
+    background: rgb(0 0 0 / 25%);
+  }
+
+  // The question, restated at the top. The answer in faq.html is written to sit
+  // under its own <summary>, so lifted out on its own it starts mid-thought.
+  .faq-pop-q {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  // The answer arrives as the markup it already is — see faqAnswer(). Its
+  // wrapper carries /faq's own class, which is styled for that page's width, so
+  // the margins are restated for a card.
+  .qa-answer > :first-child {
+    margin-top: 0;
+  }
+
+  .qa-answer > :last-child {
+    margin-bottom: 0;
+  }
+}

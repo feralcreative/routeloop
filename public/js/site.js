@@ -579,6 +579,35 @@
     return fmtPrefs;
   }
 
+  // A `?` THAT ANSWERS IN PLACE, WITH THE JUMP STILL UNDER IT (#268).
+  //
+  // Every one of these is a real `<a href="/faq#x">`, and it stays one: this only
+  // intercepts a PLAIN LEFT CLICK. A middle click, a ctrl/cmd click, a shift
+  // click and "open in new tab" all fall through to the browser and get the FAQ
+  // page at the right anchor — which is the behavior a rider expects from
+  // anything that looks like a link, and the reason the popover could be added
+  // without taking anything away.
+  //
+  // DELEGATED ON THE DOCUMENT, because the builder rebuilds the panel that holds
+  // these on every render and a per-link handler would be lost with it.
+  //
+  // The popover is the link's next sibling, matched by id rather than by
+  // position: the two are written together by faqLink() and nothing moves them,
+  // but an id is the thing that stays true if something ever does.
+  document.addEventListener("click", function (e) {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
+    var link = e.target.closest && e.target.closest("a[data-faq]");
+    if (!link) return;
+    var pop = document.getElementById("faq-" + link.dataset.faq);
+    // No popover rendered means the FAQ anchor went missing, and the link is
+    // then exactly what it was before this existed. Falling through is the
+    // fallback, not a failure.
+    if (!pop || typeof pop.showPopover !== "function") return;
+    e.preventDefault();
+    if (pop.matches(":popover-open")) pop.hidePopover();
+    else pop.showPopover();
+  });
+
   window.TBFmt = {
     timePrefs: timePrefs,
     forget: function () {

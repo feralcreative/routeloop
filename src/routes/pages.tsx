@@ -16,6 +16,7 @@ import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
 import { page, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
+import { faqTokens } from '../views/faq-tokens'
 import { rideCards } from '../views/cards'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
@@ -41,9 +42,10 @@ const TERMS_EFFECTIVE = '1 August 2026'
 // went stale every January. Stated as durations and worked out at render time
 // instead. Computed on the server rather than in the browser so there is no
 // flash of the wrong number and the page still reads correctly with JS off.
-const yearsSince = (year: number): number => new Date().getFullYear() - year
-const RIDING_YEARS = yearsSince(1999)
-const WEB_YEARS = yearsSince(1993)
+// MOVED TO views/faq-tokens.ts, because faqLink() reads a single answer out of
+// the same file for its popover (#268) and `content()` throws on an unsupplied
+// token. Two copies of the years would go stale independently, which is the
+// thing stating them as durations was meant to stop.
 
 // One question, collapsed. <details> rather than a scripted accordion: the
 // platform already gets the keyboard, the ARIA and find-in-page right, and a
@@ -286,15 +288,13 @@ function SocialLinks({
   )
 }
 
-pageRoutes.get('/faq', (c) =>
-  render(c, 'Questions', content('faq.html', { RIDING_YEARS, WEB_YEARS }), 'content-page faq-page'),
-)
+pageRoutes.get('/faq', (c) => render(c, 'Questions', content('faq.html', faqTokens()), 'content-page faq-page'))
 // The same copy in two places, from one file. The page is the no-JavaScript
 // path and the linkable URL; the fragment is what the modal fetches on first
 // open, so the notes are not on every HTML response for a dialog most riders
 // never open.
 pageRoutes.get('/release-notes', (c) =>
-  render(c, "What’s new", content('release-notes.html'), 'content-page release-notes-page'),
+  render(c, 'What’s new', content('release-notes.html'), 'content-page release-notes-page'),
 )
 pageRoutes.get('/api/release-notes', (c) => c.html(content('release-notes.html')))
 pageRoutes.get('/privacy', (c) =>

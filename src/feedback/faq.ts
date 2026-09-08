@@ -45,6 +45,43 @@ export function parseFaq(html: string): FaqEntry[] {
   return out
 }
 
+/**
+ * One entry's ANSWER, as the markup it already is, or null.
+ *
+ * #268 is why this exists: a `?` beside a control should answer beside the
+ * control rather than sending a rider to /faq and leaving them to find their way
+ * back. **ONE SOURCE, TWO SURFACES** — the copy stays in `src/content/faq.html`
+ * addressed by the anchor the link already uses, so a popover and the FAQ entry
+ * cannot drift and there is no second place to write it.
+ *
+ * RETURNS MARKUP, NOT TEXT, unlike `parseFaq`'s stripped question. An answer here
+ * routinely carries a `<p>`, a list and a `<code>`, and flattening it would turn
+ * a readable paragraph into a run-on. It is OUR OWN file rather than anything a
+ * rider typed, which is what makes it safe to render raw — the same standing
+ * that lets `views/content.ts` hand these straight to the page.
+ *
+ * MATCHED BY NESTING DEPTH RATHER THAN BY THE FIRST `</details>`, because an
+ * answer may contain one — the format entries nest a `<details>` per file type.
+ * Getting that wrong truncates an answer mid-sentence and looks like bad copy.
+ */
+export function faqAnswer(html: string, id: string): string | null {
+  const open = new RegExp(`<details[^>]*\\bid="${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>`, 'i')
+  const at = html.search(open)
+  if (at === -1) return null
+  const afterSummary = html.indexOf('</summary>', at)
+  if (afterSummary === -1) return null
+
+  let i = afterSummary + '</summary>'.length
+  let depth = 1
+  const body = /<\/?details\b/gi
+  body.lastIndex = i
+  for (let m = body.exec(html); m; m = body.exec(html)) {
+    depth += m[0][1] === '/' ? -1 : 1
+    if (depth === 0) return html.slice(i, m.index).trim()
+  }
+  return null
+}
+
 // Words carrying no signal in a question about a route planner. "route", "ride"
 // and "map" are absent on purpose: they are the most common words a rider will
 // type and also the ones that distinguish one FAQ entry from another here.

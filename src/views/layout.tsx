@@ -12,6 +12,9 @@ import { asset } from './assets'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
+import { content } from './content'
+import { faqAnswer } from '../feedback/faq'
+import { faqTokens } from './faq-tokens'
 import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
@@ -605,19 +608,44 @@ export const fieldHelp = (name: string, label: string, text: string): string =>
     </span>
   ).toString()
 
-export const faqLink = (anchor: string, what: string): string =>
-  (
-    <a
-      class="faq-link"
-      href={`/faq#${anchor}`}
-      target="_blank"
-      rel="noopener"
-      title={`What is ${what}?`}
-      aria-label={`What is ${what}? Opens the questions page in a new tab`}
-    >
-      ?
+/**
+ * A `?` beside a control the FAQ defines — answered IN PLACE, with the jump as
+ * the fallback (#268).
+ *
+ * **THE ANCHOR IS STILL A REAL LINK AND THAT IS THE WHOLE DESIGN.** Pressing one
+ * used to leave the page, which on the builder means abandoning a route
+ * mid-edit to read two sentences. It opens a popover now — but it is still an
+ * `<a href>`, so a rider with no JavaScript, a middle click and a
+ * ctrl/cmd click all still get `/faq` at the right anchor. The popover is an
+ * enhancement on a link that already worked.
+ *
+ * **ONE SOURCE, TWO SURFACES.** The copy stays in `src/content/faq.html`
+ * addressed by the anchor the link already used, read through `faqAnswer()`, so
+ * the popover and the FAQ entry cannot drift and there is no second place to
+ * write it. `feedback.js` already renders entries inline in the report form;
+ * this is the same mechanism on a third surface.
+ *
+ * **IT DEGRADES TO EXACTLY THE OLD BEHAVIOR WHEN THE ANCHOR IS MISSING.** A
+ * renamed FAQ id returns null here and the link renders alone — a `?` that jumps
+ * is what it was yesterday, where an empty popover would be a control that opens
+ * nothing. `test/faq.test.ts` pins that every anchor `faqLink` is called with
+ * still exists, so the degraded path is a safety net rather than the plan.
+ *
+ * `target="_blank"` IS GONE. It was there because the link left the page and a
+ * new tab kept the builder alive; with the answer arriving in place, the
+ * fallback should behave like an ordinary link.
+ */
+export const faqLink = (anchor: string, what: string): string => {
+  const answer = faqAnswer(content('faq.html', faqTokens()), anchor)
+  const link = (
+    <a class="faq-link" href={`/faq#${anchor}`} data-faq={answer ? anchor : undefined} title={`What is ${what}?`}>
+      <span class="visually-hidden">{`What is ${what}?`}</span>
+      <span aria-hidden="true">?</span>
     </a>
   ).toString()
+  if (!answer) return link
+  return `${link}<span class="faq-pop" id="faq-${esc(anchor)}" popover><b class="faq-pop-q">${esc(`What is ${what}?`)}</b>${answer}</span>`
+}
 
 const SiteLinkRow = () => (
   <>
