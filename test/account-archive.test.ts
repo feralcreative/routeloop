@@ -74,6 +74,22 @@ const input = (over: Partial<AccountArchiveInput> = {}): AccountArchiveInput => 
   identities: [],
   bikes: [],
   rides: [],
+  // Every section the 2026-09-07 completeness work added. Empty by default so
+  // the existing cases are unchanged, and named explicitly rather than spread
+  // from a partial — a new section added to the input type should break this
+  // line and make somebody decide what an empty account looks like.
+  notificationPrefs: [],
+  placeGroups: [],
+  places: [],
+  friends: [],
+  following: [],
+  followers: [],
+  memberships: [],
+  comments: [],
+  suggestions: [],
+  votes: [],
+  feedback: [],
+  survey: [],
   exportedAt: AT,
   ...over,
 })

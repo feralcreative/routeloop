@@ -49,6 +49,7 @@
 import { sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { users } from '../db/schema'
+import { warnAccountPurges, warnQuota } from '../notifications/warnings'
 
 /**
  * Rewrites every rider's `used_bytes` from the authoritative sum.
@@ -95,8 +96,22 @@ export const QUOTA_SWEEP_INTERVAL_MS = 5 * 60_000
 export function startQuotaSweep(): void {
   const run = () =>
     reconcileUsedBytes()
-      .then((n) => {
+      .then(async (n) => {
         if (n > 0) console.warn(`[quota] repaired used_bytes for ${n} rider${n === 1 ? '' : 's'}`)
+        // BOTH WARNINGS RIDE ON THIS SWEEP AND ADD NO SIXTH TIMER. The quota one
+        // runs AFTER the repair on purpose — it reads `used_bytes`, which is the
+        // number the quota CHECK reads and the number this has just corrected,
+        // so warning before the repair would warn off a value nothing enforces.
+        //
+        // The ACCOUNT-DELETION warning is here rather than on the account purge's
+        // own sweep because that one is gated behind PURGE_ACCOUNTS and off by
+        // default — a warning hung off it would never fire anywhere the
+        // destruction is not already armed, which is every environment today.
+        //
+        // Each is caught on its own: a rider whose warning throws must not stop
+        // the other warning, and neither must stop the repair that already ran.
+        await warnQuota().catch((err) => console.warn('[quota] storage warnings failed', err))
+        await warnAccountPurges().catch((err) => console.warn('[quota] deletion warnings failed', err))
       })
       .catch((err) => console.error('quota sweep failed', err))
   run()

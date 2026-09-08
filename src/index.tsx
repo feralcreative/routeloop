@@ -49,6 +49,7 @@ import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { settingsRoutes } from './routes/settings'
+import { notificationRoutes } from './routes/notifications'
 import { accountRoutes } from './routes/account'
 import { builderLabel } from './members/policy'
 import { memberOrOwner } from './members/service'
@@ -231,6 +232,7 @@ app.route('/', trashRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
 app.route('/', settingsRoutes)
+app.route('/', notificationRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)
 app.route('/', rosterRoutes)

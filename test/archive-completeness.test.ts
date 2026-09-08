@@ -82,3 +82,90 @@ describe('the account archive', () => {
     expect(missing).toEqual([])
   })
 })
+
+// EVERY TABLE, NOT JUST EVERY COLUMN — the check that was missing.
+//
+// The two tests above compare COLUMN lists on two named tables, which is a real
+// guard and is why `clock` and `volume_units` cannot go missing again. What it
+// cannot see is a whole table nobody thought to export: `notification_prefs`
+// landed on 2026-09-07 with its own rider-owned data and both tests passed,
+// because neither of them was looking at it. So did `places`, `friendships`,
+// `follows`, `ride_comments`, `ride_suggestions`, `alt_votes`, `feedback` and
+// `survey_responses` — none of which had ever been in the zip at all.
+//
+// **THE EXPORT IS COMPLETE BY DEFINITION AND THE EXCLUSIONS ARE THE ONLY
+// ARGUMENT.** Ziad's call, 2026-09-07: the infrastructure is his, the
+// information inside it is the rider's, forever. So a table holding something of
+// theirs is either exported or it is on the list below with a reason — and the
+// list is what somebody has to edit, deliberately, to make this test looser.
+describe('the archive covers every table that holds rider data', () => {
+  /** Every `pgTable('name', …)` in the schema, however the block is formatted. */
+  function tablesIn(src: string): string[] {
+    return [...src.matchAll(/pgTable\(\s*'([a-z_]+)'/g)].map((m) => m[1])
+  }
+
+  // NAMED, WITH THE REASON, one line each.
+  const EXCLUDED: Record<string, string> = {
+    // Credentials, not data. A live session id in a zip is an account handed to
+    // whoever opens it.
+    sessions: 'credential',
+    login_tokens: 'credential',
+    // The beta gate. Describes how somebody got in rather than anything of
+    // theirs, and an invite names an email address that is not the exporter's.
+    invites: 'not rider data',
+    invite_redemptions: 'not rider data',
+    // Already inside each ride, in five formats — a better record than a
+    // flattened row, and the reason the ride directories exist.
+    routes: 'inside the ride files',
+    points: 'inside the ride files',
+    route_legs: 'inside the ride files',
+    point_details: 'inside the ride files',
+    ride_subgroups: 'inside the ride files',
+    route_riders: 'inside the ride files',
+    // The roster of a ride is a fact about OTHER people. This rider's own row on
+    // every ride ships as `memberships`; the rest is those riders' to export.
+    ride_members: 'other people, exported as memberships',
+    // Someone else's vote on this rider's report. Their row, not his.
+    feedback_votes: 'other people',
+    // Shipped as metadata beside each report — see everythingElse().
+    feedback_attachments: 'metadata only, in feedback',
+    // The rider's own identity row, already the `account` block.
+    users: 'the account block',
+    // Raised messages, delivered and pruned within a fortnight. The PREFERENCE
+    // is exported; the toast is transport, not a record.
+    notifications: 'transport, not a record',
+    // Diagnostics attached to a report: build sha, viewport, user agent. Ours
+    // about our own failure rather than anything the rider wrote.
+    feedback_diagnostics: 'our diagnostics',
+  }
+
+  it('exports or explicitly excludes every table', () => {
+    const schema = readFileSync('src/db/schema.ts', 'utf8')
+    // COMMENTS STRIPPED FIRST, or the check passes on a mention. This file's
+    // own prose names `sessions`, `routes` and `point_details` while explaining
+    // why they are NOT exported — so a table that had only ever been written
+    // about would count as covered, which is the exact opposite of what is being
+    // asked. Same reason test/content.test.ts strips them.
+    const gather = readFileSync('src/account/export.ts', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/\/\/[^\n]*/g, ' ')
+    const tables = tablesIn(schema)
+    // Sanity floor, the same reason the column tests carry one: a regex that
+    // stops matching would make this pass while checking nothing.
+    expect(tables.length).toBeGreaterThan(20)
+
+    // A table counts as exported when the gather names its drizzle binding.
+    const camel = (t: string) => t.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    const missing = tables.filter((t) => !(t in EXCLUDED) && !new RegExp(`\\b${camel(t)}\\b`).test(gather))
+    expect(missing, 'tables holding rider data that the export never reads').toEqual([])
+  })
+
+  it('excludes nothing that no longer exists', () => {
+    // The mirror: a reason left behind for a table that has been renamed or
+    // dropped is a reason nobody will re-examine, and it makes the list look
+    // more considered than it is.
+    const tables = new Set(tablesIn(readFileSync('src/db/schema.ts', 'utf8')))
+    const stale = Object.keys(EXCLUDED).filter((t) => !tables.has(t))
+    expect(stale, 'excluded tables that are not in the schema any more').toEqual([])
+  })
+})

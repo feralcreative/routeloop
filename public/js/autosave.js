@@ -34,6 +34,24 @@
   // nothing, which is the same reason the ride's own Saved chip fades.
   const SETTLE_MS = 2000;
 
+  // THE SAME WORDS THE BUILDER USES, AND THAT IS THE POINT OF COPYING THEM.
+  // `SAVE_TEXT` in builder.js says "Saving…" and "Saved" for a ride; a rider who
+  // has learned what those mean on one surface should not have to learn a second
+  // vocabulary for the other. The two lists are not shared in code — this file
+  // loads on every chrome page and builder.js does not load at all outside the
+  // builder — so they are two copies on purpose, and the words are what has to
+  // stay in step rather than the object.
+  //
+  // `dirty` is worded rather than left blank because the amber border appears at
+  // that moment: an edge that changes color with nothing saying why is the thing
+  // a readout exists to answer.
+  const SAVE_TEXT = {
+    dirty: "Unsaved changes",
+    saving: "Saving…",
+    saved: "Saved",
+    error: "Not saved",
+  };
+
   // WHAT A SAVED SETTING CHANGES ON <html>, AND WHY IT HAS TO.
   //
   // The palettes all live in one stylesheet keyed on these attributes, and
@@ -85,6 +103,36 @@
       el.hidden = true;
     });
 
+    // THE READOUT IS BUILT HERE RATHER THAN RENDERED IN THE MARKUP, and that is
+    // the same reasoning the hidden Save buttons carry from the other side: with
+    // script off there is no autosave, so there is nothing for a readout to
+    // report and a permanently blank line under every group would be furniture
+    // describing a mechanism that is not running. It exists exactly when it has
+    // something to say.
+    //
+    // It goes in `.setting-actions` — the row the Save button was hidden out of —
+    // so the space is one that already existed rather than a new one, which is
+    // what keeps this from adding a line to all nine groups. A form without that
+    // row falls back to the form itself.
+    //
+    // `aria-live="polite"` and not `assertive`: a save a rider triggered by
+    // ticking a box is not an interruption, and the border is the visual half of
+    // the same message.
+    const note = document.createElement("span");
+    note.className = "save-note";
+    note.setAttribute("aria-live", "polite");
+    (form.querySelector(".setting-actions") || form).appendChild(note);
+
+    // HIDDEN WHEN IT HAS NOTHING TO SAY, so `.setting-actions` goes on
+    // collapsing exactly as it did — that row is keyed on having no VISIBLE
+    // child, and a permanently-present readout would reserve a line under all
+    // nine groups for a message that is on screen for about two seconds.
+    const write = (text) => {
+      note.textContent = text;
+      note.hidden = text === "";
+    };
+    write("");
+
     let timer = null;
     let settle = null;
     let inFlight = false;
@@ -93,7 +141,16 @@
     const say = (state) => {
       clearTimeout(settle);
       group.dataset.save = state;
-      if (state === "saved") settle = setTimeout(() => delete group.dataset.save, SETTLE_MS);
+      write(SAVE_TEXT[state] || "");
+      // The text goes with the border, not before it. "Saved" left standing over
+      // a group that has gone quiet again is a stale claim about a save that
+      // happened two seconds and possibly several edits ago.
+      if (state === "saved") {
+        settle = setTimeout(() => {
+          delete group.dataset.save;
+          write("");
+        }, SETTLE_MS);
+      }
     };
 
     async function flush() {

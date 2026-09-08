@@ -248,6 +248,14 @@ const KindFork = ({ area }: { area: string }) => (
         </button>
       </p>
     </form>
+    {/* THE ONLY WAY TO THE BOARD NOW, and it is here because this page is its
+        parent. "Idea board" was an account-menu item until 2026-09-07, when the
+        menu was cut back to the eight things a rider actually reaches for — and
+        removing it would otherwise have left /board reachable from nothing but a
+        link in one email, which is a page nobody can find. */}
+    <p class="fb-escape fb-board-link">
+      Or see what everyone else has asked for on the <a href="/board">idea board</a>.
+    </p>
   </>
 )
 

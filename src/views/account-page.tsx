@@ -39,6 +39,9 @@ import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
+import { GROUPS, eventsInGroup } from '../notifications/catalog'
+import { channelsFor } from '../notifications/policy'
+import { prefsOf } from '../notifications/service'
 import { dateFormatFor } from './prefs'
 import { fieldHelp, page } from './layout'
 import { asset } from './assets'
@@ -100,11 +103,30 @@ export async function accountPage(
   // has. Merging the pages merged the query string with it, and leaving it off
   // told every rider who saved their profile that their account was no longer
   // scheduled for deletion.
-  const FORM_SAVED = ['duration', 'dates', 'appearance', 'units', 'clock', 'volume', 'avoid', 'favor', '1']
+  const FORM_SAVED = [
+    'duration',
+    'dates',
+    'appearance',
+    'units',
+    'clock',
+    'volume',
+    'avoid',
+    'favor',
+    // One per notification group, DERIVED rather than typed: five hand-written
+    // strings is five chances to add a group and forget one, and the symptom of
+    // forgetting is a rider being told their account is no longer scheduled for
+    // deletion because they ticked a checkbox.
+    ...GROUPS.map((g) => `notify-${g.id}`),
+    '1',
+  ]
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
   const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces } = await prefsFor(user.id)
   const dateFormat = await dateFormatFor(c)
+  // ONE QUERY FOR ALL THIRTEEN EVENTS ACROSS BOTH CHANNELS, like prefsFor above
+  // and for the same reason: they are rows of one table for one rider, and this
+  // page renders every one of them at once.
+  const notifPrefs = await prefsOf(user.id)
   // `locale` is stored and not offered — see resolveClock in views/clock.ts.
   const resolvedClock = resolveClock(clock, dateFormat)
   // Straight off the session rather than a second query — validateSessionToken
@@ -207,6 +229,41 @@ export async function accountPage(
           </p>
 
           {/*
+            THE PALETTE ITSELF, UNDER THE LEDE AND ABOVE THE CONTROLS. Ziad's
+            call, 2026-09-07 — it sat above the Save row inside the form, which
+            put the thing being changed BELOW the controls that change it, so a
+            rider picking a palette was looking at the wrong half of the section.
+            It reads as an illustration of the sentence above it now, which is
+            what it is.
+
+            OUTSIDE THE FORM, which it can be because it carries no input — nine
+            `aria-hidden` swatches and nothing to post. Keeping it inside would
+            have meant a decoration sitting in the middle of a form for no reason
+            beyond where it started.
+
+            NO JAVASCRIPT AT ALL. Every swatch is a `var()`, and the palettes are
+            one stylesheet keyed on the attributes restamp() writes — so the bar
+            changes with the choice for free, and it cannot disagree with what
+            the app is actually painting, because it IS what the app is painting.
+
+            THE SIGN FIELDS, IN SIGNAL ORDER, because those are the colors a
+            rider meets: red on a road they cannot ride, amber on advice, green
+            on a guide sign. The neutrals are left out — a strip of greys says
+            nothing about which palette is on.
+
+            `aria-hidden`, and the radio labels are what carry the meaning. Nine
+            unlabelled swatches announce as nothing useful, and each option
+            already says what it is in words.
+          */}
+          <p class="palette-bar" aria-hidden="true">
+            {['stop', 'detour', 'warning', 'yield', 'go', 'interstate', 'disabled', 'recreation', 'tarmac'].map(
+              (token) => (
+                <span class="palette-chip" style={`background: var(--${token})`}></span>
+              ),
+            )}
+          </p>
+
+          {/*
             ONE FORM FOR ALL THREE AXES, which is what the appearance handler
             already did for two. A rider has ONE appearance and would be
             surprised if saving the palette reverted the light/dark choice they
@@ -218,7 +275,7 @@ export async function accountPage(
             script this page does not otherwise want, and the choice applies on
             save". Both halves stopped being true on 2026-09-07 — the page
             autosaves and re-stamps <html>, so the whole page IS the preview and
-            the palette bar below is the part of it a rider can point at.
+            the palette bar above is the part of it a rider can point at.
           */}
           <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
             <div class="three-col">
@@ -263,37 +320,6 @@ export async function accountPage(
                 ))}
               </fieldset>
             </div>
-
-            {/*
-              THE PALETTE ITSELF, ABOVE THE SAVE ROW. Ziad's call, 2026-09-07,
-              and it supersedes the note above this form saying there is
-              deliberately no live preview — that reasoning was "a preview would
-              need script on a page that has none, and the choice applies on
-              save". Both halves stopped being true when the page started
-              autosaving and re-stamping <html>.
-
-              NO JAVASCRIPT AT ALL. Every swatch is a `var()`, and the palettes
-              are one stylesheet keyed on the attributes restamp() writes — so
-              the bar changes with the choice for free, and it cannot disagree
-              with what the app is actually painting, because it IS what the app
-              is painting.
-
-              THE SIGN FIELDS, IN SIGNAL ORDER, because those are the colors a
-              rider meets: red on a road they cannot ride, amber on advice, green
-              on a guide sign. The neutrals are left out — a strip of greys says
-              nothing about which palette is on.
-
-              `aria-hidden`, and the radio labels are what carry the meaning. Ten
-              unlabelled swatches announce as nothing useful, and each option
-              already says what it is in words.
-            */}
-            <p class="palette-bar" aria-hidden="true">
-              {['stop', 'detour', 'warning', 'yield', 'go', 'interstate', 'disabled', 'recreation', 'tarmac'].map(
-                (token) => (
-                  <span class="palette-chip" style={`background: var(--${token})`}></span>
-                ),
-              )}
-            </p>
 
             <div class="setting-actions">
               <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
@@ -556,6 +582,147 @@ export async function accountPage(
               </form>
             </section>
           </div>
+        </section>
+
+        {/*
+          NOTIFICATIONS. Email on, browser off — Ziad's call, 2026-09-07 — and
+          the DEFAULT LIVES IN CODE rather than in a column, so a rider who has
+          never touched this page has no rows at all and every box below is drawn
+          from src/notifications/policy.ts. See that file for why.
+
+          **THE BROWSER COLUMN IS A REQUEST, NOT A GUARANTEE.** Chrome raises
+          nothing until the rider grants permission, and it only fires while a
+          Routeloop tab is open — this is the browser's own notification rather
+          than a push, so there is no service worker and nothing arrives with the
+          site closed. Ticking a box says what they want; the line under the
+          heading says what that can actually deliver, because a control that
+          quietly does nothing is worse than no control at all.
+
+          **ONE FORM PER GROUP AND NOT ONE PER EVENT.** The autosave posts the
+          form the change happened in, so a form per event would be thirteen
+          round trips for a rider going down the list — and one form for all of
+          them would make every save rewrite every answer, which is a race
+          between two open tabs. A group is the unit a rider thinks in anyway.
+        */}
+        <section class="setting-topic" id="notifications">
+          <h2>Notifications</h2>
+          <p>
+            What we tell you about, and where. <b>Email is on to start with and the browser is off</b> — a browser
+            notification needs Chrome’s permission and only appears while you have Routeloop open in a tab, so it is a
+            nudge while you are here rather than a way to be reached when you are&nbsp;not.
+          </p>
+          <p class="notif-permission" data-notif-permission hidden>
+            <button type="button" class="btn btn-sign arrow-right arrow-n" data-notif-ask>
+              Allow browser notifications
+            </button>
+            <span class="notif-permission-state" data-notif-state></span>
+          </p>
+
+          {/* TWO COLUMNS, NOT A STACK. Five groups laid out one under another
+              made the longest section on the page by a distance — Ziad's call,
+              2026-09-07 — and every one of them is a narrow table, so half the
+              width costs them nothing. `align-items: start` is what lets the
+              one-row Reports group sit beside a four-row one without stretching. */}
+          <div class="two-col two-col--equal">
+            {GROUPS.map((group) => (
+              <section class="setting" id={`notify-${group.id}`}>
+                {/* `--boxed` paints the resting border that every .setting-form
+                    already reserves but leaves transparent. The save states
+                    still win on specificity, so the edge goes grey → amber →
+                    green → grey rather than appearing out of nothing. */}
+                <form
+                  method="post"
+                  action="/settings/notifications"
+                  class="setting-form setting-form--boxed"
+                  data-autosave
+                >
+                  {/* WITHOUT THIS THE FORM CANNOT SAY WHAT IT WAS SHOWING. An
+                      unticked checkbox sends nothing, so the body alone cannot
+                      tell "off" from "not on this form" — and saving one group
+                      would switch off the other four. See rowsFromForm. */}
+                  <input type="hidden" name="group" value={group.id} />
+                  <table class="notif-table">
+                    <thead>
+                      <tr>
+                        {/* THE GROUP NAME IS THE FIRST COLUMN'S HEADER, which
+                            is what puts it inside the box and on the same
+                            baseline as Email and Browser — Ziad's call,
+                            2026-09-07. It was an <h3> above the form, so every
+                            group cost a heading row plus the gap under it, and
+                            the box opened on a border with nothing in it.
+
+                            It is genuinely that column's header as well as the
+                            name of the set: the rows under it are the things
+                            that happen, and "People" labels them. A screen
+                            reader announcing the column now says the group,
+                            which is more use than the "What happens" it
+                            replaces — and it is still an <h3>, so heading
+                            navigation still lands on every group. */}
+                        <th scope="col">
+                          <h3>{group.label}</h3>
+                        </th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Browser</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventsInGroup(group.id).map((e) => {
+                        const want = channelsFor(notifPrefs, e.key)
+                        return (
+                          <tr>
+                            <th scope="row">
+                              <span class="label-row">
+                                <span class="notif-label">{e.label}</span>
+                                {/* THE EXPLANATION IS A `?` AND NOT A SECOND
+                                    LINE, which is the rule already written down
+                                    for this: instructions for ONE field go in a
+                                    bubble, and a disclosure that must be read
+                                    before acting stays visible. Every one of
+                                    these says who triggers the event and when —
+                                    useful, and not something a rider needs in
+                                    front of them to tick a box. As two lines it
+                                    doubled the height of all thirteen rows. */}
+                                {raw(fieldHelp(`n-${e.key}`, e.label, e.detail))}
+                              </span>
+                            </th>
+                            {/* The checkbox name IS the "<event>:<channel>" key
+                                the policy reads, so neither side has to parse a
+                                naming scheme of its own. */}
+                            <td>
+                              <label class="notif-box">
+                                <input type="checkbox" name={`${e.key}:email`} checked={want.email} />
+                                <span class="visually-hidden">Email me when {e.label.toLowerCase()}</span>
+                              </label>
+                            </td>
+                            <td>
+                              <label class="notif-box">
+                                <input type="checkbox" name={`${e.key}:browser`} checked={want.browser} />
+                                <span class="visually-hidden">
+                                  Show a browser notification when {e.label.toLowerCase()}
+                                </span>
+                              </label>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <div class="setting-actions">
+                    <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                      Save
+                    </button>
+                    <Saved when={on(`notify-${group.id}`)} />
+                  </div>
+                </form>
+              </section>
+            ))}
+          </div>
+
+          <p class="setting-note">
+            Signing in, joining the waitlist, and being let in are not on this list and cannot be switched off. They are
+            how you get into your account, and an account you cannot get into is not a preference we are willing
+            to&nbsp;offer.
+          </p>
         </section>
 
         <section class="gtfo">

@@ -129,7 +129,7 @@
   }
   &-link {
     font-size: 0.9em;
-    color: $url;
+    color: $brand;
   }
   &-num {
     display: flex;
@@ -586,7 +586,7 @@ html.map-page:has(#info-panel.collapsed) {
   }
 
   // Same mechanism, different artwork. It replaced a bare ⇄ character, which
-  // could not take the $url hover the other route actions get and rendered at
+  // could not take the $brand hover the other route actions get and rendered at
   // whatever weight the font felt like.
   .route-rev::before {
     -webkit-mask: url("/img/icons/icon-reverse.svg") center / contain no-repeat;
@@ -676,7 +676,7 @@ html.map-page:has(#info-panel.collapsed) {
     // with the routes on the map and the ticks under the slider.
     &[aria-current="true"] {
       color: $white;
-      background: var(--rail-color, #{$url});
+      background: var(--rail-color, #{$brand});
     }
   }
 
@@ -759,7 +759,7 @@ table.route-table {
       }
       // For dynamic color support:
       &[data-color] {
-        border-color: attr(data-color color, $url);
+        border-color: attr(data-color color, $brand);
       }
       &:hover,
       &:focus {
@@ -771,7 +771,7 @@ table.route-table {
   // Ensure hover/focus effect always applies to div.route-row-label
   .route-row-label:hover,
   .route-row-label:focus {
-    background: var(--route-color-bg, $url-l43);
+    background: var(--route-color-bg, $brand-l43);
   }
 
   // Route table line icon
@@ -825,42 +825,53 @@ table.route-table {
           height: 1em;
         }
       }
-      // Dark ink and a lightening hover, unlike its .kml-btn sibling below:
-      // $gpx is $go, a black-legend field in the ink pairing in _tokens.scss,
-      // while $kml is $stop and takes white like the sign it comes from. The
-      // border still darkens — it carries no text, so it is free to go the way
-      // that reads as an edge.
+      // Dark ink and a lightening hover, unlike its .kml-btn sibling below.
+      // The two badges take the two signals: GPX is $go, a BLACK-legend field in
+      // the ink pairing in _tokens.scss, and KML is $stop, which takes the white
+      // legend the sign it comes from does. The border still darkens on both —
+      // it carries no text, so it is free to go the way that reads as an edge.
+      //
+      // (They were $gpx and $kml until 2026-09-07, which were the same two
+      // colors under two more names. See _palette.scss.)
       &.btn.gpx-btn {
-        background: $gpx;
-        border-color: $gpx-d20;
+        background: $go;
+        border-color: $go-d20;
         color: $ink-dark;
         &:hover {
-          background: $gpx-l8;
-          border-color: $gpx-d20;
+          background: $go-l8;
+          border-color: $go-d20;
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
         }
       }
       &.btn.kml-btn {
-        background-color: $kml;
-        border-color: $kml-d20;
-        color: $white;
+        background-color: $stop;
+        border-color: $stop-d20;
+        // $ink-light, NOT $white, and the merge above is how this was found.
+        // `--white` is the PAGE SURFACE and goes near-black under every dark
+        // scheme, so this badge rendered near-black ink on red — #282 exactly,
+        // in a rule that predates it. test/sign-legend.test.ts is the guard and
+        // it could not see this one: it checks a list of sign FIELDS, and the
+        // field here was spelled `--kml`, which was not on the list because
+        // nobody thought of it as a sign. Collapsing the alias made the rule
+        // visible to the test that was already looking for it.
+        color: $ink-light;
         &:hover {
-          background: $kml-d10;
-          border-color: $kml-d20;
+          background: $stop-d10;
+          border-color: $stop-d20;
         }
         &::before {
           background: url("/img/dl.svg") no-repeat center/contain;
         }
       }
       &.btn.url-btn {
-        background-color: $url;
-        border-color: $url-d20;
+        background-color: $brand;
+        border-color: $brand-d20;
         color: $white;
         &:hover {
-          background: $url-d10;
-          border-color: $url-d20;
+          background: $brand-d10;
+          border-color: $brand-d20;
         }
         &::before {
           content: "";
@@ -998,7 +1009,7 @@ table.route-table {
   border: 1px solid $grey;
   border-radius: 999px;
   background: transparent;
-  color: $text-l30;
+  color: $neutral-50;
   font: inherit;
   font-size: 0.72em;
   font-weight: 600;
@@ -1538,7 +1549,7 @@ table.route-table {
     gap: 0.5em;
     cursor: pointer;
     input {
-      accent-color: var(--route-color, $url);
+      accent-color: var(--route-color, $brand);
     }
   }
   // Sits under the route name rather than beside it: the legend cell is already
@@ -1563,7 +1574,7 @@ table.route-table {
   // Not opacity on the whole row: that would take the checkbox with it and make
   // a working control look disabled.
   .route-row.is-alt .route-name {
-    color: $text-l30;
+    color: $neutral-50;
   }
 
   // Both members of a group get one of these, which is what makes them read as
@@ -1575,7 +1586,7 @@ table.route-table {
     padding: 0.05em 0.45em;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.06);
-    color: $text-l20;
+    color: $neutral-43;
     font-size: 0.7em;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -1587,8 +1598,8 @@ table.route-table {
     // The one being ridden, tinted in the route's own color so it agrees with
     // its line on the map and its swatch everywhere else.
     &.is-on {
-      background: color-mix(in srgb, var(--route-color, #{$url}) 16%, #{$white});
-      color: color-mix(in srgb, var(--route-color, #{$url}) 70%, #{$black});
+      background: color-mix(in srgb, var(--route-color, #{$brand}) 16%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$brand}) 70%, #{$black});
     }
   }
 
@@ -1597,7 +1608,7 @@ table.route-table {
   .route-total td {
     padding: 0.5em 0.25em 0.35em;
     border-top: 1px solid rgba(0, 0, 0, 0.12);
-    color: $text-l15;
+    color: $neutral-36;
     font-size: 0.85em;
     font-weight: 600;
   }
@@ -1613,7 +1624,7 @@ table.route-table {
     font-size: 0.8em;
     // No muted token exists; lightening $text is the idiom the rest of this
     // file already uses for a secondary line.
-    color: $text-l25;
+    color: $neutral-50;
   }
 }
 // Links to the FAQ answer rather than carrying its own explanation — the panel
@@ -1625,7 +1636,7 @@ table.route-table {
   border-bottom: 1px dotted $grey;
   cursor: help;
   &:hover {
-    color: $url;
+    color: $brand;
   }
 }
 .route-zip {
@@ -1652,7 +1663,7 @@ table.route-table {
   font-weight: 600;
   font-size: 0.85em;
   &:hover {
-    background: $grey-d8;
+    background: $neutral-82;
   }
 }
 
@@ -1904,8 +1915,14 @@ body.is-arming #map div {
   // phone cameras do not — a dark-theme rider holding up a white-on-black code
   // to a stranger's phone is the moment this must not be the interesting choice.
   // src/maps/qr.ts paints the modules black on white for the same reason.
-  background: #ffffff;
-  color: #111111;
+  // $ink-light AND $ink-dark, WHICH IS WHAT THOSE TWO TOKENS ARE FOR. They were
+  // raw `#ffffff` and `#111111` — correct in effect and untokenized, so nothing
+  // connected them to the rule they were obeying. These are the two legends that
+  // deliberately do NOT follow the scheme, which is exactly the property a QR
+  // card needs: `$white` here would go near-black under a dark scheme and hand
+  // the rider an inverted code that half the phone cameras in a car park refuse.
+  background: $ink-light;
+  color: $ink-dark;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
 }
 

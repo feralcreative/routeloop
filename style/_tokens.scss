@@ -51,6 +51,12 @@ $neutral-57: var(--neutral-57);
 $neutral-63: var(--neutral-63);
 $neutral-70: var(--neutral-70);
 $neutral-76: var(--neutral-76);
+// -82 IS THE BORDER-AND-FILL STEP, one shade under $grey. It fills the gap the
+// header of this file calls real, and it exists because three derived tokens —
+// $grey-d3, $grey-d5 and $grey-d8, four usages between them — were all doing
+// this one job at 78%, 82% and 84%. Three names for one shade is what a trim
+// pass is for.
+$neutral-82: var(--neutral-82);
 $neutral-88: var(--neutral-88);
 $neutral-94: var(--neutral-94);
 $neutral-96: var(--neutral-96);
@@ -128,15 +134,12 @@ $black: var(--black);
 //
 // The two ink tokens are declared below, beside the rest of the semantic set.
 
-$url: var(--url);
 // The semantic tokens below now take their value from the road-sign palette
 // instead of holding one of their own. Where a token is only ever a fill, it
 // points straight at a palette entry. Where it is TEXT, it points at a darkened
 // palette entry instead, because several of these colors cannot carry or sit
 // under type at 4.5:1 as drawn — that is a property of the palette, not a
 // disagreement with it, and deriving keeps one source per hue.
-$gpx: var(--gpx);
-$kml: var(--kml);
 // Both were literals that happened to sit exactly on the neutral scale — #ddd
 // is $neutral-88 and #333 is $neutral-21, to the byte. Pointing at the step
 // rather than repeating the hex costs nothing and means the scale is the only
@@ -198,8 +201,12 @@ $panel-shadow: var(--panel-shadow);
 // it has an advance width of zero.
 $font: sep-dot, overpass;
 
-// Forward-looking alias. `$url` is historical — it is the generic accent, not a
-// link color — so new work should reach for `$brand`.
+// THE LINK BLUE, and the only name for it since 2026-09-07. `$url` and `$ride`
+// were the same value in every palette and are gone; this was already the
+// forward-looking name, so it is the one that survived.
+//
+// NOT `$disabled`, which is the blue SIGN FIELD and is a different color in
+// every dark palette — see the note in _palette.scss for the measurement.
 $brand: var(--brand);
 
 // The four variable parts of a structured route filename, on /import: each one
@@ -223,7 +230,6 @@ $brand: var(--brand);
 // All four still clear 4.5:1 on that tint. The definitions stay in the order of
 // the example and still name their field in words, because color cannot be the
 // only cue — red and amber converge under protanopia.
-$ride: var(--ride);
 $route: var(--route);
 $date: var(--date);
 $label: var(--label);
@@ -292,42 +298,30 @@ $recreation-text: var(--recreation-text);
 // Body text, muted. Six steps, which is what the app actually used rather than a
 // designed ramp. All are `$text` lightened, so all six flip to darkening under a
 // dark scheme.
-$text-l15: var(--text-l15);
-$text-l20: var(--text-l20);
-$text-l25: var(--text-l25);
-$text-l30: var(--text-l30);
-$text-l35: var(--text-l35);
-$text-l40: var(--text-l40);
 
 // Borders and surface fills either side of $grey.
-$grey-d3: var(--grey-d3);
-$grey-d5: var(--grey-d5);
-$grey-d8: var(--grey-d8);
-$grey-l6: var(--grey-l6);
-$grey-l8: var(--grey-l8);
 
 // The GPX green: a hover fill, a pale tint, two text shades and an edge.
-$gpx-l8: var(--gpx-l8);
-$gpx-l45: var(--gpx-l45);
-$gpx-d12: var(--gpx-d12);
-$gpx-d14: var(--gpx-d14);
-$gpx-d20: var(--gpx-d20);
+$go-l8: var(--go-l8);
+$go-l45: var(--go-l45);
+$go-d12: var(--go-d12);
+$go-d14: var(--go-d14);
+$go-d20: var(--go-d20);
 
 // The KML red, same shape.
-$kml-d6: var(--kml-d6);
-$kml-d8: var(--kml-d8);
-$kml-d10: var(--kml-d10);
-$kml-d20: var(--kml-d20);
+$stop-d6: var(--stop-d6);
+$stop-d10: var(--stop-d10);
+$stop-d20: var(--stop-d20);
 
 // The accent blue. The three tints are within 9% of each other and are three
 // different surfaces that were each tuned alone — a candidate for collapsing
 // later, recorded here rather than fixed now.
-$url-l43: var(--url-l43);
-$url-l46: var(--url-l46);
-$url-l52: var(--url-l52);
-$url-d8: var(--url-d8);
-$url-d10: var(--url-d10);
-$url-d20: var(--url-d20);
+$brand-l43: var(--brand-l43);
+$brand-l46: var(--brand-l46);
+$brand-l52: var(--brand-l52);
+$brand-d8: var(--brand-d8);
+$brand-d10: var(--brand-d10);
+$brand-d20: var(--brand-d20);
 
 // $brand is an alias of $url, so this is the same hue as the three above. It
 // keeps its own name because the rule that uses it reaches for $brand, and a
@@ -386,6 +380,30 @@ $splash-ink: #0a0e11;
 // The stacking order used to be magic numbers spread across three files. The
 // map panel and toast keep their original values so nothing shifts; the banner
 // moved 2001 -> 2100 to leave room under the modal.
+// HOW WIDE A PAGE GETS. A real Sass value, like $font and the $z-* stack: it
+// does not vary by theme, so a custom property would buy nothing.
+//
+// **IT IS A TOKEN RATHER THAN A NUMBER BECAUSE TWO RULES HAVE TO AGREE.**
+// `.page-wrap` caps the content and `.nav-inner` caps the header, and they are
+// content-box at the same width so the logo lines up with the first line of the
+// page under it. They were two literal `960px`s and the nav's comment said so —
+// which is the arrangement that drifts the first time somebody widens one of
+// them, and the symptom is a logo a few pixels off the text it is meant to sit
+// above. Anything that wants to be as wide as a page reads this.
+//
+// **1200 FROM 960, 2026-09-07 — Ziad's call: 960 was too narrow.** It is a cap
+// and not a layout width, so nothing below it changed: the two- and three-column
+// settings rows still start at 992px, where the wrap is still growing rather
+// than parked at its cap, and the columns there are the same ~430px they always
+// were. What the extra 240px buys is the rows ABOVE that breakpoint, which is
+// where a settings page stops being a single tall stack.
+//
+// PROSE IS NOT CAPPED BY THIS and must not be. `.content-page` keeps its own
+// 44rem measure and `.setting` its 60ch, because a paragraph at 1136px is
+// unreadable however much room the page has — the reading width and the layout
+// width are two different numbers and this is only the second one.
+$page-max: 1200px;
+
 $z-map-panel: 1000;
 $z-header: 1200;
 $z-nav: 1300;

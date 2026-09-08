@@ -3,12 +3,12 @@
 // The browser gets a random token. The database stores only its SHA-256 hash,
 // so a database leak yields no usable cookies. Web Crypto rather than
 // node:crypto keeps this portable to Cloudflare Workers later.
-import { eq, lt } from 'drizzle-orm'
+import { eq, lt, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
-import { sessions, userProfiles, users, type UserRow } from '../db/schema'
+import { notifications, sessions, userProfiles, users, type UserRow } from '../db/schema'
 import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
 import { type Motion, toMotion } from '../views/motion'
 import { type Clock, toClock } from '../views/clock'
@@ -79,6 +79,8 @@ export type SessionUser = {
     dateFormat: DateFormat
     clock: Clock
     avatarBytes: number
+    /** Unread notifications, for the badge on the account chip. */
+    unread: number
   }
   sessionId: string
 }
@@ -113,6 +115,22 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       dateFormat: userProfiles.dateFormat,
       clock: userProfiles.clock,
       avatarBytes: userProfiles.avatarBytes,
+      // THE UNREAD COUNT RIDES ALONG HERE FOR THE REASON THE APPEARANCE COLUMNS
+      // DO, one paragraph up: the badge is on the account chip, which is on
+      // every page, and page() is synchronous and called from dozens of places.
+      // Threading a count through all of them works until somebody adds one more
+      // and forgets — and a missed call site is not a visible bug, it is a rider
+      // who is never told anything happened.
+      //
+      // A CORRELATED SUBQUERY RATHER THAN A JOIN: a left join to `notifications`
+      // multiplies the session row by every notification and would need a GROUP
+      // BY over the whole select list. This is one indexed count on a query that
+      // already runs once per request, and `idx_notifications_unread` is the
+      // partial index that serves exactly this predicate.
+      unread: sql<number>`(
+        select count(*)::int from ${notifications}
+        where ${notifications.userId} = ${users.id} and ${notifications.readAt} is null
+      )`,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -148,6 +166,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       // change it; an upload is a deliberate choice and outranks it. Zero means
       // no upload, which is what makes the column the flag as well as the size.
       avatarBytes: row.avatarBytes ?? 0,
+      unread: row.unread ?? 0,
     },
     sessionId: id,
   }

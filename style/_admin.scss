@@ -73,7 +73,7 @@
   font-size: 0.85em;
 }
 
-// $gpx is $go, the green traffic signal, which is a BLACK-legend field — see the
+// $go is $go, the green traffic signal, which is a BLACK-legend field — see the
 // ink pairing in _tokens.scss. White on it is 2.8:1, which is what this rule
 // inherited from .btn and what it looked like before the palette landed.
 //
@@ -81,31 +81,31 @@
 // -8% took 6.1:1 down to 4.3:1. +8% goes to 7.6:1 and still reads as a state
 // change, because the direction of the change is not what carries the meaning.
 .btn.btn-approve {
-  background: $gpx;
+  background: $go;
   color: $ink-dark;
 
   &:hover {
-    background: $gpx-l8;
+    background: $go-l8;
   }
 }
 
 .btn.btn-danger {
-  background: $kml;
+  background: $stop;
 
   &:hover {
-    background: $kml-d8;
+    background: $stop-d8;
   }
 }
 
 // Status pills, tinted from the same tokens the buttons use so color reads
 // consistently across the page.
-// -14%, not the -12% the other pills use: $gpx moved from Material Green 600 to
+// -14%, not the -12% the other pills use: $go moved from Material Green 600 to
 // $go, which is lighter, and -12% landed on 4.21:1 against its own tint. This is
 // 4.6:1. The pills are text on a tint rather than a legend on a field, so the
 // ink pairing does not apply — they need a darkened step either way.
 .pill.is-active {
-  background: color-mix(in srgb, $gpx 15%, transparent);
-  color: $gpx-d14;
+  background: color-mix(in srgb, $go 15%, transparent);
+  color: $go-d14;
 }
 
 .pill.is-pending {
@@ -114,8 +114,8 @@
 }
 
 .pill.is-blocked {
-  background: color-mix(in srgb, $kml 14.000000000000002%, transparent);
-  color: $kml-d6;
+  background: color-mix(in srgb, $stop 14.000000000000002%, transparent);
+  color: $stop-d6;
 }
 
 .pill.is-manager {
@@ -146,7 +146,7 @@
     color: $text;
 
     &:hover {
-      border-color: $url;
+      border-color: $brand;
     }
   }
 

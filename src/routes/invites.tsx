@@ -376,7 +376,7 @@ inviteRoutes.get('/admin/invites', requireManageRiders, async (c) => {
     </>
   ).toString()
 
-  return c.html(page({ title: 'Invitations', user: me, navKey: 'invites', body }))
+  return c.html(page({ title: 'Invitations', user: me, navKey: 'admin', body }))
 })
 
 // Renders at 200 rather than redirecting, which is a deliberate break from the
@@ -440,7 +440,7 @@ inviteRoutes.post('/admin/invites', requireManageRiders, requireSameOrigin, asyn
     </>
   ).toString()
 
-  return c.html(page({ title: 'Invitations', user: me, navKey: 'invites', body }))
+  return c.html(page({ title: 'Invitations', user: me, navKey: 'admin', body }))
 })
 
 inviteRoutes.post('/admin/invites/:id/revoke', requireManageRiders, requireSameOrigin, async (c) => {
@@ -473,7 +473,7 @@ inviteRoutes.post('/admin/invites/:id/regenerate', requireManageRiders, requireS
     </>
   ).toString()
 
-  return c.html(page({ title: 'Invitations', user: me, navKey: 'invites', body }))
+  return c.html(page({ title: 'Invitations', user: me, navKey: 'admin', body }))
 })
 
 export { grantsSentence, redeemersOf, seatsLeft }

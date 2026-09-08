@@ -25,6 +25,9 @@ import { toMotion } from '../views/motion'
 import { toUnits } from '../views/units'
 import { toClock } from '../views/clock'
 import { toVolumeUnits } from '../views/volume'
+import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
+import { checkedKeys, rowsFromForm } from '../notifications/policy'
+import { savePrefs } from '../notifications/service'
 import { accountPage } from '../views/account-page'
 import { loadProfile, profilePanel, PROFILE_SCRIPTS } from './profile'
 import { usernameHistoryFor } from '../auth/username'
@@ -295,3 +298,43 @@ const writeList = (column: 'avoidPlaces' | 'favorPlaces', anchor: string) => asy
 
 settingsRoutes.post('/settings/avoid', requireActive, requireSameOrigin, writeList('avoidPlaces', 'avoid'))
 settingsRoutes.post('/settings/favor', requireActive, requireSameOrigin, writeList('favorPlaces', 'favor'))
+
+/**
+ * Notification preferences — one handler, five forms.
+ *
+ * **ONE ROUTE AND NOT ONE PER GROUP, WHICH IS THE OPPOSITE OF EVERY OTHER
+ * HANDLER IN THIS FILE.** The others are one route per COLUMN, because each
+ * writes a different column and merging them would let saving the units revert
+ * the dates. Here there is one table and one shape, and the five groups differ
+ * only in which rows a form carries — so five handlers would be five copies of
+ * the same four lines, and the group name is data rather than a route.
+ *
+ * **THE `group` FIELD IS LOAD-BEARING AND NOT DECORATION.** An unticked checkbox
+ * sends NOTHING, so the body cannot say which events the form was showing — and
+ * without that, "absent" would mean both "turned off" and "not on this form",
+ * and saving the Rides group would silently switch off every event in the other
+ * four. The hidden field is what makes the absence readable. See rowsFromForm.
+ *
+ * `dateFormat` is NOT seeded here, and this is the one upsert in the file that
+ * does not owe that: it writes `notification_prefs`, not `user_profiles`, so it
+ * cannot stamp `en-US` over what Accept-Language was giving a rider for free.
+ * That obligation belongs to anything touching the profile row and to nothing
+ * else — stating it because the rule as written says "any FOURTH upsert", and
+ * this is a seventh that correctly does not apply it.
+ */
+settingsRoutes.post('/settings/notifications', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  const raw = typeof body.group === 'string' ? body.group : ''
+  const group = GROUPS.find((g) => g.id === raw)
+  // Anything unrecognized lands back on the page having written nothing, which
+  // is the same contract every other handler here follows: the only way to send
+  // a bad value is to hand-craft the request.
+  if (!group) return c.redirect('/settings#notifications', 303)
+
+  const events = eventsInGroup(group.id as GroupId).map((e) => e.key)
+  await savePrefs(user.id, rowsFromForm(events, checkedKeys(body as Record<string, unknown>)))
+
+  const anchor = `notify-${group.id}`
+  return c.redirect(`/settings?saved=${anchor}#${anchor}`, 303)
+})

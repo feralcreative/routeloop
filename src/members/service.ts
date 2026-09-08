@@ -83,7 +83,12 @@ export async function roster(rideId: number): Promise<RosterEntry[]> {
 }
 
 export type InviteResult =
-  { ok: true } | { ok: false; reason: 'not-owner' | 'not-a-friend' | 'already-on' | 'full' | 'unknown-rider' }
+  // `riderId` rides along on success so the caller can tell them they were
+  // added. Resolved here anyway — the handle is looked up to find them — and
+  // returning it saves the route a second query for a row this function has
+  // already had in hand.
+  | { ok: true; riderId: number }
+  | { ok: false; reason: 'not-owner' | 'not-a-friend' | 'already-on' | 'full' | 'unknown-rider' }
 
 /**
  * Add a friend to a ride.
@@ -139,7 +144,7 @@ export async function invite(
     .values({ rideId, riderId: target.id, role: 'rider', perm, invitedBy: viewerId })
     .onConflictDoNothing({ target: [rideMembers.rideId, rideMembers.riderId] })
     .returning({ id: rideMembers.id })
-  return added.length > 0 ? { ok: true } : { ok: false, reason: 'already-on' }
+  return added.length > 0 ? { ok: true, riderId: target.id } : { ok: false, reason: 'already-on' }
 }
 
 /** Only the fields the pure rule reads, fetched once so a caller does not have
@@ -234,14 +239,32 @@ export async function memberOrOwner(
 }
 
 /** Answer for yourself, and nobody else — see canRsvp. */
-export async function setRsvp(rideId: number, viewerId: number, rsvp: Rsvp): Promise<boolean> {
+/** **`changed` IS WHY THIS IS NOT A BOOLEAN.** The RSVP form posts the whole
+ *  field, so pressing Going while already going is an ordinary submit — and
+ *  notifying on it would mail the owner every time a rider re-confirmed. The
+ *  previous value is in hand here and nowhere else, so this is the only place
+ *  the difference can be reported from. */
+export type RsvpResult = { ok: false } | { ok: true; changed: boolean }
+
+export async function setRsvp(rideId: number, viewerId: number, rsvp: Rsvp): Promise<RsvpResult> {
   const target = await memberRow(rideId, viewerId)
-  if (!target || !canRsvp(viewerId, target)) return false
+  if (!target || !canRsvp(viewerId, target)) return { ok: false }
   await db
     .update(rideMembers)
     .set({ rsvp, updatedAt: new Date() })
     .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.riderId, viewerId)))
-  return true
+  return { ok: true, changed: target.rsvp !== rsvp }
+}
+
+/** How many riders have said they are coming. Read after a change rather than
+ *  derived from it, because several riders answer at once and a count carried
+ *  forward from the update would be one rider's stale view of the roster. */
+export async function goingCount(rideId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(rideMembers)
+    .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.rsvp, 'going')))
+  return row?.n ?? 0
 }
 
 /**

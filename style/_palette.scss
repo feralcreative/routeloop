@@ -55,6 +55,11 @@ $-neutrals-light: (
   63: #999999,
   70: #aaaaaa,
   76: #bbbbbb,
+  // -82 FILLS THE GAP THE HEADER OF _tokens.scss SAYS IS REAL, and it is here
+  // because something finally wanted to live in it: $grey-d3, $grey-d5 and
+  // $grey-d8 were three derived tokens between 78% and 84% doing one job — a
+  // border or a fill a shade darker than $grey — and they are this step now.
+  82: #d0d0d0,
   88: #dddddd,
   94: #eeeeee,
   96: #f4f4f4,
@@ -71,16 +76,29 @@ $-neutrals-light: (
 //   the app ALREADY has a dark surface — it is the sign-in page's ground and
 //   src/emails/theme.ts mirrors it as DARK.cardBg. Inventing a second near-black
 //   would put two of them in one product.
+//
+// **-43 AND -50 WERE BOTH #888888 UNTIL 2026-09-07, WHICH COLLAPSED THE TWO
+// MOST-USED GREYS IN THE APP.** They are 32 and 70 usages, distinct in every
+// light palette and identical in every dark one — so any pairing that relied on
+// the step between them (muted text against a mid grey, a border against a fill)
+// simply vanished after dark, with nothing to say so. The complement rule stated
+// above is what fixes it: 50 -> 50 is #777777, not #888888.
 $-neutrals-dark: (
   21: #bbbbbb,
   29: #aaaaaa,
   36: #999999,
   43: #888888,
-  50: #888888,
+  // 50 WAS #888888 TOO, WHICH COLLAPSED IT INTO 43. Corrected to sit BETWEEN its
+  // neighbors rather than to the complement rule's literal answer: -57 is
+  // $concrete, a sign post that has to carry a black legend at 4.5:1, and
+  // pushing it to the complement's #6e6e6e drops it to 4.14 and fails the audit.
+  // The rule is a guide; the contrast test is the authority.
+  50: #808080,
   57: #777777,
   63: #666666,
   70: #555555,
   76: #444444,
+  82: #3b3b3b,
   88: #333333,
   94: #262626,
   96: #1a1a1a,
@@ -335,6 +353,7 @@ $-signs-colorblind: (
     "neutral-63": map.get($n, 63),
     "neutral-70": map.get($n, 70),
     "neutral-76": map.get($n, 76),
+    "neutral-82": map.get($n, 82),
     "neutral-88": map.get($n, 88),
     "neutral-94": map.get($n, 94),
     "neutral-96": map.get($n, 96),
@@ -371,9 +390,25 @@ $-signs-colorblind: (
     "white": $white,
     "black": $black,
 
-    "url": $url,
-    "gpx": $go,
-    "kml": $stop,
+    // ONE LINK BLUE UNDER ONE NAME, 2026-09-07 — Ziad's call. It was `url`,
+    // `brand` and `ride`, three names for one value in all six palettes, and
+    // `$brand` is the survivor because _tokens.scss already called it the
+    // forward-looking one and `$url` the historical accent.
+    //
+    // **`$disabled` IS NOT PART OF THIS MERGE AND MUST NOT BE.** It looks
+    // identical on /brand because that page renders the LIGHT palette, where the
+    // two are the same hex. In the six dark palettes they diverge on purpose:
+    // this one is LIFTED so it stays legible as link text on a near-black page,
+    // and `$disabled` stays the deep sign field so white legends on it still
+    // clear 4.5:1. Measured — white on the lifted blue is 2.76, 3.64 and 2.96 in
+    // the three dark palettes, which is the Route|Ride pill's recorded bug.
+    "brand": $url,
+    // `gpx` AND `kml` ARE GONE, 2026-09-07 — Ziad's call. They were literally
+    // `$go` and `$stop` here, and every derivative below was computed from those
+    // two anyway, so the pair bought two extra names on /brand and nothing else.
+    // A format is not a color: what a GPX badge wants is the green signal, and
+    // saying so with `$go` is what stops somebody nudging one of the two and
+    // silently splitting a pair that was never meant to differ.
     "grey": $grey,
     "text": $text,
 
@@ -413,38 +448,24 @@ $-signs-colorblind: (
     "panel-bg": $panel-bg,
     "panel-shadow": $panel-shadow,
 
-    "brand": $url,
-    "ride": $url,
     "route": $stop,
     "date": $interstate,
 
     // The promoted derivations. All are legibility-derived and therefore signed.
-    "text-l15": -adj($text, 15%, $dir),
-    "text-l20": -adj($text, 20%, $dir),
-    "text-l25": -adj($text, 25%, $dir),
-    "text-l30": -adj($text, 30%, $dir),
-    "text-l35": -adj($text, 35%, $dir),
-    "text-l40": -adj($text, 40%, $dir),
-    "grey-d3": -adj($grey, -3%, $dir),
-    "grey-d5": -adj($grey, -5%, $dir),
-    "grey-d8": -adj($grey, -8%, $dir),
-    "grey-l6": -adj($grey, 6%, $dir),
-    "grey-l8": -adj($grey, 8%, $dir),
-    "gpx-l8": -adj($go, 8%, $dir),
-    "gpx-l45": -adj($go, 45%, $dir),
-    "gpx-d12": -adj($go, -12%, $dir),
-    "gpx-d14": -adj($go, -14%, $dir),
-    "gpx-d20": -adj($go, -20%, $dir),
-    "kml-d6": -adj($stop, -6%, $dir),
-    "kml-d8": -adj($stop, -8%, $dir),
-    "kml-d10": -adj($stop, -10%, $dir),
-    "kml-d20": -adj($stop, -20%, $dir),
-    "url-l43": -adj($url, 43%, $dir),
-    "url-l46": -adj($url, 46%, $dir),
-    "url-l52": -adj($url, 52%, $dir),
-    "url-d8": -adj($url, -8%, $dir),
-    "url-d10": -adj($url, -10%, $dir),
-    "url-d20": -adj($url, -20%, $dir),
+    "go-l8": -adj($go, 8%, $dir),
+    "go-l45": -adj($go, 45%, $dir),
+    "go-d12": -adj($go, -12%, $dir),
+    "go-d14": -adj($go, -14%, $dir),
+    "go-d20": -adj($go, -20%, $dir),
+    "stop-d6": -adj($stop, -6%, $dir),
+    "stop-d10": -adj($stop, -10%, $dir),
+    "stop-d20": -adj($stop, -20%, $dir),
+    "brand-l43": -adj($url, 43%, $dir),
+    "brand-l46": -adj($url, 46%, $dir),
+    "brand-l52": -adj($url, 52%, $dir),
+    "brand-d8": -adj($url, -8%, $dir),
+    "brand-d10": -adj($url, -10%, $dir),
+    "brand-d20": -adj($url, -20%, $dir),
     "brand-d6": -adj($url, -6%, $dir),
     "interstate-d6": -adj($interstate, -6%, $dir),
     "stop-d8": -adj($stop, -8%, $dir),

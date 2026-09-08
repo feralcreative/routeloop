@@ -27,7 +27,7 @@ import { db } from '../db/index'
 import { users } from '../db/schema'
 import { friendAcceptedEmail } from '../emails/friend-accepted'
 import { friendRequestEmail } from '../emails/friend-request'
-import { sendTemplateDetached } from '../auth/mailer'
+import { notify } from '../notifications/service'
 
 type Card = { email: string | null; displayName: string; username: string | null }
 
@@ -67,9 +67,20 @@ export function notifyFriendRequest(fromId: number, toId: number): void {
     if (!both) return
     const from = both.get(fromId)!
     const to = both.get(toId)!
-    sendTemplateDetached(to.email, friendRequestEmail, {
-      fromName: from.displayName,
-      fromHandle: from.username!,
+    // THROUGH notify() RATHER THAN STRAIGHT TO THE MAILER, as of 2026-09-07:
+    // that is what puts a switch on it and what gives it a browser channel. The
+    // recipient lookup stayed here because the friendship PAIR rule is a fact
+    // about friendships rather than about notification — see senders.ts on why
+    // these three were not moved.
+    notify(toId, {
+      event: 'friend_request',
+      title: `${from.displayName} wants to be friends`,
+      body: 'Accept or decline on your friends page.',
+      url: '/friends',
+      email: {
+        template: friendRequestEmail,
+        props: { fromName: from.displayName, fromHandle: from.username! },
+      },
     })
   })().catch((err) => {
     console.warn('[friends] request notification failed:', err)
@@ -90,9 +101,15 @@ export function notifyFriendAccepted(accepterId: number, requesterId: number): v
     if (!both) return
     const accepter = both.get(accepterId)!
     const requester = both.get(requesterId)!
-    sendTemplateDetached(requester.email, friendAcceptedEmail, {
-      friendName: accepter.displayName,
-      friendHandle: accepter.username!,
+    notify(requesterId, {
+      event: 'friend_accepted',
+      title: `${accepter.displayName} accepted your friend request`,
+      body: 'You can put each other on rides now.',
+      url: `/@${accepter.username!}`,
+      email: {
+        template: friendAcceptedEmail,
+        props: { friendName: accepter.displayName, friendHandle: accepter.username! },
+      },
     })
   })().catch((err) => {
     console.warn('[friends] accept notification failed:', err)

@@ -217,7 +217,7 @@ $fb-legend-dark: palette.light("ink-dark");
   // hover stays underneath the three below.
   &:hover,
   &:focus-visible {
-    border-color: $url;
+    border-color: $brand;
   }
 
   // ON THE SIGNED CARDS ONLY. An arrow is a LEGEND, and a card with no field is
@@ -294,7 +294,7 @@ $fb-legend-dark: palette.light("ink-dark");
   line-height: 1.45;
 
   &:focus-visible {
-    border-color: $url;
+    border-color: $brand;
     outline: none;
   }
 }
@@ -356,20 +356,20 @@ $fb-legend-dark: palette.light("ink-dark");
   }
 
   &:hover {
-    border-color: $url;
+    border-color: $brand;
   }
 
   // Both, because the class is set by feedback.js and :has covers the case
   // where it never loaded.
   &.is-on,
   &:has(input:checked) {
-    border-color: $url;
-    background: color-mix(in srgb, $url 10%, $white);
+    border-color: $brand;
+    background: color-mix(in srgb, $brand 10%, $white);
     font-weight: 600;
   }
 
   &:focus-within {
-    outline: 3px solid $url;
+    outline: 3px solid $brand;
     outline-offset: 2px;
   }
 }
@@ -537,7 +537,7 @@ $fb-legend-dark: palette.light("ink-dark");
   }
 
   &.is-question {
-    color: $url;
+    color: $brand;
   }
 }
 
@@ -559,7 +559,7 @@ $fb-legend-dark: palette.light("ink-dark");
 .fb-response {
   margin: 0.6em 0 0;
   padding: 0.6em 0.9em;
-  border-left: 4px solid $url;
+  border-left: 4px solid $brand;
   background: $neutral-96;
   font-size: 1.0625rem;
 }
@@ -1005,8 +1005,8 @@ html.map-page:has(.map-timeline:not([hidden])) {
     text-transform: capitalize;
 
     &.is-on {
-      border-color: $url;
-      background: color-mix(in srgb, $url 12%, transparent);
+      border-color: $brand;
+      background: color-mix(in srgb, $brand 12%, transparent);
       font-weight: 600;
     }
   }
@@ -1197,19 +1197,19 @@ html.map-page:has(.map-timeline:not([hidden])) {
   // gas-stop one, but it is still the only control on the card.
   min-height: 44px;
   padding: 0.4em 1em;
-  border: 2px solid $url;
+  border: 2px solid $brand;
   border-radius: 999px;
   background: transparent;
   color: $text;
   cursor: pointer;
 
   &:hover {
-    background: color-mix(in srgb, $url 10%, transparent);
+    background: color-mix(in srgb, $brand 10%, transparent);
   }
 }
 
 .b-want.is-wanted button {
-  background: color-mix(in srgb, $url 16%, transparent);
+  background: color-mix(in srgb, $brand 16%, transparent);
   font-weight: 600;
 }
 

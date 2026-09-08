@@ -83,7 +83,7 @@
 // eyebrow has air between every letter, so it needs weight to hold as a block,
 // while the h1 has size doing that job for it.
 .eyebrow {
-  color: $url;
+  color: $brand;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -299,7 +299,7 @@
     }
 
     &[aria-invalid="true"] {
-      border-color: $kml;
+      border-color: $stop;
     }
   }
 }
@@ -505,7 +505,7 @@ body.splash-page {
       0 1px 16px rgba(6, 10, 12, 0.55);
   }
 
-  // $accent, not $url — the latter is far too dark to sit on the footage.
+  // $accent, not $brand — the latter is far too dark to sit on the footage.
   .eyebrow {
     color: $accent;
   }
@@ -572,7 +572,7 @@ body.splash-page {
   }
 
   // Sign out on the holding page sits straight on the clip with no backing.
-  // As $url it measured 2.9:1 over bright gravel and 2.3:1 over dark foliage,
+  // As $brand it measured 2.9:1 over bright gravel and 2.3:1 over dark foliage,
   // both under WCAG AA. It stays a link rather than becoming a fourth button:
   // it is a lighter action than the three above it and should not read as their
   // equal. Same treatment as the other over-video text instead.
@@ -596,8 +596,8 @@ body.splash-page {
     }
   }
 
-  // .notice is a SOFT TINT, not a solid block — color-mix(in srgb, $gpx 12%, transparent) behind text
-  // colored a darkened $gpx. That is right on the white pages it was built for
+  // .notice is a SOFT TINT, not a solid block — color-mix(in srgb, $go 12%, transparent) behind text
+  // colored a darkened $go. That is right on the white pages it was built for
   // and wrong here: 12% of anything over moving footage is transparent, and dark
   // green on a bright frame is close to invisible. The comment that used to sit
   // here asserted the opposite, which is how it survived this long.
@@ -613,13 +613,13 @@ body.splash-page {
     color: rgba(255, 255, 255, 0.88);
     background: color.change($splash-ink, $alpha: 0.78);
     border: 1px solid rgba(255, 255, 255, 0.16);
-    border-left: 4px solid $gpx;
+    border-left: 4px solid $go;
     @include over-video-panel;
 
     &.is-error {
       background: color.change($splash-ink, $alpha: 0.78);
       border-color: rgba(255, 255, 255, 0.16);
-      border-left-color: $kml;
+      border-left-color: $stop;
     }
   }
 }

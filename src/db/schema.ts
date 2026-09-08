@@ -282,6 +282,27 @@ export const users = pgTable(
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
     // two triggers cannot both run it. See src/account/purge.ts.
     purgeStartedAt: timestamp('purge_started_at'),
+
+    // WHEN A WARNING WAS LAST SENT, AND BOTH ARE ANTI-REPEAT STAMPS RATHER THAN
+    // FLAGS. The sweeps that read them run every five minutes and every hour, so
+    // the question is never "should this rider be warned" — it is "have they
+    // been warned about THIS", and a boolean cannot answer that a second time
+    // after the condition clears and comes back.
+    //
+    // Nullable with no default, for the reason approved_email_at documents: a
+    // schema push stamps a default onto every existing row, and null here means
+    // "never warned", which is true of every row today.
+    //
+    // `quota_warned_at` is CLEARED when a rider drops back under the line, which
+    // is what makes the warning repeatable without being repetitive — a rider who
+    // frees space and fills it again is told again, and one sitting at 95% for a
+    // month is told once. See src/account/quota-sweep.ts.
+    quotaWarnedAt: timestamp('quota_warned_at'),
+    // The account-deletion warning. Never cleared by the sweep: Save Me clears
+    // `purge_after` itself, and a rider who asks to leave a second time gets a
+    // fresh `purge_after` — so the sweep's own "is this stamp older than the
+    // current request" test is what makes the second warning fire.
+    purgeWarnedAt: timestamp('purge_warned_at'),
   },
   (t) => [
     index('idx_user_status').on(t.status),
@@ -919,6 +940,16 @@ export const rides = pgTable(
     // because a ride purge also removes files from disk and can therefore
     // half-finish; a place purge is one statement.
     purgeStartedAt: timestamp('purge_started_at'),
+
+    // WHEN THE RIDER WAS WARNED THIS RIDE WAS ABOUT TO BE DESTROYED.
+    //
+    // Set once, a week out, by the hourly trash sweep. It is NOT cleared on
+    // restore and does not need to be: `purge_after` is recomputed from scratch
+    // on every trash, so a ride taken out of the bin and put back has a fresh
+    // deadline, and the sweep compares this stamp against that deadline rather
+    // than merely testing it for null. A stamp older than the current hold is a
+    // warning about a purge that never happened, and the ride is warned again.
+    purgeWarnedAt: timestamp('purge_warned_at'),
 
     // WHAT A SAVE IS CHECKED AGAINST, so two riders in one builder cannot
     // silently overwrite each other. Bumped in the same transaction as every
@@ -2001,7 +2032,126 @@ export const routeRiders = pgTable(
 
 export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
+// WHAT A RIDER HAS TURNED OFF, AND ONLY WHAT THEY HAVE TURNED OFF.
+//
+// **A ROW IS AN ANSWER; THE ABSENCE OF ONE IS "NEVER ASKED".** The default lives
+// in src/notifications/policy.ts — email on, browser off — and this table stores
+// the deviation, exactly as `home_label` stores a name and lets "Home" live in
+// code. That is what lets us change our mind about a default and have it reach
+// every rider who never expressed an opinion while reaching none of the riders
+// who did, and it is the only arrangement that works on the FIRST new event: a
+// `default true` column writes nothing for existing riders, because their row
+// does not exist yet, so the default has to be in code regardless.
+//
+// **`event` IS A varchar AND NOT A pgEnum, DELIBERATELY.** Nearly every other
+// closed vocabulary here is an enum and should be; this one is the exception
+// because the whole point of a notification catalog is that the next one is a
+// code change. `ALTER TYPE … ADD VALUE` per event would make "tell riders about
+// X" a migration and a deploy, and would grow the same ordering scar tissue
+// `visibility` carries. src/notifications/catalog.ts is the validator, and
+// `isEvent()` is what every read goes through — a row naming an event this build
+// has never heard of is IGNORED rather than trusted, which is also what makes
+// removing an event safe with no migration behind it.
+//
+// Cascades from `users`, so an account purge takes a rider's answers with it.
+export const notificationPrefs = pgTable(
+  'notification_prefs',
+  {
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    event: varchar('event', { length: 40 }).notNull(),
+    channel: varchar('channel', { length: 16 }).notNull(),
+    enabled: boolean('enabled').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // The PK IS the lookup. The send path asks for one rider's whole answer set
+    // and the settings page writes it back the same way, so there is no second
+    // access pattern to index for.
+    primaryKey({ columns: [t.userId, t.event, t.channel] }),
+  ],
+)
+
+// A BROWSER NOTIFICATION WAITING TO BE RAISED.
+//
+// **THIS EXISTS BECAUSE CHROME'S NOTIFICATION API ONLY FIRES FROM AN OPEN PAGE.**
+// `new Notification(...)` is a call a live document makes; it is not a delivery
+// channel a server can reach on its own — that is Web Push, which needs a
+// service worker, a VAPID key pair through the deploy allow-list AND the compose
+// block, and a dependency. Ziad's call, 2026-09-07, was the browser's own
+// notification and not push, so the server's half of the job is to LEAVE the
+// message somewhere the next open page will find it. This table is that
+// somewhere, and `public/js/notifications.js` is what polls it.
+//
+// **`delivered_at` IS WHAT STOPS A SECOND RAISE**, not a delete. A row survives
+// being shown so that two tabs cannot both raise it (the poll claims by
+// stamping) and so that a failure to raise is distinguishable from a message
+// that was never stored. Rows are pruned on read rather than by a timer — the
+// poll deletes that rider's delivered rows older than the retention window,
+// which is self-limiting, costs no sixth `unref()`d interval, and cannot run for
+// a rider who has stopped visiting (whose rows the account purge takes anyway).
+//
+// **NOTHING IS WRITTEN HERE FOR A RIDER WHO HAS THE BROWSER CHANNEL OFF.** The
+// preference is checked before the insert, not before the raise, so turning the
+// channel on does not surface a backlog of everything that happened while it was
+// off — which would be a wall of toasts on the next page load and is nobody's
+// idea of switching a setting on.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // The catalog key, for the same reason and under the same rules as
+    // notification_prefs.event above.
+    event: varchar('event', { length: 40 }).notNull(),
+    // Rendered at SEND time and stored, never re-derived at raise time. The
+    // sender is the only code that holds the ride, the rider and the verb
+    // together, and a notification about a ride that has since been deleted must
+    // still say what it said — the same reasoning `comments.point_label` carries.
+    title: varchar('title', { length: 160 }).notNull(),
+    body: varchar('body', { length: 400 }).notNull(),
+    // Where the notification goes when clicked. A path, never an absolute URL:
+    // it is opened by the page that raised it, and a stored origin would be
+    // wrong on stage the moment a database is cloned from prod.
+    url: varchar('url', { length: 512 }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    // WHEN A TOAST WAS RAISED FOR IT. Set by the poll, which claims and stamps
+    // in one statement so two tabs cannot both raise the same message.
+    deliveredAt: timestamp('delivered_at'),
+    // WHEN THE RIDER READ IT IN THE CENTRE, which is a DIFFERENT question from
+    // whether a toast fired and must not share a column with it. Ziad's call,
+    // 2026-09-07, when the account menu grew a Notifications item with an unread
+    // count: a rider with browser notifications on would otherwise have every
+    // badge silently cleared by a toast they may never have looked at, and a
+    // rider with them off — which is the default — would have `delivered_at`
+    // null forever and every notification permanently unread.
+    readAt: timestamp('read_at'),
+  },
+  (t) => [
+    // The poll's whole query: this rider's undelivered rows, oldest first.
+    // Partial, because delivered rows are the overwhelming majority within
+    // moments and none of them is ever selected by it again.
+    index('idx_notifications_pending')
+      .on(t.userId, t.createdAt)
+      .where(sql`${t.deliveredAt} is null`),
+    // THE BADGE'S OWN INDEX, and it is a SECOND partial index rather than a
+    // widening of the one above because the two predicates are different
+    // questions — `delivered_at` is "has a toast fired", `read_at` is "has the
+    // rider looked". This one is read on EVERY page render for every signed-in
+    // rider, through the correlated subquery in validateSessionToken, so it is
+    // the hottest index in this table by a distance.
+    index('idx_notifications_unread')
+      .on(t.userId)
+      .where(sql`${t.readAt} is null`),
+  ],
+)
+
 export type RouteRiderRow = typeof routeRiders.$inferSelect
+export type NotificationPrefRow = typeof notificationPrefs.$inferSelect
+export type NotificationRow = typeof notifications.$inferSelect
 export type FriendshipRow = typeof friendships.$inferSelect
 export type AltVoteRow = typeof altVotes.$inferSelect
 export type RideSubgroupRow = typeof rideSubgroups.$inferSelect

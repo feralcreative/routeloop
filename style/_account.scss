@@ -64,7 +64,15 @@
   }
 
   > p {
-    max-width: 60ch;
+    // 85ch, NOT the 60ch every other explanation on this page takes. Ziad's
+    // call, 2026-09-07: at 60ch this was wrapping at about half the width and
+    // read as a narrow column stranded under a full-width heading, which is a
+    // different thing from a comfortable measure. 85ch lands near three quarters
+    // of the wrap at its cap and simply fills the width below it.
+    //
+    // It is the TOPIC lede alone. `.setting`'s own 60ch stays, because those sit
+    // in a column half this wide and are the case that cap was written for.
+    max-width: 85ch;
     margin-top: 0;
   }
 
@@ -72,8 +80,14 @@
   // down. Sized between the topic's h2 and body text — it is a label for a
   // column, not a section heading competing with the topic above it.
   h3 {
-    margin: 0 0 0.5rem;
-    font-size: 1rem;
+    // TIGHT UNDER, LARGER OVER. Ziad's call, 2026-09-07, and the two halves are
+    // one change: a subhead earns its space by being legible as a heading, not
+    // by having a gap under it. At 1rem it was the same size as the body text
+    // beside it and needed the 0.5rem to read as a heading at all — so making it
+    // bigger is what PAID for taking the gap away, and doing either alone would
+    // have been worse than leaving it.
+    margin: 0 0 0.15rem;
+    font-size: 1.15rem;
   }
 }
 
@@ -86,6 +100,20 @@
 //
 // ONE ROW THAT WRAPS RATHER THAN A GRID: nine chips is a strip on any width the
 // settings column takes, and a grid would leave a ragged last row on a phone.
+// FULL WIDTH, AGAINST THE 85ch ITS SIBLING PARAGRAPHS TAKE. The bar is a `<p>`,
+// so it caught `.setting-topic > p`'s measure and stopped two thirds of the way
+// across — a measure is for prose and this is a picture. It spans the row of
+// controls under it now, which is what it is a picture OF.
+//
+// **SCOPED, BECAUSE A BARE `.palette-bar` LOSES.** `.setting-topic > p` is a
+// class AND a type selector, which outranks a single class however far down the
+// file it sits — so `max-width: none` on `.palette-bar` alone was simply
+// discarded, with the bar rendering at exactly the width it had before and
+// nothing to say why.
+.setting-topic > .palette-bar {
+  max-width: none;
+}
+
 .palette-bar {
   display: flex;
   flex-wrap: wrap;
@@ -146,6 +174,26 @@
   &[data-save="error"] {
     border-color: $stop;
   }
+}
+
+// A GROUP THAT SHOWS ITS EDGE AT REST.
+//
+// `.setting` is deliberately unboxed — boxing every section makes a settings
+// page read as a run of warnings — and that holds for a page of six radio
+// groups under six headings. The notification groups are the case it does not
+// hold for: five tables of checkboxes with nothing between them, where the
+// question is which set a given row belongs to, and a heading alone does not
+// answer it once the sets sit two-abreast.
+//
+// **IT ONLY PAINTS A BORDER THAT WAS ALREADY RESERVED.** Every `.setting-form`
+// carries a transparent 2px edge so the save state has somewhere to appear
+// without moving the controls down two pixels; this colors the resting state of
+// that same edge, so the box costs no layout at all. The `[data-save]` rules
+// above outrank this on specificity by construction — a class against a class
+// plus an attribute — so the sequence a rider sees is grey, amber, green, grey,
+// rather than a border appearing out of nothing and vanishing again.
+.setting-form--boxed {
+  border-color: $grey;
 }
 
 //@ Motion — the transition is the only movement here, and it goes with the rest
@@ -219,7 +267,7 @@
   margin: 0 0 0.4rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: $text-l20;
+  color: $neutral-43;
 }
 
 .choice {
@@ -283,6 +331,161 @@
 .setting-note {
   font-size: 0.9rem;
   opacity: 0.8;
+}
+
+// THE AUTOSAVE'S OWN WORDS, beside the border that carries the same state as a
+// color. Built by autosave.js, so it is absent with script off — see that file.
+//
+// It takes its color from the group's `data-save`, which means the border and
+// the text cannot disagree about what just happened. Muted at rest and for the
+// two routine states, because a settings page where every group shouts its own
+// status is a page of noise; only `error` takes weight, which is the one state a
+// rider has to do something about.
+.save-note {
+  font-size: 0.85rem;
+  color: $neutral-50;
+  // Fixed footprint, the property the builder's own readout is careful about:
+  // "Unsaved changes" is the longest string in SAVE_TEXT, and letting the box
+  // grow and shrink with the word reflows whatever sits beside it three times
+  // per save. Keep the two in step — a longer state string added there needs
+  // this widened, or it wraps.
+  min-width: 15ch;
+}
+
+[data-save="saved"] .save-note {
+  color: $go;
+}
+
+[data-save="error"] .save-note {
+  color: $stop;
+  font-weight: 600;
+}
+
+// NOTIFICATIONS — thirteen events across two channels, as a real <table>.
+//
+// **A TABLE AND NOT A GRID OF DIVS, BECAUSE IT IS ONE.** Two column headers
+// govern every row, and a screen reader that can say "Email, checkbox, checked"
+// while moving down the column is doing something no `display: grid` over a list
+// of labels can. The visible column heads are the only labels those checkboxes
+// would otherwise have — the per-box text is `.visually-hidden` because
+// repeating "Email me when somebody comments" beside a two-letter header would
+// make the table unreadable for everyone who can see it.
+//
+// It scrolls inside its own container rather than letting the page scroll
+// sideways, which is the house rule for every wide thing.
+.notif-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+
+  th,
+  td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid $grey;
+    text-align: left;
+    // The row headers carry two lines of prose, so top alignment is what keeps
+    // the checkboxes level with the LABEL rather than floating beside the
+    // middle of a wrapped explanation.
+    vertical-align: top;
+  }
+
+  // **DIMMED WITH A COLOR, NEVER WITH `opacity`, AND THAT IS NOT A PREFERENCE.**
+  // The group name is an <h3> INSIDE one of these cells, and opacity applies to
+  // an element and everything under it as one composited layer — a child cannot
+  // be more opaque than its parent, so `opacity: 1` on the h3 did nothing at all
+  // and the heading rendered as grey as the channel labels. A color is
+  // inherited and therefore overridable, which is what the h3 below needs.
+  thead th {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $neutral-50;
+    border-bottom-width: 2px;
+    // BOTTOM, against the `top` the body rows take. The group name lives in the
+    // first of these cells and is nearly twice the size of "Email" beside it, so
+    // aligning by the top would leave the two channel labels floating level with
+    // the group name's ascenders. Bottom sits every label on one line.
+    vertical-align: bottom;
+  }
+
+  // The group name in the first column header. It keeps its size from
+  // `.setting-topic h3` and loses only the margin — the cell's own padding is
+  // the spacing now, and a margin would push it off the shared baseline.
+  thead h3 {
+    margin: 0;
+    // FULL STRENGTH, LIKE THE H2 ABOVE IT. Ziad's call, 2026-09-07: it is a
+    // heading and reads as one, where the two labels beside it are column
+    // furniture. Not uppercased or letter-spaced either, for the same reason —
+    // it names the set rather than labelling a column.
+    color: $text;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  // The two channel columns are as narrow as a checkbox needs, so the row
+  // header takes everything left over — which is where the words are.
+  thead th:not(:first-child),
+  tbody td {
+    width: 4.5rem;
+    text-align: center;
+  }
+
+  tbody th {
+    font-weight: 400;
+  }
+
+  tr:last-child th,
+  tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+// The label and its `?` sit on one line. `.label-row` already exists for exactly
+// this — a help dot must not live inside a <label>, because a label forwards a
+// click to the control it names and the field would take focus behind the bubble
+// that just opened.
+.notif-label {
+  // Not `block`: the dot follows it on the same line, and the row is one line
+  // tall on purpose. Five groups of two-line rows is what made this section the
+  // longest on the page.
+  display: inline;
+}
+
+// The whole cell is the target, not just the 13px box. A checkbox is the
+// smallest thing on this page and there are twenty-six of them.
+.notif-box {
+  display: block;
+  padding: 0.15rem;
+  cursor: pointer;
+
+  input {
+    cursor: pointer;
+  }
+}
+
+// The permission row. `hidden` in the markup and un-hidden by notifications.js,
+// because with no script there is nothing behind the button — asking for a
+// permission the page cannot then act on is a dialog that does nothing.
+.notif-permission {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.notif-permission-state {
+  font-size: 0.9rem;
+  opacity: 0.8;
+
+  // BLOCKED IS THE ONE STATE WORTH COLORING, and it is amber rather than red:
+  // the rider chose it, possibly by accident, and it is entirely recoverable in
+  // their browser settings. Red is a verdict in this app's vocabulary and
+  // nothing here has gone wrong.
+  &[data-state="denied"] {
+    color: $warning;
+    opacity: 1;
+  }
 }
 
 // GTFO — the account exits on /settings.
@@ -360,10 +563,10 @@
 // out of a column of otherwise identical buttons, not because it is dangerous
 // in the moment — Delete Me is reversible for thirty days.
 .btn.btn-danger {
-  background: $kml;
+  background: $stop;
 
   &:hover {
-    background: $kml-d8;
+    background: $stop-d8;
   }
 }
 
@@ -626,4 +829,76 @@
   &[data-state="error"] {
     color: $label;
   }
+}
+
+// THE NOTIFICATION CENTRE. A record rather than an inbox — nothing here is
+// replied to, filed or dismissed, so the list carries no controls at all and the
+// only gesture is following one to the thing it is about.
+.notif-feed {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  max-width: 85ch;
+}
+
+.notif-feed-item {
+  border-bottom: 1px solid $grey;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  > a,
+  > .notif-feed-plain {
+    display: block;
+    padding: 0.9rem 0.9rem 0.9rem 1.4rem;
+    // The unread rule sits in this gutter. Reserved on every row rather than
+    // added to the new ones, or the whole list would shift left as a rider read
+    // it — the same fixed-footprint reasoning the save readout carries.
+    position: relative;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  > a:hover {
+    background: $neutral-96;
+  }
+}
+
+// UNREAD IS A RULE IN THE GUTTER, NOT A BACKGROUND WASH. A tinted row reads as
+// selected, which is a state this list does not have, and on a page where most
+// rows are unread the wash becomes the background and says nothing.
+.notif-feed-item.is-new > a::before,
+.notif-feed-item.is-new > .notif-feed-plain::before {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  top: 1.15rem;
+  width: 4px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: $stop;
+}
+
+.notif-feed-title {
+  display: block;
+  font-weight: 600;
+}
+
+.notif-feed-body {
+  display: block;
+  margin-top: 0.1rem;
+  text-wrap: pretty;
+}
+
+.notif-feed-meta {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: $neutral-50;
+}
+
+.empty-note {
+  max-width: 60ch;
+  color: $neutral-50;
 }

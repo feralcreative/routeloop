@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, type RideRow } from '../db/schema'
+import { notifyRideComment } from '../notifications/senders'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { canViewAsMember } from '../members/policy'
 import { canPost } from '../comments/policy'
@@ -89,6 +90,10 @@ commentRoutes.post('/api/rides/:id/comments', requireActiveApi, requireSameOrigi
   const pointLabel = pointUid && typeof b.pointLabel === 'string' ? b.pointLabel.slice(0, 200) : null
   const res = await postComment(found.ride.id, user.id, b.body, { pointUid, pointLabel })
   if (!res.ok) return c.json({ error: res.reason }, res.reason === 'refused' ? 403 : 400)
+  // AFTER the write, and deliberately not awaited: notify() is void and does its
+  // own reads, so an SMTP round trip must not sit between the insert and the
+  // response. The commenter is excluded inside ownersOf().
+  notifyRideComment(found.ride.id, user.id, String(b.body ?? ''), pointLabel)
   return c.json({ id: res.id })
 })
 

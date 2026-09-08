@@ -53,6 +53,7 @@ import {
   roleOf,
   roster,
   setPerm,
+  goingCount,
   setRsvp,
   type RosterEntry,
 } from '../members/service'
@@ -68,6 +69,7 @@ import { fmtDateFull } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
 import { page } from '../views/layout'
+import { notifyRideAdded, notifyRsvp } from '../notifications/senders'
 import { ownRide } from './maps'
 
 export const rosterRoutes = new Hono<AuthEnv>()
@@ -561,6 +563,28 @@ const ERRORS: Record<string, string> = {
 /** Every verb lands back on the roster, with the refusal in the query string
  *  rather than as a status code — this is a form post from a page, and a bare
  *  403 would replace the roster with an error document. */
+/**
+ * When the ride sets off, or null.
+ *
+ * The FIRST route's `start_at` in position order, which is what a rider being
+ * added means by "when is it". Read here rather than carried on the ride row
+ * because there is no such column — a ride's dates live on its routes, and the
+ * first one is the only one that answers this question.
+ *
+ * **IT IS A WALL CLOCK CARRIED AS UTC**, like every `start_at` in the app, so it
+ * is formatted with no zone anywhere — `fmtDateNumeric` reads it in UTC, which
+ * is correct rather than a workaround. See the route-clock rule in AGENTS.md.
+ */
+async function firstDepartureOf(rideId: number): Promise<Date | null> {
+  const [row] = await db
+    .select({ startAt: routesTable.startAt })
+    .from(routesTable)
+    .where(eq(routesTable.rideId, rideId))
+    .orderBy(routesTable.position)
+    .limit(1)
+  return row?.startAt ?? null
+}
+
 const back = (slug: string, error?: string) => `/m/${slug}/riders${error ? `?error=${error}` : ''}`
 
 rosterRoutes.post('/m/:slug/riders/invite', requireActive, requireSameOrigin, async (c) => {
@@ -574,6 +598,11 @@ rosterRoutes.post('/m/:slug/riders/invite', requireActive, requireSameOrigin, as
   // rung is a secondary field on somebody else's form post, and the safe answer
   // to a bad one is the level an invitation grants anyway — never `edit`.
   const res = await invite(found.ride.id, user.id, handle, isPerm(form.perm) ? form.perm : DEFAULT_PERM)
+  // Only a real addition notifies. `already-on` is a no-op insert, and telling
+  // somebody they were added to a ride they were already on is a message about
+  // nothing. The date comes off the ride's first route, formatted for the
+  // RECIPIENT rather than for whoever pressed the button — see senders.ts.
+  if (res.ok) notifyRideAdded(found.ride.id, res.riderId, user.id, await firstDepartureOf(found.ride.id))
   return c.redirect(back(found.ride.slug, res.ok ? undefined : res.reason), 303)
 })
 
@@ -608,8 +637,15 @@ rosterRoutes.post('/m/:slug/riders/rsvp', requireActive, requireSameOrigin, asyn
   const found = await memberRide(c.req.param('slug'), user.id)
   if (!found) return c.text('Not found', 404)
   const form = await c.req.parseBody()
-  const ok = isRsvp(form.rsvp) && (await setRsvp(found.ride.id, user.id, form.rsvp))
-  return c.redirect(back(found.ride.slug, ok ? undefined : 'refused'), 303)
+  const res = isRsvp(form.rsvp) ? await setRsvp(found.ride.id, user.id, form.rsvp) : ({ ok: false } as const)
+  // **ONLY A CHANGED ANSWER, AND NEVER `invited`.** This form posts the whole
+  // field, so pressing Going while already going is an ordinary submit and would
+  // otherwise mail the owner every time a rider re-confirmed. `invited` is the
+  // state a rider is PUT IN when added rather than an answer they gave.
+  if (res.ok && res.changed && isRsvp(form.rsvp) && form.rsvp !== 'invited') {
+    notifyRsvp(found.ride.id, user.id, form.rsvp, await goingCount(found.ride.id))
+  }
+  return c.redirect(back(found.ride.slug, res.ok ? undefined : 'refused'), 303)
 })
 
 // WHICH BIKE I AM BRINGING. Mine only — setBikeOnRide is owner-scoped over the

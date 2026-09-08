@@ -22,7 +22,7 @@
     transform: translateX(-50%) translateY(0);
   }
   &.error {
-    background: $kml;
+    background: $stop;
   }
 }
 // A page-top banner. Still fixed, because on the map page there is no flow to
@@ -34,8 +34,13 @@
   left: 0;
   right: 0;
   z-index: 2001;
-  background: $kml;
-  color: $white;
+  background: $stop;
+  // $ink-light, NOT $white — #282, in a rule that predates the audit that
+  // found it. `--white` is the PAGE SURFACE and is near-black under every dark
+  // scheme, so this banner rendered near-black on red for anyone not on light.
+  // It is a banner that exists to be read at a glance, which is the worst thing
+  // to make illegible.
+  color: $ink-light;
   font: 600 14px/1.4 $font;
   text-align: center;
   padding: 0.5em;
@@ -52,7 +57,7 @@
   }
 
   // "You are on staging." AMBER, NOT RED: the site is working exactly as it
-  // should, and $kml above is the color that means something broke. A warning
+  // should, and $stop above is the color that means something broke. A warning
   // that cries wolf on every page load stops being read by the second route.
   //
   // $ink-dark and not $white, and this is not a preference — $warning is a
