@@ -12,6 +12,9 @@ import { asset } from './assets'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
+import { content } from './content'
+import { faqAnswer } from '../feedback/faq'
+import { faqTokens } from './faq-tokens'
 import { liveReloadScript } from '../dev/livereload'
 
 // A function rather than a const so each icon carries a fresh content hash. The
@@ -70,16 +73,26 @@ export type NavKey =
   // 'rides': /friends became a tab of the riders screen (#179), both its URLs
   // set 'riders', and a key no NavItem carries is an aria-current that is wired
   // and can never fire.
+  // 'profile' AND 'settings' NOW NAME TWO DOORS INTO ONE PAGE (#269), which is
+  // why both survive the merge. The rule on this union is that a key no NavItem
+  // carries is an aria-current that is wired and can never fire — and both are
+  // still carried and both still fire, because the account menu keeps an item
+  // for each and /profile and /settings each set their own. Collapsing them to
+  // one key would mark BOTH items current on every visit, which is worse than
+  // the duplication it would be tidying away.
   | 'profile'
   | 'settings'
   | 'trash'
+  // ONE ADMIN KEY, NOT FOUR, as of 2026-09-07. `approvals`, `invites` and
+  // `survey-results` went with the four-item admin block in the account menu —
+  // and they had to, under this union's own rule: a key no NavItem carries is an
+  // `aria-current` that is wired and can never fire. The three pages set 'admin'
+  // now, so the one item highlights across the whole admin section.
   | 'admin'
-  | 'approvals'
-  | 'invites'
   | 'survey'
-  | 'survey-results'
   | 'feedback'
   | 'board'
+  | 'notifications'
 
 export type PageOpts = {
   /** Without the " – Routeloop" suffix; page() appends it. */
@@ -144,6 +157,9 @@ export type PageOpts = {
    * area is given the link simply carries none, which is a state the form is
    * built for.
    */
+  /** Kept although the dock that read it is gone: several pages pass it, the
+   *  intake still accepts `?area=`, and removing it would be a churn of call
+   *  sites for a field that costs nothing. */
   feedbackArea?: string
 }
 
@@ -211,13 +227,6 @@ const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
 // is two taps to reach a link that was one; the four labels say what they are
 // without a group heading over them, and the rule already separates the two
 // blocks below it.
-const ADMIN_LINKS: NavItem[] = [
-  { key: 'admin', href: '/admin', label: 'Admin' },
-  { key: 'approvals', href: '/admin/approvals', label: 'Approvals' },
-  { key: 'invites', href: '/admin/invites', label: 'Invitations' },
-  { key: 'survey-results', href: '/admin/survey', label: 'Survey results' },
-]
-
 const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
 
 /**
@@ -243,7 +252,12 @@ function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: s
   )
 }
 
-function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; navKey?: NavKey; isMap?: boolean }) {
+function SiteHeader({
+  user,
+  navKey,
+  isMap = false,
+  unread = 0,
+}: { user: UserRow | null; navKey?: NavKey; isMap?: boolean; unread?: number }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
   // it is 114px wide against the horizontal lockup's 228px, so it takes half as
@@ -340,7 +354,7 @@ function SiteHeader({ user, navKey, isMap = false }: { user: UserRow | null; nav
               </>
             )}
           </div>
-          <div class="nav-end">{user && <NavAccountMenu user={user} navKey={navKey} />}</div>
+          <div class="nav-end">{user && <NavAccountMenu user={user} navKey={navKey} unread={unread} />}</div>
         </nav>
       </details>
     </header>
@@ -477,7 +491,28 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
             leaves it hidden on a one-route ride where the two scopes are the same
             slider. */}
         {opts.scopeToggle ? (
-          <button type="button" class="time-scope" id="time-scope" aria-pressed="false" hidden></button>
+          /* A DOUBLE-SIDED PILL, NOT ONE BUTTON THAT RELABELS ITSELF. Ziad's
+             call, 2026-09-07, and it finishes what the 2026-08-31 change
+             started: that one made the single button say which scope was ON
+             rather than what a click would do, because "Whole ride" while in
+             route scope had riders reading the word "ride" as their state. A
+             two-segment control removes the question entirely — both options
+             are on screen, and the filled one is where you are.
+
+             `role="group"` rather than a radiogroup: these are two buttons that
+             each carry `aria-pressed`, which is what a toggle pair is, and a
+             radio group would promise arrow-key roving that the bar does not
+             implement. renderTimeScope() fills in the pressed states and the
+             titles, and hides the whole pill on a one-route ride where the two
+             scopes are the same slider. */
+          <div class="time-scope-set" id="time-scope" role="group" aria-label="What the slider covers" hidden>
+            <button type="button" class="time-seg" data-scope="route" aria-pressed="true">
+              Route
+            </button>
+            <button type="button" class="time-seg" data-scope="ride" aria-pressed="false">
+              Ride
+            </button>
+          </div>
         ) : (
           ''
         )}
@@ -528,19 +563,93 @@ const SITE_LINKS: { href: string; label: string }[] = [
 // where following a link means abandoning an unsaved ride: the beforeunload
 // guard would catch it, but making someone answer "are you sure" to read a
 // definition is a bad trade.
-export const faqLink = (anchor: string, what: string): string =>
+/**
+ * A `?` beside one field, holding that field's own instructions.
+ *
+ * **THE SECOND `?` IN THIS FILE, AND IT IS NOT `faqLink()`.** That one answers a
+ * SITE-WIDE question and leaves the page to do it — the FAQ is the right home
+ * for "what is the difference between a stop and a POI". This one answers a
+ * question about ONE control, which #268 argues belongs beside the control: a
+ * rider does not leave the page, does not lose the field they were typing in,
+ * and does not scan a long document for the paragraph matching the box in front
+ * of them. Ziad's call, 2026-09-07: instructions for a specific field go in a
+ * bubble rather than sitting under it as permanent grey text.
+ *
+ * **NATIVE `popover`, NO JAVASCRIPT AT ALL.** `popovertarget` gives the toggle,
+ * Escape, light-dismiss and the top layer for free, and #268 says to reach for
+ * that before building one. The top layer is also what makes it immune to being
+ * clipped by whatever the field sits inside.
+ *
+ * **POSITIONED BY CSS ANCHOR POSITIONING WHERE THERE IS ANY, AND CENTERED WHERE
+ * THERE IS NOT.** A top-layer element has no natural relationship to its button,
+ * so without `anchor-name` it lands wherever the viewport puts it. Firefox has
+ * not shipped anchor positioning — the same row `typography.md` records for
+ * `text-wrap: pretty` — so the `@supports` fallback in _forms.scss puts the
+ * bubble near the top of the screen instead. Still readable, still dismissible,
+ * still says the right thing: degraded, not broken.
+ *
+ * **THE ID HAS TO BE UNIQUE ON THE PAGE**, and it is derived from the field name
+ * rather than being passed in, because a duplicate would make one button open
+ * another field's bubble and nothing would say so.
+ *
+ * **IT IS FOR INSTRUCTIONS, NOT FOR DISCLOSURES.** Anything a rider needs to
+ * read BEFORE they act — what a section does with their address, what is shared
+ * with whom — stays visible as prose. A privacy statement behind a click is a
+ * privacy statement most people never see.
+ */
+export const fieldHelp = (name: string, label: string, text: string): string =>
   (
-    <a
-      class="faq-link"
-      href={`/faq#${anchor}`}
-      target="_blank"
-      rel="noopener"
-      title={`What is ${what}?`}
-      aria-label={`What is ${what}? Opens the questions page in a new tab`}
-    >
-      ?
+    // `--anchor` sits on the WRAPPER because both children read it: the button
+    // sets `anchor-name` from it and the bubble sets `position-anchor` to it,
+    // and an anchor name has to be a dashed-ident unique to this field.
+    <span class="field-help" style={`--anchor: --a-${name}`}>
+      <button type="button" class="help-dot" popovertarget={`help-${name}`} aria-label={`More about ${label}`}>
+        ?
+      </button>
+      <span class="help-bubble" id={`help-${name}`} popover="auto">
+        {text}
+      </span>
+    </span>
+  ).toString()
+
+/**
+ * A `?` beside a control the FAQ defines — answered IN PLACE, with the jump as
+ * the fallback (#268).
+ *
+ * **THE ANCHOR IS STILL A REAL LINK AND THAT IS THE WHOLE DESIGN.** Pressing one
+ * used to leave the page, which on the builder means abandoning a route
+ * mid-edit to read two sentences. It opens a popover now — but it is still an
+ * `<a href>`, so a rider with no JavaScript, a middle click and a
+ * ctrl/cmd click all still get `/faq` at the right anchor. The popover is an
+ * enhancement on a link that already worked.
+ *
+ * **ONE SOURCE, TWO SURFACES.** The copy stays in `src/content/faq.html`
+ * addressed by the anchor the link already used, read through `faqAnswer()`, so
+ * the popover and the FAQ entry cannot drift and there is no second place to
+ * write it. `feedback.js` already renders entries inline in the report form;
+ * this is the same mechanism on a third surface.
+ *
+ * **IT DEGRADES TO EXACTLY THE OLD BEHAVIOR WHEN THE ANCHOR IS MISSING.** A
+ * renamed FAQ id returns null here and the link renders alone — a `?` that jumps
+ * is what it was yesterday, where an empty popover would be a control that opens
+ * nothing. `test/faq.test.ts` pins that every anchor `faqLink` is called with
+ * still exists, so the degraded path is a safety net rather than the plan.
+ *
+ * `target="_blank"` IS GONE. It was there because the link left the page and a
+ * new tab kept the builder alive; with the answer arriving in place, the
+ * fallback should behave like an ordinary link.
+ */
+export const faqLink = (anchor: string, what: string): string => {
+  const answer = faqAnswer(content('faq.html', faqTokens()), anchor)
+  const link = (
+    <a class="faq-link" href={`/faq#${anchor}`} data-faq={answer ? anchor : undefined} title={`What is ${what}?`}>
+      <span class="visually-hidden">{`What is ${what}?`}</span>
+      <span aria-hidden="true">?</span>
     </a>
   ).toString()
+  if (!answer) return link
+  return `${link}<span class="faq-pop" id="faq-${esc(anchor)}" popover><b class="faq-pop-q">${esc(`What is ${what}?`)}</b>${answer}</span>`
+}
 
 const SiteLinkRow = () => (
   <>
@@ -594,7 +703,44 @@ const NavAboutMenu = ({ user, navKey }: { user: UserRow | null; navKey?: NavKey 
 // The avatar falls back to initials on a tinted disc: avatar_url is populated
 // from Google sign-in, so every rider who came in through a magic link has none,
 // and a broken image in the header would be the most visible bug on the site.
-const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) => {
+/**
+ * The account chip, and everything behind it.
+ *
+ * **A CHIP RATHER THAN A BARE LOCKUP, AND THE BADGE IS WHY.** Ziad's call,
+ * 2026-09-07. The avatar and name sat loose in the nav with nothing bounding
+ * them, which was fine while they were only a label — a badge needs an edge to
+ * sit on, and an unread count floating beside a name reads as part of the name.
+ * The chip is also what makes the whole thing one press target rather than a
+ * picture next to some text.
+ *
+ * **THE BADGE IS THE ONLY PIECE OF CHROME IN THE APP THAT DEMANDS ANYTHING**, so
+ * it is the only one painted `$stop`: everything else here is a way to somewhere
+ * and this is a count of things that happened while the rider was away. It is
+ * rendered only when the count is non-zero — a badge showing 0 is furniture that
+ * teaches people to stop looking at badges.
+ */
+/**
+ * Unread notifications for the badge, off the SESSION user.
+ *
+ * **NOT A `page()` OPTION, because page() is synchronous and is called from
+ * dozens of places** — an option would work until the next call site forgot it,
+ * and a forgotten badge is not a visible bug, it is a rider who is never told
+ * anything happened. validateSessionToken() counts it on the query it already
+ * runs, exactly as the appearance columns ride along there.
+ *
+ * `UserRow` on its own has no such field — only the session's widened user does
+ * — so this reads it defensively and answers 0 for anything else. That covers
+ * the handful of places that build a bare row to render a page.
+ */
+const unreadOf = (u: UserRow | null): number => {
+  // Through `unknown`, because `UserRow` genuinely has no `unread` and TypeScript
+  // is right to refuse the direct assertion. The widening happens in
+  // validateSessionToken, which page() has no type-level knowledge of.
+  const n = (u as unknown as { unread?: unknown } | null)?.unread
+  return typeof n === 'number' ? n : 0
+}
+
+const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: NavKey; unread?: number }) => {
   const initials = user.displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -604,7 +750,7 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
 
   return (
     <details class="nav-sub nav-account">
-      <summary>
+      <summary class="nav-chip">
         {/* THE UPLOAD FIRST, then the provider picture, then initials (#99).
             avatarUrl is write-once from Google sign-in and a magic-link rider has
             never had one — which is the whole reason the upload exists. */}
@@ -616,45 +762,56 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
           </span>
         )}
         <span class="nav-account-name">{user.displayName}</span>
+        {/* CAPPED AT 99, because three digits is a different-shaped badge and
+            the difference between 100 and 400 unread is not a difference anybody
+            acts on. The accessible name says the real number in words, so the
+            cap is presentational only. */}
+        {unread > 0 && (
+          <span class="nav-badge" aria-hidden="true">
+            {unread > 99 ? '99+' : String(unread)}
+          </span>
+        )}
+        {unread > 0 && <span class="visually-hidden">{unread} unread notifications</span>}
       </summary>
       <div class="nav-sub-items">
-        <NavLink item={{ key: 'profile', href: '/profile', label: 'Your profile' }} navKey={navKey} />
-        {/* FRIENDS IS NOT HERE ANY MORE, as of 2026-08-29 (#179). It sat under
-            the account on the grounds that "/riders is the roster — everyone —
-            and this is the rider's own list, which is a different question about
-            a different set of people". That reasoning is struck rather than left
-            standing to be re-discovered: both are lists of riders with buttons
-            beside them, and they are one two-tab screen now. `/friends` still
-            resolves, because both friendship emails link to it — it opens the
-            Friends tab of `Riders` in the bar above.
+        {/* THE ORDER IS ZIAD'S, 2026-09-07: what happened, then who you are, then
+            your things, then the app, then the door. Notifications leads because
+            it is the only item that changes on its own. */}
+        <NavLink
+          item={{
+            key: 'notifications',
+            href: '/notifications',
+            label: unread > 0 ? `Notifications (${unread})` : 'Notifications',
+          }}
+          navKey={navKey}
+        />
+        {/* TWO ITEMS, ONE PAGE (#269), the way /friends and /riders are — each
+            URL opens its own tab of /settings. They stay two because a rider
+            looking for their profile looks for the word "profile", and the point
+            of the merge is that they should not have to know which page it was
+            filed on. Each keeps its own key so exactly one is marked current.
 
-            The `friends` NavKey went with it, per the rule on the union above:
-            both URLs set 'riders', so the bar highlights Riders on either. */}
-        <NavLink item={{ key: 'settings', href: '/settings', label: 'Settings' }} navKey={navKey} />
+            "Preferences" rather than "Settings", 2026-09-07: the page's own tab
+            is called Preferences, and the menu naming it something else was the
+            same rider-has-to-translate problem the merge was for. */}
+        <NavLink item={{ key: 'profile', href: '/profile', label: 'Profile' }} navKey={navKey} />
+        <NavLink item={{ key: 'settings', href: '/settings', label: 'Preferences' }} navKey={navKey} />
         {/* Under the account rather than under Rides: the bin holds saved places
             and groups as well, so it belongs to the rider rather than to their
-            rides. Nothing here is urgent — a rider only comes looking after they
-            have deleted something they wanted. */}
+            rides. */}
         <NavLink item={{ key: 'trash', href: '/trash', label: 'Recycle bin' }} navKey={navKey} />
         <hr />
-        {/* The always-available way in. The floating button on the builder and
-            viewer is the other one and pre-fills ?area=; this is what a rider on
-            any other screen has, and what someone who wants to re-read their own
-            reports looks for. */}
-        <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Tell us something' }} navKey={navKey} />
-        <NavLink item={{ key: 'board', href: '/board', label: 'Idea board' }} navKey={navKey} />
-        {/* LAST, and behind its own rule. Running the site is the least-often
-            used thing in here and the only block that is not about the rider
-            reading it — an admin is still a rider first, and their own profile,
-            settings and bin should not be below four moderation queues. */}
-        {user.canManageRiders && (
-          <>
-            <hr />
-            {ADMIN_LINKS.map((i) => (
-              <NavLink item={i} navKey={navKey} />
-            ))}
-          </>
-        )}
+        {/* THE ONLY WAY IN NOW THAT THE FLOATING SHIELD IS GONE, and renamed to
+            match — Ziad's call, 2026-09-07. It was "Tell us something" beside a
+            permanent corner button that did the same thing; one affordance
+            called what it is beats two called different things. See the note
+            where feedbackFab used to be. */}
+        <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Feedback' }} navKey={navKey} />
+        {/* ONE ADMIN ITEM, NOT FOUR. Approvals, Invitations and Survey results
+            are all linked from /admin's own dashboard, and four moderation
+            queues in a rider's account menu made the menu about running the site
+            rather than about them. */}
+        {user.canManageRiders && <NavLink item={{ key: 'admin', href: '/admin', label: 'Admin' }} navKey={navKey} />}
         <hr />
         <form method="post" action="/logout">
           <button class="linkbtn" type="submit">
@@ -666,117 +823,24 @@ const NavAccountMenu = ({ user, navKey }: { user: UserRow; navKey?: NavKey }) =>
   )
 }
 
-/**
- * The floating way into the intake, and the way into the release notes. Site
- * chrome: on every page a signed-in rider can reach.
- *
- * It was the builder and the viewer only, on the reasoning that those are where
- * things break. That was half right and it cost the other half — a rider who
- * hits something wrong on /rides, /import or their profile is exactly as stuck,
- * and the way in was an account-menu item they had to know about. Ziad's call,
- * 2026-08-23.
- *
- * A plain link, not a scripted overlay: it has to work when the page around it
- * is the thing that is broken, which is the entire circumstance it exists for.
- *
- * `area` is optional and pre-fills the intake's third screen with a one-tap
- * confirm instead of an eight-chip group. Inference, never a claim — that screen
- * always offers "Somewhere else", which is also what an absent area lands on.
- */
-function feedbackFab(area?: string): string {
-  // ONE LAUNCHER that opens a short menu — the shape Intercom, Zendesk, Crisp
-  // and every other support widget uses, so a tester arrives already knowing
-  // what it is. Ziad's call, 2026-08-23: recognizable beats clever.
-  //
-  // It was two permanent marks for most of that route, which cost one fewer tap on
-  // a bug report and bought a second piece of chrome on every screen forever.
-  // The convention is one affordance for the same reason: the errands behind it
-  // are occasional, and a dock that grows a mark per errand is a menu that
-  // refuses to admit it is a menu.
-  //
-  // THE LAUNCHER IS A CALIFORNIA ROUTE SHIELD WITH AN `i` WHERE THE NUMBER GOES.
-  // Ziad's artwork, 2026-08-23. It is the only mark here that is not a disc, and
-  // that is the point: the house style is highway signs — `.btn` is a guide sign
-  // and the roles are shield-shaped — so the one piece of chrome on every screen
-  // reads as part of the road rather than as a widget bolted to the corner.
-  //
-  // The arched CALIFORNIA lettering came with the artwork and is deliberately
-  // gone: at 56px it was illegible texture, and naming a state on a button that
-  // opens a bug report says nothing about what the button does. The `i` is
-  // centered on its own and sized to the room that left.
-  //
-  // What it beat, so nobody re-proposes them: a speech bubble is the
-  // support-chat glyph and promises a person on the other end within the minute,
-  // and there is nobody there. A question mark is the other half of that
-  // convention, but icon-wtf.svg is ALREADY a `?` on a currentColor disc meaning
-  // an unclassified stop, and the builder is one screen showing both. A
-  // megaphone was tried and drawn badly.
-  //
-  // The shield's field is `currentColor` like every other mark, so it takes
-  // $interstate from .fab-launcher; the border and the `i` are white, and the
-  // outline is a real black stroke as a road sign has.
-  //
-  // The marks are INLINE SVG via icon(), not <img> or a CSS mask: each is a disc
-  // in `currentColor` with the glyph knocked out white, so the element has to be
-  // in the document for the color to reach it. Same mechanism and the same
-  // reasoning as the alpha modal's contact marks — see src/views/icon.ts.
-  return (
-    <div class="fab-dock" data-fab-dock>
-      {/* Before the launcher in the DOM so it opens UPWARD in the tab order as
-          well as visually — a menu that reads after the button that opened it
-          is what a keyboard expects.
-
-          WHAT'S NEW IS FIRST, and the bug report is under it. .fab-menu is a
-          plain `column`, so this order is the visual one top to bottom. The bug
-          led for as long as the menu was a feedback control that had picked up a
-          second item; it reads better the other way round, because the notes are
-          the thing a rider opens on purpose and the bug is the thing they reach
-          for when something has already gone wrong. */}
-      <div class="fab-menu" id="fab-menu" hidden>
-        <button type="button" class="fab-item" data-open-notes data-fab-notes>
-          <span class="fab-item-mark fab-item-mark--notes">{raw(icon('info'))}</span>
-          <span class="fab-item-label">
-            What's new
-            {/* The build is here rather than in a title attribute: this is the
-                one surface where a rider is already looking for it, and a
-                tooltip is not reachable by touch at all.
-
-                It carries the SHA because THE BUILDER AND THE VIEWER RENDER NO
-                FOOTER — `variant: 'map'` skips .page-wrap, which is what wraps
-                siteFooter() — so this and the notes modal are the only places
-                the two most-used screens can say what they are running. Plain
-                text rather than a link: the whole row is already a button that
-                opens the notes, and a link inside it is the same trap the
-                footer comment describes. */}
-            <span class="fab-item-sub">
-              {APP_VERSION}
-              {BUILD_SHA && <span class="fab-item-sha"> · {BUILD_SHA}</span>}
-            </span>
-          </span>
-        </button>
-        <a class="fab-item" href={area ? `/feedback?area=${encodeURIComponent(area)}` : '/feedback'}>
-          <span class="fab-item-mark fab-item-mark--bug">{raw(icon('bug'))}</span>
-          <span class="fab-item-label">Something wrong?</span>
-        </a>
-      </div>
-      <button
-        type="button"
-        class="fab-launcher"
-        aria-expanded="false"
-        aria-controls="fab-menu"
-        aria-label="Help and feedback"
-        title="Help and feedback"
-      >
-        <span class="fab-launcher-open">{raw(icon('help'))}</span>
-        <span class="fab-launcher-close">{raw(icon('close'))}</span>
-        {/* Unread, not decoration — site.js shows it only when this build is
-            one the rider has not opened the notes for. Empty and aria-hidden
-            because the launcher's own label is what gets announced. */}
-        <span class="fab-badge" data-fab-badge hidden aria-hidden="true"></span>
-      </button>
-    </div>
-  ).toString()
-}
+// THE FLOATING SHIELD IS GONE, 2026-09-07 — Ziad's call.
+//
+// `feedbackFab()` rendered a California route shield with an `i` in it, bottom
+// right of every signed-in page, opening a two-item menu: What's new, and a bug
+// report. It was added on 2026-08-23 on the reasoning that a rider who hits
+// something wrong anywhere is exactly as stuck as one in the builder, and that
+// reasoning was sound — what changed is that it was a second permanent piece of
+// chrome saying the same thing as an account-menu item called "Tell us
+// something". One affordance, named for what it does: the menu item is
+// **Feedback** now and it is the only way in.
+//
+// WHAT WENT WITH IT, AND WHERE IT LANDED. The dock's "What's new" item opened
+// the release-notes modal, and it was one of exactly three surfaces carrying the
+// build — the others are the footer's version button and the modal itself. **The
+// footer does not render on a map page** (`variant: 'map'` skips `.page-wrap`,
+// which is what wraps `siteFooter()`), so the builder and the viewer now have no
+// release-notes affordance at all. That is a real gap rather than a tidy-up, and
+// it is written down here rather than discovered later.
 
 /**
  * The release-notes modal, injected into every page by page().
@@ -798,7 +862,7 @@ function releaseNotesModal(): string {
           &times;
         </button>
         <h2 id="rn-title" class="rn-title">
-          What's new
+          What’s new
         </h2>
         {/* The version a rider is actually running, beside the notes that say
             what it contains. This is the answer to "which build did I see that
@@ -820,7 +884,7 @@ function releaseNotesModal(): string {
             same content, server-rendered. */}
         <div class="modal-body rn-body" id="rn-body" data-src="/api/release-notes">
           <p class="rn-loading">
-            <a href="/release-notes">Read what's new</a>
+            <a href="/release-notes">Read what’s new</a>
           </p>
         </div>
       </div>
@@ -880,7 +944,7 @@ function siteFooter(splash: boolean): string {
               anyway give the inner link no keyboard focus, so it would be a
               link only a mouse could follow. Two controls, two jobs: the date
               opens the notes, the hash opens the commit. */}
-          <button type="button" class="site-footer-version" data-open-notes title="See what's new">
+          <button type="button" class="site-footer-version" data-open-notes title="See what’s new">
             {APP_VERSION}
           </button>
           {BUILD_SHA && (
@@ -931,13 +995,30 @@ export function page(opts: PageOpts): string {
   // palette before the first paint.
   // Read off the user rather than passed in, so all 32 call sites get it without
   // being touched — see the note in src/auth/session.ts about why.
-  const u = opts.user as (UserRow & { theme?: string; scheme?: string; motion?: string }) | null
+  const u = opts.user as
+    (UserRow & { theme?: string; scheme?: string; motion?: string; dateFormat?: string; clock?: string }) | null
   const theme = opts.theme ?? u?.theme
   const scheme = opts.scheme ?? u?.scheme
   const motion = opts.motion ?? u?.motion
   const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
   const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
   const motionAttr_ = motion && motion !== 'system' ? ` data-motion="${esc(motion)}"` : ''
+  // TWO MORE STAMPS, AND THEY ARE FOR THE CLIENT RATHER THAN FOR THE CSS (#270).
+  // Three client formatters — fmtClockMin in builder.js, fmtStamp in
+  // map-common.js and fmtMoment in ride-time.js — were calling
+  // `toLocaleTimeString(undefined, …)`, which is the BROWSER's locale and not
+  // the rider's choice, so a rider who asked for 24-hour time got it in the
+  // printed roadbook and nowhere else. site.js reads these two off <html> and
+  // hands them to all three.
+  //
+  // `data-clock` IS OMITTED FOR `locale`, the same rule `data-motion` follows
+  // for `system`: the absence IS the state, and the date format beside it is
+  // what answers instead. `data-date-format` is always stamped, because there is
+  // no absent case — every rider has one, from the column or from the header.
+  const dateFormat = (opts.user ? u?.dateFormat : undefined) ?? 'en-US'
+  const clock = u?.clock
+  const localeAttr_ = ` data-date-format="${esc(dateFormat)}"`
+  const clockAttr_ = clock && clock !== 'locale' ? ` data-clock="${esc(clock)}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -948,7 +1029,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -998,9 +1079,8 @@ export function page(opts: PageOpts): string {
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${stageBanner()}
-${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} />).toString()}
+${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} />).toString()}
 ${body}
-${opts.user && variant !== 'splash' ? feedbackFab(opts.feedbackArea) : ''}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
@@ -1032,6 +1112,18 @@ ${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
 <script src="${asset('/js/units.js')}" defer></script>
 <script src="${asset('/js/feedback-buffer.js')}" defer></script>
 <script src="${asset('/js/site.js')}" defer></script>
+<!--
+  SIGNED-IN PAGES ONLY, because the endpoint it polls is behind requireActiveApi
+  and there is nothing for a signed-out visitor to be notified about. It is also
+  the reason this is not folded into site.js: that file loads on the splash page,
+  and a Notification constructor referenced there is dead weight on the one page
+  we most want to be small.
+
+  It raises CHROME’S OWN notifications and is not a push — no service worker, no
+  VAPID keys, no dependency — so nothing appears while the site is closed. See
+  the file header, and the copy on /settings that says so to the rider.
+-->
+${opts.user ? `<script src="${asset('/js/notifications.js')}" defer></script>` : ''}
 ${opts.scripts ?? ''}
 ${IS_DEV ? liveReloadScript() : ''}
 </body>

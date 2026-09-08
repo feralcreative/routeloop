@@ -23,6 +23,15 @@
 //   - number grouping COULD come along, via fmtNumber below;
 //   - adding a locale later is one enum member and no formatter changes.
 //
+// THE CLOCK HAS ITS OWN CONTROL SINCE 2026-09-07 (#270), AND THE BULLET ABOVE IS
+// STILL TRUE. It is the DEFAULT that follows the locale, not the only thing
+// available: `clock: 'locale'` is what every rider has until they say otherwise
+// and is what that bullet describes. What the arrangement could not express was
+// an American who wants twenty-four-hour time — the only way to get one was
+// en-GB, and 24/08/2026 with it. `fmtClock` takes an optional Clock and
+// overrides `hour12` ALONE; every other consequence of the locale tag, this
+// bullet list included, is untouched. See ./clock.ts.
+//
 // NUMBER GROUPING IS NOT WIRED UP YET, and deliberately. `fmtMiles` and
 // `fmtCount` in src/stats/shape.ts still carry a hardcoded 'en-US', because all
 // three members shipped here are English and group identically as 1,234 — so
@@ -42,6 +51,8 @@
 // preference is not one. A rider in Berlin gets their date order and the word
 // "August".
 
+import { DEFAULT_CLOCK, hour12For, type Clock } from './clock'
+
 export const DATE_FORMATS = ['en-US', 'en-GB', 'en-CA'] as const
 export type DateFormat = (typeof DATE_FORMATS)[number]
 
@@ -59,10 +70,21 @@ export const toDateFormat = (v: unknown): DateFormat =>
   DATE_FORMATS.includes(v as DateFormat) ? (v as DateFormat) : DEFAULT_DATE_FORMAT
 
 /** The settings page's radio set. `example` is the same instant in all three. */
+/**
+ * The settings page's radio set. The examples are the same DATE in all three,
+ * which is the question being asked.
+ *
+ * THE CLOCK CAME OUT OF THESE ON 2026-09-07 (#270). They read
+ * "8/24/2026, 9:05 AM" while the clock was decided here and nowhere else — true
+ * then, and a lie the moment the clock got its own control: a rider who has
+ * asked for twenty-four-hour time would be shown "9:05 AM" beside the date order
+ * they were choosing. The Clock control carries the time examples now, and each
+ * setting shows only what it decides.
+ */
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
-  { id: 'en-US', label: 'Month first', example: '8/24/2026, 9:05 AM' },
-  { id: 'en-GB', label: 'Route first', example: '24/08/2026, 09:05' },
-  { id: 'en-CA', label: 'Year first (ISO)', example: '2026-08-24, 9:05 a.m.' },
+  { id: 'en-US', label: 'Month first', example: '08-24-2026' },
+  { id: 'en-GB', label: 'Day first', example: '24-08-2026' },
+  { id: 'en-CA', label: 'Year first', example: '2026-08-24' },
 ]
 
 // UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a
@@ -81,10 +103,37 @@ export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: stri
 // did not change; what they are handed did.
 const UTC = { timeZone: 'UTC' } as const
 
-/** 8/24/2026 · 24/08/2026 · 2026-08-24 */
-export const fmtDateNumeric = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, UTC)
+/**
+ * 08-24-2026 · 24-08-2026 · 2026-08-24 — dashes and two digits, in the rider's
+ * own order.
+ *
+ * **THE LOCALE DECIDES THE ORDER AND NOTHING ELSE HERE.** Ziad's call,
+ * 2026-09-07. It used to hand the whole decision to Intl, which meant three
+ * different separators and three different paddings as well as three orders:
+ * `8/24/2026`, `24/08/2026`, `2026-08-24`. The order is the thing a rider chose;
+ * the rest was just what each locale happens to do, and reading a column of
+ * dates that change shape as well as sequence is harder than reading one that
+ * does not.
+ *
+ * **THIS IS THE OPPOSITE CALL TO `fmtClock`'s AND BOTH ARE RIGHT.** That one
+ * refuses to spell out `hour`/`minute` precisely so the locale keeps its own
+ * padding, because a 24-hour locale pads and a 12-hour one does not and neither
+ * is our business. Here the padding IS the point: two digits always, so the
+ * fields line up.
+ *
+ * **JOINED FROM PARTS RATHER THAN STRING-REPLACING THE SEPARATOR.** A `/` swap
+ * works on the three locales shipped today and silently would not on a fourth —
+ * `de-DE` separates with `.` — so the parts are read and the literals are
+ * replaced rather than patched.
+ */
+export const fmtDateNumeric = (d: Date, f: DateFormat): string =>
+  new Intl.DateTimeFormat(f, { year: 'numeric', month: '2-digit', day: '2-digit', ...UTC })
+    .formatToParts(d)
+    .filter((p) => p.type !== 'literal')
+    .map((p) => p.value)
+    .join('-')
 
-/** Monday, August 24 — the roadbook's route heading. */
+/** Monday, August 24 — the roadbook's day heading. */
 export const fmtDateLong = (d: Date, f: DateFormat): string =>
   d.toLocaleDateString(f, { weekday: 'long', month: 'long', day: 'numeric', ...UTC })
 
@@ -96,7 +145,8 @@ export const fmtDateFull = (d: Date, f: DateFormat): string =>
 export const fmtMonthShort = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, { month: 'short', ...UTC })
 
 /**
- * 9:05 AM · 09:05 · 9:05 a.m. — the clock follows the locale, which is the point.
+ * 9:05 AM · 09:05 · 9:05 a.m. — the clock follows the locale unless the rider
+ * has said otherwise.
  *
  * `timeStyle: 'short'` rather than `hour`/`minute` options, and the difference is
  * real: spelling the parts out imposes OUR padding on every locale, so en-GB came
@@ -104,8 +154,15 @@ export const fmtMonthShort = (d: Date, f: DateFormat): string => d.toLocaleDateS
  * Intl gets the AM/PM, the separator and the padding each locale actually uses.
  * The roadbook's original used the explicit options, which was invisible while
  * the only locale was en-US.
+ *
+ * `clock` OVERRIDES `hour12` AND NOTHING ELSE (#270). It defaults to `locale`,
+ * which resolves to `undefined` and spreads into the options as a no-op — so a
+ * caller that does not pass one gets exactly the string this returned before the
+ * preference existed. `timeStyle: 'short'` stays either way, which is what keeps
+ * the padding, the separator and the AM/PM spelling with the locale.
  */
-export const fmtClock = (d: Date, f: DateFormat): string => d.toLocaleTimeString(f, { timeStyle: 'short', ...UTC })
+export const fmtClock = (d: Date, f: DateFormat, clock: Clock = DEFAULT_CLOCK): string =>
+  d.toLocaleTimeString(f, { timeStyle: 'short', hour12: hour12For(clock), ...UTC })
 
 /** 1,234 — grouping, so the dashboard stops hardcoding a separator. */
 export const fmtNumber = (n: number, f: DateFormat): string => n.toLocaleString(f)

@@ -541,6 +541,80 @@
 
   // Named for the feature rather than for its shape, so the next helper that
   // lands in this file cannot silently replace it.
+  // THE RIDER'S OWN DATE FORMAT AND CLOCK, read once off <html> (#270).
+  //
+  // WHY THIS EXISTS AT ALL. Three client formatters — fmtClockMin in builder.js,
+  // fmtStamp in map-common.js and fmtMoment in ride-time.js — all called
+  // toLocaleString with `undefined` or `[]` as the locale, which is the
+  // BROWSER's, not the rider's. So the date-format preference reached the
+  // printed roadbook and nothing on screen, and a rider who set 24-hour time
+  // would have got it in exactly one place.
+  //
+  // HERE RATHER THAN IN A FOURTH CLIENT MODULE because site.js is already loaded
+  // by page() on every surface including the builder and the viewer, and a new
+  // file needs a <script> line in builder.ts as well — two edits, the second of
+  // which fails silently. See the AGENTS.md note on that trap.
+  //
+  // READ ONCE AND CACHED, WITH A WAY TO FORGET. Both attributes are
+  // server-rendered, so on every page but one they cannot change without a load.
+  // The exception is /settings, where saving a preference is an autosave rather
+  // than a POST and a redirect — autosave.js re-stamps <html> and calls forget()
+  // so the next read is the rider's new answer rather than the one they arrived
+  // with.
+  var fmtPrefs = null;
+  function timePrefs() {
+    if (fmtPrefs) return fmtPrefs;
+    var el = document.documentElement;
+    var clock = el.getAttribute("data-clock");
+    fmtPrefs = {
+      // The tag, for toLocaleString's first argument. Falling back to undefined
+      // rather than to "en-US" keeps a page rendered without the stamp — a
+      // fragment, a test harness — behaving exactly as it did before.
+      locale: el.getAttribute("data-date-format") || undefined,
+      // undefined LEAVES THE DECISION WITH THE LOCALE, which is what `locale`
+      // means and what the absence of the attribute encodes. It spreads into an
+      // options object as a no-op, the same rule hour12For() follows server-side.
+      hour12: clock === "h12" ? true : clock === "h24" ? false : undefined,
+    };
+    return fmtPrefs;
+  }
+
+  // A `?` THAT ANSWERS IN PLACE, WITH THE JUMP STILL UNDER IT (#268).
+  //
+  // Every one of these is a real `<a href="/faq#x">`, and it stays one: this only
+  // intercepts a PLAIN LEFT CLICK. A middle click, a ctrl/cmd click, a shift
+  // click and "open in new tab" all fall through to the browser and get the FAQ
+  // page at the right anchor — which is the behavior a rider expects from
+  // anything that looks like a link, and the reason the popover could be added
+  // without taking anything away.
+  //
+  // DELEGATED ON THE DOCUMENT, because the builder rebuilds the panel that holds
+  // these on every render and a per-link handler would be lost with it.
+  //
+  // The popover is the link's next sibling, matched by id rather than by
+  // position: the two are written together by faqLink() and nothing moves them,
+  // but an id is the thing that stays true if something ever does.
+  document.addEventListener("click", function (e) {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
+    var link = e.target.closest && e.target.closest("a[data-faq]");
+    if (!link) return;
+    var pop = document.getElementById("faq-" + link.dataset.faq);
+    // No popover rendered means the FAQ anchor went missing, and the link is
+    // then exactly what it was before this existed. Falling through is the
+    // fallback, not a failure.
+    if (!pop || typeof pop.showPopover !== "function") return;
+    e.preventDefault();
+    if (pop.matches(":popover-open")) pop.hidePopover();
+    else pop.showPopover();
+  });
+
+  window.TBFmt = {
+    timePrefs: timePrefs,
+    forget: function () {
+      fmtPrefs = null;
+    },
+  };
+
   window.TBBanner = { refresh: refreshBanner };
 
   function initBanner() {

@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "favor_places" varchar(1000);

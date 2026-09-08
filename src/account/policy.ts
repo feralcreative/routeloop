@@ -56,8 +56,8 @@ export function deletionState(user: DeletionFields, now: Date): DeletionState {
 export const isLeaving = (user: DeletionFields): boolean => user.deletionRequestedAt != null
 
 /**
- * Whole routes left, rounded up so the last partial route still reads as "1 route"
- * rather than "0 routes" to someone deciding whether to hit Save Me. Zero once the
+ * Whole days left, rounded up so the last partial day still reads as "1 day"
+ * rather than "0 days" to someone deciding whether to hit Save Me. Zero once the
  * deadline has passed.
  */
 export function daysUntilPurge(user: DeletionFields, now: Date): number {

@@ -709,13 +709,18 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
 // on the server rather than in builder.js is deliberate: the edit route below
 // never loads this, so an existing ride cannot grow a home stop on every save
 // even if the client logic were wrong.
-async function homeSeed(userId: number): Promise<{ lat: number; lng: number } | null> {
+async function homeSeed(userId: number): Promise<{ lat: number; lng: number; label: string } | null> {
   const [p] = await db
-    .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng })
+    .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng, label: userProfiles.homeLabel })
     .from(userProfiles)
     .where(and(eq(userProfiles.userId, userId), eq(userProfiles.addHomeToRides, true)))
     .limit(1)
-  return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng } : null
+  // "Home" IS A FALLBACK RATHER THAN A STORED DEFAULT, exactly as
+  // builderPrefs() treats "Meeting point": a rider who clears the name goes back
+  // to it, instead of it being written into their profile as though they typed
+  // it. builder.js hardcoded the word until 2026-09-07, which was right for most
+  // riders and wrong for anyone whose home base is the shop.
+  return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Home' } : null
 }
 
 // Everything the builder needs off the rider's profile that is NOT the home
@@ -807,7 +812,7 @@ const OWNS_IT: BuilderStanding = { canEdit: true, isOwner: true, perm: null }
 function builderHtml(
   rideId: number | null,
   user: UserRow,
-  home: { lat: number; lng: number } | null,
+  home: { lat: number; lng: number; label: string } | null,
   prefs: BuilderPrefs,
   // The ride's slug, for the roster link. Null on a new ride, which has no
   // roster to link to — and no ride, so nothing to be on.
@@ -917,7 +922,7 @@ function builderHtml(
             <button type="button" class="route-add" id="route-add" title="Add a route">+ Route</button>
           </div>
 
-          <!-- Select mode's action bar, filled by renderSelectBar() in builder.js
+          <!-- Select mode’s action bar, filled by renderSelectBar() in builder.js
                and hidden whenever state.select is null. It sits above the route
                list rather than floating over it so it cannot cover the very rows
                being ticked. -->
@@ -945,7 +950,7 @@ function builderHtml(
           <!-- THE MEETING-POINT BUTTON IS STATIC MARKUP AND SITS BELOW .tab-actions,
                which is the only way to get "Add a group" above it: the group rows and
                this button used to be one innerHTML in #sg-body, so nothing could be
-               placed between them. Ziad's call, 2026-09-05. Being static also means
+               placed between them. Ziad’s call, 2026-09-05. Being static also means
                #sg-meet-out is no longer destroyed by renderSubgroups(), so a proposal
                survives a re-render by not being rebuilt at all—state.meet is still
                what it is drawn from, because taking one point re-renders the rows.
@@ -958,7 +963,7 @@ function builderHtml(
                  road has to be able to say so without leaving the panel. Session
                  state, not a column: it is a question about this press, and a
                  ride-level answer is a schema change for a number the planner
-                 re-asks the moment the road changes. Ziad's call, 2026-09-06. -->
+                 re-asks the moment the road changes. Ziad’s call, 2026-09-06. -->
             <label class="sg-divert" for="sg-divert">
               <span>within</span>
               <input type="number" id="sg-divert" min="1" max="200" step="5" value="25" inputmode="numeric" />
@@ -1143,7 +1148,7 @@ ${
   rideId && standing.isOwner
     ? `        <div class="builder-danger">
           <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
-          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} routes.</span>
+          <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
         </div>`
     : ''
 }
@@ -1206,7 +1211,7 @@ ${
 
                They are .tb-inline-icon rather than <img>, so hydrateIcons() in
                builder.js inlines the SVG and its fill="currentColor" can take
-               the button's color—including the 0.35 opacity of the disabled
+               the button’s color—including the 0.35 opacity of the disabled
                state. An <img> cannot inherit color and would stay black while
                the button grayed out around it. -->
           <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>

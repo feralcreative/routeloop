@@ -160,7 +160,7 @@ adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
     </>
   ).toString()
 
-  return c.html(page({ title: 'Approvals', user: me, navKey: 'approvals', body }))
+  return c.html(page({ title: 'Approvals', user: me, navKey: 'admin', body }))
 })
 
 adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, async (c) => {

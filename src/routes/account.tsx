@@ -87,7 +87,7 @@ accountRoutes.get('/account/delete', requireActive, async (c) => {
         <>
           <p class="lede">
             This hides your profile and every ride from the site straight away, and schedules everything you have here
-            to be destroyed in {DELETION_HOLD_DAYS} routes.
+            to be destroyed in {DELETION_HOLD_DAYS} days.
           </p>
 
           <h2>What happens now</h2>
@@ -98,14 +98,14 @@ accountRoutes.get('/account/delete', requireActive, async (c) => {
             <li>You can still sign in, and you can still download your data.</li>
           </ul>
 
-          <h2>What happens in {DELETION_HOLD_DAYS} routes</h2>
+          <h2>What happens in {DELETION_HOLD_DAYS} days</h2>
           <ul>
             <li>Your account, your profile, your rides and every file you uploaded are deleted for good.</li>
             <li>There is no undo after that. If you want a copy, take it now.</li>
           </ul>
 
           <p>
-            <strong>Changed your mind at any point in those {DELETION_HOLD_DAYS} routes?</strong> Sign in and hit Save
+            <strong>Changed your mind at any point in those {DELETION_HOLD_DAYS} days?</strong> Sign in and hit Save
             Me. Nothing is destroyed until the time is up, so everything comes back exactly as it was.
           </p>
 
@@ -161,7 +161,7 @@ accountRoutes.get('/account/gone', requireAuth, async (c) => {
   const user = currentUser(c)
   if (!user.deletionRequestedAt) return c.redirect('/settings', 302)
 
-  const routes = daysUntilPurge(user, new Date())
+  const days = daysUntilPurge(user, new Date())
   const dateFormat = await dateFormatFor(c)
 
   const body = (
@@ -169,8 +169,8 @@ accountRoutes.get('/account/gone', requireAuth, async (c) => {
       <h1>Your account is scheduled for deletion</h1>
       <p class="lede">
         {user.purgeAfter
-          ? `Everything you have here will be destroyed on ${fmtDateFull(user.purgeAfter, dateFormat)} — ${routes} ${
-              routes === 1 ? 'route' : 'routes'
+          ? `Everything you have here will be destroyed on ${fmtDateFull(user.purgeAfter, dateFormat)} — ${days} ${
+              days === 1 ? 'day' : 'days'
             } from now.`
           : 'Everything you have here is scheduled to be destroyed.'}
       </p>

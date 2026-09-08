@@ -34,7 +34,7 @@ export function StrandSwitch({ strand, base, extra = '' }: { strand: Strand; bas
           </>
         ) : (
           <>
-            <strong>Everybody's</strong>. Every approach, all the way through.
+            <strong>Everybody’s</strong>. Every approach, all the way through.
           </>
         )}
       </p>

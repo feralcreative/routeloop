@@ -17,11 +17,16 @@
 // NOT do is invent a locale-shaped mechanism to sit alongside the first one: the
 // members are the two systems, because that is the question being asked.
 //
-// FUEL AND VOLUME ARE NOT HERE, and their absence is deliberate rather than
-// unfinished. A bike's range is stored in meters and typed in miles
-// (src/bikes/policy.ts), so it follows this axis for free; liters-vs-gallons is a
-// third question nothing in the app currently asks, and a member added here for
-// it would be a member no formatter reads.
+// FUEL VOLUME IS ITS OWN MODULE AS OF 2026-09-07 (#270), and it is still not a
+// member here. It was absent entirely until then on the reasoning that nothing
+// in the app asked the question — true while `bikes` had no capacity column, and
+// no longer true now that `tank_ml` does. What did NOT change is the shape of
+// the answer: it is a THIRD axis in ./volume.ts rather than a consequence of
+// this one, for exactly the reason recorded above about date formats. A rider
+// can want miles and liters, or kilometers and gallons.
+//
+// `volume: auto` DOES follow this axis, which is a default rather than a
+// derivation — see the header of ./volume.ts for why those are different.
 
 import { SEP } from './sep'
 

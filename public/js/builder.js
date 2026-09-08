@@ -65,8 +65,13 @@
     offsetAtMoment,
     activeAt,
     activeAtMoment,
-    fmtMoment,
+    fmtMoment: fmtMomentRaw,
   } = window.TBTime;
+
+  // ride-time.js is a PURE helper and reads no DOM, so the rider's date format
+  // and clock are handed to it rather than looked up inside (#270). One wrapper
+  // here keeps all five call sites reading exactly as they did.
+  const fmtMoment = (s) => fmtMomentRaw(s, window.TBFmt && window.TBFmt.timePrefs());
 
   // Twistiness, computed here rather than read from the ride: the stored figure
   // is whatever the geometry looked like at the last save, and this panel has to
@@ -2117,16 +2122,23 @@
     setBedtimeMarks(state.map, spots);
   }
 
-  /** 960 → "4:00 PM", in the rider's own date format. The panel says the time
-   *  back to them in the form they read everywhere else, not the 24-hour string
-   *  the input stores. */
+  /** 960 → "4:00 PM", in the rider's own date format and clock. The panel says
+   *  the time back to them in the form they read everywhere else, not the
+   *  24-hour string the input stores.
+   *
+   *  IT USED TO PASS `undefined` AND SO USED THE BROWSER'S LOCALE (#270), which
+   *  made the comment above false: a rider who chose day-first dates or a
+   *  24-hour clock got neither here. TBFmt reads both off <html>, where
+   *  layout.tsx stamps them. */
   function fmtClockMin(min) {
     if (min == null) return "";
-    // An arbitrary UTC date carrying that time of route, formatted in UTC — the
+    // An arbitrary UTC date carrying that time of day, formatted in UTC — the
     // same trick every other clock in this app uses, and for the same reason: a
     // wall clock must not be re-read in the browser's zone.
-    return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(undefined, {
+    var pref = (window.TBFmt && window.TBFmt.timePrefs()) || {};
+    return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(pref.locale, {
       timeStyle: "short",
+      hour12: pref.hour12,
       timeZone: "UTC",
     });
   }
@@ -5112,12 +5124,12 @@
     // The server sends the name for the same reason firstIssue() renders
     // `route 2` rather than `routes.1` — an answer they can act on without
     // counting.
-    "no-routes": "Plan the main group's route to the destination first—that is the road a meeting point sits on.",
+    "no-routes": "Plan the main group’s route to the destination first—that is the road a meeting point sits on.",
     // A REAL ANSWER, not a failure. Groups approaching a destination from
     // opposite sides have nowhere sensible to meet short of it, and offering the
     // least bad option would be worse than saying so.
     "none-viable":
-      "No meeting point works without sending somebody a long way round. Check that every group's route ends at the same place.",
+      "No meeting point works without sending somebody a long way round. Check that every group’s route ends at the same place.",
   };
 
   /**
@@ -5923,7 +5935,8 @@
       // The road is drawn and undoable either way; only the rider record can fail
       // on its own, and a rider who is told nothing would read the split as done.
       const ok = await writeSplitRiders(result, choice);
-      if (!ok) toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
+      if (!ok)
+        toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
     });
   }
 
@@ -6308,7 +6321,7 @@
     // warning is to drag one there.
     el.textContent =
       esc(longest.name) +
-      " has the farthest to ride. Pinning a closer group's clock asks them to leave earlier—drag " +
+      " has the farthest to ride. Pinning a closer group’s clock asks them to leave earlier—drag " +
       esc(longest.name) +
       " to the top to make it the main group.";
   }
@@ -6924,31 +6937,34 @@
     refreshDerived();
   }
 
-  // The bar's own button. Says what clicking it will DO rather than what the
-  // slider currently is — a two-state control labeled with its current state
-  // reads as a status line, and riders press it expecting to get what it says.
+  // The bar's own scope control: two segments of one pill, Route and Ride.
+  //
+  // BOTH LABELS ARE ON SCREEN, WHICH IS THE THIRD SHAPE THIS HAS TAKEN. It was
+  // one button reading "Whole ride" — the ACTION — and a rider glancing at it
+  // saw the word "ride" and believed that was their scope. It became one button
+  // reading its own STATE, which fixed that and left the other half of the
+  // choice invisible. A pill says both and fills the one you are on. Ziad's
+  // call, 2026-09-07.
   function renderTimeScope() {
-    const btn = $("time-scope");
-    if (!btn) return;
-    // THE LABEL IS THE STATE, NOT THE ACTION. It read "Whole ride" while in route
-    // scope — naming what a click would DO — and a rider glancing at it saw the
-    // word "ride" and believed they were scrubbing the ride. Ziad's call,
-    // 2026-08-31. It now says which scope is on, and the color says it twice:
-    // Route is filled, Ride is not.
+    const set = $("time-scope");
+    if (!set) return;
     const onRoute = state.timeScope === "route";
-    btn.textContent = onRoute ? "Route" : "Ride";
-    btn.title = onRoute
-      ? "Scrubbing this route. Switch to the whole ride"
-      : "Scrubbing the whole ride. Switch to this route";
-    btn.setAttribute("aria-label", btn.title);
-    // Pressed is the DEFAULT here, which is unusual and deliberate: it tracks
-    // the label rather than the non-default state, so the filled look and the
-    // word always agree.
-    btn.setAttribute("aria-pressed", String(onRoute));
-    // Nothing to widen to on a single-route ride, and a button that returns the
-    // same slider is a control that does nothing. Hidden rather than disabled:
-    // it is in a one-line bar where a dead button is pure noise.
-    btn.hidden = state.routes.length < 2;
+    set.querySelectorAll(".time-seg").forEach((seg) => {
+      const on = (seg.dataset.scope === "route") === onRoute;
+      // aria-pressed on each segment rather than aria-checked on a radiogroup:
+      // these are two toggles, and a radiogroup promises arrow-key roving this
+      // bar does not implement.
+      seg.setAttribute("aria-pressed", String(on));
+      seg.classList.toggle("is-on", on);
+      seg.title =
+        seg.dataset.scope === "route"
+          ? "The slider covers the route you are editing"
+          : "The slider covers the whole ride";
+    });
+    // Nothing to widen to on a single-route ride, and a control that returns the
+    // same slider does nothing. Hidden rather than disabled: it is in a one-line
+    // bar where a dead control is pure noise.
+    set.hidden = state.routes.length < 2;
   }
 
   // #229's fuel ring toggle. Mirrored by the same function in viewer.js, which
@@ -10273,7 +10289,12 @@
   // the panel went from one visible route to all of them.
   function wireRoutes() {
     $("time-slider").addEventListener("input", (e) => setMoment(momentFromSlider(Number(e.target.value))));
-    $("time-scope")?.addEventListener("click", () => setTimeScope(state.timeScope === "route" ? "ride" : "route"));
+    // Delegated on the pill, so the two segments need no handler each and
+    // renderTimeScope can rewrite them freely.
+    $("time-scope")?.addEventListener("click", (e) => {
+      const seg = e.target.closest(".time-seg");
+      if (seg) setTimeScope(seg.dataset.scope === "ride" ? "ride" : "route");
+    });
     // Repaints rather than re-rendering: the ring is a map overlay, so nothing
     // in the panel changes and rebuilding the route list would cost a rider the
     // field they are typing in — the #188 shape, reached from a map control.
@@ -10818,7 +10839,10 @@
       // Seeded with its roles already set, so addPoint's auto-promotion leaves
       // them alone — it only supplies `start` when the caller named nothing. Both
       // are true of this point: it is where the ride begins and it is home.
-      const seed = newPoint(window.TB.home.lng, window.TB.home.lat, "Home");
+      // The rider's own name for the place, with "Home" as the server's
+      // fallback — see homeSeed() in routes/builder.ts. Hardcoded here until
+      // 2026-09-07, which named the shop and the storage unit wrong.
+      const seed = newPoint(window.TB.home.lng, window.TB.home.lat, window.TB.home.label || "Home");
       seed.roles = ["start", "home"];
       addPoint(window.TB.home.lng, window.TB.home.lat, "Home", 0, seed);
     }

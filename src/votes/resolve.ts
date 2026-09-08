@@ -14,6 +14,7 @@ import { and, eq, isNotNull, lte } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides } from '../db/schema'
 import { LIVE_RIDE } from '../trash/service'
+import { notifyVoteResolved } from '../notifications/senders'
 import { applyTallies } from './service'
 
 /** Ten minutes. A vote closing is not urgent to the minute — the deadline is a
@@ -38,6 +39,27 @@ export const MAX_RESOLVE_PER_SWEEP = 50
  * stands, and the numbers are still on the page. The owner can set a new one to
  * reopen it, which is the only way back and is deliberately a deliberate act.
  */
+/**
+ * Tell the roster what won.
+ *
+ * **ONE MESSAGE PER RIDE, NOT PER ELECTED ROUTE.** `applyTallies` can elect
+ * several alternates in one pass — a ride may carry more than one alt group —
+ * and a roster of eight would get three copies of nearly the same sentence. The
+ * first winner names the message and the count says how many roads were on the
+ * ballot, which is the shape voteResolvedEmail is written for.
+ *
+ * Awaited, unlike every other notifier call site, because it is inside the
+ * sweep's own try/catch: there is no request to protect here, and a failure that
+ * escaped into the loop would take the remaining rides down with it.
+ */
+async function notifyElected(rideId: number, winners: string[]): Promise<void> {
+  try {
+    notifyVoteResolved(rideId, winners[0], winners.length)
+  } catch (err) {
+    console.warn(`[votes] ride ${rideId}: notification failed`, err)
+  }
+}
+
 export async function resolveDueVotes(now: Date = new Date()): Promise<number> {
   const due = await db
     .select({ id: rides.id })
@@ -57,7 +79,15 @@ export async function resolveDueVotes(now: Date = new Date()): Promise<number> {
       const winners = await applyTallies(r.id)
       changed += winners.length
       await db.update(rides).set({ altVotesCloseAt: null }).where(eq(rides.id, r.id))
-      if (winners.length > 0) console.log(`[votes] ride ${r.id}: elected ${winners.join(', ')}`)
+      if (winners.length > 0) {
+        console.log(`[votes] ride ${r.id}: elected ${winners.join(', ')}`)
+        // AFTER the deadline is cleared, so a notification that throws cannot
+        // leave the ride selectable by the next sweep and mail the roster twice.
+        // A TIE SENDS NOTHING and that is most closings — electWinner() returning
+        // null is the ordinary outcome, not the edge one, so a message on every
+        // deadline would mostly report that nothing happened.
+        await notifyElected(r.id, winners)
+      }
     } catch (err) {
       console.error(`[votes] ride ${r.id} failed to resolve`, err)
     }

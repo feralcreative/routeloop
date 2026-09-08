@@ -13,9 +13,10 @@ describe('parseTokens', () => {
     expect(t.isColor).toBe(true)
   })
 
-  // $brand and $ride are both aliases of $url. Showing the swatch as the
-  // literal while keeping the alias visible is the point: two names pointing at
-  // one color is exactly the sort of thing a trim pass wants to see.
+  // A synthetic fixture, not the live palette — `$url` and `$ride` were merged
+  // into `$brand` on 2026-09-07 precisely because this page made the duplication
+  // visible. Showing the swatch as the literal while keeping the alias readable
+  // is what a trim pass needs, so the behavior is still worth pinning.
   it('follows an alias to its literal but keeps the raw text', () => {
     const [, brand] = parseTokens('$url: #1565c0;\n$brand: $url;')
     expect(brand.value).toBe('#1565c0')

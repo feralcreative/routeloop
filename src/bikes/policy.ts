@@ -44,6 +44,71 @@ export const MAX_RANGE_M = 2_000_000
  */
 export const MAX_RANGE_MILES = Math.floor(MAX_RANGE_M / METERS_PER_MILE)
 
+/**
+ * THE OTHER UNIT BOUNDARY, and it is the same arrangement as the one above:
+ * riders type gallons or liters, the column stores milliliters.
+ *
+ * Exact, not approximate — a US gallon is 231 cubic inches and an inch is
+ * 25.4 mm by definition — so this converts rather than estimates.
+ *
+ * NOTE src/views/volume.ts NAMES THESE SAME TWO CONSTANTS RATHER THAN IMPORTING
+ * THEM, deliberately, and the reason is the one already recorded for
+ * METERS_PER_MILE against src/views/units.ts: this module owns the boundary for
+ * a value being WRITTEN and that one owns it for a value being PRINTED. A shared
+ * constant would suggest a shared conversion, and the two round in opposite
+ * directions.
+ */
+export const ML_PER_GALLON = 3785.411784
+export const ML_PER_LITER = 1000
+
+/** The ceiling on the milliliters column, mirroring ck_bike_tank in the schema.
+ *  100 L is comfortably past any production motorcycle. */
+export const MAX_TANK_ML = 100_000
+
+/**
+ * The widest tank the FORM will accept, in each unit.
+ *
+ * FLOOR, NOT ROUND, and this is the MAX_RANGE_MILES trap in a second costume:
+ * 100,000 ml rounds to 26.4 gal, and 26.4 gal converts back to 99,935 ml, which
+ * is fine — but 26.5 would be 100,313 and past the CHECK. Flooring to one
+ * decimal keeps every number the form advertises inside what Postgres accepts,
+ * so a rider cannot get a 500 for entering exactly the maximum they were shown.
+ */
+export const MAX_TANK_GALLONS = Math.floor((MAX_TANK_ML / ML_PER_GALLON) * 10) / 10
+export const MAX_TANK_LITERS = Math.floor((MAX_TANK_ML / ML_PER_LITER) * 10) / 10
+
+/** Gallons or liters to milliliters. The unit is the rider's RESOLVED
+ *  preference, never a value the client posted — a client that lied about it
+ *  would store a tank 3.8x out. */
+export const tankToMl = (n: number, liters: boolean): number => Math.round(n * (liters ? ML_PER_LITER : ML_PER_GALLON))
+
+/** The other direction, for the form. ONE DECIMAL, because a tank is known to
+ *  about a tenth of a gallon and printing 4.234567 claims a precision the
+ *  rider's own manual does not have. */
+export const mlToTank = (ml: number, liters: boolean): number =>
+  Math.round((ml / (liters ? ML_PER_LITER : ML_PER_GALLON)) * 10) / 10
+
+/**
+ * Whether a typed tank is legal ONCE THE UNIT IS KNOWN, and the message to say
+ * so if not.
+ *
+ * **THE SCHEMA CANNOT ANSWER THIS AND THAT IS WHY THIS EXISTS.** `bikeInput`
+ * does not know which unit the rider reads in, so it validates against the
+ * looser of the two — 100, the litre ceiling. A rider on GALLONS could therefore
+ * type 30, pass the schema, convert to 113,562 ml and violate `ck_bike_tank`:
+ * a 500 for a number the form appeared to accept, which is the MAX_RANGE_MILES
+ * trap arriving from the other direction. The tight check has to happen where
+ * the unit is, which is the route.
+ *
+ * Null is always fine — a tank nobody has measured is the ordinary state.
+ */
+export function tankRefusal(tank: number | null, liters: boolean): string | null {
+  if (tank == null) return null
+  if (tankToMl(tank, liters) <= MAX_TANK_ML) return null
+  const max = liters ? MAX_TANK_LITERS : MAX_TANK_GALLONS
+  return `A tank has to be between 0 and ${max} ${liters ? 'liters' : 'gallons'}`
+}
+
 // 1885 is the Daimler Reitwagen, which is as early as this can meaningfully go.
 // The ceiling is a flat 2100 rather than "this year plus one" on purpose: a
 // validation rule that reads the clock is a rule whose tests start failing on a
@@ -101,6 +166,25 @@ export const bikeInput = z.object({
   usableRangeMi: optionalRange,
   /** Miles. How far this rider wants to go on this bike before a break. */
   comfortRangeMi: optionalRange,
+  /**
+   * Tank capacity in the RIDER'S OWN unit, converted at the boundary — see
+   * tankToMl. Null when they left it blank, which is most bikes and is a
+   * different claim from a tank of zero.
+   *
+   * VALIDATED AGAINST THE LOOSER OF THE TWO UNITS, because this schema does not
+   * know which one the rider reads in and must not refuse a number that is legal
+   * in theirs. The tight check happens after conversion, against MAX_TANK_ML,
+   * where the unit is known.
+   */
+  tank: z
+    .union([z.number(), z.string()])
+    .transform((v) => (typeof v === 'string' ? v.trim() : v))
+    .transform((v) => (v === '' || v === null ? null : Number(v)))
+    .refine((v) => v === null || (Number.isFinite(v) && v > 0 && v <= MAX_TANK_LITERS), {
+      message: `A tank has to be between 0 and ${MAX_TANK_LITERS}`,
+    })
+    .nullable()
+    .default(null),
 })
 
 export type BikeInput = z.infer<typeof bikeInput>

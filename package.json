@@ -21,6 +21,8 @@
     "sass:watch": "sass --watch style/main.scss public/style/main.min.css",
     "fix:dashes": "node utils/tighten-em-dashes.mjs --write",
     "check:dashes": "node utils/tighten-em-dashes.mjs --check",
+    "fix:quotes": "node utils/smart-quotes.mjs --write",
+    "check:quotes": "node utils/smart-quotes.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest"
   },

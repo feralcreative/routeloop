@@ -35,7 +35,7 @@ export const friendAcceptedEmail = defineEmail<Props>({
       '',
       `${APP_ORIGIN}/@${friendHandle}`,
       '',
-      `You can put each other on rides now, and you will see each other's rides that are shared with friends.`,
+      `You can put each other on rides now, and you will see each other’s rides that are shared with friends.`,
       '',
       `Your friends: ${APP_ORIGIN}/friends`,
     ].join('\n'),

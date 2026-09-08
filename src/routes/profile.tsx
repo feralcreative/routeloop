@@ -3,14 +3,14 @@
 // working without JavaScript, and a form plus one re-render is less code than an
 // endpoint plus a client script. Validation still runs through the same zod
 // helpers as the ride APIs so the two paths cannot drift.
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index'
 import { userProfiles, users, type UserProfileRow, type UserRow } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { sanitizeText } from '../maps/kml'
-import { page } from '../views/layout'
+import { accountPage } from '../views/account-page'
 import { asset } from '../views/assets'
 import { checkAvailability, claimUsername, usernameHistoryFor, USERNAME_HOLD_DAYS } from '../auth/username'
 import { usernameSchema } from '../auth/username'
@@ -20,7 +20,11 @@ import { bodyLimit } from 'hono/body-limit'
 import { MAX_IMAGE_BYTES, UPLOAD_REFUSAL_MESSAGES, checkUpload } from '../images/policy'
 import { PROCESSED_MIME } from '../images/process'
 import { deleteAvatar, processAvatar, readAvatar, writeAvatar } from '../account/avatar'
-import { avatarSrc } from '../views/layout'
+import { avatarSrc, fieldHelp } from '../views/layout'
+// ALIASED, BECAUSE `Field` ALREADY HAS A LOCAL `raw` — the unparsed value out
+// of the values map. A bare import would be shadowed inside exactly the function
+// that needs it, and the failure is a type error rather than anything readable.
+import { raw as rawHtml } from 'hono/html'
 import { SEP } from '../views/sep'
 
 export const profileRoutes = new Hono<AuthEnv>()
@@ -38,6 +42,7 @@ const profileFields = {
   displayName: z.string().trim().min(1, 'display name is required').max(255),
   firstName: optionalText(80),
   lastName: optionalText(80),
+  homeLabel: optionalText(120),
   addressLine: optionalText(255),
   city: optionalText(120),
   state: optionalText(80),
@@ -109,7 +114,7 @@ function fieldErrors(e: z.ZodError): FieldErrors {
   return out
 }
 
-function loadProfile(userId: number): Promise<UserProfileRow | undefined> {
+export function loadProfile(userId: number): Promise<UserProfileRow | undefined> {
   return db
     .select()
     .from(userProfiles)
@@ -138,22 +143,82 @@ function Field(o: {
   type?: string
   hint?: string
   autocomplete?: string
+  /**
+   * A sigil drawn INSIDE the field, ahead of what the rider types — `$` for a
+   * Cashtag, `@` for a Venmo handle.
+   *
+   * IT IS NOT PART OF THE VALUE, and the POST handler strips a leading one for
+   * exactly that reason: a rider who types the `$` they can already see would
+   * otherwise store `$ziad` in a field the app renders a `$` in front of, and
+   * every surface that ever prints it reads `$$ziad`. Same argument as the
+   * social handles, which strip a leading `@` and a pasted URL.
+   *
+   * `aria-hidden`, because it is decoration over an input the label already
+   * names. What it says in words belongs in `hint`, which is announced.
+   */
+  prefix?: string
+  /**
+   * Instructions for THIS field, behind a `?` beside its label (#268).
+   *
+   * `help` VS `hint`, AND THE LINE BETWEEN THEM IS WHAT A RIDER NEEDS BEFORE
+   * THEY ACT. Instructions — what shape a Cashtag is, what a name defaults to —
+   * are what somebody looks for when they are stuck, so they go behind the dot
+   * and stop taking up a line under every field forever. A DISCLOSURE is the
+   * opposite: what a section does with an address, or who a value is shared
+   * with, has to be read before the rider fills the box in, and behind a click
+   * is where most people never see it. Those stay as `hint`, or as prose above
+   * the fields.
+   */
+  help?: string
+  /**
+   * What the help button is CALLED, when the field's own label is not enough on
+   * its own.
+   *
+   * Home base and Public starting point both label their name field "Name it",
+   * which is right under a section heading and ambiguous the moment a screen
+   * reader lists the page's buttons — two of them reading "More about Name it"
+   * and neither saying which. Found in the accessibility tree, not by eye.
+   */
+  helpLabel?: string
 }) {
   const err = o.errors?.[o.name as keyof ProfileValues]
   const raw = o.values[o.name]
   const value = raw == null ? '' : String(raw)
+  const input = (
+    <input
+      id={`f-${o.name}`}
+      name={o.name}
+      type={o.type ?? 'text'}
+      value={value}
+      autocomplete={o.autocomplete}
+      aria-invalid={err ? 'true' : undefined}
+      aria-describedby={err ? `e-${o.name}` : undefined}
+    />
+  )
   return (
     <p class={`field${err ? ' has-error' : ''}`}>
-      <label for={`f-${o.name}`}>{o.label}</label>
-      <input
-        id={`f-${o.name}`}
-        name={o.name}
-        type={o.type ?? 'text'}
-        value={value}
-        autocomplete={o.autocomplete}
-        aria-invalid={err ? 'true' : undefined}
-        aria-describedby={err ? `e-${o.name}` : undefined}
-      />
+      {/* THE DOT IS INSIDE THE LABEL ELEMENT AND THE BUTTON IS NOT A LABEL FOR
+          THE INPUT. A <label> forwards a click to the control it names, so a
+          `?` sitting loose inside one would focus the field instead of opening
+          the bubble — the button's own handler runs first and `popovertarget`
+          still fires, but focus lands in the box behind it, which reads as the
+          dot being broken. `pointer-events` cannot fix it either, since the
+          button has to be pressable. So the label wraps only its text and the
+          help sits beside it in a flex row. */}
+      <span class="label-row">
+        <label for={`f-${o.name}`}>{o.label}</label>
+        {o.help ? rawHtml(fieldHelp(o.name, o.helpLabel ?? o.label, o.help)) : null}
+      </span>
+      {o.prefix ? (
+        <span class="field-prefixed">
+          <span class="field-prefix" aria-hidden="true">
+            {o.prefix}
+          </span>
+          {input}
+        </span>
+      ) : (
+        input
+      )}
       {err && (
         <span class="field-error" id={`e-${o.name}`}>
           {err}
@@ -180,14 +245,14 @@ function Check(o: { name: string; label: string; values: Record<string, unknown>
 function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   if (rows.length < 2) return <></> // nothing to show a rider who has only ever had one
   const now = Date.now()
-  const route = (d: Date) => d.toISOString().slice(0, 10)
+  const day = (d: Date) => d.toISOString().slice(0, 10)
   const released = rows.filter((r) => r.releasedAt)
   if (released.length === 0) return <></>
   return (
     <div class="handle-history">
       <p class="field-hint">
-        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} routes, so nobody else can take
-        it while you think it over.
+        Names you have used before. A name you release is held for {USERNAME_HOLD_DAYS} days, so nobody else can take it
+        while you think it over.
       </p>
       <ul>
         {released.map((r) => {
@@ -197,8 +262,8 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
             <li>
               <span class="handle">@{r.username}</span>{' '}
               <span class="handle-dates">
-                {route(r.claimedAt)} – {route(r.releasedAt!)}
-                {held ? `${SEP}yours to reclaim until ${route(until)}` : ''}
+                {day(r.claimedAt)} – {day(r.releasedAt!)}
+                {held ? `${SEP}yours to reclaim until ${day(until)}` : ''}
               </span>
             </li>
           )
@@ -208,14 +273,27 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
   )
 }
 
-function renderProfile({ user, values, errors, saved, history }: RenderArgs): string {
+/**
+ * The Profile PANEL, not a page (#269).
+ *
+ * Settings and Profile are one page with two tabs now, so this returns markup
+ * for a panel and src/views/account-page.tsx wraps it. The split is what keeps
+ * the imports one-directional: that module takes this as a string and imports
+ * nothing from here, so there is no cycle to reason about.
+ *
+ * `<h1>` became `<h2>` with the move — the page already has one, and two would
+ * be two documents in one.
+ */
+export function profilePanel({ user, values, errors, saved, history }: RenderArgs): string {
   const v = values
   // The session carries `avatarBytes` so the nav can prefer an upload over the
   // provider picture; the same value is what decides whether Remove is offered.
   const hasUpload = ((user as { avatarBytes?: number }).avatarBytes ?? 0) > 0
-  const body = (
+  return (
     <>
-      <h1>Your profile</h1>
+      {/* NO HEADING OF ITS OWN. account-page.tsx heads the page "Your profile"
+          when this tab is the one open, and the tab itself is labelled Profile —
+          a third copy inside the panel is the same words three times. */}
       {saved && <p class="notice">Profile saved.</p>}
       {errors && Object.keys(errors).length > 0 && <p class="notice is-error">Some fields need attention.</p>}
 
@@ -225,24 +303,164 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
         `full-span`: it belongs to the whole form, not to the left column.
       */}
       <form class="profile-form two-col" method="post" action="/profile">
-        <fieldset>
+        {/*
+          THE PICTURE IS IN HERE NOW, AND ITS OWN COMMENT SAID IT SHOULD BE.
+          Ziad's call, 2026-09-07: it sat between Splitting costs and Phone, six
+          fieldsets down from the name it is a picture OF, under a note reading
+          "AT THE TOP, BESIDE THE NAME". It had drifted from the place #99 put it.
+
+          FULL-SPAN, WHICH IS ALSO WHAT PAIRS THE TWO ADDRESSES BELOW. `two-col`
+          places its children in order, so with this taking a whole row Home base
+          and Public starting point become the next pair — and those two are the
+          one place on this form where a rider is genuinely comparing two answers
+          side by side. Without it they land in different rows with unrelated
+          blocks beside them.
+        */}
+        <fieldset class="full-span who-you-are">
           <legend>Who you are</legend>
-          <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
-          <Field
-            name="username"
-            label="Username"
-            values={v}
-            errors={errors}
-            hint={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} routes.`}
-          />
-          <HistoryBlock rows={history ?? []} />
-          <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
-          <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
-          <Check name="shareLastName" label="Show my last name to other riders" values={v} />
+          <div class="who-grid">
+            <div class="who-fields">
+              {/* TWO UP, because these are four short answers rather than four
+                  paragraphs and a column of full-width boxes makes them read as
+                  a longer form than they are. The pairs are the ones a rider
+                  fills in together. `.field-pair` stacks below 768px. */}
+              <div class="field-pair">
+                <Field name="displayName" label="Display name" values={v} errors={errors} autocomplete="nickname" />
+                <Field
+                  name="username"
+                  label="Username"
+                  values={v}
+                  errors={errors}
+                  help={`Letters, numbers and underscores. Change it whenever — the old one stays yours for ${USERNAME_HOLD_DAYS} days.`}
+                />
+              </div>
+              {/* FULL WIDTH AND OUTSIDE THE PAIR. It belongs to the username
+                  above it, but it is a list rather than a field — put in the
+                  pair it would stretch the row to its own height and leave the
+                  display name floating beside a column of dates. */}
+              <HistoryBlock rows={history ?? []} />
+              <div class="field-pair">
+                <Field name="firstName" label="First name" values={v} errors={errors} autocomplete="given-name" />
+                <Field name="lastName" label="Last name" values={v} errors={errors} autocomplete="family-name" />
+              </div>
+              <Check name="shareLastName" label="Show my last name to other riders" values={v} />
+            </div>
+
+            {/*
+            #99. AT THE TOP, BESIDE THE NAME, because that is what it is a picture
+            OF — and because a rider looking for it looks where their face already
+            appears in the nav.
+
+            THE WHOLE BLOCK IS PROGRESSIVE. With script off there is no crop box
+            and no upload: the file input and its buttons live inside
+            #avatar-crop's controls, which avatar.js reveals. What a no-script
+            rider sees is their current picture and nothing that lies about being
+            usable. An upload needs a canvas to crop in, and there is no honest
+            server-side fallback for "position this circle".
+          */}
+            <div class="avatar-block">
+              <h3>Your picture</h3>
+              <div class="avatar-now">
+                {avatarSrc(user) ? (
+                  <img
+                    id="avatar-current"
+                    class="avatar-preview"
+                    src={avatarSrc(user)!}
+                    alt=""
+                    width="96"
+                    height="96"
+                  />
+                ) : (
+                  <>
+                    <img id="avatar-current" class="avatar-preview" alt="" width="96" height="96" hidden />
+                    <span id="avatar-initials" class="avatar-preview is-initials" aria-hidden="true">
+                      {(user.displayName || '?').trim().charAt(0).toUpperCase()}
+                    </span>
+                  </>
+                )}
+                <div class="avatar-acts">
+                  {/* Hidden and clicked by the button, so the control reads as a
+                    button rather than as a file input — and so it can sit beside
+                    Remove without the two looking like different kinds of thing. */}
+                  <input type="file" id="avatar-file" accept="image/jpeg,image/png" hidden />
+                  <button type="button" class="btn btn-quiet" id="avatar-open" hidden>
+                    Choose a picture
+                  </button>
+                  <button type="button" class="btn btn-quiet" id="avatar-remove" hidden={!hasUpload}>
+                    Remove
+                  </button>
+                  <p class="field-hint">
+                    JPEG or PNG, up to 1&nbsp;MB. Stored square and shown round; we re-encode it and strip the location
+                    your camera put&nbsp;in&nbsp;it.
+                  </p>
+                </div>
+              </div>
+
+              <div id="avatar-crop" hidden>
+                {/* 320 is the canvas's PIXEL size and the stylesheet may display it
+                  smaller — avatar.js scales pointer deltas by the ratio, so the
+                  two are allowed to differ. */}
+                <canvas id="avatar-canvas" width="320" height="320"></canvas>
+                <label class="avatar-zoom-row">
+                  <span>Zoom</span>
+                  <input type="range" id="avatar-zoom" min="1" max="4" step="0.01" value="1" />
+                </label>
+                <div class="avatar-acts">
+                  <button type="button" class="btn" id="avatar-save">
+                    Use this
+                  </button>
+                  <button type="button" class="btn btn-quiet" id="avatar-cancel">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <p class="save-status" id="avatar-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
         </fieldset>
 
         <fieldset>
           <legend>Home base</legend>
+          {/*
+            WHAT IT SAYS IS WHAT THE CODE DOES, and the difference matters more
+            here than anywhere else on this form. Ziad asked for copy saying a
+            ride going public "automatically swaps" the home address for the
+            public starting point. `offerPublicStart()` in builder.js does not:
+            it ASKS, with a confirm; it fires on any level above private rather
+            than on public alone; and it does nothing at all when no public
+            starting point is set. Promising an automatic swap that is really a
+            dialog somebody can dismiss is how a rider publishes their house
+            believing the app had handled it.
+
+            SO THE THIRD SENTENCE IS THE LOAD-BEARING ONE. The offer needs a
+            public starting point to exist, and a rider with none gets no
+            prompt — which is exactly the rider most in need of one.
+          */}
+          <p class="field-hint">
+            Only ever on rides you keep private or friends-only, and only if you ask for it below. Share a ride any
+            wider and the builder offers to swap your home for your public starting point before anyone sees&nbsp;it —
+            so set one up on the right, because with none there is nothing to offer and the pin stays on
+            your&nbsp;house.
+          </p>
+          {/* NAMED, LIKE THE PUBLIC STARTING POINT BELOW. Ziad's call,
+              2026-09-07: the builder seeds a rider's first point from this
+              address and called it "Home", hardcoded — which is right for most
+              people and wrong for anyone whose home base is the shop, a
+              storage unit, or somebody else's garage.
+
+              THE FALLBACK LIVES IN CODE AND NOT IN A COLUMN DEFAULT, so a rider
+              who clears the field goes back to "Home" rather than having it
+              written into their profile as though they had typed it. Same
+              arrangement `start_label` has with "Meeting point". */}
+          <Field
+            name="homeLabel"
+            label="Name it"
+            values={v}
+            errors={errors}
+            help={'What a stop here is called on a ride. “Bill’s apartment”, “the shop”. Defaults to Home.'}
+            helpLabel="the name of your home base"
+            autocomplete="off"
+          />
           <Field name="addressLine" label="Address" values={v} errors={errors} autocomplete="street-address" />
           <Field name="city" label="City" values={v} errors={errors} autocomplete="address-level2" />
           <Field name="state" label="State or region" values={v} errors={errors} autocomplete="address-level1" />
@@ -260,16 +478,21 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
             would not mind strangers seeing on a map—a gas station, a coffee shop, a trailhead, a supermarket parking
             lot. Somewhere you can actually meet people is ideal.
           </p>
+          {/* "SHARED", NOT "SHARED PUBLICLY". offerPublicStart() fires on any
+              level above private — unlisted and friends-only included — and a
+              rider reading "publicly" would reasonably conclude a friends-only
+              ride was covered by the private case. It is not. */}
           <p class="field-hint">
-            Without this, a ride you started at home and then shared publicly is drawn from your house, with a pin on
-            it.
+            Without this there is nothing to swap in, so a ride you started at home keeps the pin on your&nbsp;house the
+            moment you share it with anyone.
           </p>
           <Field
             name="startLabel"
             label="Name it"
             values={v}
             errors={errors}
-            hint={'What it shows up as. “Chevron on Main”, “Peet’s at the plaza”.'}
+            help={'What it shows up as. “Chevron on Main”, “Peet’s at the plaza”.'}
+            helpLabel="the name of your public starting point"
           />
           <Field name="startAddressLine" label="Address" values={v} errors={errors} autocomplete="off" />
           <Field name="startCity" label="City" values={v} errors={errors} autocomplete="off" />
@@ -283,10 +506,65 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
         <fieldset>
           <legend>Splitting costs</legend>
           <p class="field-hint">Optional. For settling up on hotels, gas and meals along a ride.</p>
-          <Field name="cashApp" label="Cash App" values={v} errors={errors} />
-          <Field name="venmo" label="Venmo" values={v} errors={errors} />
-          <Field name="paypal" label="PayPal" values={v} errors={errors} />
-          <Field name="zelle" label="Zelle" values={v} errors={errors} />
+          {/*
+            THE SIGIL EACH SERVICE ACTUALLY USES, drawn in the field rather than
+            asked for (#183 follow-up, Ziad's call 2026-09-07). Cash App writes a
+            Cashtag as `$name` and Venmo writes a handle as `@name`, so a rider
+            typing one into a field that already shows it stores it twice — which
+            is why the handler strips a leading sigil, the same way it strips one
+            off a social handle.
+
+            ZELLE GETS NONE, AND THAT IS THE ANSWER RATHER THAN AN OMISSION: a
+            Zelle account is reached by US mobile number or email address, not by
+            a handle, so there is no sigil to draw and the hint says what to put
+            there instead.
+
+            EVERY ONE OF THEM IS `autocomplete="off"`, AND THAT IS A DATA FIX
+            RATHER THAN A PREFERENCE. Chrome autofills a field it cannot place by
+            guessing from the label, and an autofill fires a real `input` event —
+            which profile.js's idle autosave cannot tell from typing. So a rider
+            who merely OPENED this page had their display name written into Cash
+            App and a saved username into Venmo, silently, and the next thing to
+            read those handles would have offered strangers a payment address
+            nobody chose. Seen live, on this page, during the browser pass that
+            added the sigils. The socials block carries it for the same reason,
+            and the Public starting point block already did.
+          */}
+          <Field
+            name="cashApp"
+            label="Cash App"
+            values={v}
+            errors={errors}
+            prefix="$"
+            help="Your Cashtag."
+            autocomplete="off"
+          />
+          <Field
+            name="venmo"
+            label="Venmo"
+            values={v}
+            errors={errors}
+            prefix="@"
+            help="Your Venmo username."
+            autocomplete="off"
+          />
+          <Field
+            name="paypal"
+            label="PayPal"
+            values={v}
+            errors={errors}
+            prefix="@"
+            help="Your PayPal.Me name."
+            autocomplete="off"
+          />
+          <Field
+            name="zelle"
+            label="Zelle"
+            values={v}
+            errors={errors}
+            help="The phone number or email your Zelle is registered to."
+            autocomplete="off"
+          />
           <Check name="sharePaymentHandles" label="Share these with riders on my rides" values={v} />
         </fieldset>
 
@@ -301,69 +579,6 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           the same as agreeing to publish it, which is the whole reason the
           existing block works the way it does.
         */}
-        {/*
-          #99. AT THE TOP, BESIDE THE NAME, because that is what it is a picture
-          OF — and because a rider looking for it looks where their face already
-          appears in the nav.
-
-          THE WHOLE BLOCK IS PROGRESSIVE. With script off there is no crop box
-          and no upload: the file input and its buttons live inside
-          #avatar-crop's controls, which avatar.js reveals. What a no-script
-          rider sees is their current picture and nothing that lies about being
-          usable. An upload needs a canvas to crop in, and there is no honest
-          server-side fallback for "position this circle".
-        */}
-        <fieldset class="avatar-block">
-          <legend>Your picture</legend>
-          <div class="avatar-now">
-            {avatarSrc(user) ? (
-              <img id="avatar-current" class="avatar-preview" src={avatarSrc(user)!} alt="" width="96" height="96" />
-            ) : (
-              <>
-                <img id="avatar-current" class="avatar-preview" alt="" width="96" height="96" hidden />
-                <span id="avatar-initials" class="avatar-preview is-initials" aria-hidden="true">
-                  {(user.displayName || '?').trim().charAt(0).toUpperCase()}
-                </span>
-              </>
-            )}
-            <div class="avatar-acts">
-              {/* Hidden and clicked by the button, so the control reads as a
-                  button rather than as a file input — and so it can sit beside
-                  Remove without the two looking like different kinds of thing. */}
-              <input type="file" id="avatar-file" accept="image/jpeg,image/png" hidden />
-              <button type="button" class="btn btn-quiet" id="avatar-open" hidden>
-                Choose a picture
-              </button>
-              <button type="button" class="btn btn-quiet" id="avatar-remove" hidden={!hasUpload}>
-                Remove
-              </button>
-              <p class="field-hint">
-                JPEG or PNG, up to 1&nbsp;MB. Stored square and shown round; we re-encode it and strip the location your
-                camera put&nbsp;in&nbsp;it.
-              </p>
-            </div>
-          </div>
-
-          <div id="avatar-crop" hidden>
-            {/* 320 is the canvas's PIXEL size and the stylesheet may display it
-                smaller — avatar.js scales pointer deltas by the ratio, so the
-                two are allowed to differ. */}
-            <canvas id="avatar-canvas" width="320" height="320"></canvas>
-            <label class="avatar-zoom-row">
-              <span>Zoom</span>
-              <input type="range" id="avatar-zoom" min="1" max="4" step="0.01" value="1" />
-            </label>
-            <div class="avatar-acts">
-              <button type="button" class="btn" id="avatar-save">
-                Use this
-              </button>
-              <button type="button" class="btn btn-quiet" id="avatar-cancel">
-                Cancel
-              </button>
-            </div>
-          </div>
-          <p class="save-status" id="avatar-status" role="status" aria-live="polite"></p>
-        </fieldset>
 
         <fieldset>
           <legend>Phone</legend>
@@ -383,10 +598,10 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
           <p class="field-hint">
             Optional. Your handle, not the whole link — paste a URL and we will take the handle out&nbsp;of&nbsp;it.
           </p>
-          <Field name="instagram" label="Instagram" values={v} errors={errors} />
-          <Field name="facebook" label="Facebook" values={v} errors={errors} />
-          <Field name="youtube" label="YouTube" values={v} errors={errors} />
-          <Field name="strava" label="Strava" values={v} errors={errors} />
+          <Field name="instagram" label="Instagram" values={v} errors={errors} autocomplete="off" />
+          <Field name="facebook" label="Facebook" values={v} errors={errors} autocomplete="off" />
+          <Field name="youtube" label="YouTube" values={v} errors={errors} autocomplete="off" />
+          <Field name="strava" label="Strava" values={v} errors={errors} autocomplete="off" />
           <Check name="shareSocials" label="Show these on my profile" values={v} />
         </fieldset>
 
@@ -485,20 +700,26 @@ function renderProfile({ user, values, errors, saved, history }: RenderArgs): st
       </form>
     </>
   ).toString()
-
-  return page({
-    title: 'Your profile',
-    user,
-    navKey: 'profile',
-    body,
-    // Only the token: profile.js geocodes the address so the builder can read
-    // coordinates straight off the profile instead of looking them up per ride.
-    scripts: `<script src="${asset('/js/profile.js')}" defer></script>
-    <script src="${asset('/js/avatar.js')}" defer></script>
-  <script src="${asset('/js/places.js')}" defer></script>
-  <script src="${asset('/js/paddock.js')}" defer></script>`,
-  })
 }
+
+/**
+ * What the Profile panel needs loaded.
+ *
+ * LOADED WHICHEVER TAB IS OPEN, because both panels are in the DOM and a rider
+ * can switch to Profile without a round trip — deferring these until the tab
+ * opens would mean a first click into the Paddock that does nothing.
+ *
+ * profile.js geocodes the address so the builder can read coordinates straight
+ * off the profile instead of looking them up per ride.
+ */
+export const PROFILE_SCRIPTS = `<script src="${asset('/js/profile.js')}" defer></script>
+  <script src="${asset('/js/avatar.js')}" defer></script>
+  <script src="${asset('/js/places.js')}" defer></script>
+  <script src="${asset('/js/paddock.js')}" defer></script>`
+
+/** The whole page with the Profile tab open. */
+const renderProfile = (args: RenderArgs, c: Context<AuthEnv>): Promise<string> =>
+  accountPage(c, { tab: 'profile', profile: profilePanel(args), scripts: PROFILE_SCRIPTS })
 
 // --- Routes -----------------------------------------------------------------
 
@@ -507,12 +728,15 @@ profileRoutes.get('/profile', requireActive, async (c) => {
   const profile = await loadProfile(user.id)
 
   return c.html(
-    renderProfile({
-      user,
-      saved: c.req.query('saved') === '1',
-      values: { ...profile, username: user.username ?? '', displayName: user.displayName },
-      history: await usernameHistoryFor(user.id),
-    }),
+    await renderProfile(
+      {
+        user,
+        saved: c.req.query('saved') === '1',
+        values: { ...profile, username: user.username ?? '', displayName: user.displayName },
+        history: await usernameHistoryFor(user.id),
+      },
+      c,
+    ),
   )
 })
 
@@ -524,7 +748,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
   // Re-render with what they typed, not with what is in the database — losing a
   // form's worth of input to one bad field is the thing this avoids.
   if (!parsed.success) {
-    return c.html(renderProfile({ user, values: raw, errors: fieldErrors(parsed.error) }), 400)
+    return c.html(await renderProfile({ user, values: raw, errors: fieldErrors(parsed.error) }, c), 400)
   }
 
   const p = parsed.data
@@ -557,6 +781,28 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     // original would store the separators as though they were one.
     return bare ? bare.replace(/^@+/, '') || null : null
   }
+
+  // A PAYMENT HANDLE, WITHOUT THE SIGIL THE FIELD ALREADY DRAWS.
+  //
+  // Cash App writes a Cashtag as `$name` and Venmo writes a handle as `@name`,
+  // and those fields render the character ahead of the input — so a rider who
+  // types the one they can see would store it, and every surface that ever
+  // prints the value reads `$$ziad`. Stripping it here is the same reasoning as
+  // the social handles above, one character further out.
+  //
+  // IT REUSES `handle()` RATHER THAN BEING A SECOND NORMALIZER, because a rider
+  // pastes `cash.app/$ziad` and `venmo.com/u/ziad` exactly as readily as they
+  // paste an Instagram URL, and one implementation is one thing to get right.
+  //
+  // ZELLE DOES NOT GO THROUGH IT, and that is deliberate: a Zelle account is
+  // reached by phone number or email address, and `handle()` is built to take
+  // the last path segment of a URL. It would leave an email alone today, but the
+  // field is not a handle and treating it as one is the kind of thing that
+  // stops being harmless the first time somebody widens the helper.
+  const money = (s: string) => {
+    const bare = handle(s)
+    return bare ? bare.replace(/^[$@]+/, '') || null : null
+  }
   const username = p.username ? sanitizeText(p.username) : null
 
   // Only a real change goes through the claim path: re-saving the form with the
@@ -574,7 +820,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         free.reason === 'taken'
           ? 'that username is taken'
           : `that username was released recently and is held until ${free.until.toISOString().slice(0, 10)}`
-      return c.html(renderProfile({ user, values: raw, errors: { username: message } }), 400)
+      return c.html(await renderProfile({ user, values: raw, errors: { username: message } }, c), 400)
     }
   }
 
@@ -597,6 +843,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
       const profile = {
         firstName: text(p.firstName),
         lastName: text(p.lastName),
+        homeLabel: text(p.homeLabel),
         addressLine: text(p.addressLine),
         city: text(p.city),
         state: text(p.state),
@@ -613,9 +860,10 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         shareLastName: p.shareLastName,
         addHomeToRides: p.addHomeToRides,
         sharePaymentHandles: p.sharePaymentHandles,
-        cashApp: text(p.cashApp),
-        venmo: text(p.venmo),
-        paypal: text(p.paypal),
+        cashApp: money(p.cashApp),
+        venmo: money(p.venmo),
+        paypal: money(p.paypal),
+        // Plain text: a phone number or an email, not a handle. See money() above.
         zelle: text(p.zelle),
         sharePhone: p.sharePhone,
         phone: text(p.phone),
@@ -651,7 +899,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
     // The unique index is the last line of defense on a concurrent claim.
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('uq_username_lower')) {
-      return c.html(renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }), 409)
+      return c.html(await renderProfile({ user, values: raw, errors: { username: 'that username is taken' } }, c), 409)
     }
     throw err
   }
@@ -688,6 +936,7 @@ const AUTOSAVE_FIELDS = [
   'displayName',
   'firstName',
   'lastName',
+  'homeLabel',
   'cashApp',
   'venmo',
   'paypal',
@@ -701,10 +950,22 @@ const AUTOSAVE_FIELDS = [
 
 const AUTOSAVE_FLAGS = ['shareLastName', 'addHomeToRides', 'sharePaymentHandles', 'sharePhone', 'shareSocials'] as const
 
-/** Which stored column each text field writes, and how its value is cleaned.
- *  The social handles go through handle() and everything else through text(),
- *  which is the only reason this is a table rather than a loop over the names. */
-const AUTOSAVE_CLEAN: Record<string, 'text' | 'handle'> = {
+/**
+ * Which stored column each text field writes, and how its value is cleaned.
+ *
+ * THIS TABLE HAS TO MATCH THE WHOLE-FORM HANDLER'S, and the payment handles are
+ * why that is written down rather than assumed. They were added with a `$`/`@`
+ * drawn in the field and a `money()` strip on `POST /profile` — and this path
+ * cleaned them as plain text, so the SAME typed value stored `$ziad` from the
+ * autosave and `ziad` from the Save button. Two write paths for one form means
+ * every normalizer has to appear in both, and the failure is silent: the field
+ * looks right until something prints it.
+ */
+const AUTOSAVE_CLEAN: Record<string, 'text' | 'handle' | 'money'> = {
+  cashApp: 'money',
+  venmo: 'money',
+  paypal: 'money',
+  // NOT zelle: a phone number or an email, not a handle. See money() below.
   instagram: 'handle',
   facebook: 'handle',
   youtube: 'handle',
@@ -727,6 +988,12 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
       .pop()
     return bare ? bare.replace(/^@+/, '') || null : null
   }
+  // The sigil the field already draws. Mirrors money() in the whole-form handler
+  // above — see the note on AUTOSAVE_CLEAN for why both paths need it.
+  const money = (s: string) => {
+    const bare = handle(s)
+    return bare ? bare.replace(/^[$@]+/, '') || null : null
+  }
 
   const set: Record<string, unknown> = {}
   const errors: Record<string, string> = {}
@@ -741,7 +1008,8 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
       continue
     }
     const v = parsed.data as string
-    set[name] = AUTOSAVE_CLEAN[name] === 'handle' ? handle(v) : text(v)
+    const mode = AUTOSAVE_CLEAN[name]
+    set[name] = mode === 'handle' ? handle(v) : mode === 'money' ? money(v) : text(v)
   }
 
   // A checkbox absent from the body is unchecked, but only if the caller was

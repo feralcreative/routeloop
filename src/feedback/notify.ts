@@ -15,6 +15,7 @@ import type { FeedbackRow, FeedbackStatus } from '../db/schema'
 import { feedbackStatusEmail } from '../emails/feedback-status'
 import { ownerFeedbackEmail } from '../emails/owner-feedback'
 import { sendTemplateDetached } from '../auth/mailer'
+import { notify } from '../notifications/service'
 import { STATUS_META, areaLabel, statusLabel } from './policy'
 
 async function pendingCount(): Promise<number> {
@@ -120,16 +121,30 @@ export function notifyStatusChange(report: FeedbackRow, previous: FeedbackStatus
     const { ok, email } = await canReplyTo(report)
     if (!ok || !email) return
 
-    sendTemplateDetached(email, feedbackStatusEmail, {
-      // Resolved here rather than in the template, so the email never decides
-      // whether a thing was fixed or built — STATUS_META and statusLabel are the
-      // single source and this is just a caller.
-      statusLabel: statusLabel(report.status, report.kind),
-      statusSub: STATUS_META[report.status].sub,
-      title: report.title ?? report.body.slice(0, 80),
-      response: report.publicResponse,
-      publicId: report.publicId,
-      onBoard: report.state === 'published' && report.kind === 'idea',
+    // THROUGH notify() AS OF 2026-09-07, which is what puts a switch on it. The
+    // `reply_ok` check above is NOT replaced by that switch and must stay: it is
+    // the rider saying "do not write to me about this report at all", which is a
+    // narrower and older promise than a preference, and nothing outbound to a
+    // rider may skip it.
+    notify(report.authorId, {
+      event: 'feedback_status',
+      title: `${statusLabel(report.status, report.kind)}: ${report.title ?? report.body.slice(0, 60)}`,
+      body: STATUS_META[report.status].sub,
+      url: `/feedback/${report.publicId}`,
+      email: {
+        template: feedbackStatusEmail,
+        props: {
+          // Resolved here rather than in the template, so the email never decides
+          // whether a thing was fixed or built — STATUS_META and statusLabel are
+          // the single source and this is just a caller.
+          statusLabel: statusLabel(report.status, report.kind),
+          statusSub: STATUS_META[report.status].sub,
+          title: report.title ?? report.body.slice(0, 80),
+          response: report.publicResponse,
+          publicId: report.publicId,
+          onBoard: report.state === 'published' && report.kind === 'idea',
+        },
+      },
     })
   })().catch((err) => {
     console.warn('[feedback] status notification failed:', err)

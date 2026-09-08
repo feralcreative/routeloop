@@ -68,8 +68,10 @@ export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'min
 // stays a timestamp, ride.json stays ISO, every export is unaffected.
 //
 // The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
-// does the formatting and the clock and the number grouping follow the date order
-// instead of needing their own setting. Canonical metadata and the formatters
+// does the formatting and the number grouping follows the date order instead of
+// needing its own setting. THE CLOCK FOLLOWED TOO UNTIL 2026-09-07, when it got
+// its own column beside this one (#270) — it still follows by DEFAULT, and
+// `clock` overrides `hour12` alone. See the clockEnum below. Canonical metadata and the formatters
 // live in src/views/date-format.ts; keep these three in step with the array
 // there, which test/date-format.test.ts pins.
 export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
@@ -91,6 +93,30 @@ export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
 // road distance in MILES, so deriving would hand every British rider kilometers
 // they never asked for. See src/views/units.ts.
 export const unitsEnum = pgEnum('units', ['imperial', 'metric'])
+
+// Twelve- or twenty-four-hour time. A THIRD MEMBER RATHER THAN A BOOLEAN, and
+// `locale` is the default because it is what the app already did: `date_format`
+// stores real BCP-47 tags precisely so Intl decides digit order, padding and the
+// clock together, and `fmtClock` asks for `timeStyle: 'short'` rather than
+// spelling out hour/minute — which would impose our padding on every locale.
+//
+// THIS REVERSES THAT CALL NARROWLY AND DELIBERATELY (#270). Ziad's call,
+// 2026-09-07. An American who wants twenty-four-hour time is a real rider and
+// there was no way to give them one without also giving them 24/08/2026. The
+// override is `hour12` alone — `timeStyle: 'short'` stays, so the locale still
+// decides the date order, the padding and the separator, and `locale` keeps the
+// old behavior exactly for everybody who does not touch it.
+export const clockEnum = pgEnum('clock', ['locale', 'h12', 'h24'])
+
+// Gallons or liters. A THIRD AXIS beside `units` and `date_format`, for the same
+// reason `units` is its own enum rather than derived from the date format: a
+// rider can want miles and a metric fuel volume, or the reverse.
+//
+// `auto` FOLLOWS `units` AND IS THE DEFAULT, which is not the same as folding
+// the two together. Deriving would leave a metric rider no way to ask for
+// gallons; defaulting means they never have to ask for liters. See
+// src/views/volume.ts.
+export const volumeUnitsEnum = pgEnum('volume_units', ['auto', 'gallons', 'liters'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -256,6 +282,27 @@ export const users = pgTable(
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
     // two triggers cannot both run it. See src/account/purge.ts.
     purgeStartedAt: timestamp('purge_started_at'),
+
+    // WHEN A WARNING WAS LAST SENT, AND BOTH ARE ANTI-REPEAT STAMPS RATHER THAN
+    // FLAGS. The sweeps that read them run every five minutes and every hour, so
+    // the question is never "should this rider be warned" — it is "have they
+    // been warned about THIS", and a boolean cannot answer that a second time
+    // after the condition clears and comes back.
+    //
+    // Nullable with no default, for the reason approved_email_at documents: a
+    // schema push stamps a default onto every existing row, and null here means
+    // "never warned", which is true of every row today.
+    //
+    // `quota_warned_at` is CLEARED when a rider drops back under the line, which
+    // is what makes the warning repeatable without being repetitive — a rider who
+    // frees space and fills it again is told again, and one sitting at 95% for a
+    // month is told once. See src/account/quota-sweep.ts.
+    quotaWarnedAt: timestamp('quota_warned_at'),
+    // The account-deletion warning. Never cleared by the sweep: Save Me clears
+    // `purge_after` itself, and a rider who asks to leave a second time gets a
+    // fresh `purge_after` — so the sweep's own "is this stamp older than the
+    // current request" test is what makes the second warning fire.
+    purgeWarnedAt: timestamp('purge_warned_at'),
   },
   (t) => [
     index('idx_user_status').on(t.status),
@@ -279,6 +326,13 @@ export const userProfiles = pgTable('user_profiles', {
     .references(() => users.id, { onDelete: 'cascade' }),
   firstName: varchar('first_name', { length: 80 }),
   lastName: varchar('last_name', { length: 80 }),
+  // What the rider calls the place they set off from — "Bill's apartment", "the
+  // shop". MIRRORS start_label EXACTLY, including being nullable with the
+  // fallback living in code rather than in a column default: "Home" is a
+  // FALLBACK and not a stored value, so a rider who clears the field goes back
+  // to it instead of having it written into their profile as though they had
+  // typed it. `homeSeed()` in routes/builder.ts is the one reader.
+  homeLabel: varchar('home_label', { length: 120 }),
   addressLine: varchar('address_line', { length: 255 }),
   city: varchar('city', { length: 120 }),
   // Free text, not a US state list — the labels are US-shaped but nothing here
@@ -344,6 +398,35 @@ export const userProfiles = pgTable('user_profiles', {
   // there is no Accept-Units.
   motion: motionEnum('motion').notNull().default('system'),
   units: unitsEnum('units').notNull().default('imperial'),
+  // Defaulted for the same reason as the five above: no third state for a reader
+  // to interpret. Neither is seeded from a header — `clock` delegates to the
+  // rider's date format through its own `locale` member, which is the same
+  // mechanism `motion` uses for the browser, and there is no Accept-Volume.
+  clock: clockEnum('clock').notNull().default('locale'),
+  volumeUnits: volumeUnitsEnum('volume_units').notNull().default('auto'),
+  // Places to push DOWN a place search, one per line or separated by commas or
+  // semicolons (#271). FREE TEXT AND NOT A JOIN TABLE: the intended use is as
+  // loose as it sounds — a category like "fast food" and one chain by name in
+  // the same list — so there is nothing to normalize against and no fixed set of
+  // brands for anybody to maintain.
+  //
+  // A WEIGHTING AND NEVER A FILTER, which is what makes free text safe here. A
+  // false match costs one result ranked lower, and the one time a rider is out
+  // of fuel with an ARCO in front of them is the time this must not have hidden
+  // it. See src/places/avoid.ts.
+  avoidPlaces: varchar('avoid_places', { length: 1000 }),
+  // The mirror of the column above: places to push UP a place search. Same free
+  // text, same loose matching, same length. Ziad's call, 2026-09-07.
+  //
+  // TWO COLUMNS AND NOT ONE SIGNED LIST. A single field with a leading `-` or `+`
+  // would be one column and a syntax to learn, and the whole point of these is
+  // that a rider types "ARCO, Costco Gas" the way they would say it. Two boxes
+  // ask two plain questions.
+  //
+  // NOTHING STOPS A TERM APPEARING IN BOTH, and the ranking resolves it rather
+  // than the schema refusing it — see src/places/ranking.ts. A CHECK could not
+  // express it anyway, since matching is substring and approximate.
+  favorPlaces: varchar('favor_places', { length: 1000 }),
   // Contact details, each behind its own share flag (#183).
   //
   // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four
@@ -427,6 +510,15 @@ export const bikes = pgTable(
     // supermoto are not the same route, and the number a rider would give changes
     // with which one is in the garage.
     comfortRangeM: integer('comfort_range_m'),
+    // Tank capacity in MILLILITERS, typed in gallons or liters — the same unit
+    // boundary `usable_range_m` follows, and src/bikes/policy.ts is again the
+    // only place the two meet. Stored metric because #150 will switch the site
+    // over, and a value stored in whatever unit somebody typed drifts on every
+    // round trip.
+    //
+    // NULLABLE, AND NULL IS NOT ZERO. Most riders will never fill it in, and a
+    // tank of zero is a different claim from a tank nobody has measured.
+    tankMl: integer('tank_ml'),
     // The photo's bookkeeping, mirroring rides.thumb_hash: the hash is a
     // fingerprint that lets the route serve the image immutable, because a
     // changed picture is a changed URL.
@@ -460,6 +552,10 @@ export const bikes = pgTable(
     // 1,240 miles, comfortably past any production motorcycle — and exists so a
     // fat-fingered entry cannot poison a fuel-stop calculation downstream.
     check('ck_bike_range', sql`${t.usableRangeM} is null or (${t.usableRangeM} > 0 and ${t.usableRangeM} <= 2000000)`),
+    // 100 L, comfortably past any production motorcycle, for the same reason the
+    // range ceiling exists: a fat-fingered entry must not poison a fuel
+    // calculation downstream.
+    check('ck_bike_tank', sql`${t.tankMl} is null or (${t.tankMl} > 0 and ${t.tankMl} <= 100000)`),
     check(
       'ck_bike_comfort',
       sql`${t.comfortRangeM} is null or (${t.comfortRangeM} > 0 and ${t.comfortRangeM} <= 2000000)`,
@@ -836,7 +932,7 @@ export const rides = pgTable(
     // later must not retroactively move a purge date a rider was already shown.
     //
     // Recomputed on every trash, which is ALSO what makes the reset work: taking
-    // a ride out of the bin and putting it back sets a fresh 30 routes with no
+    // a ride out of the bin and putting it back sets a fresh 30 days with no
     // separate mechanism.
     purgeAfter: timestamp('purge_after'),
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
@@ -844,6 +940,16 @@ export const rides = pgTable(
     // because a ride purge also removes files from disk and can therefore
     // half-finish; a place purge is one statement.
     purgeStartedAt: timestamp('purge_started_at'),
+
+    // WHEN THE RIDER WAS WARNED THIS RIDE WAS ABOUT TO BE DESTROYED.
+    //
+    // Set once, a week out, by the hourly trash sweep. It is NOT cleared on
+    // restore and does not need to be: `purge_after` is recomputed from scratch
+    // on every trash, so a ride taken out of the bin and put back has a fresh
+    // deadline, and the sweep compares this stamp against that deadline rather
+    // than merely testing it for null. A stamp older than the current hold is a
+    // warning about a purge that never happened, and the ride is warned again.
+    purgeWarnedAt: timestamp('purge_warned_at'),
 
     // WHAT A SAVE IS CHECKED AGAINST, so two riders in one builder cannot
     // silently overwrite each other. Bumped in the same transaction as every
@@ -1926,7 +2032,126 @@ export const routeRiders = pgTable(
 
 export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
+// WHAT A RIDER HAS TURNED OFF, AND ONLY WHAT THEY HAVE TURNED OFF.
+//
+// **A ROW IS AN ANSWER; THE ABSENCE OF ONE IS "NEVER ASKED".** The default lives
+// in src/notifications/policy.ts — email on, browser off — and this table stores
+// the deviation, exactly as `home_label` stores a name and lets "Home" live in
+// code. That is what lets us change our mind about a default and have it reach
+// every rider who never expressed an opinion while reaching none of the riders
+// who did, and it is the only arrangement that works on the FIRST new event: a
+// `default true` column writes nothing for existing riders, because their row
+// does not exist yet, so the default has to be in code regardless.
+//
+// **`event` IS A varchar AND NOT A pgEnum, DELIBERATELY.** Nearly every other
+// closed vocabulary here is an enum and should be; this one is the exception
+// because the whole point of a notification catalog is that the next one is a
+// code change. `ALTER TYPE … ADD VALUE` per event would make "tell riders about
+// X" a migration and a deploy, and would grow the same ordering scar tissue
+// `visibility` carries. src/notifications/catalog.ts is the validator, and
+// `isEvent()` is what every read goes through — a row naming an event this build
+// has never heard of is IGNORED rather than trusted, which is also what makes
+// removing an event safe with no migration behind it.
+//
+// Cascades from `users`, so an account purge takes a rider's answers with it.
+export const notificationPrefs = pgTable(
+  'notification_prefs',
+  {
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    event: varchar('event', { length: 40 }).notNull(),
+    channel: varchar('channel', { length: 16 }).notNull(),
+    enabled: boolean('enabled').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // The PK IS the lookup. The send path asks for one rider's whole answer set
+    // and the settings page writes it back the same way, so there is no second
+    // access pattern to index for.
+    primaryKey({ columns: [t.userId, t.event, t.channel] }),
+  ],
+)
+
+// A BROWSER NOTIFICATION WAITING TO BE RAISED.
+//
+// **THIS EXISTS BECAUSE CHROME'S NOTIFICATION API ONLY FIRES FROM AN OPEN PAGE.**
+// `new Notification(...)` is a call a live document makes; it is not a delivery
+// channel a server can reach on its own — that is Web Push, which needs a
+// service worker, a VAPID key pair through the deploy allow-list AND the compose
+// block, and a dependency. Ziad's call, 2026-09-07, was the browser's own
+// notification and not push, so the server's half of the job is to LEAVE the
+// message somewhere the next open page will find it. This table is that
+// somewhere, and `public/js/notifications.js` is what polls it.
+//
+// **`delivered_at` IS WHAT STOPS A SECOND RAISE**, not a delete. A row survives
+// being shown so that two tabs cannot both raise it (the poll claims by
+// stamping) and so that a failure to raise is distinguishable from a message
+// that was never stored. Rows are pruned on read rather than by a timer — the
+// poll deletes that rider's delivered rows older than the retention window,
+// which is self-limiting, costs no sixth `unref()`d interval, and cannot run for
+// a rider who has stopped visiting (whose rows the account purge takes anyway).
+//
+// **NOTHING IS WRITTEN HERE FOR A RIDER WHO HAS THE BROWSER CHANNEL OFF.** The
+// preference is checked before the insert, not before the raise, so turning the
+// channel on does not surface a backlog of everything that happened while it was
+// off — which would be a wall of toasts on the next page load and is nobody's
+// idea of switching a setting on.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // The catalog key, for the same reason and under the same rules as
+    // notification_prefs.event above.
+    event: varchar('event', { length: 40 }).notNull(),
+    // Rendered at SEND time and stored, never re-derived at raise time. The
+    // sender is the only code that holds the ride, the rider and the verb
+    // together, and a notification about a ride that has since been deleted must
+    // still say what it said — the same reasoning `comments.point_label` carries.
+    title: varchar('title', { length: 160 }).notNull(),
+    body: varchar('body', { length: 400 }).notNull(),
+    // Where the notification goes when clicked. A path, never an absolute URL:
+    // it is opened by the page that raised it, and a stored origin would be
+    // wrong on stage the moment a database is cloned from prod.
+    url: varchar('url', { length: 512 }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    // WHEN A TOAST WAS RAISED FOR IT. Set by the poll, which claims and stamps
+    // in one statement so two tabs cannot both raise the same message.
+    deliveredAt: timestamp('delivered_at'),
+    // WHEN THE RIDER READ IT IN THE CENTRE, which is a DIFFERENT question from
+    // whether a toast fired and must not share a column with it. Ziad's call,
+    // 2026-09-07, when the account menu grew a Notifications item with an unread
+    // count: a rider with browser notifications on would otherwise have every
+    // badge silently cleared by a toast they may never have looked at, and a
+    // rider with them off — which is the default — would have `delivered_at`
+    // null forever and every notification permanently unread.
+    readAt: timestamp('read_at'),
+  },
+  (t) => [
+    // The poll's whole query: this rider's undelivered rows, oldest first.
+    // Partial, because delivered rows are the overwhelming majority within
+    // moments and none of them is ever selected by it again.
+    index('idx_notifications_pending')
+      .on(t.userId, t.createdAt)
+      .where(sql`${t.deliveredAt} is null`),
+    // THE BADGE'S OWN INDEX, and it is a SECOND partial index rather than a
+    // widening of the one above because the two predicates are different
+    // questions — `delivered_at` is "has a toast fired", `read_at` is "has the
+    // rider looked". This one is read on EVERY page render for every signed-in
+    // rider, through the correlated subquery in validateSessionToken, so it is
+    // the hottest index in this table by a distance.
+    index('idx_notifications_unread')
+      .on(t.userId)
+      .where(sql`${t.readAt} is null`),
+  ],
+)
+
 export type RouteRiderRow = typeof routeRiders.$inferSelect
+export type NotificationPrefRow = typeof notificationPrefs.$inferSelect
+export type NotificationRow = typeof notifications.$inferSelect
 export type FriendshipRow = typeof friendships.$inferSelect
 export type AltVoteRow = typeof altVotes.$inferSelect
 export type RideSubgroupRow = typeof rideSubgroups.$inferSelect

@@ -5,14 +5,16 @@
 
 // Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
 // chrome and map pages share one stylesheet and one accent color. The old
-// inline copy hardcoded its own blue while the map used $url — same intent, two
+// inline copy hardcoded its own blue while the map used $brand — same intent, two
 // different values, which is the whole reason the move happened.
 
 // Page padding and the reading-width cap used to live on `body`, which made a
 // full-bleed map page impossible without fighting them. They belong to a
 // container the map variant simply doesn't render.
 .page-wrap {
-  max-width: 960px;
+  // $page-max, not a literal: .nav-inner caps at the same width so the logo
+  // lines up with the content under it, and two literals drift. See _tokens.scss.
+  max-width: $page-max;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -26,17 +28,23 @@
 // jumping-layout failure #130 names: a block must not change size as its value
 // changes. A media query cannot do that—every viewport has exactly one answer.
 //
-// Two columns start at 992px because that is where `.page-wrap` has reached its
-// 960px cap and stopped growing, which puts ~430px in each column. Below it the
-// wrap is still shrinking and a radio row carrying a worked example reads
-// cramped at half of it.
+// Two columns start at 992px because that is the narrowest viewport where half
+// the wrap is still a usable column — ~430px each, after the 2rem padding either
+// side. Below it a radio row carrying a worked example reads cramped at half.
+//
+// **IT USED TO BE THE POINT WHERE `.page-wrap` HIT ITS CAP, AND SINCE THE CAP
+// WENT TO 1200px IT NO LONGER IS.** The breakpoint did not move with it, on
+// purpose: what decides whether two columns work is how wide each one ends up,
+// and 430px is 430px whether or not the container has stopped growing. Tying it
+// to the cap would have pushed two columns out to 1264px and made every viewport
+// between a single tall stack for no reason anybody could see.
 .two-col {
   display: grid;
   gap: 2.5rem 2rem;
   align-items: start;
 }
 
-//@ LG ≥992px — .page-wrap is at its cap, so there is room for a second column.
+//@ LG ≥992px — half the wrap is a usable column from here up.
 @media (min-width: 992px) {
   .two-col {
     grid-template-columns: 1fr 1fr;
@@ -47,6 +55,65 @@
 // belonging to the whole form rather than to one column of it.
 .two-col > .full-span {
   grid-column: 1 / -1;
+}
+
+// EQUAL-HEIGHT CELLS, WHICH IS THE OPPOSITE OF WHAT `.two-col` DOES BY DEFAULT.
+//
+// The plain grid sets `align-items: start` on purpose: its cells are independent
+// blocks and the shorter column simply ends early, because stretching a radio
+// group to match its neighbor leaves a tall box with a control floating at the
+// top of it. That is right for a bare section and wrong the moment the cell has
+// a VISIBLE EDGE — two boxes of obviously different heights side by side read as
+// a layout that has gone wrong, where two unboxed blocks just read as two
+// blocks. Ziad's call, 2026-09-07, for the notification groups.
+//
+// It takes three declarations rather than one because the box is not the grid
+// item: the item is `.setting` and the border is on the `.setting-form` inside
+// it, so stretching the item alone gives a taller cell with the same short box
+// sitting at the top of it. The flex column is what passes the height through.
+// Same construction as `.three-col > .setting`, which lands its Save buttons on
+// one line by the same mechanism.
+.two-col--equal {
+  align-items: stretch;
+  // TIGHTER BETWEEN THE ROWS THAN `.two-col`'s 2.5rem, AND LOOSER AFTER THE LAST
+  // ONE. Ziad's call, 2026-09-07. The shared gap is sized for unboxed blocks,
+  // where the space between them is the only thing separating one group from the
+  // next; here every cell has its own edge doing that job, so the same gap reads
+  // as a hole. What the grid could not give at all is the space AFTER it — a
+  // grid gap falls between rows and never below the last one — so the footnote
+  // under this section was sitting hard against the bottom row.
+  row-gap: 1.5rem;
+  margin-bottom: 2.5rem;
+
+  > .setting {
+    display: flex;
+    flex-direction: column;
+    // THE 60ch MEASURE COMES OFF, and it is a measure rather than a layout
+    // width — it exists to stop an explanation running to 120 characters. These
+    // cells hold a table, which has no measure to protect, and the cap was
+    // leaving each box about twenty pixels short of its own column.
+    max-width: none;
+  }
+
+  > .setting > .setting-form {
+    flex: 1;
+    // A COLUMN, SO THE STATUS ROW CAN BE PUSHED TO THE BOTTOM OF THE BOX.
+    // `flex: 1` above gives the form the cell's full height; without this the
+    // children stay in normal flow and the readout sits directly under the last
+    // table row, which on a short group leaves it floating in the middle of a
+    // tall box. Same construction `.three-col > .setting` uses to land its Save
+    // buttons on one line.
+    display: flex;
+    flex-direction: column;
+
+    // `auto` and not a fixed margin: it absorbs whatever slack the cell has, so
+    // the readout is flush to the bottom in the SHORT box and unmoved in the
+    // tall one that set the row's height. A number would be right for exactly
+    // one of them.
+    > .setting-actions {
+      margin-top: auto;
+    }
+  }
 }
 
 // THREE EQUAL COLUMNS, for a row of short radio groups (#178).
@@ -64,7 +131,7 @@
 // jumping-layout failure #130 names.
 //
 // Two columns at the middle breakpoint rather than dropping straight to one —
-// three groups of three do not fit in 960px minus the wrap padding at a readable
+// three groups of three do not fit in the wrap minus its padding at a readable
 // size, but two do, and a lone third under a pair reads as deliberate where a
 // hole in a three-track does not.
 //
@@ -90,7 +157,7 @@
   }
 }
 
-//@ LG ≥992px — .page-wrap is at its cap, so all three fit on one line.
+//@ LG ≥992px — three fit on one line from here up.
 @media (min-width: 992px) {
   .three-col {
     grid-template-columns: repeat(3, 1fr);
@@ -119,7 +186,7 @@ h1 {
   border: 0;
   padding: 0;
   font: inherit;
-  color: $url;
+  color: $brand;
   cursor: pointer;
   text-decoration: underline;
 }
@@ -128,9 +195,20 @@ h1 {
 // guide sign below, which claims every `.btn` that does not opt out — but it is
 // still the base every variant is built on, and it is what the opt-outs render
 // as on their own.
+// `[hidden]` LOSES TO `display` IN AN AUTHOR STYLESHEET, and this is where that
+// bites. The UA rule is `[hidden] { display: none }` at author-agnostic weight,
+// so any `.btn` given the attribute stays on screen — `el.hidden = true` reads as
+// a no-op and there is nothing in the console to say why. Restated here rather
+// than as a global reset, because this is the rule that creates the problem;
+// `.time-scope` and `.time-scope-set` in _map.scss each carry their own copy for
+// the same reason. autosave.js is what hides the Settings Save buttons.
+.btn[hidden] {
+  display: none;
+}
+
 .btn {
   display: inline-block;
-  background: $url;
+  background: $brand;
   color: $white;
   border: 0;
   border-radius: 8px;
@@ -141,7 +219,7 @@ h1 {
   cursor: pointer;
 
   &:hover {
-    background: $url-d8;
+    background: $brand-d8;
   }
 
   &:disabled {
@@ -235,8 +313,24 @@ $sign-arrow-bearings: (
     center / contain no-repeat;
 }
 
-.btn.btn-sign,
-.btn:not(#{$btn-flat}) {
+// `:not([hidden])` IS LOAD-BEARING AND IS NOT TIDINESS.
+//
+// `.btn[hidden] { display: none }` sits a hundred lines above with the comment
+// explaining why it has to exist at all — and it is (0,2,0), exactly what
+// `.btn.btn-sign` is, declared LATER. So this rule was quietly winning and every
+// SIGN button in the app ignored `el.hidden` even though the fix for that was
+// right there in the file. It went unnoticed because the one caller that hides a
+// button, autosave.js, hides them inside `.setting-actions`, and THAT collapses
+// itself when it has no visible child — so the button was invisible for a second
+// reason and nobody had cause to check the first. Putting anything else in that
+// row brings all nine Save buttons back.
+//
+// Guarding the variant rather than restating the hidden rule after every
+// variant: there are eight `.btn.btn-sign.btn-*` blocks and a ninth would
+// reintroduce the bug, where a hidden sign button simply has no business
+// claiming a display at all.
+.btn.btn-sign:not([hidden]),
+.btn:not(#{$btn-flat}):not([hidden]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -246,7 +340,7 @@ $sign-arrow-bearings: (
   // which is the same mechanism run the other way.
   flex-direction: row-reverse;
   background: $interstate;
-  color: $white;
+  color: $ink-light;
   border-radius: 10px;
   // The legend is nudged down a tenth of an em, chosen by eye against the real
   // login form rather than derived. `align-items: center` centers the text's
@@ -273,7 +367,7 @@ $sign-arrow-bearings: (
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 0 0 3px $interstate,
-    inset 0 0 0 5px $white;
+    inset 0 0 0 5px $ink-light;
 
   // The directional arrow, as an inline SVG in a background rather than markup:
   // the treatment stays a class you add, with nothing to remember to put inside
@@ -407,7 +501,7 @@ $sign-arrow-bearings: (
     background: $lit;
     box-shadow:
       inset 0 0 0 3px $lit,
-      inset 0 0 0 5px $white;
+      inset 0 0 0 5px $ink-light;
   }
 
   &:focus-visible {
@@ -535,17 +629,24 @@ $octagon: polygon(
 // it under black. Both follow from which ink the field carries, so both hang off
 // the one argument and a caller cannot set one and forget the other.
 @mixin sign-field($field, $dark-ink: false) {
-  // $white and not $ink-light, deliberately, because that is what the base rule
-  // above already bakes into its keyline and this mixin's whole job is to
-  // restate that ring in a new field color. The two differ under a dark scheme —
-  // see the note on "PAGE SURFACES, not legends" in _palette.scss — so the
-  // white-legend signs are arguably wrong there and were before this parameter
-  // existed. Changing it belongs with the base rule and every button that reads
-  // it, not here.
+  // **$ink-light AND NOT $white, AS OF 2026-09-07, AND THE OLD NOTE HERE WAS
+  // RIGHT THAT IT MATTERED.** It read "the white-legend signs are arguably wrong
+  // there and were before this parameter existed", and deferred: changing it
+  // belongs with the base rule and every button that reads it. It was never
+  // measured. `--white` is the PAGE SURFACE rather than the color white — under
+  // a dark scheme it is the page's own near-black — so every guide sign in the
+  // app rendered a near-black legend on its green field at **2.67:1**, below the
+  // 4.5:1 the palette audit holds everything else to, on every page. Measured in
+  // the browser while a new `?` badge was being built on the same construction.
+  //
+  // `$ink-light` is the literal legend white and is scheme-invariant, which is
+  // what a sign's legend actually is — a yield sign takes black ink at night
+  // too. The base rule above now bakes the same token into its keyline, so this
+  // mixin restates what is really there rather than what used to be.
   //
   // @if rather than the if() function: Dart Sass deprecates that syntax
   // ([if-function]) because both arms are evaluated whichever one is returned.
-  $ink: $white;
+  $ink: $ink-light;
 
   @if $dark-ink {
     $ink: $ink-dark;
@@ -840,9 +941,14 @@ ul.cards {
 // themed token here would draw a blank card in a color no route in the database
 // has. It moved out of cards.tsx on 2026-08-26 so a record card, which has no route
 // color to inherit, could fall back to its own accent instead.
+// A ride with no thumbnail yet. `#0000cc` — a pure, harsh blue belonging to no
+// palette in this app — sat here until 2026-09-07, which is what an escaped
+// placeholder looks like: it is not a road-sign color, it is not derived from
+// one, and nothing else in the product is within 40 dE of it. A blank face is
+// an absence and should read as one.
 .ride-card-face.is-blank {
   aspect-ratio: 16 / 10;
-  background: #0000cc;
+  background: $neutral-94;
 }
 
 .ride-card-body {
@@ -1141,7 +1247,7 @@ ul.cards {
 
   .linkbtn {
     padding: 0;
-    color: $url;
+    color: $brand;
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
@@ -1185,7 +1291,7 @@ ul.cards {
     }
 
     &:hover {
-      color: $url;
+      color: $brand;
     }
 
     // Drawn rather than typed so it can rotate, and ordered first so every
@@ -1697,11 +1803,11 @@ ul.cards {
   &.is-active {
     color: $text;
     font-weight: 600;
-    border-bottom-color: $url;
+    border-bottom-color: $brand;
   }
 
   &:focus-visible {
-    outline: 2px solid $url;
+    outline: 2px solid $brand;
     outline-offset: -2px;
     border-radius: 4px;
   }
@@ -1739,5 +1845,62 @@ ul.cards {
   .empty {
     color: $neutral-57;
     padding: 1.5rem 0;
+  }
+}
+
+// THE FAQ POPOVER (#268). A `?` beside a control answers in place now instead of
+// sending a rider to /faq and leaving them to find their way back — on the
+// builder that meant abandoning a route mid-edit to read two sentences.
+//
+// NATIVE `popover`, so Escape, light-dismiss and the top layer come free and the
+// only script is the click that opens it. The top layer is also what keeps it
+// out of the builder panel's own clipping.
+//
+// CENTERED RATHER THAN ANCHORED, unlike the field-help bubble in _forms.scss,
+// and the difference is size: that one is a line and belongs beside its field,
+// where a FAQ answer is a paragraph or two and would hang off the edge of a
+// 380px drawer. A centered card is what it wants at this length, and it needs no
+// anchor positioning, so it behaves the same in every browser.
+.faq-pop {
+  position: fixed;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(46ch, calc(100vw - 2rem));
+  max-height: min(70vh, 40rem);
+  overflow-y: auto;
+  margin: 0;
+  padding: 1.1rem 1.3rem;
+  background: $white;
+  color: $text;
+  border: 1px solid $grey;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 28%);
+  font-size: 0.95rem;
+  line-height: 1.55;
+
+  &::backdrop {
+    background: rgb(0 0 0 / 25%);
+  }
+
+  // The question, restated at the top. The answer in faq.html is written to sit
+  // under its own <summary>, so lifted out on its own it starts mid-thought.
+  .faq-pop-q {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  // The answer arrives as the markup it already is — see faqAnswer(). Its
+  // wrapper carries /faq's own class, which is styled for that page's width, so
+  // the margins are restated for a card.
+  .qa-answer > :first-child {
+    margin-top: 0;
+  }
+
+  .qa-answer > :last-child {
+    margin-bottom: 0;
   }
 }

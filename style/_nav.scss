@@ -8,9 +8,9 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  max-width: 960px;
+  max-width: $page-max;
   // The horizontal padding is 2rem to match .page-wrap, and that matters: both
-  // are content-box at max-width 960, so the logo and the content below it line
+  // are content-box at $page-max, so the logo and the content below it line
   // up only while the two paddings agree. Adding top padding alone would have
   // shifted the logo 32px left of everything under it. The map variant resets
   // all of this — see html.map-page.
@@ -75,7 +75,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid $url;
+    outline: 2px solid $brand;
     outline-offset: 2px;
   }
 }
@@ -181,7 +181,7 @@
   }
 
   a[aria-current="page"] {
-    color: $url;
+    color: $brand;
     background: color-mix(in srgb, $brand 8%, transparent);
   }
 
@@ -189,8 +189,8 @@
   // the page rather than moving around inside it, and a column of identical text
   // links gave it no way to say that.
   //
-  // `$stop` rather than `$kml`, which is the same color — the palette has one
-  // red. `$kml` means "this file is the wrong format"; `$stop` is the road-sign
+  // `$stop` rather than `$stop`, which is the same color — the palette has one
+  // red. `$stop` means "this file is the wrong format"; `$stop` is the road-sign
   // field, and the sign this borrows from is the one that means stop what you
   // are doing. Same hue either way, but the name is the part a reader has to
   // understand, and one of the two is about to be nonsense in a nav.
@@ -319,8 +319,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: $url-l46;
-  color: $url-d8;
+  background: $brand-l46;
+  color: $brand-d8;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -328,6 +328,59 @@
 
 .nav-account > summary {
   gap: 0.45em;
+}
+
+// THE ACCOUNT CHIP. Ziad's call, 2026-09-07: the avatar and name sat loose in
+// the bar with nothing bounding them, which was fine while they were a label and
+// stopped being fine the moment they had to carry an unread badge — a count
+// floating beside a name reads as part of the name. The border is what gives the
+// badge an edge to sit on, and it makes the pair one press target rather than a
+// picture next to some text.
+//
+// A HAIRLINE AND A PILL, not a filled button: it is the resting state of a menu
+// trigger on every page, and a solid fill there would compete with the guide
+// signs that are the app's actual buttons.
+.nav-chip {
+  border: 1px solid $grey;
+  border-radius: 999px;
+  padding: 0.25em 0.7em 0.25em 0.3em;
+  // The badge is positioned against this.
+  position: relative;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: $brand;
+  }
+}
+
+//@ Motion — the only movement on the chip
+@media (prefers-reduced-motion: reduce) {
+  .nav-chip {
+    transition: none;
+  }
+}
+
+// UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because
+// of that: every other mark in the nav is a way TO somewhere, and this is a count
+// of things that happened while the rider was away. It carries $ink-light rather
+// than $white — the page-surface token is near-black under a dark scheme, which
+// is the site-wide bug #282 records.
+//
+// Rendered only when the count is non-zero; a badge showing 0 is furniture that
+// teaches people to stop reading badges.
+.nav-badge {
+  margin-left: 0.15em;
+  min-width: 1.5em;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: $stop;
+  color: $ink-light;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: center;
+  // No global border-box reset in this stylesheet — see AGENTS.md.
+  box-sizing: border-box;
 }
 
 .nav-user {

@@ -18,6 +18,7 @@ import { db } from '../db/index'
 import { users } from '../db/schema'
 import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { followRider, unfollowRider } from '../follows/service'
+import { notifyNewFollower } from '../notifications/senders'
 
 export const followRoutes = new Hono<AuthEnv>()
 
@@ -56,7 +57,15 @@ followRoutes.post('/follows/:verb{follow|unfollow}', requireActive, requireSameO
   // worse answer to a replayed form than doing nothing.
   if (!other || other.id === user.id) return c.redirect(back, 303)
 
-  if (verb === 'follow') await followRider(user.id, other.id)
-  else await unfollowRider(user.id, other.id)
+  // ONLY A FOLLOW NOTIFIES, AND ONLY WHEN IT ACTUALLY CREATED THE ROW.
+  // followRider returns false for a block in either direction and for a follow
+  // that already existed, and both of those must stay silent: a refused follow
+  // that mailed anybody would be a block announcing itself, which is the one
+  // thing src/follows/policy.ts exists to prevent. Unfollowing never notifies,
+  // for the mirror reason — telling somebody they were unfollowed is the same
+  // shape as telling them they were blocked.
+  if (verb === 'follow') {
+    if (await followRider(user.id, other.id)) notifyNewFollower(user.id, other.id)
+  } else await unfollowRider(user.id, other.id)
   return c.redirect(back, 303)
 })

@@ -26,9 +26,23 @@ const D = new Date('2026-08-24T09:05:00Z')
 
 describe('the three digit orders', () => {
   it('puts the parts in the order each locale expects', () => {
-    expect(fmtDateNumeric(D, 'en-US')).toBe('8/24/2026')
-    expect(fmtDateNumeric(D, 'en-GB')).toBe('24/08/2026')
+    // DASHES AND TWO DIGITS IN ALL THREE, with the locale deciding only the
+    // ORDER. Ziad's call, 2026-09-07: it used to hand the whole decision to Intl
+    // and got three separators and three paddings along with the three orders,
+    // so a column of dates changed shape as well as sequence.
+    expect(fmtDateNumeric(D, 'en-US')).toBe('08-24-2026')
+    expect(fmtDateNumeric(D, 'en-GB')).toBe('24-08-2026')
     expect(fmtDateNumeric(D, 'en-CA')).toBe('2026-08-24')
+  })
+
+  // THE EXAMPLES ARE HAND-WRITTEN STRINGS AND THE FORMATTER IS THE AUTHORITY, so
+  // they are checked against it rather than trusted. A settings page that shows a
+  // rider one shape and then prints another is worse than showing nothing, and
+  // nothing else would catch the two drifting.
+  it('shows each choice the shape it actually produces', () => {
+    for (const choice of DATE_FORMAT_CHOICES) {
+      expect(choice.example, choice.id).toBe(fmtDateNumeric(D, choice.id))
+    }
   })
 
   // The reason the members are locale tags rather than an mdy/dmy/ymd enum: an
@@ -89,7 +103,7 @@ describe('guessing from Accept-Language', () => {
   })
 
   it('reads the region off a locale it does not stock', () => {
-    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // route first
+    expect(fromAcceptLanguage('de-DE,de;q=0.9')).toBe('en-GB') // day first
     expect(fromAcceptLanguage('fr-FR')).toBe('en-GB')
     expect(fromAcceptLanguage('pt-BR')).toBe('en-GB')
     expect(fromAcceptLanguage('ja-JP')).toBe('en-CA') // year first

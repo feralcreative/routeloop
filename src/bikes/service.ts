@@ -8,12 +8,17 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { bikes, type BikeRow } from '../db/schema'
-import { milesToMeters, type BikeInput } from './policy'
+import { milesToMeters, tankToMl, type BikeInput } from './policy'
 import { deleteBikePhoto } from './photo'
 
-/** Miles in, meters out — the boundary, applied in exactly one place on the
- *  write path so no caller has to remember which unit it holds. */
-const toRow = (input: BikeInput) => ({
+/** Miles in, meters out; gallons or liters in, milliliters out — the boundary,
+ *  applied in exactly one place on the write path so no caller has to remember
+ *  which unit it holds.
+ *
+ *  `liters` IS THE RIDER'S RESOLVED PREFERENCE AND NEVER A POSTED FIELD. A
+ *  client that lied about its unit would store a tank 3.8x out, silently, and
+ *  the server already knows the answer. */
+const toRow = (input: BikeInput, liters: boolean) => ({
   nickname: input.nickname,
   make: input.make,
   model: input.model,
@@ -21,6 +26,7 @@ const toRow = (input: BikeInput) => ({
   fuelType: input.fuelType,
   usableRangeM: input.usableRangeMi == null ? null : milesToMeters(input.usableRangeMi),
   comfortRangeM: input.comfortRangeMi == null ? null : milesToMeters(input.comfortRangeMi),
+  tankMl: input.tank == null ? null : tankToMl(input.tank, liters),
 })
 
 export async function listBikes(ownerId: number): Promise<BikeRow[]> {
@@ -52,7 +58,7 @@ export async function getBike(ownerId: number, id: number): Promise<BikeRow | un
  * no choice to make, and making them tick a box to say so is a question with one
  * possible answer. Every bike after that arrives non-default.
  */
-export async function createBike(ownerId: number, input: BikeInput): Promise<BikeRow | undefined> {
+export async function createBike(ownerId: number, input: BikeInput, liters: boolean): Promise<BikeRow | undefined> {
   return db.transaction(async (tx) => {
     const [last] = await tx
       .select({ p: sql<number>`coalesce(max(${bikes.position}), -1)::int`, n: sql<number>`count(*)::int` })
@@ -63,7 +69,7 @@ export async function createBike(ownerId: number, input: BikeInput): Promise<Bik
       .insert(bikes)
       .values({
         ownerId,
-        ...toRow(input),
+        ...toRow(input, liters),
         position: (last?.p ?? -1) + 1,
         isDefault: (last?.n ?? 0) === 0,
       })
@@ -72,10 +78,15 @@ export async function createBike(ownerId: number, input: BikeInput): Promise<Bik
   })
 }
 
-export async function updateBike(ownerId: number, id: number, input: BikeInput): Promise<BikeRow | undefined> {
+export async function updateBike(
+  ownerId: number,
+  id: number,
+  input: BikeInput,
+  liters: boolean,
+): Promise<BikeRow | undefined> {
   const [row] = await db
     .update(bikes)
-    .set({ ...toRow(input), updatedAt: new Date() })
+    .set({ ...toRow(input, liters), updatedAt: new Date() })
     .where(and(eq(bikes.id, id), eq(bikes.ownerId, ownerId)))
     .returning()
   return row

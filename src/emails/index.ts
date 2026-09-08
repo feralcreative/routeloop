@@ -9,6 +9,7 @@
 // else. That is what lets the tests import the whole registry with no database
 // and no environment, so nothing that reads a table belongs in this directory
 // (the signup notifications live in src/auth/notify.ts for exactly that reason).
+import { accountPurgeSoonEmail } from './account-purge-soon'
 import { approvedEmail } from './approved'
 import { feedbackStatusEmail } from './feedback-status'
 import { friendAcceptedEmail } from './friend-accepted'
@@ -16,7 +17,16 @@ import { friendRequestEmail } from './friend-request'
 import { inviteEmail } from './invite'
 import { magicLinkEmail } from './magic-link'
 import { ownerFeedbackEmail } from './owner-feedback'
+import { newFollowerEmail } from './new-follower'
 import { ownerSignupEmail } from './owner-signup'
+import { quotaFullEmail } from './quota-full'
+import { rideAddedEmail } from './ride-added'
+import { rideCommentEmail } from './ride-comment'
+import { ridePurgeSoonEmail } from './ride-purge-soon'
+import { rideRsvpEmail } from './ride-rsvp'
+import { rideSuggestionEmail } from './ride-suggestion'
+import { suggestionDecidedEmail } from './suggestion-decided'
+import { voteResolvedEmail } from './vote-resolved'
 import { waitlistEmail } from './waitlist'
 import type { AnyEmailTemplate } from './types'
 
@@ -30,9 +40,22 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   inviteEmail,
   friendRequestEmail,
   friendAcceptedEmail,
+  // The catalog's own thirteen, minus the three above that predate it. Order
+  // follows src/notifications/catalog.ts so the two lists read the same way.
+  rideCommentEmail,
+  rideSuggestionEmail,
+  suggestionDecidedEmail,
+  voteResolvedEmail,
+  rideAddedEmail,
+  rideRsvpEmail,
+  newFollowerEmail,
+  ridePurgeSoonEmail,
+  quotaFullEmail,
+  accountPurgeSoonEmail,
 ]
 
 export {
+  accountPurgeSoonEmail,
   approvedEmail,
   feedbackStatusEmail,
   friendAcceptedEmail,
@@ -40,7 +63,16 @@ export {
   inviteEmail,
   magicLinkEmail,
   ownerFeedbackEmail,
+  newFollowerEmail,
   ownerSignupEmail,
+  quotaFullEmail,
+  rideAddedEmail,
+  rideCommentEmail,
+  ridePurgeSoonEmail,
+  rideRsvpEmail,
+  rideSuggestionEmail,
+  suggestionDecidedEmail,
+  voteResolvedEmail,
   waitlistEmail,
 }
 export { renderEmail } from './shell'

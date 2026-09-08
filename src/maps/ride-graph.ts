@@ -96,7 +96,7 @@ const pointSchema = z.object({
   address: z.string().max(300).nullable().default(null),
   description: z.string().max(2000).default(''),
   roles: z.array(z.enum(ROLES)).max(MAX_ROLES_PER_POINT).default([]),
-  durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 routes
+  durationMin: z.number().int().min(0).max(43200).nullable().default(null), // ≤ 30 days
   // Meaningful on a meeting point and nowhere else, and null is not zero — see
   // points.slack_min in src/db/schema.ts. Optional and defaulted so every native
   // file and every in-flight save from an older tab stays valid.

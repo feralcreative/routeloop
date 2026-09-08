@@ -297,7 +297,7 @@
     // color rather than a fill, because a fill would fight the row backgrounds.
     &.is-active {
       background: rgba(0, 0, 0, 0.06);
-      box-shadow: inset 0 0 0 1px var(--route-color, #{$url});
+      box-shadow: inset 0 0 0 1px var(--route-color, #{$brand});
     }
 
     // ALTERNATES. The pair is bracketed by a shared left edge and the loser is
@@ -574,8 +574,8 @@
     }
 
     .is-danger:hover:not(:disabled) {
-      border-color: $kml;
-      color: $kml;
+      border-color: $stop;
+      color: $stop;
     }
 
     .sel-move {
@@ -592,7 +592,7 @@
   .row-pick {
     flex: none;
     margin: 0;
-    accent-color: var(--route-color, $url);
+    accent-color: var(--route-color, $brand);
   }
 
   // Sized and placed where .row-num sat, which it replaces — so the fields to
@@ -652,10 +652,10 @@
     }
 
     &.is-danger {
-      color: $kml;
+      color: $stop;
       &:hover:not(:disabled),
       &:focus-visible {
-        background: color-mix(in srgb, $kml 10%, transparent);
+        background: color-mix(in srgb, $stop 10%, transparent);
       }
     }
   }
@@ -669,15 +669,15 @@
     padding: 0.05em 0.45em;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.07);
-    color: $text-l20;
+    color: $neutral-43;
     font-size: 0.7em;
     font-weight: 600;
     white-space: nowrap;
     cursor: help;
 
     &.is-on {
-      background: color-mix(in srgb, var(--route-color, #{$url}) 16%, #{$white});
-      color: color-mix(in srgb, var(--route-color, #{$url}) 70%, #{$black});
+      background: color-mix(in srgb, var(--route-color, #{$brand}) 16%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$brand}) 70%, #{$black});
     }
   }
 
@@ -820,7 +820,7 @@
     cursor: pointer;
 
     &:hover {
-      color: $text-l30;
+      color: $neutral-50;
       border-color: $neutral-50;
     }
 
@@ -894,8 +894,8 @@
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      border-color: $kml;
-      color: $kml;
+      border-color: $stop;
+      color: $stop;
     }
 
     &:disabled {
@@ -938,8 +938,8 @@
           cursor: default;
         }
         &:not(:disabled):hover {
-          border-color: $url;
-          color: $url;
+          border-color: $brand;
+          color: $brand;
         }
       }
     }
@@ -991,8 +991,8 @@
     &:hover,
     &:focus-visible {
       opacity: 1;
-      border-color: $url;
-      color: $url;
+      border-color: $brand;
+      color: $brand;
       text-decoration: none;
     }
   }
@@ -1042,8 +1042,8 @@
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      border-color: $url;
-      color: $url;
+      border-color: $brand;
+      color: $brand;
     }
 
     &:focus-visible {
@@ -1074,7 +1074,7 @@
     align-items: center;
     gap: 0.35em;
     padding: 0.25em 0.3em;
-    border: 1px dashed $grey-d5;
+    border: 1px dashed $neutral-82;
     border-radius: 6px;
     background: none;
   }
@@ -1298,7 +1298,7 @@
     height: 12px;
     border: 0;
     background: none;
-    color: $text-l30;
+    color: $neutral-50;
     font-size: 0;
     cursor: pointer;
     transition: color 0.12s;
@@ -1344,7 +1344,7 @@
     flex: 0 0 auto;
     width: 14px;
     text-align: center;
-    color: $text-l40;
+    color: $neutral-63;
     font-weight: 700;
     line-height: 1;
   }
@@ -1386,7 +1386,7 @@
     border: 1px solid transparent;
     border-radius: 4px;
     background: none;
-    color: $text-l25;
+    color: $neutral-50;
     cursor: pointer;
 
     &:hover:not(:disabled) {
@@ -1406,7 +1406,7 @@
     &.is-armed {
       border-color: currentColor;
       background: $white;
-      color: var(--route-color, $url);
+      color: var(--route-color, $brand);
       font-weight: 700;
     }
 
@@ -1838,7 +1838,7 @@
           display: block;
           flex: 0 0 18px;
         }
-        // Selected. The tint used to be $url regardless of the route, which now
+        // Selected. The tint used to be $brand regardless of the route, which now
         // fights the band's color — the highlight is the background, and the
         // icon keeps the route's color like every other icon here.
         &.on {
@@ -1902,7 +1902,7 @@
     .row-note {
       margin: 0.15em 0 0 1.9em;
       font-size: 0.72em;
-      color: $text-l40;
+      color: $neutral-63;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2012,7 +2012,7 @@
       padding: 0.2em 0;
       font: inherit;
       font-size: 0.85em;
-      color: $url;
+      color: $brand;
       cursor: pointer;
       text-decoration: underline;
 
@@ -2038,7 +2038,7 @@
       flex: none;
       align-self: center;
       font-size: 0.7em;
-      color: $url;
+      color: $brand;
     }
 
     // HOW FAR IN, AND HOW FAR ON THIS TANK (#220).
@@ -2143,7 +2143,7 @@
       }
 
       &:hover {
-        color: $text-l30;
+        color: $neutral-50;
       }
 
       // QUIET, NOT BRAND-FILLED. This shipped as a solid $brand segment and it
@@ -2169,7 +2169,7 @@
       border: 1px dashed $grey;
       border-radius: 999px;
       background: transparent;
-      color: $text-l30;
+      color: $neutral-50;
       font: inherit;
       font-size: 0.7em;
       font-weight: 600;
@@ -2323,15 +2323,15 @@
     }
 
     &[data-state="saving"] .save-dot {
-      background: $url;
+      background: $brand;
       animation: save-pulse 1.1s ease-in-out infinite;
     }
 
     &[data-state="error"] {
-      color: $kml;
+      color: $stop;
       font-weight: 600;
       .save-dot {
-        background: $kml;
+        background: $stop;
       }
     }
 
@@ -2341,10 +2341,10 @@
     // gentler state for "you have not finished yet" — nothing here clears on its
     // own, and the autosave has deliberately stopped trying.
     &[data-state="conflict"] {
-      color: $kml;
+      color: $stop;
       font-weight: 600;
       .save-dot {
-        background: $kml;
+        background: $stop;
       }
     }
   }
@@ -2355,7 +2355,7 @@
   .live-presence {
     font-size: 0.68em;
     font-weight: 600;
-    color: $url;
+    color: $brand;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2369,7 +2369,7 @@
     margin-left: auto;
     font-size: 0.9em;
     font-weight: 600;
-    color: $url;
+    color: $brand;
 
     &.is-empty {
       visibility: hidden;
@@ -2431,7 +2431,7 @@
     }
 
     .hit-ctx {
-      color: $text-l35;
+      color: $neutral-57;
       font-size: 0.85em;
     }
 
@@ -2480,7 +2480,7 @@
     padding: 0 0.35em;
     border-radius: 3px;
     background: $interstate;
-    color: $white;
+    color: $ink-light;
     font-size: 0.7em;
     font-weight: 700;
     text-transform: uppercase;
@@ -2495,7 +2495,7 @@
     padding: 0.3em 0.6em;
     border-top: 1px solid $neutral-88;
     background: rgba(0, 0, 0, 0.02);
-    color: $text-l30;
+    color: $neutral-50;
     font-size: 0.7em;
     font-weight: 700;
     text-transform: uppercase;
@@ -2514,7 +2514,7 @@
   // "nothing there" and "it is broken" looked identical, which is exactly how a
   // server key missing the Places API presented.
   li.hit-note {
-    color: $text-l25;
+    color: $neutral-50;
     font-style: italic;
     cursor: default;
 
@@ -2554,7 +2554,7 @@
     border: 1px solid $neutral-88;
     border-radius: 999px;
     background: $white;
-    color: $text-l15;
+    color: $neutral-36;
     // Small on purpose. These are a shortcut, not the primary way in — the
     // search field above them is — so they sit under it and stay quiet.
     font-size: 0.68em;
@@ -3555,13 +3555,13 @@
   &.is-active {
     color: $text;
     font-weight: 600;
-    border-bottom-color: $url;
+    border-bottom-color: $brand;
   }
 
   // Inside the drawer rather than at its edge, because the default outline is
   // clipped by the scroller on the first and last tab.
   &:focus-visible {
-    outline: 2px solid $url;
+    outline: 2px solid $brand;
     outline-offset: -3px;
     border-radius: 4px;
   }
@@ -3644,7 +3644,7 @@
   border: none;
   background: none;
   font: inherit;
-  color: $url;
+  color: $brand;
   text-decoration: underline;
   cursor: pointer;
 

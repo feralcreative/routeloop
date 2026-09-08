@@ -184,9 +184,11 @@ describe.each(PALETTE_KEYS)('%s', (key: PaletteKey) => {
     },
   )
 
-  // $url is the app's generic accent and is a link color everywhere.
+  // $brand is the link color everywhere. It was `$url` until 2026-09-07, when
+  // `url`, `brand` and `ride` — one value under three names in all six palettes
+  // — were merged into the one this file already called forward-looking.
   it('keeps links legible on the page surface', () => {
-    expect(contrast(token(key, 'url'), surface())!).toBeGreaterThanOrEqual(AA)
+    expect(contrast(token(key, 'brand'), surface())!).toBeGreaterThanOrEqual(AA)
   })
 })
 

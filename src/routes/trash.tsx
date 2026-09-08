@@ -28,13 +28,13 @@ import { SEP } from '../views/sep'
 export const trashRoutes = new Hono<AuthEnv>()
 
 /** The countdown, phrased for someone deciding whether to act. `daysUntilPurge`
- *  rounds up, so the last partial route still reads as "1 route left". */
+ *  rounds up, so the last partial day still reads as "1 day left". */
 function Countdown({ purgeAfter, dateFormat }: { purgeAfter: Date | null; dateFormat: DateFormat }) {
   if (!purgeAfter) return <span class="trash-when">Scheduled</span>
-  const routes = daysUntilPurge({ deletedAt: null, purgeAfter }, new Date())
+  const days = daysUntilPurge({ deletedAt: null, purgeAfter }, new Date())
   return (
     <span class="trash-when">
-      {routes === 0 ? 'Goes today' : `${routes} ${routes === 1 ? 'route' : 'routes'} left`}
+      {days === 0 ? 'Goes today' : `${days} ${days === 1 ? 'day' : 'days'} left`}
       {SEP}destroyed {fmtDateFull(purgeAfter, dateFormat)}
     </span>
   )
@@ -60,8 +60,8 @@ trashRoutes.get('/trash', requireActive, async (c) => {
     <>
       <h1>Recycle bin</h1>
       <p class="lede">
-        Anything you delete waits here for {TRASH_HOLD_DAYS} routes, then is destroyed for good. Put something back and
-        the {TRASH_HOLD_DAYS} routes start again from&nbsp;scratch.
+        Anything you delete waits here for {TRASH_HOLD_DAYS} days, then is destroyed for good. Put something back and
+        the {TRASH_HOLD_DAYS} days start again from&nbsp;scratch.
       </p>
 
       {error && <p class="notice is-error">{error}</p>}

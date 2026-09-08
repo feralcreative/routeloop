@@ -18,6 +18,8 @@ import { userProfiles } from '../db/schema'
 import { type DateFormat, fromAcceptLanguage, toDateFormat } from './date-format'
 import { type Scheme, type Theme, toScheme, toTheme } from './appearance'
 import { DEFAULT_UNITS, type Units, toUnits } from './units'
+import { type Clock, toClock } from './clock'
+import { type ResolvedVolume, resolveVolume, toVolumeUnits } from './volume'
 
 /**
  * Which date format this request should render in.
@@ -109,4 +111,71 @@ export async function appearanceFor(c: Context<AuthEnv>): Promise<{ theme: Theme
     if (p) return { theme: toTheme(p.theme), scheme: toScheme(p.scheme) }
   }
   return { theme: toTheme(undefined), scheme: toScheme(undefined) }
+}
+
+/**
+ * The rider's two place lists, as they typed them (#271).
+ *
+ * ONE QUERY FOR BOTH, because they are two columns on one row and every caller
+ * needs the pair — a search is ranked by favor AND avoid in one pass.
+ *
+ * RAW TEXT RATHER THAN PARSED TERMS, so the parsing stays in the pure module
+ * that is tested with no database — this file's whole job is asking a question
+ * the database can answer. `parseAvoidList` is the other half.
+ *
+ * Null for a signed-out request and for a rider with no `user_profiles` row,
+ * which parses to an empty list and orders nothing. There is no header
+ * equivalent and there could not be one.
+ */
+export async function placeListsFor(c: Context<AuthEnv>): Promise<{ favor: string | null; avoid: string | null }> {
+  const user = c.get('user')
+  if (!user) return { favor: null, avoid: null }
+  const [p] = await db
+    .select({ favorPlaces: userProfiles.favorPlaces, avoidPlaces: userProfiles.avoidPlaces })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, user.id))
+    .limit(1)
+  return { favor: p?.favorPlaces ?? null, avoid: p?.avoidPlaces ?? null }
+}
+
+/**
+ * Gallons or liters, for this request, already RESOLVED.
+ *
+ * ONE QUERY FOR BOTH COLUMNS, because `auto` means "follow my distances" and
+ * answering it needs `units` beside it — two functions would pay for the row
+ * twice on the one surface that asks. Resolved here rather than returned raw so
+ * `auto` exists in exactly one place and no printer has to know it is possible;
+ * src/views/volume.ts owns the rule.
+ *
+ * No header equivalent, the same asymmetry unitsFor records: a browser's
+ * language is a poor guide to road distance and a worse one to fuel volume.
+ */
+export async function volumeFor(c: Context<AuthEnv>): Promise<ResolvedVolume> {
+  const user = c.get('user')
+  if (!user) return resolveVolume(toVolumeUnits(undefined), DEFAULT_UNITS)
+  const [p] = await db
+    .select({ units: userProfiles.units, volumeUnits: userProfiles.volumeUnits })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, user.id))
+    .limit(1)
+  return resolveVolume(toVolumeUnits(p?.volumeUnits), toUnits(p?.units))
+}
+
+/**
+ * Twelve- or twenty-four-hour time, for this request.
+ *
+ * No header equivalent and no fallback chain, unlike dateFormatFor: `locale` is
+ * itself the delegation — it hands the question back to the date format, which
+ * DOES consult Accept-Language. So a rider with no row gets `locale`, and their
+ * clock follows whatever their browser's language implied. See ./clock.ts.
+ */
+export async function clockFor(c: Context<AuthEnv>): Promise<Clock> {
+  const user = c.get('user')
+  if (!user) return toClock(undefined)
+  const [p] = await db
+    .select({ clock: userProfiles.clock })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, user.id))
+    .limit(1)
+  return toClock(p?.clock)
 }

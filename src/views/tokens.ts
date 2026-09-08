@@ -130,10 +130,23 @@ export function parseTokens(scss: string, palette?: ReadonlyMap<string, string>)
 /**
  * Every hex written directly into a partial, with where and how often.
  *
- * `_tokens.scss` is excluded because a token's own definition is not a stray
- * literal, and counting it would put every token at the top of a list whose
- * whole purpose is finding the colors that have no name.
+ * `_tokens.scss` and `_palette.scss` are both excluded by the caller: a token's
+ * own definition is not a stray literal, and counting them would put every color
+ * the app defines at the top of a list whose whole purpose is finding the ones
+ * with no name.
+ *
+ * **COMMENTS ARE STRIPPED FIRST, AND NOT DOING SO MADE THIS WHOLE PAGE LIE.**
+ * A three-digit hex and a GitHub issue reference are the same characters: this
+ * repo's comments are dense with `#130`, `#188`, `#282`, and every one of them
+ * was being expanded — `#130` to `#113300`, `#282` to `#228822` — and reported
+ * as an untokenized color used seven times across three files. Thirty-one of the
+ * page's thirty-six findings were issue numbers, which is enough noise to make
+ * the real five invisible and the page worth ignoring. Found 2026-09-07 while
+ * paring the palette, by an audit that disagreed with the page.
  */
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+
 export function findLiterals(files: { name: string; text: string }[], tokens: Token[]): Literal[] {
   const byValue = new Map<string, string>()
   for (const t of tokens) {
@@ -142,7 +155,7 @@ export function findLiterals(files: { name: string; text: string }[], tokens: To
 
   const seen = new Map<string, { count: number; files: Set<string> }>()
   for (const f of files) {
-    for (const m of f.text.matchAll(/#(?:[0-9a-f]{3}|[0-9a-f]{6})\b/gi)) {
+    for (const m of stripComments(f.text).matchAll(/#(?:[0-9a-f]{3}|[0-9a-f]{6})\b/gi)) {
       const key = expand(m[0].toLowerCase())
       const hit = seen.get(key) ?? { count: 0, files: new Set<string>() }
       hit.count++
@@ -301,8 +314,16 @@ export function readTokens(): Snapshot {
 
     const palette = parsePalette(readCss())
     const tokens = parseTokens(readFileSync(TOKENS_FILE, 'utf8'), palette)
+    // **`_palette.scss` IS EXCLUDED ALONGSIDE `_tokens.scss`, AND LEAVING IT IN
+    // WAS WHY THIS PAGE READ AS A DISASTER.** That file is where every raw value
+    // in the app is DEFINED — the whole point of the tokens/palette split — so
+    // scanning it reported about fifty "hexes with no token", every one of them
+    // the definition of a token. The number was permanently alarming and told
+    // nobody anything, which is the fastest way to make an inventory page get
+    // ignored. Scanning the CONSUMERS is the question worth asking: a hex in
+    // _map.scss is a color somebody reached past the palette for.
     const others = names
-      .filter((n) => n !== '_tokens.scss')
+      .filter((n) => n !== '_tokens.scss' && n !== '_palette.scss')
       .map((n) => ({ name: n, text: readFileSync(join(STYLE_DIR, n), 'utf8') }))
 
     const snapshot: Snapshot = { tokens, literals: findLiterals(others, tokens), palette }

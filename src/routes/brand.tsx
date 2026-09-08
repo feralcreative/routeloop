@@ -158,7 +158,7 @@ brandRoutes.get('/brand', requireActive, (c) => {
     </div>
 
     <h2>Not colors</h2>
-    <p class="brand-sub">Also in the tokens file, listed so the file's contents are accounted for in one place.</p>
+    <p class="brand-sub">Also in the tokens file, listed so the file’s contents are accounted for in one place.</p>
     <ul class="brand-plain">
       ${others.map((t) => `<li><code>$${esc(t.name)}</code> <code>${esc(t.value)}</code></li>`).join('')}
     </ul>

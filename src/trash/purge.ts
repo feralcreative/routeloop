@@ -16,6 +16,7 @@ import { and, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { placeGroups, places, rides } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
+import { warnRidePurges } from '../notifications/warnings'
 
 /**
  * How long a claim is trusted before another sweep may take it.
@@ -116,6 +117,13 @@ export type TrashPurgeResult = { rides: number; places: number; groups: number }
 export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResult> {
   const rideCount = await purgeDueRides(now)
   const { places: placeCount, groups: groupCount } = await purgeDuePlaces(now)
+  // WARNING RIDES ON THE SAME SWEEP AND RUNS AFTER THE DESTRUCTION, deliberately
+  // on both counts. It adds no sixth timer beside the five in index.tsx, and
+  // running it second means the rides purged this pass are already gone when the
+  // warning selects — so nothing is ever warned about a destruction that has
+  // just happened. Its own failure is swallowed: a missed warning must not stop
+  // the bin being emptied, which is the job this function is actually for.
+  await warnRidePurges(now).catch((err) => console.warn('[purge] purge warnings failed', err))
   return { rides: rideCount, places: placeCount, groups: groupCount }
 }
 

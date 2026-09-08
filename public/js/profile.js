@@ -17,7 +17,12 @@
   // from instead. They geocode identically, so the whole thing is a factory
   // rather than two copies that drift.
   const BLOCKS = [
-    { fields: ["addressLine", "city", "state", "postalCode"], lat: "f-homeLat", lng: "f-homeLng", status: "geocode-status" },
+    {
+      fields: ["addressLine", "city", "state", "postalCode"],
+      lat: "f-homeLat",
+      lng: "f-homeLng",
+      status: "geocode-status",
+    },
     {
       fields: ["startAddressLine", "startCity", "startState", "startPostalCode"],
       lat: "f-startLat",
@@ -27,92 +32,92 @@
   ];
 
   function wire(block) {
-  const status = document.getElementById(block.status);
-  const latEl = document.getElementById(block.lat);
-  const lngEl = document.getElementById(block.lng);
-  const parts = block.fields.map((n) => document.getElementById("f-" + n));
-  if (!status || !latEl || !lngEl || parts.some((el) => !el)) return;
+    const status = document.getElementById(block.status);
+    const latEl = document.getElementById(block.lat);
+    const lngEl = document.getElementById(block.lng);
+    const parts = block.fields.map((n) => document.getElementById("f-" + n));
+    if (!status || !latEl || !lngEl || parts.some((el) => !el)) return;
 
-  // The address the current coordinates belong to. Lets an untouched form keep
-  // the saved coordinates instead of re-fetching them on every page load.
-  let resolvedFor = parts.map((el) => el.value.trim()).join(", ");
-  let timer = null;
-  let seq = 0;
+    // The address the current coordinates belong to. Lets an untouched form keep
+    // the saved coordinates instead of re-fetching them on every page load.
+    let resolvedFor = parts.map((el) => el.value.trim()).join(", ");
+    let timer = null;
+    let seq = 0;
 
-  function query() {
-    return parts
-      .map((el) => el.value.trim())
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  function clearCoords(message) {
-    latEl.value = "";
-    lngEl.value = "";
-    status.textContent = message || "";
-  }
-
-  async function resolve() {
-    const q = query();
-    if (q === resolvedFor) return;
-
-    // Too little to be worth a lookup, and a stale coordinate pair must not
-    // survive the address being emptied.
-    if (q.length < 6) {
-      resolvedFor = q;
-      clearCoords("");
-      return;
+    function query() {
+      return parts
+        .map((el) => el.value.trim())
+        .filter(Boolean)
+        .join(", ");
     }
 
-    // Out-of-order responses would otherwise let a slow earlier request
-    // overwrite a fast later one.
-    const mine = ++seq;
-    status.textContent = "Looking up address…";
+    function clearCoords(message) {
+      latEl.value = "";
+      lngEl.value = "";
+      status.textContent = message || "";
+    }
 
-    try {
-      const res = await fetch("/api/geocode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q: q }),
-      });
-      if (mine !== seq) return;
+    async function resolve() {
+      const q = query();
+      if (q === resolvedFor) return;
 
-      // 404 is "no match", which is a normal answer rather than a failure: the
-      // address is still saved as text and the rider is told so.
-      if (res.status === 404) {
+      // Too little to be worth a lookup, and a stale coordinate pair must not
+      // survive the address being emptied.
+      if (q.length < 6) {
         resolvedFor = q;
-        clearCoords("Could not place that address. It will still be saved as text.");
+        clearCoords("");
         return;
       }
-      if (!res.ok) throw new Error("geocode failed: " + res.status);
 
-      const hit = await res.json();
-      if (mine !== seq) return;
+      // Out-of-order responses would otherwise let a slow earlier request
+      // overwrite a fast later one.
+      const mine = ++seq;
+      status.textContent = "Looking up address…";
 
-      lngEl.value = String(hit.lng);
-      latEl.value = String(hit.lat);
-      resolvedFor = q;
-      status.textContent = "Matched: " + (hit.label || q);
-    } catch (e) {
-      if (mine !== seq) return;
-      resolvedFor = q;
-      clearCoords("Address lookup is unavailable right now. It will still be saved as text.");
+      try {
+        const res = await fetch("/api/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ q: q }),
+        });
+        if (mine !== seq) return;
+
+        // 404 is "no match", which is a normal answer rather than a failure: the
+        // address is still saved as text and the rider is told so.
+        if (res.status === 404) {
+          resolvedFor = q;
+          clearCoords("Could not place that address. It will still be saved as text.");
+          return;
+        }
+        if (!res.ok) throw new Error("geocode failed: " + res.status);
+
+        const hit = await res.json();
+        if (mine !== seq) return;
+
+        lngEl.value = String(hit.lng);
+        latEl.value = String(hit.lat);
+        resolvedFor = q;
+        status.textContent = "Matched: " + (hit.label || q);
+      } catch (e) {
+        if (mine !== seq) return;
+        resolvedFor = q;
+        clearCoords("Address lookup is unavailable right now. It will still be saved as text.");
+      }
     }
-  }
 
-  parts.forEach(function (el) {
-    el.addEventListener("blur", function () {
-      clearTimeout(timer);
-      timer = setTimeout(resolve, 150);
+    parts.forEach(function (el) {
+      el.addEventListener("blur", function () {
+        clearTimeout(timer);
+        timer = setTimeout(resolve, 150);
+      });
     });
-  });
 
-  // Catches someone who fills the last field and submits without leaving it. The
-  // lookup is not awaited — blocking a save on a network call is exactly the
-  // failure mode this whole file is written to avoid.
-  form.addEventListener("submit", function () {
-    clearTimeout(timer);
-  });
+    // Catches someone who fills the last field and submits without leaving it. The
+    // lookup is not awaited — blocking a save on a network call is exactly the
+    // failure mode this whole file is written to avoid.
+    form.addEventListener("submit", function () {
+      clearTimeout(timer);
+    });
   }
 
   BLOCKS.forEach(wire);
@@ -312,9 +317,43 @@
   let inFlight = false;
   let again = false;
 
+  // THE STATE IS ON THE GROUP AS WELL AS THE LINE, since 2026-09-07. Ziad's call:
+  // each question group carries a thin border saying where it is — amber unsaved
+  // and while saving, green saved, red only when a save actually failed. The
+  // status line stays because it is the only thing that can name WHICH field was
+  // refused, which a border cannot.
+  //
+  // WHICH GROUPS LIGHT UP IS TRACKED RATHER THAN GUESSED. The profile is ONE form
+  // posting every watched field at once, so "the group that changed" is not
+  // something the response can say — `dirty` is collected as the rider types and
+  // the whole set resolves together on the answer.
+  const dirtyGroups = new Set();
+
+  // SETTLE, so a page of green borders does not accumulate. The state is worth
+  // seeing and not worth keeping — same reason the ride's own Saved chip fades.
+  const SETTLE_MS = 2000;
+  let settle = null;
+
+  function paintGroups(state) {
+    clearTimeout(settle);
+    dirtyGroups.forEach(function (g) {
+      g.dataset.save = state;
+    });
+    if (state === "saved") {
+      const done = Array.from(dirtyGroups);
+      dirtyGroups.clear();
+      settle = setTimeout(function () {
+        done.forEach(function (g) {
+          delete g.dataset.save;
+        });
+      }, SETTLE_MS);
+    }
+  }
+
   function say(state, text) {
     status.dataset.state = state;
     status.textContent = text;
+    paintGroups(state);
   }
 
   function watched(el) {
@@ -402,7 +441,12 @@
   }
 
   form.addEventListener("input", function (e) {
-    if (watched(e.target)) queue();
+    if (!watched(e.target)) return;
+    // The fieldset the edit happened in, so the border lands on the group the
+    // rider is actually looking at rather than on all of them.
+    const group = e.target.closest("fieldset");
+    if (group) dirtyGroups.add(group);
+    queue();
   });
 
   // THE ADDRESS BLOCK'S OWN COMMIT (#101), and it is the only thing that writes
@@ -423,7 +467,12 @@
     form.submit();
   });
   form.addEventListener("change", function (e) {
-    if (watched(e.target)) queue();
+    if (!watched(e.target)) return;
+    // A checkbox fires `change` and not `input`, so the group has to be picked
+    // up here too or the share flags save with no border.
+    const group = e.target.closest("fieldset");
+    if (group) dirtyGroups.add(group);
+    queue();
   });
   // On blur as well as on the timer, so leaving a field commits it rather than
   // waiting out the pause — the case #100 names is a rider who edits and

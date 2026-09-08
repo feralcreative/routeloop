@@ -1,0 +1,2 @@
+ALTER TABLE "notifications" ADD COLUMN "read_at" timestamp;--> statement-breakpoint
+CREATE INDEX "idx_notifications_unread" ON "notifications" USING btree ("user_id") WHERE "notifications"."read_at" is null;

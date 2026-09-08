@@ -3,14 +3,16 @@
 // The browser gets a random token. The database stores only its SHA-256 hash,
 // so a database leak yields no usable cookies. Web Crypto rather than
 // node:crypto keeps this portable to Cloudflare Workers later.
-import { eq, lt } from 'drizzle-orm'
+import { eq, lt, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
-import { sessions, userProfiles, users, type UserRow } from '../db/schema'
+import { notifications, sessions, userProfiles, users, type UserRow } from '../db/schema'
 import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
 import { type Motion, toMotion } from '../views/motion'
+import { type Clock, toClock } from '../views/clock'
+import { type DateFormat, toDateFormat } from '../views/date-format'
 
 // Renamed with the product on 2026-08-11. No legacy name is read: these cookies
 // are host-scoped with no `domain` attribute, so moving the canonical host to
@@ -54,16 +56,32 @@ export async function createSession(userId: number): Promise<string> {
 }
 
 /**
- * The signed-in rider, plus the three appearance values the shell needs.
+ * The signed-in rider, plus the display values the shell needs.
  *
- * `theme`, `scheme` and `motion` are widened onto the user rather than returned beside it
- * because `page()` takes a user and nothing else that could carry them. They are
- * DISPLAY values and belong to no table row on their own — `user_profiles` holds
- * them, `users` does not — which is why this is a composed type rather than a
- * change to UserRow.
+ * `theme`, `scheme` and `motion` are widened onto the user rather than returned
+ * beside it because `page()` takes a user and nothing else that could carry
+ * them. They are DISPLAY values and belong to no table row on their own —
+ * `user_profiles` holds them, `users` does not — which is why this is a composed
+ * type rather than a change to UserRow.
+ *
+ * `dateFormat` AND `clock` JOINED THEM ON 2026-09-07 (#270), for the same reason
+ * and to answer a new one: the CLIENT formats times too, and it was calling
+ * `toLocaleTimeString(undefined, …)` — the BROWSER's locale, not the rider's
+ * choice. So a rider who asked for a 24-hour clock got one in the printed
+ * roadbook and not in the builder. Stamping both on <html> is what lets the
+ * three client formatters read the same answer the server used.
  */
 export type SessionUser = {
-  user: UserRow & { theme: Theme; scheme: Scheme; motion: Motion; avatarBytes: number }
+  user: UserRow & {
+    theme: Theme
+    scheme: Scheme
+    motion: Motion
+    dateFormat: DateFormat
+    clock: Clock
+    avatarBytes: number
+    /** Unread notifications, for the badge on the account chip. */
+    unread: number
+  }
   sessionId: string
 }
 
@@ -94,7 +112,25 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: userProfiles.theme,
       scheme: userProfiles.scheme,
       motion: userProfiles.motion,
+      dateFormat: userProfiles.dateFormat,
+      clock: userProfiles.clock,
       avatarBytes: userProfiles.avatarBytes,
+      // THE UNREAD COUNT RIDES ALONG HERE FOR THE REASON THE APPEARANCE COLUMNS
+      // DO, one paragraph up: the badge is on the account chip, which is on
+      // every page, and page() is synchronous and called from dozens of places.
+      // Threading a count through all of them works until somebody adds one more
+      // and forgets — and a missed call site is not a visible bug, it is a rider
+      // who is never told anything happened.
+      //
+      // A CORRELATED SUBQUERY RATHER THAN A JOIN: a left join to `notifications`
+      // multiplies the session row by every notification and would need a GROUP
+      // BY over the whole select list. This is one indexed count on a query that
+      // already runs once per request, and `idx_notifications_unread` is the
+      // partial index that serves exactly this predicate.
+      unread: sql<number>`(
+        select count(*)::int from ${notifications}
+        where ${notifications.userId} = ${users.id} and ${notifications.readAt} is null
+      )`,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -123,11 +159,14 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: toTheme(row.theme),
       scheme: toScheme(row.scheme),
       motion: toMotion(row.motion),
+      dateFormat: toDateFormat(row.dateFormat),
+      clock: toClock(row.clock),
       // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
       // `users.avatar_url` is write-once from Google sign-in and a rider cannot
       // change it; an upload is a deliberate choice and outranks it. Zero means
       // no upload, which is what makes the column the flag as well as the size.
       avatarBytes: row.avatarBytes ?? 0,
+      unread: row.unread ?? 0,
     },
     sessionId: id,
   }

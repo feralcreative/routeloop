@@ -58,25 +58,154 @@ $fb-line: palette.light("neutral-88");
 }
 
 .fb-flow,
+// SCREEN ONE IS THREE SIGNS AND NOTHING ELSE, so they take the height rather
+// than sitting in the top third of it. Ziad's call, 2026-09-07.
+//
+// A GAP THAT GROWS WITH THE VIEWPORT AND IS CLAMPED AT BOTH ENDS. `clamp` rather
+// than a plain `vh`, because this flow's own sizing rules are a floor and not a
+// suggestion: 16px is the minimum this file documents between adjacent targets
+// for a gloved thumb, and a bare `4vh` would fall under it on a phone in
+// landscape — which is exactly the posture somebody reporting a bug at the side
+// of a road is in. The ceiling is there because three signs a screen apart stop
+// reading as one set of choices.
 .fb-fork {
   display: flex;
   flex-direction: column;
-  gap: $fb-gap;
+  gap: clamp(#{$fb-gap}, 4vh, 2.25rem);
   max-width: 34rem;
-  margin: 0 auto;
+  // AIR UNDER THE HEADING, and it scales with the viewport like the gap does so
+  // the two stay in proportion — a fixed rule under a growing gap makes the
+  // heading look stuck to the first sign on a tall screen. Slightly more than
+  // the gap at every size, so the question reads as the question and the three
+  // signs read as the answer to it.
+  //
+  // ON THE FORK RATHER THAN ON `.feedback-flow h1`, which is every screen in the
+  // flow. The later ones put a lede directly under the heading, and pushing that
+  // down would read as the sentence having come loose from what it explains.
+  margin: clamp(1.5rem, 5vh, 3rem) auto 0;
   padding: 0 0 6rem; // room for the bottom-anchored send button
 }
 
 // --- Screen 1: the fork ------------------------------------------------------
 
+// THE THREE CARDS ARE SIGNS, AND THEY READ DOWN THE PAGE AS A SIGNAL.
+// Ziad's call, 2026-09-07: red, then yellow, then green. It falls out of what
+// the three actually mean — something is broken is a stop condition, an idea is
+// a suggestion to go a different way, and a question is nobody being held up at
+// all — so the order in KIND_ORDER and the order of the colors are the same
+// order for the same reason, rather than a palette applied down a list.
+//
+// PINNED TO THE LIGHT PALETTE like everything else on this surface, via
+// palette.light(). The note at the top of this file is why: these values must
+// not follow the scheme, or the flow goes dark in sunlight. It also means each
+// pair below has ONE contrast ratio rather than six.
+$fb-stop: palette.light("stop");
+$fb-yield: palette.light("yield");
+$fb-go: palette.light("interstate");
+// The two legend inks, and they are not interchangeable — see the ink-pairing
+// table in _palette.scss. $stop and $interstate are white-legend fields;
+// $yield is the yellow of a yield sign and takes BLACK, which is not a stylistic
+// choice — white on it measures about 1.3:1 and is effectively invisible. The
+// keyline goes black with it, the same way `.btn-warning` carries a dark ring.
+$fb-legend-light: palette.light("ink-light");
+$fb-legend-dark: palette.light("ink-dark");
+
+// The guide sign's own construction, at card scale: the field, the legend, and
+// a keyline set in from the edge so a band of field still shows outside it.
+//
+// TWO STACKED INSET SHADOWS, not a border — the first repaints the outer 3px in
+// the field color and the second would fill the outer 5px in the ink, so what
+// survives is a 2px ring inset by 3px. Inset shadows follow the border-radius,
+// so the inner corners curve on their own. Same mechanism and same numbers as
+// `sign-field()` in _chrome.scss; not that mixin, because it also sets a
+// button's padding, its gap and its arrow, and a card is none of those.
+@mixin fb-sign($field, $ink) {
+  background: $field;
+  color: $ink;
+  border-color: $field;
+  box-shadow:
+    inset 0 0 0 3px $field,
+    inset 0 0 0 5px $ink;
+
+  // Lit differently, not a different sign. Both layers move together, or the
+  // old field shows as a hairline outside the keyline.
+  &:hover,
+  &:focus-visible {
+    $lit: color-mix(in oklab, #{$field}, black 12%);
+
+    background: $lit;
+    border-color: $lit;
+    box-shadow:
+      inset 0 0 0 3px $lit,
+      inset 0 0 0 5px $ink;
+  }
+}
+
+// THE ARROW, IN THE LEGEND'S OWN INK.
+//
+// A MASK RATHER THAN A BAKED FILL, which is where this departs from
+// `sign-arrow` in _chrome.scss and it is not a preference. That mixin bakes
+// `%23fff` into the data URI and its own comment says that is only correct
+// because every sign it draws takes a white legend — "revisit only if a variant
+// ever changes the legend color". The yellow card is exactly that variant: its
+// legend is black, so a white arrow on it would be invisible. A mask painted
+// with `currentColor` follows whichever ink the sign carries, so one declaration
+// serves all three and cannot drift out of step with the text beside it.
+//
+// THE PATH IS THE SAME SHAPE AND MUST STAY THAT WAY — a 32-unit shaft meeting a
+// head 80 units tall, on the same 105x96 viewBox. If the arrow in _chrome.scss
+// is ever redrawn, this is the second place it lives.
+//
+// The -webkit- pair is the "prefix dance" _chrome.scss cites as a reason to
+// avoid masks. It is two lines, and it is what makes this safe on the older
+// WebKit a rider at the side of a road may well be holding.
+@mixin fb-arrow {
+  content: "";
+  // Doubled from 1.6rem on 2026-09-07. At sign scale the arrow is a second
+  // legend rather than a decoration on the end of one.
+  width: 3.2rem;
+  height: 3.2rem;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+// GRID RATHER THAN A FLEX COLUMN, so the arrow can sit at the right of BOTH text
+// rows without the two spans needing a wrapper element around them in the
+// markup. The text rows stack in column one, the arrow spans them in column two.
+//
+// `align-content: center` is what centers the text block top to bottom inside
+// the card's 7rem — Ziad's call, 2026-09-07. It is the ROW GROUP being centered,
+// which is the thing that reads as centered; `align-items` alone would center
+// each row in its own track and leave the pair sitting at the top.
 .fb-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-  // The minimum is 88px rather than the 60px the rest of the flow uses. These
-  // three cards are the whole of screen one and there is nothing to crowd.
-  min-height: 88px;
-  padding: 1em 1.1em;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label arrow"
+    "blurb arrow";
+  align-content: center;
+  align-items: center;
+  gap: 0.25em 1rem;
+  // The minimum is well past the 60px the rest of the flow uses. These three
+  // cards are the whole of screen one and there is nothing to crowd, and as
+  // SIGNS they want the height — a guide sign that is mostly keyline reads as a
+  // badge. Raised from 88px on 2026-09-07 with the gap above.
+  min-height: 7rem;
+  // A PREDICTABLE `em` FIRST. A <button> takes the UA's own font-size as well as
+  // its font-face, so before this line the padding below resolved against
+  // 13.33px rather than the page's 16 — the box was right by accident and the
+  // next person to change a number here would have got three quarters of what
+  // they asked for. The label and blurb set their own rem sizes, so this
+  // changes nothing that is drawn.
+  font-size: 1rem;
+  // Looser than it was, because the legend now has a keyline to clear — the
+  // same reason `.btn-sign` is padded wider than `.btn`. The horizontal figure
+  // doubled on 2026-09-07: a guide sign is mostly field, and legend set close to
+  // the keyline reads as a label stuck on a colored box.
+  padding: 0.95rem 2.35rem;
   border: 2px solid $fb-line;
   border-radius: $fb-radius;
   background: $fb-bg;
@@ -84,18 +213,45 @@ $fb-line: palette.light("neutral-88");
   text-align: left;
   cursor: pointer;
 
+  // The unsigned card is still what an unknown kind renders as, so the plain
+  // hover stays underneath the three below.
   &:hover,
   &:focus-visible {
-    border-color: $url;
+    border-color: $brand;
+  }
+
+  // ON THE SIGNED CARDS ONLY. An arrow is a LEGEND, and a card with no field is
+  // not a sign for it to be a legend on.
+  &[data-kind]::after {
+    @include fb-arrow;
+
+    grid-area: arrow;
+  }
+
+  &[data-kind="bug"] {
+    @include fb-sign($fb-stop, $fb-legend-light);
+  }
+
+  &[data-kind="idea"] {
+    @include fb-sign($fb-yield, $fb-legend-dark);
+  }
+
+  &[data-kind="question"] {
+    @include fb-sign($fb-go, $fb-legend-light);
   }
 }
 
 .fb-card-label {
-  font-size: 1.25rem;
+  grid-area: label;
+  // Up from 1.25rem on 2026-09-07. It is the legend of a sign now rather than
+  // the title of a card, and a sign's legend is the thing you read from a
+  // distance — the blurb under it is the sentence you read once you have.
+  font-size: 1.5rem;
   font-weight: 600;
 }
 
 .fb-card-blurb {
+  grid-area: blurb;
   font-size: 1.0625rem; // 17px floor
   font-weight: 400;
 }
@@ -138,7 +294,7 @@ $fb-line: palette.light("neutral-88");
   line-height: 1.45;
 
   &:focus-visible {
-    border-color: $url;
+    border-color: $brand;
     outline: none;
   }
 }
@@ -200,20 +356,20 @@ $fb-line: palette.light("neutral-88");
   }
 
   &:hover {
-    border-color: $url;
+    border-color: $brand;
   }
 
   // Both, because the class is set by feedback.js and :has covers the case
   // where it never loaded.
   &.is-on,
   &:has(input:checked) {
-    border-color: $url;
-    background: color-mix(in srgb, $url 10%, $white);
+    border-color: $brand;
+    background: color-mix(in srgb, $brand 10%, $white);
     font-weight: 600;
   }
 
   &:focus-within {
-    outline: 3px solid $url;
+    outline: 3px solid $brand;
     outline-offset: 2px;
   }
 }
@@ -381,7 +537,7 @@ $fb-line: palette.light("neutral-88");
   }
 
   &.is-question {
-    color: $url;
+    color: $brand;
   }
 }
 
@@ -403,7 +559,7 @@ $fb-line: palette.light("neutral-88");
 .fb-response {
   margin: 0.6em 0 0;
   padding: 0.6em 0.9em;
-  border-left: 4px solid $url;
+  border-left: 4px solid $brand;
   background: $neutral-96;
   font-size: 1.0625rem;
 }
@@ -849,8 +1005,8 @@ html.map-page:has(.map-timeline:not([hidden])) {
     text-transform: capitalize;
 
     &.is-on {
-      border-color: $url;
-      background: color-mix(in srgb, $url 12%, transparent);
+      border-color: $brand;
+      background: color-mix(in srgb, $brand 12%, transparent);
       font-weight: 600;
     }
   }
@@ -859,7 +1015,7 @@ html.map-page:has(.map-timeline:not([hidden])) {
     padding: 0 0.4em;
     border-radius: 999px;
     background: $stop;
-    color: $white;
+    color: $ink-light;
     font-size: 0.8em;
     font-weight: 700;
   }
@@ -1041,19 +1197,19 @@ html.map-page:has(.map-timeline:not([hidden])) {
   // gas-stop one, but it is still the only control on the card.
   min-height: 44px;
   padding: 0.4em 1em;
-  border: 2px solid $url;
+  border: 2px solid $brand;
   border-radius: 999px;
   background: transparent;
   color: $text;
   cursor: pointer;
 
   &:hover {
-    background: color-mix(in srgb, $url 10%, transparent);
+    background: color-mix(in srgb, $brand 10%, transparent);
   }
 }
 
 .b-want.is-wanted button {
-  background: color-mix(in srgb, $url 16%, transparent);
+  background: color-mix(in srgb, $brand 16%, transparent);
   font-weight: 600;
 }
 

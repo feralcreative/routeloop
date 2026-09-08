@@ -7,7 +7,7 @@
 // same IIFE — so the later declaration replaced the earlier one for the whole
 // file, and dragging a leg onto another road called the wrong one, got
 // `{pins, onHover, onPick}` back, and died on `preview.setPath is not a
-// function`. Shipped 2026-09-03 and reported the same route.
+// function`. Shipped 2026-09-03 and reported the same day.
 //
 // NOTHING ELSE CATCHES IT. `node --check` accepts a redeclaration, prettier has
 // no opinion, and the typecheck does not read `public/js/`. The general answer
