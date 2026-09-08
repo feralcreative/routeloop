@@ -161,7 +161,7 @@ Import specifics: several files posted at once become the days of one ride, and 
 | `GET /settings`                    | Preferences **and** the profile, two tabs of one page (#269). `src/views/account-page.tsx` composes it; `routes/settings.tsx` keeps the six preference POSTs and this GET |
 | `POST /settings/appearance`        | Palette, light/dark and motion—**one handler for three axes**, because a rider has one appearance |
 | `POST /settings/units`, `/settings/date-format`, `/settings/clock`, `/settings/duration-format`, `/settings/volume` | One preference each, one column each: saving one cannot revert another. Every one seeds `date_format` from `Accept-Language` on INSERT and leaves it out of the update set—see the lazy-row trap in AGENTS.md |
-| `POST /settings/avoid`             | The rider's avoid list (#271). Stored exactly as typed; `src/places/avoid.ts` parses at read time |
+| `POST /settings/avoid`, `/settings/favor` | The rider's two place lists (#271). Stored exactly as typed; `src/places/ranking.ts` parses at read time and `rankPlaces()` orders a search by both in one pass. Two handlers rather than one taking a direction, because a request naming the wrong column would move a rider's list from one side to the other |
 | `GET /brand`                       | Signed-in palette audit read live from the SCSS                    |
 
 ## Invites and survey

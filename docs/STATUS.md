@@ -1,6 +1,6 @@
 # Status and handoff
 
-**Branch:** `feat/account-and-preferences`, eleven commits ahead of `main`. **2,550 tests across 102 files** (2 skipped, 2,552 total)
+**Branch:** `feat/account-and-preferences`, twenty commits ahead of `main`. **2,562 tests across 102 files** (2 skipped, 2,564 total)
 **Not pushed.** The branch is local; the push and the PR are yours.
 **Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
 **[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
@@ -38,6 +38,14 @@ Ziad's call, in the same sprint. **Your picture moved into Who you are**, where 
 **The Home base copy says what the code does, which is not what was asked for.** Ziad asked for "changing a ride to public automatically swaps out your Home Base"—`offerPublicStart()` ASKS with a confirm, fires on any level above private rather than public alone, and does nothing at all when no public starting point is set. Shown the gap, he kept the confirm and took the accurate copy. The mirror block was wrong in the same direction and was fixed with it.
 
 **[#282](https://github.com/feralcreative/routeloop/issues/282), and it is the biggest thing found this sprint.** `--white` is the PAGE SURFACE token, near-black under a dark scheme—so twelve rules painting `color: $white` on a colored field rendered near-black ink on a saturated ground. **`.btn` was one of them, which is every button in the app, at 2.67:1.** So were the Range button, the fuel-empty `E`, three map tooltips, the search badge, the queue count and the survey's selected ratings. `sign-field()`'s own comment predicted it, deferred it and never measured it. `test/palette-contrast.test.ts` could not have caught it—it audits the palette and was right throughout; the defect was the stylesheet pairing a correct field with the wrong ink token. `test/sign-legend.test.ts` compiles the sheet and looks for the pairing. Found while building the `?` badge on the same construction, which had it too.
+
+**Places and brands to favor, beside the avoid list**, 50/50 and saving independently. `src/places/avoid.ts` became `ranking.ts`—`rankPlaces()` is one partition into three rather than a promote then a demote, which makes a term in both lists a decision instead of an accident of pass order. Favor wins. Nothing is added: a favored place the search did not return is not conjured up.
+
+**A palette bar above the Appearance save row**, nine sign fields in signal order. No JavaScript—every chip is a `var()` on a token the theme redefines, so it follows the choice for free and cannot drift from what the app paints.
+
+**The builder's timeline scope is a double-sided pill**, `Route | Ride`, the active side filled. Its fill is `$disabled` and not `$brand`: `$brand` is a link colour the dark scheme lifts, so as a field behind white it measured 2.75:1.
+
+**Smaller Units changes.** Numeric dates are dashes and two digits with the locale deciding only the order; `Year first` lost the ISO; the clock offers two options and `locale` resolves rather than being offered; stop durations read shortest form to longest.
 
 **Settings autosaves and the Save buttons are gone.** Each group carries a thin border: amber unsaved, amber pulsing while saving, green saved, back to neutral. Red is reserved for a save that failed, which is where it departs from how it was asked for—`error` already owned red and that is the state a rider must not miss. No new endpoints: it posts each form's own action and reads an `opaqueredirect` as success. The buttons are hidden rather than deleted, so the page still works with script off, and a failure un-hides the button. Profile keeps its own whole-form autosave and its Save button, which is still the only way to commit a username or an address.
 
