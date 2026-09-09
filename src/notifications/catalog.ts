@@ -120,9 +120,15 @@ type EventDef = {
    * red, and everything else is the blue sign field.
    *
    * **`warn` FLIPS THE GLYPH TO BLACK AND THAT IS NOT COSMETIC.** `$warning` is
-   * a BLACK-legend field — white on it measures about 1.4:1 — and the mark files
-   * hard-code `fill="white"`. The stylesheet overrides it for this tone alone.
-   * See the rule in _account.scss; getting it wrong is #282 exactly.
+   * a BLACK-legend field — white on it measures about 1.4:1 — so the tone sets
+   * `--icon-ink` alongside `color`. See the rule in _account.scss; getting it
+   * wrong is #282 exactly.
+   *
+   * The flip used to override the `fill="white"` attribute in the mark file,
+   * which reached one of the five spellings the folder uses and worked here only
+   * because `storage` happens to use that one. views/icon.ts normalizes every
+   * spelling to the property, so a new tone can be added to a mark that spells
+   * it `#ffffff` — `bug`, for one — without the glyph silently staying white.
    */
   readonly tone: 'info' | 'warn' | 'stop'
 }

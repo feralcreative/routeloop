@@ -953,16 +953,18 @@
   //
   // **THE GLYPH FLIPS TO BLACK HERE AND THAT IS NOT COSMETIC.** $warning is a
   // BLACK-legend field: white on it measures about 1.4:1, which is #282 exactly
-  // and is why the staging banner takes $ink-dark rather than $white. The mark
-  // files hard-code `fill="white"` on the knockout, so it is overridden by
-  // attribute — presentation attributes lose to CSS, which is what makes this
-  // work without a second copy of every SVG.
+  // and is why the staging banner takes $ink-dark rather than $white.
+  //
+  // **IT SETS `--icon-ink` AND NO LONGER OVERRIDES AN ATTRIBUTE.** This was
+  // `:where([fill="white"]) { fill: $ink-dark }`, which reached one of the five
+  // spellings the folder uses — so it happened to work here only because
+  // `storage` is the one mark `warn` draws and `storage` spells it that way.
+  // `bug`, which this same rule draws on the `info` tone, spells it `#ffffff`
+  // and would have kept a white glyph the day anybody gave it an amber tone.
+  // views/icon.ts normalizes every spelling to this property.
   &[data-tone="warn"] {
     color: $warning;
-
-    :where([fill="white"]) {
-      fill: $ink-dark;
-    }
+    --icon-ink: #{$ink-dark};
   }
 }
 

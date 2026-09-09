@@ -46,10 +46,19 @@ function blocks(source: string): string[] {
 const BLACK_FIELDS = ['warning', 'yield', 'detour', 'speed']
 
 // THE NOTIFICATION MARKS ARE DISCS WITH THE GLYPH KNOCKED OUT IN WHITE, and the
-// knockout is a `fill="white"` presentation attribute inside the SVG file rather
-// than anything the stylesheet sets. So a mark painted in a black-legend field
-// is #282 in a form test/palette-contrast.test.ts cannot see — the palette is
-// correct, and the STYLESHEET has paired that field with white ink.
+// knockout is a presentation attribute inside the SVG file rather than anything
+// the stylesheet sets. So a mark painted in a black-legend field is #282 in a
+// form test/palette-contrast.test.ts cannot see — the palette is correct, and
+// the STYLESHEET has paired that field with white ink.
+//
+// **THE FLIP IS `--icon-ink` AND THIS GUARD USED TO LOOK FOR AN ATTRIBUTE
+// SELECTOR.** It asserted `[fill="white"]`, which was the real rule until
+// 2026-09-09 and reached exactly one of the five spellings the folder uses —
+// so it passed while `bug`, `help`, `info` and the four `record-*` marks kept a
+// white glyph on every black-legend field. The guard was as narrow as the bug.
+// views/icon.ts normalizes every spelling to the property now, and
+// test/icon-ink.test.ts is what holds that end; this end only has to see that a
+// black-legend tone names the ink.
 //
 // The amber quota mark is the one that needs it today. This is what stops the
 // next tone from being added without it.
@@ -63,10 +72,7 @@ describe('a notification mark never leaves a white glyph on a black-legend field
     for (const [, tone, body] of tones) {
       const field = BLACK_FIELDS.find((f) => new RegExp(`color:\\s*var\\(--${f}\\)`).test(body))
       if (!field) continue
-      const flips = new RegExp(
-        `\\.notif-mark\\[data-tone=["']?${tone}["']?\\][^{]*\\[fill=["']?white["']?\\][^{]*\\{[^{}]*fill:`,
-      ).test(css)
-      if (!flips) unflipped.push(`${tone} paints --${field} and leaves the glyph white`)
+      if (!/--icon-ink:/.test(body)) unflipped.push(`${tone} paints --${field} and leaves the glyph white`)
     }
     expect(unflipped).toEqual([])
   })

@@ -13,8 +13,19 @@
 //
 // **BLACK-LEGEND FIELDS FLIP THE GLYPH HERE, THE SAME WAY THE REAL RULE DOES.**
 // $warning carries white at about 1.4:1, which is #282, so a page that drew the
-// amber column with a white glyph would be recommending the bug. The flip is the
-// same `[fill="white"]` override _account.scss uses.
+// amber column with a white glyph would be recommending the bug. The flip sets
+// `--icon-ink`, the same property _account.scss sets.
+//
+// **NOT EVERY FILE IN THE FOLDER IS A BADGE, AND DRAWING THEM AS THOUGH THEY
+// WERE IS WHAT PRODUCED THE INVISIBLE CELLS.** Ziad's call, 2026-09-09, off
+// this page. Eight marks — close, collapse, expand, redo, reverse, undo,
+// waypoint, waypoint-auto — are one path in `currentColor` with no disc and no
+// knockout at all, so a field column asks a question they cannot answer: in the
+// $speed column they rendered as #efefef on a near-white cell, and the flip had
+// nothing to bite on. They get their own section, painted the way they are
+// actually used, on the page ground. `vmc` is a third kind again and is listed
+// with them: a club logo with a fixed palette and no `currentColor` anywhere,
+// which is why views/icon.ts exempts it from the knockout normalization.
 //
 // Read from disk per request like src/views/icon.ts, so re-exporting a mark from
 // the drawing tool and reloading shows the new one — `tsx watch` does not restart
@@ -98,6 +109,29 @@ function iconNames(): string[] {
     .sort()
 }
 
+/**
+ * What KIND of mark this is, read off the drawing rather than listed.
+ *
+ * A `badge` has a knockout, so views/icon.ts has exposed it as `--icon-ink` and
+ * the field table is a real question about it. A `glyph` is one path in
+ * `currentColor` with no disc — a chrome mark, painted with `color:` on the page
+ * ground, which has no legend and no field to clear. A `logo` is fixed-palette
+ * artwork the loader deliberately leaves alone.
+ *
+ * DERIVED, so a mark redrawn with a disc moves sections on reload rather than
+ * needing a name added to a list here — which is the same property that makes
+ * the whole page read from disk per request.
+ */
+type Kind = 'badge' | 'glyph' | 'logo'
+
+function kindOf(name: string): Kind {
+  const svg = icon(name)
+  if (svg.includes('--icon-ink')) return 'badge'
+  // No knockout the loader could reach. Either it has no white at all (a chrome
+  // glyph) or its whites are artwork it was exempted from (a logo).
+  return /(?:fill|stroke)="(?:white|#fff|#ffffff)"/i.test(svg) ? 'logo' : 'glyph'
+}
+
 iconRoutes.get('/icons', requireActive, (c) => {
   const user = currentUser(c)
   const names = iconNames()
@@ -173,6 +207,20 @@ iconRoutes.get('/icons', requireActive, (c) => {
     </tr>`
   }
 
+  // Three kinds, and only the first has a legend to get wrong.
+  const byKind = { badge: [] as string[], glyph: [] as string[], logo: [] as string[] }
+  for (const n of names) byKind[kindOf(n)].push(n)
+
+  // The marks the field table cannot ask a question about, painted the way they
+  // are actually used: `currentColor` on the page ground. A row per mark rather
+  // than a column per field, because there is no field.
+  const plainRow = (name: string, kind: Kind) => `
+    <li class="ic-plain">
+      <span class="ic-mark ic-mark--plain">${icon(name)}</span>
+      <code>${esc(name)}</code>
+      <span class="ic-free">${kind === 'logo' ? 'fixed palette' : 'no knockout'}</span>
+    </li>`
+
   const body = `
     <h1>Icons</h1>
     <p class="lede">
@@ -210,7 +258,11 @@ iconRoutes.get('/icons', requireActive, (c) => {
       </table>
     </div>
 
-    <h2>Everything in the folder</h2>
+    <h2>Every badge mark</h2>
+    <p class="brand-sub">
+      The ${byKind.badge.length} marks in the folder that are two-tone — a disc in <code>color</code> with the glyph
+      knocked out in <code>--icon-ink</code>. These are the only ones a field column asks a real question about.
+    </p>
     <div class="ic-scroll">
       <table class="ic-table">
         <thead>
@@ -219,9 +271,24 @@ iconRoutes.get('/icons', requireActive, (c) => {
             ${heads()}
           </tr>
         </thead>
-        <tbody>${names.map(row).join('')}</tbody>
+        <tbody>${byKind.badge.map(row).join('')}</tbody>
       </table>
-    </div>`
+    </div>
+
+    <h2>Not badge marks</h2>
+    <p class="brand-sub">
+      The other ${byKind.glyph.length + byKind.logo.length}, and they are <strong>deliberately not in the table
+      above</strong>. ${byKind.glyph.length} are a single path in <code>currentColor</code> with no disc and no
+      knockout — chrome marks, painted with <code>color</code> on the page ground — so there is no field to clear and
+      no legend to flip; drawing them across the field columns is what produced the invisible cells. ${
+        byKind.logo.length
+      } is fixed-palette artwork that <code>views/icon.ts</code> exempts from the knockout normalization, because
+      recoloring somebody else&rsquo;s logo is not a legend decision. Shown here at the page&rsquo;s own ink.
+    </p>
+    <ul class="ic-plain-list">
+      ${byKind.glyph.map((n) => plainRow(n, 'glyph')).join('')}
+      ${byKind.logo.map((n) => plainRow(n, 'logo')).join('')}
+    </ul>`
 
   return c.html(page({ title: 'Icons', user, body }))
 })

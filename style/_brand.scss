@@ -326,12 +326,57 @@
   }
 }
 
-// THE FLIP, AND IT MIRRORS _account.scss RATHER THAN INVENTING ONE. A black
-// legend on these two-tone marks means overriding the `fill="white"` the SVG
-// hard-codes; a page that drew the amber column with a white glyph would be
-// recommending #282 rather than showing it.
-.ic-cell.is-black :where([fill="white"]) {
-  fill: $ink-dark;
+// THE FLIP, AND IT MIRRORS _account.scss RATHER THAN INVENTING ONE. A page that
+// drew the amber column with a white glyph would be recommending #282 rather
+// than showing it.
+//
+// **IT SETS `--icon-ink`, WHICH IS WHAT MADE IT ACTUALLY REACH EVERY MARK.**
+// This was `:where([fill="white"])`, an attribute match on one of the five
+// spellings in the folder — so `bug`, `help`, `info` and the four `record-*`
+// marks kept a white glyph in all thirteen black-legend columns. Reported off
+// this page, 2026-09-09. views/icon.ts now normalizes the knockout, so the
+// column only has to name the ink.
+.ic-cell.is-black {
+  --icon-ink: #{$ink-dark};
+}
+
+// THE MARKS THE FIELD TABLE CANNOT ASK ABOUT. A chrome glyph is one path in
+// currentColor with no disc, so it has no field to clear and no legend to flip —
+// it takes neither the hairline ring nor a colored ground, because both would
+// imply a relationship it does not have. Painted at the page's own ink, which is
+// how every caller paints it.
+.ic-plain-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.ic-plain {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+
+  code {
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  // The label sits beside the name here rather than under it, so it does not
+  // need the block display .ic-free carries in the table.
+  .ic-free {
+    display: inline;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+}
+
+.ic-mark--plain {
+  flex: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .ic-used {
@@ -368,8 +413,8 @@
 
 // The warn tone flips its glyph here too, so the "as assigned" swatch shows what
 // the centre shows rather than the bug the centre avoids.
-.ic-real[style*="--warning"] :where([fill="white"]) {
-  fill: $ink-dark;
+.ic-real[style*="--warning"] {
+  --icon-ink: #{$ink-dark};
 }
 
 // The ring table is 17 columns wide, so it is narrower per cell than the field
