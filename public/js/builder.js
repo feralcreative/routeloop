@@ -9198,7 +9198,12 @@
      */
     function corridorSearchArgs(r) {
       const route = state.routes[r];
-      const track = route ? fullTrack(r) : [];
+      // BOTH HALVES OF ONE WALK. fullTrack() is trackAndSpans().track, and #266
+      // needs the spans as well to put a hit back on a row, so taking them
+      // together is one pass rather than two that could disagree.
+      const built = route ? trackAndSpans(r) : { track: [], spans: [] };
+      const track = built.track;
+      const spans = built.spans;
       const totalM = route ? DIST.totalM(route) : 0;
       // The viewport only when the route has no line yet — this is the ALONG THE
       // DAY scope, so the route is the subject and the screen is the fallback
@@ -9209,12 +9214,45 @@
       // rather than an empty list reading as "there is none here".
       const view = viewportAnchor();
       if (!track.length || !totalM) {
-        return { track: track, totalM: 0, near: view && view.near };
+        return { track: track, spans: spans, totalM: 0, near: view && view.near };
       }
 
       // The sampling itself is corridorRun(), which the insert-slot path shares
       // — the route and one leg are the same question at two scales.
-      return { track: track, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
+      return { track: track, spans: spans, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
+    }
+
+    /**
+     * Put each hit back on the row it belongs between. #266.
+     *
+     * A CORRIDOR HIT IS A DISTANCE ALONG A ROAD THAT ALREADY EXISTS, which is
+     * the same shape of fact the meeting point turned out to be — and its fix is
+     * the precedent: it was placed by position for every group until the main
+     * group's own route made that obviously wrong, and it is placed by geometry
+     * now. Here the projection was already being run and its answer thrown away,
+     * so every Along the route hit fell through to addPoint()'s append and a
+     * coffee stop found at mile 40 landed after the hotel at mile 300.
+     *
+     * `legs[i]` JOINS `points[i]` TO `points[i + 1]`, so a place projecting onto
+     * leg i belongs at row i + 1. No distance is compared against anything: the
+     * spans are the track's own account of which stretch is which leg.
+     *
+     * `edgeForward` IS TRUE BECAUSE A BOUNDARY VERTEX IS THE START OF THE
+     * SEGMENT THAT WON. nearestSegment() answers with a segment's leading
+     * vertex, so when that vertex is also the joint between two legs, the leg
+     * LEAVING it is the one the place actually sat beside — taking the arriving
+     * leg would put the hit one row early at every joint on the route.
+     *
+     * A hit that cannot be placed is left alone rather than given a guess, and
+     * the caller falls back to appending exactly as it did before.
+     */
+    function placeAlongRoute(hits, spans) {
+      if (!spans || !spans.length) return;
+      hits.forEach((h) => {
+        if (typeof h.atIndex !== "number") return;
+        const leg = legAtVertex(spans, h.atIndex, true);
+        if (leg != null) h.insertAt = leg + 1;
+      });
     }
 
     /**
@@ -9259,8 +9297,13 @@
         samples.push({ near: fallbackNear, radiusM: Math.max(500, Math.min(50000, Math.round(corridorM))) });
       }
       const raw = await corridorPlaces(query, samples);
+      // `atIndex` IS A VERTEX OF THE TRACK THAT WAS PASSED IN, so it is carried
+      // rather than resolved here: this function takes a track and does not know
+      // whether it is a whole route, one leg, or an explicit stretch. Only the
+      // route case can turn it into a row, and placeAlongRoute() is where that
+      // happens because that is where the spans are.
       return CORRIDOR.withinCorridor(raw, track, corridorM).map((hit) =>
-        Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+        Object.assign({}, hit.place, { offRouteM: hit.offRouteM, atIndex: hit.atIndex }),
       );
     }
 
@@ -9296,10 +9339,68 @@
      * answer back to wherever the rider happens to be looking — which is the
      * one case where the screen is NOT what they meant.
      */
+    // "gas station in bakersfield" carries its own where. Text Search reads the
+    // place out of the query, so ANY anchor we add — the viewport, or the route's
+    // own corridor — drags the answer back to wherever the rider happens to be.
+    // Factored out because the corridor path has to make the same exception.
+    const namesAPlace = (q) => /\b(in|near|around|close to|by)\b/.test(q);
+
     function namedOrViewport(q) {
-      if (/\b(in|near|around|close to|by)\b/.test(q)) return [null];
+      if (namesAPlace(q)) return [null];
       const view = viewportAnchor();
       return view ? [view.near, { radiusM: view.radiusM }] : [null];
+    }
+
+    /**
+     * The category half of a TYPED query, searched over the same stretch a chip
+     * would search.
+     *
+     * #266's other half. The scope control governed the chips and nothing else:
+     * `categorySearch()` reads the slot, then `state.corridorOn`, then the
+     * viewport, and a typed query went straight to the viewport however the
+     * control was set. So with Along the route selected, tapping the Gas chip
+     * searched the route and typing "gas" searched the screen — two answers to
+     * one question, from one control that claimed to govern both.
+     *
+     * ONLY THE CATEGORY HALF. The name half is Autocomplete and stays restricted
+     * to the visible map, deliberately: a rider typing "Dunsmuir Lodge" wants
+     * that place, a prediction carries no coordinates to filter on until it is
+     * resolved, and Place Details bills per call. See searchPlaces().
+     *
+     * The precedence is `categorySearch()`'s, in the same order and for the same
+     * reasons — a slot is the rider pointing at a stretch of road, and it
+     * outranks the scope.
+     */
+    async function typedCategoryHits(cat, q, r, at) {
+      if (namesAPlace(q)) return nearbySearch(cat.text, null);
+      const leg = at == null ? null : legAnchor(state.routes[r], at);
+      if (leg) return corridorRun(cat.text, leg.track, leg.totalM, leg.near);
+      if (state.corridorOn) {
+        const args = corridorSearchArgs(r);
+        const hits = await corridorRun(cat.text, args.track, args.totalM, args.near);
+        placeAlongRoute(hits, args.spans);
+        return hits;
+      }
+      return nearbySearch(cat.text, ...namedOrViewport(q));
+    }
+
+    /**
+     * What to say when a typed query found nothing at all, naming what was
+     * actually covered.
+     *
+     * TWO HALVES SEARCHING TWO AREAS is what makes this its own function rather
+     * than emptyText(): the category half follows the scope and the name half is
+     * always the viewport, so once the corridor runs, "on screen" describes only
+     * half of what was asked. Telling a rider the wrong area sends them looking
+     * in the wrong place, which is the complaint #232 was filed about.
+     */
+    function typedEmptyText(q, cat, at) {
+      const named = "“" + q + "”";
+      if (cat && at != null)
+        return "No matches for " + named + " along this leg or on screen. Zoom out to search wider.";
+      if (cat && state.corridorOn)
+        return "No matches for " + named + " along this route or on screen. Zoom out to search wider.";
+      return "No matches for " + named + " on screen. Zoom out to search wider.";
     }
 
     async function nearbySearch(query, near, opts) {
@@ -9421,7 +9522,14 @@
           const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name, h.address);
           const tag = role || QUERY.roleForType(h.type);
           if (tag) pt.roles = [tag];
-          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, openSlot(host));
+          // AN OPEN `+` SLOT STILL WINS, which is #232's call intact: the
+          // rider pressed the hairline between two points and said which
+          // stretch they meant. Projection is the answer only when nothing was
+          // pointed at — and when neither has one, addPoint() appends exactly as
+          // it always did, which is right for On screen.
+          const slot = openSlot(host);
+          const at = slot != null ? slot : typeof h.insertAt === "number" ? h.insertAt : null;
+          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, at);
           panTo(state.map, h.lngLat, 13);
           const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
           if (next) next.focus();
@@ -9529,6 +9637,11 @@
         // is the expensive one and it only fires when the query genuinely asks
         // for a kind of place.
         const cat = QUERY.parse(q);
+        // CLEARED BEFORE EVERY SEARCH, the same reason categorySearch() clears
+        // it: a typed query can now run the corridor, so it can also raise the
+        // partial-coverage note — and leaving one standing would hang it above
+        // an answer that searched exactly what it said it did.
+        corridorPartial = false;
         try {
           // allSettled, NOT all. These are two independent services and either
           // can fail on its own — the category search in particular fails
@@ -9541,7 +9654,7 @@
             // No anchor when the text names a place: Text Search reads it out of
             // the query, and biasing to the rider's current position as well
             // would pull the answer back home.
-            cat ? nearbySearch(cat.text, ...namedOrViewport(q)) : [],
+            cat ? typedCategoryHits(cat, q, route, at) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
@@ -9585,7 +9698,7 @@
             // rider who is told only "no matches" has no reason to think
             // zooming out would help. See searchPlaces() in map-common.js for
             // why there is no automatic fallback to widen it for them.
-            (nothing ? noticeHtml("No matches for “" + q + "” on screen. Zoom out to search wider.") : "") +
+            (nothing ? noticeHtml(typedEmptyText(q, cat, at)) : "") +
             // One half down while the other answered: the results still show,
             // with a line saying what is missing. Silently returning half an
             // answer is how a broken category search would go unnoticed for a
@@ -9805,6 +9918,11 @@
           } else if (state.corridorOn) {
             const args = corridorSearchArgs(r);
             nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
+            // ONLY THIS BRANCH. The two above searched a stretch the rider
+            // pointed at — a slot's own leg, or the band's explicit track — and
+            // their hits are placed by that, so their atIndex indexes a track
+            // that is not the route and must not be read as one.
+            placeAlongRoute(nearby, args.spans);
           } else {
             const view = screenAnchor(r);
             nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });

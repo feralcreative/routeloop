@@ -59,6 +59,54 @@
   }
 
   /**
+   * The segment of the track a place sits nearest, and how far off it is.
+   *
+   * SAME WALK AS offRouteM, WHICH NOW CALLS THIS — the projection was already
+   * being run to filter the corridor and to render each hit's "· 2.1 mi off"
+   * tip, and the only thing missing was WHICH segment won. #266: throwing that
+   * away is what left an Along the route hit with nowhere to go but the end of
+   * the route, so a coffee stop found at mile 40 landed after the hotel at mile
+   * 300 and the road doubled back on itself.
+   *
+   * `index` is the segment's START vertex, so the segment is
+   * `track[index] → track[index + 1]`. That is the shape legAtVertex() reads,
+   * which is what turns this into a row position with no distance arithmetic
+   * anywhere: spans[i] lines up with legs[i], so the leg a place projects onto
+   * IS the pair of points it belongs between. Measuring an along-distance and
+   * comparing it against the summed `leg.distanceM` would work too and would
+   * be answering the same question twice in two units — the track is drawn
+   * geometry and the legs carry the router's road distance, and the two agree
+   * only to within meters.
+   *
+   * A ONE-POINT TRACK HAS NO SEGMENT and answers index 0, which is the same
+   * honest non-answer offRouteM gives: the distance to the only point there is.
+   */
+  function nearestSegment(lngLat, track) {
+    if (!track || !track.length) return null;
+    var lng = lngLat[0];
+    var lat = lngLat[1];
+    var s = scaleAt(lat);
+    if (track.length === 1) {
+      return { offM: segmentDistanceM(lng, lat, track[0], track[0], s), index: 0 };
+    }
+    var best = Infinity;
+    var at = 0;
+    for (var i = 1; i < track.length; i++) {
+      var d = segmentDistanceM(lng, lat, track[i - 1], track[i], s);
+      // Strictly less, so a place equidistant from two consecutive segments
+      // takes the EARLIER one. A tie is what a place square-on to a vertex
+      // produces, and landing it a row earlier is the direction this whole
+      // change is about: too early is a drag, too late is a road that doubles
+      // back.
+      if (d < best) {
+        best = d;
+        at = i - 1;
+      }
+    }
+    return { offM: best, index: at };
+  }
+
+  /**
    * How far off the route a place is, in meters. Null for a track with nothing
    * in it — an unrouted route has no road to be off.
    *
@@ -66,17 +114,8 @@
    * saveable shape, and the honest answer there is the distance to that point.
    */
   function offRouteM(lngLat, track) {
-    if (!track || !track.length) return null;
-    var lng = lngLat[0];
-    var lat = lngLat[1];
-    var s = scaleAt(lat);
-    if (track.length === 1) return segmentDistanceM(lng, lat, track[0], track[0], s);
-    var best = Infinity;
-    for (var i = 1; i < track.length; i++) {
-      var d = segmentDistanceM(lng, lat, track[i - 1], track[i], s);
-      if (d < best) best = d;
-    }
-    return best;
+    var hit = nearestSegment(lngLat, track);
+    return hit ? hit.offM : null;
   }
 
   /**
@@ -110,8 +149,14 @@
       var p = list[i];
       var ll = placeLngLat(p);
       if (!ll) continue;
-      var off = offRouteM(ll, track);
-      if (off != null && off <= radiusM) out.push({ place: p, offRouteM: off });
+      var hit = nearestSegment(ll, track);
+      if (hit == null) continue;
+      // `atIndex` RIDES ALONG WITH THE DETOUR because it comes from the same
+      // projection — see nearestSegment. It is a vertex index into THIS track,
+      // so it only means anything to a caller that knows which track it passed:
+      // the route's own concatenated one can be mapped back to a row, a single
+      // leg's cannot and does not need to be.
+      if (hit.offM <= radiusM) out.push({ place: p, offRouteM: hit.offM, atIndex: hit.index });
     }
     out.sort(function (a, b) {
       return a.offRouteM - b.offRouteM;
@@ -241,6 +286,7 @@
 
   window.TBCorridor = {
     offRouteM: offRouteM,
+    nearestSegment: nearestSegment,
     withinCorridor: withinCorridor,
     placeLngLat: placeLngLat,
     corridorSamples: corridorSamples,

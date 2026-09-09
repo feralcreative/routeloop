@@ -138,6 +138,85 @@ describe('filtering to the corridor', () => {
   })
 })
 
+// #266. The projection was already being run, to filter the corridor and to
+// render each hit’s "· 2.1 mi off" tip, and WHICH segment won was thrown away
+// — so every Along the route hit fell through to addPoint()’s append and a
+// coffee stop found at mile 40 landed after the hotel at mile 300, doubling the
+// road back on itself. nearestSegment() keeps the half that was already free.
+//
+// The index is a VERTEX of the track that was passed in, which is what
+// legAtVertex() reads: spans[i] lines up with legs[i], so the leg a place
+// projects onto is the pair of points it belongs between, and no distance is
+// compared against anything. Measuring an along-distance and testing it against
+// the summed `leg.distanceM` would be the same question asked twice in two
+// units — drawn geometry against the router’s road distance.
+describe('which stretch of the route a place sits on', () => {
+  // Four vertices, three segments, each one degree of latitude.
+  const legged: [number, number][] = [
+    [-122, 37],
+    [-122, 38],
+    [-122, 39],
+    [-122, 40],
+  ]
+
+  it('answers the segment’s leading vertex, not the nearest one', () => {
+    // Three quarters of the way up the middle segment: vertex 2 is closer, and
+    // the answer is still 1, because 1 is the segment the place is beside.
+    expect(C.nearestSegment([-122, 38.75], legged).index).toBe(1)
+  })
+
+  it('places a hit on the first segment rather than at the end of the route', () => {
+    const hit = C.nearestSegment([-121.98, 37.2], legged)
+    expect(hit.index).toBe(0)
+    expect(hit.offM / MI).toBeLessThan(2)
+  })
+
+  it('reports the same distance offRouteM does, because it is the same walk', () => {
+    const at = [-121.95, 38.4] as [number, number]
+    expect(C.nearestSegment(at, legged).offM).toBeCloseTo(C.offRouteM(at, legged), 6)
+  })
+
+  // A tie is what a place square-on to a vertex produces. Too early in the list
+  // is a drag; too late is a road that doubles back.
+  it('gives a tie to the earlier segment', () => {
+    expect(C.nearestSegment([-121.9, 38], legged).index).toBe(0)
+  })
+
+  // Same non-answer offRouteM gives: the distance to the only point there is.
+  it('answers index 0 for a route of one point', () => {
+    const hit = C.nearestSegment([-122, 38], [[-122, 37]])
+    expect(hit.index).toBe(0)
+    expect(hit.offM).toBeGreaterThan(0)
+  })
+
+  it('is null for a route with no track at all', () => {
+    expect(C.nearestSegment([-122, 38], [])).toBeNull()
+    expect(C.nearestSegment([-122, 38], null)).toBeNull()
+  })
+
+  // The carry-through is what the builder actually reads. A hit that is filtered
+  // out cannot place anything, so only survivors are annotated.
+  //
+  // KEYED BY NAME RATHER THAN BY POSITION, because the list comes back sorted by
+  // DETOUR and not in route order — which is the point: the builder reads each
+  // hit’s own atIndex, never where it sits in the list. Asserting an ordered
+  // array here failed on exactly that, with both indices already correct.
+  it('rides along with the detour on every kept hit', () => {
+    const got = C.withinCorridor([place(-121.98, 37.2, 'early'), place(-121.98, 39.8, 'late')], legged, 10 * MI)
+    const byName = Object.fromEntries(got.map((g: any) => [g.place.name, g.atIndex]))
+    expect(byName).toEqual({ early: 0, late: 2 })
+  })
+
+  // With no track there is no corridor and no segment either. The builder tests
+  // `typeof h.atIndex === "number"` and falls back to appending, which is the
+  // behaviour this whole change is careful not to take away.
+  it('is undefined on a route with no track, alongside a null detour', () => {
+    const got = C.withinCorridor([place(-122, 38, 'anywhere')], [], 1 * MI)
+    expect(got[0].offRouteM).toBeNull()
+    expect(got[0].atIndex).toBeUndefined()
+  })
+})
+
 // #232. Every test above builds its fixtures as a loose {lng, lat} pair, which
 // is a shape the app does not send: `/api/places/search` normalizes a hit to
 // {name, address, lngLat, type} and that object goes to withinCorridor()
