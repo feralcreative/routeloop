@@ -91,6 +91,40 @@ type EventDef = {
    * somebody to enable it. Absence is the honest form.
    */
   readonly optional: true
+  /**
+   * The mark shown beside this notification in the centre, as
+   * `public/img/icons/icon-<name>.svg`.
+   *
+   * **REQUIRED, SO A NEW EVENT HAS TO CHOOSE ONE.** An event with no mark would
+   * render a row with a hole in it, which is the kind of thing that ships and is
+   * noticed a week later; a missing field is a type error on the day it is
+   * added. `test/notifications.test.ts` checks the file actually exists, because
+   * the name is a string and a typo in it is otherwise silent.
+   *
+   * **SEVERAL EVENTS SHARE ONE MARK, DELIBERATELY.** Fourteen distinguishable
+   * discs is not a vocabulary anybody learns, and the pairs that share one are
+   * the two halves of one object — a suggestion and its decision, a friend
+   * request and its acceptance. The LABEL under the row is what separates them.
+   */
+  readonly icon: string
+  /**
+   * How loud the mark is: the FIELD the disc is painted in.
+   *
+   * **THE TONE IS NOT THE MARK, WHICH IS WHY IT IS ITS OWN FIELD.** Colouring by
+   * icon was the first shape and it cannot express this: the storage mark is
+   * shared by a quota warning and two destructions, and those are advice and a
+   * verdict respectively. Tone also generalizes to the events #48 and #24 will
+   * bring — a road hazard is advice, and it will want the same amber.
+   *
+   * The app's own vocabulary, stated in AGENTS.md: advice is amber, a wall is
+   * red, and everything else is the blue sign field.
+   *
+   * **`warn` FLIPS THE GLYPH TO BLACK AND THAT IS NOT COSMETIC.** `$warning` is
+   * a BLACK-legend field — white on it measures about 1.4:1 — and the mark files
+   * hard-code `fill="white"`. The stylesheet overrides it for this tone alone.
+   * See the rule in _account.scss; getting it wrong is #282 exactly.
+   */
+  readonly tone: 'info' | 'warn' | 'stop'
 }
 
 /**
@@ -107,6 +141,8 @@ export const EVENTS = [
     label: 'Somebody comments on a ride you own',
     detail: 'Commenting is roster-only, so this is always somebody you put on the ride.',
     optional: true,
+    icon: 'comment',
+    tone: 'info',
   },
   {
     key: 'ride_suggestion',
@@ -114,6 +150,8 @@ export const EVENTS = [
     label: 'Somebody suggests a change to a ride you own',
     detail: 'A whole route proposed against yours, for you to accept or discard.',
     optional: true,
+    icon: 'proposal',
+    tone: 'info',
   },
   {
     key: 'suggestion_decided',
@@ -121,6 +159,8 @@ export const EVENTS = [
     label: 'Your suggestion was accepted or discarded',
     detail: 'The other half of the one above, from the proposer’s side.',
     optional: true,
+    icon: 'proposal',
+    tone: 'info',
   },
   {
     key: 'vote_resolved',
@@ -128,6 +168,8 @@ export const EVENTS = [
     label: 'A vote on an alternate route closed',
     detail: 'Only when a winner was actually elected—a tie changes nothing and says nothing.',
     optional: true,
+    icon: 'vote',
+    tone: 'info',
   },
   // ── Roster ─────────────────────────────────────────────────────────────────
   {
@@ -136,6 +178,8 @@ export const EVENTS = [
     label: 'Somebody puts you on a ride',
     detail: 'You can only be added by a friend, so this is never a stranger.',
     optional: true,
+    icon: 'roster',
+    tone: 'info',
   },
   {
     key: 'ride_rsvp',
@@ -143,6 +187,8 @@ export const EVENTS = [
     label: 'Somebody says whether they are coming',
     detail: 'On a ride you own. One message per answer, including a changed one.',
     optional: true,
+    icon: 'roster',
+    tone: 'info',
   },
   // ── People ─────────────────────────────────────────────────────────────────
   {
@@ -151,6 +197,8 @@ export const EVENTS = [
     label: 'Somebody asks to be your friend',
     detail: 'A request is the one thing you cannot discover any other way.',
     optional: true,
+    icon: 'friendship',
+    tone: 'info',
   },
   {
     key: 'friend_accepted',
@@ -158,6 +206,8 @@ export const EVENTS = [
     label: 'Your friend request was accepted',
     detail: 'A decline sends nothing, deliberately—see the FAQ on how refusals work.',
     optional: true,
+    icon: 'friendship',
+    tone: 'info',
   },
   {
     key: 'new_follower',
@@ -165,6 +215,8 @@ export const EVENTS = [
     label: 'Somebody follows you',
     detail: 'Following is one-way and grants no access to anything of yours.',
     optional: true,
+    icon: 'friendship',
+    tone: 'info',
   },
   // ── Account ────────────────────────────────────────────────────────────────
   {
@@ -173,6 +225,8 @@ export const EVENTS = [
     label: 'Something changed on a report you filed',
     detail: 'Fixed, planned, being worked on, or not happening. Never on every edit.',
     optional: true,
+    icon: 'bug',
+    tone: 'info',
   },
   {
     key: 'trash_purge_soon',
@@ -180,6 +234,8 @@ export const EVENTS = [
     label: 'A ride in your bin is about to be destroyed',
     detail: 'Once, a week before the thirty-day hold runs out. Restoring it stops the clock.',
     optional: true,
+    icon: 'storage',
+    tone: 'stop',
   },
   {
     key: 'quota_full',
@@ -187,6 +243,8 @@ export const EVENTS = [
     label: 'Your storage is nearly full',
     detail: 'Once when you cross the line, and again only after you drop back under it.',
     optional: true,
+    icon: 'storage',
+    tone: 'warn',
   },
   {
     key: 'account_purge_soon',
@@ -194,6 +252,8 @@ export const EVENTS = [
     label: 'Your account is about to be deleted',
     detail: 'Only if you asked for it. Signing in cancels the deletion.',
     optional: true,
+    icon: 'storage',
+    tone: 'stop',
   },
   {
     key: 'release',
@@ -201,6 +261,8 @@ export const EVENTS = [
     label: 'Routeloop changed',
     detail: 'The release notes, in your notifications, so you see what changed without going to look.',
     optional: true,
+    icon: 'product',
+    tone: 'info',
   },
 ] as const satisfies readonly EventDef[]
 

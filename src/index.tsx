@@ -49,6 +49,7 @@ import { trashRoutes } from './routes/trash'
 import { handoffRoutes } from './routes/handoff'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
+import { iconRoutes } from './routes/icons'
 import { settingsRoutes } from './routes/settings'
 import { notificationRoutes } from './routes/notifications'
 import { accountRoutes } from './routes/account'
@@ -232,6 +233,7 @@ app.route('/', importRoutes)
 app.route('/', trashRoutes)
 app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
+app.route('/', iconRoutes)
 app.route('/', settingsRoutes)
 app.route('/', notificationRoutes)
 app.route('/', accountRoutes)

@@ -850,7 +850,17 @@
 
   > a,
   > .notif-feed-plain {
-    display: block;
+    // A GRID SO THE MARK GETS ITS OWN COLUMN AND THE TEXT STAYS IN ONE BLOCK.
+    // Floating the mark would let a two-line title wrap underneath it, which on
+    // a phone is most of them.
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "mark title"
+      "mark body"
+      "mark meta";
+    column-gap: 0.7rem;
+    align-items: start;
     padding: 0.9rem 0.9rem 0.9rem 1.4rem;
     // The unread rule sits in this gutter. Reserved on every row rather than
     // added to the new ones, or the whole list would shift left as a rider read
@@ -881,21 +891,79 @@
 }
 
 .notif-feed-title {
+  grid-area: title;
   display: block;
   font-weight: 600;
 }
 
 .notif-feed-body {
+  grid-area: body;
   display: block;
   margin-top: 0.1rem;
   text-wrap: pretty;
 }
 
 .notif-feed-meta {
+  grid-area: meta;
   display: block;
   margin-top: 0.25rem;
   font-size: 0.85rem;
   color: $neutral-50;
+}
+
+// THE MARK, AND ITS COLOR IS THE FIELD RATHER THAN THE INK. These are two-tone
+// discs with the glyph knocked out in WHITE, so `currentColor` paints the disc —
+// which means the token has to be one that carries a white legend at 4.5:1 in
+// all six palettes. `WHITE_LEGEND` in test/palette-contrast.test.ts is that list
+// and it holds five: $stop, $interstate, $disabled, $tarmac, $recreation. Using
+// a black-legend field here — $warning is the tempting one for a storage
+// warning — is #282 exactly: near-invisible ink on a saturated ground.
+//
+// KEYED ON THE TONE, NOT ON THE MARK OR THE EVENT. Colouring by mark was the
+// first shape and it cannot say this: the storage disc is shared by a quota
+// warning and two destructions, and those are advice and a verdict. Colouring
+// per EVENT is the other wrong answer — two rows drawing the same disc in two
+// colours reads as a bug rather than a distinction. Tone is the thing the colour
+// is actually about, and it generalizes to the road-hazard and weather events
+// #48 and #24 will bring.
+//
+// The app's vocabulary, from AGENTS.md: advice is amber, a wall is red, and
+// everything else takes the blue sign field.
+.notif-mark {
+  grid-area: mark;
+  width: 26px;
+  height: 26px;
+  margin-top: 0.1rem;
+  // The default, and what every informational mark takes: the blue sign field.
+  color: $disabled;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  // A VERDICT. A ride about to be destroyed, an account about to be destroyed.
+  // $stop is a WHITE-legend field, so the glyph in the file is already right.
+  &[data-tone="stop"] {
+    color: $stop;
+  }
+
+  // ADVICE — you are nearly out of room, and it is still yours to act on.
+  //
+  // **THE GLYPH FLIPS TO BLACK HERE AND THAT IS NOT COSMETIC.** $warning is a
+  // BLACK-legend field: white on it measures about 1.4:1, which is #282 exactly
+  // and is why the staging banner takes $ink-dark rather than $white. The mark
+  // files hard-code `fill="white"` on the knockout, so it is overridden by
+  // attribute — presentation attributes lose to CSS, which is what makes this
+  // work without a second copy of every SVG.
+  &[data-tone="warn"] {
+    color: $warning;
+
+    :where([fill="white"]) {
+      fill: $ink-dark;
+    }
+  }
 }
 
 .empty-note {

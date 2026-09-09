@@ -23,6 +23,8 @@ import { Hono } from 'hono'
 import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
 import { claimPending, markAllRead, recentNotifications } from '../notifications/service'
 import { eventDef } from '../notifications/catalog'
+import { raw } from 'hono/html'
+import { icon } from '../views/icon'
 import { fmtDateNumeric, fmtClock } from '../views/date-format'
 import { clockFor, dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
@@ -45,7 +47,6 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
   const user = currentUser(c)
   return c.json({ notifications: await claimPending(user.id) })
 })
-
 
 /**
  * The notification centre.
@@ -70,11 +71,7 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
  */
 notificationRoutes.get('/notifications', requireActive, async (c) => {
   const user = currentUser(c)
-  const [rows, dateFormat, clock] = await Promise.all([
-    recentNotifications(user.id),
-    dateFormatFor(c),
-    clockFor(c),
-  ])
+  const [rows, dateFormat, clock] = await Promise.all([recentNotifications(user.id), dateFormatFor(c), clockFor(c)])
   // AFTER the read. See the note above.
   await markAllRead(user.id)
 
@@ -102,6 +99,22 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
             // the rows are stamped, which is why the flag cannot be re-derived.
             const row = (
               <>
+                {/* THE MARK IS INLINE SVG, NOT AN <img>. These are two-tone —
+                    a disc in `currentColor` with the glyph knocked out in white
+                    — so an external image has no inherited color to resolve
+                    against and paints black, and a CSS mask flattens the
+                    knockout into a silhouette. See src/views/icon.ts.
+
+                    `data-tone` is what carries the COLOR and it is not the
+                    mark: the storage disc is shared by a quota warning and two
+                    destructions, which are advice and a verdict. Keyed as an
+                    attribute rather than a class per event so a tone renamed in
+                    the catalog matches nothing and loses its color loudly
+                    instead of inheriting somebody else's — the same keying the
+                    feedback kind cards use. */}
+                <span class="notif-mark" data-mark={def ? def.icon : 'info'} data-tone={def ? def.tone : 'info'}>
+                  {raw(icon(def ? def.icon : 'info'))}
+                </span>
                 <span class="notif-feed-title">{n.title}</span>
                 <span class="notif-feed-body">{n.body}</span>
                 <span class="notif-feed-meta">
@@ -123,7 +136,5 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
     </>
   ).toString()
 
-  return c.html(
-    page({ title: 'Notifications', user, navKey: 'notifications', body, feedbackArea: 'account' }),
-  )
+  return c.html(page({ title: 'Notifications', user, navKey: 'notifications', body, feedbackArea: 'account' }))
 })

@@ -269,3 +269,82 @@
   color: $neutral-50;
   font-size: 0.85rem;
 }
+
+// The icon workbench at /icons. Sits in this partial rather than its own,
+// because it is the same kind of page as /brand and shares its sub-heading and
+// scroll conventions — a second file for two tables is a second place to keep
+// them in step.
+.ic-scroll {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.ic-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid $grey;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  // The black-legend half, marked once at the head and once per cell so the two
+  // groups are readable without counting columns.
+  .is-black {
+    background: $neutral-96;
+  }
+
+  tbody th {
+    white-space: nowrap;
+    font-weight: 400;
+  }
+}
+
+.ic-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  // A HAIRLINE OUTSIDE THE DISC, because $speed is a near-white field and its
+  // marks were invisible against the page — which is true and useless. The ring
+  // sits outside the artwork, so it does not touch the glyph-against-field
+  // relationship this page exists to show.
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px $grey;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// THE FLIP, AND IT MIRRORS _account.scss RATHER THAN INVENTING ONE. A black
+// legend on these two-tone marks means overriding the `fill="white"` the SVG
+// hard-codes; a page that drew the amber column with a white glyph would be
+// recommending #282 rather than showing it.
+.ic-cell.is-black :where([fill="white"]) {
+  fill: $ink-dark;
+}
+
+.ic-used {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: $neutral-50;
+}
+
+.ic-free {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: $neutral-57;
+  font-style: italic;
+}

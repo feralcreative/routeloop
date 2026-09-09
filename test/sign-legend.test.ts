@@ -41,6 +41,37 @@ function blocks(source: string): string[] {
   return [...source.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1])
 }
 
+// The fields that take a BLACK legend, from the same source as SIGN_FIELDS
+// above and for the same reason: this list is about whether the CSS says so.
+const BLACK_FIELDS = ['warning', 'yield', 'detour', 'speed']
+
+// THE NOTIFICATION MARKS ARE DISCS WITH THE GLYPH KNOCKED OUT IN WHITE, and the
+// knockout is a `fill="white"` presentation attribute inside the SVG file rather
+// than anything the stylesheet sets. So a mark painted in a black-legend field
+// is #282 in a form test/palette-contrast.test.ts cannot see — the palette is
+// correct, and the STYLESHEET has paired that field with white ink.
+//
+// The amber quota mark is the one that needs it today. This is what stops the
+// next tone from being added without it.
+describe('a notification mark never leaves a white glyph on a black-legend field', () => {
+  it('flips the knockout wherever the disc takes one', () => {
+    const tones = [...css.matchAll(/\.notif-mark\[data-tone=["']?([a-z]+)["']?\]\s*\{([^{}]*)\}/g)]
+    // If this is empty the selector was renamed and the guard silently stopped
+    // guarding, which is the failure the whole file exists to prevent.
+    expect(tones.length).toBeGreaterThan(0)
+    const unflipped: string[] = []
+    for (const [, tone, body] of tones) {
+      const field = BLACK_FIELDS.find((f) => new RegExp(`color:\\s*var\\(--${f}\\)`).test(body))
+      if (!field) continue
+      const flips = new RegExp(
+        `\\.notif-mark\\[data-tone=["']?${tone}["']?\\][^{]*\\[fill=["']?white["']?\\][^{]*\\{[^{}]*fill:`,
+      ).test(css)
+      if (!flips) unflipped.push(`${tone} paints --${field} and leaves the glyph white`)
+    }
+    expect(unflipped).toEqual([])
+  })
+})
+
 describe('a sign legend is scheme-invariant', () => {
   it('never paints var(--white) on a sign field', () => {
     const bad: string[] = []
