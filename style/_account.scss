@@ -1,5 +1,12 @@
 @use "sass:color";
 @use "tokens" as *;
+// For `sign-arrow`. A THIRD literal copy of that path is what this avoids: the
+// mixin's own comment is that there should be exactly one shape to correct if it
+// is ever revised, and `_feedback.scss` already keeps a second (with a mask, for
+// a stated reason). Namespaced rather than `as *` so nothing in this file can
+// collide with chrome's own names, and the CSS is emitted once at main.scss's
+// first `@use` either way.
+@use "chrome";
 
 // A settings section. Same shape as .gtfo below but without its border, because
 // GTFO is a boxed-off danger area and an ordinary preference is not — boxing
@@ -903,12 +910,120 @@
   text-wrap: pretty;
 }
 
+// THE META LINE CARRIES THE "Read more" SIGN AT ITS RIGHT END, so it is a flex
+// line rather than a block. Ziad's call, 2026-09-09: sharing this row costs no
+// fourth grid row and keeps the item compact.
+//
+// **`flex-wrap` IS THE PHONE CASE AND IT IS NOT OPTIONAL.** The label can run to
+// "A suggestion was accepted or declined" and the sign is a fixed width, so on a
+// narrow viewport they compete for one line; wrapping drops the sign below the
+// text instead of squeezing it. `align-items: baseline` so the legend sits on
+// the same line as the meta text rather than being centered against a box that
+// is taller than the type.
 .notif-feed-meta {
   grid-area: meta;
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 0.7rem;
   margin-top: 0.25rem;
   font-size: 0.85rem;
   color: $neutral-50;
+}
+
+// Explicit rather than letting the bare text nodes become an anonymous flex
+// item: an anonymous box cannot take `min-width: 0`, so a long label would
+// refuse to shrink and push the sign out of the row before the wrap could catch
+// it.
+.notif-meta-text {
+  min-width: 0;
+}
+
+// A GUIDE SIGN AT ABOUT A THIRD SCALE. Same construction as `.btn` — the green
+// field with a white keyline set in from the edge, which is what a US guide sign
+// actually is — built locally rather than through `sign-field()`, following the
+// `fb-sign()` precedent in _feedback.scss: that mixin also sets a button's
+// padding, its gap and its arrow suppression, and this is none of those.
+//
+// **THE KEYLINE IS 2px/3px AND NOT 3px/5px, WHICH IS THE WHOLE POINT OF A TINY
+// ONE.** Those widths are tuned for a full-size button; kept at this scale the
+// ring is most of the sign and the legend has nowhere to sit. Scaled in px
+// rather than em because a keyline is a drawn line — at 0.72rem an em-based 3px
+// lands on a fraction of a device pixel and renders as a grey smear.
+//
+// $ink-light and never $white: a legend does not follow the page, which is #282
+// and what test/sign-legend.test.ts exists for. That also makes the baked white
+// in `sign-arrow`'s data URI correct here, since the token is a literal #ffffff
+// in all six palettes.
+.notif-more {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 0;
+  // MORE ON TOP THAN ON THE BOTTOM, the same asymmetry `sign-field()` carries and
+  // for the same reason — which is worth stating correctly, because the obvious
+  // reading of it is backwards. "Read more" has no descenders, so it sits high
+  // in its own line box with the descent space empty underneath; even padding
+  // therefore looks top-heavy, and the extra on top is what brings the legend to
+  // OPTICAL center rather than box center. At this scale it is clearance as well:
+  // the keyline is 3px in from the edge, so an even 0.2rem left the type on it.
+  padding: 0.34rem 0.5rem 0.2rem 0.6rem;
+  border-radius: 4px;
+  background: $interstate;
+  color: $ink-light;
+  font-size: 0.72rem;
+  // LIGHTER THAN `.btn`'s 600, and the field is why. Reversed type on a
+  // saturated ground gains apparent weight — the light legend bleeds into the
+  // dark around it — so the weight that reads as right at 1rem on a full-size
+  // sign reads as heavy at 0.72rem here. 500 keeps it clearly not body copy.
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 0 0 2px $interstate,
+    inset 0 0 0 3px $ink-light;
+
+  // East is 0deg, so there is deliberately no `transform` here — the shape is
+  // drawn pointing east and `$sign-arrow-bearings` maps "e" to 0deg.
+  //
+  // **SMALLER THAN THE MIXIN'S OWN 1.3125em.** Ziad's call, 2026-09-09: at that
+  // size the head is about 1.7x the cap height of the legend beside it and reads
+  // as the subject of the sign rather than as punctuation on it. 1em puts it at
+  // roughly 1.3x. The box stays SQUARE — `contain` preserves the aspect ratio,
+  // so it draws 1em x 0.914em either way, and a fitted box would only matter for
+  // a bearing this sign does not use.
+  //
+  // **THE MIXIN'S OWN `top: -0.1em` IS KEPT, AND OVERRIDING IT TO 0 WAS WRONG.**
+  // That nudge is what the asymmetric padding above requires, not something left
+  // over from `.btn`: the extra top padding shifts the whole flex line down to
+  // put the LEGEND at optical center, and the arrow — whose drawn shape is
+  // symmetric about its box — does not want that shift, so it is lifted back.
+  // Zeroing it left the arrow riding about a pixel low against the type, which
+  // is what Ziad reported. Same correction, same value, for the same reason
+  // _chrome.scss states it.
+  &::after {
+    @include chrome.sign-arrow;
+
+    width: 1em;
+    height: 1em;
+    margin-left: 0.15rem;
+  }
+}
+
+// LIT DIFFERENTLY ON THE ROW'S OWN HOVER, NOT ON ITS OWN. The row is the link,
+// so the sign has no hover state of its own to report — reacting only when the
+// pointer was over the sign itself would say the sign is the target, which is
+// exactly what it is not. Both keyline layers move with the field, or the old
+// green shows as a hairline outside the ring.
+.notif-feed-item > a:hover .notif-more,
+.notif-feed-item > a:focus-visible .notif-more {
+  $lit: color-mix(in oklab, #{$interstate}, black 12%);
+
+  background: $lit;
+  box-shadow:
+    inset 0 0 0 2px $lit,
+    inset 0 0 0 3px $ink-light;
 }
 
 // THE MARK. ITS COLOR IS AN INLINE STYLE FROM src/notifications/marks.ts, and

@@ -125,7 +125,30 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                 <span class="notif-feed-title">{n.title}</span>
                 <span class="notif-feed-body">{n.body}</span>
                 <span class="notif-feed-meta">
-                  {def ? def.label : n.event} · {when(n.createdAt)}
+                  <span class="notif-meta-text">
+                    {def ? def.label : n.event} · {when(n.createdAt)}
+                  </span>
+                  {/* A TINY GUIDE SIGN, AND IT IS A <span> RATHER THAN A LINK.
+                      Ziad's call, 2026-09-09. The whole row is already the `<a>`
+                      below, so a nested anchor would be invalid markup and would
+                      give one destination two hit targets — this is the
+                      affordance saying the row goes somewhere, and the row is
+                      what you press.
+
+                      `aria-hidden` because the accessible name of that link is
+                      already the title, the body and the meta line; appending
+                      "Read more" to it says nothing the `<a>` role has not
+                      already said, and says it after three lines of content.
+
+                      ONLY WHERE THERE IS SOMEWHERE TO GO, which is the same
+                      `n.url` test the wrapper below makes — a sign promising
+                      more on a row that does not link is the thing the null
+                      check exists to avoid. */}
+                  {n.url ? (
+                    <span class="notif-more" aria-hidden="true">
+                      Read more
+                    </span>
+                  ) : null}
                 </span>
               </>
             )
