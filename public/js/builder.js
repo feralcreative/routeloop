@@ -9198,7 +9198,12 @@
      */
     function corridorSearchArgs(r) {
       const route = state.routes[r];
-      const track = route ? fullTrack(r) : [];
+      // BOTH HALVES OF ONE WALK. fullTrack() is trackAndSpans().track, and #266
+      // needs the spans as well to put a hit back on a row, so taking them
+      // together is one pass rather than two that could disagree.
+      const built = route ? trackAndSpans(r) : { track: [], spans: [] };
+      const track = built.track;
+      const spans = built.spans;
       const totalM = route ? DIST.totalM(route) : 0;
       // The viewport only when the route has no line yet — this is the ALONG THE
       // DAY scope, so the route is the subject and the screen is the fallback
@@ -9209,12 +9214,45 @@
       // rather than an empty list reading as "there is none here".
       const view = viewportAnchor();
       if (!track.length || !totalM) {
-        return { track: track, totalM: 0, near: view && view.near };
+        return { track: track, spans: spans, totalM: 0, near: view && view.near };
       }
 
       // The sampling itself is corridorRun(), which the insert-slot path shares
       // — the route and one leg are the same question at two scales.
-      return { track: track, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
+      return { track: track, spans: spans, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
+    }
+
+    /**
+     * Put each hit back on the row it belongs between. #266.
+     *
+     * A CORRIDOR HIT IS A DISTANCE ALONG A ROAD THAT ALREADY EXISTS, which is
+     * the same shape of fact the meeting point turned out to be — and its fix is
+     * the precedent: it was placed by position for every group until the main
+     * group's own route made that obviously wrong, and it is placed by geometry
+     * now. Here the projection was already being run and its answer thrown away,
+     * so every Along the route hit fell through to addPoint()'s append and a
+     * coffee stop found at mile 40 landed after the hotel at mile 300.
+     *
+     * `legs[i]` JOINS `points[i]` TO `points[i + 1]`, so a place projecting onto
+     * leg i belongs at row i + 1. No distance is compared against anything: the
+     * spans are the track's own account of which stretch is which leg.
+     *
+     * `edgeForward` IS TRUE BECAUSE A BOUNDARY VERTEX IS THE START OF THE
+     * SEGMENT THAT WON. nearestSegment() answers with a segment's leading
+     * vertex, so when that vertex is also the joint between two legs, the leg
+     * LEAVING it is the one the place actually sat beside — taking the arriving
+     * leg would put the hit one row early at every joint on the route.
+     *
+     * A hit that cannot be placed is left alone rather than given a guess, and
+     * the caller falls back to appending exactly as it did before.
+     */
+    function placeAlongRoute(hits, spans) {
+      if (!spans || !spans.length) return;
+      hits.forEach((h) => {
+        if (typeof h.atIndex !== "number") return;
+        const leg = legAtVertex(spans, h.atIndex, true);
+        if (leg != null) h.insertAt = leg + 1;
+      });
     }
 
     /**
@@ -9259,8 +9297,13 @@
         samples.push({ near: fallbackNear, radiusM: Math.max(500, Math.min(50000, Math.round(corridorM))) });
       }
       const raw = await corridorPlaces(query, samples);
+      // `atIndex` IS A VERTEX OF THE TRACK THAT WAS PASSED IN, so it is carried
+      // rather than resolved here: this function takes a track and does not know
+      // whether it is a whole route, one leg, or an explicit stretch. Only the
+      // route case can turn it into a row, and placeAlongRoute() is where that
+      // happens because that is where the spans are.
       return CORRIDOR.withinCorridor(raw, track, corridorM).map((hit) =>
-        Object.assign({}, hit.place, { offRouteM: hit.offRouteM }),
+        Object.assign({}, hit.place, { offRouteM: hit.offRouteM, atIndex: hit.atIndex }),
       );
     }
 
@@ -9421,7 +9464,14 @@
           const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name, h.address);
           const tag = role || QUERY.roleForType(h.type);
           if (tag) pt.roles = [tag];
-          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, openSlot(host));
+          // AN OPEN `+` SLOT STILL WINS, which is #232's call intact: the
+          // rider pressed the hairline between two points and said which
+          // stretch they meant. Projection is the answer only when nothing was
+          // pointed at — and when neither has one, addPoint() appends exactly as
+          // it always did, which is right for On screen.
+          const slot = openSlot(host);
+          const at = slot != null ? slot : typeof h.insertAt === "number" ? h.insertAt : null;
+          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, at);
           panTo(state.map, h.lngLat, 13);
           const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
           if (next) next.focus();
@@ -9805,6 +9855,11 @@
           } else if (state.corridorOn) {
             const args = corridorSearchArgs(r);
             nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
+            // ONLY THIS BRANCH. The two above searched a stretch the rider
+            // pointed at — a slot's own leg, or the band's explicit track — and
+            // their hits are placed by that, so their atIndex indexes a track
+            // that is not the route and must not be read as one.
+            placeAlongRoute(nearby, args.spans);
           } else {
             const view = screenAnchor(r);
             nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
