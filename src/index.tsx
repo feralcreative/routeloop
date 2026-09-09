@@ -23,6 +23,7 @@ import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { startQuotaSweep } from './account/quota-sweep'
 import { startAccountPurge } from './account/purge'
 import { startTrashPurge } from './trash/purge'
+import { announceRelease } from './notifications/announce'
 import { startVoteResolver } from './votes/resolve'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -891,3 +892,14 @@ startVoteResolver()
 // only job here that destroys a person's account, and it had no runner at all
 // until now — /account/delete promised a date and nothing kept it.
 startAccountPurge()
+// #288. NOT A TIMER AND NOT A SIXTH ONE — a one-shot at boot, because a release
+// happens exactly when a build starts and there is nothing to poll for. It is
+// idempotent through a primary-key claim, which is what makes it safe under
+// blue/green: a deploy starts two containers and exactly one fans out. Fired and
+// not awaited, so a slow roster cannot delay the port opening and the deploy's
+// health gate with it; the catch is here because nothing else is watching it.
+announceRelease()
+  .then((n) => {
+    if (n > 0) console.log(`[release] announced to ${n} rider${n === 1 ? '' : 's'}`)
+  })
+  .catch((err) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))

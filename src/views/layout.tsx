@@ -244,10 +244,36 @@ export function avatarSrc(user: { id: number; avatarUrl?: string | null; avatarB
   return user.avatarUrl ?? null
 }
 
-function NavLink({ item, navKey }: { item: { key: NavKey; href: string; label: string }; navKey?: NavKey }) {
+// `badge` renders the same `.nav-badge` the account chip carries. Ziad's call,
+// 2026-09-08 (#288): the chip's badge says something happened and this one says
+// where to go for it, so making them a different shape would make the second
+// read as a different KIND of thing. The count was `Notifications (3)` in the
+// label until then — true, and invisible beside it.
+//
+// **ZERO RENDERS NOTHING**, per the rule in _nav.scss: a badge showing 0 is
+// furniture that teaches people to stop reading badges.
+//
+// **THE BADGE IS `aria-hidden` AND THE LABEL CARRIES THE COUNT**, so a screen
+// reader hears "Notifications, 3 unread" once rather than the digit twice. That
+// is the same split the chip makes with its own visually-hidden line.
+function NavLink({
+  item,
+  navKey,
+  badge = 0,
+}: {
+  item: { key: NavKey; href: string; label: string }
+  navKey?: NavKey
+  badge?: number
+}) {
   return (
     <a href={item.href} aria-current={item.key === navKey ? 'page' : undefined}>
       {item.label}
+      {badge > 0 && (
+        <span class="nav-badge" aria-hidden="true">
+          {badge > 99 ? '99+' : String(badge)}
+        </span>
+      )}
+      {badge > 0 && <span class="visually-hidden">, {badge} unread</span>}
     </a>
   )
 }
@@ -257,7 +283,12 @@ function SiteHeader({
   navKey,
   isMap = false,
   unread = 0,
-}: { user: UserRow | null; navKey?: NavKey; isMap?: boolean; unread?: number }) {
+}: {
+  user: UserRow | null
+  navKey?: NavKey
+  isMap?: boolean
+  unread?: number
+}) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
   // it is 114px wide against the horizontal lockup's 228px, so it takes half as
@@ -778,12 +809,9 @@ const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: 
             your things, then the app, then the door. Notifications leads because
             it is the only item that changes on its own. */}
         <NavLink
-          item={{
-            key: 'notifications',
-            href: '/notifications',
-            label: unread > 0 ? `Notifications (${unread})` : 'Notifications',
-          }}
+          item={{ key: 'notifications', href: '/notifications', label: 'Notifications' }}
           navKey={navKey}
+          badge={unread}
         />
         {/* TWO ITEMS, ONE PAGE (#269), the way /friends and /riders are — each
             URL opens its own tab of /settings. They stay two because a rider

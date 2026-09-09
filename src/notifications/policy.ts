@@ -36,15 +36,43 @@ export type PrefRow = {
 }
 
 /**
+ * Events whose default is OFF on every channel, before any rider has said
+ * anything. The row is still stored, so the notification centre and the badge
+ * report it — only delivery is silent.
+ *
+ * **THIS IS A DEPARTURE FROM THE RULE BELOW AND IT IS DELIBERATE.** Ziad's call,
+ * 2026-09-08 (#288). `release` is raised by the DEPLOY rather than by anything a
+ * rider or their friends did, and prod deploys several times a day — so the
+ * house default of email-on is a mail per deploy to every rider, which is the
+ * one shape of notification guaranteed to make somebody turn all of them off.
+ *
+ * The rule's own escape hatch does not fit. It says an argument for a quieter
+ * default is really an argument that the event should not be OPTIONAL, answered
+ * by leaving it out of the catalog — but out of the catalog means no switch at
+ * all, and a rider who wants these by mail should be able to say so. Quiet and
+ * switchable is not expressible any other way.
+ *
+ * KEEP THIS LIST SHORT. A second entry is worth arguing about; a third means the
+ * per-channel default is simply wrong and should move.
+ */
+const QUIET_BY_DEFAULT: ReadonlySet<string> = new Set(['release'])
+
+/**
  * The default for a channel, before any rider has said anything.
  *
  * Per channel rather than per event, deliberately. A per-event default is a
  * second thing to decide every time the catalog grows, and every argument for
  * one ("surely a purge warning should be louder") is really an argument that the
  * event should not be optional — which is answered by leaving it out of the
- * catalog, not by pinning its default.
+ * catalog, not by pinning its default. `QUIET_BY_DEFAULT` above is the one
+ * recorded exception and says why it could not be answered that way.
+ *
+ * The event is OPTIONAL in the signature so every existing caller reads as it
+ * did, and so a caller that genuinely has no event in hand cannot be forced to
+ * invent one.
  */
-export const defaultFor = (channel: Channel): boolean => channel === 'email'
+export const defaultFor = (channel: Channel, event?: string): boolean =>
+  event !== undefined && QUIET_BY_DEFAULT.has(event) ? false : channel === 'email'
 
 /**
  * A rider's answers, as a lookup the send path can ask twice per notification.
@@ -73,7 +101,7 @@ export function prefMap(rows: readonly PrefRow[]): Map<string, boolean> {
  * common case and must not need a special branch anywhere.
  */
 export function enabledFor(prefs: Map<string, boolean>, event: NotificationEvent, channel: Channel): boolean {
-  return prefs.get(`${event}:${channel}`) ?? defaultFor(channel)
+  return prefs.get(`${event}:${channel}`) ?? defaultFor(channel, event)
 }
 
 /** Both answers for one event, which is what the settings page renders as a

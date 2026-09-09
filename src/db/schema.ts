@@ -2149,6 +2149,28 @@ export const notifications = pgTable(
   ],
 )
 
+// WHICH RELEASES HAVE BEEN ANNOUNCED, AND IT IS A CLAIM RATHER THAN A LOG.
+//
+// A release note becomes an ordinary `notifications` row for every rider (#288),
+// raised on boot by the build that carries the note. Two things make that need a
+// table rather than a flag in memory: the fan-out must happen ONCE across
+// restarts, and blue/green starts TWO containers per deploy, which race.
+//
+// **THE PRIMARY KEY IS THE CLAIM.** An insert with `onConflictDoNothing` either
+// wins or reports zero rows, atomically, in one statement — so the loser skips
+// the fan-out without a lock, a lease or an expiry. Same reasoning as the
+// `mkdir` deploy lock: test-then-write has a window that hands it to both.
+//
+// The id is a slug of the release's own heading, minted by
+// src/releases/latest.ts. It is deliberately NOT the build sha — every deploy
+// has a new one whether or not a release note was written, so keying on the
+// build re-announces an unchanged entry on the next unrelated deploy.
+export const announcedReleases = pgTable('announced_releases', {
+  id: varchar('id', { length: 120 }).primaryKey(),
+  announcedAt: timestamp('announced_at').notNull().defaultNow(),
+})
+
+export type AnnouncedReleaseRow = typeof announcedReleases.$inferSelect
 export type RouteRiderRow = typeof routeRiders.$inferSelect
 export type NotificationPrefRow = typeof notificationPrefs.$inferSelect
 export type NotificationRow = typeof notifications.$inferSelect

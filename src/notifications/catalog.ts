@@ -59,6 +59,14 @@ export const GROUPS = [
   { id: 'account', label: 'Your account' },
 ] as const
 
+// **`release` LIVES UNDER `account` FOR THE SAME REASON `reports` WAS FOLDED
+// INTO IT.** Ziad's call, 2026-09-08 (#288). A release note is about the APP
+// rather than about the rider, so a fifth group called "The app" is the honest
+// label — and it would render as a heading, two column labels and a single row,
+// which is exactly the half-finished shape the fold above was decided against.
+// One slightly loose home beats one accurate empty box; when app-level
+// notifications grow a second, they earn the group.
+
 export type GroupId = (typeof GROUPS)[number]['id']
 
 type EventDef = {
@@ -185,6 +193,13 @@ export const EVENTS = [
     group: 'account',
     label: 'Your account is about to be deleted',
     detail: 'Only if you asked for it. Signing in cancels the deletion.',
+    optional: true,
+  },
+  {
+    key: 'release',
+    group: 'account',
+    label: 'Routeloop changed',
+    detail: 'The release notes, in your notifications, so you see what changed without going to look.',
     optional: true,
   },
 ] as const satisfies readonly EventDef[]

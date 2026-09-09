@@ -20,6 +20,7 @@ import { ownerFeedbackEmail } from './owner-feedback'
 import { newFollowerEmail } from './new-follower'
 import { ownerSignupEmail } from './owner-signup'
 import { quotaFullEmail } from './quota-full'
+import { releaseEmail } from './release'
 import { rideAddedEmail } from './ride-added'
 import { rideCommentEmail } from './ride-comment'
 import { ridePurgeSoonEmail } from './ride-purge-soon'
@@ -51,6 +52,7 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   newFollowerEmail,
   ridePurgeSoonEmail,
   quotaFullEmail,
+  releaseEmail,
   accountPurgeSoonEmail,
 ]
 
@@ -66,6 +68,7 @@ export {
   newFollowerEmail,
   ownerSignupEmail,
   quotaFullEmail,
+  releaseEmail,
   rideAddedEmail,
   rideCommentEmail,
   ridePurgeSoonEmail,
