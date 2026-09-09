@@ -29,6 +29,16 @@ body.modal-open {
   overflow-y: auto;
   padding: 1.75rem;
   background: $white;
+  // A BOX THAT PAINTS ITS OWN GROUND MUST PAINT ITS OWN INK, and on a <dialog>
+  // that is not a tidy-up — inheritance does not reach it. The UA stylesheet
+  // gives `dialog` its own `color: CanvasText`, which beats what <body> passes
+  // down, and nothing in style/ declares `color-scheme`, so CanvasText stays
+  // black while $white resolves to the page's near-black under a dark palette.
+  // The heading of every dialog-based modal was therefore black on black: the
+  // save-failure one (#290, reported), and the split-riders one, which nobody
+  // had got to yet. `.modal-error-msg` sets its own $text, which is why the
+  // message read fine and only the <h2> vanished.
+  color: $text;
   border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   text-align: center;
