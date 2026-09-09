@@ -379,6 +379,15 @@
   box-shadow: none;
 }
 
+// The alias names a column also answers for. Quieter than the sign name, since
+// the sign palette is what the column is organized around.
+.ic-alias {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: $neutral-50;
+}
+
 .ic-used {
   display: block;
   margin-top: 0.15rem;

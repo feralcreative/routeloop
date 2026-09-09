@@ -239,8 +239,8 @@ $label: var(--label);
 //
 // A sign field is not a text color. All four accents are fields — authored to be
 // sat on, carrying a legend — and using one as type is inverting what it was
-// picked for. Measured: $detour is 3.19:1 on $white in the default palette and
-// 2.25:1 in colorblind, and on the DARK schemes all four fail, because the
+// picked for. Measured: $detour is 2.46:1 on $white in the default palette and
+// 1.98:1 in contrast, and on the DARK schemes all four fail, because the
 // surface is near-black and every field is a mid-tone (interstate 2.67, disabled
 // 2.52, recreation 2.01, worse again under contrast-dark).
 //

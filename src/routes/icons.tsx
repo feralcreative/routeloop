@@ -61,34 +61,138 @@ export const iconRoutes = new Hono<AuthEnv>()
  *
  * Read from the BUILT stylesheet, because this runs in a request — see
  * parsePalettes.
+ *
+ * **TWO THRESHOLDS, BECAUSE THE COLUMN SET AND THE LEGEND ANSWER TWO DIFFERENT
+ * QUESTIONS.** Ziad's call, 2026-09-09, after six fields came back with a black
+ * glyph that should read white. Which fields get a COLUMN is "is this a field
+ * the app paints a sign on", and 4.5:1 on either ink is the bar the palette
+ * audit already holds those to — it is what keeps the derived ramp steps out,
+ * and dropping it to 3 admits ten more columns (`neutral-43`, `stop-d6/d8/d10`,
+ * `pending`, `label`, `detour-text`, `go-l8`, `go-d12`) that nothing ever paints
+ * a glyph on. Which INK it takes is "can you read the glyph", and a knockout
+ * glyph is a GRAPHICAL object rather than text, where the bar is 3:1.
+ *
+ * **SO WHITE WINS AT 3:1 AND THE COLUMN SET IS UNCHANGED.** Measured: it flips
+ * exactly `neutral-50`, `neutral-57`, `concrete`, `google-blue` and `signal` —
+ * the five that were reading as black glyphs on mid-tone grounds — and nothing
+ * else in the table moves. **WHITE IS PREFERRED RATHER THAN THE HIGHER RATIO**,
+ * which is the part that is a decision rather than arithmetic: all five clear
+ * black by MORE than they clear white, so a best-ratio rule keeps them black.
+ * These marks are white-knockout artwork, the app paints the white one
+ * everywhere it can, and a black glyph is the exception a field has to earn.
+ *
+ * **`$detour` TAKES WHITE AS A NAMED OVERRIDE, AGAINST THE MEASUREMENT.** Ziad's
+ * call, 2026-09-09, and it reverses the AGENTS.md entry that refused white on
+ * this field for the feedback cards. `FORCE_WHITE` is that decision, and it is a
+ * SET rather than an `if` so a second one is a name added to a list beside a
+ * measured ratio rather than a branch.
+ *
+ * **THE RATIO IS STATED HERE BECAUSE IT IS THE WORST ON THE PAGE.** White on
+ * `$detour` measures 2.46, 1.98 and 2.60 across the three sign palettes, all
+ * well under the 3:1 graphical bar and under the 2.25 it measured before the
+ * hex moved to `$fuel-low`'s value the same day. The column head reports the
+ * real number rather than a passing one, so the page does not claim this
+ * pairing measures something it does not.
  */
+/** Text contrast. Decides which fields get a column at all. */
 const AA = 4.5
+/** Non-text graphical contrast. Decides which ink the glyph takes. */
+const AA_GRAPHIC = 3
 
-type Field = { name: string; legend: 'white' | 'black'; ratio: number }
+/**
+ * Fields given a white legend against the measurement, by name.
+ *
+ * Ziad's call per entry, never a widened threshold: lowering `AA_GRAPHIC` to
+ * admit `$detour` would take nine other fields with it silently, which is the
+ * failure mode this whole page exists to surface.
+ */
+const FORCE_WHITE = new Set(['detour'])
 
+/**
+ * The sign-palette token names, read out of `_palette.scss` rather than listed.
+ *
+ * **THE SIGN PALETTE IS KING, so it decides which NAME leads a column.** Ziad's
+ * rule, 2026-09-09. Several tokens are deliberate aliases of a sign field —
+ * `route: $stop`, `date: $interstate`, `accent: $yield`, `fuel-low: $detour`,
+ * `concrete: neutral-57` — so a column holding two names should be headed by the
+ * sign one and annotated with the rest, never the other way round.
+ *
+ * Parsed rather than duplicated because a second list is a second thing to keep
+ * in step, and the Dockerfile carries `COPY style ./style`, so the source is in
+ * the image beside the built sheet this file already reads.
+ *
+ * An empty result degrades to alphabetical name order and nothing else, which is
+ * a presentation loss rather than a wrong answer.
+ */
+function signTokens(): Set<string> {
+  const src = readFileSync(join(process.cwd(), 'style', '_palette.scss'), 'utf8')
+  const block = /\$-signs-default:\s*\(([^)]*)\)/.exec(src)
+  if (!block) return new Set()
+  return new Set([...block[1].matchAll(/"([a-z0-9-]+)":/gi)].map((m) => m[1]))
+}
+
+type Field = { names: string[]; legend: 'white' | 'black'; ratio: number }
+
+/**
+ * One column per DISTINCT COLOR, not per token name.
+ *
+ * **EVERY IDENTICAL PAIR IN THE PALETTE IS ALREADY AN ALIAS IN THE SOURCE**, so
+ * the duplication was this page's, not `_palette.scss`'s: it enumerated the
+ * emitted custom properties, and an alias emits a second property carrying the
+ * same value — which drew `$stop` and `$route` as two identical columns and
+ * invited somebody to look for a difference that does not exist. Grouped by the
+ * value ACROSS ALL SIX palettes rather than in the default one, or two tokens
+ * that happen to coincide in light and diverge in dark would be merged wrongly:
+ * `$speed` and `$neutral-94` are 1/255 apart per channel here and `$speed` goes
+ * to #ffffff in the contrast theme, which is exactly that case.
+ */
 function legendFields(): { fields: Field[]; palettes: number } {
   const palettes = parsePalettes(readFileSync(join(process.cwd(), 'public', 'style', 'main.min.css'), 'utf8'))
   const first = [...palettes.values()][0]
   if (!first) return { fields: [], palettes: 0 }
-  const out: Field[] = []
+  const signs = signTokens()
+
+  // Signature = this token's value in every palette, in order. Equal signatures
+  // are the same color everywhere and therefore one column.
+  const groups = new Map<string, { names: string[]; white: number; black: number }>()
   for (const name of first.keys()) {
+    const vals: string[] = []
     let white = Infinity
     let black = Infinity
     let usable = true
-    for (const vals of palettes.values()) {
-      const field = vals.get(name)
+    for (const p of palettes.values()) {
+      const field = p.get(name)
       const w = field ? contrast(field, '#ffffff') : null
       const b = field ? contrast(field, '#000000') : null
       if (w == null || b == null) {
         usable = false
         break
       }
+      vals.push(field!.toLowerCase())
       white = Math.min(white, w)
       black = Math.min(black, b)
     }
     if (!usable) continue
-    if (white >= AA) out.push({ name, legend: 'white', ratio: white })
-    else if (black >= AA) out.push({ name, legend: 'black', ratio: black })
+    const key = vals.join('|')
+    const hit = groups.get(key)
+    if (hit) hit.names.push(name)
+    else groups.set(key, { names: [name], white, black })
+  }
+
+  const out: Field[] = []
+  for (const g of groups.values()) {
+    // Sign fields first, then alphabetical, so the column is headed by the name
+    // the palette is organized around.
+    const names = [...g.names].sort((a, b) => {
+      const sa = signs.has(a) ? 0 : 1
+      const sb = signs.has(b) ? 0 : 1
+      return sa - sb || a.localeCompare(b)
+    })
+    // Admitted on text contrast, inked on graphical contrast, white preferred.
+    if (g.white < AA && g.black < AA) continue
+    if (g.white >= AA_GRAPHIC || names.some((n) => FORCE_WHITE.has(n)))
+      out.push({ names, legend: 'white', ratio: g.white })
+    else out.push({ names, legend: 'black', ratio: g.black })
   }
   return { fields: out.sort((a, b) => b.ratio - a.ratio), palettes: palettes.size }
 }
@@ -159,14 +263,18 @@ iconRoutes.get('/icons', requireActive, (c) => {
   const { fields, palettes: paletteCount } = legendFields()
 
   const cell = (name: string, f: Field) =>
-    `<td class="ic-cell${f.legend === 'black' ? ' is-black' : ''}"><span class="ic-mark" style="color:var(--${esc(f.name)})">${icon(name)}</span></td>`
+    `<td class="ic-cell${f.legend === 'black' ? ' is-black' : ''}"><span class="ic-mark" style="color:var(--${esc(f.names[0])})">${icon(name)}</span></td>`
 
+  // The head carries EVERY name the column answers for, sign field first. An
+  // alias is named rather than hidden, because "$route is $stop" is a fact about
+  // the palette worth reading off the page that compares them.
   const heads = () =>
     fields
-      .map(
-        (f) =>
-          `<th scope="col"${f.legend === 'black' ? ' class="is-black"' : ''}><code>$${esc(f.name)}</code><span class="ic-hex">${f.legend} ${f.ratio.toFixed(1)}</span></th>`,
-      )
+      .map((f) => {
+        const alias =
+          f.names.length > 1 ? `<span class="ic-alias">= $${f.names.slice(1).map(esc).join(', $')}</span>` : ''
+        return `<th scope="col"${f.legend === 'black' ? ' class="is-black"' : ''}><code>$${esc(f.names[0])}</code>${alias}<span class="ic-hex">${f.legend} ${f.ratio.toFixed(1)}</span></th>`
+      })
       .join('')
 
   const row = (name: string) => `
@@ -230,10 +338,17 @@ iconRoutes.get('/icons', requireActive, (c) => {
     <p class="brand-sub">
       Every field that can hold a glyph, <strong>measured</strong> across all ${paletteCount} palettes rather than
       listed by hand — ${fields.filter((f) => f.legend === 'white').length} take a white one and
-      ${fields.filter((f) => f.legend === 'black').length} take black, at 4.5:1 in the worst of the six. The head of
-      each column says which and at what ratio. The glyph flips in the black columns exactly as
-      <code>_account.scss</code> flips it, because a white knockout on <code>$warning</code> measures about 1.4:1. The
-      discs are drawn in the <strong>default light</strong> palette; the ratios are the worst case across all six.
+      ${fields.filter((f) => f.legend === 'black').length} take black. A field earns a column by clearing
+      <strong>4.5:1</strong> on one ink or the other, which is the bar the palette audit holds a sign field to; the
+      glyph then takes <strong>white wherever white clears 3:1</strong>, because a knockout is a graphical object
+      rather than text, and black only where it does not. The head of each column says which and at what ratio, and
+      names any token that is an <strong>alias</strong> of it &mdash; <code>$route</code> is <code>$stop</code>,
+      <code>$date</code> is <code>$interstate</code>, <code>$accent</code> is <code>$yield</code> and
+      <code>$fuel-low</code> is <code>$detour</code>, so each pair shares one column rather than drawing two identical
+      ones. The
+      glyph flips in the black columns exactly as <code>_account.scss</code> flips it, because a white knockout on
+      <code>$warning</code> measures about 1.4:1. The discs are drawn in the <strong>default light</strong> palette;
+      the ratios are the worst case across all six.
     </p>
     <p class="brand-sub">
       Each disc carries a hairline that is <em>not</em> part of the mark: <code>$speed</code> is a near-white field and
