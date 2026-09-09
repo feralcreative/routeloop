@@ -360,6 +360,19 @@
   }
 }
 
+// THE BADGE'S GEOMETRY, AS THREE RELATED NUMBERS RATHER THAN THREE LOOSE ONES.
+//
+// $badge-size is both the width floor and the height, which is what keeps the
+// one-digit pill a circle. The padding and the line-height have to SUM to it —
+// stated as a subtraction so they cannot be edited apart, which they had been:
+// the pill was 16.4 x 17.0 for exactly that reason.
+//
+// All three are in the badge's own em, so the whole thing scales with its
+// font-size and nothing here is a device pixel.
+$badge-size: 1.55em;
+$badge-ink-nudge: 0.21em;
+$badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
+
 // UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because
 // of that: every other mark in the nav is a way TO somewhere, and this is a count
 // of things that happened while the rider was away. It carries $ink-light rather
@@ -379,11 +392,27 @@
   // after they responded differently to the same rule.
   display: inline-block;
 
+  // **ROUND, AND THE WIDTH AND HEIGHT COME FROM ONE VALUE SO IT CANNOT DRIFT OUT
+  // OF IT.** Ziad's call, 2026-09-09: it read as stretched vertically, and it
+  // measurably was — 16.4px wide against 17.0px tall, because `min-width` was
+  // 1.5em while the height was the 1.55em the padding and line-height happened to
+  // add up to. Half a pixel is enough to see on a circle.
+  //
+  // The HEIGHT is stated rather than left to emerge from that sum, which is what
+  // retires the "change one and change the other" hazard: `box-sizing` is
+  // border-box, so the padding sits inside this and the content box lands at
+  // exactly $badge-line — the line box fills it and the glyph does not move.
+  //
+  // A two-digit count or the `99+` cap grows WIDER than this and stays a stadium,
+  // which is right: `min-width` is a floor, and only the one-digit case is a
+  // circle.
+  min-width: $badge-size;
+  height: $badge-size;
+
   // 0.4em rather than 0.15em. In the CHIP the badge has the pill's own border to
   // sit inside, so a hair of space read fine; in the MENU it sits directly after
   // the word "Notifications" and 1.6px put it against the final letter.
   margin-left: 0.4em;
-  min-width: 1.5em;
 
   // **THE DIGIT IS PUSHED DOWN BY A TOP PADDING AND THE LINE-HEIGHT GIVES THE
   // HEIGHT BACK, SO THE PILL IS THE SIZE IT ALWAYS WAS.**
@@ -402,13 +431,11 @@
   // line-height reduction, which is exactly half the padding: 0.3em of padding
   // buys 0.15em of movement.
   //
-  // 0.21em + 1.34em is 1.55em, the height the old bare `line-height: 1.55`
-  // produced. Change one and change the other, or the pill grows.
-  //
-  // Landed by measurement rather than derivation: 0.3em overshot to 0.5px LOW on
-  // both badges, so the shift wanted 0.105em and the padding twice that.
-  padding: 0.21em 0.35em 0;
-  line-height: 1.34;
+  // The nudge landed by measurement rather than derivation: 0.3em overshot to
+  // 0.5px LOW on both badges, so the shift wanted 0.105em and the padding twice
+  // that. `$badge-line` is whatever is left of the box after it.
+  padding: $badge-ink-nudge 0.35em 0;
+  line-height: $badge-line;
 
   // MIDDLE, WHICH ONLY MATTERS WHERE THE BADGE SITS IN A TEXT LINE. The chip is a
   // flex row so `vertical-align` is ignored there; a menu row is a plain block,
@@ -420,7 +447,13 @@
   background: $stop;
   color: $ink-light;
   font-size: 0.72em;
-  font-weight: 700;
+  // A LIGHTER CUT, and it is a real one rather than a synthesis: Overpass is
+  // loaded as a variable font with the weight axis declared `100 900`, so 500 is
+  // drawn at 500. Ziad's call, 2026-09-09. It matches `.notif-more`, the app's
+  // other piece of small reversed type on a sign field, and for the same reason
+  // — light ink on a saturated ground gains apparent weight, so 700 read heavy
+  // at 10.9px.
+  font-weight: 500;
   text-align: center;
   // No global border-box reset in this stylesheet — see AGENTS.md.
   box-sizing: border-box;
