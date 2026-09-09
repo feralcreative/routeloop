@@ -9339,10 +9339,68 @@
      * answer back to wherever the rider happens to be looking — which is the
      * one case where the screen is NOT what they meant.
      */
+    // "gas station in bakersfield" carries its own where. Text Search reads the
+    // place out of the query, so ANY anchor we add — the viewport, or the route's
+    // own corridor — drags the answer back to wherever the rider happens to be.
+    // Factored out because the corridor path has to make the same exception.
+    const namesAPlace = (q) => /\b(in|near|around|close to|by)\b/.test(q);
+
     function namedOrViewport(q) {
-      if (/\b(in|near|around|close to|by)\b/.test(q)) return [null];
+      if (namesAPlace(q)) return [null];
       const view = viewportAnchor();
       return view ? [view.near, { radiusM: view.radiusM }] : [null];
+    }
+
+    /**
+     * The category half of a TYPED query, searched over the same stretch a chip
+     * would search.
+     *
+     * #266's other half. The scope control governed the chips and nothing else:
+     * `categorySearch()` reads the slot, then `state.corridorOn`, then the
+     * viewport, and a typed query went straight to the viewport however the
+     * control was set. So with Along the route selected, tapping the Gas chip
+     * searched the route and typing "gas" searched the screen — two answers to
+     * one question, from one control that claimed to govern both.
+     *
+     * ONLY THE CATEGORY HALF. The name half is Autocomplete and stays restricted
+     * to the visible map, deliberately: a rider typing "Dunsmuir Lodge" wants
+     * that place, a prediction carries no coordinates to filter on until it is
+     * resolved, and Place Details bills per call. See searchPlaces().
+     *
+     * The precedence is `categorySearch()`'s, in the same order and for the same
+     * reasons — a slot is the rider pointing at a stretch of road, and it
+     * outranks the scope.
+     */
+    async function typedCategoryHits(cat, q, r, at) {
+      if (namesAPlace(q)) return nearbySearch(cat.text, null);
+      const leg = at == null ? null : legAnchor(state.routes[r], at);
+      if (leg) return corridorRun(cat.text, leg.track, leg.totalM, leg.near);
+      if (state.corridorOn) {
+        const args = corridorSearchArgs(r);
+        const hits = await corridorRun(cat.text, args.track, args.totalM, args.near);
+        placeAlongRoute(hits, args.spans);
+        return hits;
+      }
+      return nearbySearch(cat.text, ...namedOrViewport(q));
+    }
+
+    /**
+     * What to say when a typed query found nothing at all, naming what was
+     * actually covered.
+     *
+     * TWO HALVES SEARCHING TWO AREAS is what makes this its own function rather
+     * than emptyText(): the category half follows the scope and the name half is
+     * always the viewport, so once the corridor runs, "on screen" describes only
+     * half of what was asked. Telling a rider the wrong area sends them looking
+     * in the wrong place, which is the complaint #232 was filed about.
+     */
+    function typedEmptyText(q, cat, at) {
+      const named = "“" + q + "”";
+      if (cat && at != null)
+        return "No matches for " + named + " along this leg or on screen. Zoom out to search wider.";
+      if (cat && state.corridorOn)
+        return "No matches for " + named + " along this route or on screen. Zoom out to search wider.";
+      return "No matches for " + named + " on screen. Zoom out to search wider.";
     }
 
     async function nearbySearch(query, near, opts) {
@@ -9579,6 +9637,11 @@
         // is the expensive one and it only fires when the query genuinely asks
         // for a kind of place.
         const cat = QUERY.parse(q);
+        // CLEARED BEFORE EVERY SEARCH, the same reason categorySearch() clears
+        // it: a typed query can now run the corridor, so it can also raise the
+        // partial-coverage note — and leaving one standing would hang it above
+        // an answer that searched exactly what it said it did.
+        corridorPartial = false;
         try {
           // allSettled, NOT all. These are two independent services and either
           // can fail on its own — the category search in particular fails
@@ -9591,7 +9654,7 @@
             // No anchor when the text names a place: Text Search reads it out of
             // the query, and biasing to the rider's current position as well
             // would pull the answer back home.
-            cat ? nearbySearch(cat.text, ...namedOrViewport(q)) : [],
+            cat ? typedCategoryHits(cat, q, route, at) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
@@ -9635,7 +9698,7 @@
             // rider who is told only "no matches" has no reason to think
             // zooming out would help. See searchPlaces() in map-common.js for
             // why there is no automatic fallback to widen it for them.
-            (nothing ? noticeHtml("No matches for “" + q + "” on screen. Zoom out to search wider.") : "") +
+            (nothing ? noticeHtml(typedEmptyText(q, cat, at)) : "") +
             // One half down while the other answered: the results still show,
             // with a line saying what is missing. Silently returning half an
             // answer is how a broken category search would go unnoticed for a
