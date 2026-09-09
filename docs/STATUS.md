@@ -1,11 +1,54 @@
 # Status and handoff
 
-**Branch:** `feat/account-and-preferences`, twenty commits ahead of `main`. **2,562 tests across 102 files** (2 skipped, 2,564 total)
-**Not pushed.** The branch is local; the push and the PR are yours.
-**Closes, when it merges:** [#269](https://github.com/feralcreative/routeloop/issues/269), [#270](https://github.com/feralcreative/routeloop/issues/270), [#271](https://github.com/feralcreative/routeloop/issues/271) and [#279](https://github.com/feralcreative/routeloop/issues/279)—which clears `area:account` again.
-**[#279](https://github.com/feralcreative/routeloop/issues/279) was found while surveying and is a P1 that is live in production.** Fix it first if the branch is going to sit.
-**Merged 2026-09-07 as [#276](https://github.com/feralcreative/routeloop/pull/276) and [#278](https://github.com/feralcreative/routeloop/pull/278):** the split sprint, closing [#274](https://github.com/feralcreative/routeloop/issues/274), [#275](https://github.com/feralcreative/routeloop/issues/275) and [#277](https://github.com/feralcreative/routeloop/issues/277). Stage auto-deployed and went green. **Prod has NOT been deployed**—it is still on [#264](https://github.com/feralcreative/routeloop/pull/264), so it has the #279 bug and none of the split work.
+**Branch:** `fix/along-route-insert-position`, three commits ahead of `main`. **2,708 tests across 104 files** (2 skipped, 2,710 total)
+**Not merged.** [#266](https://github.com/feralcreative/routeloop/issues/266) is done and verified in the browser; the PR is yours to open.
+**Merged 2026-09-08 as [#289](https://github.com/feralcreative/routeloop/pull/289) and [#291](https://github.com/feralcreative/routeloop/pull/291):** the account sprint, then the autosave fix. Prod was deployed on `0127390` (the #289 merge) and has NOT been deployed since, so it does not yet have #291 or #266.
+**The five issues describing #289's work are now closed**—[#283](https://github.com/feralcreative/routeloop/issues/283) through [#287](https://github.com/feralcreative/routeloop/issues/287). That PR body carried six `Closes` lines and not eleven.
+**Open and worth knowing:** [#288](https://github.com/feralcreative/routeloop/issues/288)—the builder and the viewer have no route to the release notes now that the feedback FAB is gone, because map pages render no footer. It is the gap #289 knowingly left.
+**Also open, uncommitted on this branch:** nothing. The `docs/status-after-289` branch was created to hold this file and AGENTS.md and is now redundant.
 **For:** the next agent, or the owner returning cold
+
+## An Along the route hit lands where the road passes it, 2026-09-08
+
+[#266](https://github.com/feralcreative/routeloop/issues/266), a P1. Picking a corridor hit added it to the END of the route, so a coffee stop found at mile 40 landed after the hotel at mile 300 and the road doubled back on itself.
+
+**The arithmetic was already being run and its answer thrown away.** A corridor hit is filtered on how far off the track it is, and that number is rendered as its "· 2.1 mi off" tip—so the projection had happened and only WHICH segment won was discarded. `nearestSegment()` keeps it, `withinCorridor()` carries `atIndex` out beside `offRouteM`, and `placeAlongRoute()` maps it to a row through `legAtVertex()`. **No distance is compared against anything**: `spans[i]` lines up with `legs[i]`, so the leg a place projects onto is the pair of points it belongs between. An open `+` slot still wins, per #232.
+
+**A second defect found while testing it, fixed in the same branch.** The scope control governed the CHIPS and nothing else—a typed query ran a different handler that never read `state.corridorOn`, so with Along the route selected, tapping Gas searched the route and typing "gas" searched the screen. Only the category half moved; the name half is Autocomplete and stays viewport-restricted, because a prediction carries no coordinates to filter on and Place Details bills per call. Ziad's call not to file it separately—the reasoning is in the commit.
+
+**Verified in the browser on ride 34** with the places proxy stubbed, so no Text Search was billed: a hit near the first leg lands at row 1 rather than row 5, an open `+` slot at index 4 still takes the hit at 4, and a typed "diner" now issues nine corridor samples along the route instead of one viewport call.
+
+## A new ride stops nagging you for its first stop, 2026-09-08
+
+[#290](https://github.com/feralcreative/routeloop/issues/290), reported by a tester, merged as [#291](https://github.com/feralcreative/routeloop/pull/291). Creating a ride and typing its name brought up the save-failure dialog three seconds later, telling the rider it had no stop—the thing they had opened the builder to add.
+
+**Not started is not blocked.** `saveBlockReason()` treated "no points anywhere" as a refusal and #233 had since routed `blocked` into the same modal as a real save error. `flushNow()` now returns before the block check when the ride has no `rideId` and no points. A ride already saved and then emptied of every point still blocks and still gets the dialog, because there the deletion is real work that is not persisting.
+
+**Every dialog heading was black on black under a dark palette.** `.modal` set `background: $white` and no `color`, and the UA's `dialog { color: CanvasText }` beats inheritance—nothing in `style/` declares `color-scheme`, so CanvasText stayed black while `$white` resolved to the page's near-black. Measured at `rgb(0,0,0)` on `rgb(10,14,17)` before and `rgb(187,187,187)` after. The split-riders dialog had it too and nobody had reported that one.
+
+## Notifications, the complete export, the palette and the chrome, 2026-09-08
+
+[#289](https://github.com/feralcreative/routeloop/pull/289). Four units of work on one branch, all merged and all deployed to production.
+
+**A notification subsystem where there were two emails.** Thirteen events in four groups, ten new email templates, thirteen senders, a preference per event per channel, a notification centre at `/notifications`, and an unread badge on the account chip. `src/notifications/catalog.ts` is the source of truth for the settings page and the senders both, and an event is a `varchar` rather than a pgEnum on purpose—the fourteenth notification is a code change and nothing else. **The default lives in code and the column stores only the deviation**: email on, browser off, Ziad's call. The absence of a row means the rider has not been asked, which is not the same as saying no, and a `default true` column cannot tell those apart.
+
+**The browser channel is Chrome's own `Notification` constructor called by a live page, and it is not Web Push.** No service worker, no VAPID pair through the deploy allow-list, no dependency, nothing to deploy—and the price is stated on the settings page rather than hidden: nothing is raised while the site is closed. The server stores and the page raises; `POST /api/notifications/pending` is a POST because it **claims**, so two open tabs cannot raise the same message twice.
+
+**A row is stored for every event regardless of channel, and that reversed mid-build.** The browser preference gates only the toast. The centre and the badge report everything that happened whether or not the rider wanted a popup for it.
+
+**The three sweep warnings ride on sweeps that already run**, so the five timers in `src/index.tsx` are still five. The account-deletion warning is deliberately not on the account purge's own sweep, which is gated behind `PURGE_ACCOUNTS` and off everywhere—a warning hung off it would never fire. Verified end to end against the live dev database: `notifyRideComment` inserted the right row, `claimPending` returned and stamped it, and all three warnings ran clean.
+
+**The GTFO export was missing about ten tables of rider-owned data**, which is [#284](https://github.com/feralcreative/routeloop/issues/284) and the biggest thing found. Ziad's principle, stated in the same breath: the infrastructure and the software are his, the information inside them is the rider's, forever. `everythingElse()` now gathers notification preferences, place groups, places, friends, following, followers, memberships, comments, suggestions, votes, feedback with attachment metadata, and the survey. `test/archive-completeness.test.ts` grew into a **table-level** guard—every `pgTable` in `schema.ts` has to be read by the gather or named in an `EXCLUDED` map with a reason—so a new table holding rider data that nothing exports fails on the day it lands.
+
+**The palette went from about 80 tokens to 65**, and finding five bugs on the way is the argument for having done it: two live [#282](https://github.com/feralcreative/routeloop/issues/282) instances (`.kml-btn` and `.tb-banner` painting `$white` on `$stop`), a dark ramp whose steps 43 and 50 were both `#888888`, and two `/brand` scanner defects that made the page report 31 issue numbers as colours. `$gpx`→`$go`, `$kml`→`$stop`, `$ink-dark`→`$black`, and seven near-identical blues collapsed into `$disabled`. **Three requested merges were refused with measurements**, because they would have broken dark mode; darkening `neutral-57` took `$concrete`'s black legend from 4.66 to 4.14 and was reverted.
+
+**The feedback FAB is gone and the avatar lockup became a chip.** The bottom-right route shield was a second door to `/feedback`, which the menu already had. The unread count rides on the session query as a correlated subquery, because `page()` is synchronous and is called from dozens of places. **The gap it left is [#288](https://github.com/feralcreative/routeloop/issues/288)**: the FAB also carried What's new, and map pages render no footer, so the builder and the viewer now have no route to the release notes at all.
+
+**Found and filed while doing it.** [#285](https://github.com/feralcreative/routeloop/issues/285): `.btn.btn-sign` outranked `.btn[hidden]` at equal specificity, so every sign button in the app ignored `el.hidden`—masked because `.setting-actions` collapses when it has no visible child. [#286](https://github.com/feralcreative/routeloop/issues/286): `/brand` read issue numbers out of comments as colours.
+
+**Two migrations, both purely additive** and therefore safe in one deploy: `0035` (notification_prefs, notifications, three warning stamps, FKs, a partial index) and `0036` (notifications.read_at plus its unread index).
+
+**Left open on purpose.** `$pending` is still the amber for unsaved state—the offer to replace it with `$yield` stands, and its three `color:` uses need a legible amber rather than a straight swap. And `routeloop.mapType` in `localStorage` is a genuine rider preference that is not in the database; flagged, not acted on.
 
 ## The day→route rename swept calendar days, 2026-09-07
 
