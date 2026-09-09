@@ -79,9 +79,41 @@ describe('the defaults', () => {
   it('gives a rider with no rows at all every default', () => {
     const prefs = prefMap([])
     for (const e of EVENTS) {
+      // `release` is the one recorded exception — see QUIET_BY_DEFAULT.
+      if (e.key === 'release') continue
       expect(enabledFor(prefs, e.key, 'email')).toBe(true)
       expect(enabledFor(prefs, e.key, 'browser')).toBe(false)
     }
+  })
+})
+
+// #288. Prod deploys several times a day, so the house default of email-on would
+// be a mail per deploy to every rider — the one shape of notification guaranteed
+// to make somebody switch all of them off. The row is still stored, so the
+// centre and the badge report it; only delivery is silent.
+//
+// THE RULE THIS DEPARTS FROM IS WRITTEN DOWN IN policy.ts and its escape hatch
+// does not fit: leaving the event out of the catalog means no switch at all, and
+// a rider who wants these by mail should be able to say so.
+describe('the release note, which is quiet by default', () => {
+  it('is off on both channels before anybody says anything', () => {
+    const prefs = prefMap([])
+    expect(enabledFor(prefs, 'release', 'email')).toBe(false)
+    expect(enabledFor(prefs, 'release', 'browser')).toBe(false)
+  })
+
+  // The whole reason it is in the catalog rather than left out of it.
+  it('turns on when a rider asks for it', () => {
+    const prefs = prefMap([{ event: 'release', channel: 'email', enabled: true }])
+    expect(enabledFor(prefs, 'release', 'email')).toBe(true)
+  })
+
+  // The exception must not leak: every other event keeps the house default, and
+  // a second entry in that set is a decision somebody has to make on purpose.
+  it('does not change the default for anything else', () => {
+    const prefs = prefMap([])
+    const quiet = EVENTS.filter((e) => !enabledFor(prefs, e.key, 'email')).map((e) => e.key)
+    expect(quiet).toEqual(['release'])
   })
 })
 
@@ -169,6 +201,10 @@ describe('every event actually sends', () => {
     'src/notifications/senders.ts',
     'src/friends/notify.ts',
     'src/feedback/notify.ts',
+    // #288. The only send site that is not triggered by a person: a release is
+    // raised by the BUILD, on boot, so it has nowhere to live among the senders
+    // — every one of those takes a rider and a thing that rider did.
+    'src/notifications/announce.ts',
   ].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'))
   const all = sources.join('\n')
 

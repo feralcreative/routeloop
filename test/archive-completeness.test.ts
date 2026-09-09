@@ -110,6 +110,10 @@ describe('the archive covers every table that holds rider data', () => {
     // whoever opens it.
     sessions: 'credential',
     login_tokens: 'credential',
+    // #288. WHICH RELEASES HAVE BEEN ANNOUNCED, keyed by the release, with no
+    // rider in it at all — one row per build, not per person. What the rider
+    // actually received is in `notifications`, which IS exported.
+    announced_releases: 'not rider data',
     // The beta gate. Describes how somebody got in rather than anything of
     // theirs, and an invite names an email address that is not the exporter's.
     invites: 'not rider data',
