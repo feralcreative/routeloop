@@ -348,3 +348,56 @@
   color: $neutral-57;
   font-style: italic;
 }
+
+// The mark at the size the centre actually draws it. A colour that reads at
+// 30px in a comparison table can vanish at 26px on a row, which is the size the
+// decision is really about.
+.ic-real {
+  display: inline-block;
+  vertical-align: middle;
+  width: 26px;
+  height: 26px;
+  margin-right: 0.5rem;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// The warn tone flips its glyph here too, so the "as assigned" swatch shows what
+// the centre shows rather than the bug the centre avoids.
+.ic-real[style*="--warning"] :where([fill="white"]) {
+  fill: $ink-dark;
+}
+
+// The ring table is 17 columns wide, so it is narrower per cell than the field
+// tables and its head carries the hex under the name — the hex is what gets
+// quoted when a hue is picked, since the NAME belongs to a role rather than to
+// anything in the notification centre.
+.ic-table--ring {
+  th,
+  td {
+    padding: 0.4rem 0.35rem;
+  }
+
+  thead th {
+    font-size: 0.72rem;
+    vertical-align: bottom;
+  }
+
+  .ic-mark {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.ic-hex {
+  display: block;
+  margin-top: 0.1rem;
+  font-family: monospace;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: $neutral-50;
+}
