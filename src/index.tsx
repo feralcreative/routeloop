@@ -23,7 +23,7 @@ import { startThumbnailSweep } from './maps/thumbnail-sweep'
 import { startQuotaSweep } from './account/quota-sweep'
 import { startAccountPurge } from './account/purge'
 import { startTrashPurge } from './trash/purge'
-import { announceRelease } from './notifications/announce'
+import { announceReleases } from './notifications/announce'
 import { startVoteResolver } from './votes/resolve'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
@@ -898,8 +898,8 @@ startAccountPurge()
 // blue/green: a deploy starts two containers and exactly one fans out. Fired and
 // not awaited, so a slow roster cannot delay the port opening and the deploy's
 // health gate with it; the catch is here because nothing else is watching it.
-announceRelease()
-  .then((n) => {
-    if (n > 0) console.log(`[release] announced to ${n} rider${n === 1 ? '' : 's'}`)
+announceReleases()
+  .then((n: number) => {
+    if (n > 0) console.log(`[release] announced ${n} release${n === 1 ? '' : 's'}`)
   })
-  .catch((err) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))
+  .catch((err: unknown) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))

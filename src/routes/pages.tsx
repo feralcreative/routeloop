@@ -9,6 +9,7 @@
 // and carries the answers that are not publishable yet. Anything reworded here
 // should go back to that file.
 import { Hono } from 'hono'
+import { withAnchors } from '../releases/latest'
 import type { Context } from 'hono'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -293,10 +294,16 @@ pageRoutes.get('/faq', (c) => render(c, 'Questions', content('faq.html', faqToke
 // path and the linkable URL; the fragment is what the modal fetches on first
 // open, so the notes are not on every HTML response for a dialog most riders
 // never open.
+// **THE ANCHORS ARE INJECTED, NOT AUTHORED.** #288's notifications link to
+// `/release-notes#<id>`, and that id has to equal `releaseId(heading)` exactly or
+// the link lands nowhere — an id typed by hand is one transposed character from
+// that, which is the argument `stamp-release.ts` makes about the commit. Doing it
+// here also leaves the authoring contract at the top of the file true as written:
+// copy the block, fill it in, and the anchor exists.
 pageRoutes.get('/release-notes', (c) =>
-  render(c, 'What’s new', content('release-notes.html'), 'content-page release-notes-page'),
+  render(c, 'What’s new', withAnchors(content('release-notes.html')), 'content-page release-notes-page'),
 )
-pageRoutes.get('/api/release-notes', (c) => c.html(content('release-notes.html')))
+pageRoutes.get('/api/release-notes', (c) => c.html(withAnchors(content('release-notes.html'))))
 pageRoutes.get('/privacy', (c) =>
   render(c, 'Privacy', content('privacy.html', { EFFECTIVE: PRIVACY_EFFECTIVE }), 'content-page'),
 )
