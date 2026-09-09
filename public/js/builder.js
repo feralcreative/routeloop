@@ -925,11 +925,34 @@
   // yet is mid-task, not in error, and a toast every three seconds saying so
   // would be the worst thing in the app. The status line states the condition
   // and waits.
+  // A ride that has never been saved and carries no points is not BLOCKED, it is
+  // NOT STARTED — and #290 is what the difference costs. A rider who created a
+  // ride and typed its name got the save-failure modal three seconds later,
+  // chastising them for the stop they had opened the builder to go and add.
+  //
+  // GATED ON `rideId` AND NOT ON THE POINTS ALONE, which is the whole care here.
+  // `routes` is `.min(1)` server-side and every route needs a stop, so a ride that
+  // HAS been saved and is then emptied of every point cannot save either — and
+  // there the rider has a real deletion that is not persisting, so going quiet
+  // would hide it. That case stays with saveBlockReason() and keeps the dialog.
+  //
+  // Nothing is at risk in the case this covers: the ride does not exist yet, so
+  // there is no stored version to fall behind. `state.dirty` stays set, the
+  // recovery draft holds the title, and the first stop is what triggers the save
+  // that carries it up.
+  function notStartedYet() {
+    return !state.rideId && !state.routes.some((r) => r.points.length > 0);
+  }
+
   function saveBlockReason() {
     // NO TITLE CHECK. An unnamed ride saves as UNTITLED — see the constant above
     // for why blocking it was the bug rather than the safeguard. A ride with no
     // points still cannot save, and that one is real: the API requires at least
     // one stop per route and there would be nothing to store.
+    // A NEVER-SAVED RIDE NEVER REACHES THIS — flushNow() returns at
+    // notStartedYet() first. What is left is a ride already on the server that
+    // has been emptied of every point, where the deletion is genuine work that
+    // is not persisting and the rider has to be told.
     if (!state.routes.some((r) => r.points.length > 0)) return "Needs a stop";
     // A DAY WITH POINTS BUT NO STOP IS THE #233 SHAPE, AND IT IS CAUGHT HERE SO
     // THE MESSAGE CAN NAME THE DAY. The server refuses it as
@@ -971,6 +994,11 @@
     // re-queues itself from the editSeq comparison if this flush's request
     // turns out not to have covered everything.
     if (state.saving) return;
+    // NOT STARTED IS NOT BLOCKED — see notStartedYet(). Deliberately sets no
+    // status: the readout is already on "Unsaved changes" from markDirty(),
+    // which is true, and `blocked` reaches the live region and the error dialog,
+    // so reporting through it here is the #290 modal by another door.
+    if (notStartedYet()) return;
     const blocked = saveBlockReason();
     if (blocked) {
       setSaveStatus("blocked", blocked);
