@@ -36,6 +36,8 @@ import { join } from 'node:path'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { readFileSync } from 'node:fs'
 import { contrast, parsePalettes } from '../views/tokens'
+import { AA, AA_GRAPHIC, FORCE_WHITE } from '../views/legend'
+import { BLACK_GLYPH_FIELDS, MARK_FIELD, fieldFor } from '../notifications/marks'
 import { icon } from '../views/icon'
 import { EVENTS } from '../notifications/catalog'
 import { page } from '../views/layout'
@@ -81,32 +83,18 @@ export const iconRoutes = new Hono<AuthEnv>()
  * These marks are white-knockout artwork, the app paints the white one
  * everywhere it can, and a black glyph is the exception a field has to earn.
  *
- * **`$detour` TAKES WHITE AS A NAMED OVERRIDE, AGAINST THE MEASUREMENT.** Ziad's
- * call, 2026-09-09, and it reverses the AGENTS.md entry that refused white on
- * this field for the feedback cards. `FORCE_WHITE` is that decision, and it is a
- * SET rather than an `if` so a second one is a name added to a list beside a
- * measured ratio rather than a branch.
+ * `$detour` and `$go` are white by NAMED OVERRIDE on top of that, in
+ * `FORCE_WHITE` — the threshold was not moved for them, because moving it far
+ * enough would admit nine more fields with no decision behind any of them.
+ * `$yield` is the only field left carrying a black glyph on this page.
  *
- * **THE RATIO IS STATED HERE BECAUSE IT IS THE WORST ON THE PAGE.** White on
- * `$detour` measures 2.46, 1.98 and 2.60 across the three sign palettes, all
- * well under the 3:1 graphical bar and under the 2.25 it measured before the
- * hex moved to `$fuel-low`'s value the same day. The column head reports the
- * real number rather than a passing one, so the page does not claim this
- * pairing measures something it does not.
+ * **THE OVERRIDES AND THE THRESHOLDS BOTH LIVE IN `views/legend.ts` NOW**, which
+ * the notification centre reads too — the workbench must not recommend a pairing
+ * the centre does not paint, and it carried a second copy of that table until
+ * 2026-09-09. The column head reports the REAL ratio rather than a passing one,
+ * so a forced field reads as the exception it is: `$detour` shows white 2.0 and
+ * `$go` white 2.3.
  */
-/** Text contrast. Decides which fields get a column at all. */
-const AA = 4.5
-/** Non-text graphical contrast. Decides which ink the glyph takes. */
-const AA_GRAPHIC = 3
-
-/**
- * Fields given a white legend against the measurement, by name.
- *
- * Ziad's call per entry, never a widened threshold: lowering `AA_GRAPHIC` to
- * admit `$detour` would take nine other fields with it silently, which is the
- * failure mode this whole page exists to surface.
- */
-const FORCE_WHITE = new Set(['detour'])
 
 /**
  * The sign-palette token names, read out of `_palette.scss` rather than listed.
@@ -197,12 +185,6 @@ function legendFields(): { fields: Field[]; palettes: number } {
   return { fields: out.sort((a, b) => b.ratio - a.ratio), palettes: palettes.size }
 }
 
-// The tone-to-field mapping, mirroring the rules in _account.scss. Two copies,
-// because that one paints the real page and this one only describes it — but
-// they have to agree, or the swatch beside a name recommends a colour the centre
-// does not use. Anything unassigned draws in the default.
-const TONE_FIELD: Record<string, string> = { info: 'disabled', warn: 'warning', stop: 'stop' }
-
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** Every mark on disk, by the name icon() takes. */
@@ -250,14 +232,19 @@ iconRoutes.get('/icons', requireActive, (c) => {
   }
 
   // EVERY field a mark is painted in today, not the first one. `storage` is the
-  // reason: it is drawn amber for the quota warning and red for the two
+  // reason: it is drawn `$yield` for the quota warning and `$stop` for the two
   // destructions, so showing one swatch for it would misreport the only mark
-  // that actually carries two. A reserved mark has no event and takes the
-  // default.
-  const toneFields = (name: string): string[] => {
-    const tones = [...new Set(EVENTS.filter((e) => e.icon === name).map((e) => e.tone))]
-    if (tones.length === 0) return ['disabled']
-    return tones.map((t) => TONE_FIELD[t] ?? 'disabled')
+  // that actually carries two.
+  //
+  // READ FROM `marks.ts`, WHICH IS THE MAPPING THE CENTRE ITSELF USES. This was
+  // a local tone-to-field table whose own comment admitted it was a second copy
+  // that had to agree by hand; it is the same source now, so a swatch here
+  // cannot recommend a color the centre does not paint. A RESERVED mark has no
+  // event, so it falls through to its entry in MARK_FIELD — which is exactly
+  // why `road` and `weather` were given one before their events exist.
+  const markFields = (name: string): string[] => {
+    const fromEvents = [...new Set(EVENTS.filter((e) => e.icon === name).map((e) => fieldFor(e)))]
+    return fromEvents.length > 0 ? fromEvents : [MARK_FIELD[name] ?? 'disabled']
   }
 
   const { fields, palettes: paletteCount } = legendFields()
@@ -301,8 +288,11 @@ iconRoutes.get('/icons', requireActive, (c) => {
     return `
     <tr>
       <th scope="row">
-        ${toneFields(name)
-          .map((f) => `<span class="ic-real" style="color:var(--${esc(f)})">${icon(name)}</span>`)
+        ${markFields(name)
+          .map(
+            (f) =>
+              `<span class="ic-real" style="color:var(--${esc(f)});--icon-ink:var(--${BLACK_GLYPH_FIELDS.has(f) && !FORCE_WHITE.has(f) ? 'ink-dark' : 'ink-light'})">${icon(name)}</span>`,
+          )
           .join('')}
         <code>${esc(name)}</code>
         ${

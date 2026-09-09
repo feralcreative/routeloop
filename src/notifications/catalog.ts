@@ -119,18 +119,24 @@ type EventDef = {
    * The app's own vocabulary, stated in AGENTS.md: advice is amber, a wall is
    * red, and everything else is the blue sign field.
    *
-   * **`warn` FLIPS THE GLYPH TO BLACK AND THAT IS NOT COSMETIC.** `$warning` is
-   * a BLACK-legend field — white on it measures about 1.4:1 — so the tone sets
-   * `--icon-ink` alongside `color`. See the rule in _account.scss; getting it
-   * wrong is #282 exactly.
-   *
-   * The flip used to override the `fill="white"` attribute in the mark file,
-   * which reached one of the five spellings the folder uses and worked here only
-   * because `storage` happens to use that one. views/icon.ts normalizes every
-   * spelling to the property, so a new tone can be added to a mark that spells
-   * it `#ffffff` — `bug`, for one — without the glyph silently staying white.
+   * **IT NO LONGER CARRIES THE COLOR, AS OF 2026-09-09.** Ziad's call: the disc
+   * is keyed on the MARK now, in `src/notifications/marks.ts`, because eleven of
+   * these thirteen events came out the same blue under a three-tone scheme — so
+   * the mark carried all the meaning and the color carried none. `tone` survives
+   * as the advice-versus-verdict distinction, which is real and is what
+   * `data-tone` still reports to the DOM; nothing reads it for a hue.
    */
   readonly tone: 'info' | 'warn' | 'stop'
+
+  /**
+   * The disc field for THIS event, overriding its mark's.
+   *
+   * Exactly one mark needs it: `storage` is advice for the quota warning and a
+   * verdict for the two destructions, which is the one distinction the old
+   * tone-keyed scheme got right and is kept here rather than thrown away with
+   * it. Leave it unset and the mark's own field in marks.ts decides.
+   */
+  readonly field?: string
 }
 
 /**
@@ -242,6 +248,7 @@ export const EVENTS = [
     optional: true,
     icon: 'storage',
     tone: 'stop',
+    field: 'stop',
   },
   {
     key: 'quota_full',
@@ -260,6 +267,7 @@ export const EVENTS = [
     optional: true,
     icon: 'storage',
     tone: 'stop',
+    field: 'stop',
   },
   {
     key: 'release',

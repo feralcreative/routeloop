@@ -911,60 +911,39 @@
   color: $neutral-50;
 }
 
-// THE MARK, AND ITS COLOR IS THE FIELD RATHER THAN THE INK. These are two-tone
-// discs with the glyph knocked out in WHITE, so `currentColor` paints the disc —
-// which means the token has to be one that carries a white legend at 4.5:1 in
-// all six palettes. `WHITE_LEGEND` in test/palette-contrast.test.ts is that list
-// and it holds five: $stop, $interstate, $disabled, $tarmac, $recreation. Using
-// a black-legend field here — $warning is the tempting one for a storage
-// warning — is #282 exactly: near-invisible ink on a saturated ground.
+// THE MARK. ITS COLOR IS AN INLINE STYLE FROM src/notifications/marks.ts, and
+// this rule only gives it a size and a fallback.
 //
-// KEYED ON THE TONE, NOT ON THE MARK OR THE EVENT. Colouring by mark was the
-// first shape and it cannot say this: the storage disc is shared by a quota
-// warning and two destructions, and those are advice and a verdict. Colouring
-// per EVENT is the other wrong answer — two rows drawing the same disc in two
-// colours reads as a bug rather than a distinction. Tone is the thing the colour
-// is actually about, and it generalizes to the road-hazard and weather events
-// #48 and #24 will bring.
+// **THE FIELD AND THE INK BOTH LEFT THIS FILE ON 2026-09-09.** Ziad's call. The
+// disc was keyed on `[data-tone]` here — advice amber, a verdict red, everything
+// else the blue sign field — with a `--icon-ink` flip on the amber. Two things
+// were wrong with that and only one was visible: eleven of the thirteen events
+// resolved to the SAME blue, so the color said nothing the mark had not already
+// said; and `routes/icons.tsx` had to carry a second copy of the tone-to-field
+// table to draw its "as assigned" swatches, which its own comment flagged as
+// two lists that "have to agree, or the swatch beside a name recommends a colour
+// the centre does not use".
 //
-// The app's vocabulary, from AGENTS.md: advice is amber, a wall is red, and
-// everything else takes the blue sign field.
+// So the mapping is one table in TypeScript and reaches the element as
+// `style="color:var(--x);--icon-ink:var(--y)"`, exactly as the workbench already
+// does it. `data-mark` and `data-tone` are still emitted and are still the
+// readable record of what a row is; neither carries a hue.
+//
+// **THE FALLBACK BELOW IS NOT DEAD.** It is what paints the disc if the inline
+// style is ever dropped, and it is the same blue `DEFAULT_FIELD` names — so the
+// failure is a mark that looks like an informational one rather than a black
+// disc with an invisible glyph.
 .notif-mark {
   grid-area: mark;
   width: 26px;
   height: 26px;
   margin-top: 0.1rem;
-  // The default, and what every informational mark takes: the blue sign field.
   color: $disabled;
 
   svg {
     display: block;
     width: 100%;
     height: 100%;
-  }
-
-  // A VERDICT. A ride about to be destroyed, an account about to be destroyed.
-  // $stop is a WHITE-legend field, so the glyph in the file is already right.
-  &[data-tone="stop"] {
-    color: $stop;
-  }
-
-  // ADVICE — you are nearly out of room, and it is still yours to act on.
-  //
-  // **THE GLYPH FLIPS TO BLACK HERE AND THAT IS NOT COSMETIC.** $warning is a
-  // BLACK-legend field: white on it measures about 1.4:1, which is #282 exactly
-  // and is why the staging banner takes $ink-dark rather than $white.
-  //
-  // **IT SETS `--icon-ink` AND NO LONGER OVERRIDES AN ATTRIBUTE.** This was
-  // `:where([fill="white"]) { fill: $ink-dark }`, which reached one of the five
-  // spellings the folder uses — so it happened to work here only because
-  // `storage` is the one mark `warn` draws and `storage` spells it that way.
-  // `bug`, which this same rule draws on the `info` tone, spells it `#ffffff`
-  // and would have kept a white glyph the day anybody gave it an amber tone.
-  // views/icon.ts normalizes every spelling to this property.
-  &[data-tone="warn"] {
-    color: $warning;
-    --icon-ink: #{$ink-dark};
   }
 }
 

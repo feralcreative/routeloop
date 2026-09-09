@@ -420,11 +420,10 @@
   }
 }
 
-// The warn tone flips its glyph here too, so the "as assigned" swatch shows what
-// the centre shows rather than the bug the centre avoids.
-.ic-real[style*="--warning"] {
-  --icon-ink: #{$ink-dark};
-}
+// NO INK RULE FOR .ic-real, DELIBERATELY. It was `[style*="--warning"]` — an
+// attribute substring match that only ever knew about one field — and the swatch
+// now carries `--icon-ink` in the same inline style as its color, from the one
+// table in src/notifications/marks.ts. A field added there brings its own ink.
 
 // The ring table is 17 columns wide, so it is narrower per cell than the field
 // tables and its head carries the hex under the name — the hex is what gets

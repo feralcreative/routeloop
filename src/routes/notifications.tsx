@@ -23,6 +23,7 @@ import { Hono } from 'hono'
 import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
 import { claimPending, markAllRead, recentNotifications } from '../notifications/service'
 import { eventDef } from '../notifications/catalog'
+import { markStyle } from '../notifications/marks'
 import { raw } from 'hono/html'
 import { icon } from '../views/icon'
 import { fmtDateNumeric, fmtClock } from '../views/date-format'
@@ -105,14 +106,20 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                     against and paints black, and a CSS mask flattens the
                     knockout into a silhouette. See src/views/icon.ts.
 
-                    `data-tone` is what carries the COLOR and it is not the
-                    mark: the storage disc is shared by a quota warning and two
-                    destructions, which are advice and a verdict. Keyed as an
-                    attribute rather than a class per event so a tone renamed in
-                    the catalog matches nothing and loses its color loudly
-                    instead of inheriting somebody else's — the same keying the
-                    feedback kind cards use. */}
-                <span class="notif-mark" data-mark={def ? def.icon : 'info'} data-tone={def ? def.tone : 'info'}>
+                    THE COLOR IS AN INLINE STYLE FROM `marks.ts`, NOT A CLASS OR
+                    A `data-tone` RULE. Ziad's call, 2026-09-09: the disc is
+                    keyed on the MARK now, and `routes/icons.tsx` needs the same
+                    mapping to draw its "as assigned" swatches — so it lives in
+                    TypeScript once rather than in a stylesheet the workbench has
+                    to keep a second copy of. `data-mark` and `data-tone` stay on
+                    the element as the readable record of what it is; neither
+                    carries a hue any more. */}
+                <span
+                  class="notif-mark"
+                  data-mark={def ? def.icon : 'info'}
+                  data-tone={def ? def.tone : 'info'}
+                  style={markStyle(def)}
+                >
                   {raw(icon(def ? def.icon : 'info'))}
                 </span>
                 <span class="notif-feed-title">{n.title}</span>

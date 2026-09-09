@@ -41,42 +41,22 @@ function blocks(source: string): string[] {
   return [...source.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1])
 }
 
-// The fields that take a BLACK legend, from the same source as SIGN_FIELDS
-// above and for the same reason: this list is about whether the CSS says so.
-const BLACK_FIELDS = ['warning', 'yield', 'detour', 'speed']
-
-// THE NOTIFICATION MARKS ARE DISCS WITH THE GLYPH KNOCKED OUT IN WHITE, and the
-// knockout is a presentation attribute inside the SVG file rather than anything
-// the stylesheet sets. So a mark painted in a black-legend field is #282 in a
-// form test/palette-contrast.test.ts cannot see — the palette is correct, and
-// the STYLESHEET has paired that field with white ink.
+// THE NOTIFICATION MARKS MOVED OUT OF THIS FILE ON 2026-09-09, AND THE GUARD
+// WENT WITH THEM RATHER THAN LAPSING.
 //
-// **THE FLIP IS `--icon-ink` AND THIS GUARD USED TO LOOK FOR AN ATTRIBUTE
-// SELECTOR.** It asserted `[fill="white"]`, which was the real rule until
-// 2026-09-09 and reached exactly one of the five spellings the folder uses —
-// so it passed while `bug`, `help`, `info` and the four `record-*` marks kept a
-// white glyph on every black-legend field. The guard was as narrow as the bug.
-// views/icon.ts normalizes every spelling to the property now, and
-// test/icon-ink.test.ts is what holds that end; this end only has to see that a
-// black-legend tone names the ink.
+// The disc field and the knockout ink were `[data-tone]` rules in
+// `_account.scss`, so the pairing could be read out of the compiled sheet here.
+// They are declared in `src/notifications/marks.ts` now and reach the element as
+// an inline style, which this file cannot see at all — a guard left here would
+// have gone on passing while asserting nothing, which is the exact failure its
+// own history records.
 //
-// The amber quota mark is the one that needs it today. This is what stops the
-// next tone from being added without it.
-describe('a notification mark never leaves a white glyph on a black-legend field', () => {
-  it('flips the knockout wherever the disc takes one', () => {
-    const tones = [...css.matchAll(/\.notif-mark\[data-tone=["']?([a-z]+)["']?\]\s*\{([^{}]*)\}/g)]
-    // If this is empty the selector was renamed and the guard silently stopped
-    // guarding, which is the failure the whole file exists to prevent.
-    expect(tones.length).toBeGreaterThan(0)
-    const unflipped: string[] = []
-    for (const [, tone, body] of tones) {
-      const field = BLACK_FIELDS.find((f) => new RegExp(`color:\\s*var\\(--${f}\\)`).test(body))
-      if (!field) continue
-      if (!/--icon-ink:/.test(body)) unflipped.push(`${tone} paints --${field} and leaves the glyph white`)
-    }
-    expect(unflipped).toEqual([])
-  })
-})
+// `test/notification-marks.test.ts` is the replacement and it asks a STRONGER
+// question: the old one checked whether a black-legend tone named SOME ink, and
+// that one checks that the ink named is the RIGHT one, per field, in all six
+// palettes. The `BLACK_FIELDS` list that fed the old guard went with it — there
+// is no stylesheet left that pairs a black-legend field with an ink, so a list
+// of them here would describe nothing.
 
 describe('a sign legend is scheme-invariant', () => {
   it('never paints var(--white) on a sign field', () => {
