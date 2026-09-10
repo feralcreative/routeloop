@@ -145,7 +145,15 @@ describe.each(PALETTE_KEYS)('%s', (key: PaletteKey) => {
   // measured 3.19 — it was 3.19 until 2026-09-09, when the token took $fuel-low's
   // value and dropped to 2.46, so the field is now further from passing than the
   // measurement that caught it.
-  it.each(['interstate-text', 'disabled-text', 'detour-text', 'recreation-text'])(
+  //
+  // **`signal-text` JOINED THEM ON 2026-09-10 AND IS NOT A RECORD FIGURE** (#301).
+  // It is the junction row in _builder.scss, and it is here because it is the
+  // same claim measured the same way: a sign field that something sets type in.
+  // Its raw field is deliberately NOT in the list below — `$signal` was frozen in
+  // the third-party block and read 4.18:1 as text in all three LIGHT palettes and
+  // 4.64 on the dark ones, so it fails six-for-six rather than three-for-six and
+  // would break that assertion's shape.
+  it.each(['interstate-text', 'disabled-text', 'detour-text', 'recreation-text', 'signal-text'])(
     '%s survives as a record figure on the page surface',
     (name: string) => {
       expect(contrast(token(key, name), surface())!).toBeGreaterThanOrEqual(AA)

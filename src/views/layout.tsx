@@ -332,8 +332,40 @@ function SiteHeader({
         summary, so the desktop nav needs neither the disclosure nor any script.
       */}
       <details class="site-menu">
-        <summary class="nav-toggle" aria-label="Menu">
+        {/*
+          THE UNREAD DOT, AND IT IS ON THE HAMBURGER BECAUSE THAT IS THE ONLY
+          CHROME A MAP PAGE ALWAYS SHOWS (#300). #288 made the account chip's
+          badge the route to the release notes on the recorded reasoning that the
+          chip "renders on every page including the map ones" — true of the DOM
+          and false of the screen: on a map page the nav is the drawer at every
+          width, so the chip and its badge sit inside a closed <details> and paint
+          nothing. Sampling the pixels at the chip's own coordinates on /m/:slug
+          returned map tiles and no red at all. The route existed; the signal did
+          not, and a rider had to open the menu speculatively — which is the thing
+          a badge exists to replace.
+
+          **THE TWO CAN NEVER BOTH SHOW, AND CSS ALREADY GUARANTEES IT.** The
+          toggle is `display: none` above 992px on a chrome page and always shown
+          on a map page, so this dot appears exactly where the chip's badge cannot
+          — which also fixes the narrow-viewport chrome page, where the chip is in
+          the same closed drawer. No branching on `isMap`, and nothing to keep in
+          step with the breakpoint.
+
+          **A DOT AND NOT `.nav-badge`, WHICH IS A DEPARTURE FROM #288's RULE AND
+          IS THE POINT.** That rule made the chip's badge and the menu item's one
+          shape because both NAME the thing: three unread notifications, here they
+          are. The hamburger cannot name anything — it is a container — so all it
+          can honestly say is "something inside here", and a count on it would
+          claim to be about the menu rather than about what the menu contains.
+          Ziad's call, 2026-09-10.
+
+          The count still reaches a screen reader, through the label rather than
+          the dot: the dot is decorative, and `aria-label` is what the summary
+          announces. Zero renders nothing at all, per the rule in _nav.scss.
+        */}
+        <summary class="nav-toggle" aria-label={unread > 0 ? `Menu, ${unread} unread` : 'Menu'}>
           <span class="nav-bars" aria-hidden="true"></span>
+          {user && unread > 0 && <span class="nav-toggle-dot" aria-hidden="true"></span>}
         </summary>
         <nav class="site-nav" id="site-nav">
           <div class="nav-primary">
@@ -961,8 +993,7 @@ function stageBanner(): string {
   return (
     <div class="tb-banner is-stage" role="status">
       <strong>Staging, on the live database.</strong> Everything here is real rider data — anything you delete is
-      deleted for&nbsp;everyone.{' '}
-      <a href="https://routeloop.app">Go to the real&nbsp;site</a>
+      deleted for&nbsp;everyone. <a href="https://routeloop.app">Go to the real&nbsp;site</a>
     </div>
   ).toString()
 }

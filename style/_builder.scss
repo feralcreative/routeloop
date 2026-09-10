@@ -1876,7 +1876,7 @@
       font: inherit;
       font-size: 0.72em;
       font-weight: 600;
-      color: $signal;
+      color: $signal-text;
       cursor: pointer;
 
       &:hover {
@@ -2871,8 +2871,8 @@
   // peeling off is the plan working, not a problem with it — the same
   // distinction .row-dist-dry makes in the other direction.
   &.is-junction {
-    border-color: $signal;
-    color: $signal;
+    border-color: $signal-text;
+    color: $signal-text;
     font-weight: 600;
   }
 }

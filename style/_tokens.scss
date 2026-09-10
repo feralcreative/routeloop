@@ -345,7 +345,17 @@ $google-blue: var(--google-blue);
 // ours to harmonize. Nothing else in the app should reach for these — a
 // Routeloop surface that wants blue wants $url.
 $github: var(--github);
+// **$signal-brand IS THE LOGO AND $signal IS THE GO LIGHT, AND THEY WERE ONE
+// TOKEN UNTIL #301.** The Signal app's hex sits in the frozen block with the
+// other two; the blue signal head sits in the three sign sets and follows the
+// theme like every other field. $signal-text is what sets TYPE in that blue —
+// the junction rows in _builder.scss — because the field measured 4.18:1 on the
+// page surface in all three light palettes and, being frozen, could not be
+// lifted by the one theme that exists to lift a color. Exactly the split
+// $disabled and $url already have.
+$signal-brand: var(--signal-brand);
 $signal: var(--signal);
+$signal-text: var(--signal-text);
 $discord: var(--discord);
 
 // Chosen as the only accent legible over the sign-in clip. It was originally
