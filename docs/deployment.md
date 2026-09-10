@@ -63,10 +63,12 @@ Two workflows, and the difference between them is the whole policy.
 
 | | Trigger | Calls | Environment |
 | --- | --- | --- | --- |
-| `deploy-stage.yml` | **every push to `main`**, plus a button | `utils/deploy/stage.sh` | `stage` |
+| `deploy-stage.yml` | a button | `utils/deploy/stage.sh` | `stage` |
 | `deploy-prod.yml` | **a button, and only ever a button** | `utils/deploy/prod.sh` | `prod` |
 
-Stage deploys itself because a failed stage deploy changes nothing that is serving—it fails before the cutover—and because an environment that always holds what `main` holds is only useful if nobody has to remember to put it there. Production holds real rider accounts, so what stands between a merge and a deploy is a person deciding to deploy. **No `push:` trigger belongs in `deploy-prod.yml`.**
+Stage deployed itself on every push to `main` until 2026-09-09, because a failed stage deploy changed nothing that was serving. **That premise died when stage moved onto the production database** (#305): a merge would now put new code in front of real rider data with nobody deciding to. Both are buttons, and **no `push:` trigger belongs in either file.**
+
+**Deploy prod first whenever `main` carries a migration.** Stage applies none of its own—`RUNS_DATABASE` in `deploy.config` gates the converge, the readiness poll and the migrate step together—so until prod has been deployed, stage is new code on the old schema and fails its own health gate.
 
 **The reason to prefer a workflow over a terminal is bandwidth, not ceremony.** The deploy builds the image and pushes several hundred megabytes to GHCR; the NAS then pulls it over its own connection. Run from a laptop, that upload is on the laptop's uplink, which matters a great deal on a bad one. Run from a runner, it costs the developer nothing. That is why both environments have a workflow rather than only stage.
 
@@ -92,12 +94,13 @@ From a terminal, as above, or from the Actions tab—see the previous section. B
 
 ```bash
 utils/deploy/pull-db.sh                 # prod → dev, database + storage
-utils/deploy/pull-db.sh --from stage    # stage → dev
 utils/deploy/pull-db.sh --no-storage    # database only
 utils/deploy/pull-db.sh --no-migrate    # keep the remote schema as it actually is
 ```
 
-It is a wrapper: `db-clone <src> dev` does everything destructive, including the safety dump of the local database and the typed confirmation. What the wrapper adds is the step on each side that was easy to forget—bringing the local Postgres container up first, and running `npm run db:migrate` afterwards. That second one is not cosmetic: prod and stage are **behind** local on migrations, so the dump restores an older schema over a newer one and the app 500s on save until they are reapplied.
+It is a wrapper: `db-clone <src> dev` does everything destructive, including the safety dump of the local database and the typed confirmation. What the wrapper adds is the step on each side that was easy to forget—bringing the local Postgres container up first, and running `npm run db:migrate` afterwards. That second one is not cosmetic: prod is **behind** local on migrations, so the dump restores an older schema over a newer one and the app 500s on save until they are reapplied.
+
+`--from stage` is refused. Stage has no database of its own, so it was a production pull that labelled every file it wrote `stage`—the dump, the safety backup, and the line at the end saying whose data you now hold.
 
 ## Blue/green
 
@@ -138,6 +141,30 @@ A database built under the old `drizzle-kit push` workflow needs a one-time base
 **Every migration must be runnable against the release that precedes it.** Blue/green means that from the moment `migrate` finishes until the old color drains—roughly 30–60 seconds—the *old code is serving against the new schema*. Expand/contract only; a rename is two deploys. The full rule, with what is and is not safe in one deploy, is in `AGENTS.md` under Prohibitions. `utils/deploy/prod.sh --no-overlap` is the escape hatch for a migration that genuinely cannot be split, and it stops the old color first, so that deploy **has downtime**.
 
 The ugly consequence, stated rather than discovered: **a failed health gate leaves the schema ahead of the serving code.** Migrations ran, the new color never took traffic, the old color is still live against a newer schema. That is survivable exactly and only because of the expand/contract rule, and `deploy.sh` prints it loudly on that path.
+
+## Stage runs on the production database
+
+Since 2026-09-09 (#305) there is one database and one storage directory, shared by both environments. Stage exists to exercise a change against real rides before prod gets the code; it is not a place where mistakes are cheap.
+
+**What that means in practice.** A ride deleted on stage is a rider's ride. Emptying the bin on stage destroys it. An upload on stage writes a real file into production storage and counts against a real rider's quota. `DEPLOY_ENV=stage` is production for anything destructive.
+
+**What stage deliberately does not do.** It runs no background job at all—prod's container already runs all five, and three of them destroy things or announce releases. It sends no mail, so a notification test cannot reach a real rider; the subject and recipient are logged instead. **Magic-link sign-in therefore does not work on stage: use Google OAuth.** And it applies no migration, so a schema change reaches stage only once prod has it.
+
+**The one command never to run in the stage deploy directory** is `docker-compose down -v`. Compose removes the volumes the project declares, and both environments are deployed from one compose file. `STAGE_DB_VOLUME_NAME` is deliberately still pointed at stage's own dead volume so that command cannot reach production's—do not remove it, and never point it at prod's.
+
+### The cutover, once
+
+Not yet run. In order, and stopping at the first thing that does not look right:
+
+1. **Back up production.** `DEPLOY_ENV=prod utils/deploy/deploy-utils.sh db-backup`. Check the file is a complete dump—it should end with `PostgreSQL database dump complete`—before going further.
+2. **Back up stage's own database while it still exists**, so the pre-cutover state is recoverable: `DEPLOY_ENV=stage utils/deploy/deploy-utils.sh db-backup` from the commit *before* this change, since the command refuses afterwards. `STAGE_DB_PASSWORD` is what opens it.
+3. **Push the new keys to both servers**, before either deploy needs them: `DEPLOY_ENV=prod utils/deploy/deploy-utils.sh push-env` and the same for `stage`. Stage's deploy *requires* `DB_HOST`, `HOST_STORAGE_PATH` and `SHARED_DB_NETWORK` and refuses without them.
+4. **Deploy prod.** This is what creates `routeloop-shared`, attaches prod's `db` to it, and brings the schema up to `main`. It recreates the Postgres container—a few seconds of database downtime, volume untouched. Stage cannot come up correctly before this step, because it would be new code on the old schema.
+5. **Deploy stage.** It should start no database, skip the migration with a line saying so, and pass its health gate. A 503 here almost always means step 4 was skipped or failed.
+6. **Check the obvious things on stage**: the banner says the live database, a real ride from prod is listed, and its stored original downloads (that last one proves the storage mount, which is the failure that would otherwise look like data loss).
+7. **Only then decommission stage's database.** `docker rm -f routeloop-stage-db`, then `docker volume rm routeloop-stage_db-data`. Leave `STAGE_DB_VOLUME_NAME` in `deploy.config`—it is the `down -v` guard and is meant to name something that no longer exists.
+
+**Rolling back** is `utils/deploy/deploy-utils.sh cutover blue|green` as always, but note the two environments now share a database: rolling stage back does not undo anything written through it.
 
 ## Traps, all of which have actually happened
 

@@ -1,13 +1,37 @@
 # Status and handoff
 
-**Branch:** `main`, clean, nothing uncommitted. **2,923 tests across 107 files** (2 skipped, 2,925 total)
+**Branch:** `chore/stage-on-prod-database`, five commits, unmerged. **2,937 tests across 108 files** (2 skipped, 2,939 total)
 **Merged 2026-09-09 as [#302](https://github.com/feralcreative/routeloop/pull/302) and [#303](https://github.com/feralcreative/routeloop/pull/303):** release notes as notifications, then the icon workbench, the notification mark colours and the nav badge. `main` is `a9126eb`.
-**PROD IS BEHIND AND THIS IS THE FIRST THING TO KNOW.** The last prod deploy was 2026-09-09 04:16 UTC, which predates BOTH merges—so production has neither. Stage auto-deployed after each push to `main` and both runs are green, the most recent at 2026-09-10 00:02. **`gh workflow run deploy-prod.yml`** is the whole action; `drizzle/0037` is a single additive `CREATE TABLE`, so it is expand/contract-safe and needs no `--no-overlap`, and neither PR added an env key, so no `push-env` first.
+**PROD IS BEHIND AND THIS IS NOW A PREREQUISITE, NOT JUST A CHORE.** The last prod deploy was 2026-09-09 04:16 UTC, which predates both 2026-09-09 merges—so production has neither. **`gh workflow run deploy-prod.yml`** is the whole action; `drizzle/0037` is a single additive `CREATE TABLE`, so it is expand/contract-safe and needs no `--no-overlap`. It has to happen BEFORE the stage-on-prod-database branch is cut over, because stage will no longer apply a migration of its own—see the runbook in [deployment.md](deployment.md#the-cutover-once).
 **#302 MERGED ONLY ONE OF TEN COMMITS AND THAT IS WORTH READING ONCE.** The branch was ten commits and only the first had been pushed when the PR was opened, so the merge took `10ecb1e` and nothing else—`git diff 10ecb1e origin/main` was empty afterwards. The remaining nine were rebased onto `main` and merged as #303. **The trap for next time:** a squash merge makes `git log main..HEAD` useless for this, because no original hash survives it; the check that works is whether the FILES exist (`git cat-file -e origin/main:<path>`), and even that misleads when a later commit only modifies a file an earlier one created.
 **Eight issues written after the fact and closed:** [#293](https://github.com/feralcreative/routeloop/issues/293)–[#299](https://github.com/feralcreative/routeloop/issues/299) for #303's seven units, and [#288](https://github.com/feralcreative/routeloop/issues/288) is closed at last—#302 gave the builder and the viewer a route to the release notes.
 **Open, and both found rather than reported:** [#300](https://github.com/feralcreative/routeloop/issues/300)—the unread badge renders in the DOM on a map page and paints nothing, because the nav collapses to the hamburger there at every width; half of it is done (the false claim is corrected in AGENTS.md and in the rider-facing copy) and the half left is whether the hamburger itself should carry a count. [#301](https://github.com/feralcreative/routeloop/issues/301)—`$signal` sits in the "NOT OURS TO HARMONIZE" third-party block yet is painted as type in `_builder.scss` and `_modal.scss` at 4.18:1, and being frozen the high-contrast theme cannot lift it.
 **Two local branches are merged and redundant:** `feat/release-notes-as-notifications` and `feat/icon-workbench-and-notification-marks`. Both have `[gone]` upstreams and no content `main` lacks; delete when convenient.
 **For:** the next agent, or the owner returning cold
+
+## Stage runs on the production database, 2026-09-09
+
+[#305](https://github.com/feralcreative/routeloop/issues/305), on branch `chore/stage-on-prod-database`. **Written, gated and NOT deployed**—the cutover is manual, ordered, and stopped at the code.
+
+Stage held no real rides, so nothing was exercised against real data until it was already in production. Stage now shares prod's Postgres and prod's `data/storage`.
+
+**Four decisions taken up front.** Neither environment auto-deploys any more; only the prod deploy runs migrations; stage shares prod's storage directory; stage sends no mail.
+
+**How it reaches the database.** One EXTERNAL bridge, `routeloop-shared`, that both compose projects attach to and neither project's `down` can take from the other. `deploy.sh` creates it idempotently. The rejected alternative was publishing Postgres on a host socket, which the db block makes a point of not doing. `DB_HOST` and `HOST_STORAGE_PATH` parameterize the three `DATABASE_URL`s and the two storage mounts; `RUNS_DATABASE` gates converge, readiness and migrate together.
+
+**`depends_on: db` came off both colours and must not come back.** Stage starts no Postgres, and the NAS is on Compose **v2.20.1**, where the depends_on/inactive-profile interaction is not worth gambling a production database on. What replaces it holds twice over: the deploy polls `pg_isready` to a 60-second deadline before recreating any app container, and `/healthz` returns 503 when the database is unreachable, so a db-less app fails the health gate rather than serving.
+
+**The sharpest edge, and it is in `deploy.config`.** `docker-compose down -v` removes the volumes a project declares, and both environments deploy from one compose file—so `STAGE_DB_VOLUME_NAME` is deliberately left pointed at stage's own dead volume. The issue originally said to remove it; that was wrong and is corrected. Never point it at prod's.
+
+**Three things stage stopped doing, each for its own reason.** No background job at all: prod's container runs all five anyway, and `announceReleases()` would have mailed every rider about a build prod had not shipped and then held the once-only claim, so prod's own deploy would announce nothing, silently and permanently. No mail, gated in `sendMail()` because that is the one choke point the magic link and the ride invite also pass through—**so magic-link sign-in does not work on stage; Google OAuth is the way in**. And `PURGE_ACCOUNTS` is forced off there in `config.ts`, since the two `.env` files are now near-identical and one is easy to copy from the other.
+
+**The banner said the opposite of the truth** and now says the data is real and a delete is permanent. It stays amber: red is a verdict, and nothing is broken.
+
+**Seven commands refuse under `DEPLOY_ENV=stage`** rather than redirecting—`db-backup` would have dumped prod into a file named for stage, `db-clone prod stage` reported success and did nothing.
+
+**`test/stage-shares-prod-db.test.ts` is the guard**, 14 assertions read out of the compose file, `deploy.config`, `deploy.sh` and the banner, because CI has neither Docker nor Postgres. Verified by mutation rather than by passing: pointing stage's volume at prod's and reintroducing `depends_on` each fail it.
+
+**A production backup was taken before any of this**: `data/routeloop-prod-db-20260909-190755.sql.gz`, 3.0 MB, 32 tables, 8 users / 27 rides / 103 routes / 382 points, ending with pg_dump's completion marker.
 
 ## Release notes arrive as a notification, 2026-09-09
 
