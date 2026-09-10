@@ -6,7 +6,7 @@
 // Postgres. What IS covered is the decision each of those makes before it
 // touches a row, which is where the interesting failures are.
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import {
   CHANNELS,
   EVENTS,
@@ -95,6 +95,37 @@ describe('the defaults', () => {
 // THE RULE THIS DEPARTS FROM IS WRITTEN DOWN IN policy.ts and its escape hatch
 // does not fit: leaving the event out of the catalog means no switch at all, and
 // a rider who wants these by mail should be able to say so.
+// THE MARK IS A STRING AND A TYPO IN IT IS OTHERWISE SILENT. icon() throws at
+// RENDER time for a name with no file, which means the notification centre 500s
+// for whichever rider happens to have that event — a failure that ships green
+// and is found by somebody else. The catalog makes the field required, so an
+// event cannot have NO mark; this is what makes it a real one.
+describe('every event has a mark that exists', () => {
+  it('names an icon file that is actually in public/img/icons', () => {
+    const missing = EVENTS.filter((e) => !existsSync(`public/img/icons/icon-${e.icon}.svg`)).map(
+      (e) => `${e.key} -> icon-${e.icon}.svg`,
+    )
+    expect(missing).toEqual([])
+  })
+
+  // Two-tone discs: the glyph is knocked out in WHITE, so whatever paints the
+  // disc has to carry a white legend. A mark styled with a black-legend field is
+  // #282 again, and this is the half a stylesheet test cannot see.
+  it('draws every mark as a disc in currentColor', () => {
+    for (const e of new Set(EVENTS.map((x) => x.icon))) {
+      const svg = readFileSync(`public/img/icons/icon-${e}.svg`, 'utf8')
+      expect(svg).toContain('fill="currentColor"')
+    }
+  })
+
+  // Several events share one deliberately — the two halves of a suggestion, the
+  // three shapes of a friendship — so this is not a uniqueness check. It is a
+  // check that the set stays small enough to be a vocabulary.
+  it('keeps the marks to a set a rider could learn', () => {
+    expect(new Set(EVENTS.map((e) => e.icon)).size).toBeLessThanOrEqual(10)
+  })
+})
+
 describe('the release note, which is quiet by default', () => {
   it('is off on both channels before anybody says anything', () => {
     const prefs = prefMap([])

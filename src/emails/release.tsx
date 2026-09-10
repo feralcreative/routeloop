@@ -21,6 +21,10 @@ import { Button, Muted, P } from './shell'
 type Props = {
   /** The release heading as a rider reads it, stamp already stripped. */
   title: string
+  /** The path to this release's own entry on the notes page, anchor and all.
+   *  A PATH, so the origin is added here — the same value the notification
+   *  carries, and the two must land in the same place. */
+  url: string
 }
 
 /**
@@ -45,7 +49,7 @@ function clamp(s: string, max: number): string {
   return `${(sp > max * 0.6 ? cut.slice(0, sp) : cut).trimEnd()}…`
 }
 
-const NOTES_URL = `${APP_ORIGIN}/release-notes`
+const notesUrl = (path: string): string => `${APP_ORIGIN}${path}`
 const PREFS_URL = `${APP_ORIGIN}/settings`
 
 export const releaseEmail = defineEmail<Props>({
@@ -64,25 +68,25 @@ export const releaseEmail = defineEmail<Props>({
 
   preheader: () => 'What changed in this build, and what to look at.',
 
-  text: ({ title }) =>
+  text: ({ title, url }) =>
     [
       title,
       '',
       `That is the headline. The full notes, with everything else in this build:`,
-      NOTES_URL,
+      notesUrl(url),
       '',
       `You are getting this because you turned release notes on. They are off by default — turn them back off here:`,
       PREFS_URL,
     ].join('\n'),
 
-  html: ({ title }) =>
+  html: ({ title, url }) =>
     (
       <>
         <P>
           <b>{title}</b>
         </P>
         <P>That is the headline. The full notes have everything else in this&nbsp;build.</P>
-        <Button href={NOTES_URL}>Read what changed</Button>
+        <Button href={notesUrl(url)}>Read what changed</Button>
         <Muted>
           You are getting this because you turned release notes on — they are off by default. Change that in your{' '}
           <a href={PREFS_URL}>notification settings</a>.
@@ -92,5 +96,6 @@ export const releaseEmail = defineEmail<Props>({
 
   sample: {
     title: '8 September 2026 — a place found along the route lands where the road passes it',
+    url: '/release-notes#8-september-2026-a-place-found-along-the-route-lands-where-the-road-passes-it',
   },
 })

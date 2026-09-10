@@ -360,6 +360,19 @@
   }
 }
 
+// THE BADGE'S GEOMETRY, AS THREE RELATED NUMBERS RATHER THAN THREE LOOSE ONES.
+//
+// $badge-size is both the width floor and the height, which is what keeps the
+// one-digit pill a circle. The padding and the line-height have to SUM to it —
+// stated as a subtraction so they cannot be edited apart, which they had been:
+// the pill was 16.4 x 17.0 for exactly that reason.
+//
+// All three are in the badge's own em, so the whole thing scales with its
+// font-size and nothing here is a device pixel.
+$badge-size: 1.55em;
+$badge-ink-nudge: 0.21em;
+$badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
+
 // UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because
 // of that: every other mark in the nav is a way TO somewhere, and this is a count
 // of things that happened while the rider was away. It carries $ink-light rather
@@ -369,18 +382,120 @@
 // Rendered only when the count is non-zero; a badge showing 0 is furniture that
 // teaches people to stop reading badges.
 .nav-badge {
-  margin-left: 0.15em;
-  min-width: 1.5em;
-  padding: 0 0.35em;
+  // **`inline-block` IS LOAD-BEARING AND ITS ABSENCE MADE THE TWO BADGES
+  // DIFFERENT SHAPES.** No `display` was declared, so the chip's badge was
+  // blockified by that flex row and the MENU's stayed an INLINE box — where
+  // `min-width`, `text-align` and vertical padding all do nothing at all. So the
+  // menu pill took its width from the padding and the digit alone (14.3px against
+  // the chip's 16.4px), was never actually centered, and the padding below moved
+  // its background rather than its glyph. Found by measuring the two side by side
+  // after they responded differently to the same rule.
+  display: inline-block;
+
+  // **ROUND, AND THE WIDTH AND HEIGHT COME FROM ONE VALUE SO IT CANNOT DRIFT OUT
+  // OF IT.** Ziad's call, 2026-09-09: it read as stretched vertically, and it
+  // measurably was — 16.4px wide against 17.0px tall, because `min-width` was
+  // 1.5em while the height was the 1.55em the padding and line-height happened to
+  // add up to. Half a pixel is enough to see on a circle.
+  //
+  // The HEIGHT is stated rather than left to emerge from that sum, which is what
+  // retires the "change one and change the other" hazard: `box-sizing` is
+  // border-box, so the padding sits inside this and the content box lands at
+  // exactly $badge-line — the line box fills it and the glyph does not move.
+  //
+  // A two-digit count or the `99+` cap grows WIDER than this and stays a stadium,
+  // which is right: `min-width` is a floor, and only the one-digit case is a
+  // circle.
+  min-width: $badge-size;
+  height: $badge-size;
+
+  // 0.4em rather than 0.15em. In the CHIP the badge has the pill's own border to
+  // sit inside, so a hair of space read fine; in the MENU it sits directly after
+  // the word "Notifications" and 1.6px put it against the final letter.
+  margin-left: 0.4em;
+
+  // **THE DIGIT IS PUSHED DOWN BY A TOP PADDING AND THE LINE-HEIGHT GIVES THE
+  // HEIGHT BACK, SO THE PILL IS THE SIZE IT ALWAYS WAS.**
+  //
+  // A digit has no descender, so it sits HIGH in a line box — the descent space
+  // below it is empty — and centering the BOX therefore leaves the ink above
+  // center. Measured off a screenshot at 1.50px above the pill's own middle,
+  // which is what Ziad reported as "the number inside it is too high".
+  //
+  // **THE PADDING ONLY MOVES THE INK BY HALF OF ITSELF, AND GETTING THAT WRONG
+  // COST A PASS.** The obvious reading is that a block's line box starts at the
+  // content-box top, so 0.14em of padding moves the glyph 0.14em — measured, it
+  // moved 0.5px of an expected 1.53px. Taking the same 0.14em off `line-height`
+  // to keep the pill's height also shrinks the HALF-LEADING by half of it, and
+  // that pulls the glyph back up. So the net is padding minus half the
+  // line-height reduction, which is exactly half the padding: 0.3em of padding
+  // buys 0.15em of movement.
+  //
+  // The nudge landed by measurement rather than derivation: 0.3em overshot to
+  // 0.5px LOW on both badges, so the shift wanted 0.105em and the padding twice
+  // that. `$badge-line` is whatever is left of the box after it.
+  padding: $badge-ink-nudge 0.35em 0;
+  line-height: $badge-line;
+
+  // MIDDLE, WHICH ONLY MATTERS WHERE THE BADGE SITS IN A TEXT LINE. The chip is a
+  // flex row so `vertical-align` is ignored there; a menu row is a plain block,
+  // so the badge is an inline box sitting on the label's BASELINE — which put its
+  // center 2.75px below the label's ink center and read as the dot hanging low.
+  vertical-align: middle;
+
   border-radius: 999px;
   background: $stop;
   color: $ink-light;
   font-size: 0.72em;
-  font-weight: 700;
-  line-height: 1.55;
+  // A LIGHTER CUT, and it is a real one rather than a synthesis: Overpass is
+  // loaded as a variable font with the weight axis declared `100 900`, so 500 is
+  // drawn at 500. Ziad's call, 2026-09-09. It matches `.notif-more`, the app's
+  // other piece of small reversed type on a sign field, and for the same reason
+  // — light ink on a saturated ground gains apparent weight, so 700 read heavy
+  // at 10.9px.
+  font-weight: 500;
   text-align: center;
   // No global border-box reset in this stylesheet — see AGENTS.md.
   box-sizing: border-box;
+}
+
+// THE LAST 1.1px, FOR A BADGE THAT SITS IN A TEXT LINE RATHER THAN IN THE CHIP.
+//
+// `vertical-align: middle` puts the pill's center on the label's baseline plus
+// half an x-height, which is close to the label's INK center and measurably not
+// it — 1.10px low. Nothing in the vertical-align keywords names "the middle of
+// the letters", so the remainder is a nudge.
+//
+// **SCOPED TO `a`, BECAUSE THE CHIP MUST NOT MOVE.** That badge is centered by
+// its flex row and measures +0.15px; applying this to `.nav-badge` itself would
+// drag a correct thing off by a pixel to fix an incorrect one. `.nav-chip` is a
+// `summary`, so descending from `a` reaches the menu rows and the bar's own nav
+// links — both of which are the text-line case — and reaches the chip never.
+a .nav-badge {
+  position: relative;
+  top: -0.1em;
+}
+
+// THE NAME, OPTICALLY CENTERED AGAINST THE AVATAR RATHER THAN BOX-CENTERED.
+//
+// The chip is a flex row with `align-items: center`, so the name's LINE BOX was
+// centered perfectly and its ink was not: "Ziad" has no descenders, so it sits
+// high in the box and measured 1.85px above the chip's middle while the 24px
+// avatar beside it was dead center. Reported by Ziad, 2026-09-09.
+//
+// TWO PARTS, and the first is what makes the second stable. `line-height: 1`
+// drops the inherited 1.5, so the box is the em box and the remaining error is a
+// property of the FONT rather than of whatever line-height the bar happens to
+// inherit. `top` then finishes it — a relative offset rather than a margin,
+// because in a centered flex line a margin is folded into the centering and
+// moves the item by half of what it says.
+.nav-account-name {
+  line-height: 1;
+  position: relative;
+  // 0.125em against a measured 1.85px error at 15.2px. Unlike the badge's
+  // padding above, a relative offset moves the ink by the FULL amount — it is a
+  // paint-time shift with no layout to react to it.
+  top: 0.125em;
 }
 
 .nav-user {
@@ -451,7 +566,6 @@
     }
 
     .site-nav {
-
       // The drawer's section rule has no meaning in a row.
       .nav-end .nav-sub:first-child {
         margin-top: 0;
@@ -516,13 +630,15 @@
       // The one element whose width is a rider's own text. Bounded so a long
       // display name cannot push the bar into wrapping — the bar has roughly
       // 900px to work with and everything else in it is a known string.
+      // `vertical-align` is gone from here: the chip is a flex row and a flex item
+      // ignores it, so `bottom` had never done anything. It is the fossil of an
+      // earlier go at the alignment the base rule above now handles properly.
       .nav-account-name {
         display: inline-block;
         max-width: 12ch;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        vertical-align: bottom;
       }
     }
   }

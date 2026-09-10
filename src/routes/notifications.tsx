@@ -23,6 +23,9 @@ import { Hono } from 'hono'
 import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
 import { claimPending, markAllRead, recentNotifications } from '../notifications/service'
 import { eventDef } from '../notifications/catalog'
+import { markStyle } from '../notifications/marks'
+import { raw } from 'hono/html'
+import { icon } from '../views/icon'
 import { fmtDateNumeric, fmtClock } from '../views/date-format'
 import { clockFor, dateFormatFor } from '../views/prefs'
 import { page } from '../views/layout'
@@ -45,7 +48,6 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
   const user = currentUser(c)
   return c.json({ notifications: await claimPending(user.id) })
 })
-
 
 /**
  * The notification centre.
@@ -70,11 +72,7 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
  */
 notificationRoutes.get('/notifications', requireActive, async (c) => {
   const user = currentUser(c)
-  const [rows, dateFormat, clock] = await Promise.all([
-    recentNotifications(user.id),
-    dateFormatFor(c),
-    clockFor(c),
-  ])
+  const [rows, dateFormat, clock] = await Promise.all([recentNotifications(user.id), dateFormatFor(c), clockFor(c)])
   // AFTER the read. See the note above.
   await markAllRead(user.id)
 
@@ -102,10 +100,55 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
             // the rows are stamped, which is why the flag cannot be re-derived.
             const row = (
               <>
+                {/* THE MARK IS INLINE SVG, NOT AN <img>. These are two-tone —
+                    a disc in `currentColor` with the glyph knocked out in white
+                    — so an external image has no inherited color to resolve
+                    against and paints black, and a CSS mask flattens the
+                    knockout into a silhouette. See src/views/icon.ts.
+
+                    THE COLOR IS AN INLINE STYLE FROM `marks.ts`, NOT A CLASS OR
+                    A `data-tone` RULE. Ziad's call, 2026-09-09: the disc is
+                    keyed on the MARK now, and `routes/icons.tsx` needs the same
+                    mapping to draw its "as assigned" swatches — so it lives in
+                    TypeScript once rather than in a stylesheet the workbench has
+                    to keep a second copy of. `data-mark` and `data-tone` stay on
+                    the element as the readable record of what it is; neither
+                    carries a hue any more. */}
+                <span
+                  class="notif-mark"
+                  data-mark={def ? def.icon : 'info'}
+                  data-tone={def ? def.tone : 'info'}
+                  style={markStyle(def)}
+                >
+                  {raw(icon(def ? def.icon : 'info'))}
+                </span>
                 <span class="notif-feed-title">{n.title}</span>
                 <span class="notif-feed-body">{n.body}</span>
                 <span class="notif-feed-meta">
-                  {def ? def.label : n.event} · {when(n.createdAt)}
+                  <span class="notif-meta-text">
+                    {def ? def.label : n.event} · {when(n.createdAt)}
+                  </span>
+                  {/* A TINY GUIDE SIGN, AND IT IS A <span> RATHER THAN A LINK.
+                      Ziad's call, 2026-09-09. The whole row is already the `<a>`
+                      below, so a nested anchor would be invalid markup and would
+                      give one destination two hit targets — this is the
+                      affordance saying the row goes somewhere, and the row is
+                      what you press.
+
+                      `aria-hidden` because the accessible name of that link is
+                      already the title, the body and the meta line; appending
+                      "Read more" to it says nothing the `<a>` role has not
+                      already said, and says it after three lines of content.
+
+                      ONLY WHERE THERE IS SOMEWHERE TO GO, which is the same
+                      `n.url` test the wrapper below makes — a sign promising
+                      more on a row that does not link is the thing the null
+                      check exists to avoid. */}
+                  {n.url ? (
+                    <span class="notif-more" aria-hidden="true">
+                      Read more
+                    </span>
+                  ) : null}
                 </span>
               </>
             )
@@ -123,7 +166,5 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
     </>
   ).toString()
 
-  return c.html(
-    page({ title: 'Notifications', user, navKey: 'notifications', body, feedbackArea: 'account' }),
-  )
+  return c.html(page({ title: 'Notifications', user, navKey: 'notifications', body, feedbackArea: 'account' }))
 })

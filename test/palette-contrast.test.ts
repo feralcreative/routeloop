@@ -135,13 +135,16 @@ describe.each(PALETTE_KEYS)('%s', (key: PaletteKey) => {
   //
   // Each record's numeral takes its own accent's hue as TEXT. The accents are sign
   // FIELDS, and a field is not a text color: $detour is the loudest failure at
-  // 3.19:1 on $white in the default palette and 2.25:1 in colorblind — the theme
-  // that exists for legibility being the worse of the two — and that is what got
+  // 2.46:1 on $white in the default palette and 1.98:1 in contrast — the theme
+  // that exists for legibility being the worst of the three — and that is what got
   // this looked at. But the dark schemes are where it is unanimous, and the
   // original hand measurement missed them by only checking light $white.
   //
   // Held to full body-text AA rather than the 3:1 large-text floor the figure
-  // could fairly claim. The floor is exactly what let $detour through at 3.19.
+  // could fairly claim. The floor is exactly what let $detour through when it
+  // measured 3.19 — it was 3.19 until 2026-09-09, when the token took $fuel-low's
+  // value and dropped to 2.46, so the field is now further from passing than the
+  // measurement that caught it.
   it.each(['interstate-text', 'disabled-text', 'detour-text', 'recreation-text'])(
     '%s survives as a record figure on the page surface',
     (name: string) => {
@@ -160,12 +163,12 @@ describe.each(PALETTE_KEYS)('%s', (key: PaletteKey) => {
   // the record card's own background:
   //
   //   palette            interstate  disabled  detour  recreation
-  //   default-light            7.27      7.69    3.19        9.65
-  //   contrast-light          11.64     11.33    2.54       14.07
-  //   colorblind-light         7.32      8.42    2.25        9.39
-  //   default-dark             2.67      2.52    6.08        2.01
-  //   contrast-dark            1.66      1.71    7.63        1.38
-  //   colorblind-dark          2.65      2.30    8.60        2.06
+  //   default-light            7.27      7.69    2.46        9.65
+  //   contrast-light          11.64     11.33    1.98       14.07
+  //   colorblind-light         7.32      8.42    2.60        9.39
+  //   default-dark             2.67      2.52    7.87        2.01
+  //   contrast-dark            1.66      1.71    9.80        1.38
+  //   colorblind-dark          2.65      2.30    7.44        2.06
   //
   // $interstate, $disabled and $recreation are dark fields: fine as text on a white
   // card, hopeless on a near-black one. $detour is a bright work-zone orange and is
@@ -275,10 +278,17 @@ describe('the themes do what they are named for', () => {
   // address, alongside the red/green pair. Measured, they are not the same kind
   // of problem: hue is what separates $stop from $go and hue is what dichromacy
   // takes away, but the two ambers are separated by LIGHTNESS — 15.59:1 against
-  // 6.59:1 in the default palette — and lightness survives every form of color
-  // blindness there is. The default pair is already distinguishable, and the
-  // colorblind palette's ambers are slightly LESS separated than the default's
-  // (6.56 against 9.00) because it lightens the orange.
+  // 8.53:1 in the default palette — and lightness survives every form of color
+  // blindness there is. The default pair is already distinguishable in every
+  // palette; the gap is 7.06 in the default, 6.38 in contrast and 7.82 in
+  // colorblind.
+  //
+  // **THE DEFAULT USED TO BE THE WIDEST AND IS NOW THE MIDDLE ONE**, which is why
+  // this is a floor rather than a comparison: the gaps read 9.00 / 6.38 / 6.56
+  // until 2026-09-09, when $detour took $fuel-low's value and lightened, closing
+  // the default's gap and opening colorblind's. A test asserting the default was
+  // widest would have failed on a change that made no palette worse than the
+  // floor.
   //
   // So the requirement is a floor every palette has to clear, not an improvement
   // the colorblind theme has to make over the default. Asserting the improvement

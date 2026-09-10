@@ -269,3 +269,188 @@
   color: $neutral-50;
   font-size: 0.85rem;
 }
+
+// The icon workbench at /icons. Sits in this partial rather than its own,
+// because it is the same kind of page as /brand and shares its sub-heading and
+// scroll conventions — a second file for two tables is a second place to keep
+// them in step.
+.ic-scroll {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.ic-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid $grey;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  // The black-legend half, marked once at the head and once per cell so the two
+  // groups are readable without counting columns.
+  .is-black {
+    background: $neutral-96;
+  }
+
+  tbody th {
+    white-space: nowrap;
+    font-weight: 400;
+  }
+}
+
+.ic-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  // A HAIRLINE OUTSIDE THE DISC, because $speed is a near-white field and its
+  // marks were invisible against the page — which is true and useless. The ring
+  // sits outside the artwork, so it does not touch the glyph-against-field
+  // relationship this page exists to show.
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px $grey;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// THE FLIP, AND IT MIRRORS _account.scss RATHER THAN INVENTING ONE. A page that
+// drew the amber column with a white glyph would be recommending #282 rather
+// than showing it.
+//
+// **IT SETS `--icon-ink`, WHICH IS WHAT MADE IT ACTUALLY REACH EVERY MARK.**
+// This was `:where([fill="white"])`, an attribute match on one of the five
+// spellings in the folder — so `bug`, `help`, `info` and the four `record-*`
+// marks kept a white glyph in all thirteen black-legend columns. Reported off
+// this page, 2026-09-09. views/icon.ts now normalizes the knockout, so the
+// column only has to name the ink.
+.ic-cell.is-black {
+  --icon-ink: #{$ink-dark};
+}
+
+// THE MARKS THE FIELD TABLE CANNOT ASK ABOUT. A chrome glyph is one path in
+// currentColor with no disc, so it has no field to clear and no legend to flip —
+// it takes neither the hairline ring nor a colored ground, because both would
+// imply a relationship it does not have. Painted at the page's own ink, which is
+// how every caller paints it.
+.ic-plain-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.ic-plain {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+
+  code {
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  // The label sits beside the name here rather than under it, so it does not
+  // need the block display .ic-free carries in the table.
+  .ic-free {
+    display: inline;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+}
+
+.ic-mark--plain {
+  flex: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+// The alias names a column also answers for. Quieter than the sign name, since
+// the sign palette is what the column is organized around.
+.ic-alias {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: $neutral-50;
+}
+
+.ic-used {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: $neutral-50;
+}
+
+.ic-free {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: $neutral-57;
+  font-style: italic;
+}
+
+// The mark at the size the centre actually draws it. A colour that reads at
+// 30px in a comparison table can vanish at 26px on a row, which is the size the
+// decision is really about.
+.ic-real {
+  display: inline-block;
+  vertical-align: middle;
+  width: 26px;
+  height: 26px;
+  margin-right: 0.5rem;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// NO INK RULE FOR .ic-real, DELIBERATELY. It was `[style*="--warning"]` — an
+// attribute substring match that only ever knew about one field — and the swatch
+// now carries `--icon-ink` in the same inline style as its color, from the one
+// table in src/notifications/marks.ts. A field added there brings its own ink.
+
+// The ring table is 17 columns wide, so it is narrower per cell than the field
+// tables and its head carries the hex under the name — the hex is what gets
+// quoted when a hue is picked, since the NAME belongs to a role rather than to
+// anything in the notification centre.
+.ic-table--ring {
+  th,
+  td {
+    padding: 0.4rem 0.35rem;
+  }
+
+  thead th {
+    font-size: 0.72rem;
+    vertical-align: bottom;
+  }
+
+  .ic-mark {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.ic-hex {
+  display: block;
+  margin-top: 0.1rem;
+  font-family: monospace;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: $neutral-50;
+}

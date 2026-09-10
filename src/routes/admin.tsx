@@ -246,6 +246,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
     { href: '/admin/invites', title: 'Invitations', note: 'Create, revoke and regenerate invite links' },
     { href: '/admin/survey', title: 'Survey results', note: 'Responses from invited riders' },
     { href: '/brand', title: 'Brand', note: 'Every color the app defines, read live from the SCSS' },
+    { href: '/icons', title: 'Icons', note: 'Every mark, on every field it can legally be painted on' },
   ]
 
   const body = (

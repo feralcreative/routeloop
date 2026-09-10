@@ -129,7 +129,7 @@ $-signs-default: (
   "interstate": #266149,
   "speed": #efefef,
   "stop": #cc0000,
-  "detour": #f56100,
+  "detour": #fa8700,
   "warning": #ffac00,
   "yield": #ffdd00,
   "go": #41ae4d,
@@ -145,8 +145,11 @@ $-signs-default: (
 //
 // **$detour AND $go WERE DARKENED HERE AND BOTH TAKE A BLACK LEGEND**, so the
 // "high contrast" theme shipped them at 3.31:1 and 3.88:1 where the DEFAULT
-// theme has them at 6.59:1 and 7.39:1 — the theme named for legibility was the
-// least legible of the three on those two fields. Corrected 2026-08-25 by the
+// theme had them at 6.59:1 and 7.39:1 — the theme named for legibility was the
+// least legible of the three on those two fields. Those are the figures AS THEY
+// WERE, kept because this paragraph is a record of a mistake rather than a
+// current measurement: $detour took $fuel-low's value on 2026-09-09 and now
+// reads 8.53:1 in the default palette and 10.63:1 here. Corrected 2026-08-25 by the
 // measured audit (test/palette-contrast.test.ts), which is exactly the class of
 // mistake the values being "reasoned rather than measured" was hiding: the rule
 // two lines above was right and the arithmetic went the other way.
@@ -154,7 +157,7 @@ $-signs-contrast: (
   "interstate": #14402f,
   "speed": #ffffff,
   "stop": #b00000,
-  "detour": #ff7e29,
+  "detour": #ffa43b,
   "warning": #ffc94d,
   "yield": #ffe94d,
   "go": #57c063,
@@ -194,7 +197,7 @@ $-signs-colorblind: (
   "interstate": #1f5c7a,
   "speed": #efefef,
   "stop": #b65000,
-  "detour": #e69f00,
+  "detour": #d99200,
   "warning": #cc8400,
   "yield": #f0e442,
   "go": #0089d6,
@@ -270,11 +273,16 @@ $-signs-colorblind: (
   $label-l: 28%;
   // Where the four "Your records" FIGURES land (#177). Every one of the four
   // accents is a sign FIELD — a color authored to be sat on, carrying a legend —
-  // and a field is not a text color. $detour is the loudest failure (3.19:1 on
-  // $white in the default palette, 2.25:1 in colorblind), which is what got this
-  // measured at all, but ALL FOUR fail on the dark schemes, where the surface is
-  // near-black and every field is a mid-tone: interstate 2.67, disabled 2.52,
-  // recreation 2.01, and worse again under contrast-dark.
+  // and a field is not a text color. $detour is the loudest failure (2.46:1 on
+  // $white in the default palette, 1.98:1 in contrast — the theme named for
+  // legibility being the worst of the three), which is what got this measured at
+  // all, but ALL FOUR fail on the dark schemes, where the surface is near-black
+  // and every field is a mid-tone: interstate 2.67, disabled 2.52, recreation
+  // 2.01, and worse again under contrast-dark.
+  //
+  // Those detour figures moved on 2026-09-09, when the token took $fuel-low's
+  // value and got lighter — worse as text on a white card, better on a dark one.
+  // The derived tone still clears AA in all six (4.89 at worst).
   //
   // So this is one lightness for all four rather than a patch for the one that
   // was noticed. The mark keeps its field color — it is a filled glyph, not text —
@@ -364,19 +372,32 @@ $-signs-colorblind: (
     "detour": map.get($s, "detour"),
     "warning": $warning,
     "yield": map.get($s, "yield"),
-    // HALFWAY BETWEEN THE DETOUR ORANGE AND THE WARNING AMBER, for the range
-    // ring's middle band and nothing else so far. Ziad's call, 2026-09-02, after
-    // both neighbors were tried on the map: $warning washed out over pale busy
-    // tiles and $detour read as too red for "you have half a tank".
+    // THE SAME COLOR AS $detour, AND IT IS AN ALIAS SO THE TWO CANNOT DRIFT.
+    // Ziad's call, 2026-09-09, and it REVERSES the shape recorded on 2026-09-02
+    // rather than leaving the old reasoning to be rediscovered.
     //
-    // MIXED RATHER THAN PICKED, so it follows all three sign palettes on its own
-    // — the colorblind and high-contrast themes move $detour and $warning, and a
-    // hand-chosen hex here would sit still while its neighbors moved and end up
-    // the odd one out in exactly the themes that can least afford it.
+    // **WHAT CHANGED IS $detour, NOT THIS.** This was
+    // `color.mix(detour, warning, 50%)` — a midpoint reached because $warning
+    // washed out over pale busy tiles and $detour "read as too red for you have
+    // half a tank". That mix is now the AUTHORED value of $detour in all three
+    // sign sets, so the half-tank orange and the work-zone orange are one color
+    // and the ring's middle band needs no token of its own to be right.
+    //
+    // **AN ALIAS RATHER THAN A SECOND LITERAL**, which is the whole point of
+    // doing it this way: two hexes that are meant to be equal are two places to
+    // change, and the failure is silent — a ring band a shade off the detour
+    // orange looks like a design choice. The name survives because the MEANING
+    // does: "you have half a tank" is not "go a different way", and
+    // range-circle.js asks for a tone by name.
+    //
+    // Still through -hex(), which is load-bearing rather than tidy: map-common.js
+    // hands this value straight to google.maps as a fillColor, and Sass writes
+    // `rgb(98.03%, …)` for anything it computed. It is a no-op on an authored
+    // hex and the guard against the next derivation landing here.
     //
     // It is a FIELD color on a map overlay, never text, so it is deliberately
     // absent from the ink-pairing tables below: nothing is printed on it.
-    "fuel-low": -hex(color.mix(map.get($s, "detour"), $warning, 50%)),
+    "fuel-low": -hex(map.get($s, "detour")),
     "go": $go,
     "disabled": $disabled,
     "recreation": map.get($s, "recreation"),

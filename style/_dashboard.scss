@@ -568,8 +568,8 @@
 // EACH RECORD SETS TWO COLORS, AND THEY ARE NOT INTERCHANGEABLE. --record-accent
 // is the FIELD: the left edge and the filled mark. --record-figure-color is the
 // same hue as TEXT, which every one of these needs to be its own token because a
-// sign field is not a text color — $detour is the loudest failure (3.19:1 on
-// $white, 2.25:1 in colorblind) but all four fail on the dark schemes. Measured;
+// sign field is not a text color — $detour is the loudest failure (2.46:1 on
+// $white, 1.98:1 in contrast) but all four fail on the dark schemes. Measured;
 // see test/palette-contrast.test.ts, which holds all eight pairs.
 .record--distance {
   --record-accent: #{$interstate};

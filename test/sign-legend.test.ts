@@ -41,6 +41,23 @@ function blocks(source: string): string[] {
   return [...source.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1])
 }
 
+// THE NOTIFICATION MARKS MOVED OUT OF THIS FILE ON 2026-09-09, AND THE GUARD
+// WENT WITH THEM RATHER THAN LAPSING.
+//
+// The disc field and the knockout ink were `[data-tone]` rules in
+// `_account.scss`, so the pairing could be read out of the compiled sheet here.
+// They are declared in `src/notifications/marks.ts` now and reach the element as
+// an inline style, which this file cannot see at all — a guard left here would
+// have gone on passing while asserting nothing, which is the exact failure its
+// own history records.
+//
+// `test/notification-marks.test.ts` is the replacement and it asks a STRONGER
+// question: the old one checked whether a black-legend tone named SOME ink, and
+// that one checks that the ink named is the RIGHT one, per field, in all six
+// palettes. The `BLACK_FIELDS` list that fed the old guard went with it — there
+// is no stylesheet left that pairs a black-legend field with an ink, so a list
+// of them here would describe nothing.
+
 describe('a sign legend is scheme-invariant', () => {
   it('never paints var(--white) on a sign field', () => {
     const bad: string[] = []

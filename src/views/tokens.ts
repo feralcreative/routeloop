@@ -291,6 +291,42 @@ export function parsePalette(css: string): Map<string, string> {
   return out
 }
 
+/**
+ * Every palette the stylesheet emits, keyed by the selector that carries it.
+ *
+ * **READS THE BUILD, NOT THE SOURCE, BECAUSE THIS RUNS IN A REQUEST.**
+ * `test/helpers/palettes.ts` answers the same question by compiling the SCSS,
+ * which is right for a test and impossible here: `sass` is a devDependency and
+ * is not in the production image, so a route importing it takes the container
+ * down. `public/style/main.min.css` is a build artifact, is copied into the
+ * image, and is what a browser actually gets.
+ *
+ * The selectors are the ones `_theme.scss` emits, written unquoted because that
+ * is how the compiler writes them. Missing blocks are simply absent from the
+ * map — the one page that reads this says so rather than pretending to have
+ * measured six.
+ */
+export function parsePalettes(css: string): Map<string, Map<string, string>> {
+  const SELECTORS: Record<string, string> = {
+    ':root': 'default-light',
+    ':root[data-theme=contrast]': 'contrast-light',
+    ':root[data-theme=colorblind]': 'colorblind-light',
+    ':root[data-scheme=dark]': 'default-dark',
+    ':root[data-scheme=dark][data-theme=contrast]': 'contrast-dark',
+    ':root[data-scheme=dark][data-theme=colorblind]': 'colorblind-dark',
+  }
+  const out = new Map<string, Map<string, string>>()
+  for (const [selector, key] of Object.entries(SELECTORS)) {
+    const esc = selector.replace(/[[\]().*+?^$|{}\\]/g, '\\$&')
+    const m = css.match(new RegExp(`(^|\\})\\s*${esc}\\s*\\{([^}]*)\\}`))
+    if (!m) continue
+    const vals = new Map<string, string>()
+    for (const d of m[2].matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+)/gi)) vals.set(d[1], d[2].trim())
+    out.set(key, vals)
+  }
+  return out
+}
+
 type Snapshot = { tokens: Token[]; literals: Literal[]; palette: Map<string, string> }
 let cache: { key: string; snapshot: Snapshot } | null = null
 
