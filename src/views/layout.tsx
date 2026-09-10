@@ -941,11 +941,27 @@ function releaseNotesModal(): string {
  * site, not something that just happened, and `alert` interrupts a screen
  * reader mid-sentence on every single page load.
  */
+/**
+ * **THE COPY REVERSED ON 2026-09-09 AND THAT IS THE POINT OF IT (#305).** It
+ * used to read "Rides planned here are wiped whenever this environment is
+ * refreshed from production", which was true while stage had a database of its
+ * own and became exactly backwards the moment it stopped. That sentence is the
+ * one that would talk somebody into deleting a real rider's ride to see what
+ * the button did, so it could not be left to be corrected later.
+ *
+ * It stays AMBER rather than going red. The temptation is to escalate now that
+ * the stakes are real, and it is the wrong call for the reason the original
+ * note gives: this banner renders on every page of every visit, and a red
+ * warning that is always present is one nobody reads by the second day. Red is
+ * a verdict in this app's vocabulary — something is broken — and nothing here
+ * is broken. What carries the weight is the words.
+ */
 function stageBanner(): string {
   if (!IS_STAGE) return ''
   return (
     <div class="tb-banner is-stage" role="status">
-      <strong>Staging.</strong> Rides planned here are wiped whenever this environment is refreshed from production.{' '}
+      <strong>Staging, on the live database.</strong> Everything here is real rider data — anything you delete is
+      deleted for&nbsp;everyone.{' '}
       <a href="https://routeloop.app">Go to the real&nbsp;site</a>
     </div>
   ).toString()

@@ -69,6 +69,31 @@
 </p>
 
 <section class="rn-release">
+  <h3>9 September 2026 &mdash; staging runs on the live database</h3>
+  <ul>
+    <li>
+      <strong>Staging is not a sandbox any more.</strong> It used to hold its own throwaway rides, which meant nothing
+      was ever tried against real ones until it was already live. It now reads and writes the same rides, the same
+      riders and the same uploads as the real&nbsp;site.
+    </li>
+    <li>
+      <strong>So anything you delete on staging is really deleted.</strong> Bin a ride there and it is a rider&rsquo;s
+      ride; empty the bin and it is gone for good. The amber banner says so on every page now &mdash; it used to
+      promise the opposite, that everything there gets wiped, and that is no longer&nbsp;true.
+    </li>
+    <li>
+      <strong>Staging will never email anybody.</strong> Testing a notification there cannot reach a real rider. The
+      side effect is that the sign-in link does not arrive on staging either, so use <em>Sign in with Google</em>
+      to&nbsp;get&nbsp;in.
+    </li>
+    <li>
+      <strong>Staging is a button now, like the real site.</strong> It no longer deploys itself every time something
+      merges, because that would put new code in front of real data with nobody deciding&nbsp;to.
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
   <h3>9 September 2026 &mdash; every notification has its own colour</h3>
   <ul>
     <li>

@@ -63,7 +63,7 @@ import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { raw } from 'hono/html'
 import { shareQr } from './maps/qr'
-import { APP_COLOR, APP_ORIGIN, DRAIN_GRACE_MS, GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, PORT } from './config'
+import { APP_COLOR, APP_ORIGIN, DRAIN_GRACE_MS, GMAPS_KEY, GMAPS_MAP_ID, IS_DEV, IS_STAGE, PORT } from './config'
 import { health } from './health'
 import { installShutdown, isDraining } from './shutdown'
 import { APP_VERSION, BUILD_SHA } from './version'
@@ -874,6 +874,33 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 // Before the sweeps, so a SIGTERM arriving during startup is still caught.
 installShutdown(server, DRAIN_GRACE_MS)
 
+// **STAGE RUNS NO UNATTENDED JOB, BECAUSE THEY WOULD ALL WRITE TO PRODUCTION.**
+// Ziad's call, 2026-09-09 (#305). Stage shares prod's database and prod's disk,
+// and prod's own container already runs every one of these — so stage running
+// them is duplication with nothing gained, and three of them are worse than
+// that:
+//
+//   startTrashPurge      DESTROYS rides past the thirty-day hold. A deliberate
+//                        delete on stage being a real delete is the accepted
+//                        cost of sharing a database; an UNATTENDED destruction
+//                        fired by a stage deploy is not the same thing.
+//   startAccountPurge    destroys accounts. Gated on PURGE_ACCOUNTS as well,
+//                        which config.ts now also forces off here.
+//   announceReleases     would mail every rider about a build PROD HAS NOT
+//                        SHIPPED — and because it is claimed once through a
+//                        primary key, stage taking the claim means prod's later
+//                        deploy announces nothing, silently and permanently.
+//
+// The other two are merely pointless here: the quota sweep repairs a tally prod
+// is already repairing, and the thumbnail sweep writes files into prod's
+// storage that prod would write anyway.
+//
+// The consequence to state rather than treat as a bug: none of these can be
+// tested on stage. Testing a sweep means running it against production from
+// prod's own container, which is what it always meant.
+if (IS_STAGE) {
+  console.log('[stage] background jobs are disabled — prod owns the database and runs all of them.')
+} else {
 // After serve(), so a slow first pass cannot delay the port binding — the
 // container's healthcheck is what the deploy waits on. The timer is unref'd, so
 // this never holds the process open.
@@ -905,3 +932,4 @@ announceReleases()
     if (n > 0) console.log(`[release] announced ${n} release${n === 1 ? '' : 's'}`)
   })
   .catch((err: unknown) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))
+}

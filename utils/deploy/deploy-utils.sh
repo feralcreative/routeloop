@@ -359,6 +359,44 @@ valid_env() {
   case "$1" in prod|stage|dev) return 0 ;; *) return 1 ;; esac
 }
 
+# **STAGE HAS NO DATABASE OF ITS OWN.** It runs on production's (#305,
+# 2026-09-09), so every command in this file that reaches for a database has to
+# refuse rather than do something plausible against the wrong one — and each of
+# them was plausible in a different way, which is why this is a refusal and not
+# a redirect:
+#
+#   db-backup    would have dumped PROD and named the file for stage, so the
+#                one backup you reach for in an emergency lies about its origin.
+#   db-clone     `prod stage` is a no-op that reports success; `stage dev` is a
+#                production pull wearing a stage label.
+#   db-restore   would load an old dump straight into production.
+#   migrate      would migrate production from the stage directory, which is the
+#                one thing moving stage off its own database was meant to stop.
+#   db-baseline  records a claim it cannot verify, against production.
+#   psql         an interactive prompt on production that says stage in the
+#                scrollback.
+#
+# Redirecting to prod was considered and rejected: every one of these is
+# destructive or authoritative, and a command that silently retargets the
+# production database because the environment you named does not have one is
+# worse than one that stops.
+env_has_database() {
+  case "$1" in stage) return 1 ;; *) return 0 ;; esac
+}
+
+refuse_without_database() {
+  local cmd="$1"
+  env_has_database "$DEPLOY_ENV" && return 0
+  log_error "'${cmd}' needs a database and stage does not have one."
+  log_error ""
+  log_error "Stage runs on the PRODUCTION database. Say so explicitly:"
+  log_error "  DEPLOY_ENV=prod $0 ${cmd}"
+  log_error ""
+  log_error "Anything you do there lands on real rider data. Back up first:"
+  log_error "  DEPLOY_ENV=prod $0 db-backup"
+  exit 1
+}
+
 env_db_container() {
   case "$1" in
     prod)  echo "$PROD_DB_CONTAINER_NAME" ;;
@@ -465,8 +503,22 @@ confirm_destructive() {
 cmd_db_clone() {
   local src="${1:-}" dst="${2:-}"
   if ! valid_env "$src" || ! valid_env "$dst"; then
-    log_error "Usage: $0 db-clone <src> <dst>    envs: prod | stage | dev"
+    log_error "Usage: $0 db-clone <src> <dst>    envs: prod | dev"
     log_error "Example: $0 db-clone prod dev"
+    exit 1
+  fi
+  # Checked before "src and dst are the same", because `db-clone prod stage` is
+  # now exactly that — one database under two names — and saying so is more use
+  # than the generic message.
+  if ! env_has_database "$dst"; then
+    log_error "'stage' has no database of its own — it runs on production's."
+    log_error "Cloning INTO stage would write to production. There is nothing to refresh."
+    exit 1
+  fi
+  if ! env_has_database "$src"; then
+    log_error "'stage' has no database of its own — it runs on production's."
+    log_error "Cloning FROM stage is a production pull. Name prod, so the file says so:"
+    log_error "  $0 db-clone prod ${dst}"
     exit 1
   fi
   [ "$src" != "$dst" ] || { log_error "Source and destination are both '$src'."; exit 1; }
@@ -600,6 +652,17 @@ for a in "$@"; do
   esac
 done
 set -- "${ARGS[@]:-help}"
+
+# ONE PLACE, RATHER THAN A GUARD AT THE TOP OF EACH COMMAND. Every one of these
+# resolves a database through $DB_CONTAINER_NAME, which on stage names a
+# container that no longer exists — so without this they fail with a docker
+# error about a missing container, which reads as an infrastructure problem
+# rather than as "you named the wrong environment". db-clone is absent because
+# it takes its environments as arguments and refuses them itself.
+case "${1:-help}" in
+  db-logs|psql|migrate|restart-db|schema-state|db-baseline|db-backup|db-restore)
+    refuse_without_database "$1" ;;
+esac
 
 case "${1:-help}" in
   logs)       cmd_logs "${2:-}" ;;
