@@ -212,7 +212,7 @@ describe('the colors that cannot be themed', () => {
   // is $neutral-50 on the light ramp and the dark ramp puts $neutral-50 one step
   // away at #888888, so the same literal reads on both. Re-space the ramp and
   // that stops being true silently, which is what this measures.
-  it.each(PALETTE_KEYS)('%s keeps the baked pencil grey visible on its field', (key: PaletteKey) => {
+  it.each(PALETTE_KEYS)('%s keeps the baked pencil gray visible on its field', (key: PaletteKey) => {
     expect(contrast('#777777', token(key, 'white'))!).toBeGreaterThanOrEqual(3)
   })
 })

@@ -100,7 +100,7 @@ utils/deploy/pull-db.sh --no-migrate    # keep the remote schema as it actually 
 
 It is a wrapper: `db-clone <src> dev` does everything destructive, including the safety dump of the local database and the typed confirmation. What the wrapper adds is the step on each side that was easy to forget—bringing the local Postgres container up first, and running `npm run db:migrate` afterwards. That second one is not cosmetic: prod is **behind** local on migrations, so the dump restores an older schema over a newer one and the app 500s on save until they are reapplied.
 
-`--from stage` is refused. Stage has no database of its own, so it was a production pull that labelled every file it wrote `stage`—the dump, the safety backup, and the line at the end saying whose data you now hold.
+`--from stage` is refused. Stage has no database of its own, so it was a production pull that labeled every file it wrote `stage`—the dump, the safety backup, and the line at the end saying whose data you now hold.
 
 ## Blue/green
 

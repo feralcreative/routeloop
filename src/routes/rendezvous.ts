@@ -155,7 +155,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // the start.
     //
     // Seen on stage, 2026-09-06, on a ride from Oakland to Ensenada — both
-    // satellites were offered gas stations in Oakland, each labelled "on their
+    // satellites were offered gas stations in Oakland, each labeled "on their
     // way". The same ride shape worked when the main group's route happened to
     // be TAGGED rather than shared, because then it was in nobody else's strand;
     // that is what made this look like a data problem rather than a logic one.

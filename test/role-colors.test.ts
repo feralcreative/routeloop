@@ -4,7 +4,7 @@
 // the icon files on disk already have to carry the same seventeen keys — that is
 // what test/roles.test.ts holds together, and it exists because those lists have
 // drifted before. `ROLE_COLORS` is a fifth thing to keep in step, so it is
-// asserted here rather than left to be noticed when a bar renders grey.
+// asserted here rather than left to be noticed when a bar renders gray.
 //
 // AND THE MEASUREMENTS, which is the part that could not be asserted by reading
 // the file. src/maps/role-colors.ts claims the ring survives on a light page, on

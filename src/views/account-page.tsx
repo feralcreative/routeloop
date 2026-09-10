@@ -628,8 +628,8 @@ export async function accountPage(
               <section class="setting" id={`notify-${group.id}`}>
                 {/* `--boxed` paints the resting border that every .setting-form
                     already reserves but leaves transparent. The save states
-                    still win on specificity, so the edge goes grey → amber →
-                    green → grey rather than appearing out of nothing. */}
+                    still win on specificity, so the edge goes gray → amber →
+                    green → gray rather than appearing out of nothing. */}
                 <form
                   method="post"
                   action="/settings/notifications"

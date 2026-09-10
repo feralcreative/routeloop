@@ -15,7 +15,7 @@
 // THE LABEL CARRIES THE STATE, which is what lets both states share a treatment:
 // "Follow" is an offer and "Following" is a report, and no second visual weight
 // is needed to tell them apart. It is also why this is not a toggle that says
-// "Unfollow" — a button labelled with the thing it undoes makes a rider read
+// "Unfollow" — a button labeled with the thing it undoes makes a rider read
 // their own state backwards.
 //
 // `back` rides along so a rider returns to the page they pressed it on. It is

@@ -609,7 +609,7 @@
     grid-template-columns: 1fr 1fr;
     // START, NOT STRETCH: one of a pair routinely carries a hint and the other
     // does not, and stretching makes the shorter box grow to match a line of
-    // grey text underneath its neighbour.
+    // gray text underneath its neighbor.
     align-items: start;
   }
 }
@@ -617,7 +617,7 @@
 // A `?` BESIDE ONE FIELD, HOLDING THAT FIELD'S OWN INSTRUCTIONS (#268).
 //
 // Ziad's call, 2026-09-07: instructions for a specific field go in a bubble
-// rather than sitting under it as permanent grey text. Anything a rider needs to
+// rather than sitting under it as permanent gray text. Anything a rider needs to
 // read BEFORE they act — what a section does with their address, what is shared
 // with whom — stays visible as prose, because a disclosure behind a click is a
 // disclosure most people never see.

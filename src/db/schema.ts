@@ -2121,7 +2121,7 @@ export const notifications = pgTable(
     // WHEN A TOAST WAS RAISED FOR IT. Set by the poll, which claims and stamps
     // in one statement so two tabs cannot both raise the same message.
     deliveredAt: timestamp('delivered_at'),
-    // WHEN THE RIDER READ IT IN THE CENTRE, which is a DIFFERENT question from
+    // WHEN THE RIDER READ IT IN THE CENTER, which is a DIFFERENT question from
     // whether a toast fired and must not share a column with it. Ziad's call,
     // 2026-09-07, when the account menu grew a Notifications item with an unread
     // count: a rider with browser notifications on would otherwise have every

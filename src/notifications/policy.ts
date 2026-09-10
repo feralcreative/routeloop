@@ -37,7 +37,7 @@ export type PrefRow = {
 
 /**
  * Events whose default is OFF on every channel, before any rider has said
- * anything. The row is still stored, so the notification centre and the badge
+ * anything. The row is still stored, so the notification center and the badge
  * report it — only delivery is silent.
  *
  * **THIS IS A DEPARTURE FROM THE RULE BELOW AND IT IS DELIBERATE.** Ziad's call,

@@ -171,7 +171,7 @@
    * peel off at the same place. Index 0 is exactly the case that means "this
    * route already begins here", so it is allowed and no cut is made.
    *
-   * Three mechanisms for recognising the boundary were rejected before this one.
+   * Three mechanisms for recognizing the boundary were rejected before this one.
    * By point uid is impossible: `splitRouteAt` mints a fresh uid for the carried
    * copy and records no link back. Recording the link needs a field the payload
    * schema strips and a column to make it survive a save, which is a schema

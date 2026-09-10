@@ -18,7 +18,7 @@
 //   1. Every pair of the four is distinguishable under normal vision and under
 //      the two red-green deficiencies, which together are about 8% of men.
 //   2. Every one of the four is distinguishable from the card it is painted on
-//      and from the empty-track grey behind it.
+//      and from the empty-track gray behind it.
 //   3. Tritanopia is measured and pinned, and it FAILS a distinguishability bar
 //      — see the note on that test. It is pinned so it cannot quietly worsen.
 //

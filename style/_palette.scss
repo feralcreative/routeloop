@@ -80,7 +80,7 @@ $-neutrals-light: (
 // **-43 AND -50 WERE BOTH #888888 UNTIL 2026-09-07, WHICH COLLAPSED THE TWO
 // MOST-USED GREYS IN THE APP.** They are 32 and 70 usages, distinct in every
 // light palette and identical in every dark one — so any pairing that relied on
-// the step between them (muted text against a mid grey, a border against a fill)
+// the step between them (muted text against a mid gray, a border against a fill)
 // simply vanished after dark, with nothing to say so. The complement rule stated
 // above is what fixes it: 50 -> 50 is #777777, not #888888.
 $-neutrals-dark: (

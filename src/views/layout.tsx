@@ -604,7 +604,7 @@ const SITE_LINKS: { href: string; label: string }[] = [
  * rider does not leave the page, does not lose the field they were typing in,
  * and does not scan a long document for the paragraph matching the box in front
  * of them. Ziad's call, 2026-09-07: instructions for a specific field go in a
- * bubble rather than sitting under it as permanent grey text.
+ * bubble rather than sitting under it as permanent gray text.
  *
  * **NATIVE `popover`, NO JAVASCRIPT AT ALL.** `popovertarget` gives the toggle,
  * Escape, light-dismiss and the top layer for free, and #268 says to reach for

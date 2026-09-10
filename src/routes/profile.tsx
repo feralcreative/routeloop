@@ -292,7 +292,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
   return (
     <>
       {/* NO HEADING OF ITS OWN. account-page.tsx heads the page "Your profile"
-          when this tab is the one open, and the tab itself is labelled Profile —
+          when this tab is the one open, and the tab itself is labeled Profile —
           a third copy inside the panel is the same words three times. */}
       {saved && <p class="notice">Profile saved.</p>}
       {errors && Object.keys(errors).length > 0 && <p class="notice is-error">Some fields need attention.</p>}

@@ -919,7 +919,7 @@ html.map-page:has(.map-timeline:not([hidden])) {
 // the moment `right: 72px` stops being enough to keep the two apart. Measured
 // on /builder/9 before this rule existed: at 393x852 the button sat on a stop's
 // duration field, and at 700x900 it covered a stop's name and duration together.
-// (Both measurements were taken when this was a labelled 153px-wide button; it
+// (Both measurements were taken when this was a labeled 153px-wide button; it
 // is a 56px launcher now, so the overlap is smaller and the rule still right.)
 //
 // The sheet's own height is read from --sheet-height rather than repeated, so

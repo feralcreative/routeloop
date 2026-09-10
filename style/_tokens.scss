@@ -24,7 +24,7 @@
 
 // THE NEUTRAL SCALE. Greys are not road-sign colors and do not belong in the
 // palette below — the app needs a full ramp of them for text and surfaces, and
-// a sign has exactly one grey, the post it stands on.
+// a sign has exactly one gray, the post it stands on.
 //
 // **The number is CIE L\*, perceptual lightness.** Numbered that way rather than
 // 50–900 because L* predicts behavior and an ordinal does not: the gap between
@@ -85,8 +85,8 @@ $neutral-98: var(--neutral-98);
 // sign field like ONE WAY is.
 //
 // `$concrete` is the one entry that takes its value from the neutral scale
-// rather than holding its own. It is the post and the gantry — genuinely a grey,
-// so a grey it should be, rather than the slightly cool #7e8386 it was sampled
+// rather than holding its own. It is the post and the gantry — genuinely a gray,
+// so a gray it should be, rather than the slightly cool #7e8386 it was sampled
 // as. $neutral-57 is the nearest step (dE 3.4, against 5.1 for -50) and the
 // better one on the other axis too: its black legend measures 5.9:1 where the
 // sampled value managed 5.5:1.
@@ -143,7 +143,7 @@ $black: var(--black);
 // Both were literals that happened to sit exactly on the neutral scale — #ddd
 // is $neutral-88 and #333 is $neutral-21, to the byte. Pointing at the step
 // rather than repeating the hex costs nothing and means the scale is the only
-// place a grey is written down. They keep their own names because those names
+// place a gray is written down. They keep their own names because those names
 // say what they are FOR, which a number never will: $text is body copy, $grey is
 // a border.
 $grey: var(--grey);
@@ -154,7 +154,7 @@ $text: var(--text);
 // to second-guess. Which one a given field takes is the pairing table above.
 //
 // $ink-dark is $black and not $text: the signs use black, and $text is a soft
-// grey meant for body copy on white. On a colored field that softness costs
+// gray meant for body copy on white. On a colored field that softness costs
 // contrast for nothing — $text on $go is 4.4:1 where black is 7.4:1.
 //
 // It was $tarmac until the palette gained a real $black on 2026-08-15. The two

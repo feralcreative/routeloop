@@ -6,7 +6,7 @@
 // release notes at all. Ziad's call, 2026-09-08: rather than putting the link
 // back on a fourth surface, a release becomes an ordinary notification. The
 // account chip renders on EVERY page, so its unread badge is the affordance, and
-// the centre mixes releases with everything else in one chronological list
+// the center mixes releases with everything else in one chronological list
 // because they are all rows in one table.
 //
 // **THE PAGE KEEPS 100% OF THE NOTES AND EVERY RELEASE IS REFERENCED HERE.**
@@ -16,7 +16,7 @@
 // rather than the thing a rider has to remember to visit.
 //
 // **THE FAN-OUT IS A ROW PER RIDER AND THAT IS THE POINT.** One announcement row
-// plus per-rider read markers would need two new tables, and the centre would
+// plus per-rider read markers would need two new tables, and the center would
 // then have to merge two sources to order them by time, the badge would be two
 // counts, and none of the existing preference or read machinery would apply. A
 // row each buys all of it for the price of N inserts.
@@ -60,7 +60,7 @@ const bodyOf = (r: Release): string => r.summary
  * send forty-two messages at once. The history is there to scroll; the badge
  * stays honest.
  *
- * **`created_at` IS THE RELEASE'S OWN DATE, NOT NOW.** The centre orders by it,
+ * **`created_at` IS THE RELEASE'S OWN DATE, NOT NOW.** The center orders by it,
  * so stamping the batch with the moment it ran would put the whole history in a
  * block at the top in file order — the opposite of mixing chronologically with
  * everything else, which is the whole point of putting them here.
@@ -97,7 +97,7 @@ export async function announceReleases(): Promise<number> {
 
   // EVERY RIDER, INCLUDING PENDING AND SUSPENDED ONES. A release note is not
   // about their account, the old ones are written as read, and filtering on
-  // status would mean somebody approved next week opens a centre that begins
+  // status would mean somebody approved next week opens a center that begins
   // mid-story.
   const riders = await db.select({ id: users.id }).from(users)
   if (riders.length === 0) return mine.length
@@ -145,7 +145,7 @@ export async function announceReleases(): Promise<number> {
         title: head.title,
         body: bodyOf(head),
         // A PATH, never an absolute URL — see the column comment on
-        // notifications.url. The centre is what opens it.
+        // notifications.url. The center is what opens it.
         url: releaseUrl(head),
         email: { template: releaseEmail, props: { title: head.title, url: releaseUrl(head) } },
       })

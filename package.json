@@ -23,6 +23,8 @@
     "check:dashes": "node utils/tighten-em-dashes.mjs --check",
     "fix:quotes": "node utils/smart-quotes.mjs --write",
     "check:quotes": "node utils/smart-quotes.mjs --check",
+    "fix:english": "node utils/us-english.mjs --write",
+    "check:english": "node utils/us-english.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest"
   },

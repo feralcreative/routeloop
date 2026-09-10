@@ -34,7 +34,7 @@ export const fields = {
  * route, and alternates and subgroups make "the second route" ambiguous anyway), and
  * a shape that reads as a stack trace rather than as something to fix.
  *
- * Routes and points are numbered from 1 because that is how they are labelled on
+ * Routes and points are numbered from 1 because that is how they are labeled on
  * screen. Anything else keeps its own name, since every other path segment here
  * is a real field a rider typed into — `title`, `visibility`, `external_url`.
  */

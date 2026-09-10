@@ -197,7 +197,7 @@
 // without moving the controls down two pixels; this colors the resting state of
 // that same edge, so the box costs no layout at all. The `[data-save]` rules
 // above outrank this on specificity by construction — a class against a class
-// plus an attribute — so the sequence a rider sees is grey, amber, green, grey,
+// plus an attribute — so the sequence a rider sees is gray, amber, green, gray,
 // rather than a border appearing out of nothing and vanishing again.
 .setting-form--boxed {
   border-color: $grey;
@@ -400,7 +400,7 @@
   // The group name is an <h3> INSIDE one of these cells, and opacity applies to
   // an element and everything under it as one composited layer — a child cannot
   // be more opaque than its parent, so `opacity: 1` on the h3 did nothing at all
-  // and the heading rendered as grey as the channel labels. A color is
+  // and the heading rendered as gray as the channel labels. A color is
   // inherited and therefore overridable, which is what the h3 below needs.
   thead th {
     font-size: 0.85rem;
@@ -423,7 +423,7 @@
     // FULL STRENGTH, LIKE THE H2 ABOVE IT. Ziad's call, 2026-09-07: it is a
     // heading and reads as one, where the two labels beside it are column
     // furniture. Not uppercased or letter-spaced either, for the same reason —
-    // it names the set rather than labelling a column.
+    // it names the set rather than labeling a column.
     color: $text;
     text-transform: none;
     letter-spacing: normal;
@@ -838,7 +838,7 @@
   }
 }
 
-// THE NOTIFICATION CENTRE. A record rather than an inbox — nothing here is
+// THE NOTIFICATION CENTER. A record rather than an inbox — nothing here is
 // replied to, filed or dismissed, so the list carries no controls at all and the
 // only gesture is following one to the thing it is about.
 .notif-feed {
@@ -950,7 +950,7 @@
 // ONE.** Those widths are tuned for a full-size button; kept at this scale the
 // ring is most of the sign and the legend has nowhere to sit. Scaled in px
 // rather than em because a keyline is a drawn line — at 0.72rem an em-based 3px
-// lands on a fraction of a device pixel and renders as a grey smear.
+// lands on a fraction of a device pixel and renders as a gray smear.
 //
 // $ink-light and never $white: a legend does not follow the page, which is #282
 // and what test/sign-legend.test.ts exists for. That also makes the baked white
@@ -1036,8 +1036,8 @@
 // resolved to the SAME blue, so the color said nothing the mark had not already
 // said; and `routes/icons.tsx` had to carry a second copy of the tone-to-field
 // table to draw its "as assigned" swatches, which its own comment flagged as
-// two lists that "have to agree, or the swatch beside a name recommends a colour
-// the centre does not use".
+// two lists that "have to agree, or the swatch beside a name recommends a color
+// the center does not use".
 //
 // So the mapping is one table in TypeScript and reaches the element as
 // `style="color:var(--x);--icon-ink:var(--y)"`, exactly as the workbench already

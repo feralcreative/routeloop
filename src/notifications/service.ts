@@ -118,7 +118,7 @@ export function notify<P>(userId: number, notice: Notice<P>): void {
     // The row used to be written only when the browser channel was on, on the
     // reasoning that switching the channel on should not surface a backlog of
     // toasts. That reasoning was right about TOASTS and wrong about the record:
-    // browser notifications are off by default, so a centre built on the old
+    // browser notifications are off by default, so a center built on the old
     // rule would be empty for nearly everybody, and a rider would be told they
     // have no activity when the truth was that they had never opted into a
     // channel they were never asked about.
@@ -234,7 +234,7 @@ export async function claimPending(userId: number, limit = 10) {
   // time — the row is stored for everybody and this is the gate. An event with
   // no stored row takes `defaultFor('browser')`, which is off, so a rider who
   // has never touched the settings page is polled for nothing and toasted for
-  // nothing while their centre still fills up.
+  // nothing while their center still fills up.
   const prefs = await prefsOf(userId)
   const wanted = EVENTS.filter((e) => enabledFor(prefs, e.key, 'browser')).map((e) => e.key)
   if (wanted.length === 0) return []
@@ -286,7 +286,7 @@ export async function unreadCount(userId: number): Promise<number> {
   return row?.n ?? 0
 }
 
-/** The centre's list: newest first, capped. Unread and read together, because a
+/** The center's list: newest first, capped. Unread and read together, because a
  *  rider opening this wants to see what happened rather than to be shown an
  *  empty page the moment they have caught up. */
 export async function recentNotifications(userId: number, limit = 50) {

@@ -12,7 +12,7 @@
 // follows. Nothing here touches storage: `routes.start_at` stays a timestamp with
 // an offset, `ride.json` stays ISO, and every export is untouched.
 //
-// THE MEMBERS ARE REAL LOCALE TAGS, and that is the one judgement call worth
+// THE MEMBERS ARE REAL LOCALE TAGS, and that is the one judgment call worth
 // stating. The alternative was an abstract `mdy` / `dmy` / `ymd` enum, which
 // would have fixed the digit order and left me formatting by hand. Passing a real
 // tag to Intl means:

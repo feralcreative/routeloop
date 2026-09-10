@@ -108,9 +108,9 @@
       // A pencil, drawn rather than fetched: it is one glyph at one size in one
       // place, and an <img> beside the field would have to be positioned over it
       // anyway. currentColor is not available inside a data URI, so the stroke is
-      // the muted grey the hint is meant to be.
+      // the muted gray the hint is meant to be.
       //
-      // THE BAKED GREY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND
+      // THE BAKED GRAY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND
       // #888888 ON THE DARK ONE — one step apart, so the same literal reads as a
       // muted glyph on either. That is luck rather than design, and luck that
       // stops holding the moment somebody re-spaces the neutral ramp, so
@@ -1024,7 +1024,7 @@
   // action row when the panel gained tabs — adding a route is about the route and
   // the meta-row is now ride-level only — so this is a sibling of .meta-row
   // rather than nested in it. Left nested, the rule would have matched nothing
-  // and the button would have rendered as the browser's native grey chrome,
+  // and the button would have rendered as the browser's native gray chrome,
   // which is exactly the state the note below records it shipping in once.
   //
   // Styled at all, which it was not: this shipped as a bare <button> with no
@@ -1166,8 +1166,8 @@
     // DARKER THAN THE OTHER SECONDARY TEXT IN THIS LIST, deliberately. Ziad's
     // call, 2026-09-04. `.row-dist` is $neutral-50 and is a figure you glance
     // at; this is a label on a control you press, at 0.7em, inside a hairline
-    // outline — three things all giving way at once is what made it grey on
-    // grey. $neutral-36 is the same weight the tank figure takes when it has
+    // outline — three things all giving way at once is what made it gray on
+    // gray. $neutral-36 is the same weight the tank figure takes when it has
     // something to say.
     color: $neutral-36;
     // NOT A DRAG TARGET AND NOT A POINTER. The row is a label with one control
@@ -1198,11 +1198,11 @@
     // BOXES, and the dot and the × are boxes whose ink fills them — so both land
     // dead center. Text does not: its box is the line box, and Overpass puts
     // more of the half-leading below the baseline than above, so the ink sits
-    // high inside a box that is itself perfectly centred. That measured at
-    // 0.045em. The rest of the way to 0.15em is OPTICAL: the eye centres a word
+    // high inside a box that is itself perfectly centered. That measured at
+    // 0.045em. The rest of the way to 0.15em is OPTICAL: the eye centers a word
     // on its x-height, which sits above the middle of a box that also has to
     // hold ascenders and descenders, so type always reads high when it is
-    // centred geometrically. In em because both halves are properties of the
+    // centered geometrically. In em because both halves are properties of the
     // typeface rather than of this size. `position: relative` and not a margin,
     // because a margin makes the row a pixel taller and takes the whole list
     // with it.
@@ -1515,7 +1515,7 @@
       //
       // NO LONGER SYMMETRIC as of 2026-09-04: the bottom is half the top. What
       // sits under the last line of a row is the distance readout, which is
-      // 0.7em grey text with its own leading — so the same padding that gives
+      // 0.7em gray text with its own leading — so the same padding that gives
       // the name room at the top reads as a gap under a figure at the bottom.
       // The top keeps 0.2em because that is what the drag tab's grip needs.
       //
@@ -1863,7 +1863,7 @@
     // somebody peeling off is the plan working, not a warning. Indented to clear
     // the grip so it lines up with the row's name.
     // A real <button>, so the UA chrome comes off. It has to be pressable rather
-    // than merely coloured: the route it names is at the BOTTOM of the panel by
+    // than merely colored: the route it names is at the BOTTOM of the panel by
     // construction, so this line is the way to it, and $signal text that does
     // nothing when pressed is what a dot on a map must never be.
     .row-splitoff {
@@ -2076,7 +2076,7 @@
     }
 
     // The tank figure is the one being scanned for, so it is the one that is not
-    // grey. It appears only once it differs from the distance into the route —
+    // gray. It appears only once it differs from the distance into the route —
     // see distReadoutHtml — so when it is here it is saying something new.
     .row-dist-fuel {
       color: $neutral-36;
@@ -3292,7 +3292,7 @@
   // A LABEL THAT FOLLOWS A FIELD IS OPENING A SECOND QUESTION, so it gets air
   // the uniform grid gap does not give it. Without this the name, its box, the
   // start label and its box read as four unrelated lines at one spacing rather
-  // than as two labelled fields.
+  // than as two labeled fields.
   input + & {
     margin-top: 0.35rem;
   }

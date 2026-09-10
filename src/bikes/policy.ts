@@ -94,7 +94,7 @@ export const mlToTank = (ml: number, liters: boolean): number =>
  *
  * **THE SCHEMA CANNOT ANSWER THIS AND THAT IS WHY THIS EXISTS.** `bikeInput`
  * does not know which unit the rider reads in, so it validates against the
- * looser of the two — 100, the litre ceiling. A rider on GALLONS could therefore
+ * looser of the two — 100, the liter ceiling. A rider on GALLONS could therefore
  * type 30, pass the schema, convert to 113,562 ml and violate `ck_bike_tank`:
  * a 500 for a number the form appeared to accept, which is the MAX_RANGE_MILES
  * trap arriving from the other direction. The tight check has to happen where

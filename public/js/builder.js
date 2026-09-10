@@ -4206,7 +4206,7 @@
    * 380px drawer has nowhere to put that. It also keeps the route list free of a
    * control that would re-render the rows it sits in — #188.
    *
-   * "EVERYONE FROM HERE ON" IS THE CLEAR BUTTON, and it is labelled for what it
+   * "EVERYONE FROM HERE ON" IS THE CLEAR BUTTON, and it is labeled for what it
    * does rather than for what it stores. Clearing the override makes the route
    * inherit from the one before it, which on the first route means the whole
    * roster and elsewhere means "no change here" — so the honest label is about
@@ -4655,7 +4655,7 @@
     add.hidden = true;
     const box = document.createElement("div");
     box.className = "sg-new";
-    // THE NAME COMES FIRST NOW, AND IT IS NO LONGER LABELLED OPTIONAL. Ziad's
+    // THE NAME COMES FIRST NOW, AND IT IS NO LONGER LABELED OPTIONAL. Ziad's
     // call, 2026-09-06: every group should have a name, and the field sat under
     // a search box whose pick is what CREATES the group — so the rider reached
     // the commit before they reached the name, and "(optional)" told them not to
@@ -5062,7 +5062,7 @@
         // The row's own headline fact, in the row's own words, led by whose
         // decision it is — with several groups on one map the tip is the only
         // place the dot can say that in words. Built here and not in
-        // map-common.js so that file stays out of miles-versus-kilometres.
+        // map-common.js so that file stays out of miles-versus-kilometers.
         tip: (name ? name + SEP : "") + meetTip(c),
         label: "Use meeting point " + (i + 1) + " for " + (name || "this group") + ", " + meetTip(c),
       })),
@@ -6232,7 +6232,7 @@
    * **A BRAND-NEW GROUP HAS NO SERVER ID UNTIL A SAVE, AND WRITING WITHOUT ONE
    * FAILS SILENTLY.** `reconcileSubgroups` inside the ordinary save is the only
    * thing that creates a subgroup from planner intent, matched on the uid the
-   * client minted — and `setRouteRiders` coerces a group id it does not recognise
+   * client minted — and `setRouteRiders` coerces a group id it does not recognize
    * to null rather than refusing, so a write that ran too early would say the
    * leavers ride as the main group and look like it worked. So: mutate, save,
    * re-read, then write. This is the Riders tab's `#riders-save` gap closed in
@@ -7044,7 +7044,7 @@
       // the timeline sat in the panel and stayed visible-but-disabled without
       // dates. The bar hides itself now, so the hint has to be somewhere a rider
       // will see it — and beside the field that fixes it is a better place than
-      // under a slider that has gone grey.
+      // under a slider that has gone gray.
       note.textContent = route.endAt ? "add a start time to work the end out" : "add a start time to scrub the ride";
       return;
     }
@@ -7370,7 +7370,7 @@
       return !!on && on.riderIds.some((id) => leavers.has(id));
     });
     if (!left.length) return "";
-    // A REAL BUTTON THAT GOES THERE, not a coloured sentence. The peel-off route
+    // A REAL BUTTON THAT GOES THERE, not a colored sentence. The peel-off route
     // is at the bottom of the list by construction, which is the whole reason
     // this line exists — so the line has to be the way to it, and $signal text
     // that cannot be pressed is the exact thing #232 established a map dot must
@@ -8014,7 +8014,7 @@
    *
    * TWO NAMED STATES, NOT A CHECKBOX AND A SLIDER. Both are always on screen,
    * so the control says what it does rather than what it is currently not
-   * doing — a checkbox labelled "Along the route" leaves the rider to work out
+   * doing — a checkbox labeled "Along the route" leaves the rider to work out
    * that unchecking it means something else, and never says what.
    *
    * NEAR HERE IS THE DEFAULT, so the chips keep answering the question they
@@ -8528,7 +8528,7 @@
     // ONE DOOR TO BOTH NOTES. "Edit notes" opened `.row-desc` and this opened a
     // panel with a "Private notes" box in it, so a rider had two items leading to
     // two boxes with nothing saying which was which — and the difference is the
-    // one thing about them worth knowing. Both live in the panel now, labelled.
+    // one thing about them worth knowing. Both live in the panel now, labeled.
     { act: "details", label: "Notes, reservations & details" },
     { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
@@ -8850,7 +8850,7 @@
   // DRAG TO REORDER DAYS. The use case is a base camp: rent a house, ride a loop
   // from it each route, and the routes are interchangeable in a way a linear tour's
   // are not — so the order is something a rider genuinely revises, not just an
-  // artefact of what they entered first.
+  // artifact of what they entered first.
   //
   // Cheaper than reordering stops, because a route owns its own legs: moving route 3
   // above route 1 changes no leg's endpoints and needs no routing call. Only the
@@ -9488,7 +9488,7 @@
         state.map,
         // THE SAME TWO FACTS THE ROW SHOWS, in the same words: the name, and the
         // detour when the search was a corridor one. Built here rather than in
-        // map-common.js so that file stays out of miles-versus-kilometres —
+        // map-common.js so that file stays out of miles-versus-kilometers —
         // fmtDist() is already the one place that decision is made.
         hits.map((h) => ({
           lngLat: h.lngLat,

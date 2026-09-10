@@ -104,7 +104,7 @@ export function mergeRoutes(stored: StoredRoute[], incoming: string[], base: Bas
     }
 
     // The client held it and did not send it back, so the rider deleted it.
-    // Honour that only if it is still the route they deleted: if somebody else has
+    // Honor that only if it is still the route they deleted: if somebody else has
     // edited it since, their work outranks a delete aimed at an older version.
     // Keeping a route somebody wanted gone is recoverable in one click; deleting
     // work somebody just did is not.
