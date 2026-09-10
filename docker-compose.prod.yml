@@ -84,7 +84,7 @@ services:
       # Vector Map ID. Advanced Markers render NOTHING without it — no error,
       # no marker, an empty map that looks like a data bug.
       GMAPS_MAP_ID: ${GMAPS_MAP_ID}
-      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@${DB_HOST:-db}:5432/routeloop
       # Set from $DOMAIN by deploy.sh. APP_ORIGIN decides the Secure flag on the
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
       # must be the canonical host — https://routeloop.app, not the alias.
@@ -134,19 +134,35 @@ services:
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: blue
     volumes:
-      - ./data/storage:/app/storage
+      - ${HOST_STORAGE_PATH:-./data/storage}:/app/storage
     # Docker's default is 10s, which is exactly DRAIN_GRACE_MS — so the forced
     # close and the SIGKILL would race and the drain would sometimes be cut off
     # at the moment it was giving up anyway. 30s leaves the app's own deadline
     # the one that decides, and a healthy drain still exits in well under a
     # second (measured: 265ms locally).
     stop_grace_period: 30s
-    depends_on:
-      db:
-        condition: service_healthy
+    # NO `depends_on: db`. It was removed on 2026-09-09 when stage moved onto
+    # prod's database (#305): stage starts no Postgres of its own, and a
+    # depends_on naming a service that environment never runs is the one thing
+    # that would quietly start a second one. The NAS is on Compose v2.20, where
+    # the interaction between depends_on and an inactive profile is not
+    # something to gamble a production database on.
+    #
+    # What replaced it is not "nothing", and this is safe for two reasons that
+    # both have to hold. The deploy converges db and polls `pg_isready` to a
+    # 60-second deadline BEFORE it recreates any app container, so ordering
+    # during a deploy is already guaranteed further up. And /healthz returns
+    # **503** when the database is unreachable — `health()` gates `ok` on
+    # `dbUp` — so an app that came up without one fails the deploy's health gate
+    # loudly instead of serving. Do not weaken that endpoint to a plain 200.
+    #
+    # The case genuinely lost is a NAS reboot, where Docker restarts
+    # `unless-stopped` containers in arbitrary order — but a restart policy has
+    # never honored depends_on ordering, so that case was never covered.
     profiles: ["blue"]
     networks:
       - routeloop
+      - shared
 
   app-green:
     image: ${IMAGE_NAME}
@@ -170,7 +186,7 @@ services:
       # Vector Map ID. Advanced Markers render NOTHING without it — no error,
       # no marker, an empty map that looks like a data bug.
       GMAPS_MAP_ID: ${GMAPS_MAP_ID}
-      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@${DB_HOST:-db}:5432/routeloop
       # Set from $DOMAIN by deploy.sh. APP_ORIGIN decides the Secure flag on the
       # session cookie, the CSRF allow-list, and the OAuth redirect URI, so it
       # must be the canonical host — https://routeloop.app, not the alias.
@@ -220,19 +236,19 @@ services:
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: green
     volumes:
-      - ./data/storage:/app/storage
+      - ${HOST_STORAGE_PATH:-./data/storage}:/app/storage
     # Docker's default is 10s, which is exactly DRAIN_GRACE_MS — so the forced
     # close and the SIGKILL would race and the drain would sometimes be cut off
     # at the moment it was giving up anyway. 30s leaves the app's own deadline
     # the one that decides, and a healthy drain still exits in well under a
     # second (measured: 265ms locally).
     stop_grace_period: 30s
-    depends_on:
-      db:
-        condition: service_healthy
+    # No `depends_on: db` — see the blue block above for why, and keep the two
+    # identical.
     profiles: ["green"]
     networks:
       - routeloop
+      - shared
 
   # ONE-SHOT. It has no container_name because `docker-compose run` generates
   # its own, and no restart policy that could bring it back — it applies the
@@ -253,7 +269,7 @@ services:
     restart: "no"
     user: "${APP_UID}:${APP_GID}"
     environment:
-      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@db:5432/routeloop
+      DATABASE_URL: postgresql://routeloop:${DB_PASSWORD}@${DB_HOST:-db}:5432/routeloop
     command: ["npx", "drizzle-kit", "migrate"]
     # Profiled so a bare `up -d` cannot run migrations as a side effect. Naming
     # the service explicitly — which is what `run --rm ... migrate` does — still
@@ -261,7 +277,19 @@ services:
     profiles: ["tools"]
     networks:
       - routeloop
+      - shared
 
+  # **PROD ONLY, AND NOTHING IN THIS FILE ENFORCES THAT — deploy.sh DOES.**
+  # Since 2026-09-09 (#305) stage runs on this very container, so stage's deploy
+  # never converges a database: `RUNS_DATABASE` in deploy.config is the switch,
+  # and it also gates the readiness poll and the migration step, which is what
+  # makes "only the prod deploy migrates" structural rather than a rule.
+  #
+  # The block is left defined rather than profiled because the two colors no
+  # longer reference it at all, so it is inert on stage — and because a
+  # `docker-compose up -d db` typed by hand in the stage directory would still
+  # be answered by ${DB_VOLUME_NAME}, which deploy.config deliberately keeps
+  # pointed at stage's own dead volume rather than at prod's.
   db:
     image: postgres:17-alpine
     container_name: ${DB_CONTAINER_NAME}
@@ -280,6 +308,10 @@ services:
       retries: 20
     networks:
       - routeloop
+      # Also on the shared network, which is what stage reaches it by. Prod's
+      # own app keeps using the `routeloop` bridge and the `db` service name;
+      # nothing about prod's path to its database changed.
+      - shared
 
 volumes:
   db-data:
@@ -296,3 +328,20 @@ volumes:
 networks:
   routeloop:
     driver: bridge
+
+  # ONE DATABASE, TWO COMPOSE PROJECTS. Stage runs on production's database
+  # (#305, 2026-09-09) and cannot reach it over `routeloop`, which is namespaced
+  # per project — prod's is `routeloop-prod_routeloop` and stage's is
+  # `routeloop-stage_routeloop`. Both attach here as well, and prod's `db` is
+  # the only thing listening on it.
+  #
+  # **EXTERNAL, WHICH IS THE LOAD-BEARING WORD.** Compose does not create or
+  # destroy a network it does not own, so neither environment's `down` can take
+  # the other's path to the database away. deploy.sh creates it idempotently
+  # before it converges anything.
+  #
+  # The rejected alternative was publishing Postgres on a host socket, which the
+  # db block above makes a point of not doing.
+  shared:
+    external: true
+    name: ${SHARED_DB_NETWORK:-routeloop-shared}

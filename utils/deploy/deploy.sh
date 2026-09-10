@@ -59,12 +59,20 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
   set -a; source "$PROJECT_ROOT/.env"; set +a
 fi
 
-# Pick the env-specific DB password out of .env (deploy.config stays secret-free).
-if [ "$DEPLOY_ENV" = "prod" ]; then
-  DB_PASSWORD="${PROD_DB_PASSWORD:-}"
-else
-  DB_PASSWORD="${STAGE_DB_PASSWORD:-}"
-fi
+# ONE PASSWORD, BECAUSE THERE IS ONE DATABASE. Stage has connected to prod's
+# Postgres since 2026-09-09 (#305), so it authenticates with prod's credential —
+# there is no stage database left for a stage password to open. This used to
+# branch on DEPLOY_ENV and pick STAGE_DB_PASSWORD.
+#
+# **THE CONSEQUENCE TO STATE RATHER THAN BURY: the production database password
+# is now written into the stage server's .env as well.** That is a real widening
+# of where it lives, it is inherent in sharing the database rather than
+# incidental to how this is wired, and it is the reason the two deploy
+# directories are not equally safe places to be careless in.
+#
+# STAGE_DB_PASSWORD is left in .env.example, unread, until stage's own volume is
+# decommissioned — it is what opens the pre-cutover backup.
+DB_PASSWORD="${PROD_DB_PASSWORD:-}"
 
 # ------------------------------------------------- who writes the remote env --
 #
@@ -93,7 +101,8 @@ WRITE_REMOTE_ENV=1
 MISSING=""
 if [ -n "$WRITE_REMOTE_ENV" ]; then
 [ -n "${GMAPS_KEY:-}" ]  || MISSING="${MISSING} GMAPS_KEY"
-[ -n "${DB_PASSWORD}" ]  || MISSING="${MISSING} $([ "$DEPLOY_ENV" = "prod" ] && echo PROD_DB_PASSWORD || echo STAGE_DB_PASSWORD)"
+# PROD_DB_PASSWORD in both environments now — see the assignment above.
+[ -n "${DB_PASSWORD}" ]  || MISSING="${MISSING} PROD_DB_PASSWORD"
 
 # Promoted to hard failures when the Google migrations landed, because without
 # them the container starts, passes its healthcheck, and is useless:
@@ -340,6 +349,27 @@ GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET APP_VERSION BUILD_SHA DRAIN_GRACE_MS
 BLUE_CONTAINER_NAME GREEN_CONTAINER_NAME PROXY_CONTAINER_NAME PROXY_IMAGE
 DB_VOLUME_NAME"
 
+# **REQUIRED ON STAGE, OPTIONAL ON PROD, AND THE ASYMMETRY IS THE POINT.**
+# All three have `:-` defaults in the compose file, and on prod those defaults
+# ARE the right answers — `db`, `./data/storage`, `routeloop-shared` — so prod
+# must not be made to fail on their absence, which would break the very deploy
+# that introduces them.
+#
+# On stage every one of those defaults is wrong, and they fail in two different
+# ways. A missing DB_HOST falls back to `db`, which resolves to nothing on stage
+# and fails the health gate LOUDLY, so that one would survive being optional.
+# A missing HOST_STORAGE_PATH falls back to `./data/storage` — stage's own empty
+# directory — and that is SILENT: the app comes up, passes its healthcheck, and
+# serves prod's rides with every stored file missing. Requiring it is the only
+# thing that turns that into a refusal.
+#
+# The price is the documented one: `push-env` for stage has to run before the
+# first deploy that needs these. Stage is a button rather than a push trigger
+# now, so that ordering is a step in the runbook rather than a trap.
+if [ "$DEPLOY_ENV" = "stage" ]; then
+  REMOTE_ENV_KEYS="${REMOTE_ENV_KEYS} DB_HOST HOST_STORAGE_PATH SHARED_DB_NETWORK"
+fi
+
 REMOTE_ENV=$(mktemp)
 trap 'rm -f "$REMOTE_ENV"' EXIT
 
@@ -390,6 +420,9 @@ printf '%s\n' \
   "PROXY_CONTAINER_NAME=${PROXY_CONTAINER_NAME}" \
   "PROXY_IMAGE=${PROXY_IMAGE}" \
   "DB_VOLUME_NAME=${DB_VOLUME_NAME}" \
+  "DB_HOST=${DB_HOST}" \
+  "HOST_STORAGE_PATH=${HOST_STORAGE_PATH}" \
+  "SHARED_DB_NETWORK=${SHARED_DB_NETWORK}" \
   > "$REMOTE_ENV"
 
 # Verify the artifact, not the source. The list above is an explicit allow-list,
@@ -615,6 +648,29 @@ fi
 # Order matters and is the point of the whole change: converge db, migrate,
 # THEN recreate the app. See docs/zero-downtime-deploy.md.
 
+# THE SHARED NETWORK COMES FIRST, IN BOTH ENVIRONMENTS. It is declared
+# `external` in the compose file, which means Compose will NOT create it — it
+# errors out instead — and that is deliberate: an external network is one
+# neither project's `down` can take away from the other. So somebody has to
+# create it, and doing it here rather than by hand is what stops a rebuilt NAS
+# from having a stage that cannot reach the database with nothing to say why.
+#
+# `network create` on a network that exists exits non-zero, so the || true is
+# load-bearing rather than sloppy: this step is idempotent by design.
+log_info "Ensuring the shared database network exists..."
+$SSH_CMD "$NAS_SSH_HOST" "/usr/local/bin/docker network inspect ${SHARED_DB_NETWORK} >/dev/null 2>&1 || /usr/local/bin/docker network create ${SHARED_DB_NETWORK}" || {
+  log_error "Could not create or find the ${SHARED_DB_NETWORK} network."
+  log_error "Both environments reach Postgres across it; refusing to continue."
+  exit 1
+}
+
+# ONLY THE ENVIRONMENT THAT OWNS THE DATABASE TOUCHES IT. Stage runs on prod's
+# Postgres (#305), so it converges nothing, waits on nothing and — further down —
+# migrates nothing. Gating all three on one flag from deploy.config is what makes
+# "only the prod deploy runs migrations" a property of the script rather than a
+# rule somebody has to remember at the moment they are least likely to.
+if [ -n "${RUNS_DATABASE:-}" ]; then
+
 log_info "Converging database container..."
 $SSH_CMD "$NAS_SSH_HOST" "cd ${NAS_DEPLOY_PATH} && /usr/local/bin/docker-compose up -d db" || {
   log_error "Could not bring up the database container. Refusing to continue."
@@ -696,6 +752,17 @@ else
   log_error "THE OLD CONTAINER IS STILL SERVING and still matches the old schema, so the"
   log_error "site is up. Nothing has been swapped."
   exit 1
+fi
+
+else
+  # STAGE. Not a silent skip: a deploy that quietly does not migrate is exactly
+  # the shape of the 2026-08-03 outage this script's error text is a record of,
+  # so it says out loud which database it is about to serve and that the schema
+  # is prod's to change.
+  log_info "Stage runs on the production database (${DB_HOST}) — skipping converge and migrate."
+  log_info "  A schema change reaches this environment when PROD is deployed, not before."
+  log_info "  If the app fails its health gate below, the likeliest cause is that main"
+  log_info "  carries a migration prod has not had yet. Deploy prod first."
 fi
 
 # ------------------------------------------------------------- the colors ----
