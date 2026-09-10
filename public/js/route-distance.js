@@ -89,7 +89,7 @@
    * Before the first refuel it counts from the start of the route, because that is
    * where the tank was last full — near enough. It is not: a rider joining route 3
    * on whatever they had left is not starting full, and this module cannot know
-   * that. Stated rather than modelled, because the alternative is asking every
+   * that. Stated rather than modeled, because the alternative is asking every
    * rider what is in their tank at the start of every route.
    */
   function sinceRefuelM(route, fuelRole) {

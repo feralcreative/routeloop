@@ -283,7 +283,7 @@
   font-size: 0.9rem;
 
   // The role's own hue, set inline per row by RoleChart. The fallback is a plain
-  // grey rather than the chart's usual blue: a color reaching this rule as null
+  // gray rather than the chart's usual blue: a color reaching this rule as null
   // means the seventeen-key taxonomy has drifted, and a row that looks wrong is
   // one somebody reports. See roleColor() in src/maps/role-colors.ts.
   --role-color: #{$concrete};
@@ -377,7 +377,7 @@
   min-width: 0;
 }
 
-// The assignment, by meaning. Grey is private because grey is what "nobody"
+// The assignment, by meaning. Gray is private because gray is what "nobody"
 // looks like, and the sign green goes to friends — a named circle rather than
 // an absence. Both classes are written out rather than derived: a level whose
 // class is missing renders a segment with no fill at all, which reads as a gap

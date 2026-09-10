@@ -63,7 +63,7 @@ export type RendezvousOptions = {
    * WITHOUT THIS THE PROPOSER CHEATS, and it took a failing test to notice. A
    * group a long way off the trunk gets its smallest divert by meeting near the
    * trunk's END — going direct to the destination and going to a point just
-   * short of it are nearly the same ride — so pure divert-minimising proposes a
+   * short of it are nearly the same ride — so pure divert-minimizing proposes a
    * rendezvous in the last few miles, where the two groups ride together for
    * twenty minutes and the whole exercise was pointless.
    *
@@ -203,7 +203,7 @@ function scoreCandidate(
 
   if (divertM > opts.maxDivertMi * METERS_PER_MILE) return null
 
-  // TOO LITTLE ROAD LEFT TO RIDE TOGETHER. See minSharedFraction: minimising
+  // TOO LITTLE ROAD LEFT TO RIDE TOGETHER. See minSharedFraction: minimizing
   // divert alone proposes a meet in the last few miles for any origin far
   // enough off the trunk, which is a rendezvous that achieves nothing.
   const sharedFraction = remainingM / totalM
@@ -304,7 +304,7 @@ export function proposeRendezvous(
 
   // NEAR-DUPLICATES DROPPED, because a 2 km sampler on a 400 km trunk offers
   // five candidates within a mile of each other and a planner reads that as the
-  // app having nothing to say. One per ten kilometres of trunk.
+  // app having nothing to say. One per ten kilometers of trunk.
   const kept: Rendezvous[] = []
   for (const c of found) {
     if (kept.some((k) => Math.abs(k.alongM - c.alongM) < 10_000)) continue
@@ -499,7 +499,7 @@ export function proposeGroupMeet(
 
   // NEAR-DUPLICATES DROPPED, because a 2 km sampler on a long road offers five
   // candidates within a mile of each other and a planner reads that as the app
-  // having nothing to say. One per ten kilometres, by `alongM` — every candidate
+  // having nothing to say. One per ten kilometers, by `alongM` — every candidate
   // is on the same track now, so the distances are comparable.
   const kept: GroupMeet[] = []
   for (const c of found) {

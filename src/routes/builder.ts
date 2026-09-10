@@ -1089,7 +1089,7 @@ ${
   // NOT GATED ON `edit`. Anyone who can open this builder can already reach
   // these URLs, and the read-only builder is what a view-, comment- or
   // suggest-level rider gets. A control that hid what the address bar offers
-  // would be theatre.
+  // would be theater.
   //
   // `?dl` is what turns each one into a download rather than a render; the
   // filename comes from src/maps/filename.ts server-side.

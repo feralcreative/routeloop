@@ -464,9 +464,9 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [x] Structured detail fields on a stop: confirmation number, check-in and check-out date-time, phone, address, and up to five labelled URLs. In `point_details`, migration `drizzle/0006_wild_hammerhead.sql`.
+- [x] Structured detail fields on a stop: confirmation number, check-in and check-out date-time, phone, address, and up to five labeled URLs. In `point_details`, migration `drizzle/0006_wild_hammerhead.sql`.
 - [x] A freeform notes field.
-- [x] Surfaced **by role**—`detailFieldsFor()` in `public/js/builder.js`. Lodging gets check-in/out; a table role gets a reservation time; everything else gets phone, address, notes and links. **A stop with NO roles gets the full set**, not the minimum: an uncategorized stop is one the rider has not labelled yet, and hiding fields from it looks like a bug.
+- [x] Surfaced **by role**—`detailFieldsFor()` in `public/js/builder.js`. Lodging gets check-in/out; a table role gets a reservation time; everything else gets phone, address, notes and links. **A stop with NO roles gets the full set**, not the minimum: an uncategorized stop is one the rider has not labeled yet, and hiding fields from it looks like a bug.
 - [x] Builder UI behind a row-menu item, with a badge on rows that carry details; viewer UI as a ruled-off block in the popup headed "Only you can see this".
 - [x] **Privacy boundary—this is the load-bearing part.** Gate codes, confirmation numbers and phone numbers are private. They must not go out with a public or unlisted share (they'd otherwise leak through `ride.json`), and probably not in exports either—only the owner sees them, and later, invited riders. Model this the way `user_profiles` is split from `users`: sensitive detail kept off any payload that reaches a public viewer's client. Note that `points.description` already exists (2000 chars) and `sanitizeText` / `esc` already defuse `javascript:` and `data:` URLs—reuse both.
 

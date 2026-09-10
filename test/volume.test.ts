@@ -108,7 +108,7 @@ describe('labels', () => {
 })
 
 // THE GAP THE SCHEMA CANNOT CLOSE, found in the browser rather than by
-// reasoning: `bikeInput` validates a typed tank against the LITRE ceiling,
+// reasoning: `bikeInput` validates a typed tank against the LITER ceiling,
 // because it does not know which unit the rider reads in. A gallons rider typing
 // 30 therefore passes it, converts to 113,562 ml and violates ck_bike_tank — a
 // 500 for a number the form appeared to accept, which is the MAX_RANGE_MILES

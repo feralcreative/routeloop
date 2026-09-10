@@ -51,7 +51,7 @@
     // anyway, since every created point starts as a POI.
     {
       role: "poi",
-      phrases: ["mechanic", "mechanics", "motorcycle shop", "motorcycle shops", "motorcycle dealer", "bike shop", "tires", "tyres", "tire shop", "atm", "pharmacy", "hospital", "urgent care", "car wash"],
+      phrases: ["mechanic", "mechanics", "motorcycle shop", "motorcycle shops", "motorcycle dealer", "bike shop", "tires", "tires", "tire shop", "atm", "pharmacy", "hospital", "urgent care", "car wash"],
     },
   ];
 

@@ -109,7 +109,7 @@ Two consequences to plan for rather than discover: the builder's day list stops 
 
 Four terms, all measured in miles-equivalent so the weights are readable rather than tuned: divert against riding direct to the destination (the term that dominates), approach angle, shared road left after the meet, and a two-mile thumb for an existing `gas` stop. Two hard refusals—a backtrack past 110°, and a divert past 25 miles—and one floor: at least a fifth of the trunk must be left to ride together.
 
-**That floor exists because a failing test found the proposer cheating.** Minimising divert alone proposes a meet a few miles short of the destination for any origin far enough off the trunk, because going direct and going to a point just short of it are nearly the same ride. The two groups would ride together for twenty minutes.
+**That floor exists because a failing test found the proposer cheating.** Minimizing divert alone proposes a meet a few miles short of the destination for any origin far enough off the trunk, because going direct and going to a point just short of it are nearly the same ride. The two groups would ride together for twenty minutes.
 
 **It can return nothing, and that is a real answer.** Two origins on opposite sides of a trunk running away from both have no sensible rendezvous, and offering the least bad one would be worse than saying so.
 

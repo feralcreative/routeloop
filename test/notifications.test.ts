@@ -90,13 +90,13 @@ describe('the defaults', () => {
 // #288. Prod deploys several times a day, so the house default of email-on would
 // be a mail per deploy to every rider — the one shape of notification guaranteed
 // to make somebody switch all of them off. The row is still stored, so the
-// centre and the badge report it; only delivery is silent.
+// center and the badge report it; only delivery is silent.
 //
 // THE RULE THIS DEPARTS FROM IS WRITTEN DOWN IN policy.ts and its escape hatch
 // does not fit: leaving the event out of the catalog means no switch at all, and
 // a rider who wants these by mail should be able to say so.
 // THE MARK IS A STRING AND A TYPO IN IT IS OTHERWISE SILENT. icon() throws at
-// RENDER time for a name with no file, which means the notification centre 500s
+// RENDER time for a name with no file, which means the notification center 500s
 // for whichever rider happens to have that event — a failure that ships green
 // and is found by somebody else. The catalog makes the field required, so an
 // event cannot have NO mark; this is what makes it a real one.

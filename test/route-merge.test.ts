@@ -51,7 +51,7 @@ describe('mergeRoutes', () => {
     expect(r.adopted).toEqual(['theirs'])
   })
 
-  it('honours a delete of a route nobody else had touched', () => {
+  it('honors a delete of a route nobody else had touched', () => {
     const r = mergeRoutes(stored(['a', 'h1'], ['gone', 'h1']), ['a'], { a: 'h1', gone: 'h1' })
     expect(order(r)).toEqual(['a'])
     expect(r.adopted).toEqual([])

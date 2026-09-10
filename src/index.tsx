@@ -59,6 +59,7 @@ import { groupRange } from './bikes/group-range'
 import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
+import { notFoundPage } from './views/not-found'
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { raw } from 'hono/html'
@@ -258,7 +259,21 @@ app.route('/', routingRoutes)
 app.get('/m/:slug', async (c) => {
   const viewer = c.get('user') ?? null
   const m = await getViewable(c.req.param('slug'), viewer)
-  if (!m) return c.text('Not found', 404)
+  // THE ONE 404 WITH A SENTENCE OF ITS OWN, and the reason is that this is the
+  // miss a rider reaches by following a link somebody gave them rather than by
+  // mistyping. getViewable answers undefined for four different states — binned,
+  // private, friends-only to a stranger, or an owner on their way out — and the
+  // page must not distinguish them, because saying "this ride is private"
+  // confirms the ride exists to somebody guessing slugs. One sentence that is
+  // true of all four is the most that can be said.
+  if (!m)
+    return c.html(
+      notFoundPage(
+        viewer,
+        'A ride can stop being reachable without its link changing—it may have been deleted, or it may not be shared with you.',
+      ),
+      404,
+    )
   await db
     .update(rides)
     .set({ viewCount: sql`${rides.viewCount} + 1` })
@@ -860,6 +875,25 @@ function viewHtml(
   })
 }
 
+// THE CATCH-ALL 404, REGISTERED AFTER EVERY MOUNT because Hono only reaches it
+// when nothing else matched, and a route added below it would still be found.
+//
+// **IT BRANCHES ON THE PATH, NOT ON `Accept`.** An unmatched `/api/*` has to
+// answer JSON — a client parsing a page of HTML fails with a syntax error that
+// says nothing about the URL being wrong — and `Accept` cannot be trusted to
+// say so: fetch() defaults to `*/*`, which matches HTML first. The prefix is
+// what the caller actually asked for.
+//
+// Static assets never reach here; serveStatic runs above and answers its own
+// misses. Downloads, thumbnails and exports keep the plain text they already
+// return, because a 1.6MB photograph is the wrong response to an <img> whose
+// source has gone.
+app.notFound((c) =>
+  c.req.path.startsWith('/api/')
+    ? c.json({ error: 'not found' }, 404)
+    : c.html(notFoundPage(c.get('user') ?? null), 404),
+)
+
 // `serve()` is typed as `Server | Http2Server | Http2SecureServer` because it
 // can be handed a createServer. We never do and never enable HTTP/2, so it is
 // always the plain HTTP server — which is the only one of the three that has
@@ -901,35 +935,35 @@ installShutdown(server, DRAIN_GRACE_MS)
 if (IS_STAGE) {
   console.log('[stage] background jobs are disabled — prod owns the database and runs all of them.')
 } else {
-// After serve(), so a slow first pass cannot delay the port binding — the
-// container's healthcheck is what the deploy waits on. The timer is unref'd, so
-// this never holds the process open.
-startThumbnailSweep()
-// Repairs users.used_bytes from the authoritative sum, on the same cadence. Not
-// part of the sweep above and not gated on a Maps key: it touches no external
-// service, and what it protects is a rider's ability to upload at all. See the
-// header of src/account/quota-sweep.ts.
-startQuotaSweep()
-// The bin, hourly rather than every five minutes: this enforces a thirty-day
-// deadline, so an hour of slack is invisible. See src/trash/purge.ts.
-startTrashPurge()
-// Elects each alternate group's leader on rides whose vote has closed. A ride
-// with no deadline is never selected, which is every ride until an owner sets
-// one — see src/votes/resolve.ts.
-startVoteResolver()
-// The account purge, which does nothing unless PURGE_ACCOUNTS is set. It is the
-// only job here that destroys a person's account, and it had no runner at all
-// until now — /account/delete promised a date and nothing kept it.
-startAccountPurge()
-// #288. NOT A TIMER AND NOT A SIXTH ONE — a one-shot at boot, because a release
-// happens exactly when a build starts and there is nothing to poll for. It is
-// idempotent through a primary-key claim, which is what makes it safe under
-// blue/green: a deploy starts two containers and exactly one fans out. Fired and
-// not awaited, so a slow roster cannot delay the port opening and the deploy's
-// health gate with it; the catch is here because nothing else is watching it.
-announceReleases()
-  .then((n: number) => {
-    if (n > 0) console.log(`[release] announced ${n} release${n === 1 ? '' : 's'}`)
-  })
-  .catch((err: unknown) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))
+  // After serve(), so a slow first pass cannot delay the port binding — the
+  // container's healthcheck is what the deploy waits on. The timer is unref'd, so
+  // this never holds the process open.
+  startThumbnailSweep()
+  // Repairs users.used_bytes from the authoritative sum, on the same cadence. Not
+  // part of the sweep above and not gated on a Maps key: it touches no external
+  // service, and what it protects is a rider's ability to upload at all. See the
+  // header of src/account/quota-sweep.ts.
+  startQuotaSweep()
+  // The bin, hourly rather than every five minutes: this enforces a thirty-day
+  // deadline, so an hour of slack is invisible. See src/trash/purge.ts.
+  startTrashPurge()
+  // Elects each alternate group's leader on rides whose vote has closed. A ride
+  // with no deadline is never selected, which is every ride until an owner sets
+  // one — see src/votes/resolve.ts.
+  startVoteResolver()
+  // The account purge, which does nothing unless PURGE_ACCOUNTS is set. It is the
+  // only job here that destroys a person's account, and it had no runner at all
+  // until now — /account/delete promised a date and nothing kept it.
+  startAccountPurge()
+  // #288. NOT A TIMER AND NOT A SIXTH ONE — a one-shot at boot, because a release
+  // happens exactly when a build starts and there is nothing to poll for. It is
+  // idempotent through a primary-key claim, which is what makes it safe under
+  // blue/green: a deploy starts two containers and exactly one fans out. Fired and
+  // not awaited, so a slow roster cannot delay the port opening and the deploy's
+  // health gate with it; the catch is here because nothing else is watching it.
+  announceReleases()
+    .then((n: number) => {
+      if (n > 0) console.log(`[release] announced ${n} release${n === 1 ? '' : 's'}`)
+    })
+    .catch((err: unknown) => console.warn('[release] announce failed:', err instanceof Error ? err.message : err))
 }

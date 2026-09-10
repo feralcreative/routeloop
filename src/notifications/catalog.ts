@@ -92,7 +92,7 @@ type EventDef = {
    */
   readonly optional: true
   /**
-   * The mark shown beside this notification in the centre, as
+   * The mark shown beside this notification in the center, as
    * `public/img/icons/icon-<name>.svg`.
    *
    * **REQUIRED, SO A NEW EVENT HAS TO CHOOSE ONE.** An event with no mark would
@@ -110,7 +110,7 @@ type EventDef = {
   /**
    * How loud the mark is: the FIELD the disc is painted in.
    *
-   * **THE TONE IS NOT THE MARK, WHICH IS WHY IT IS ITS OWN FIELD.** Colouring by
+   * **THE TONE IS NOT THE MARK, WHICH IS WHY IT IS ITS OWN FIELD.** Coloring by
    * icon was the first shape and it cannot express this: the storage mark is
    * shared by a quota warning and two destructions, and those are advice and a
    * verdict respectively. Tone also generalizes to the events #48 and #24 will

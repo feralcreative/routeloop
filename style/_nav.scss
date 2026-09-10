@@ -53,6 +53,8 @@
 // webkit pseudo suppress the platform triangle, which would otherwise sit beside
 // the three bars.
 .nav-toggle {
+  // The containing block for `.nav-toggle-dot` — see the note beside that rule.
+  position: relative;
   width: 40px;
   height: 40px;
   display: flex;
@@ -372,6 +374,48 @@
 $badge-size: 1.55em;
 $badge-ink-nudge: 0.21em;
 $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
+
+// THE HAMBURGER'S UNREAD DOT (#300), AND IT IS DELIBERATELY NOT A `.nav-badge`.
+//
+// The chip's badge and the menu item's are one shape because both NAME the
+// thing — three unread, here they are. A hamburger names nothing; it is a
+// container, so all it can honestly say is "something inside here", and a count
+// on it would read as a fact about the MENU rather than about what the menu
+// holds. Ziad's call, 2026-09-10. The number still reaches a screen reader,
+// through the summary's `aria-label` rather than through this, which is why the
+// element is `aria-hidden` and empty.
+//
+// **IT NEVER APPEARS BESIDE THE CHIP'S BADGE, AND NO RULE HERE ARRANGES THAT.**
+// The toggle is `display: none` above 992px on a chrome page and shown at every
+// width on a map page, so the dot is painted exactly where the chip is sealed
+// inside a closed drawer. That is the whole fix: the drawer is also closed on a
+// NARROW chrome page, which had the same hole and was not what the issue was
+// about.
+//
+// $stop and $ink-light for the reason `.nav-badge` carries them — the same
+// statement in a smaller form, and $white is the page surface (#282).
+//
+// **POSITIONED AGAINST THE TOGGLE, WHICH IS WHY THAT BOX GREW A `position`.**
+// It is a 40px flex box centering the bars; without a containing block the dot
+// anchors to the header and lands wherever the logo is not.
+.nav-toggle-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: $stop;
+  // **NO KEYLINE, AND THE FIRST VERSION HAD ONE.** A 2px `$white` ring read as
+  // the page surface showing through — which is what it was FOR, separating the
+  // disc from the bars under it — and `test/sign-legend.test.ts` refused it,
+  // correctly: `$white` is the page-surface token and is near-black under a dark
+  // scheme, so the same declaration that draws a halo on a light header draws a
+  // dark collar on a dark one. That is #282 exactly, and the guard cannot tell a
+  // decorative ring from a legend. The dot does not need one: it sits at the
+  // corner of a 40px control, on the header's own ground on a chrome page and on
+  // the `$panel-bg` chip the map page gives the toggle.
+}
 
 // UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because
 // of that: every other mark in the nav is a way TO somewhere, and this is a count
