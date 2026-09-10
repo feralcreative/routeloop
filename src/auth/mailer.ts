@@ -10,7 +10,7 @@
 // from a personal Gmail account to Resend without a line of this file changing
 // shape. An HTTP API would have bought a little and cost that.
 import nodemailer from 'nodemailer'
-import { MAIL_ENABLED, MAIL_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER } from '../config'
+import { IS_STAGE, MAIL_ENABLED, MAIL_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER } from '../config'
 import { allow } from './ratelimit'
 import { renderEmail } from '../emails/shell'
 import type { EmailTemplate } from '../emails/types'
@@ -46,8 +46,41 @@ export type SendOpts = {
   replyTo?: string
 }
 
+/**
+ * **STAGE SENDS NOTHING, AND THIS IS THE ONLY GATE THAT COULD WORK.**
+ *
+ * Stage has run on the production database since 2026-09-09 (#305), so the
+ * addresses in `users` are real people's. Testing a notification there would
+ * have mailed the riders with production accounts — not a hypothetical, since
+ * the whole reason for sharing the database is to exercise features against
+ * real rows, and thirteen of the senders read the roster to decide who to tell.
+ *
+ * It lives in `sendMail` rather than at the senders because every path reaches
+ * here: `sendTemplate` wraps it, `sendTemplateDetached` wraps that, and the two
+ * transactional callers that deliberately bypass the notification catalog — the
+ * magic link and the ride invite — go through `sendTemplate` too. A gate at the
+ * senders would have missed exactly the two messages that carry a credential.
+ *
+ * **NOT AN ERROR.** It returns normally, because both transactional callers
+ * `await` this and turn a throw into a visible failure — and on stage nothing
+ * has failed. The consequence to state rather than treat as a bug: a stage page
+ * says "check your email" and nothing arrives.
+ *
+ * **THE SUBJECT AND RECIPIENT ARE LOGGED; THE BODY IS NOT.** A rendered magic
+ * link or invite in the log is a sign-in to a PRODUCTION account sitting in
+ * `docker logs`, which is a worse leak than the one this exists to prevent.
+ * So the line is enough to prove a sender fired and useless for getting in.
+ *
+ * **MAGIC-LINK SIGN-IN THEREFORE DOES NOT WORK ON STAGE.** Google OAuth is the
+ * way in, and that is the trade: an allow-list would have kept the link and
+ * left every send one typo away from a real rider.
+ */
 export async function sendMail(o: SendOpts): Promise<void> {
   if (!MAIL_ENABLED) throw new MailError('mail is not configured')
+  if (IS_STAGE) {
+    console.info(`[mail] STAGE — not sent. to=${o.to} subject=${JSON.stringify(o.subject)}`)
+    return
+  }
   try {
     await getTransport().sendMail({
       // MAIL_FROM is a bare address; the display name is composed here. Keeping

@@ -1,12 +1,65 @@
 # Status and handoff
 
-**Branch:** `fix/along-route-insert-position`, three commits ahead of `main`. **2,708 tests across 104 files** (2 skipped, 2,710 total)
-**Not merged.** [#266](https://github.com/feralcreative/routeloop/issues/266) is done and verified in the browser; the PR is yours to open.
-**Merged 2026-09-08 as [#289](https://github.com/feralcreative/routeloop/pull/289) and [#291](https://github.com/feralcreative/routeloop/pull/291):** the account sprint, then the autosave fix. Prod was deployed on `0127390` (the #289 merge) and has NOT been deployed since, so it does not yet have #291 or #266.
-**The five issues describing #289's work are now closed**—[#283](https://github.com/feralcreative/routeloop/issues/283) through [#287](https://github.com/feralcreative/routeloop/issues/287). That PR body carried six `Closes` lines and not eleven.
-**Open and worth knowing:** [#288](https://github.com/feralcreative/routeloop/issues/288)—the builder and the viewer have no route to the release notes now that the feedback FAB is gone, because map pages render no footer. It is the gap #289 knowingly left.
-**Also open, uncommitted on this branch:** nothing. The `docs/status-after-289` branch was created to hold this file and AGENTS.md and is now redundant.
+**Branch:** `chore/stage-on-prod-database`, five commits, unmerged. **2,937 tests across 108 files** (2 skipped, 2,939 total)
+**Merged 2026-09-09 as [#302](https://github.com/feralcreative/routeloop/pull/302) and [#303](https://github.com/feralcreative/routeloop/pull/303):** release notes as notifications, then the icon workbench, the notification mark colours and the nav badge. `main` is `a9126eb`.
+**PROD IS BEHIND AND THIS IS NOW A PREREQUISITE, NOT JUST A CHORE.** The last prod deploy was 2026-09-09 04:16 UTC, which predates both 2026-09-09 merges—so production has neither. **`gh workflow run deploy-prod.yml`** is the whole action; `drizzle/0037` is a single additive `CREATE TABLE`, so it is expand/contract-safe and needs no `--no-overlap`. It has to happen BEFORE the stage-on-prod-database branch is cut over, because stage will no longer apply a migration of its own—see the runbook in [deployment.md](deployment.md#the-cutover-once).
+**#302 MERGED ONLY ONE OF TEN COMMITS AND THAT IS WORTH READING ONCE.** The branch was ten commits and only the first had been pushed when the PR was opened, so the merge took `10ecb1e` and nothing else—`git diff 10ecb1e origin/main` was empty afterwards. The remaining nine were rebased onto `main` and merged as #303. **The trap for next time:** a squash merge makes `git log main..HEAD` useless for this, because no original hash survives it; the check that works is whether the FILES exist (`git cat-file -e origin/main:<path>`), and even that misleads when a later commit only modifies a file an earlier one created.
+**Eight issues written after the fact and closed:** [#293](https://github.com/feralcreative/routeloop/issues/293)–[#299](https://github.com/feralcreative/routeloop/issues/299) for #303's seven units, and [#288](https://github.com/feralcreative/routeloop/issues/288) is closed at last—#302 gave the builder and the viewer a route to the release notes.
+**Open, and both found rather than reported:** [#300](https://github.com/feralcreative/routeloop/issues/300)—the unread badge renders in the DOM on a map page and paints nothing, because the nav collapses to the hamburger there at every width; half of it is done (the false claim is corrected in AGENTS.md and in the rider-facing copy) and the half left is whether the hamburger itself should carry a count. [#301](https://github.com/feralcreative/routeloop/issues/301)—`$signal` sits in the "NOT OURS TO HARMONIZE" third-party block yet is painted as type in `_builder.scss` and `_modal.scss` at 4.18:1, and being frozen the high-contrast theme cannot lift it.
+**Two local branches are merged and redundant:** `feat/release-notes-as-notifications` and `feat/icon-workbench-and-notification-marks`. Both have `[gone]` upstreams and no content `main` lacks; delete when convenient.
 **For:** the next agent, or the owner returning cold
+
+## Stage runs on the production database, 2026-09-09
+
+[#305](https://github.com/feralcreative/routeloop/issues/305), on branch `chore/stage-on-prod-database`. **Written, gated and NOT deployed**—the cutover is manual, ordered, and stopped at the code.
+
+Stage held no real rides, so nothing was exercised against real data until it was already in production. Stage now shares prod's Postgres and prod's `data/storage`.
+
+**Four decisions taken up front.** Neither environment auto-deploys any more; only the prod deploy runs migrations; stage shares prod's storage directory; stage sends no mail.
+
+**How it reaches the database.** One EXTERNAL bridge, `routeloop-shared`, that both compose projects attach to and neither project's `down` can take from the other. `deploy.sh` creates it idempotently. The rejected alternative was publishing Postgres on a host socket, which the db block makes a point of not doing. `DB_HOST` and `HOST_STORAGE_PATH` parameterize the three `DATABASE_URL`s and the two storage mounts; `RUNS_DATABASE` gates converge, readiness and migrate together.
+
+**`depends_on: db` came off both colours and must not come back.** Stage starts no Postgres, and the NAS is on Compose **v2.20.1**, where the depends_on/inactive-profile interaction is not worth gambling a production database on. What replaces it holds twice over: the deploy polls `pg_isready` to a 60-second deadline before recreating any app container, and `/healthz` returns 503 when the database is unreachable, so a db-less app fails the health gate rather than serving.
+
+**The sharpest edge, and it is in `deploy.config`.** `docker-compose down -v` removes the volumes a project declares, and both environments deploy from one compose file—so `STAGE_DB_VOLUME_NAME` is deliberately left pointed at stage's own dead volume. The issue originally said to remove it; that was wrong and is corrected. Never point it at prod's.
+
+**Three things stage stopped doing, each for its own reason.** No background job at all: prod's container runs all five anyway, and `announceReleases()` would have mailed every rider about a build prod had not shipped and then held the once-only claim, so prod's own deploy would announce nothing, silently and permanently. No mail, gated in `sendMail()` because that is the one choke point the magic link and the ride invite also pass through—**so magic-link sign-in does not work on stage; Google OAuth is the way in**. And `PURGE_ACCOUNTS` is forced off there in `config.ts`, since the two `.env` files are now near-identical and one is easy to copy from the other.
+
+**The banner said the opposite of the truth** and now says the data is real and a delete is permanent. It stays amber: red is a verdict, and nothing is broken.
+
+**Seven commands refuse under `DEPLOY_ENV=stage`** rather than redirecting—`db-backup` would have dumped prod into a file named for stage, `db-clone prod stage` reported success and did nothing.
+
+**`test/stage-shares-prod-db.test.ts` is the guard**, 14 assertions read out of the compose file, `deploy.config`, `deploy.sh` and the banner, because CI has neither Docker nor Postgres. Verified by mutation rather than by passing: pointing stage's volume at prod's and reintroducing `depends_on` each fail it.
+
+**A production backup was taken before any of this**: `data/routeloop-prod-db-20260909-190755.sql.gz`, 3.0 MB, 32 tables, 8 users / 27 rides / 103 routes / 382 points, ending with pg_dump's completion marker.
+
+## Release notes arrive as a notification, 2026-09-09
+
+[#288](https://github.com/feralcreative/routeloop/issues/288), merged as [#302](https://github.com/feralcreative/routeloop/pull/302). Removing the feedback shield took What's new with it, and a map page renders no footer, so the builder and the viewer had no route to the release notes at all. Rather than a fourth surface carrying the link, a release became an ordinary notification and the account chip's unread badge became the affordance.
+
+**The page keeps 100% of the notes and the row carries a reference to it.** Thirty-one of the forty-two sections are longer than the 400-character `body` column and the largest is over six thousand, so the row stores the heading, a sentence derived from the release's own first bullet, and a link to `/release-notes#<id>`. One row per bullet was rejected—198 notifications scattering a release into unrelated lines—and widening the column was rejected because it puts authored HTML where every other consumer escapes it.
+
+**The claim is the lock.** An insert into `announced_releases` with `onConflictDoNothing` either wins or reports nothing, atomically, so of the two containers a blue/green deploy starts exactly one announces—and it is claimed BEFORE the sends, because the other order re-announces to everybody on a crash loop. **The id is the heading and not the build sha**: every deploy has a new sha whether or not a note was written.
+
+**One pass announces the whole history and only the newest is new.** The first boot after this ships claims all forty-two; everything but the newest is written straight in as read and never mailed, because forty-two unread is a badge nobody can clear in one sitting. There is deliberately no backfill script. `created_at` is the release's own date at **midday UTC**—noon rather than midnight because that column is a real instant rendered in the rider's zone, and a midnight stamp showed an 8 September release as the 7th to everybody west of Greenwich.
+
+**`release` is quiet by default on both channels**, which departs from the per-channel rule in `policy.ts` and says so: prod ships several times a day.
+
+## The icon workbench, the mark colours and the nav badge, 2026-09-09
+
+[#303](https://github.com/feralcreative/routeloop/pull/303), nine commits, and the seven units are [#293](https://github.com/feralcreative/routeloop/issues/293)–[#299](https://github.com/feralcreative/routeloop/issues/299).
+
+**`/icons` is a workbench and it earned its keep on the first look.** Every mark in `public/img/icons/` drawn on every field measured to carry a legend. It exposed a live bug: the flip that gives a mark a black glyph matched `[fill="white"]`, **one of five spellings the folder uses**, so `bug`, `help`, `info` and the four `record-*` marks kept a WHITE glyph on every black-legend field—1.23:1 on `$yield`, tone-on-tone. Both tones are settable from CSS now (`color` and `--icon-ink`), normalized in `views/icon.ts` as it inlines the file rather than in the artwork, because the loader reads from disk per request precisely so a re-export shows up on reload and a re-export overwrites anything typed into an SVG. **The guard was as narrow as the bug**—`sign-legend.test.ts` asserted the same one-spelling selector and passed throughout; `icon-ink.test.ts` reads the folder instead.
+
+**A notification's disc is keyed on the MARK, not on `tone`, which reverses the 2026-09-07 call.** Eleven of the thirteen events resolved to the same blue, so the picture carried all the meaning and the colour carried none. Ten named fields; `storage` still wears two, via `field` on the two destruction events, because a quota warning and a destruction are advice and a verdict. One table in TypeScript that the centre and the workbench both read, which retired a duplicate tone-to-field list whose own comment admitted the two had to agree by hand. **`tone` now decides nothing** and survives only as that distinction and as `data-tone`; dropping it is a separate call.
+
+**A knockout glyph is a graphical object, so its bar is 3:1 and not 4.5:1.** Admission and ink are two questions: whether a token is a field the app paints a sign on is text contrast at 4.5:1, and whether the glyph can be READ on it is non-text contrast at 3:1. Dropping the single threshold to 3 was measured and rejected—it admits ten more columns nothing paints a glyph on. **White is preferred rather than the higher ratio**, which is the decision rather than the arithmetic. `FORCE_WHITE` holds `detour` and `go` by name.
+
+**`$fuel-low` became an alias of `$detour`.** The old mix is now `$detour`'s authored value in all three sign sets. Every identical pair in the palette was ALREADY an alias, so the duplicate columns on `/icons` were the page's fault and not the palette's—it enumerated emitted custom properties, and an alias emits a second one. Knock-on measured, not assumed: `$detour` as a black legend improved 6.59→8.53, as white it worsened 2.25→1.98, `$detour-text` still clears AA at 4.89 worst, and the four viz slots did not move.
+
+**The nav badge had a structural defect behind three cosmetic complaints.** `.nav-badge` declared no `display`, so the chip's was blockified by its flex row and the MENU's stayed an **inline box**—where `min-width`, `text-align` and vertical padding are all inert. The two badges were genuinely different shapes, 16.4×17.0 against 14.3×15.0. Everything else was measured off screenshots: the name 1.85px high in the chip, the digit 1.50px high in its dot, the menu pill 2.75px below the label's ink with a 1.6px gap, the pill half a pixel out of round. All now within 0.35px. **Two arithmetic traps are worth remembering**: a top padding moves a glyph by only HALF of itself if you take the same amount off `line-height`, because the half-leading gives half back; and in a centred flex line a margin is folded into the centring, so an optical nudge wants a relative `top`.
+
+**Notification rows that link carry a tiny `$interstate` guide sign** reading "Read more". A `<span>` and `aria-hidden`, never a link—the row is already the anchor. Its no-URL branch was never exercised, because every notification in the dev database links. `utils/dev-unread.ts` drives the unread count for looking at the badge; it clears `read_at` on existing rows rather than calling `notify()`, so nothing goes through SMTP, and it refuses a non-local database.
 
 ## An Along the route hit lands where the road passes it, 2026-09-08
 

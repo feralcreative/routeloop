@@ -3,7 +3,6 @@
 # routeloop – pull a remote database down onto the local dev stack.
 #
 #   ./utils/deploy/pull-db.sh              # prod → dev, database + storage
-#   ./utils/deploy/pull-db.sh --from stage # stage → dev
 #   ./utils/deploy/pull-db.sh --no-storage # database only, skip the KML/GPX
 #   ./utils/deploy/pull-db.sh --no-migrate # leave the schema where the dump put it
 #
@@ -15,8 +14,8 @@
 #   on "Destination 'dev' database container is not running" after you have
 #   already waited out a production dump.
 #
-#   AFTER—prod and stage are BEHIND local on migrations, so the dump restores
-#   an older schema over a newer one and every `npm run db:migrate` that had
+#   AFTER—prod is BEHIND local on migrations, so the dump restores an older
+#   schema over a newer one and every `npm run db:migrate` that had
 #   already run locally is undone. Reapplying them is not optional; the app will
 #   500 on save without the newest three. Skip it with --no-migrate only if you
 #   are deliberately inspecting the remote schema as it actually is.
@@ -25,7 +24,7 @@
 # to data/dev-db-before-clone-<ts>.sql.gz before dropping anything, makes you type
 # "dev" to confirm, and prints the db-restore line that undoes it. The remote is
 # only ever read—pg_dump, no writes—and this script has no path that names
-# prod or stage as a destination.
+# prod as a destination.
 #
 # NOTE: docs/deployment.md records that db-clone's dump-and-load path has never
 # been exercised end to end. Watch it run rather than walking away from it.
@@ -51,7 +50,7 @@ while [ $# -gt 0 ]; do
     --from=*)     SRC="${1#*=}"; shift ;;
     --no-storage) CLONE_ARGS+=("--no-storage"); shift ;;
     --no-migrate) MIGRATE=0; shift ;;
-    -h|--help)    sed -n '3,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)    sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)            log_error "Unknown option: $1"; log_error "Try --help."; exit 1 ;;
   esac
 done
@@ -59,9 +58,18 @@ done
 # dev is the destination, always. Naming it as a source would mean pushing a
 # laptop's database at the NAS, which is what db-clone is for and not this.
 case "$SRC" in
-  prod|stage) ;;
+  prod) ;;
+  # Stage runs on production's database (#305, 2026-09-09), so `--from stage`
+  # was a production pull that labelled every file it wrote `stage` — the dump,
+  # the safety backup, and the line at the end saying whose data you now hold.
+  # db-clone refuses it too; this catches it before the local container is
+  # started and the confirmation typed.
+  stage) log_error "--from stage is a production pull — stage has no database of its own."
+         log_error "Say so, and the filenames will too:"
+         log_error "  $0 --from prod"
+         exit 1 ;;
   dev) log_error "--from dev would clone the local database onto itself."; exit 1 ;;
-  *)   log_error "--from takes prod or stage (got '${SRC}')."; exit 1 ;;
+  *)   log_error "--from takes prod (got '${SRC}')."; exit 1 ;;
 esac
 
 cd "$PROJECT_ROOT"

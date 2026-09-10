@@ -143,7 +143,15 @@ export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE &
 //
 // Opt-in by exact value rather than truthiness: PURGE_ACCOUNTS=false must not
 // enable it, which is what a bare Boolean() on the string would do.
-export const PURGE_ACCOUNTS = env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
+//
+// **AND NEVER ON STAGE, WHICH IS BELT AND BRACES ON PURPOSE.** Since 2026-09-09
+// (#305) stage runs on production's database, so a `PURGE_ACCOUNTS=on` that
+// found its way into the stage .env — copied from prod's, most likely, since
+// they are now nearly identical files — would destroy real accounts from an
+// environment nobody watches. index.tsx also declines to start any background
+// job on stage, so this is the second of two guards; the first is the one that
+// would be quietly removed by somebody refactoring the timer block.
+export const PURGE_ACCOUNTS = !IS_STAGE && env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
 
 // How long a container that has been told to stop will wait for the requests it
 // already has before cutting them off. See src/shutdown.ts.
