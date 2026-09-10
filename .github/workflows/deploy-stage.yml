@@ -1,16 +1,27 @@
 # Deploy to stage.
 #
-# EVERY MERGE TO MAIN DEPLOYS HERE, AUTOMATICALLY. That is the point of stage:
-# it is the environment that always holds what main holds, so nobody has to
-# remember to put it there. The button stays alongside the trigger, for
-# redeploying a branch before it merges — which is what the `ref` input is for.
+# **A BUTTON, NOT A PUSH TRIGGER — AND THAT REVERSED ON 2026-09-09 (#305).**
+# It used to deploy on every merge to main, on the reasoning that a failed stage
+# deploy changes nothing that is serving. That reasoning held while stage had a
+# database of its own and stopped holding the moment stage moved onto
+# production's: a stage deploy now puts new code in front of real rider data, so
+# the thing between a merge and that happening has to be a person.
 #
-# It was dispatch-only for two days after it was written, on the reasoning that
-# a new deploy path should be watched by a person a few times first. That was
-# over-cautious: a failed stage deploy changes nothing that is serving, because
-# it fails before the cutover, and the deploy path itself was already proven from
-# a terminal. **Production is the opposite and stays a button forever** — see
-# deploy-prod.yml.
+# The old note is struck rather than left to be rediscovered, because it reads
+# as a settled argument for automation and its premise is gone.
+#
+# **THIS IS ALSO WHAT KEEPS MIGRATIONS OUT OF A MERGE.** Stage's deploy runs no
+# migration at all now (`RUNS_DATABASE` in deploy.config), so a push trigger
+# would not have migrated production — but it would have shipped code onto
+# production's schema without anyone deciding to, which is the same class of
+# surprise from the other end.
+#
+# Both environments are buttons now. Prod was always one, for a reason that has
+# only got stronger — see deploy-prod.yml.
+#
+# **DEPLOY PROD FIRST WHEN MAIN CARRIES A MIGRATION.** Stage cannot apply one,
+# so until prod has been deployed, stage is new code on the old schema and will
+# fail its health gate. That ordering is the runbook, not a bug.
 #
 # **THIS WORKFLOW HOLDS NO APPLICATION SECRETS, AND THAT IS THE DESIGN.** It
 # never learns a Maps key, the Google OAuth secret, the SMTP password or the
@@ -30,8 +41,6 @@
 name: Deploy stage
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -63,11 +72,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # EMPTY ON A PUSH, AND THAT IS CORRECT. `inputs.ref` does not exist for
-          # a push event, and actions/checkout reads an empty `ref` as "the ref
-          # that triggered this run" — which is main. Defaulting it to 'main'
-          # here instead would be the same value by a longer route, and wrong the
-          # day this workflow is given a second branch to watch.
+          # ALWAYS POPULATED NOW. This used to be empty on a push, which
+          # actions/checkout reads as "the ref that triggered this run" — but the
+          # push trigger came off on 2026-09-09 (#305), so the only way in is the
+          # button and the input carries its own `default: main`.
+          #
+          # Left as `inputs.ref` rather than hardcoded, because deploying a
+          # branch to stage before it merges is the whole reason the input is
+          # there, and it matters more now that a merge no longer deploys itself.
           ref: ${{ inputs.ref }}
           # deploy.sh reads HEAD's committer date for APP_VERSION and refuses to
           # run without a SHA. Depth 1 carries both.
