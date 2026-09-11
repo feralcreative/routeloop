@@ -250,6 +250,11 @@
 
   var tour = null;
   var Shepherd = null;
+  // Which way the rider is moving, set at the tour's own `show` — which fires
+  // before the step's — by comparing indices. Shepherd's `back()` passes a
+  // direction into `show()` but hands it to no event.
+  var lastIndex = -1;
+  var backward = false;
 
   /** The element a step attaches to, resolved at show time because the route
    *  list is re-rendered on every edit and a reference taken earlier is a
@@ -380,6 +385,21 @@
       });
     if (step.wait) {
       buttons.push({ text: step.waiting, classes: "tour-waiting", disabled: true, action: function () {} });
+      // **A SATISFIED WAIT STEP REACHED BY BACK SHOWS NEXT INSTEAD.** Arrived at
+      // going forward, a wait that is already met advances itself — a rider
+      // re-running the tour on a named ride is not asked to name it again.
+      // Arrived at going BACK it must not, or Back from the map step lands on
+      // the name step, which sees the name and bounces straight forward again:
+      // step 1 could never be returned to. So the card carries both a waiting
+      // label and a Next, and `is-satisfied` on the element decides which one
+      // is drawn — see _tour.scss.
+      buttons.push({
+        text: "Next",
+        classes: "btn tour-next-done",
+        action: function () {
+          tour.next();
+        },
+      });
     } else {
       // `btn` and nothing else: the guide-sign rule in _chrome.scss outranks
       // Shepherd's own button by specificity, so Next is the house sign with
@@ -424,11 +444,15 @@
       when: {
         show: function () {
           if (!step.wait) return;
+          if (this.el) this.el.classList.remove("is-satisfied");
           // Already satisfied — a rider re-running the tour on a real ride has
           // a name and points, so the wait resolves at once rather than asking
-          // them to add a third point to a route that has nine.
+          // them to add a third point to a route that has nine. Unless they
+          // came here by pressing Back, in which case they get the card with a
+          // Next on it — see the buttons above.
           if (step.wait()) {
-            tour.next();
+            if (backward && this.el) this.el.classList.add("is-satisfied");
+            else tour.next();
             return;
           }
           watch(step);
@@ -545,6 +569,11 @@
     });
     STEPS.forEach(function (s, i) {
       tour.addStep(stepOptions(s, i));
+    });
+    tour.on("show", function (e) {
+      var i = tour.steps.indexOf(e.step);
+      backward = i < lastIndex;
+      lastIndex = i;
     });
     tour.on("complete", done);
     tour.on("cancel", done);

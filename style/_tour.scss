@@ -192,6 +192,21 @@
     }
   }
 
+  // A wait step reached by Back, once its wait is already met, shows Next in
+  // place of the waiting label — tour.js flips `is-satisfied` on the card.
+  // Both buttons are always in the footer; this is which one is drawn.
+  .shepherd-button.tour-next-done {
+    display: none;
+  }
+
+  &.is-satisfied .shepherd-button.tour-next-done {
+    display: inline-flex;
+  }
+
+  &.is-satisfied .shepherd-button.tour-waiting {
+    display: none;
+  }
+
   // A waiting step's "button" is a status line and not a control: no field,
   // no keyline, an ellipsis, and it never takes the pointer. It is disabled
   // in the markup as well, so a screen reader reports it as one.
