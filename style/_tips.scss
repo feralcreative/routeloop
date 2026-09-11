@@ -76,8 +76,8 @@
   // Lifted off the headline rather than being the same white. Two lines at the
   // same weight and the same color read as one paragraph, which loses the
   // distinction the headline exists to make.
-  // Inverts with the pair above: $neutral-88 is a light grey on a light page
-  // and a dark grey on a dark one, so it stays one step off the headline in
+  // Inverts with the pair above: $neutral-88 is a light gray on a light page
+  // and a dark gray on a dark one, so it stays one step off the headline in
   // both rather than one step off in one and invisible in the other.
   color: $neutral-88;
 }

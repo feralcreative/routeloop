@@ -47,7 +47,7 @@
     border-radius: 10px;
   }
 
-  // Shepherd paints the header a light grey when a step has a title. On a dark
+  // Shepherd paints the header a light gray when a step has a title. On a dark
   // card that is a white band across the top, so the header takes the card's
   // own ground and the title carries the weight instead.
   &.shepherd-has-title .shepherd-content .shepherd-header {
@@ -79,6 +79,66 @@
     line-height: 1.5;
     padding: 0.6rem 1rem 0.9rem;
     text-wrap: pretty;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  // "Part 2 of 3 · The clock · 3 of 4", above the body. Small and quiet: it
+  // is a position, not a message.
+  .tour-part {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: $neutral-76;
+  }
+
+  // The three parts as buttons, on the welcome and closing cards. A list of
+  // three rows rather than three pills, because each carries a line saying
+  // what is in it — that line is what lets a rider skip straight to meeting
+  // points without having read a part called "The people" to find out.
+  .tour-parts {
+    list-style: none;
+    margin: 0.8rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .tour-part-btn {
+    display: grid;
+    gap: 0.1rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    background: transparent;
+    color: $white;
+    border: 1px solid $neutral-63;
+    border-radius: 8px;
+    font: inherit;
+    cursor: pointer;
+
+    b {
+      font-weight: 700;
+    }
+
+    span {
+      font-size: 0.82rem;
+      color: $neutral-88;
+    }
+
+    &:hover,
+    &:focus-visible {
+      border-color: $white;
+    }
+  }
+
+  // Three buttons in the footer is a full row on a phone; let them wrap.
+  .shepherd-footer {
+    flex-wrap: wrap;
   }
 
   .shepherd-footer {
