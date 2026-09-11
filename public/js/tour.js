@@ -416,6 +416,10 @@
 
     var opts = {
       id: step.id,
+      // Merged with the tour-level `tour-step` by Shepherd, not replaced. The
+      // stylesheet keys the card's color band and the part line's swatch on
+      // it — red, yellow, green for the three parts. Ziad's call, 2026-09-10.
+      classes: step.part ? "tour-part-" + step.part : "",
       title: step.title,
       // Shepherd inserts `text` as HTML. The part line is markup and the copy
       // is trusted — it is this file — so nothing here needs escaping.
