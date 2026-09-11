@@ -89,7 +89,9 @@
 
   .shepherd-text {
     color: $neutral-88;
-    font-size: 1.38rem;
+    // 1.5x, then trimmed by a quarter — Ziad's call, 2026-09-10, after seeing
+    // it on the page. The title keeps its size; it is the body that read big.
+    font-size: 1.035rem;
     line-height: 1.45;
     padding: 0.8rem 1.2rem 1.1rem;
     text-wrap: pretty;
@@ -104,7 +106,9 @@
   .tour-part {
     display: block;
     margin-bottom: 0.5rem;
-    font-size: 1.08rem;
+    // Halved from where the 1.5x pass left it — it is a position, not a
+    // message, and at 7.5px it reads as one.
+    font-size: 0.54rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: $neutral-76;
@@ -133,7 +137,7 @@
     border: 1px solid $neutral-63;
     border-radius: 8px;
     font: inherit;
-    font-size: 1.38rem;
+    font-size: 1.035rem;
     cursor: pointer;
 
     b {
@@ -141,7 +145,7 @@
     }
 
     span {
-      font-size: 1.23rem;
+      font-size: 0.92rem;
       color: $neutral-88;
     }
 
