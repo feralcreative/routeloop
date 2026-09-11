@@ -164,7 +164,7 @@ function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | nu
             to be known; an attribute says it once. With script off nothing reads
             it and the plain POST is unchanged. */}
         <form method="post" action={`/trash/rides/${ride.id}/bin`} class="ride-card-del" data-ride-id={ride.id}>
-          <button class="linkbtn" type="submit">
+          <button class="linkbtn" type="submit" data-tip="ride-delete" title="Move to the recycle bin">
             Delete
           </button>
         </form>
@@ -761,6 +761,8 @@ homeRoutes.get('/', requireActive, async (c) => {
                 class="page-tab"
                 role="tab"
                 id="tab-friends"
+                data-tip="rides-friends"
+                title="Rides your friends have shared"
                 aria-controls="rides-friends"
                 aria-selected="false"
                 tabindex={-1}
@@ -778,6 +780,8 @@ homeRoutes.get('/', requireActive, async (c) => {
                 class="page-tab"
                 role="tab"
                 id="tab-following"
+                data-tip="rides-following"
+                title="Rides from riders you follow"
                 aria-controls="rides-following"
                 aria-selected="false"
                 tabindex={-1}

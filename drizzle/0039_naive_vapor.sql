@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "tour_done_at" timestamp with time zone;

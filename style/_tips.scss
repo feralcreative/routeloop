@@ -1,0 +1,86 @@
+@use "tokens" as *;
+
+// Show me around — the tooltip bubble. #133.
+//
+// **NOT A POPOVER, WHICH IS WHERE THIS PARTS COMPANY WITH `.help-bubble`.**
+// That one is opened by a rider pressing a `?` and wants the top layer, Escape
+// and light-dismiss for free. This one appears on hover and on focus, and a
+// popover is only allowed to open from a user gesture — a `showPopover()` on
+// `pointerover` throws in some browsers and is a promise the API does not make
+// in any of them. So it is an ordinary fixed element positioned by script, and
+// the two behaviors it gives up (Escape and dismiss-on-click) are wired by hand
+// in public/js/tips.js.
+//
+// It is appended to <body> rather than rendered beside its control, which is
+// what makes `position: fixed` enough — the builder's panel scrolls inside the
+// page and its own overflow would clip anything nested in it, which is the same
+// reason `#search-results` is fixed.
+.tip-bubble {
+  // **`[hidden]` LOSES TO `display` IN AN AUTHOR STYLESHEET.** This is the trap
+  // `.btn[hidden]` already cost a build over: the UA sheet's
+  // `[hidden] { display: none }` is outranked by any author `display`, so
+  // `el.hidden = true` reads as a no-op with nothing in the console. Declared
+  // beside the rule that causes it, the same copy `.time-scope` carries.
+  &[hidden] {
+    display: none;
+  }
+
+  position: fixed;
+  z-index: $z-tip;
+  box-sizing: border-box;
+  // Wide enough for two lines of a sentence and never wider than a phone. `ch`
+  // rather than `rem` because what is being constrained is a measure.
+  width: max-content;
+  max-width: min(38ch, calc(100vw - 1rem));
+  padding: 0.5rem 0.7rem;
+  // The dark card, not the page surface: this is an overlay that lands on top of
+  // a map as often as on top of a panel, and a white box over map tiles reads as
+  // another piece of the interface rather than as a note about one. $text is the
+  // token .toast already uses for exactly that reason.
+  // $white ON $text IS THE ONE PAIRING THAT IS NOT #282, and it is worth saying
+  // so beside it: those two are an INVERTED PAIR — under a dark scheme $text is
+  // the light ink and $white is the near-black page — so the bubble is dark on a
+  // light page and light on a dark one, and the contrast holds in both. What
+  // #282 was about is $white as a legend on a SIGN FIELD, which is
+  // scheme-invariant and does not move with it. `#tb-toast` is the precedent.
+  background: $text;
+  color: $white;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: left;
+  // **NO POINTER EVENTS, AND IT IS LOAD-BEARING RATHER THAN TIDY.** The bubble
+  // is placed under the control it describes, so with the default it would sit
+  // between the pointer and whatever is below — and crossing onto it fires
+  // `pointerout` on the control, which hides the bubble, which puts the pointer
+  // back over the control, which shows it again. A flicker loop, at the speed of
+  // the pointer.
+  pointer-events: none;
+  // A tooltip is one or two sentences and `pretty` is what keeps the last word
+  // off a line of its own. See ~/.claude/rules/typography.md.
+  text-wrap: pretty;
+}
+
+// The headline is the control's own former `title`, so it is short by
+// construction — a label rather than a sentence.
+.tip-head {
+  display: block;
+  font-weight: 700;
+  // Slight air under it and none above: the bubble's padding is the top margin.
+  margin-bottom: 0.15rem;
+}
+
+.tip-body {
+  display: block;
+  // Lifted off the headline rather than being the same white. Two lines at the
+  // same weight and the same color read as one paragraph, which loses the
+  // distinction the headline exists to make.
+  // Inverts with the pair above: $neutral-88 is a light grey on a light page
+  // and a dark grey on a dark one, so it stays one step off the headline in
+  // both rather than one step off in one and invisible in the other.
+  color: $neutral-88;
+}
+
+//@ Reduced motion is not a factor here — the bubble does not animate at all,
+//@ deliberately. A tooltip that fades in spends its delay twice.

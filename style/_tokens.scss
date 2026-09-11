@@ -424,4 +424,13 @@ $z-nav: 1300;
 $z-fab: 1400;
 $z-toast: 2000;
 $z-banner: 2100;
+// The Show me around bubble (#133). ABOVE EVERYTHING BUT A DIALOG, which is a
+// tooltip's whole job — it annotates whatever is currently on top, so anything
+// it slides under is a control it cannot describe. It shipped at 90 for an
+// afternoon and was clipped in half by the builder's own panel at 1000.
+//
+// Below the modal because a dialog takes focus and covers the page it opened
+// over: a tooltip about a control nobody can reach any more is a tooltip about
+// nothing. It is only ever transient and never takes a pointer event.
+$z-tip: 2200;
 $z-modal: 3000;

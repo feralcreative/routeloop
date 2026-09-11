@@ -15,7 +15,7 @@
 // redirects to `?saved=1` and always has, so merging the pages merged the query
 // string with it.
 import { Hono, type Context } from 'hono'
-import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { toDurationFormat } from '../maps/duration'
@@ -25,6 +25,7 @@ import { toMotion } from '../views/motion'
 import { toUnits } from '../views/units'
 import { toClock } from '../views/clock'
 import { toVolumeUnits } from '../views/volume'
+import { toTips } from '../views/tips'
 import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
 import { checkedKeys, rowsFromForm } from '../notifications/policy'
 import { savePrefs } from '../notifications/service'
@@ -205,6 +206,73 @@ settingsRoutes.post('/settings/units', requireActive, requireSameOrigin, async (
     })
 
   return c.redirect('/settings?saved=units#units', 303)
+})
+
+// Whether a control explains itself (#133).
+//
+// Its own handler and its own column, like units and the date format: a rider
+// answers this at a different moment from everything else on the page, and each
+// handler writing only itself is what stops saving one reverting another.
+//
+// `dateFormat` is seeded on INSERT and left out of the update set, exactly as
+// every handler above does it, and it matters slightly more here than usual —
+// this is the one preference a rider is likely to reach for on their FIRST
+// visit, which is precisely when they have no `user_profiles` row and their
+// dates are still coming from Accept-Language for free.
+settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  // Same contract as every other handler here: anything unrecognized lands on
+  // the default rather than 400ing. Note the default is `on`, so a hand-crafted
+  // request cannot turn this off by sending nonsense — it has to say `off`.
+  const tips = toTips(body.tips)
+
+  await db
+    .insert(userProfiles)
+    .values({
+      userId: user.id,
+      tips,
+      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: userProfiles.userId,
+      set: { tips, updatedAt: new Date() },
+    })
+
+  return c.redirect('/settings?saved=tips#tips', 303)
+})
+
+// The guided tour has been finished or skipped (#133).
+//
+// ONE ENDPOINT FOR BOTH OUTCOMES, deliberately. The column answers "has this
+// rider been offered the tour", and a rider who pressed Skip at step one has
+// been — offering it again on the next load is what makes a tour hated, and
+// the account menu keeps a way back in for anyone who wants it. There is no
+// "un-done" endpoint: re-running is a client action and needs no write.
+//
+// Here rather than in its own module because it writes the same lazily-created
+// `user_profiles` row every handler above does, with the same seeding trap: a
+// rider finishing the tour on their FIRST visit is exactly the rider with no
+// row yet, so the INSERT has to seed `date_format` from the header or the
+// tour's own completion would stamp en-US over what Accept-Language was giving
+// them for free.
+settingsRoutes.post('/api/tour/done', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const now = new Date()
+  await db
+    .insert(userProfiles)
+    .values({
+      userId: user.id,
+      tourDoneAt: now,
+      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: userProfiles.userId,
+      set: { tourDoneAt: now, updatedAt: now },
+    })
+  return c.json({ ok: true })
 })
 
 // Twelve- or twenty-four-hour time (#270).

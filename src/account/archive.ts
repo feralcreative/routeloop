@@ -330,6 +330,8 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           units: profile.units,
           clock: profile.clock,
           volumeUnits: profile.volumeUnits,
+          tips: profile.tips,
+          tourDoneAt: iso(profile.tourDoneAt),
           avoidPlaces: profile.avoidPlaces,
           favorPlaces: profile.favorPlaces,
           createdAt: iso(profile.createdAt),

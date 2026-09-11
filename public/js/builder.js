@@ -3936,7 +3936,7 @@
           "</select>"
         : "") +
       (r.canRemove
-        ? '<button type="button" class="rider-del" title="Take ' +
+        ? '<button type="button" class="rider-del" data-tip="rider-del" title="Take ' +
           esc(r.displayName) +
           ' off this ride" aria-label="Remove ' +
           esc(r.displayName) +
@@ -4374,7 +4374,7 @@
       '<details class="route-groups" data-route="' +
       r +
       '">' +
-      '<summary title="Which groups ride this route">' +
+      '<summary data-tip="route-groups" title="Which groups ride this route">' +
       esc(label) +
       "</summary>" +
       '<div class="route-groups-list">' +
@@ -4477,7 +4477,7 @@
             // and the path that still works when the SortableJS CDN does not.
             // Same arrangement as a route's handle, which replaced two move
             // buttons on 2026-08-16.
-            '<button type="button" class="sg-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+            '<button type="button" class="sg-drag" data-tip="sg-drag" title="Drag to reorder, or focus and use the arrow keys"' +
             ' aria-label="Reorder ' +
             esc(g.name) +
             '">⠿</button>' +
@@ -4498,7 +4498,7 @@
                 // always has one — a simpler invariant than "you cannot delete
                 // the last" and the one Ziad asked for. Demote it by dragging
                 // another group over it, then it can go like any other.
-                '<button type="button" class="sg-del" title="Remove this group" aria-label="Remove ' +
+                '<button type="button" class="sg-del" data-tip="sg-del" title="Remove this group" aria-label="Remove ' +
                 esc(g.name) +
                 '">×</button>') +
             // WHERE THIS GROUP SETS OFF FROM, under its name. Ziad's call,
@@ -6417,7 +6417,7 @@
       ? ""
       : '<span class="route-alt' +
         (ghost ? "" : " is-on") +
-        '" title="' +
+        '" data-tip="route-alt" title="' +
         (ghost
           ? "Not counted in the ride total. Use the route menu to ride this one instead."
           : "This is the route counted in the ride total.") +
@@ -6464,13 +6464,13 @@
       // AGENTS.md gives for keeping Move up / Move down on the stop rows. Making
       // the grip focusable and giving it arrow keys covers both without spending
       // two more buttons of a 380px header.
-      '<button type="button" class="route-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+      '<button type="button" class="route-drag" data-tip="route-drag" title="Drag to reorder, or focus and use the arrow keys"' +
       ' aria-label="Reorder route ' +
       routeNumber(r) +
       ', use the up and down arrow keys"></button>' +
       '<button type="button" class="route-twirl" aria-expanded="' +
       (shut ? "false" : "true") +
-      '" title="Show or hide this route\'s stops"><span class="route-twirl-mark" aria-hidden="true"></span></button>' +
+      '" data-tip="route-twirl" title="Show or hide this route\'s stops"><span class="route-twirl-mark" aria-hidden="true"></span></button>' +
       // The ordinal, rendered rather than stored. Reordering re-renders, so it is
       // always the route's real position and there is nothing to keep in sync.
       '<span class="route-num" aria-hidden="true">' +
@@ -6478,7 +6478,7 @@
       "</span>" +
       '<input class="route-color" type="color" value="' +
       esc(route.color) +
-      '" title="Route color" aria-label="Color for ' +
+      '" data-tip="route-color" title="Route color" aria-label="Color for ' +
       esc(routeLabel(r)) +
       '">' +
       // The placeholder no longer says "Route N". It used to, which made an empty
@@ -6513,7 +6513,7 @@
       // a CSS mask on ::before, so it takes the button's color and its disabled
       // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
       // "rightwards arrow over leftwards arrow" — hence the aria-label.
-      '<button type="button" class="route-rev" title="Reverse this route—re-routes every leg" aria-label="Reverse ' +
+      '<button type="button" class="route-rev" data-tip="route-rev" title="Reverse this route—re-routes every leg" aria-label="Reverse ' +
       esc(routeLabel(r)) +
       '"></button>' +
       // DELETE MOVED INTO THE MENU, and ⇄ did not. The two were side by side and
@@ -6525,7 +6525,7 @@
       //
       // U+22EE, the same glyph the row menu uses, so the two read as the same
       // control at two levels.
-      '<button type="button" class="route-menu-btn" title="More" aria-label="More actions for ' +
+      '<button type="button" class="route-menu-btn" data-tip="route-menu" title="More" aria-label="More actions for ' +
       esc(routeLabel(r)) +
       '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span>" +
@@ -6536,7 +6536,7 @@
       '<input class="route-start" type="datetime-local"></label>' +
       '<label class="route-time"><span>Ends</span>' +
       '<input class="route-end" type="datetime-local"' +
-      ' title="Worked out from the start time and the route\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
+      ' data-tip="route-end" title="Worked out from the start time and the route\'s riding and stops. Type your own to override, or clear it to go back to automatic."></label>' +
       '<span class="route-times-note"></span>' +
       "</div>" +
       prefsHtml(r, route) +
@@ -7285,7 +7285,7 @@
         ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike")
         : "the smallest tank";
       parts.push(
-        '<span class="row-dist-dry" title="Past ' +
+        '<span class="row-dist-dry" data-tip="row-dist-dry" title="Past ' +
           whose +
           " (" +
           esc(String(range.miles)) +
@@ -7384,7 +7384,7 @@
         return (
           '<button type="button" class="row-splitoff" data-splitoff="' +
           esc(d.uid) +
-          '" title="Go to their route">' +
+          '" data-tip="row-splitoff" title="Go to their route">' +
           name +
           " splits off here" +
           to +
@@ -7420,7 +7420,7 @@
       // this would have left the point list the one list in the builder you
       // cannot reorder from a keyboard. `.route-drag` and `.sg-drag` are already
       // this, which is why neither of their menus carries move items either.
-      '<button type="button" class="row-drag" title="Drag to reorder, or focus and use the arrow keys"' +
+      '<button type="button" class="row-drag" data-tip="row-drag" title="Drag to reorder, or focus and use the arrow keys"' +
       ' aria-label="Reorder ' +
       esc(point.name || "this point") +
       '"></button>' +
@@ -7475,14 +7475,14 @@
       DUR.inputMode(durFormat) +
       '" placeholder="' +
       esc(DUR.placeholder(durFormat)) +
-      '" title="' +
+      '" data-tip="row-dur" title="' +
       (isStop ? "Stop duration" : "How long you stop here, if you stop") +
       " (" +
       esc(DUR.unitName(durFormat)) +
       ')" value="' +
       esc(DUR.format(point.durationMin, durFormat)) +
       '">' +
-      '<button type="button" class="row-roles-btn" title="' +
+      '<button type="button" class="row-roles-btn" data-tip="row-roles" title="' +
       esc(roleTitle(point)) +
       '" aria-label="Categories">' +
       // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn
@@ -7499,9 +7499,9 @@
       // the row menu is how the panel opens, and a second affordance for the same
       // thing on a 320px row costs width the name field needs.
       (hasDetails(point.details)
-        ? '<span class="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
+        ? '<span class="row-detail-flag" data-tip="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
         : "") +
-      '<button type="button" class="row-menu-btn" title="More" aria-label="More actions for this ' +
+      '<button type="button" class="row-menu-btn" data-tip="row-menu" title="More" aria-label="More actions for this ' +
       (isStop ? "stop" : "POI") +
       '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
@@ -7788,7 +7788,7 @@
       at +
       viaAttr +
       '"' +
-      ' title="Add a point here" aria-label="Add a point above point ' +
+      ' data-tip="insert-slot" title="Add a point here" aria-label="Add a point above point ' +
       (at + 1) +
       '">+</button>' +
       "</li>"
@@ -7859,7 +7859,7 @@
           i +
           '" data-via="' +
           vi +
-          '" title="Remove this shaping point"' +
+          '" data-tip="via-del" title="Remove this shaping point"' +
           ' aria-label="Remove shaping point' +
           (vias.length > 1 ? " " + (vi + 1) : "") +
           " after point " +
@@ -7909,7 +7909,7 @@
       ' aria-pressed="' +
       (isArmed(r, at) ? "true" : "false") +
       '"' +
-      ' title="' +
+      ' data-tip="map-add" title="' +
       (full ? "Point limit reached" : "Add a point to " + esc(routeLabel(r)) + " by clicking the map") +
       '">' +
       "+ Point</button>" +
@@ -8039,7 +8039,7 @@
       '"' +
       ' aria-pressed="' +
       (on === along ? "true" : "false") +
-      '" title="' +
+      '" data-tip="scope-btn" title="' +
       esc(title) +
       '">' +
       esc(label) +
@@ -8169,8 +8169,14 @@
       // computed here — so there is no injection surface.
       totalsEl.innerHTML = line(t, true);
       totalsEl.title = twistTitle(t);
+      // The tip key rides on the element that carries the title, which is the
+      // readout itself here and the `.totals-ride` span below. The tour's
+      // "that is a route" step anchors on this key, so it has to exist on a
+      // one-route ride — which is every ride the tour is taken on.
+      totalsEl.setAttribute("data-tip", "totals-ride");
       return;
     }
+    totalsEl.removeAttribute("data-tip");
 
     // With several routes the ride total is the number that matters; the focused
     // route's own figures sit under it.
@@ -8188,7 +8194,7 @@
     const routeT = r == null ? null : routeTotals(state.routes[r]);
     totalsEl.title = "";
     totalsEl.innerHTML =
-      '<span class="totals-ride" title="' +
+      '<span class="totals-ride" data-tip="totals-ride" title="' +
       esc(twistTitle(ride)) +
       '">' +
       // The count of routes that COUNT, not of sections on screen. A ride with

@@ -117,6 +117,20 @@ export const clockEnum = pgEnum('clock', ['locale', 'h12', 'h24'])
 // gallons; defaulting means they never have to ask for liters. See
 // src/views/volume.ts.
 export const volumeUnitsEnum = pgEnum('volume_units', ['auto', 'gallons', 'liters'])
+// Whether a control explains itself, for #133. TWO MEMBERS AND NOT A BOOLEAN,
+// which is the one thing worth arguing about here: every other preference on
+// /settings is an enum rendered as radios, and a checkbox that sends nothing
+// when it is unchecked cannot tell "the rider said no" from "the form was
+// malformed" — which for an autosaved form is the difference between storing a
+// choice and storing an accident.
+//
+// **DEFAULTED TO `on`, AND THAT DIRECTION IS THE FEATURE.** #133 is for the
+// least technical end of the cohort and first contact is when it pays off, so a
+// rider who has never opened /settings gets the explanations. Every other
+// default in this table answers "what did the rider not say"; this one answers
+// "what does somebody who has never been here need", and those point opposite
+// ways. See src/views/tips.ts.
+export const tipsEnum = pgEnum('tips', ['on', 'off'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -404,6 +418,27 @@ export const userProfiles = pgTable('user_profiles', {
   // mechanism `motion` uses for the browser, and there is no Accept-Volume.
   clock: clockEnum('clock').notNull().default('locale'),
   volumeUnits: volumeUnitsEnum('volume_units').notNull().default('auto'),
+  // Defaulted for the same reason as the six above: no third state for a reader
+  // to interpret. It is the one column here whose default is not "what a rider
+  // who said nothing would have wanted" but "what somebody seeing this for the
+  // first time needs" — see the enum's own note.
+  tips: tipsEnum('tips').notNull().default('on'),
+  // WHEN THE GUIDED TOUR WAS FINISHED OR DISMISSED, and the one column in this
+  // block that is deliberately NULLABLE rather than defaulted.
+  //
+  // The rule the six above follow is that a default beats a null because nobody
+  // has to interpret the third state. Here the third state is the only one that
+  // matters: "has never been offered the tour" is exactly what decides whether
+  // it runs on its own, and it is not the same as "ran it and dismissed it at
+  // step one". A boolean cannot tell those apart and neither can a default.
+  //
+  // A TIMESTAMP RATHER THAN A BOOLEAN, because the question after "has it run"
+  // is always "how long ago" — see the offer-it-again option in #133, which was
+  // not taken and would need no migration if it ever is. Stamped by
+  // POST /api/tour/done on both Finish and Skip: a rider who bailed has been
+  // offered it, and offering it again on every load is the thing that makes a
+  // tour hated.
+  tourDoneAt: timestamp('tour_done_at', { withTimezone: true }),
   // Places to push DOWN a place search, one per line or separated by commas or
   // semicolons (#271). FREE TEXT AND NOT A JOIN TABLE: the intended use is as
   // loose as it sounds — a category like "fast food" and one chain by name in

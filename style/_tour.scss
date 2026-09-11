@@ -1,0 +1,152 @@
+@use "tokens" as *;
+@use "motion";
+
+// Show me around — the guided tour's card, re-themed onto this palette. #133.
+//
+// **SHEPHERD'S OWN STYLESHEET LOADS AFTER THIS ONE, SO EVERY RULE HERE WINS BY
+// SPECIFICITY AND NOT BY ORDER.** The two CDN <link>s go through `page()`'s
+// `head` slot, which is emitted after main.min.css, and moving them ahead of
+// it would mean a second slot in the shell for one page. So each selector
+// below carries `.shepherd-element.tour-step` — two classes Shepherd's own
+// rules never combine — and outranks the vendor sheet wherever the two meet.
+// A rule written here without that prefix silently loses.
+//
+// **THE NEXT BUTTON IS A `.btn` AND NEEDS NOTHING FROM THIS FILE.** The
+// guide-sign rule in _chrome.scss is `.btn:not(…):not([hidden])`, which is
+// three classes' worth of specificity and beats `.shepherd-button` on every
+// property the two share. tour.js passes `classes: "btn"` and the house sign
+// comes through the vendor sheet untouched. Back is `.btn-quiet`, which is
+// flat, single-class, and DOES lose — hence its block below.
+//
+// **THE OVERLAY IS SHEPHERD'S SVG MASK AND IS LEFT ALONE**, apart from its
+// opacity: the cut-out is what makes a spotlight, and it is drawn by script
+// from the target's box, so there is nothing for CSS to improve on.
+
+.shepherd-element.tour-step {
+  // The dark card again, for the reason `.tip-bubble` gives: a tour card lands
+  // over the map as often as over the panel, and a white box on map tiles
+  // reads as another piece of the interface. `$text` and `$white` are an
+  // inverted pair, so this holds in both schemes.
+  background: $text;
+  color: $white;
+  border-radius: 10px;
+  max-width: min(24rem, calc(100vw - 2rem));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+  // Shepherd fades the card in over 0.3s. Kept — it is the one animation in
+  // this feature and it covers the reposition between steps — but stilled for
+  // a rider who asked for no motion, by either route the `still` mixin knows.
+  @include motion.still {
+    transition: none;
+  }
+
+  .shepherd-arrow::before {
+    background: $text;
+  }
+
+  .shepherd-content {
+    border-radius: 10px;
+  }
+
+  // Shepherd paints the header a light grey when a step has a title. On a dark
+  // card that is a white band across the top, so the header takes the card's
+  // own ground and the title carries the weight instead.
+  &.shepherd-has-title .shepherd-content .shepherd-header {
+    background: transparent;
+    padding: 1rem 1rem 0;
+  }
+
+  .shepherd-title {
+    color: $white;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-wrap: balance;
+  }
+
+  .shepherd-cancel-icon {
+    color: $neutral-76;
+    font-size: 1.6em;
+    line-height: 1;
+
+    &:hover {
+      color: $white;
+    }
+  }
+
+  .shepherd-text {
+    color: $neutral-88;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    padding: 0.6rem 1rem 0.9rem;
+    text-wrap: pretty;
+  }
+
+  .shepherd-footer {
+    padding: 0 1rem 1rem;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  // `.btn` restated only where the vendor sheet and the flat button collide:
+  // margin, transition, and the two colors. The sign variant is untouched —
+  // see the note at the top.
+  .shepherd-button {
+    margin: 0;
+    transition: none;
+    font: inherit;
+    font-weight: 600;
+  }
+
+  .shepherd-button.btn-quiet {
+    background: transparent;
+    color: $neutral-88;
+    border: 1px solid $neutral-63;
+    border-radius: 8px;
+    padding: 0.55rem 0.9rem;
+
+    &:not(:disabled):hover {
+      background: transparent;
+      color: $white;
+      border-color: $neutral-88;
+    }
+  }
+
+  // A waiting step's "button" is a status line and not a control: no field,
+  // no keyline, an ellipsis, and it never takes the pointer. It is disabled
+  // in the markup as well, so a screen reader reports it as one.
+  .shepherd-button.tour-waiting {
+    background: transparent;
+    color: $neutral-76;
+    border: 0;
+    padding: 0.55rem 0;
+    font-weight: 400;
+    font-style: italic;
+    cursor: default;
+    opacity: 1;
+  }
+}
+
+// **THE PLACE-SEARCH DROPDOWN HAS TO OUTRANK THE BACKDROP WHILE A TOUR RUNS.**
+// `#search-results` is fixed at 1001 in _builder.scss — above the drawer, which
+// is all it ever had to beat — and Shepherd's overlay sits at 9997, so on the
+// second-point step the list a rider had just been told to pick from opened
+// under the dimming. Between the overlay and the card (9999), and only under
+// the class tour.js puts on <html> for the life of a tour, so the ordinary
+// builder is untouched.
+html.tour-active #search-results {
+  z-index: 9998;
+}
+
+// Darker than Shepherd's 0.5 so the spotlight reads as one against a busy
+// map; the map tiles at half opacity are still busy enough to compete with
+// the card.
+.shepherd-modal-overlay-container.shepherd-modal-is-visible {
+  opacity: 0.62;
+}
+
+// The overlay animates its opacity as well, and is stilled the same way.
+.shepherd-modal-overlay-container {
+  @include motion.still {
+    transition: none;
+  }
+}
