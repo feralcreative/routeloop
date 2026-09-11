@@ -35,6 +35,9 @@ beforeAll(() => {
     readyState: 'complete',
     addEventListener: () => {},
     getElementById: () => null,
+    // The scrubber step's text is a function that looks for its control, so
+    // calling it here needs a document that answers "not there".
+    querySelectorAll: () => [],
   }
   new Function('window', 'document', readFileSync('public/js/tips.js', 'utf8'))(win, doc)
   new Function('window', 'document', readFileSync('public/js/tour.js', 'utf8'))(win, doc)
@@ -92,11 +95,28 @@ describe('tips', () => {
 })
 
 describe('tour', () => {
-  it('has a dozen-ish steps and three that wait', () => {
-    // The shape Ziad chose: narrated, with exactly three steps that do not move
-    // on until the rider has done the thing. More waits is a different tour.
-    expect(STEPS.length).toBeGreaterThan(8)
-    expect(STEPS.filter((s) => s.wait).length).toBe(3)
+  it('is three parts, each with more than one step, and four steps that wait', () => {
+    // The shape Ziad chose: three parts a rider can take in any order or skip,
+    // narrated, with exactly four steps that do not move on until the rider has
+    // done the thing — the name, two points, and a start time. More waits is a
+    // different tour.
+    const parts = new Set(STEPS.map((s: any) => s.part).filter(Boolean))
+    expect([...parts].sort()).toEqual([1, 2, 3])
+    for (const n of parts) expect(STEPS.filter((s: any) => s.part === n).length).toBeGreaterThan(1)
+    expect(STEPS.filter((s) => s.wait).length).toBe(4)
+    // The welcome and closing cards belong to no part and carry the chooser.
+    expect(STEPS.filter((s: any) => !s.part).every((s: any) => s.chooser)).toBe(true)
+  })
+
+  it('opens the tab a step lives on', () => {
+    // A control on a shut tab has no box and Shepherd centers the card with
+    // no spotlight, silently. Every step anchored inside the Groups or Riders
+    // panel has to say which tab to open first.
+    const src = readFileSync('src/routes/builder.ts', 'utf8')
+    const onGroups = [...src.matchAll(/id="(sg-[a-z-]+)"/g)].map((m) => '#' + m[1])
+    const onRiders = [...src.matchAll(/id="(riders-[a-z-]+)"/g)].map((m) => '#' + m[1])
+    const bad = STEPS.filter((s: any) => s.at && (onGroups.includes(s.at) || onRiders.includes(s.at)) && !s.tab)
+    expect(bad.map((s) => s.id).join(', ')).toBe('')
   })
 
   it('anchors every step on a control that exists', () => {
@@ -117,7 +137,9 @@ describe('tour', () => {
   })
 
   it('reads as a tour and not as a second set of labels', () => {
-    const thin = STEPS.filter((s: any) => !s.title || s.text.length < 80).map((s) => s.id)
+    const thin = STEPS.filter(
+      (s: any) => !s.title || String(typeof s.text === 'function' ? s.text() : s.text).length < 80,
+    ).map((s) => s.id)
     expect(thin.join(', ')).toBe('')
   })
 })

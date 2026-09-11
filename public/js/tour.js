@@ -37,20 +37,37 @@
   // How far right an attached card is pushed on a desktop — see build().
   var DESKTOP_NUDGE_PX = 20;
 
-  // ——— The steps ———
+  // ——— The steps, in three parts ———
+  //
+  // **THREE PARTS A RIDER CAN TAKE IN ANY ORDER OR SKIP AT WILL.** Ziad's
+  // call, 2026-09-10: the route, the clock, and the people. Every card carries
+  // a "Skip this part" beside Next, the welcome and closing cards offer the
+  // three parts as buttons, and `jump()` is the one way between them — so a
+  // rider who only came for meeting points is two clicks from them.
   //
   // `at` is a data-tip key (or a CSS selector when it starts with a `.` or
   // `#`); null centers the card. `wait` is a predicate the step polls through a
   // MutationObserver on the route list — the step shows no Next while it is
-  // false, and advances itself the moment it is true.
+  // false, and advances itself the moment it is true. `tab` is a panel tab to
+  // open before the step shows, because a control on a shut tab has no box.
+  var PARTS = [
+    { n: 1, name: "The route", blurb: "Name it, add two points, watch the road draw." },
+    { n: 2, name: "The clock", blurb: "Dates, arrival times, and the slider along the bottom of the map." },
+    { n: 3, name: "The people", blurb: "Groups, who rides which route, and where to meet." },
+  ];
+
   var STEPS = [
     {
       id: "welcome",
       title: "This is where a ride gets planned",
-      text: "Two minutes, and you can leave at any time—the tour is always under the menu if you want it back. Everything you do here is real: by the end you will have a route you could ride tomorrow.",
+      text: "Three short parts, each a couple of minutes. Take them in order, jump to one, or skip any of them—the tour is always under the menu if you want it back. Everything you do here is real: by the end you will have a route you could ride tomorrow.",
+      chooser: true,
     },
+
+    // ——— Part 1: the route ———
     {
       id: "name",
+      part: 1,
       at: "ride-name",
       title: "Give it a name",
       text: "Click the big title and type. Anything—“Coast run”, “Dad’s birthday”, the name of the town at the far end—then press Enter. You can change it whenever you like.",
@@ -72,6 +89,7 @@
     },
     {
       id: "map",
+      part: 1,
       at: "#map",
       title: "The map is the other half",
       text: "Everything in this panel is drawn over there, and most of it can be done from either side—click the map to add a point, drag a road to reshape it. The panel is for the details the map cannot show.",
@@ -79,12 +97,14 @@
     },
     {
       id: "route",
+      part: 1,
       at: ".route-head",
       title: "A ride is made of routes",
       text: "Each of these is one stretch of the trip—usually a day. It has a name, a color on the map, and its own start time. A weekend is two of them. A week away is seven, and the panel will happily hold more.",
     },
     {
       id: "first-point",
+      part: 1,
       at: ".add-row",
       extra: ["#map"],
       title: "Add your first point",
@@ -96,6 +116,7 @@
     },
     {
       id: "second-point",
+      part: 1,
       at: ".add-row",
       extra: ["#map"],
       title: "And a second",
@@ -107,6 +128,7 @@
     },
     {
       id: "leg",
+      part: 1,
       at: "totals-ride",
       side: "bottom",
       title: "That is a route",
@@ -114,32 +136,115 @@
     },
     {
       id: "stop",
+      part: 1,
       at: "row-dur",
       title: "Stops take time, and the builder knows it",
       text: "Type how long you will be off the bike—lunch, a photo, a night in a motel. Everything after it moves later, which is how the arrival time at the far end stays honest.",
     },
     {
       id: "category",
+      part: 1,
       at: "row-roles",
       title: "Say what a place is for",
       text: "Fuel, food, a bed, a view. The dot beside each point opens the list. It puts the right icon on the map and it is how the builder knows where you can fill up—which matters more than it sounds in eastern Nevada.",
     },
     {
-      id: "when",
-      at: ".route-start",
-      title: "Give it a date, and the clock starts",
-      text: "Set when the route starts and every point gets an arrival time. A slider appears along the bottom of the map, and dragging it shows where you would be at any moment of the day.",
-    },
-    {
       id: "menu",
+      part: 1,
       at: "route-menu",
       title: "Everything else is behind the dots",
       text: "Duplicate a route, reverse it, split it at a stop, offer it as an alternative for a vote. The same three dots on a point row do the same for a point—including the details only you can see, like a confirmation number.",
     },
+
+    // ——— Part 2: the clock ———
+    {
+      id: "when",
+      part: 2,
+      at: ".route-start",
+      title: "Give the route a start time",
+      text: "Pick the day and the hour you set off. Every point gets an arrival time from it, the end of the route works itself out, and a slider appears along the bottom of the map. I will wait while you set one.",
+      wait: function () {
+        var el = anchor(".route-start");
+        return !!(el && el.value);
+      },
+      waiting: "Waiting for a start time…",
+    },
+    {
+      id: "timeline",
+      part: 2,
+      at: "timeline",
+      side: "top",
+      title: "This is the time scrubber",
+      // A FUNCTION, because the slider only exists once a route has a start
+      // time AND a road — one point and a date is still nothing to scrub. A
+      // rider who jumped straight to this part on a bare ride gets the card
+      // centered, and the copy has to say why there is nothing under it.
+      text: function () {
+        var base =
+          "Drag it and the dot on the map shows where you would be at that moment, with the leg you would be on lit up. On a ride with several routes a Route | Ride switch beside it lets the slider run over one day or all of them.";
+        return anchor("timeline")
+          ? base
+          : base +
+              " It appears along the bottom of the map once a route has a start time and at least two points—add a second point in part 1 and it will be here.";
+      },
+    },
+    {
+      id: "route-end",
+      part: 2,
+      at: "route-end",
+      title: "The end is worked out for you",
+      text: "Start time, plus the riding, plus every stop along the way. Type over it if you know better—a hard deadline at the far end—or clear it to hand it back to the builder.",
+    },
+    {
+      id: "bed",
+      part: 2,
+      at: "ride-stop-by",
+      title: "When to start looking for a bed",
+      text: "Set an hour here and every route gets a band across its list at the point it reaches that time, with how much riding is still left after it. It is advice, not a limit—riding past four is your call, and this puts the consequence beside the choice.",
+    },
+
+    // ——— Part 3: the people ———
+    {
+      id: "groups",
+      part: 3,
+      at: "#tab-groups",
+      tab: "tab-groups",
+      side: "bottom",
+      title: "Groups are where riders set off from",
+      text: "Every ride has one group to start with—yours. The first in the list is the main group: its road is the road everybody else joins, and its departure is what the other groups’ times are worked out from. Drag another group above it to hand that over.",
+    },
+    {
+      id: "groups-add",
+      part: 3,
+      at: "#sg-add",
+      tab: "tab-groups",
+      title: "Add a group for riders starting somewhere else",
+      text: "Name it and say where they set off from. Each group gets its own approach route, and with two or more groups the builder can propose where to meet—a fuel stop everybody can reach on the tank they leave with, as early on the main group’s road as the detour allows.",
+    },
+    {
+      id: "riders",
+      part: 3,
+      at: "#tab-riders",
+      tab: "tab-riders",
+      side: "bottom",
+      title: "Who is coming",
+      text: "The roster. Riders are added from the ride’s page, friends only, and each says whether they are in. Their bikes’ ranges are what the fuel warnings are built from, so the smallest tank on the ride is the one that counts.",
+    },
+    {
+      id: "riders-routes",
+      part: 3,
+      at: "route-groups",
+      tab: "tab-routes",
+      title: "Who rides which route",
+      text: "This pill on each route says who is on it. Leave it alone and everybody rides everything; tick a group here to say somebody joins or peels off at this point, and the roadbook and every export follow.",
+    },
+
     {
       id: "done",
       title: "That is the whole idea",
-      text: "Routes, points, stops, times. Everything saves as you go. Point at any control and it will tell you what it is for, and the tour is under the menu whenever you want it again. Have a good ride.",
+      text: "Routes, points, stops, times, and the people on them. Everything saves as you go. Point at any control and it tells you what it is for, and the tour is under the menu whenever you want it again. Have a good ride.",
+      chooser: true,
+      tab: "tab-routes",
     },
   ];
 
@@ -186,6 +291,70 @@
    * do the thing, and a button that is disabled with a spinner beside it is a
    * promise that something is loading. The observer below is what advances it.
    */
+  // ——— Parts ———
+
+  /** The id of the first step of part `n`, or of the closing card past the
+   *  last part. */
+  function partStart(n) {
+    for (var i = 0; i < STEPS.length; i++) if (STEPS[i].part === n) return STEPS[i].id;
+    return "done";
+  }
+
+  /** Jumps to a part. `tour.show()` takes an id, so this is the whole thing. */
+  function jump(n) {
+    tour.show(partStart(n));
+  }
+
+  /** "Part 2 of 3 · The clock · 3 of 4", rendered above the body. */
+  function partLine(step) {
+    if (!step.part) return "";
+    var part = PARTS[step.part - 1];
+    var inPart = STEPS.filter(function (s) {
+      return s.part === step.part;
+    });
+    var i = inPart.indexOf(step) + 1;
+    return (
+      '<small class="tour-part">Part ' +
+      part.n +
+      " of " +
+      PARTS.length +
+      " · " +
+      esc(part.name) +
+      " · " +
+      i +
+      " of " +
+      inPart.length +
+      "</small>"
+    );
+  }
+
+  /** The three part buttons, for the welcome and closing cards. */
+  function chooserHtml() {
+    return (
+      '<ul class="tour-parts">' +
+      PARTS.map(function (p) {
+        return (
+          '<li><button type="button" class="tour-part-btn" data-tour-part="' +
+          p.n +
+          '"><b>' +
+          p.n +
+          ". " +
+          esc(p.name) +
+          "</b><span>" +
+          esc(p.blurb) +
+          "</span></button></li>"
+        );
+      }).join("") +
+      "</ul>"
+    );
+  }
+
+  function esc(v) {
+    return String(v).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
   function stepOptions(step, i) {
     var last = i === STEPS.length - 1;
     var buttons = [];
@@ -197,6 +366,18 @@
           tour.back();
         },
       });
+    // **SKIP THIS PART ON EVERY CARD INSIDE A PART**, not only on the first: a
+    // rider who realizes three cards in that they know this already should
+    // not have to Back out to leave. It lands on the next part's first card,
+    // or on the closing card after the last part.
+    if (step.part)
+      buttons.push({
+        text: "Skip this part",
+        classes: "btn btn-quiet",
+        action: function () {
+          jump(step.part + 1);
+        },
+      });
     if (step.wait) {
       buttons.push({ text: step.waiting, classes: "tour-waiting", disabled: true, action: function () {} });
     } else {
@@ -204,7 +385,7 @@
       // Shepherd's own button by specificity, so Next is the house sign with
       // no help from _tour.scss. Back is the flat variant and does need help.
       buttons.push({
-        text: last ? "Done" : "Next",
+        text: last ? "Done" : step.chooser ? "Start at part 1" : "Next",
         classes: "btn",
         action: function () {
           if (last) tour.complete();
@@ -216,7 +397,12 @@
     var opts = {
       id: step.id,
       title: step.title,
-      text: step.text,
+      // Shepherd inserts `text` as HTML. The part line is markup and the copy
+      // is trusted — it is this file — so nothing here needs escaping.
+      text: function () {
+        var body = typeof step.text === "function" ? step.text() : step.text;
+        return partLine(step) + "<p>" + body + "</p>" + (step.chooser ? chooserHtml() : "");
+      },
       buttons: buttons,
       // Bringing the control on screen ourselves rather than letting Shepherd
       // scroll: its default is `scrollIntoView` on the element, which on the
@@ -224,6 +410,17 @@
       // fixed element, which does nothing and logs nothing.
       scrollTo: false,
       cancelIcon: { enabled: true },
+      // A CONTROL ON A SHUT TAB HAS NO BOX, so a step that lives on the Groups
+      // or Riders tab opens it first, through the tab's own click handler in
+      // tabs.js. The closing card puts Routes back, which is where a rider
+      // finishing the tour expects to be.
+      beforeShowPromise: function () {
+        if (step.tab) {
+          var tab = document.getElementById(step.tab);
+          if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
+        }
+        return Promise.resolve();
+      },
       when: {
         show: function () {
           if (!step.wait) return;
@@ -443,6 +640,13 @@
     if (isNew) start();
   }
 
+  // The three part buttons on the welcome and closing cards.
+  document.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest ? e.target.closest("[data-tour-part]") : null;
+    if (!b || !tour || !tour.isActive()) return;
+    jump(Number(b.getAttribute("data-tour-part")));
+  });
+
   // ON THE BUILDER, Take the tour starts in place rather than opening a fresh
   // ride: a rider who wants a reminder on the ride they are looking at should
   // get one on that ride. The item is a real link to `/builder?tour` either
@@ -476,6 +680,7 @@
     boot: boot,
     start: start,
     STEPS: STEPS,
+    PARTS: PARTS,
     // The live Shepherd tour, for the console and for nothing in the app.
     get tour() {
       return tour;

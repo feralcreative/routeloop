@@ -10,7 +10,12 @@
 #
 # Enable in a fresh clone with:  git config core.hooksPath .githooks
 
-staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(md|ts|tsx|js|mjs|html)$')
+# `scss` IS ON THIS LIST BECAUSE THE TEST'S LIST HAS IT. The two disagreed for a
+# day: the English sweep's own glob and test/us-english.test.ts both walk .scss,
+# this line did not, so a comment saying "grey" in a stylesheet sailed through
+# the hook and failed the suite on the next run. The other two tools ignore
+# extensions they do not own, so widening the list costs them nothing.
+staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(md|ts|tsx|js|mjs|html|scss)$')
 [ -z "$staged" ] && exit 0
 
 # shellcheck disable=SC2086
