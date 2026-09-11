@@ -1,6 +1,24 @@
 @use "tokens" as *;
 @use "motion";
 
+// A colored field with an inset keyline — the /feedback card construction.
+@mixin tour-sign($field, $ink) {
+  background: $field;
+  color: $ink;
+  box-shadow:
+    inset 0 0 0 3px $field,
+    inset 0 0 0 5px $ink;
+
+  &:hover,
+  &:focus-visible {
+    $lit: color-mix(in oklab, #{$field}, black 12%);
+    background: $lit;
+    box-shadow:
+      inset 0 0 0 3px $lit,
+      inset 0 0 0 5px $ink;
+  }
+}
+
 // Show me around — the guided tour's card, re-themed onto this palette. #133.
 //
 // **SHEPHERD'S OWN STYLESHEET LOADS AFTER THIS ONE, SO EVERY RULE HERE WINS BY
@@ -126,15 +144,20 @@
     gap: 0.4rem;
   }
 
+  // **THE THREE PARTS ARE RED, YELLOW, AND GREEN.** Ziad's call, 2026-09-10.
+  // Drawn as signs, the way the three kind cards on /feedback are, and with
+  // the same legend rule: $stop and $go take the light legend, $yield takes
+  // the dark one — white on that yellow is about 1.2:1 and is the single
+  // worst pairing the palette can produce. `tour-sign()` is the /feedback
+  // mixin's construction, restated here rather than shared, for the reason
+  // that file gives about `sign-field()`: a card is not a button.
   .tour-part-btn {
     display: grid;
     gap: 0.1rem;
     width: 100%;
     text-align: left;
-    padding: 0.5rem 0.7rem;
-    background: transparent;
-    color: $white;
-    border: 1px solid $neutral-63;
+    padding: 0.55rem 0.8rem;
+    border: 0;
     border-radius: 8px;
     font: inherit;
     font-size: 1.035rem;
@@ -146,13 +169,53 @@
 
     span {
       font-size: 0.92rem;
-      color: $neutral-88;
+      // The legend color at a little less than full strength; inherits the
+      // sign's own ink rather than naming a gray that would be wrong on the
+      // yellow one.
+      opacity: 0.85;
     }
 
-    &:hover,
-    &:focus-visible {
-      border-color: $white;
+    &[data-tour-part="1"] {
+      @include tour-sign($stop, $ink-light);
     }
+    &[data-tour-part="2"] {
+      @include tour-sign($yield, $ink-dark);
+    }
+    &[data-tour-part="3"] {
+      @include tour-sign($go, $ink-light);
+    }
+  }
+
+  // The card itself wears its part's color as a band along the top, and the
+  // part line carries a swatch of it — a cue and never the ink, so no text
+  // pairing changes and nothing needs auditing.
+  &.tour-part-1 {
+    border-top: 5px solid $stop;
+    .tour-part::before {
+      background: $stop;
+    }
+  }
+  &.tour-part-2 {
+    border-top: 5px solid $yield;
+    .tour-part::before {
+      background: $yield;
+    }
+  }
+  &.tour-part-3 {
+    border-top: 5px solid $go;
+    .tour-part::before {
+      background: $go;
+    }
+  }
+
+  .tour-part::before {
+    content: "";
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    margin-right: 0.45em;
+    border-radius: 2px;
+    vertical-align: 0.05em;
   }
 
   // Three buttons in the footer is a full row on a phone; let them wrap.
