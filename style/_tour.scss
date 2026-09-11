@@ -61,6 +61,15 @@
   // that fills a 27-inch screen, and 2x — tried first — was a billboard. A
   // tour is the one thing on the page that is meant to be read first.
   .shepherd-title {
+    // **IT HAS TO BE ALLOWED TO WRAP.** Shepherd's header is a flex row with
+    // the title at `flex: 1 0 auto` — no shrink — so a title longer than the
+    // card ran out of the box to the LEFT, past the card's own edge, because
+    // the header justifies to the end. At 1.5x type that was most titles.
+    // `flex-shrink: 1` and `min-width: 0` are the two properties that let a
+    // flex item be narrower than its content.
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 0.5rem;
     color: $white;
     font-size: 1.575rem;
     font-weight: 700;
