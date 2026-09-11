@@ -12,6 +12,7 @@ import { notifications, sessions, userProfiles, users, type UserRow } from '../d
 import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
 import { type Motion, toMotion } from '../views/motion'
 import { type Clock, toClock } from '../views/clock'
+import { type Tips, toTips } from '../views/tips'
 import { type DateFormat, toDateFormat } from '../views/date-format'
 
 // Renamed with the product on 2026-08-11. No legacy name is read: these cookies
@@ -70,6 +71,11 @@ export async function createSession(userId: number): Promise<string> {
  * choice. So a rider who asked for a 24-hour clock got one in the printed
  * roadbook and not in the builder. Stamping both on <html> is what lets the
  * three client formatters read the same answer the server used.
+ *
+ * `tips` JOINED THEM ON 2026-09-10 (#133) for the second of those reasons and
+ * not the first: nothing on the server renders differently for it. It reaches
+ * <html> so `public/js/tips.js` can read one answer on every page, including
+ * the builder, whose controls are strings assembled in the browser.
  */
 export type SessionUser = {
   user: UserRow & {
@@ -78,6 +84,9 @@ export type SessionUser = {
     motion: Motion
     dateFormat: DateFormat
     clock: Clock
+    tips: Tips
+    /** Null until the guided tour has been finished or skipped once (#133). */
+    tourDoneAt: Date | null
     avatarBytes: number
     /** Unread notifications, for the badge on the account chip. */
     unread: number
@@ -114,6 +123,8 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       motion: userProfiles.motion,
       dateFormat: userProfiles.dateFormat,
       clock: userProfiles.clock,
+      tips: userProfiles.tips,
+      tourDoneAt: userProfiles.tourDoneAt,
       avatarBytes: userProfiles.avatarBytes,
       // THE UNREAD COUNT RIDES ALONG HERE FOR THE REASON THE APPEARANCE COLUMNS
       // DO, one paragraph up: the badge is on the account chip, which is on
@@ -161,6 +172,14 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       motion: toMotion(row.motion),
       dateFormat: toDateFormat(row.dateFormat),
       clock: toClock(row.clock),
+      // NOTE THE COERCER'S DEFAULT IS `on` HERE, WHICH IS THE ONE PLACE IN THIS
+      // BLOCK WHERE A NULL IS NOT "the column default a rider would have
+      // chosen". A rider with no profile row has never been asked, and #133 is
+      // for exactly that rider — see src/views/tips.ts.
+      tips: toTips(row.tips),
+      // NOT COERCED, because null is the answer here and not a gap: it is what
+      // makes the tour run on its own the first time the builder opens.
+      tourDoneAt: row.tourDoneAt ?? null,
       // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
       // `users.avatar_url` is write-once from Google sign-in and a rider cannot
       // change it; an upload is a deliberate choice and outranks it. Zero means

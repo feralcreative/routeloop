@@ -236,19 +236,19 @@
       i +
       '"' +
       (i === 0 ? " disabled" : "") +
-      ' title="Move up"><span class="visually-hidden">Move ' +
+      ' data-tip="import-move-up" title="Move up"><span class="visually-hidden">Move ' +
       esc(r.name) +
       " up</span>↑</button>" +
       '<button type="button" class="plan-btn" data-move="1" data-i="' +
       i +
       '"' +
       (last ? " disabled" : "") +
-      ' title="Move down"><span class="visually-hidden">Move ' +
+      ' data-tip="import-move-down" title="Move down"><span class="visually-hidden">Move ' +
       esc(r.name) +
       " down</span>↓</button>" +
       '<button type="button" class="plan-btn plan-drop" data-drop="' +
       i +
-      '" title="Leave this file out"><span class="visually-hidden">Leave ' +
+      '" data-tip="import-drop" title="Leave this file out"><span class="visually-hidden">Leave ' +
       esc(r.name) +
       " out</span>✕</button>" +
       "</span>" +

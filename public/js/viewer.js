@@ -385,8 +385,12 @@
   }
 
   function dlButton(href, label, download, title) {
+    // Every button on the row carries a title now, because the tip layer reads
+    // it as the headline and "GPX" on its own is not one. One tip KEY for the
+    // whole row, since the sentence under the headline is about the row —
+    // which format to pick — and not about any single format.
     return (
-      '<a class="route-dl-btn" href="' +
+      '<a class="route-dl-btn" data-tip="route-dl" href="' +
       esc(href) +
       '"' +
       (title ? ' title="' + esc(title) + '"' : "") +
@@ -528,25 +532,25 @@
     // depends on which one the ride came from. See the DOWNLOADS table in
     // src/index.tsx.
     const dls = [];
-    if (state.ride.gpxUrl) dls.push(dlButton(state.ride.gpxUrl + "?dl", "GPX", true));
-    if (state.ride.kmlUrl) dls.push(dlButton(state.ride.kmlUrl + "?dl", "KML", true));
-    if (state.ride.geojsonUrl) dls.push(dlButton(state.ride.geojsonUrl + "?dl", "GeoJSON", true));
+    if (state.ride.gpxUrl) dls.push(dlButton(state.ride.gpxUrl + "?dl", "GPX", true, "For a GPS unit or a phone nav app"));
+    if (state.ride.kmlUrl) dls.push(dlButton(state.ride.kmlUrl + "?dl", "KML", true, "For Google Earth"));
+    if (state.ride.geojsonUrl) dls.push(dlButton(state.ride.geojsonUrl + "?dl", "GeoJSON", true, "For a map you are building yourself"));
     // The stop list on its own, for a spreadsheet. Last because it is the one
     // that is not a route.
-    if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true));
+    if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true, "Just the stops, for a spreadsheet"));
     // Last and titled, because it is the one to pick for a backup: every other
     // format on this row loses something on the way back in.
     // Not a download — a page you print. Separate from the file formats above
     // because it answers a different question: not "give me this ride in
     // another app" but "give me this ride on paper".
-    if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false));
+    if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false, "A page to print and carry"));
     if (state.ride.nativeUrl) {
       dls.push(
         dlButton(state.ride.nativeUrl + "?dl", "Routeloop", true, "Lossless \u2014 re-imports as the same ride"),
       );
     }
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
-      dls.push(dlButton(state.ride.externalUrl, "URL", false));
+      dls.push(dlButton(state.ride.externalUrl, "URL", false, "Where this ride was imported from"));
     }
     if (dls.length) {
       table.innerHTML += '<tr class="route-downloads-row"><td colspan="2">' + dls.join(" ") + "</td></tr>";
@@ -575,7 +579,7 @@
       // is three paragraphs — see /faq#one-file-per-route.
       table.innerHTML +=
         '<tr class="route-downloads-row route-zip-row"><td colspan="2">' +
-        '<a class="route-zip-label" href="/faq#one-file-per-route" target="_blank" rel="noopener" ' +
+        '<a class="route-zip-label" data-tip="route-zip" href="/faq#one-file-per-route" target="_blank" rel="noopener" ' +
         'title="One file per route, named so they re-import in order and dated">' +
         "One file per route (zip)</a>: " +
         zips +

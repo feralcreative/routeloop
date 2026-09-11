@@ -752,7 +752,7 @@ function viewerPanel(
             disabled control, since there is no action to enable.
           */}
           {builderLink && (
-            <a class="panel-edit" href={builderLink.href}>
+            <a class="panel-edit" href={builderLink.href} data-tip="viewer-edit" title="Open this ride in the builder">
               {builderLink.label}
             </a>
           )}
@@ -761,7 +761,13 @@ function viewerPanel(
             cloning your own is what the builder is for.
           */}
           {clonable && (
-            <button class="panel-clone" type="button" data-clone={m.id}>
+            <button
+              class="panel-clone"
+              type="button"
+              data-clone={m.id}
+              data-tip="viewer-clone"
+              title="Make a copy that is yours"
+            >
               Clone this ride
             </button>
           )}
@@ -772,7 +778,7 @@ function viewerPanel(
             permission to see a route, not to see the roster.
           */}
           {rosterUrl && (
-            <a class="panel-roster-link" href={rosterUrl}>
+            <a class="panel-roster-link" href={rosterUrl} data-tip="viewer-roster" title="Who is on this ride">
               Riders and the vote
             </a>
           )}
@@ -789,7 +795,9 @@ function viewerPanel(
           */}
           {qrSvg && (
             <details class="qr-share">
-              <summary>Show a QR code</summary>
+              <summary data-tip="viewer-qr" title="A code a phone camera can read">
+                Show a QR code
+              </summary>
               <div class="qr-card">
                 <div class="qr-code">{raw(qrSvg)}</div>
                 <p class="qr-url">{`${APP_ORIGIN}/m/${m.slug}`}</p>
@@ -807,7 +815,7 @@ function viewerPanel(
         */}
         <div class="routes">
           <table class="route-table"></table>
-          <label class="toggle-checkbox">
+          <label class="toggle-checkbox" data-tip="viewer-arrows" title="Arrows along the route">
             <input type="checkbox" id="toggle-arrows" checked />
             Show Direction of Travel
           </label>

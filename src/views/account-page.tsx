@@ -38,6 +38,7 @@ import { CLOCK_CHOICES, resolveClock, toClock } from './clock'
 import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
+import { TIPS_CHOICES, toTips } from './tips'
 import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
@@ -64,6 +65,7 @@ async function prefsFor(userId: number) {
       motion: userProfiles.motion,
       clock: userProfiles.clock,
       volumeUnits: userProfiles.volumeUnits,
+      tips: userProfiles.tips,
       avoidPlaces: userProfiles.avoidPlaces,
       favorPlaces: userProfiles.favorPlaces,
     })
@@ -76,6 +78,7 @@ async function prefsFor(userId: number) {
     motion: toMotion(p?.motion),
     clock: toClock(p?.clock),
     volumeUnits: toVolumeUnits(p?.volumeUnits),
+    tips: toTips(p?.tips),
     avoidPlaces: p?.avoidPlaces ?? '',
     favorPlaces: p?.favorPlaces ?? '',
   }
@@ -112,6 +115,7 @@ export async function accountPage(
     'volume',
     'avoid',
     'favor',
+    'tips',
     // One per notification group, DERIVED rather than typed: five hand-written
     // strings is five chances to add a group and forget one, and the symptom of
     // forgetting is a rider being told their account is no longer scheduled for
@@ -121,7 +125,7 @@ export async function accountPage(
   ]
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
-  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces } = await prefsFor(user.id)
+  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips } = await prefsFor(user.id)
   const dateFormat = await dateFormatFor(c)
   // ONE QUERY FOR ALL THIRTEEN EVENTS ACROSS BOTH CHANNELS, like prefsFor above
   // and for the same reason: they are rows of one table for one rider, and this
@@ -207,8 +211,82 @@ export async function accountPage(
         hidden={!tabOn('preferences')}
       >
         {/*
-          TWO TOPICS, NOT FOUR PEERS (#178). Appearance is one topic and Units is
-          the other, and the copy is what said so: the duration and date settings
+          SHOW ME AROUND IS FIRST, AND ITS OWN TOPIC (#133).
+
+          First because it is the one preference here that exists for somebody
+          who has never used the app: everything below answers "how do you want
+          this written", which presumes a rider who already knows what the
+          controls are. This one is what tells them.
+
+          ITS OWN TOPIC RATHER THAN A FOURTH APPEARANCE AXIS, although it very
+          nearly fits — appearance is one form and one handler on the stated
+          reasoning that a rider has ONE appearance and would be surprised if
+          saving the palette reverted the light/dark choice made in the same
+          breath. That argument is about three answers to one question, and this
+          is a different question: whether the app talks to you is not how it
+          looks. Folding it in would also mean folding it into that handler,
+          which is the thing the per-column split exists to prevent.
+
+          A ONE-SETTING TOPIC IS NOT THE THING `reports` WAS. That notification
+          group was folded into `account` because it rendered as a heading, two
+          column labels and a single row — furniture around nothing. This is a
+          heading, a lede that explains a feature, and the control. The section
+          is complete; it is just short.
+        */}
+        <section class="setting-topic" id="tips">
+          <h2>Show me around</h2>
+          <p>
+            Two things, for somebody new. The tour walks you through the builder once, step by step, and waits while you
+            build a real route. The tips are what stay behind it: point at anything and get a sentence on what it is for
+            and why you would touch it. Both are on to start with, and neither turns itself&nbsp;off.
+          </p>
+
+          {/*
+            THE TOUR IS A LINK, NOT A FORM. There is nothing to store from here —
+            it runs on the builder, and finishing or skipping it is what writes
+            `tour_done_at`, from the builder, through its own endpoint. This is
+            the same `/builder?tour` the account menu carries, so a rider has two
+            doors to one room and both open the same one.
+          */}
+          <p class="setting-actions">
+            <a class="btn" href="/builder?tour" data-tour-start>
+              Take the tour
+            </a>
+          </p>
+
+          {/*
+            ONE FIELDSET IN THE THREE-COLUMN GRID, which is what keeps it to a
+            third of the page rather than letting two radios run the full width
+            of a desktop window. The grid is the page's rhythm and a lone cell
+            still sits on it; a full-bleed choice set does not, and reads as a
+            different kind of control from the five below.
+          */}
+          <form method="post" action="/settings/tips" class="setting-form" data-autosave>
+            <div class="three-col">
+              <fieldset class="choice-set">
+                <legend class="visually-hidden">Show me around</legend>
+                {TIPS_CHOICES.map((choice) => (
+                  <label class="choice">
+                    <input type="radio" name="tips" value={choice.id} checked={choice.id === tips} />
+                    <span class="choice-label">{choice.label}</span>
+                    <span class="choice-example">{choice.example}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                Save
+              </button>
+              <Saved when={on('tips')} />
+            </div>
+          </form>
+        </section>
+
+        {/*
+          TWO TOPICS, NOT FOUR PEERS (#178) — THREE SINCE #133, and the count in
+          this note is what changed rather than its reasoning. Appearance is one
+          topic and Units is the other, and the copy is what said so: the duration and date settings
           each promise, in nearly the same words, that they change the WRITING
           and not the number. Two settings making the same promise are one topic.
 

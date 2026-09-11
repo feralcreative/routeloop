@@ -569,10 +569,10 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
              titles, and hides the whole pill on a one-route ride where the two
              scopes are the same slider. */
           <div class="time-scope-set" id="time-scope" role="group" aria-label="What the slider covers" hidden>
-            <button type="button" class="time-seg" data-scope="route" aria-pressed="true">
+            <button type="button" class="time-seg" data-scope="route" data-tip="time-scope" aria-pressed="true">
               Route
             </button>
-            <button type="button" class="time-seg" data-scope="ride" aria-pressed="false">
+            <button type="button" class="time-seg" data-scope="ride" data-tip="time-scope" aria-pressed="false">
               Ride
             </button>
           </div>
@@ -588,7 +588,14 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
             Ships hidden with no label. paintMoment() shows it only once there
             is a ring to talk about: a rider with no bike on file has no range,
             and a control that toggles nothing is worse than no control. */}
-        <button type="button" class="time-scope" id="range-ring" aria-pressed="true" hidden></button>
+        <button
+          type="button"
+          class="time-scope"
+          id="range-ring"
+          data-tip="range-ring"
+          aria-pressed="true"
+          hidden
+        ></button>
       </div>
       <input
         id="time-slider"
@@ -599,6 +606,7 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
         step="60"
         value="0"
         aria-label="Move through the ride in time"
+        data-tip="timeline"
         title="Drag to move through the ride"
       />
     </div>
@@ -867,6 +875,17 @@ const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: 
             called what it is beats two called different things. See the note
             where feedbackFab used to be. */}
         <NavLink item={{ key: 'feedback', href: '/feedback', label: 'Feedback' }} navKey={navKey} />
+        {/* THE WAY BACK INTO THE GUIDED TOUR (#133). A plain anchor and not a
+            NavLink: it is never the current page, so it carries no key — and a
+            key no page sets is an `aria-current` that can never fire, the rule
+            the NavKey union already records. It is a REAL LINK to a fresh ride
+            because a tour started on the dashboard would have nothing to point
+            at; on the builder itself tour.js intercepts the click and starts in
+            place, so a rider wanting a reminder gets it on the ride they are
+            looking at. `?tour` is read and stripped by tour.js. */}
+        <a href="/builder?tour" data-tour-start>
+          Take the tour
+        </a>
         {/* ONE ADMIN ITEM, NOT FOUR. Approvals, Invitations and Survey results
             are all linked from /admin's own dashboard, and four moderation
             queues in a rider's account menu made the menu about running the site
@@ -1019,13 +1038,19 @@ function siteFooter(splash: boolean): string {
               anyway give the inner link no keyboard focus, so it would be a
               link only a mouse could follow. Two controls, two jobs: the date
               opens the notes, the hash opens the commit. */}
-          <button type="button" class="site-footer-version" data-open-notes title="See what’s new">
+          <button type="button" class="site-footer-version" data-open-notes data-tip="whats-new" title="See what’s new">
             {APP_VERSION}
           </button>
           {BUILD_SHA && (
             <>
               {' · '}
-              <a class="site-footer-sha" href={commitUrl(BUILD_SHA)} rel="noreferrer" title="See this commit on GitHub">
+              <a
+                class="site-footer-sha"
+                href={commitUrl(BUILD_SHA)}
+                rel="noreferrer"
+                data-tip="build-commit"
+                title="See this commit on GitHub"
+              >
                 {BUILD_SHA}
               </a>
             </>
@@ -1071,7 +1096,16 @@ export function page(opts: PageOpts): string {
   // Read off the user rather than passed in, so all 32 call sites get it without
   // being touched — see the note in src/auth/session.ts about why.
   const u = opts.user as
-    (UserRow & { theme?: string; scheme?: string; motion?: string; dateFormat?: string; clock?: string }) | null
+    | (UserRow & {
+        theme?: string
+        scheme?: string
+        motion?: string
+        dateFormat?: string
+        clock?: string
+        tips?: string
+        tourDoneAt?: Date | null
+      })
+    | null
   const theme = opts.theme ?? u?.theme
   const scheme = opts.scheme ?? u?.scheme
   const motion = opts.motion ?? u?.motion
@@ -1094,6 +1128,22 @@ export function page(opts: PageOpts): string {
   const clock = u?.clock
   const localeAttr_ = ` data-date-format="${esc(dateFormat)}"`
   const clockAttr_ = clock && clock !== 'locale' ? ` data-clock="${esc(clock)}"` : ''
+  // A THIRD CLIENT STAMP, AND ITS ABSENCE MEANS THE OPPOSITE OF THE OTHERS' (#133).
+  //
+  // `data-motion` and `data-clock` omit their default member so something else
+  // can answer — the operating system, or the date format. Nothing else answers
+  // this one, so absence simply means `on`, which is the default. Stamping only
+  // the override is what makes a SIGNED-OUT visitor and a rider with no
+  // `user_profiles` row land where everybody else does: explanations on, which
+  // is the whole direction of the feature. See src/views/tips.ts.
+  const tipsAttr_ = u?.tips === 'off' ? ' data-tips="off"' : ''
+  // A FOURTH, AND IT IS THE ONE THAT SAYS "NEW" RATHER THAN "OFF". `data-tour`
+  // is stamped for a signed-in rider whose `tour_done_at` is null, and read by
+  // public/js/tour.js on the builder to start the guided tour unasked. Absent
+  // for everybody else, including a signed-out visitor — there is no builder
+  // for them to be toured through. The account menu reads the same stamp to
+  // decide whether Take the tour is a thing they have seen.
+  const tourAttr_ = opts.user && u?.tourDoneAt === null ? ' data-tour="new"' : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -1104,7 +1154,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1187,6 +1237,19 @@ ${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
 <script src="${asset('/js/units.js')}" defer></script>
 <script src="${asset('/js/feedback-buffer.js')}" defer></script>
 <script src="${asset('/js/site.js')}" defer></script>
+<!--
+  EVERY PAGE BUT THE SPLASH (#133). The controls it explains are on the builder,
+  the viewer’s timeline and the import review, and none of those three loads the
+  others — so it sits in the shell beside motion.js and units.js rather than in
+  any one of their script lists.
+
+  The splash is the exception for the reason notifications.js is: it is the one
+  page that has to be small, it carries no control worth a sentence, and this
+  file is mostly copy. It also installs NOTHING when the rider has turned the
+  mode off — see the head of the file — so the cost on a page that does want it
+  is a parse and one attribute read.
+-->
+${variant === 'splash' ? '' : `<script src="${asset('/js/tips.js')}" defer></script>`}
 <!--
   SIGNED-IN PAGES ONLY, because the endpoint it polls is behind requireActiveApi
   and there is nothing for a signed-out visitor to be notified about. It is also

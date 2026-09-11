@@ -919,7 +919,7 @@ function builderHtml(
   const routesTab = `        <div class="panel-tabpanel is-active" role="tabpanel" id="panel-routes" aria-labelledby="tab-routes" tabindex="0">
           <div class="tab-actions">
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
-            <button type="button" class="route-add" id="route-add" title="Add a route">+ Route</button>
+            <button type="button" class="route-add" id="route-add" data-tip="route-add" title="Add a route">+ Route</button>
           </div>
 
           <!-- Select mode’s action bar, filled by renderSelectBar() in builder.js
@@ -1023,7 +1023,7 @@ ${
   // editing the ride's own text is part of editing the ride.
   standing.isOwner
     ? `          <div class="meta-row">
-            <select id="ride-visibility" name="visibility" title="Visibility">
+            <select id="ride-visibility" name="visibility" data-tip="ride-visibility" title="Visibility">
               <option value="private" selected>Private</option>
               <option value="friends">Friends</option>
               <option value="unlisted">Unlisted</option>
@@ -1032,7 +1032,7 @@ ${
           </div>
           <div class="meta-row meta-row--stopby">
             <label for="ride-stop-by">Start looking for a bed at</label>
-            <input id="ride-stop-by" name="stopBy" type="time" step="900" title="When to start looking for somewhere to stay">
+            <input id="ride-stop-by" name="stopBy" type="time" step="900" data-tip="ride-stop-by" title="When to start looking for somewhere to stay">
             <button type="button" id="ride-stop-by-clear" class="btn btn-sm btn-quiet" hidden>Clear</button>
           </div>`
     : ''
@@ -1191,7 +1191,7 @@ ${
   // grows from; the two-line ceiling is a max-height in _builder.scss.
   const titleHtml = `<textarea id="ride-title" name="title" maxlength="150" rows="1" wrap="soft"
              placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off" spellcheck="false"
-             aria-label="Ride name" title="Ride name—click to edit"></textarea>
+             aria-label="Ride name" data-tip="ride-name" title="Ride name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
   // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the route list.
@@ -1214,8 +1214,8 @@ ${
                the button’s color—including the 0.35 opacity of the disabled
                state. An <img> cannot inherit color and would stay black while
                the button grayed out around it. -->
-          <button id="undo" class="btn-icon" type="button" disabled title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
-          <button id="redo" class="btn-icon" type="button" disabled title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon" data-icon="icon-redo.svg"></span></button>
+          <button id="undo" class="btn-icon" type="button" disabled data-tip="undo" title="Nothing to undo" aria-label="Undo"><span class="tb-inline-icon" data-icon="icon-undo.svg"></span></button>
+          <button id="redo" class="btn-icon" type="button" disabled data-tip="redo" title="Nothing to redo" aria-label="Redo"><span class="tb-inline-icon" data-icon="icon-redo.svg"></span></button>
           <span id="save-status" class="save-status" data-state="new" aria-hidden="true">
             <span class="save-dot"></span>
             <span class="save-text">Not saved yet</span>
@@ -1310,6 +1310,43 @@ ${
     // function checks for the global and returns quietly, and every row's menu
     // carries Move up / Move down regardless. Those are also the keyboard path,
     // because a drag handle is not one.
+    //
+    // SHEPHERD.JS DRIVES THE GUIDED TOUR (#133), the second CDN script on this
+    // page and the second approved dependency. Ziad's call, 2026-09-10, over a
+    // hand-rolled spotlight: the three waiting steps are hand-written either
+    // way, so what the library buys is the positioning — flip, shift,
+    // scroll-into-view, the focus trap — which is where hand-rolled tours go
+    // wrong. MIT, 46KB.
+    //
+    // **IT IS LOADED AS A MODULE THROUGH A PRELOAD, AND THAT PAIR IS WHAT KEEPS
+    // SRI.** Shepherd 12+ ships ESM only and cdnjs stops hosting its JS at 11,
+    // so it comes from jsdelivr, which already serves SortableJS. An `import`
+    // specifier cannot carry an integrity hash; a `<link rel="modulepreload">`
+    // can, and the browser serves the later import from that verified entry —
+    // so the bytes are still checked and a tampered file is still refused.
+    // tour.js reads the preload's own href and `import()`s it after load, so
+    // the URL is written once and the import can never name a different file
+    // from the one that was verified.
+    //
+    // **A DYNAMIC IMPORT FROM A CLASSIC SCRIPT, NOT AN INLINE MODULE, AND THE
+    // DIFFERENCE IS WHETHER THE BUILDER WAITS.** Module scripts are deferred and
+    // execute in document order with every other deferred script — so an inline
+    // `<script type="module">` placed above builder.js would hold builder.js,
+    // and DOMContentLoaded with it, until jsdelivr had answered. A tour must
+    // never be on the path to the builder drawing. `import()` from tour.js,
+    // the last script on the page, is off that path entirely.
+    //
+    // **IF THE CDN FAILS, THE TOUR IS ABSENT AND THE BUILDER IS UNTOUCHED**:
+    // the import rejects, boot() is never called, and Take the tour in the menu
+    // is a plain link that reloads and tries again. The stylesheet is
+    // Shepherd's own, pinned the same way, and style/_tour.scss re-themes it
+    // onto this palette's tokens on top.
+    // The two <link>s go in the head — a stylesheet at the end of the body is a
+    // late repaint, and a preload is pointless after the parser is done. Note
+    // they still land AFTER main.min.css, so style/_tour.scss has to outrank
+    // Shepherd's own rules by specificity rather than by order.
+    head: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@15.3.0/dist/css/shepherd.css" integrity="sha384-C5yWgOSmSD4vj/xah+gT81JJz/Q4ZA+7m86bpX6cHQvmoEb0XdlZk1Kt02f/rH0l" crossorigin="anonymous">
+  <link rel="modulepreload" id="shepherd-module" href="https://cdn.jsdelivr.net/npm/shepherd.js@15.3.0/dist/js/shepherd.mjs" integrity="sha384-3c9ULgNKnju6snpqV4Hwd0Kku2L97ceRjbGdQZ8xu/d9IMhkkj3JqcTyKmImgPtg" crossorigin="anonymous">`,
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/tabs.js')}" defer></script>
@@ -1327,6 +1364,7 @@ ${
   <script src="${asset('/js/route-split.js')}" defer></script>
   <script src="${asset('/js/corridor.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
-  <script src="${asset('/js/builder.js')}" defer></script>`,
+  <script src="${asset('/js/builder.js')}" defer></script>
+  <script src="${asset('/js/tour.js')}" defer></script>`,
   })
 }
