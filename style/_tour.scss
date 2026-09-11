@@ -30,7 +30,8 @@
   background: $text;
   color: $white;
   border-radius: 10px;
-  max-width: min(24rem, calc(100vw - 2rem));
+  // Doubled type wants roughly double the measure, or a sentence is four lines.
+  max-width: min(32rem, calc(100vw - 2rem));
   box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
   // Shepherd fades the card in over 0.3s. Kept — it is the one animation in
   // this feature and it covers the reposition between steps — but stilled for
@@ -52,12 +53,16 @@
   // own ground and the title carries the weight instead.
   &.shepherd-has-title .shepherd-content .shepherd-header {
     background: transparent;
-    padding: 1rem 1rem 0;
+    padding: 1.2rem 1.2rem 0;
   }
 
+  // EVERY SIZE IN THIS CARD IS 1.5x WHAT IT WAS. Ziad's call, 2026-09-10:
+  // the first cut used the tip bubble's type and read as a footnote on a map
+  // that fills a 27-inch screen, and 2x — tried first — was a billboard. A
+  // tour is the one thing on the page that is meant to be read first.
   .shepherd-title {
     color: $white;
-    font-size: 1.05rem;
+    font-size: 1.575rem;
     font-weight: 700;
     line-height: 1.3;
     text-wrap: balance;
@@ -65,7 +70,7 @@
 
   .shepherd-cancel-icon {
     color: $neutral-76;
-    font-size: 1.6em;
+    font-size: 1.8rem;
     line-height: 1;
 
     &:hover {
@@ -75,9 +80,9 @@
 
   .shepherd-text {
     color: $neutral-88;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    padding: 0.6rem 1rem 0.9rem;
+    font-size: 1.38rem;
+    line-height: 1.45;
+    padding: 0.8rem 1.2rem 1.1rem;
     text-wrap: pretty;
 
     p {
@@ -89,8 +94,8 @@
   // is a position, not a message.
   .tour-part {
     display: block;
-    margin-bottom: 0.35rem;
-    font-size: 0.72rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.08rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: $neutral-76;
@@ -119,6 +124,7 @@
     border: 1px solid $neutral-63;
     border-radius: 8px;
     font: inherit;
+    font-size: 1.38rem;
     cursor: pointer;
 
     b {
@@ -126,7 +132,7 @@
     }
 
     span {
-      font-size: 0.82rem;
+      font-size: 1.23rem;
       color: $neutral-88;
     }
 
@@ -142,9 +148,10 @@
   }
 
   .shepherd-footer {
-    padding: 0 1rem 1rem;
+    padding: 0 1.2rem 1.2rem;
     gap: 0.6rem;
     align-items: center;
+    font-size: 1.125rem;
   }
 
   // `.btn` restated only where the vendor sheet and the flat button collide:
@@ -163,6 +170,7 @@
     border: 1px solid $neutral-63;
     border-radius: 8px;
     padding: 0.55rem 0.9rem;
+    font-size: 1.125rem;
 
     &:not(:disabled):hover {
       background: transparent;
@@ -179,6 +187,7 @@
     color: $neutral-76;
     border: 0;
     padding: 0.55rem 0;
+    font-size: 1.125rem;
     font-weight: 400;
     font-style: italic;
     cursor: default;
