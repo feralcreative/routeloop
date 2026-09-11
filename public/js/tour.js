@@ -455,6 +455,7 @@
       },
       when: {
         show: function () {
+          keepTabInside(this.getTarget());
           if (!step.wait) return;
           if (this.el) this.el.classList.remove("is-satisfied");
           // Already satisfied — a rider re-running the tour on a real ride has
@@ -469,8 +470,14 @@
           }
           watch(step);
         },
-        hide: unwatch,
-        cancel: unwatch,
+        hide: function () {
+          releaseTab();
+          unwatch();
+        },
+        cancel: function () {
+          releaseTab();
+          unwatch();
+        },
       },
     };
 
@@ -493,6 +500,42 @@
       };
     }
     return opts;
+  }
+
+  // ——— Tab inside a date field ———
+  //
+  // **SHEPHERD HIJACKS TAB ON THE TARGET, AND ON A DATE FIELD TAB IS HOW YOU
+  // GET FROM THE YEAR TO THE HOUR.** Shepherd binds its keyboard handler to the
+  // attached element as well as to the card, and when focus is on the last
+  // focusable thing inside the target it takes Tab and moves focus to the
+  // card's first button — the cancel X. That is a sensible trap for a text
+  // box, whose Tab leaves it anyway. On `datetime-local` Tab is segment
+  // navigation, so a rider typing a start time got as far as the year and was
+  // dropped on the X. Reported 2026-09-10 on the Part 2 wait.
+  //
+  // A capture listener on the same element, registered later, still runs
+  // FIRST at the target — capture-phase listeners fire before bubble-phase
+  // ones on the target itself — so stopping the event here is what keeps it
+  // from Shepherd's. Only for the inputs whose Tab means something inside
+  // them; everything else keeps Shepherd's trap.
+  var tabHost = null;
+
+  function swallowTab(e) {
+    if (e.key === "Tab") e.stopImmediatePropagation();
+  }
+
+  function keepTabInside(target) {
+    releaseTab();
+    if (!target || target.tagName !== "INPUT") return;
+    if (!/^(datetime-local|date|time|month|week)$/.test(target.type)) return;
+    tabHost = target;
+    tabHost.addEventListener("keydown", swallowTab, true);
+  }
+
+  function releaseTab() {
+    if (!tabHost) return;
+    tabHost.removeEventListener("keydown", swallowTab, true);
+    tabHost = null;
   }
 
   // ——— The waits ———
