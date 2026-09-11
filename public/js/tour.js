@@ -88,11 +88,19 @@
       waiting: "Waiting for a name…",
     },
     {
+      id: "panel",
+      part: 1,
+      at: "#info-panel",
+      side: "right",
+      title: "The builder is two halves. This is the first",
+      text: "The panel: your routes, every point on them, how long you stop, when you leave. It is a list, and the order of the list is the order you ride. Everything the map cannot say in a picture is said here.",
+    },
+    {
       id: "map",
       part: 1,
       at: "#map",
       title: "The map is the other half",
-      text: "Everything in this panel is drawn over there, and most of it can be done from either side—click the map to add a point, drag a road to reshape it. The panel is for the details the map cannot show.",
+      text: "Everything in the panel is drawn over here, and most of it can be done from either side—click the map to add a point, drag a road to reshape it. Neither half is the real one; they are the same ride, twice.",
       side: "left",
     },
     {
