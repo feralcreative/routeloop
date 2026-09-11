@@ -34,6 +34,8 @@
   "use strict";
 
   var DONE_URL = "/api/tour/done";
+  // How far right an attached card is pushed on a desktop — see build().
+  var DESKTOP_NUDGE_PX = 20;
 
   // ——— The steps ———
   //
@@ -316,10 +318,32 @@
         classes: "tour-step",
         modalOverlayOpeningPadding: 6,
         modalOverlayOpeningRadius: 8,
-        // Shepherd's own Floating UI setup — flip, shift and the arrow — is
-        // left alone. Passing `floatingUIOptions.middleware` REPLACES that list
-        // rather than adding to it, which is the mistake the first draft of
-        // this made: an empty array meant a card near an edge was cut off.
+        // Shepherd deep-merges `floatingUIOptions` over its own, and deepmerge
+        // CONCATENATES arrays — so this middleware is appended after Shepherd's
+        // flip and shift rather than replacing them. (An empty array here was
+        // the first draft's mistake for the opposite reason: it still merged,
+        // to nothing useful, and a card near an edge was cut off.)
+        //
+        // **THE CARD SITS 20px FURTHER RIGHT ON A DESKTOP.** Ziad's call,
+        // 2026-09-10: attached to a control in the drawer, the card landed
+        // with its left edge inside the panel, over the row it was pointing
+        // at. A plain nudge rather than a placement change, because every
+        // step wants the same amount and Floating UI's own `offset` is along
+        // the placement axis, which is the wrong axis for a card placed
+        // "auto". Hand-written because Shepherd bundles Floating UI and
+        // exports none of it. Not on a phone, where the card is centered and
+        // 20px is a fifth of the gutter.
+        floatingUIOptions: {
+          middleware: [
+            {
+              name: "desktop-nudge",
+              fn: function (state) {
+                if (!window.matchMedia("(min-width: 992px)").matches) return {};
+                return { x: state.x + DESKTOP_NUDGE_PX };
+              },
+            },
+          ],
+        },
       },
     });
     STEPS.forEach(function (s, i) {
