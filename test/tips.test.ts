@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs'
 import { TIPS, toTips, DEFAULT_TIPS, TIPS_CHOICES } from '../src/views/tips'
 
 let BODY: Record<string, string>
-let STEPS: { id: string; at?: string; wait?: unknown }[]
+let STEPS: { id: string; at?: string; demo?: unknown; done?: unknown; running?: string }[]
 
 beforeAll(() => {
   // Same harness as test/drag-index.test.ts, with `document` stubbed as well —
@@ -95,17 +95,40 @@ describe('tips', () => {
 })
 
 describe('tour', () => {
-  it('is three parts, each with more than one step, and four steps that wait', () => {
+  it('is three parts, each with more than one step, and four steps that demonstrate', () => {
     // The shape Ziad chose: three parts a rider can take in any order or skip,
-    // narrated, with exactly four steps that do not move on until the rider has
-    // done the thing — the name, two points, and a start time. More waits is a
-    // different tour.
+    // narrated, with exactly four steps that do the thing in front of the rider
+    // — the name, two points, and a start time. Since 2026-09-11 those
+    // DEMONSTRATE rather than wait: the only interaction is Next, Back and
+    // Skip. Each carries the demo, the predicate that says it already
+    // happened, and the status line shown while it runs.
     const parts = new Set(STEPS.map((s: any) => s.part).filter(Boolean))
     expect([...parts].sort()).toEqual([1, 2, 3])
     for (const n of parts) expect(STEPS.filter((s: any) => s.part === n).length).toBeGreaterThan(1)
-    expect(STEPS.filter((s) => s.wait).length).toBe(4)
+    const demos = STEPS.filter((s) => s.demo)
+    expect(demos.map((s) => s.id)).toEqual(['name', 'first-point', 'second-point', 'when'])
+    for (const s of demos) {
+      expect(typeof s.done).toBe('function')
+      expect(typeof s.running).toBe('string')
+    }
     // The welcome and closing cards belong to no part and carry the chooser.
     expect(STEPS.filter((s: any) => !s.part).every((s: any) => s.chooser)).toBe(true)
+  })
+
+  it('opens parts 2 and 3 with an intro card, and part 1 with the welcome', () => {
+    // Ziad's call, 2026-09-11: an interstitial between parts says the subject
+    // has changed before the next control is pointed at. Part 1 gets none,
+    // because the welcome card is that interstitial. An intro is centered —
+    // it anchors to nothing and waits for nothing.
+    const first = (n: number) => STEPS.find((s: any) => s.part === n) as any
+    expect(first(1).intro).toBeUndefined()
+    for (const n of [2, 3]) {
+      const s = first(n)
+      expect(s.intro).toBe(true)
+      expect(s.at).toBeUndefined()
+      expect(s.demo).toBeUndefined()
+    }
+    expect(STEPS.filter((s: any) => s.intro).length).toBe(2)
   })
 
   it('opens the tab a step lives on', () => {

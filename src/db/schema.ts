@@ -439,6 +439,16 @@ export const userProfiles = pgTable('user_profiles', {
   // offered it, and offering it again on every load is the thing that makes a
   // tour hated.
   tourDoneAt: timestamp('tour_done_at', { withTimezone: true }),
+  // WHETHER THE HEADER'S "Take the tour" SIGN IS HIDDEN. Ziad's call,
+  // 2026-09-11: the sign sits beside the account chip on every page including
+  // the builder, which is right for a new rider and furniture for one who has
+  // taken it twice, so a checkbox under Show me around takes it away. A
+  // boolean and not a timestamp, unlike `tour_done_at` beside it: nothing will
+  // ever ask how long ago the sign was hidden. Defaulted for the reason the
+  // rest of this block is — a rider who said nothing sees the sign, and the
+  // account menu's own item survives either way, so hiding it removes an
+  // affordance and never the feature.
+  hideTour: boolean('hide_tour').notNull().default(false),
   // Places to push DOWN a place search, one per line or separated by commas or
   // semicolons (#271). FREE TEXT AND NOT A JOIN TABLE: the intended use is as
   // loose as it sounds — a category like "fast food" and one chain by name in

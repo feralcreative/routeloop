@@ -323,6 +323,30 @@ function SiteHeader({
         </a>
       )}
       {/*
+        A SECOND DOOR INTO THE TOUR, AS A SMALL GUIDE SIGN BESIDE THE ACCOUNT
+        CHIP. Ziad's call, 2026-09-11: the account menu's item is the way back
+        in, and a way back in that lives two clicks deep in a menu is one nobody
+        finds. Same href and the same `data-tour-start` hook as the menu item,
+        so tour.js treats the two identically.
+
+        A CHILD OF THE HEADER AND NOT OF `.nav-end`, because it has to be on the
+        builder too, and on a map page `.nav-end` is inside a closed drawer at
+        every width — the #300 problem, and the same answer: put it where the
+        drawer is not. In the desktop row `.site-menu` is `display: contents`,
+        so this lands between the group row and the chip; in the drawer layouts
+        it sits beside the hamburger, which on a map page is the whole header.
+
+        `hideTour` IS THE CHECKBOX ON /settings. Read off the session user the
+        way `unread` is, since page() is synchronous and called from dozens of
+        places. Not rendered at all rather than hidden: a rider who asked for it
+        gone gets no tab stop either.
+      */}
+      {user && !hideTourOf(user) && (
+        <a class="nav-tour" href="/builder?tour" data-tour-start>
+          Take the tour
+        </a>
+      )}
+      {/*
         A <details>, not a button plus a script. The browser owns open/closed,
         which means the menu works with no JavaScript at all — the whole nav used
         to vanish if site.js failed to load, on every page at once.
@@ -810,6 +834,14 @@ const unreadOf = (u: UserRow | null): number => {
   const n = (u as unknown as { unread?: unknown } | null)?.unread
   return typeof n === 'number' ? n : 0
 }
+
+/**
+ * Whether the header's Take the tour sign is hidden — `user_profiles.hide_tour`,
+ * riding on the session user exactly as `unread` does and read the same
+ * defensive way, for the same reason.
+ */
+const hideTourOf = (u: UserRow | null): boolean =>
+  (u as unknown as { hideTour?: unknown } | null)?.hideTour === true
 
 const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: NavKey; unread?: number }) => {
   const initials = user.displayName
