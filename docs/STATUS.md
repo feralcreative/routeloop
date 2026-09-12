@@ -1,12 +1,28 @@
 # Status and handoff
 
-**Branch:** `feat/show-me-around`, eleven commits, unmerged and **unpushed**. **2,956 tests across 110 files** (2 skipped, 2,958 total).
+**Branch:** `feat/show-me-around`, unmerged and **unpushed**. **2,970 tests across 112 files** (2 skipped, 2,972 total).
 **Merged 2026-09-10 as [#308](https://github.com/feralcreative/routeloop/pull/308)** (binned rides off the dashboard, the 404 page, the hamburger's unread dot, `$signal` split three ways, American English enforced by script and test) **and 2026-09-09 as [#306](https://github.com/feralcreative/routeloop/pull/306)** (stage on the production database). `main` is `f24d30e`.
-**PROD IS STILL BEHIND.** Nothing has been deployed since 2026-09-09 04:16 UTC, so production has none of #302, #303, #306 or #308. The order is written in [deployment.md](deployment.md#the-cutover-once): prod first, because stage no longer applies a migration of its own. This branch adds two more additive migrations (`0038`, `0039`), both expand/contract-safe.
-**What this branch is:** [#133](https://github.com/feralcreative/routeloop/issues/133), the guided tour of the builder plus hover tips on forty controls—see the section below. It carries the second approved CDN dependency, Shepherd.js 15.3.0.
-**Open and worth doing next:** the tour has only been driven by me, in Ziad's own Chrome, on rides 32 and a few throwaways; Ziad walked it once and everything he reported is fixed and committed, but Part 3 (Groups and Riders) has not had his eyes on it yet. The tour has never been run against the CDN failing. The `Take the tour` link creates a real ride each time it is pressed from outside the builder.
+**PROD IS STILL BEHIND.** Nothing has been deployed since 2026-09-09 04:16 UTC, so production has none of #302, #303, #306 or #308. The order is written in [deployment.md](deployment.md#the-cutover-once): prod first, because stage no longer applies a migration of its own. This branch adds four additive migrations (`0038`–`0041`), all expand/contract-safe.
+**What this branch is:** [#133](https://github.com/feralcreative/routeloop/issues/133) grown into the real tour—a five-part, canned, cross-page walkthrough of the whole app that plans one ride in front of a new rider—plus the hover tips, the header sign, and the three guide riders. It carries the second approved CDN dependency, Shepherd.js 15.3.0.
+**Open and worth doing next:** the tour has been driven end to end by me in Chrome at 1440 and 400 wide, on a dev account; Ziad has not walked the five-part version. The first tour on prod creates the three guide rows (`is_guide`), which is the one write the deploy makes on a rider's behalf. The tour has never been run against the CDN failing. The San Jose crew's approach carries a riding time estimated from its geometry at the trunk's average speed—the one number in the fixture that was not routed—see `utils/build-tour-fixture.ts`.
 **Two local branches are merged and redundant:** `feat/release-notes-as-notifications` and `feat/icon-workbench-and-notification-marks`. Both have `[gone]` upstreams and no content `main` lacks; delete when convenient. `fix/binned-rides-on-dashboard` and `chore/stage-on-prod-database` joined them on 2026-09-10.
 **For:** the next agent, or the owner returning cold
+
+## The real tour, 2026-09-11
+
+Ziad's call: "an instructional video about a planning session—the same every time." Five parts, about thirty cards, the only interaction Next, Back and Skip; one story, Coast run, Oakland to Santa Cruz with three friends, that shows every major feature once in the order a planner meets them. The whole of it is recorded in the AGENTS.md tour bullet; what follows is the state and the decisions that shaped it.
+
+**Canned, with the calls made once.** The demo was planned through the app's own router by `utils/build-tour-ride.ts` (five Routes requests, one rendezvous press from the builder) and exported; `utils/build-tour-fixture.ts` turns the export into thirteen keyframes with no network call. Every demonstrating step types for show and then applies the next frame through `TBBuilder.apply()`. Driving the whole tour makes zero requests to `/api/route`, `/api/places/*` or the rendezvous endpoint—checked in the server log. The peer review's licensing objection to a Google-routed fixture is recorded in the plan and was overridden by Ziad: the app already stores routed geometry for every ride and the tour ride is treated like any exported one.
+
+**Three guide riders, `users.is_guide`.** Real accounts with real bikes so the roster, the ring and the split have somebody to be about. Created lazily by the first `POST /api/tour/start` a deployment sees, keyed on a reserved `public_id`, excluded from every listing, verb and notification, and the one thing invitable with no friendship. Two additive columns: `users.is_guide` and `user_profiles.tour_ride_id` (`drizzle/0041`).
+
+**The ride is real and binned.** Start bins the previous one and makes a fresh one with the guides on it; Finish and the X bin it; the hourly trash sweep bins one abandoned for a day. Nothing is added to the rider's paddock.
+
+**Cross-page.** Roster page, `/profile` (paddock), `/riders`, viewer. Position in sessionStorage, trusted only against `<html data-tour-ride>`. `src/views/tour-assets.ts` puts Shepherd on those pages only while a tour is in progress.
+
+**Found by driving it:** `applyRouteRiders()` re-rendered the route list after load and blanked every Starts/Ends field on a dated ride (fixed); a tour started from a blank builder tripped the beforeunload guard on the seeded home base (`TBBuilder.discard()`); the alpha splash returns on every load for exactly the rider the tour is for, so the tour closes it while running.
+
+**Not done, and the reason:** the roster page's invite form still renders its empty-state line on a tour ride (the guides are already members; a real invite would need its own resume state); the split beat's card re-anchors after the frame rather than before, because the row it points at is replaced by the frame. Docs got their one pass here, per the deferral Ziad asked for.
 
 ## Show me around: the guided tour and the hover tips, 2026-09-10
 
