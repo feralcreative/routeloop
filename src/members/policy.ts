@@ -232,6 +232,19 @@ export const isComing = (m: MemberFields): boolean => m.rsvp !== 'declined'
 export const canInvite = (viewerRole: RideRole | null): boolean => viewerRole === 'owner'
 
 /**
+ * Whether somebody may be put on a ride WITHOUT a friendship.
+ *
+ * The friends-only rule above is the whole invite mechanism and this is its one
+ * exception: a GUIDE RIDER — one of the seeded accounts the guided tour invites
+ * onto its demo ride — has no friends and can have none (nothing can friend or
+ * follow one), so the tour's roster beat would be a form that refuses. A guide
+ * already satisfies everything the friendship stood for: it is active, it was
+ * never pending, and it is reachable by nobody because it reads nothing. Pure,
+ * so the exception is one line a test can pin rather than a branch in a query.
+ */
+export const mayInviteWithoutFriendship = (target: { isGuide: boolean }): boolean => target.isGuide
+
+/**
  * Whether `viewer` may take `target` off the roster.
  *
  * Two paths, and they are one rule rather than two endpoints: an owner may

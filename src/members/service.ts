@@ -11,7 +11,16 @@ import { db } from '../db/index'
 import { rideMembers, rides, users, type RidePerm, type RideRole, type Rsvp } from '../db/schema'
 import { areFriends, pairOf } from '../friends/policy'
 import { friendships } from '../db/schema'
-import { canInvite, canRemove, canRsvp, canSetPerm, DEFAULT_PERM, MAX_MEMBERS, type MemberFields } from './policy'
+import {
+  canInvite,
+  canRemove,
+  canRsvp,
+  canSetPerm,
+  DEFAULT_PERM,
+  MAX_MEMBERS,
+  mayInviteWithoutFriendship,
+  type MemberFields,
+} from './policy'
 import type { Tx } from '../maps/ride-graph'
 import { LIVE_RIDE } from '../trash/service'
 
@@ -59,6 +68,9 @@ export type RosterEntry = MemberFields & {
   /** Which bike they are bringing, or null for their default — see
    *  bikesOnRide() in src/bikes/group-range.ts. */
   bikeId: number | null
+  /** A seeded tour guide rather than a person. Rendered as plain text and never
+   *  as a `/@handle` link, because the profile page refuses a guide by design. */
+  isGuide: boolean
 }
 
 /** The roster, owner first and then by name. Owner-first is not a sort key on
@@ -76,6 +88,7 @@ export async function roster(rideId: number): Promise<RosterEntry[]> {
       bikeId: rideMembers.bikeId,
       displayName: users.displayName,
       username: users.username,
+      isGuide: users.isGuide,
     })
     .from(rideMembers)
     .innerJoin(users, eq(users.id, rideMembers.riderId))
@@ -115,7 +128,7 @@ export async function invite(
   if (!canInvite(role)) return { ok: false, reason: 'not-owner' }
 
   const [target] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, isGuide: users.isGuide })
     .from(users)
     // The same predicate the roster page and the public profile use: a pending,
     // blocked or leaving account has no presence and cannot be invited either.
@@ -126,13 +139,18 @@ export async function invite(
     .limit(1)
   if (!target || target.id === viewerId) return { ok: false, reason: 'unknown-rider' }
 
-  const pair = pairOf(viewerId, target.id)
-  const [f] = await db
-    .select({ status: friendships.status })
-    .from(friendships)
-    .where(and(eq(friendships.riderA, pair.riderA), eq(friendships.riderB, pair.riderB)))
-    .limit(1)
-  if (!areFriends(f)) return { ok: false, reason: 'not-a-friend' }
+  // A guide rider is the one thing invitable with no friendship — see the
+  // policy for why — and the friendship read is skipped rather than made to
+  // pass, because no row can exist for a pair nothing may befriend.
+  if (!mayInviteWithoutFriendship(target)) {
+    const pair = pairOf(viewerId, target.id)
+    const [f] = await db
+      .select({ status: friendships.status })
+      .from(friendships)
+      .where(and(eq(friendships.riderA, pair.riderA), eq(friendships.riderB, pair.riderB)))
+      .limit(1)
+    if (!areFriends(f)) return { ok: false, reason: 'not-a-friend' }
+  }
 
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })

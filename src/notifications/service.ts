@@ -89,6 +89,22 @@ export type Notice<P> = {
 }
 
 /**
+ * The recipients that are people. A GUIDE RIDER — one of the seeded accounts
+ * the guided tour invites onto its demo ride — is on a real roster and would
+ * otherwise collect a real "you were added" row every time a new rider takes
+ * the tour, forever, with nobody to read it. Filtered here, at the two doors
+ * every sender goes through, rather than at each of the thirteen senders.
+ */
+async function humansOnly(ids: readonly number[]): Promise<number[]> {
+  if (ids.length === 0) return []
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, [...ids]), eq(users.isGuide, false)))
+  return rows.map((r) => r.id)
+}
+
+/**
  * Tell one rider one thing, on whichever channels they asked for.
  *
  * **THE PREFERENCE IS CHECKED BEFORE THE INSERT, NOT BEFORE THE RAISE.** A rider
@@ -99,6 +115,7 @@ export type Notice<P> = {
  */
 export function notify<P>(userId: number, notice: Notice<P>): void {
   void (async () => {
+    if ((await humansOnly([userId])).length === 0) return
     const prefs = await prefsOf(userId)
     const want = (ch: Channel) => enabledFor(prefs, notice.event, ch)
 
@@ -158,6 +175,8 @@ export function notifyMany<P>(
 ): void {
   if (userIds.length === 0) return
   void (async () => {
+    const people = await humansOnly(userIds)
+    if (people.length === 0) return
     const rows = await db
       .select({
         userId: notificationPrefs.userId,
@@ -166,7 +185,7 @@ export function notifyMany<P>(
         enabled: notificationPrefs.enabled,
       })
       .from(notificationPrefs)
-      .where(and(inArray(notificationPrefs.userId, [...userIds]), eq(notificationPrefs.event, event)))
+      .where(and(inArray(notificationPrefs.userId, people), eq(notificationPrefs.event, event)))
 
     // One map per rider, so a rider with no rows gets an empty one and every
     // default — the common case, which must not need a branch.
@@ -181,7 +200,7 @@ export function notifyMany<P>(
     const toStore: Array<{ userId: number; event: string; title: string; body: string; url: string | null }> = []
     const notices = new Map<number, Notice<P>>()
 
-    for (const id of userIds) {
+    for (const id of people) {
       const prefs = prefMap(byUser.get(id) ?? [])
       const notice = build(id)
       notices.set(id, notice)

@@ -62,7 +62,7 @@ export async function followingSet(viewerId: number, targetIds: number[]): Promi
  *  checked here first so a second press is a no-op rather than a 500. */
 export async function followRider(viewerId: number, targetId: number): Promise<boolean> {
   const [target] = await db
-    .select({ status: users.status, deletionRequestedAt: users.deletionRequestedAt })
+    .select({ status: users.status, deletionRequestedAt: users.deletionRequestedAt, isGuide: users.isGuide })
     .from(users)
     .where(eq(users.id, targetId))
     .limit(1)

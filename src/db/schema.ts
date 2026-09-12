@@ -317,6 +317,23 @@ export const users = pgTable(
     // fresh `purge_after` — so the sweep's own "is this stamp older than the
     // current request" test is what makes the second warning fire.
     purgeWarnedAt: timestamp('purge_warned_at'),
+    // A GUIDE RIDER: one of the three seeded accounts the guided tour invites
+    // onto its demo ride so a new rider can watch a roster fill, a range ring
+    // draw from somebody else's bike, and a group split off. Ziad's call,
+    // 2026-09-11. They are REAL ROWS — a real membership, a real bike with a
+    // real range — because every surface the tour shows reads those tables and
+    // faking them client-side would mean a second rendering path for each.
+    //
+    // What the flag buys is exclusion: a guide is never listed on /riders or
+    // /@handle, can be neither friended nor followed, is never mailed or
+    // notified, and may be invited onto a ride WITHOUT a friendship. A null
+    // email is not a safe discriminator for any of that — legacy rows carry
+    // one — so it is a column. Created lazily by POST /api/tour/start rather
+    // than at boot: stage shares prod's database and runs no boot jobs, and
+    // under blue/green a boot-time insert would land while the OLD color, which
+    // does not filter on this, was still serving. Keyed on a reserved
+    // public_id (`guide:sam`), never on the username. See src/tour/guides.ts.
+    isGuide: boolean('is_guide').notNull().default(false),
   },
   (t) => [
     index('idx_user_status').on(t.status),
@@ -449,6 +466,14 @@ export const userProfiles = pgTable('user_profiles', {
   // account menu's own item survives either way, so hiding it removes an
   // affordance and never the feature.
   hideTour: boolean('hide_tour').notNull().default(false),
+  // THE RIDE THE TOUR IS CURRENTLY BUILDING, OR THE ONE IT LEFT BEHIND. The
+  // tour creates a real ride (everything it does is real, which is its own
+  // promise) and bins it on Finish and on Skip — but a tab closed mid-tour
+  // leaves it live, so the next start bins whatever this still names and the
+  // hourly trash sweep bins one older than a day. `set null` on delete so a
+  // ride binned and purged by any other path leaves nothing dangling. Cleared
+  // by POST /api/tour/done. See src/routes/tour.ts.
+  tourRideId: bigint('tour_ride_id', { mode: 'number' }).references(() => rides.id, { onDelete: 'set null' }),
   // Places to push DOWN a place search, one per line or separated by commas or
   // semicolons (#271). FREE TEXT AND NOT A JOIN TABLE: the intended use is as
   // loose as it sounds — a category like "fast food" and one chain by name in

@@ -164,6 +164,7 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
       username: users.username,
       status: users.status,
       deletionRequestedAt: users.deletionRequestedAt,
+      isGuide: users.isGuide,
       lastName: userProfiles.lastName,
       shareLastName: userProfiles.shareLastName,
       shareSocials: userProfiles.shareSocials,
@@ -184,7 +185,13 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   // The name itself stays reserved through the hold: username_history is
   // untouched until the purge, so nobody else can claim it while the rider can
   // still change their mind.
-  if (!row?.username || row.status !== 'active' || row.deletionRequestedAt) return c.text('Not found', 404)
+  //
+  // A tour guide rider gets the same 404: it is a seeded account with no
+  // presence anywhere but the tour's own ride, and a page for one would be a
+  // page for nobody.
+  if (!row?.username || row.status !== 'active' || row.deletionRequestedAt || row.isGuide) {
+    return c.text('Not found', 404)
+  }
 
   const cards = await db
     .select({ ride: rides, color: routesTable.color })
