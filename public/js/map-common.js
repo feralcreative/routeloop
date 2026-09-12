@@ -1623,7 +1623,7 @@
       // single list 1..n and the index is that number. A meeting-point proposal
       // draws several lists at once — one per joining group, each in that
       // group's color — and each has to count from one, or the rider is reading
-      // dot 5 against a row labelled 2.
+      // dot 5 against a row labeled 2.
       dot.textContent = String(list[i].num == null ? i + 1 : list[i].num);
       // Cleared rather than left alone when there is no color: the pins are a
       // POOL, so a dot the meeting-point proposal painted is the same element
@@ -1642,7 +1642,7 @@
       // thing that would be unreadable — twelve labels overlapping each other —
       // which is why the dot carries a NUMBER and the name arrives only when the
       // rider asks for it by pointing. `tip` is built by the caller so this file
-      // stays out of miles-versus-kilometres.
+      // stays out of miles-versus-kilometers.
       const tip = p.pins[i].content.lastChild;
       tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
     }

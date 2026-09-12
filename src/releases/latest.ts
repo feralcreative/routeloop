@@ -83,7 +83,7 @@ const MONTHS = [
  * When a release shipped, from its own heading.
  *
  * **THE DATE IS WHAT PUTS IT IN THE LIST, so this cannot fall back to "now".**
- * The centre orders by `created_at`, and a backfill stamped with the moment it
+ * The center orders by `created_at`, and a backfill stamped with the moment it
  * ran would put forty-two releases in a block at the top in file order, which is
  * the opposite of mixing them chronologically with everything else.
  *
@@ -94,7 +94,7 @@ const MONTHS = [
  * entry in the file either way.
  *
  * **MIDDAY UTC, NOT MIDNIGHT, AND THAT IS THE WHOLE OF WHY THE HOUR IS HERE.**
- * `notifications.created_at` is a real instant and the centre renders it in the
+ * `notifications.created_at` is a real instant and the center renders it in the
  * RIDER'S zone — unlike `routes.start_at`, which is a wall clock read back with
  * `timeZone: 'UTC'`. Stamped at midnight a release dated 8 September renders as
  * the 7th to everybody west of Greenwich, which is what this file's own dev run
@@ -125,7 +125,7 @@ export function releaseDate(title: string): number | null {
  *
  * Sorted by nothing: the file is authored newest-at-the-top and that order is
  * what a reader of the page sees, so re-sorting here would let the two disagree.
- * `at` is what the centre orders by once these are rows.
+ * `at` is what the center orders by once these are rows.
  */
 export function allReleases(html: string): Release[] {
   const masked = maskComments(html)
@@ -238,10 +238,10 @@ function stripStamp(heading: string): string {
  * The entities the notes actually use, and nothing else.
  *
  * **DECODED, WHICH REVERSED AFTER ONE BUILD.** The first version left them
- * alone, reasoning that the title is rendered into HTML by the centre — but
+ * alone, reasoning that the title is rendered into HTML by the center — but
  * views are Hono JSX and JSX ESCAPES BY DEFAULT, so what a rider actually saw
  * was the literal text "8 September 2026 &mdash; a place found…". The stored
- * title and summary are PROSE, and every consumer escapes them: the centre, the
+ * title and summary are PROSE, and every consumer escapes them: the center, the
  * email's HTML arm, and the email's text arm, which could not have taken an
  * entity at all.
  *

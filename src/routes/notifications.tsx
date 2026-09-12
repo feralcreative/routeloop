@@ -50,7 +50,7 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
 })
 
 /**
- * The notification centre.
+ * The notification center.
  *
  * **A RECORD, NOT AN INBOX.** There is nothing to reply to, nothing to archive
  * and nothing to file: every row already happened somewhere else in the app, and

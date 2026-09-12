@@ -96,7 +96,7 @@ describe('the email palette mirrors style/_palette.scss', () => {
 
   // Same arrangement for the two greys, which became aliases when the neutral
   // scale landed on 2026-08-15: $grey is $neutral-88 and $text is $neutral-21,
-  // exactly, so the scale is the only place a grey is written down. The emails
+  // exactly, so the scale is the only place a gray is written down. The emails
   // mirror the steps and keep the semantic names for the templates.
   it('$text is still the neutral scale step 21', () => {
     expect(SCSS).toMatch(/\$text:\s*map\.get\(\$n,\s*21\)/)

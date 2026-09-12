@@ -47,7 +47,7 @@ function worst(name: string): { white: number; black: number } {
   return { white, black }
 }
 
-/** Every field the centre can paint: each mark's, plus every event override. */
+/** Every field the center can paint: each mark's, plus every event override. */
 const FIELDS = [...new Set([...Object.values(MARK_FIELD), ...EVENTS.map((e) => fieldFor(e)), DEFAULT_FIELD])].sort()
 
 describe('the notification mark fields', () => {
@@ -77,7 +77,7 @@ describe('the notification mark fields', () => {
   })
 
   // The other direction: a name in BLACK_GLYPH_FIELDS that no mark uses is a
-  // line nobody reads, and the set stops describing the centre.
+  // line nobody reads, and the set stops describing the center.
   it.each([...BLACK_GLYPH_FIELDS])('$%s is actually painted by a mark', (name: string) => {
     expect(FIELDS).toContain(name)
   })

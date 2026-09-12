@@ -146,7 +146,7 @@ describe('proposeRendezvous', () => {
   // THE CASE A FAILING TEST FOUND, and the reason minSharedFraction exists. A
   // group far off the trunk gets its smallest divert by meeting a few miles
   // short of the destination — going direct and going to a point just short of
-  // it are nearly the same ride — so pure divert-minimising proposes a
+  // it are nearly the same ride — so pure divert-minimizing proposes a
   // rendezvous where the two groups ride together for twenty minutes.
   it('refuses a meet so late that nobody rides together', () => {
     const late = proposeRendezvous(TRUNK, [-120, 33])
@@ -363,7 +363,7 @@ describe('proposeGroupMeet', () => {
   // the start.
   //
   // Seen on stage, 2026-09-06, Oakland to Ensenada — both satellites offered gas
-  // stations in Oakland, each labelled "on their way". The same shape worked when
+  // stations in Oakland, each labeled "on their way". The same shape worked when
   // the main route happened to be TAGGED rather than shared, because then it was
   // in nobody else's strand, which is what made it look like a data problem.
   it('does not treat the main group’s road as a joining group’s own', () => {

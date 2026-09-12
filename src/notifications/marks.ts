@@ -3,7 +3,7 @@
 // **THIS REVERSES THE 2026-09-07 CALL AND THE OLD REASONING IS STRUCK RATHER
 // THAN LEFT TO BE REDISCOVERED.** Ziad's call, 2026-09-09, naming all ten
 // fields himself. Color was keyed on `tone` — advice amber, a verdict red,
-// everything else the blue sign field — on the argument that "colouring by mark
+// everything else the blue sign field — on the argument that "coloring by mark
 // was the first shape and it cannot express this: the storage disc is shared by
 // a quota warning and two destructions". That argument was about ONE mark, and
 // it is answered by letting that one mark's events override rather than by
@@ -19,7 +19,7 @@
 // **THE FIELD LIVES HERE AND NOT IN `_account.scss`.** Ziad's call, 2026-09-09.
 // `routes/icons.tsx` needs the same mapping to draw its "as assigned" swatches,
 // and its own comment already flagged the SCSS table as "two copies... they have
-// to agree, or the swatch beside a name recommends a colour the centre does not
+// to agree, or the swatch beside a name recommends a color the center does not
 // use". One source in TypeScript, emitted as an inline `style` exactly as the
 // workbench does, retires that copy instead of adding a third.
 //
@@ -33,7 +33,7 @@ import { FORCE_WHITE } from '../views/legend'
 /** The token a mark's disc is painted in, without the leading `--`. */
 export const MARK_FIELD: Readonly<Record<string, string>> = {
   // A remark on a ride. The most frequent and least urgent thing here, so it
-  // takes the palette's grey rather than a sign field.
+  // takes the palette's gray rather than a sign field.
   //
   // **$concrete AND NOT $ink-light**, which is what Ziad named first and then
   // changed on being shown the number: `$ink-light` is #ffffff in all six

@@ -6,13 +6,14 @@
 // the press — the owner removes you, you leave from another tab. So the button
 // is a hint and `roleOf()` on submit is the decision. The same arrangement
 // src/friends/service.ts has, for the same reason.
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rideMembers, rides, users, type RidePerm, type RideRole, type Rsvp } from '../db/schema'
 import { areFriends, pairOf } from '../friends/policy'
 import { friendships } from '../db/schema'
 import { canInvite, canRemove, canRsvp, canSetPerm, DEFAULT_PERM, MAX_MEMBERS, type MemberFields } from './policy'
 import type { Tx } from '../maps/ride-graph'
+import { LIVE_RIDE } from '../trash/service'
 
 /** The db or a transaction on it. seedOwner is called from inside the same
  *  transaction that inserts the ride at every real call site — a ride that
@@ -295,13 +296,25 @@ export async function invitableFriends(rideId: number, viewerId: number) {
 }
 
 /** Rides this rider is on but does not own — what the dashboard shows under
- *  "riding with". Their own rides are already the page's main list. */
+ *  "riding with". Their own rides are already the page's main list.
+ *
+ *  LIVE_RIDE IS LOAD-BEARING HERE FOR THE SAME REASON IT IS IN EVERY OTHER RIDE
+ *  LIST, AND THIS WAS THE ONE THAT DID NOT HAVE IT. Binning a ride kills its
+ *  share link on the spot — `viewableRide()` filters on LIVE_RIDE — so a
+ *  membership list that does not filter shows a card whose only action is a
+ *  404, on a ride the owner has deleted and the member cannot restore. Seen on
+ *  a binned private ride that sat on the dashboard for six days.
+ *
+ *  The owner join mirrors `viewableRide()` too: a rider on their way out takes
+ *  their rides off every other list, and this must not be the exception that
+ *  keeps them visible. */
 export async function ridesImOn(viewerId: number) {
   return db
     .select({ ride: rides, role: rideMembers.role, rsvp: rideMembers.rsvp })
     .from(rideMembers)
     .innerJoin(rides, eq(rides.id, rideMembers.rideId))
-    .where(and(eq(rideMembers.riderId, viewerId), sql`${rideMembers.role} <> 'owner'`))
+    .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
+    .where(and(eq(rideMembers.riderId, viewerId), sql`${rideMembers.role} <> 'owner'`, LIVE_RIDE))
     .orderBy(rides.createdAt)
 }
 

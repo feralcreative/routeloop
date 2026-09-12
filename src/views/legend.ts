@@ -1,9 +1,9 @@
 // WHICH INK A SIGN FIELD CARRIES, AS ONE RULE THREE PLACES READ.
 //
-// Pulled out of `routes/icons.tsx` on 2026-09-09, when the notification centre
-// became a second consumer: the workbench recommends a pairing, the centre
+// Pulled out of `routes/icons.tsx` on 2026-09-09, when the notification center
+// became a second consumer: the workbench recommends a pairing, the center
 // paints one, and a test pins them together. Three copies of a threshold is how
-// the workbench ends up recommending something the centre does not do.
+// the workbench ends up recommending something the center does not do.
 //
 // **TWO THRESHOLDS, BECAUSE ADMISSION AND INK ARE TWO QUESTIONS.** Ziad's call,
 // 2026-09-09. Whether a token is a field the app paints a sign on is text
@@ -20,7 +20,7 @@
 // has to earn.
 //
 // Pure on purpose — it takes two measured ratios and a name, reads no file and
-// imports nothing, so `test/notification-marks.test.ts` can hold the centre's
+// imports nothing, so `test/notification-marks.test.ts` can hold the center's
 // declared inks against the compiled palette with no database and no build.
 
 /** Text contrast. Decides whether a token is a field a sign is painted on. */

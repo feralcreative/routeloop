@@ -80,7 +80,7 @@ $-neutrals-light: (
 // **-43 AND -50 WERE BOTH #888888 UNTIL 2026-09-07, WHICH COLLAPSED THE TWO
 // MOST-USED GREYS IN THE APP.** They are 32 and 70 usages, distinct in every
 // light palette and identical in every dark one — so any pairing that relied on
-// the step between them (muted text against a mid grey, a border against a fill)
+// the step between them (muted text against a mid gray, a border against a fill)
 // simply vanished after dark, with nothing to say so. The complement rule stated
 // above is what fixes it: 50 -> 50 is #777777, not #888888.
 $-neutrals-dark: (
@@ -134,6 +134,15 @@ $-signs-default: (
   "yield": #ffdd00,
   "go": #41ae4d,
   "disabled": #0a539c,
+  // **DEEPER THAN THE SIGNAL APP'S #3a76f0 IT WAS COPIED FROM, AND THAT IS THE
+  // POINT OF UNFREEZING IT** (#301). This is a white-legend field — it carries
+  // the weather mark's knockout glyph — and the brand hex measured 4.18:1 on
+  // white, which is under the bar every other field here clears. Being frozen,
+  // no theme could move it. `test/notification-marks.test.ts` takes the WORST
+  // white and the WORST black across all six, so darkening only the contrast
+  // theme made the SET fail on both inks at once: nothing cleared 4.5 everywhere.
+  // All three moved together instead. Measured: white 5.01 / 6.19 / 5.46.
+  "signal": #3269dc,
   "recreation": #603d15,
   "tarmac": #291507,
 );
@@ -162,6 +171,7 @@ $-signs-contrast: (
   "yield": #ffe94d,
   "go": #57c063,
   "disabled": #043a72,
+  "signal": #2a5bc4,
   "recreation": #3d2708,
   "tarmac": #1a0d04,
 );
@@ -202,6 +212,7 @@ $-signs-colorblind: (
   "yield": #f0e442,
   "go": #0089d6,
   "disabled": #004c99,
+  "signal": #4b5fd0,
   "recreation": #5c4033,
   "tarmac": #291507,
 );
@@ -400,6 +411,12 @@ $-signs-colorblind: (
     "fuel-low": -hex(map.get($s, "detour")),
     "go": $go,
     "disabled": $disabled,
+    // THE EMITTED LIST IS EXPLICIT AND THIS LINE IS WHAT MAKES THE SIGN SET
+    // REACH THE PAGE. Added to the three sign maps and not here, `--signal` is
+    // simply never emitted — the build passes, `$signal` compiles to a var()
+    // nothing declares, and every rule reading it falls back to nothing. The
+    // same silent failure `neutral-82` had, hit again on the way to #301.
+    "signal": map.get($s, "signal"),
     "recreation": map.get($s, "recreation"),
     "tarmac": map.get($s, "tarmac"),
     "concrete": map.get($n, 57),
@@ -466,6 +483,11 @@ $-signs-colorblind: (
     "disabled-text": -tone(map.get($s, "disabled"), $record-text-l),
     "detour-text": -tone(map.get($s, "detour"), $record-text-l),
     "recreation-text": -tone(map.get($s, "recreation"), $record-text-l),
+    // The junction rows in _builder.scss, and the fifth token on this lightness
+    // rather than a fifth number: it is the same question the four figures ask —
+    // a sign FIELD that something needs to set type in — so a second value would
+    // be a second thing to keep in step for no reason anybody could see. #301.
+    "signal-text": -tone(map.get($s, "signal"), $record-text-l),
     "panel-bg": $panel-bg,
     "panel-shadow": $panel-shadow,
 
@@ -494,7 +516,15 @@ $-signs-colorblind: (
     // recognizable third-party logos, where an approximation reads as a knock-off.
     "google-blue": #4285f4,
     "github": #181717,
-    "signal": #3a76f0,
+    // **NAMED FOR THE APP, BECAUSE THE TOKEN THAT IS NOT IN THIS BLOCK IS NAMED
+    // FOR THE SIGNAL HEAD.** It was `signal` and served both, which is what #301
+    // is: painted as the Signal logo here and as junction TEXT in _builder.scss,
+    // where being frozen meant 4.18:1 in all three light palettes and no way for
+    // the high-contrast theme — the one theme that exists to lift a color — to
+    // reach it. The logo keeps the frozen hex; the go light moved to the sign
+    // sets above and gets a text tone below, the same split $disabled and $url
+    // have and for the same reason.
+    "signal-brand": #3a76f0,
     "discord": #5865f2,
     "accent": map.get($s, "yield")
   );

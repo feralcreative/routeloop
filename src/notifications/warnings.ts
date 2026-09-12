@@ -180,7 +180,7 @@ export async function warnQuota(now: Date = new Date()): Promise<number> {
  * Same comparison as the ride warning and for the same reason: Save Me clears
  * `purge_after`, and a rider who asks to leave a second time gets a fresh one —
  * so a stamp older than the current hold began is a warning about a deletion
- * that was cancelled, and they are warned again.
+ * that was canceled, and they are warned again.
  */
 export async function warnAccountPurges(now: Date = new Date()): Promise<number> {
   const horizon = new Date(now.getTime() + LEAD_MS)

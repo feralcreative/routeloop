@@ -15,7 +15,7 @@
 //      PNG deliberately, so its own ground has to match the card exactly — a
 //      mismatch is a visible rectangle, and it is visible on precisely the
 //      screens dark mode is read on.
-//   3. A dark grey gets nudged until it no longer contrasts.
+//   3. A dark gray gets nudged until it no longer contrasts.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { inflateSync } from 'node:zlib'
@@ -183,7 +183,7 @@ describe('the logo assets', () => {
   })
 })
 
-// Encodes the reasoning in theme.ts as arithmetic, so a grey cannot be nudged
+// Encodes the reasoning in theme.ts as arithmetic, so a gray cannot be nudged
 // into illegibility by eye.
 describe('the dark palette is legible on the dark card', () => {
   const luminance = (hex: string): number => {

@@ -1,0 +1,184 @@
+@use "sass:color";
+@use "tokens" as *;
+
+// The 404 page: a photograph of a closed road, full bleed, with the ordinary
+// site chrome floating over it.
+//
+// THE PHOTO IS A PSEUDO-ELEMENT ON <body>, NOT A DIV IN THE MARKUP, and that is
+// a stacking decision rather than a tidiness one. The header is rendered by
+// page() BEFORE the body content, so a layer written into the body would come
+// later in the DOM and paint over the nav. `body::before` at `z-index: -1`
+// paints above the page background and below every one of body's children,
+// which is exactly the layer wanted and needs no z-index on anything else.
+//
+// `fixed` rather than `absolute`, the same as .splash-media: it escapes
+// .page-wrap's cap and padding with neither being restructured, and nothing
+// between here and <body> establishes a containing block.
+body.notfound-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  // Three layers, first on top. The scrim is heaviest at the two ends and
+  // clears through the middle, because the two ends are where type sits: the
+  // nav across the top, the card in the lower half. The middle of the frame is
+  // the barricade itself and is left as the photograph.
+  //
+  // ANCHORED `center bottom`, WHICH IS THE WHOLE COMPOSITION. The image is 4:3
+  // and every real viewport is wider, so `cover` crops vertically — anchored
+  // center it throws away the asphalt, which is the calm even ground the card
+  // needs, and keeps the bright sky, which is the one region no ink reads on.
+  //
+  // $splash-ink under both so a slow decode is still dark enough for light type
+  // rather than a flash of white behind white words.
+  background:
+    linear-gradient(
+        to bottom,
+        color.change($splash-ink, $alpha: 0.74) 0%,
+        color.change($splash-ink, $alpha: 0.28) 26%,
+        color.change($splash-ink, $alpha: 0.34) 52%,
+        color.change($splash-ink, $alpha: 0.82) 100%
+      ),
+    url("/img/road-closed.jpg") center bottom / cover no-repeat,
+    $splash-ink;
+}
+
+.notfound {
+  display: grid;
+  // END, not center: the card is the subject's shadow and the BARRICADE is the
+  // subject. Centered in this block it landed exactly on the concrete and the
+  // photograph became a hillside with a box on it. Pushed to the bottom of the
+  // block it sits on the empty asphalt, which is the calm part of the frame,
+  // and the thing the page is a joke about is visible above it.
+  place-items: end center;
+  // What is left of the first screen once the header, .page-wrap's padding and
+  // the footer have taken theirs — the aim being that this page does not scroll
+  // at all on an ordinary viewport, because a full-bleed photograph that slides
+  // out from under a scrolling page reads as a broken background rather than a
+  // fixed one.
+  //
+  // `min-height` and not `height`: on a short viewport the card has to be free
+  // to push the page taller rather than overflow it, and the footer rules below
+  // are what make that case survivable.
+  min-height: 58vh;
+}
+
+// Scrim AND blur, the pairing _splash.scss records: a scrim alone only lowers
+// the photograph's brightness and leaves its detail running under the words,
+// which is what actually costs legibility. The blur removes the detail so the
+// remaining alpha has a smooth wash to darken.
+.notfound-card {
+  max-width: 34rem;
+  padding: 2.25rem 2.25rem 2.5rem;
+  text-align: center;
+  color: $ink-light;
+  background: color.change($splash-ink, $alpha: 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+}
+
+.notfound-code {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  // Not a token: this is light type held back from the card's own ink, and the
+  // only thing under it is a fixed dark scrim, so there is no palette to follow.
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.notfound-head {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.1;
+  // A headline, not body copy — balance evens the two lines it wraps to on a
+  // phone, where `pretty` would only protect the last word. See typography.md.
+  text-wrap: balance;
+  color: $ink-light;
+}
+
+.notfound-lede {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.notfound-detail {
+  margin: 0.75rem 0 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.notfound-actions {
+  margin: 1.75rem 0 0;
+}
+
+// --- The chrome over the photograph ------------------------------------------
+//
+// The app's other surface with chrome over arbitrary imagery is a map page, and
+// its answer is borrowed rather than reinvented: the mark sits bare, and the
+// hamburger takes a solid panel chip so its ink never has to survive whatever
+// is behind it.
+//
+// THE LOGO IS INVERTED AT EVERY WIDTH, and it has to be. The lockup is a fixed
+// #333333 in the SVG — it does not follow the palette — so it is dark artwork,
+// and the top of this page is the one place in the app guaranteed to be dark
+// behind it. `brightness(0) invert(1)` flattens it to white rather than
+// hue-rotating it, which is what keeps the mark the mark.
+body.notfound-page {
+  .site-logo img {
+    filter: brightness(0) invert(1);
+  }
+
+  .nav-toggle {
+    background: $panel-bg;
+    box-shadow: 0 2px 8px $panel-shadow;
+  }
+}
+
+//@ LG >992px — the drawer is a bar, so its ink is over the photograph
+// Below this width the nav is a solid drawer panel and its own $text ink is
+// correct; lighting it there would put white links on a light panel. This is
+// scoped to the bar for exactly that reason.
+//
+// `.nav-primary > a` and the chip's own name, never a bare `.site-header a`:
+// the account menu is a <details> whose open panel is $panel-bg with $text on
+// it, and a descendant selector reaches inside it.
+@media (min-width: 992px) {
+  body.notfound-page {
+    // DIRECT CHILDREN ONLY, and the `> summary` half is the one that is easy to
+    // miss: "About" and the account chip are <details> disclosures sitting in
+    // the bar, so their labels are over the photograph exactly as the plain
+    // links are, while the items INSIDE them are on a $panel-bg dropdown and
+    // must keep $text. A descendant selector cannot tell those two apart, and
+    // the first version of this rule left "About" near-black on a dark scrim.
+    .nav-primary > a,
+    .nav-primary > .nav-sub > summary,
+    .nav-end > .nav-sub > summary {
+      color: $ink-light;
+    }
+
+    .nav-chip {
+      border-color: rgba(255, 255, 255, 0.45);
+    }
+
+    .nav-account-name {
+      color: $ink-light;
+    }
+  }
+}
+
+// The footer scrolls over the photograph on a viewport short enough to scroll
+// at all, so its ink has to survive the same ground the nav's does. Its rule is
+// deliberately NOT in the media query above: the footer is the same footer at
+// every width, where the nav is a drawer below 992px and a bar above it.
+body.notfound-page {
+  .site-footer {
+    border-top-color: rgba(255, 255, 255, 0.35);
+  }
+
+  .site-footer-links a,
+  .site-footer-note,
+  .site-footer-version {
+    color: $ink-light;
+  }
+}

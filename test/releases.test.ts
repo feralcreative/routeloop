@@ -25,7 +25,7 @@ describe('the newest release', () => {
 
   // THE STORED TITLE IS PROSE, NOT MARKUP, and it shipped as markup for one
   // build. Views are Hono JSX and JSX escapes by default, so a rider saw the
-  // literal text "&mdash;" in their notification centre. The email's text arm
+  // literal text "&mdash;" in their notification center. The email's text arm
   // could never have rendered an entity at all.
   it('decodes the entities the notes are written with', () => {
     const html = wrap(
@@ -128,7 +128,7 @@ describe('every release, not just the newest', () => {
     expect(new Set(all.map((r) => r.id)).size).toBe(all.length)
   })
 
-  // THE DATE IS WHAT PUTS IT IN THE LIST. The centre orders by created_at, so a
+  // THE DATE IS WHAT PUTS IT IN THE LIST. The center orders by created_at, so a
   // release with no date would have to fall back to "now" and land the whole
   // history in a block at the top — the opposite of mixing it chronologically.
   it('dates every release from its own heading', () => {

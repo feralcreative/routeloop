@@ -57,7 +57,7 @@ export const iconRoutes = new Hono<AuthEnv>()
  * **THERE IS NO PAGE-CONTRAST REQUIREMENT HERE, DELIBERATELY.** A first version
  * of this also demanded the disc clear the page ground at 3:1 and returned a
  * list of eleven oddities with $disabled and $stop not among them — the three
- * fields the centre already draws. A disc carrying a high-contrast glyph does
+ * fields the center already draws. A disc carrying a high-contrast glyph does
  * not have to clear the page: the glyph is what is being read, and the disc is
  * its ground. That rule belongs to the role ring, where the bar IS the data.
  *
@@ -89,8 +89,8 @@ export const iconRoutes = new Hono<AuthEnv>()
  * `$yield` is the only field left carrying a black glyph on this page.
  *
  * **THE OVERRIDES AND THE THRESHOLDS BOTH LIVE IN `views/legend.ts` NOW**, which
- * the notification centre reads too — the workbench must not recommend a pairing
- * the centre does not paint, and it carried a second copy of that table until
+ * the notification center reads too — the workbench must not recommend a pairing
+ * the center does not paint, and it carried a second copy of that table until
  * 2026-09-09. The column head reports the REAL ratio rather than a passing one,
  * so a forced field reads as the exception it is: `$detour` shows white 2.0 and
  * `$go` white 2.3.
@@ -236,10 +236,10 @@ iconRoutes.get('/icons', requireActive, (c) => {
   // destructions, so showing one swatch for it would misreport the only mark
   // that actually carries two.
   //
-  // READ FROM `marks.ts`, WHICH IS THE MAPPING THE CENTRE ITSELF USES. This was
+  // READ FROM `marks.ts`, WHICH IS THE MAPPING THE CENTER ITSELF USES. This was
   // a local tone-to-field table whose own comment admitted it was a second copy
   // that had to agree by hand; it is the same source now, so a swatch here
-  // cannot recommend a color the centre does not paint. A RESERVED mark has no
+  // cannot recommend a color the center does not paint. A RESERVED mark has no
   // event, so it falls through to its entry in MARK_FIELD — which is exactly
   // why `road` and `weather` were given one before their events exist.
   const markFields = (name: string): string[] => {
@@ -273,7 +273,7 @@ iconRoutes.get('/icons', requireActive, (c) => {
       ${fields.map((f) => cell(name, f)).join('')}
     </tr>`
 
-  // Marks the notification centre will draw. The catalog is the source for the
+  // Marks the notification center will draw. The catalog is the source for the
   // ones spent today; RESERVED is the short list his nine included for events
   // that do not exist yet, named with the issue that will bring them — a mark
   // with no event is not a mistake here, it is a decision made early.
@@ -347,8 +347,8 @@ iconRoutes.get('/icons', requireActive, (c) => {
     </p>
     <h2>The notification marks</h2>
     <p class="brand-sub">
-      The ${notifMarks.length} the centre draws, or will. The mark beside each name is at the size it actually renders
-      there — <strong>26px</strong> — in the field it is assigned today, because a colour that works at 30px in a table
+      The ${notifMarks.length} the center draws, or will. The mark beside each name is at the size it actually renders
+      there — <strong>26px</strong> — in the field it is assigned today, because a color that works at 30px in a table
       can disappear at the size a rider sees.
     </p>
     <div class="ic-scroll">

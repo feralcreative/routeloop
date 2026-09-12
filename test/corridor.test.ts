@@ -209,7 +209,7 @@ describe('which stretch of the route a place sits on', () => {
 
   // With no track there is no corridor and no segment either. The builder tests
   // `typeof h.atIndex === "number"` and falls back to appending, which is the
-  // behaviour this whole change is careful not to take away.
+  // behavior this whole change is careful not to take away.
   it('is undefined on a route with no track, alongside a null detour', () => {
     const got = C.withinCorridor([place(-122, 38, 'anywhere')], [], 1 * MI)
     expect(got[0].offRouteM).toBeNull()

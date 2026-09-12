@@ -235,7 +235,7 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
           // One custom property per row carries the role's hue to both the badge
           // and the fill, so the two can never disagree about what a category
           // looks like. Absent when the color is null, which leaves the fallback
-          // in _dashboard.scss to paint a grey bar — see roleColor().
+          // in _dashboard.scss to paint a gray bar — see roleColor().
           <li class="role-bar" style={b.color ? `--role-color:${b.color}` : undefined}>
             {/*
               INLINE SVG, and `<img src>` is the trap here. Each mark is a disc
@@ -739,7 +739,7 @@ homeRoutes.get('/', requireActive, async (c) => {
               tab's label, and a heading repeating its own first tab reads as a
               mistake.
 
-              The tablist keeps its own aria-label rather than being labelled by
+              The tablist keeps its own aria-label rather than being labeled by
               this heading. They are two different things to a screen reader —
               the section is "Rides" and the control inside it is a tab list —
               and aria-labelledby here would announce the heading twice.

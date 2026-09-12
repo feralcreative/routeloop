@@ -75,7 +75,7 @@ body.modal-open {
 }
 
 // The four contact links: a row of circular marks with a caption under each.
-// They were full-width grey pills carrying the whole sentence until 2026-08-21;
+// They were full-width gray pills carrying the whole sentence until 2026-08-21;
 // the sentence is still there as the accessible name and the tooltip, and only
 // the visible caption shortened.
 //
@@ -149,7 +149,7 @@ body.modal-open {
   }
 
   &.is-signal svg {
-    color: $signal;
+    color: $signal-brand;
   }
 
   &.is-discord svg {
@@ -415,7 +415,7 @@ body.modal-open {
     text-wrap: pretty;
 
     // The lead-in of each item — the part that says WHAT changed — was the same
-    // grey as the sentence explaining it, so bolding it bought nothing.
+    // gray as the sentence explaining it, so bolding it bought nothing.
     strong {
       color: $text;
     }

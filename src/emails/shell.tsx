@@ -12,7 +12,7 @@
 //   - Padding goes on a <td>. Word drops padding on a <div>.
 //   - The design is light — white card, dark text. Clients that force-invert
 //     produce something legible from that; force-inverting an already-dark
-//     design yields grey mud.
+//     design yields gray mud.
 //
 // DARK MODE sits on top of that last point rather than replacing it, and the
 // distinction is what keeps the rest of the file true. There are two populations

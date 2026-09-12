@@ -403,7 +403,7 @@
   font-style: italic;
 }
 
-// The mark at the size the centre actually draws it. A colour that reads at
+// The mark at the size the center actually draws it. A color that reads at
 // 30px in a comparison table can vanish at 26px on a row, which is the size the
 // decision is really about.
 .ic-real {
@@ -428,7 +428,7 @@
 // The ring table is 17 columns wide, so it is narrower per cell than the field
 // tables and its head carries the hex under the name — the hex is what gets
 // quoted when a hue is picked, since the NAME belongs to a role rather than to
-// anything in the notification centre.
+// anything in the notification center.
 .ic-table--ring {
   th,
   td {

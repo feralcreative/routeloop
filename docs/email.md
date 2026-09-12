@@ -90,7 +90,7 @@ Not stylistic. Outlook on Windows renders with Word's engine, Gmail clips a long
 
 - Layout is tables. Padding goes on a `<td>`—Word drops it on a `<div>`.
 - Every style that **matters** is an inline `style=`. The `<style>` block may only improve a message that is already correct without it.
-- Build light. A white card with dark text inverts cleanly; an already-dark design inverts to grey mud. Dark mode sits on top of this rather than replacing it—see below.
+- Build light. A white card with dark text inverts cleanly; an already-dark design inverts to gray mud. Dark mode sits on top of this rather than replacing it—see below.
 - Never set `color` without `background-color` on the same element. A lone `color` is what produces dark-on-dark text under forced inversion.
 - **No quote characters in any CSS value.** Hono escapes `'` to `&#39;` inside an attribute; a browser decodes that before the CSS parser sees it and Word is not reliably a browser. `src/emails/theme.ts` keeps the font stack unquoted for this reason—CSS permits a family name to be a sequence of identifiers.
 - Colors come from `theme.ts` and nowhere else. `test/email-theme.test.ts` pins those values against `style/_tokens.scss` and fails if a template invents a hex.

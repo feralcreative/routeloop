@@ -44,7 +44,7 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
       '',
       `Everything goes: every ride, every saved place, every bike, and every file you uploaded. There is nothing to restore from afterwards.`,
       '',
-      `If you have changed your mind, sign in and the deletion is cancelled:`,
+      `If you have changed your mind, sign in and the deletion is canceled:`,
       SIGN_IN_URL,
       '',
       `If you have not, you need do nothing. This is the only reminder we will send.`,
