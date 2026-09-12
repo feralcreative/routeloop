@@ -89,6 +89,9 @@ export type SessionUser = {
     tourDoneAt: Date | null
     /** Whether the header's Take the tour sign is hidden, from /settings. */
     hideTour: boolean
+    /** The ride the guided tour is building, or null. Stamped on <html> so
+     *  tour.js can tell a saved tour position from a stale one. */
+    tourRideId: number | null
     avatarBytes: number
     /** Unread notifications, for the badge on the account chip. */
     unread: number
@@ -128,6 +131,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       tips: userProfiles.tips,
       tourDoneAt: userProfiles.tourDoneAt,
       hideTour: userProfiles.hideTour,
+      tourRideId: userProfiles.tourRideId,
       avatarBytes: userProfiles.avatarBytes,
       // THE UNREAD COUNT RIDES ALONG HERE FOR THE REASON THE APPEARANCE COLUMNS
       // DO, one paragraph up: the badge is on the account chip, which is on
@@ -185,6 +189,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       tourDoneAt: row.tourDoneAt ?? null,
       // Null is the no-row case and means the column default: the sign shows.
       hideTour: row.hideTour ?? false,
+      tourRideId: row.tourRideId ?? null,
       // THE UPLOAD WINS OVER THE PROVIDER PICTURE when both exist (#99).
       // `users.avatar_url` is write-once from Google sign-in and a rider cannot
       // change it; an upload is a deliberate choice and outranks it. Zero means

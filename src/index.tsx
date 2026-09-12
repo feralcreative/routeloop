@@ -51,6 +51,7 @@ import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { iconRoutes } from './routes/icons'
 import { settingsRoutes } from './routes/settings'
+import { tourRoutes } from './routes/tour'
 import { notificationRoutes } from './routes/notifications'
 import { accountRoutes } from './routes/account'
 import { builderLabel } from './members/policy'
@@ -236,6 +237,7 @@ app.route('/', roadbookRoutes)
 app.route('/', brandRoutes)
 app.route('/', iconRoutes)
 app.route('/', settingsRoutes)
+app.route('/', tourRoutes)
 app.route('/', notificationRoutes)
 app.route('/', accountRoutes)
 app.route('/', handoffRoutes)

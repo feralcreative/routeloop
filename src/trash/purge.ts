@@ -17,6 +17,7 @@ import { db } from '../db/index'
 import { placeGroups, places, rides } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
 import { warnRidePurges } from '../notifications/warnings'
+import { binAbandonedTourRides } from '../tour/service'
 
 /**
  * How long a claim is trusted before another sweep may take it.
@@ -124,6 +125,12 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
   // just happened. Its own failure is swallowed: a missed warning must not stop
   // the bin being emptied, which is the job this function is actually for.
   await warnRidePurges(now).catch((err) => console.warn('[purge] purge warnings failed', err))
+  // AND THE TOUR'S LEFTOVERS, on the same sweep for the same reason: a tour
+  // ride abandoned by a closed tab is binned here a day later, and binning
+  // is all this does — the purge above takes it thirty days after that like
+  // any other ride. Its own failure is swallowed for the reason the warnings'
+  // is.
+  await binAbandonedTourRides(now).catch((err) => console.warn('[purge] tour sweep failed', err))
   return { rides: rideCount, places: placeCount, groups: groupCount }
 }
 

@@ -54,7 +54,7 @@ export const GUIDES: readonly Guide[] = [
     publicId: 'guide:diego',
     username: 'routeloop_guide_diego',
     displayName: 'Diego Reyes',
-    bike: { make: 'Ducati', model: 'Multistrada V2', year: 2022, rangeMi: 140 },
+    bike: { make: 'Ducati', model: 'Multistrada V2', year: 2022, rangeMi: 120 },
   },
 ]
 

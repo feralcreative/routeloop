@@ -1136,6 +1136,7 @@ export function page(opts: PageOpts): string {
         clock?: string
         tips?: string
         tourDoneAt?: Date | null
+        tourRideId?: number | null
       })
     | null
   const theme = opts.theme ?? u?.theme
@@ -1176,6 +1177,13 @@ export function page(opts: PageOpts): string {
   // for them to be toured through. The account menu reads the same stamp to
   // decide whether Take the tour is a thing they have seen.
   const tourAttr_ = opts.user && u?.tourDoneAt === null ? ' data-tour="new"' : ''
+  // A FIFTH: WHICH RIDE THE TOUR IS BUILDING. tour.js keeps its position in
+  // sessionStorage so it can follow the rider across pages, and this is what
+  // it checks that position against — a saved step for a ride this session
+  // does not name is stale (the tour finished, or somebody else signed in on
+  // this tab) and is dropped rather than resumed into a 404. Stamped on every
+  // page because the tour visits several.
+  const tourRideAttr_ = opts.user && u?.tourRideId ? ` data-tour-ride="${u.tourRideId}"` : ''
   const bodyClass = [isMap ? 'map-page' : '', variant === 'splash' ? 'splash-page' : '', opts.bodyClass ?? '']
     .filter(Boolean)
     .join(' ')
@@ -1186,7 +1194,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}${tourRideAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
