@@ -180,6 +180,8 @@ app.use('/style/*', serveStatic({ root: './public' }))
 app.use('/img/*', serveStatic({ root: './public' }))
 app.use('/video/*', serveStatic({ root: './public' }))
 app.use('/font/*', serveStatic({ root: './public' }))
+// The guided tour's fixture — the canned ride it replays. See utils/build-tour-fixture.ts.
+app.use('/tour/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
 
 // Live reload, development only — see src/dev/livereload.ts. Mounted up here

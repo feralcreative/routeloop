@@ -17,6 +17,11 @@ export const TOUR_SEED = {
   title: 'Untitled ride',
   routeUid: 'tourroute001',
   pointUid: 'tourpoint001',
+  // The main group, seeded here with a fixed uid for the reason the route's
+  // is: the fixture's later frames name it, and a group whose uid changed
+  // would be reconciled away and re-inserted, which drops every rider
+  // assignment on it.
+  group: { uid: 'toursgmain01', name: 'Group 1', color: '#0066cc' },
   start: { lng: -122.279, lat: 37.7955, name: 'Oakland', address: 'Jack London Square, Oakland, CA' },
 } as const
 
@@ -32,8 +37,8 @@ export function seedPayload(): RidePayload {
     description: '',
     visibility: 'private',
     external_url: '',
-    subgroups: [],
-    primarySubgroup: null,
+    subgroups: [{ ...TOUR_SEED.group }],
+    primarySubgroup: TOUR_SEED.group.uid,
     trunkSubgroup: null,
     stopByMin: null,
     timeAnchor: 'departure',
