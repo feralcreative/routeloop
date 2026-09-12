@@ -1,5 +1,8 @@
 @use "sass:color";
 @use "tokens" as *;
+// For `sign-arrow` on the header's tour sign — the `_account.scss` arrangement,
+// for its reason: one drawing of the arrow, namespaced so nothing here collides.
+@use "chrome";
 
 // Global header. Before this existed there was no way off the builder or viewer
 // short of the browser back button — they rendered no chrome at all.
@@ -47,6 +50,85 @@
 .site-menu {
   margin-left: auto;
   position: relative;
+}
+
+// THE HEADER'S "Take the tour" SIGN — a guide sign at about a third scale,
+// beside the account chip (Ziad's call, 2026-09-11). It is a direct child of
+// the header rather than of the drawer, because on a map page the drawer is
+// closed at every width and the builder is where a tour is most wanted; see the
+// note on the markup in layout.tsx. `/settings` can hide it, in which case it
+// is not rendered at all.
+//
+// THE CONSTRUCTION IS `.notif-more`'s, NOT `.btn`'s. Adding `.btn` would bring
+// the full-size sign — 3px/5px keyline, 1.3125em arrow, 0.75rem padding — and
+// every line here would be an override of it. At this scale the keyline is
+// 2px/3px, in px because a keyline is a drawn line and an em-based width lands
+// on a fraction of a device pixel; the arrow is 1em rather than the mixin's own
+// size so it reads as punctuation on the sign rather than its subject. Both
+// numbers are the ones `.notif-more` settled on, for the reasons it records.
+//
+// $ink-light and never $white: the legend does not follow the page (#282), and
+// that is also what makes the baked white in `sign-arrow`'s data URI right.
+//
+// `margin-left: auto` is what puts it at the right in the drawer layouts, where
+// the header is the logo (or nothing, on a map page) and then this and the
+// hamburger; `.site-menu` gives up its own auto margin when the sign is there,
+// or the two would split the space and the sign would float mid-bar.
+.nav-tour {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: auto;
+  // Roomier than `.notif-more`'s 0.34/0.5/0.2/0.6 — the type went down and the
+  // field was asked to come up, so the legend sits in the sign rather than on
+  // its keyline. Same top-heavy asymmetry, for the reason that rule records.
+  padding: 0.46rem 0.7rem 0.32rem 0.8rem;
+  border-radius: 4px;
+  background: $interstate;
+  color: $ink-light;
+  // A hair under `.notif-more`'s 0.72rem — Ziad's call, 2026-09-11, against
+  // the chip beside it.
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow:
+    inset 0 0 0 2px $interstate,
+    inset 0 0 0 3px $ink-light;
+  transition: background-color 0.15s ease;
+
+  &::after {
+    @include chrome.sign-arrow;
+
+    width: 1em;
+    height: 1em;
+    margin-left: 0.15rem;
+  }
+
+  // Both keyline layers move with the field, or the resting green shows as a
+  // hairline outside the ring.
+  &:hover,
+  &:focus-visible {
+    $lit: color-mix(in oklab, #{$interstate}, black 12%);
+
+    background: $lit;
+    text-decoration: none;
+    box-shadow:
+      inset 0 0 0 2px $lit,
+      inset 0 0 0 3px $ink-light;
+  }
+}
+
+.nav-tour + .site-menu {
+  margin-left: 0;
+}
+
+//@ Motion — the sign's only movement
+@media (prefers-reduced-motion: reduce) {
+  .nav-tour {
+    transition: none;
+  }
 }
 
 // A <summary>, styled as the button it used to be. `list-style: none` plus the
@@ -586,12 +668,37 @@ a .nav-badge {
       }
     }
 
-    // Three flex items on the header: the logo, the group row, and the account.
-    // space-between puts the gaps where the eye reads structure — mark at one
-    // edge, you at the other, destinations between them — rather than pushing
-    // everything left and leaving one dead margin on the right.
-    .site-header {
-      justify-content: space-between;
+    // Three flex items on the header — the logo, the group row, and the
+    // account — plus the tour sign between the last two when it renders. The
+    // group row takes an auto margin on BOTH sides, which is what puts the gaps
+    // where the eye reads structure: mark at one edge, you at the other,
+    // destinations between them. It WAS `justify-content: space-between`, which
+    // is the same picture with three items and a different one with four — the
+    // sign would have taken a third of the free space as its own gap instead of
+    // sitting beside the chip. Auto margins on the row alone give the sign and
+    // the chip the header's ordinary gap, and render identically to the old rule
+    // when the sign is absent or the visitor is signed out.
+    .site-header .nav-primary {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    // The drawer layouts push the sign right with its own auto margin; here the
+    // group row owns the free space, so the sign sits on the header's gap.
+    //
+    // `order`, BECAUSE THE MARKUP ORDER IS THE DRAWER'S. The sign sits ahead of
+    // the <details> in the DOM so it can be beside the hamburger when the menu
+    // is a drawer; `display: contents` on the details flattens its children
+    // into the header without reordering them, so without this the sign lands
+    // after the LOGO. The group row keeps 0, the sign 1 and the account 2 —
+    // logo, destinations, sign, chip.
+    .nav-tour {
+      margin-left: 0;
+      order: 1;
+    }
+
+    .nav-end {
+      order: 2;
     }
 
     // Collapsed too, so .nav-primary and .nav-end are the header's own children
@@ -706,6 +813,7 @@ html.map-page {
   }
 
   .site-logo,
+  .nav-tour,
   .nav-toggle,
   .site-nav {
     pointer-events: auto;
@@ -734,6 +842,26 @@ html.map-page {
     border-radius: 8px;
     box-shadow: 0 2px 8px $panel-shadow;
     margin-right: 0.1rem;
+  }
+
+  // The same lift the hamburger gets, or the sign reads as painted on the map
+  // beside a button that floats over it. The keyline layers are restated
+  // because box-shadow is one property and the drop shadow joins them.
+  .nav-tour {
+    box-shadow:
+      inset 0 0 0 2px $interstate,
+      inset 0 0 0 3px $ink-light,
+      0 2px 8px $panel-shadow;
+
+    &:hover,
+    &:focus-visible {
+      $lit: color-mix(in oklab, #{$interstate}, black 12%);
+
+      box-shadow:
+        inset 0 0 0 2px $lit,
+        inset 0 0 0 3px $ink-light,
+        0 2px 8px $panel-shadow;
+    }
   }
 
   .site-nav {

@@ -243,6 +243,34 @@ settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c
   return c.redirect('/settings?saved=tips#tips', 303)
 })
 
+// Whether the header's Take the tour sign is shown. Ziad's call, 2026-09-11.
+//
+// A CHECKBOX, so the body carries `hideTour` only when ticked; `present` is
+// what says the form was submitted at all, so a request with neither writes
+// nothing — the notification handler's `group` field by another name. Its own
+// column and its own handler for the reason every form on the page has one.
+settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  if (body.present !== '1') return c.redirect('/settings#tips', 303)
+  const hideTour = body.hideTour === 'on'
+
+  await db
+    .insert(userProfiles)
+    .values({
+      userId: user.id,
+      hideTour,
+      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: userProfiles.userId,
+      set: { hideTour, updatedAt: new Date() },
+    })
+
+  return c.redirect('/settings?saved=tour-button#tips', 303)
+})
+
 // The guided tour has been finished or skipped (#133).
 //
 // ONE ENDPOINT FOR BOTH OUTCOMES, deliberately. The column answers "has this

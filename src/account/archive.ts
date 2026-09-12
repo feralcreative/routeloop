@@ -332,6 +332,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           volumeUnits: profile.volumeUnits,
           tips: profile.tips,
           tourDoneAt: iso(profile.tourDoneAt),
+          hideTour: profile.hideTour,
           avoidPlaces: profile.avoidPlaces,
           favorPlaces: profile.favorPlaces,
           createdAt: iso(profile.createdAt),

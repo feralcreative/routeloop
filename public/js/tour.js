@@ -2,19 +2,24 @@
 //
 // **A TOUR, NOT A TOOLTIP.** tips.js explains one control when a rider points
 // at it; this walks a NEW rider through building their first route, in order,
-// and three of its steps do not move on until the rider has actually done the
-// thing — named the ride, added a point, added a second so a road draws. Those
-// three are the ones that do not land unless you do them, and they are the only
-// three that cannot get stuck, because each one spotlights exactly where to act.
+// and four of its steps DO THE THING IN FRONT OF THEM — name the ride, add a
+// point, add a second so a road draws, set a start time. Ziad's call,
+// 2026-09-11, reversing the 2026-09-10 shape where those four WAITED for the
+// rider to act: the only interaction a tour asks for now is Next, Back and
+// Skip, and everything else is demonstrated with a flashing cursor typing into
+// the real field. What that produces is real — the ride is named, the points
+// land, the road is routed — because the tour runs on a blank ride and the
+// builder saves from the first pin; the closing card says so and tells the
+// rider to rename it or bin it.
 //
-// **THE WAITS WATCH THE DOM, NOT BUILDER STATE, AND NOT CLICKS.** Shepherd's
-// own `advanceOn` binds to a DOM event on a selector, and a click is not the
-// thing being waited for: a map click does not mean a point landed (the Routes
-// call can fail, the click can miss), and the rider may add the point by search
-// instead. `state` in builder.js is not reachable from here and should not be.
-// So each wait is a MutationObserver on the route list plus a predicate over
-// what is on screen — a `.point-row` exists, two exist — which is exactly what
-// the rider is looking at, and it cannot disagree with them.
+// **A DEMONSTRATION WATCHES THE DOM, NOT BUILDER STATE.** It types into the
+// title and into the add-row's own search box, dispatching the events the
+// builder listens for, and reads its result off what is on screen — a
+// `.point-row` exists, two exist — which is exactly what the rider is looking
+// at and cannot disagree with them. `state` in builder.js is not reachable
+// from here and should not be; the one door is `TBBuilder.fitTo`, because the
+// typed search is restricted to the visible map and the two places have to be
+// on screen before the first one is typed.
 //
 // **SHEPHERD ARRIVES AS A MODULE AND THIS FILE IS NOT ONE.** Shepherd 12+ ships
 // ESM only and cdnjs stops hosting its JS at 11, so it comes from jsdelivr
@@ -37,6 +42,32 @@
   // How far right an attached card is pushed on a desktop — see build().
   var DESKTOP_NUDGE_PX = 20;
 
+  // ——— The ride the tour builds ———
+  //
+  // A REAL PAIR OF PLACES ON A REAL ROAD, not somewhere near wherever the map
+  // happens to be: a demonstration that lands two random pins in a random town
+  // draws a two-mile hop and teaches nothing about what the numbers mean. Alice’s
+  // to Pescadero is a classic Bay Area motorcycle run — Skyline to the coast —
+  // and the typed search is restricted to the visible map, so `fitTo(BOX)`
+  // brings both on screen before the first name is typed. The queries carry the
+  // town so Autocomplete's first hit is the place and not a namesake.
+  var DEMO = {
+    name: "Coast run",
+    box: [
+      [-122.45, 37.2],
+      [-122.15, 37.45],
+    ],
+    points: ["Alice’s Restaurant, Woodside", "Pescadero"],
+  };
+  // Typing rhythm: per character, the cursor blinking alone before the first
+  // one, and a beat after the last so the word is read before anything moves.
+  var TYPE_MS = 60;
+  var CARET_LEAD_MS = 700;
+  var SETTLE_MS = 400;
+  // How long a demonstration gets before the card gives up and offers Next
+  // anyway. Long, because a point is two Google calls and a Routes request.
+  var DEMO_TIMEOUT_MS = 15000;
+
   // ——— The steps, in three parts ———
   //
   // **THREE PARTS A RIDER CAN TAKE IN ANY ORDER OR SKIP AT WILL.** Ziad's
@@ -46,10 +77,12 @@
   // rider who only came for meeting points is two clicks from them.
   //
   // `at` is a data-tip key (or a CSS selector when it starts with a `.` or
-  // `#`); null centers the card. `wait` is a predicate the step polls through a
-  // MutationObserver on the route list — the step shows no Next while it is
-  // false, and advances itself the moment it is true. `tab` is a panel tab to
-  // open before the step shows, because a control on a shut tab has no box.
+  // `#`); null centers the card. `demo` is an async function that does the
+  // step's thing in front of the rider — the card shows a status line in place
+  // of Next until it settles — and `done` is the predicate that says whether
+  // it already happened, so Back and a second pass do not do it twice. `tab`
+  // is a panel tab to open before the step shows, because a control on a shut
+  // tab has no box.
   var PARTS = [
     { n: 1, name: "The route", blurb: "Name it, add two points, watch the road draw." },
     { n: 2, name: "The clock", blurb: "Dates, arrival times, and the slider along the bottom of the map." },
@@ -60,7 +93,7 @@
     {
       id: "welcome",
       title: "This is where a ride gets planned",
-      text: "Three short parts, each a couple of minutes. Take them in order, jump to one, or skip any of them—the tour is always under the menu if you want it back. Everything you do here is real: by the end you will have a route you could ride tomorrow.",
+      text: "Three short parts, each a couple of minutes. Take them in order, jump to one, or skip any of them—the tour is always under the menu if you want it back. It builds a real ride as it goes, so by the end you will have a route you could ride tomorrow.",
       chooser: true,
     },
 
@@ -70,22 +103,28 @@
       part: 1,
       at: "ride-name",
       title: "Give it a name",
-      text: "Click the big title and type. Anything—“Coast run”, “Dad’s birthday”, the name of the town at the far end—then press Enter. You can change it whenever you like.",
-      wait: function () {
+      text: "The big title is the ride’s name. Click it and type anything—the town at the far end, whose birthday it is—and press Enter. Let me name this one.",
+      running: "Typing a name…",
+      done: function () {
         // A NEW RIDE OPENS ALREADY NAMED "Untitled ride" — builder.js seeds it so
         // the ride can save from the first pin — so "has a name" is "has a name
         // that is not the seed". Compared against the placeholder AND the
         // literal, because they only agree on `/builder/:id`: a fresh `/builder`
-        // says "Plan a ride" in the placeholder and "Untitled ride" in the field,
-        // and comparing against the placeholder alone skipped this step for
-        // exactly the rider it exists for. A rider who genuinely named a ride
-        // "Untitled ride" is asked to name it again, which costs them a second.
+        // says "Plan a ride" in the placeholder and "Untitled ride" in the field.
         var t = document.getElementById("ride-title");
         if (!t) return false;
         var v = t.value.trim();
         return !!v && v !== (t.placeholder || "").trim() && v !== "Untitled ride";
       },
-      waiting: "Waiting for a name…",
+      demo: function () {
+        var t = document.getElementById("ride-title");
+        if (!t) return Promise.resolve();
+        return typeInto(t, DEMO.name).then(function () {
+          // Enter is how the field commits — builder.js turns it into a blur.
+          t.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+          t.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      },
     },
     {
       id: "panel",
@@ -116,11 +155,25 @@
       at: ".add-row",
       extra: ["#map"],
       title: "Add your first point",
-      text: "Type a place here—a town, a café, an address—and pick it from the list. Or press + Point and click anywhere on the map. Either way it lands here, as the start of the route.",
-      wait: function () {
+      // A FUNCTION, because a rider with a home base on their profile opens
+      // every new ride with it already sitting here as point 1 — builder.js
+      // seeds it — so for them there is nothing to type and the card says what
+      // the row is instead. `done` is true for them from the start, so the
+      // demonstration below never runs; a rider with no home base watches a
+      // restaurant on Skyline get typed in.
+      text: function () {
+        var seeded = document.querySelectorAll("#route-list .point-row").length >= 1;
+        return seeded
+          ? "Your home base is already here as the start—every new ride begins there, and it moves or deletes like any other point. Otherwise you would type a place here—a town, a café, an address—and pick it from the list, or press + Point and click the map."
+          : "Type a place here—a town, a café, an address—and pick it from the list. Or press + Point and click anywhere on the map. Either way it lands here, as the start of the route. Watch: a restaurant up on Skyline.";
+      },
+      running: "Finding a place…",
+      done: function () {
         return document.querySelectorAll("#route-list .point-row").length >= 1;
       },
-      waiting: "Waiting for a point…",
+      demo: function () {
+        return addPlace(DEMO.points[0], 1);
+      },
     },
     {
       id: "second-point",
@@ -128,18 +181,21 @@
       at: ".add-row",
       extra: ["#map"],
       title: "And a second",
-      text: "One more, somewhere you would actually ride to. As soon as it lands, a road is drawn between the two—that line is the leg, and every number in the builder comes from it.",
-      wait: function () {
+      text: "One more, a destination—the coast. As soon as it lands, a road is drawn between the two: that line is the leg, and every number in the builder comes from it.",
+      running: "Finding a place…",
+      done: function () {
         return document.querySelectorAll("#route-list .point-row").length >= 2;
       },
-      waiting: "Waiting for a second point…",
+      demo: function () {
+        return addPlace(DEMO.points[1], 2);
+      },
     },
     {
       id: "leg",
       part: 1,
       at: "totals-ride",
       side: "bottom",
-      title: "That is a route",
+      title: "Ride totals and stats",
       text: "Distance, riding time, and how twisty the road is, worked out from the road itself. Add a third point and the road bends to pass through it; drag a point in the list and the road is redrawn.",
     },
     {
@@ -147,14 +203,25 @@
       part: 1,
       at: "row-dur",
       title: "Stops take time, and the builder knows it",
-      text: "Type how long you will be off the bike—lunch, a photo, a night in a motel. Everything after it moves later, which is how the arrival time at the far end stays honest.",
+      text: "Type how long you will be off the bike—lunch, a quick photo, a night in a motel. Everything after it moves later, which is how the arrival time at the far end stays honest.",
     },
     {
       id: "category",
       part: 1,
-      at: "row-roles",
+      // **THE WHOLE ROW, NOT THE DOT, AND THAT IS WHAT KEEPS THE PICKER OUT
+      // FROM UNDER THE BACKDROP.** The picker opens as a child of `.point-row`,
+      // and Shepherd’s overlay cuts its hole from the TARGET’s box — so with
+      // the step attached to the dot, the grid the rider had just been told to
+      // open landed outside the cut-out and read as dimmed. It cannot be lifted
+      // with a z-index the way `#search-results` is: that list is a child of
+      // <body>, where this one is inside `#info-panel`, which is fixed at 1000
+      // and so is a stacking context nothing inside it can escape. Attaching to
+      // the row puts the open picker inside the spotlight instead. Opening it
+      // re-renders the route list, so `reanchor()` re-shows the step against the
+      // taller row and the hole grows with it.
+      at: ".point-row",
       title: "Say what a place is for",
-      text: "Fuel, food, a bed, a view. The dot beside each point opens the list. It puts the right icon on the map and it is how the builder knows where you can fill up—which matters more than it sounds in eastern Nevada.",
+      text: "Fuel, food, a bed, a view. The dot beside each point opens the list, and a point can carry up to four of them—gas and lunch and a photo at the same stop. They put the right icons on the map, and they are how the builder knows where you fuel up and what your range will be from there.",
     },
     {
       id: "menu",
@@ -165,17 +232,48 @@
     },
 
     // ——— Part 2: the clock ———
+    //
+    // **AN INTERSTITIAL OPENS EACH PART AFTER THE FIRST.** Ziad's call,
+    // 2026-09-11. A part's first card used to be a control with a wait on it,
+    // so a rider finishing part 1 was dropped straight onto "give the route a
+    // start time" with nothing saying the subject had changed. The welcome
+    // card already does this job for part 1, which is why there is no third
+    // one. `intro` centers the card, drops the step counter from the part line
+    // and labels Next "Start part N"; `jump()` lands on it too, so a rider
+    // picking a part from the chooser is introduced to it the same way.
+    {
+      id: "intro-2",
+      part: 2,
+      intro: true,
+      title: "Next: the clock",
+      text: "Part 1 gave the ride a road. This part gives it a clock: a start time on the route, an arrival time at every point worked out from it, an end that follows on its own, a slider along the bottom of the map, and an hour to start looking for a bed. Set one time and the rest appears.",
+    },
     {
       id: "when",
       part: 2,
       at: ".route-start",
       title: "Give the route a start time",
-      text: "Pick the day and the hour you set off. Every point gets an arrival time from it, the end of the route works itself out, and a slider appears along the bottom of the map. I will wait while you set one.",
-      wait: function () {
+      text: "Pick the day and the hour you set off. Every point gets an arrival time from it, the end of the route works itself out, and a slider appears along the bottom of the map. Let me make it Saturday at nine.",
+      running: "Setting a start time…",
+      done: function () {
         var el = anchor(".route-start");
         return !!(el && el.value);
       },
-      waiting: "Waiting for a start time…",
+      demo: function () {
+        var el = anchor(".route-start");
+        if (!el) return Promise.resolve();
+        // A date field cannot be typed a character at a time, so the cursor
+        // blinks on it for a beat and the value lands whole. `change` is what
+        // builder.js listens for on this field.
+        showCaret(el);
+        return sleep(CARET_LEAD_MS + SETTLE_MS).then(function () {
+          el.value = nextSaturdayAtNine();
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          hideCaret();
+          return sleep(SETTLE_MS);
+        });
+      },
     },
     {
       id: "timeline",
@@ -212,6 +310,13 @@
     },
 
     // ——— Part 3: the people ———
+    {
+      id: "intro-3",
+      part: 3,
+      intro: true,
+      title: "Next: the people",
+      text: "A ride is rarely one person. This part is the riders on it: groups for people who set off from different places, the roster of who is coming, and which route each of them is on. With two or more groups the builder will propose where to meet.",
+    },
     {
       id: "groups",
       part: 3,
@@ -250,7 +355,7 @@
     {
       id: "done",
       title: "That is the whole idea",
-      text: "Routes, points, stops, times, and the people on them. Everything saves as you go. Point at any control and it tells you what it is for, and the tour is under the menu whenever you want it again. Have a good ride.",
+      text: "Routes, points, stops, times, and the people on them. The ride the tour built is yours—rename it, add to it, or bin it. Everything saves as you go. Point at any control and it tells you what it is for, and the tour is under the menu whenever you want it again. Have a good ride.",
       chooser: true,
       tab: "tab-routes",
     },
@@ -300,9 +405,8 @@
   /**
    * Builds the Shepherd step options for one of ours.
    *
-   * A waiting step gets no Next button at all: the only way through it is to
-   * do the thing, and a button that is disabled with a spinner beside it is a
-   * promise that something is loading. The observer below is what advances it.
+   * A demonstrating step shows a status line where Next would be until its
+   * demonstration settles; then Next appears. Nothing advances on its own.
    */
   // ——— Parts ———
 
@@ -318,12 +422,29 @@
     tour.show(partStart(n));
   }
 
-  /** "Part 2 of 3 · The clock · 3 of 4", rendered above the body. */
+  /**
+   * Title Case for the part line only. The chooser's own rows keep the
+   * sentence-case name, because there they are headings rather than a
+   * position line. "of" is authored in the surrounding literal and stays
+   * lowercase on its own; this only reaches the part's name.
+   */
+  function titleCase(s) {
+    return s.replace(/\b[a-z]/g, function (c) {
+      return c.toUpperCase();
+    });
+  }
+
+  /**
+   * "Part 2 of 3 · The Clock · 3 of 4", rendered above the body. An intro card
+   * carries the first two and not the counter — it is the door to the part,
+   * not a step of it, and counting it would make "1 of 5" a card with no
+   * control on it.
+   */
   function partLine(step) {
     if (!step.part) return "";
     var part = PARTS[step.part - 1];
     var inPart = STEPS.filter(function (s) {
-      return s.part === step.part;
+      return s.part === step.part && !s.intro;
     });
     var i = inPart.indexOf(step) + 1;
     return (
@@ -332,11 +453,8 @@
       " of " +
       PARTS.length +
       " · " +
-      esc(part.name) +
-      " · " +
-      i +
-      " of " +
-      inPart.length +
+      esc(titleCase(part.name)) +
+      (step.intro ? "" : " · " + i + " of " + inPart.length) +
       "</small>"
     );
   }
@@ -391,16 +509,14 @@
           jump(step.part + 1);
         },
       });
-    if (step.wait) {
-      buttons.push({ text: step.waiting, classes: "tour-waiting", disabled: true, action: function () {} });
-      // **A SATISFIED WAIT STEP REACHED BY BACK SHOWS NEXT INSTEAD.** Arrived at
-      // going forward, a wait that is already met advances itself — a rider
-      // re-running the tour on a named ride is not asked to name it again.
-      // Arrived at going BACK it must not, or Back from the map step lands on
-      // the name step, which sees the name and bounces straight forward again:
-      // step 1 could never be returned to. So the card carries both a waiting
-      // label and a Next, and `is-satisfied` on the element decides which one
-      // is drawn — see _tour.scss.
+    if (step.demo) {
+      buttons.push({ text: step.running, classes: "tour-waiting", disabled: true, action: function () {} });
+      // **THE CARD CARRIES BOTH A STATUS LINE AND A NEXT, and `is-satisfied`
+      // on the element decides which is drawn** — see _tour.scss. The line
+      // shows while the demonstration runs; Next replaces it when the thing
+      // is done, or was already done (a rider pressing Back onto this card,
+      // or forward onto it a second time, is not shown the typing twice).
+      // Nothing advances on its own: what was typed deserves a look.
       buttons.push({
         text: "Next",
         classes: "btn tour-next-done",
@@ -413,7 +529,7 @@
       // Shepherd's own button by specificity, so Next is the house sign with
       // no help from _tour.scss. Back is the flat variant and does need help.
       buttons.push({
-        text: last ? "Done" : step.chooser ? "Start at part 1" : "Next",
+        text: last ? "Done" : step.chooser ? "Start at part 1" : step.intro ? "Start part " + step.part : "Next",
         classes: "btn",
         action: function () {
           if (last) tour.complete();
@@ -456,27 +572,21 @@
       when: {
         show: function () {
           keepTabInside(this.getTarget());
-          if (!step.wait) return;
+          if (!step.demo) return;
           if (this.el) this.el.classList.remove("is-satisfied");
-          // Already satisfied — a rider re-running the tour on a real ride has
-          // a name and points, so the wait resolves at once rather than asking
-          // them to add a third point to a route that has nine. Unless they
-          // came here by pressing Back, in which case they get the card with a
-          // Next on it — see the buttons above.
-          if (step.wait()) {
-            if (backward && this.el) this.el.classList.add("is-satisfied");
-            else tour.next();
+          if (step.done()) {
+            if (this.el) this.el.classList.add("is-satisfied");
             return;
           }
-          watch(step);
+          runDemo(step, this);
         },
         hide: function () {
           releaseTab();
-          unwatch();
+          hideCaret();
         },
         cancel: function () {
           releaseTab();
-          unwatch();
+          hideCaret();
         },
       },
     };
@@ -538,49 +648,184 @@
     tabHost = null;
   }
 
-  // ——— The waits ———
+  // ——— The demonstrations ———
   //
-  // One observer at a time, on the route list and on the title, because those
-  // are the only two things a wait reads. `input` covers the title; the
-  // observer covers everything the builder renders.
-  var mo = null;
-  var onInput = null;
+  // ONE AT A TIME, KEYED ON THE STEP. A demonstration is async and the rider
+  // can press Back, Skip or the X while it runs, so every callback checks that
+  // the tour is still on the step that started it before touching the card —
+  // and the typing loop stops itself the moment it is not, or a name would go
+  // on being typed into a field the rider has moved away from.
+  var demoStep = null;
 
-  function watch(step) {
-    unwatch();
-    var check = function () {
-      if (!step.wait()) return;
-      unwatch();
-      // Let the builder finish its own render before the next card measures
-      // the element it attaches to.
-      setTimeout(function () {
-        if (tour && tour.isActive() && tour.getCurrentStep().id === step.id) tour.next();
-      }, 350);
-    };
-    var list = document.getElementById("route-list");
-    if (list && window.MutationObserver) {
-      mo = new MutationObserver(check);
-      mo.observe(list, { childList: true, subtree: true });
-    }
-    // `change`, NOT `input`. The name step advanced on the first keystroke that
-    // differed from the seed — a rider who was told to type "Coast run" got as
-    // far as "Coast" before the spotlight moved and focus went with it. `change`
-    // fires when the field is COMMITTED: on blur, and on Enter, which the title
-    // field turns into a blur. The MutationObserver above is already a commit
-    // signal for the point steps, since a row lands once.
-    onInput = check;
-    document.addEventListener("change", onInput, true);
+  function stillOn(step) {
+    return !!(tour && tour.isActive() && tour.getCurrentStep() && tour.getCurrentStep().id === step.id);
   }
 
-  function unwatch() {
-    if (mo) {
-      mo.disconnect();
-      mo = null;
+  function runDemo(step, shepherdStep) {
+    demoStep = step;
+    var finish = function () {
+      hideCaret();
+      if (demoStep === step) demoStep = null;
+      if (!stillOn(step)) return;
+      if (shepherdStep.el) shepherdStep.el.classList.add("is-satisfied");
+    };
+    // The timeout is the floor under a Google outage: Next is offered anyway,
+    // with the card's own copy still telling the rider how to do it by hand.
+    var timer = setTimeout(finish, DEMO_TIMEOUT_MS);
+    Promise.resolve()
+      .then(function () {
+        return step.demo();
+      })
+      .catch(function () {
+        /* the copy on the card says how to do it by hand */
+      })
+      .then(function () {
+        clearTimeout(timer);
+        finish();
+      });
+  }
+
+  function sleep(ms) {
+    return new Promise(function (r) {
+      setTimeout(r, ms);
+    });
+  }
+
+  /** Resolves true when `pred()` holds, false at the deadline. Polled rather
+   *  than observed: the things it waits for — a dropdown unhiding, a row
+   *  landing — are cheap to read and a 100ms poll is invisible. */
+  function until(pred, ms) {
+    var deadline = Date.now() + ms;
+    return new Promise(function (resolve) {
+      (function tick() {
+        if (pred()) return resolve(true);
+        if (Date.now() > deadline) return resolve(false);
+        setTimeout(tick, 100);
+      })();
+    });
+  }
+
+  // ——— The cursor ———
+  //
+  // A REAL ELEMENT LAID OVER THE FIELD, not the field's own caret. The native
+  // one only draws while the field has focus, and Shepherd manages focus for
+  // the card; it is also thin, quiet and easy to miss — the thing being asked
+  // for is a cursor a rider notices. Placed at the end of the typed text by
+  // measuring it in the field's own font, and re-placed after every character.
+  var caretEl = null;
+  var caretHost = null;
+
+  function showCaret(input) {
+    if (!caretEl) {
+      caretEl = document.createElement("span");
+      caretEl.className = "tour-caret";
+      caretEl.setAttribute("aria-hidden", "true");
+      document.body.appendChild(caretEl);
     }
-    if (onInput) {
-      document.removeEventListener("change", onInput, true);
-      onInput = null;
+    caretHost = input;
+    placeCaret();
+    caretEl.hidden = false;
+  }
+
+  function hideCaret() {
+    if (caretEl) caretEl.hidden = true;
+    caretHost = null;
+  }
+
+  function placeCaret() {
+    if (!caretEl || !caretHost || !caretHost.isConnected) return;
+    var r = caretHost.getBoundingClientRect();
+    var cs = getComputedStyle(caretHost);
+    var x = r.left + parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth) + textWidth(caretHost, cs);
+    // Inside the field, whatever the text measures — a long name in a narrow
+    // field scrolls, and the cursor should sit at the visible end.
+    x = Math.min(x, r.right - parseFloat(cs.paddingRight) - 2);
+    var h = parseFloat(cs.fontSize) * 1.15;
+    caretEl.style.left = x + "px";
+    caretEl.style.top = r.top + (r.height - h) / 2 + "px";
+    caretEl.style.height = h + "px";
+  }
+
+  var measureCtx = null;
+  function textWidth(input, cs) {
+    if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
+    measureCtx.font = cs.font || [cs.fontWeight, cs.fontSize, cs.fontFamily].join(" ");
+    // A date field holds no text a cursor sits after; it blinks at the start.
+    return input.type === "text" || input.tagName === "TEXTAREA" ? measureCtx.measureText(input.value).width : 0;
+  }
+
+  /** Types `text` into `input` one character at a time, with the cursor
+   *  leading, dispatching `input` per character so the builder sees exactly
+   *  what a keyboard would have given it. */
+  function typeInto(input, text) {
+    var step = demoStep;
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    showCaret(input);
+    return sleep(CARET_LEAD_MS).then(function () {
+      var i = 0;
+      return new Promise(function (resolve) {
+        (function next() {
+          if (!input.isConnected || (step && !stillOn(step))) return resolve();
+          if (i >= text.length) return sleep(SETTLE_MS).then(resolve);
+          input.value += text.charAt(i++);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          placeCaret();
+          setTimeout(next, TYPE_MS);
+        })();
+      });
+    });
+  }
+
+  /** Types a place into the route's add-row search and picks the first hit,
+   *  then waits for the row to land. `n` is how many rows that makes. */
+  function addPlace(query, n) {
+    // Both places on screen first, or the typed search — restricted to the
+    // visible map — answers "no matches on screen". Once is enough; the
+    // second call is a no-op on a map already showing the box.
+    if (window.TBBuilder && window.TBBuilder.fitTo) {
+      try {
+        window.TBBuilder.fitTo(DEMO.box);
+      } catch (e) {
+        /* the search may still find it */
+      }
     }
+    var input = anchor(".add-row .add-search");
+    if (!input) return Promise.resolve();
+    return sleep(SETTLE_MS)
+      .then(function () {
+        return typeInto(input, query);
+      })
+      .then(function () {
+        return until(function () {
+          var list = document.getElementById("search-results");
+          return !!(list && !list.hidden && list.querySelector("li.hit-google, li.hit-saved"));
+        }, 6000);
+      })
+      .then(function (found) {
+        hideCaret();
+        if (!found) return;
+        var list = document.getElementById("search-results");
+        var li = list && list.querySelector("li.hit-google, li.hit-saved");
+        if (!li) return;
+        li.click();
+        return until(function () {
+          return document.querySelectorAll("#route-list .point-row").length >= n;
+        }, 8000).then(function () {
+          return sleep(SETTLE_MS);
+        });
+      });
+  }
+
+  /** The coming Saturday at 09:00, as a `datetime-local` value — a wall clock,
+   *  which is what the builder stores (see route-clock.js). */
+  function nextSaturdayAtNine() {
+    var d = new Date();
+    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
+    var pad = function (n) {
+      return (n < 10 ? "0" : "") + n;
+    };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T09:00";
   }
 
   function build() {
@@ -704,6 +949,21 @@
   }
 
   /**
+   * **THE TOUR RUNS ON A BLANK RIDE AND NOWHERE ELSE.** Ziad's call,
+   * 2026-09-11. Part 1 asks the rider to name the ride, add a first point and
+   * add a second, and all three waits are predicates over what is on screen —
+   * so on a stored ride they are satisfied before the card is drawn, and a
+   * tour that skips its own three teaching steps is the tour not running.
+   * `/builder` IS the fresh ride and `/builder/:id` is a stored one, so the
+   * path is the whole test — read at the moment it is asked rather than kept,
+   * because the first pin replaces it with `/builder/<id>` (the replaceState
+   * in builder.js) and the ride stops being blank at exactly that moment.
+   */
+  function blankRide() {
+    return window.location.pathname.replace(/\/+$/, "") === "/builder";
+  }
+
+  /**
    * Called by the inline module in routes/builder.ts once Shepherd's import has
    * resolved. Starts the tour unasked for a rider the server stamped as new —
    * `data-tour="new"` on <html> — and otherwise only wires the button.
@@ -717,11 +977,26 @@
     // nothing to point at. The query is stripped after reading so a reload
     // does not start it again.
     var asked = /(?:\?|&)tour(?:=|&|$)/.test(window.location.search);
+    // **`?tour` ON A STORED RIDE OPENS A FRESH ONE RATHER THAN REFUSING**: the
+    // query is somebody explicitly asking for the tour, and the blank ride it
+    // needs is one navigation away. Nothing in the app links it that way — the
+    // menu's href is `/builder?tour` on every surface — so this is the
+    // hand-typed URL, and the bookmark of one.
+    if (asked && !blankRide()) {
+      window.location.replace("/builder?tour");
+      return;
+    }
     if (asked && window.history.replaceState) {
       window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     }
     var isNew = asked || document.documentElement.getAttribute("data-tour") === "new";
-    if (isNew) start();
+    // The unasked start is gated the same way, and this is the door the rule
+    // arrived through: `data-tour="new"` is stamped on EVERY page for a rider
+    // who has never been offered the tour, so a new rider whose first act is
+    // opening an imported ride had the tour start on top of it. It is not
+    // taken away from them — the next fresh builder offers it, which is where
+    // it can actually be followed.
+    if (isNew && blankRide()) start();
   }
 
   // The three part buttons on the welcome and closing cards.
@@ -731,14 +1006,21 @@
     jump(Number(b.getAttribute("data-tour-part")));
   });
 
-  // ON THE BUILDER, Take the tour starts in place rather than opening a fresh
-  // ride: a rider who wants a reminder on the ride they are looking at should
-  // get one on that ride. The item is a real link to `/builder?tour` either
-  // way, so with Shepherd missing the click falls through to navigation and
-  // the fresh ride's own boot() gets a second chance at the CDN.
+  // **Take the tour STARTS IN PLACE ONLY ON A BLANK RIDE, AND THAT REVERSES
+  // THE RECORDED CALL.** It used to start in place wherever it was pressed, on
+  // the reasoning that a rider wanting a reminder on the ride in front of them
+  // should get one there. What that produced is the thing this file is built
+  // around: the ride already has a name and points, so part 1's three waits
+  // are met before their cards are drawn and the tour skips the three steps a
+  // rider took it for. On a blank builder starting in place is identical to
+  // navigating and costs no page load, so the interception survives for
+  // exactly that case; everywhere else the click falls through to the link's
+  // own `/builder?tour`. The item is a real link either way, so with Shepherd
+  // missing the navigation still happens and the fresh ride's own boot() gets
+  // a second chance at the CDN.
   document.addEventListener("click", function (e) {
     var b = e.target && e.target.closest ? e.target.closest("[data-tour-start]") : null;
-    if (!b || !Shepherd) return;
+    if (!b || !Shepherd || !blankRide()) return;
     e.preventDefault();
     start();
   });

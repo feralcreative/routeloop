@@ -66,6 +66,7 @@ async function prefsFor(userId: number) {
       clock: userProfiles.clock,
       volumeUnits: userProfiles.volumeUnits,
       tips: userProfiles.tips,
+      hideTour: userProfiles.hideTour,
       avoidPlaces: userProfiles.avoidPlaces,
       favorPlaces: userProfiles.favorPlaces,
     })
@@ -79,6 +80,7 @@ async function prefsFor(userId: number) {
     clock: toClock(p?.clock),
     volumeUnits: toVolumeUnits(p?.volumeUnits),
     tips: toTips(p?.tips),
+    hideTour: p?.hideTour ?? false,
     avoidPlaces: p?.avoidPlaces ?? '',
     favorPlaces: p?.favorPlaces ?? '',
   }
@@ -116,6 +118,7 @@ export async function accountPage(
     'avoid',
     'favor',
     'tips',
+    'tour-button',
     // One per notification group, DERIVED rather than typed: five hand-written
     // strings is five chances to add a group and forget one, and the symptom of
     // forgetting is a rider being told their account is no longer scheduled for
@@ -125,7 +128,9 @@ export async function accountPage(
   ]
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
-  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips } = await prefsFor(user.id)
+  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips, hideTour } = await prefsFor(
+    user.id,
+  )
   const dateFormat = await dateFormatFor(c)
   // ONE QUERY FOR ALL THIRTEEN EVENTS ACROSS BOTH CHANNELS, like prefsFor above
   // and for the same reason: they are rows of one table for one rider, and this
@@ -279,6 +284,33 @@ export async function accountPage(
                 Save
               </button>
               <Saved when={on('tips')} />
+            </div>
+          </form>
+
+          {/*
+            THE HEADER'S SIGN HAS A SWITCH, AND IT IS ITS OWN FORM. Ziad's call,
+            2026-09-11. The sign sits beside the account chip on every page,
+            builder included, which a rider who has taken the tour twice does
+            not need to keep seeing; the account menu's own item stays, so this
+            hides an affordance and never the feature. Its own handler and its
+            own column, like every form on this page, so saving it cannot
+            revert the radios above.
+
+            A HIDDEN `present` FIELD, because an unticked checkbox sends
+            nothing and the handler has to tell "unticked" from "not this
+            form" — the same shape the notification forms carry as `group`.
+          */}
+          <form method="post" action="/settings/tour-button" class="setting-form" data-autosave>
+            <input type="hidden" name="present" value="1" />
+            <label class="check">
+              <input type="checkbox" name="hideTour" checked={hideTour} />
+              <span>Hide the Take the tour button in the header</span>
+            </label>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                Save
+              </button>
+              <Saved when={on('tour-button')} />
             </div>
           </form>
         </section>

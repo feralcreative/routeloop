@@ -11058,5 +11058,17 @@
     });
   }
 
+  // ——— The tour's one door ———
+  //
+  // tour.js DEMONSTRATES the builder rather than asking a rider to drive it
+  // (Ziad's call, 2026-09-11): it types into the real fields and picks from the
+  // real search list, all of which is DOM it can reach on its own. The one
+  // thing it cannot reach is the map — the typed search is restricted to the
+  // visible map, so the two places the demonstration types have to be on
+  // screen before it starts, and the handle lives here. One function and not
+  // `state`: the tour reads what is on screen, never builder state, and that
+  // rule is what keeps it unable to disagree with what the rider sees.
+  window.TBBuilder = { fitTo: (lngLats) => fitTo(state.map, lngLats) };
+
   init();
 })();

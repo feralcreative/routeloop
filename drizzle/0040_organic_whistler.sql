@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "hide_tour" boolean DEFAULT false NOT NULL;
