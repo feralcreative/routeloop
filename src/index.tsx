@@ -52,6 +52,7 @@ import { brandRoutes } from './routes/brand'
 import { iconRoutes } from './routes/icons'
 import { settingsRoutes } from './routes/settings'
 import { tourRoutes } from './routes/tour'
+import { tourAssets } from './views/tour-assets'
 import { notificationRoutes } from './routes/notifications'
 import { accountRoutes } from './routes/account'
 import { builderLabel } from './members/policy'
@@ -875,6 +876,9 @@ function viewHtml(
       units,
       range,
     },
+    // The tour's last part visits the viewer, so it carries the tour's
+    // assets while one is running and nothing extra otherwise.
+    head: tourAssets(user).head,
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="${asset('/js/map-common.js')}" defer></script>
   <script src="${asset('/js/ride-time.js')}" defer></script>
@@ -883,7 +887,8 @@ function viewHtml(
   <script src="${asset('/js/route-shape.js')}" defer></script>
   <script src="${asset('/js/route-distance.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
-  <script src="${asset('/js/viewer.js')}" defer></script>`,
+  <script src="${asset('/js/viewer.js')}" defer></script>
+  ${tourAssets(user).scripts}`,
   })
 }
 

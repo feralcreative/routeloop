@@ -40,6 +40,7 @@
     searchPlaces,
     mapCenter,
     viewportCircle,
+    containerPixel,
     markerElement,
     initPanelToggle,
   } = window.TBMap;
@@ -4145,6 +4146,13 @@
       riders: data.riders || (state.routeRiders && state.routeRiders.riders) || [],
     };
     renderRoutes();
+    // renderRoutes() draws every Starts and Ends field EMPTY and leaves
+    // refreshDerived() to fill them, and this is the one caller that runs
+    // after the load's own refresh has already happened — so a stored start
+    // time rendered, was replaced by a blank field when this answer landed a
+    // moment later, and stayed blank until the next edit. Seen on every
+    // dated ride opened in the builder.
+    renderTimes();
   }
 
   const riderNameOf = (id) => {
@@ -11139,6 +11147,21 @@
     // Awaited before the tour leaves the page, so the beforeunload guard has
     // nothing to hold the rider for.
     settled: () => saveNow(),
+    // The opposite, for a tour STARTING from a blank builder: the seeded home
+    // base has made the ride dirty and armed the autosave, and saving it
+    // would create a ride nobody planned on the way to the tour's own. Drop
+    // the work instead — there is none the rider typed — so the navigation
+    // is not stopped by the guard above.
+    discard: () => {
+      if (state.rideId) return;
+      clearTimeout(idleTimer);
+      clearTimeout(ceilingTimer);
+      clearTimeout(retryTimer);
+      clearTimeout(draftTimer);
+      idleTimer = ceilingTimer = retryTimer = draftTimer = null;
+      state.dirty = false;
+      HIST.Draft.clear(state.rideId);
+    },
     // The recorded proposal, drawn exactly as a live one is. The tour never
     // presses a candidate's own button: that calls takeMeet, which routes.
     showMeet: (data) => {
@@ -11162,6 +11185,9 @@
       return loadRouteRiders();
     },
     routeIndexOf: (uid) => state.routes.findIndex((d) => d.uid === uid),
+    // A coordinate as a pixel on the map element, for the cursor that slides
+    // a shaping point onto another road.
+    project: (lngLat) => (state.map ? containerPixel(state.map, lngLat) : null),
   };
 
   init();

@@ -46,6 +46,7 @@ import { FriendActions } from '../views/friend-actions'
 import { FriendForm } from '../views/friend-form'
 import { FollowForm } from '../views/follow-form'
 import { page } from '../views/layout'
+import { tourAssets } from '../views/tour-assets'
 import { asset } from '../views/assets'
 
 export const riderRoutes = new Hono<AuthEnv>()
@@ -313,7 +314,10 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
       bodyClass: 'content-page riders-page',
       body,
       navKey: 'riders',
-      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>`,
+      // The tour visits this page, so it carries the tour's assets while one
+      // is running and nothing extra otherwise.
+      head: tourAssets(me).head,
+      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  ${tourAssets(me).scripts}`,
     }),
   )
 }

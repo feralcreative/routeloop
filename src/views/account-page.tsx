@@ -45,6 +45,7 @@ import { channelsFor } from '../notifications/policy'
 import { prefsOf } from '../notifications/service'
 import { dateFormatFor } from './prefs'
 import { fieldHelp, page } from './layout'
+import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 
 export type AccountTab = 'preferences' | 'profile'
@@ -909,6 +910,9 @@ export async function accountPage(
     // buttons that do nothing — the panels are server-rendered into the right
     // state, so a missing script fails silently rather than loudly.
     scripts: `<script src="${asset('/js/tabs.js')}" defer></script>
-  <script src="${asset('/js/autosave.js')}" defer></script>\n  ${opts.scripts ?? ''}`,
+  <script src="${asset('/js/autosave.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
+    // The tour's paddock beat lands on the Profile tab, so the page carries
+    // the tour's assets while one is running.
+    head: tourAssets(user).head,
   })
 }

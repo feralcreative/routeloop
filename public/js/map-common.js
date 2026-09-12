@@ -205,6 +205,22 @@
     return { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
   }
 
+  // Where a coordinate lands on the map's own element, as [x, y] pixels from
+  // its top-left, or null before the map has settled. Web Mercator through the
+  // map's projection and the north-west corner of its bounds, which is the
+  // arithmetic an OverlayView does without needing one. The guided tour is the
+  // caller: it slides a cursor from a point on the road to where a shaping
+  // point lands, and that is the one picture in the tour that needs a pixel.
+  function containerPixel(map, lngLat) {
+    const proj = map.getProjection();
+    const b = map.getBounds();
+    if (!proj || !b) return null;
+    const scale = Math.pow(2, map.getZoom());
+    const nw = proj.fromLatLngToPoint({ lat: b.getNorthEast().lat(), lng: b.getSouthWest().lng() });
+    const p = proj.fromLatLngToPoint(toLatLng(lngLat));
+    return [(p.x - nw.x) * scale, (p.y - nw.y) * scale];
+  }
+
   /**
    * What the rider can actually see, as a circle: `{ near, radiusM }`, or null
    * before the map has settled.
@@ -1894,6 +1910,7 @@
     searchPlaces,
     mapCenter,
     viewportCircle,
+    containerPixel,
     markerElement,
     popupHtml,
     attachPopup,

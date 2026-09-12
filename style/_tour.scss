@@ -196,6 +196,15 @@
     &[data-tour-part="3"] {
       @include tour-sign($go, $ink-light);
     }
+    // Parts 4 and 5 (2026-09-11): fuel wears the half-tank orange, which is
+    // a BLACK-legend field like the yellow, and the meet wears the interstate
+    // blue. Both are in the sign sets, so the theme moves them with the rest.
+    &[data-tour-part="4"] {
+      @include tour-sign($detour, $ink-dark);
+    }
+    &[data-tour-part="5"] {
+      @include tour-sign($interstate, $ink-light);
+    }
   }
 
   // The card itself wears its part's color as a band along the top, and the
@@ -217,6 +226,18 @@
     border-top: 5px solid $go;
     .tour-part::before {
       background: $go;
+    }
+  }
+  &.tour-part-4 {
+    border-top: 5px solid $detour;
+    .tour-part::before {
+      background: $detour;
+    }
+  }
+  &.tour-part-5 {
+    border-top: 5px solid $interstate;
+    .tour-part::before {
+      background: $interstate;
     }
   }
 
