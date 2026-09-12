@@ -11068,7 +11068,101 @@
   // screen before it starts, and the handle lives here. One function and not
   // `state`: the tour reads what is on screen, never builder state, and that
   // rule is what keeps it unable to disagree with what the rider sees.
-  window.TBBuilder = { fitTo: (lngLats) => fitTo(state.map, lngLats) };
+  //
+  // IT GREW INTO THE REAL TOUR'S DOOR ON 2026-09-11 AND THE RULE HELD: every
+  // function here takes a value the tour reads off the DOM or the fixture and
+  // hands back nothing about `state`. `apply(frame)` is the load-bearing one —
+  // the tour is a canned planning session, so each beat REPLACES the ride with
+  // a pre-routed keyframe rather than routing live, and it goes through the
+  // LOAD path (routeFromPayload, fillMissingLegs, inferEndManual) and not the
+  // edit path, because five things fight a naive state swap: an in-flight
+  // save rebasing routeBase against a swapped ride, the recovery draft
+  // offering the previous frame back, endManual read off a stored end, a
+  // stale legSeq dropping a response that is not coming, and a meet proposal
+  // drawn against a road that just changed.
+  async function tourApply(frame) {
+    if (!CAN_EDIT || !frame || !frame.ride) return false;
+    const ride = frame.ride;
+    // Let whatever is in flight land first, so the rebase below is against
+    // the ride the server actually holds.
+    await saveNow();
+    beginEdit("tour step");
+    state.meta = {
+      title: ride.title || "",
+      description: ride.description || "",
+      visibility: ride.visibility || "private",
+      external_url: ride.external_url || "",
+      subgroups: (ride.subgroups || []).length ? ride.subgroups.map((g) => ({ ...g })) : [seedGroup()],
+      primarySubgroup: ride.primarySubgroup ?? null,
+      trunkSubgroup: null,
+      timeAnchor: ride.timeAnchor || "departure",
+      stopByMin: ride.stopByMin ?? null,
+    };
+    const wasPrimary = state.meta.subgroups.findIndex((g) => g.uid === state.meta.primarySubgroup);
+    if (wasPrimary > 0) state.meta.subgroups.splice(0, 0, state.meta.subgroups.splice(wasPrimary, 1)[0]);
+    state.meta.primarySubgroup = state.meta.subgroups[0].uid;
+    state.routes = (ride.routes || []).map(routeFromPayload);
+    state.routes.forEach(fillMissingLegs);
+    state.routes.forEach((r) => {
+      r.endManual = inferEndManual(r);
+    });
+    if (state.routes.length === 0) state.routes = [newRoute()];
+    state.legSeq = [];
+    state.active = 0;
+    state.select = null;
+    state.rolesOpen = null;
+    state.insertAt = null;
+    state.moment = null;
+    clearMeet();
+    // The draft is the previous frame now, and offering it back would undo
+    // the demonstration.
+    clearTimeout(draftTimer);
+    HIST.Draft.clear(state.rideId);
+    const bar = $("recover-bar");
+    if (bar) bar.hidden = true;
+    renderEverything();
+    renderSelectBar();
+    const all = allTrackPoints();
+    if (all.length) fitTo(state.map, all);
+    markDirty();
+    const ok = await saveNow();
+    // A save is what gives a new route its stored uid and a new group its id,
+    // and both readers below answer from what the server holds.
+    loadRouteRiders();
+    ridersStale();
+    return ok;
+  }
+
+  window.TBBuilder = {
+    fitTo: (lngLats) => fitTo(state.map, lngLats),
+    apply: tourApply,
+    // Awaited before the tour leaves the page, so the beforeunload guard has
+    // nothing to hold the rider for.
+    settled: () => saveNow(),
+    // The recorded proposal, drawn exactly as a live one is. The tour never
+    // presses a candidate's own button: that calls takeMeet, which routes.
+    showMeet: (data) => {
+      const out = $("sg-meet-out");
+      if (!out) return;
+      state.meet = data;
+      state.meetNote = "";
+      out.innerHTML = meetAllHtml(data);
+      showMeetPreview(out, data);
+    },
+    clearMeet: clearMeet,
+    // The split dialog, opened for show and closed without submitting.
+    openSplit: (r, i) => openSplitGroup(r, i),
+    closeSplit: () => {
+      const el = $("tb-split");
+      if (el && el.open) el.close();
+    },
+    setMoment: (s) => setMoment(s),
+    reloadRiders: () => {
+      ridersStale();
+      return loadRouteRiders();
+    },
+    routeIndexOf: (uid) => state.routes.findIndex((d) => d.uid === uid),
+  };
 
   init();
 })();

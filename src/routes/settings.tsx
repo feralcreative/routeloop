@@ -271,38 +271,6 @@ settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, a
   return c.redirect('/settings?saved=tour-button#tips', 303)
 })
 
-// The guided tour has been finished or skipped (#133).
-//
-// ONE ENDPOINT FOR BOTH OUTCOMES, deliberately. The column answers "has this
-// rider been offered the tour", and a rider who pressed Skip at step one has
-// been — offering it again on the next load is what makes a tour hated, and
-// the account menu keeps a way back in for anyone who wants it. There is no
-// "un-done" endpoint: re-running is a client action and needs no write.
-//
-// Here rather than in its own module because it writes the same lazily-created
-// `user_profiles` row every handler above does, with the same seeding trap: a
-// rider finishing the tour on their FIRST visit is exactly the rider with no
-// row yet, so the INSERT has to seed `date_format` from the header or the
-// tour's own completion would stamp en-US over what Accept-Language was giving
-// them for free.
-settingsRoutes.post('/api/tour/done', requireActiveApi, requireSameOrigin, async (c) => {
-  const user = currentUser(c)
-  const now = new Date()
-  await db
-    .insert(userProfiles)
-    .values({
-      userId: user.id,
-      tourDoneAt: now,
-      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: userProfiles.userId,
-      set: { tourDoneAt: now, updatedAt: now },
-    })
-  return c.json({ ok: true })
-})
-
 // Twelve- or twenty-four-hour time (#270).
 //
 // Its own handler and its own column, like the date, duration and units
