@@ -66,5 +66,5 @@ export const canUnfollow = (view: FollowView): boolean => view === 'following'
  * only ever produce an empty feed. The same predicate `/riders` filters its
  * listing with, stated here so the write agrees with what the page offered.
  */
-export const isFollowable = (target: { status: string; deletionRequestedAt: Date | null }): boolean =>
-  target.status === 'active' && target.deletionRequestedAt === null
+export const isFollowable = (target: { status: string; deletionRequestedAt: Date | null; isGuide?: boolean }): boolean =>
+  target.status === 'active' && target.deletionRequestedAt === null && target.isGuide !== true

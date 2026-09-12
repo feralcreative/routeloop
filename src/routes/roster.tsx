@@ -214,7 +214,8 @@ function MemberRow({
   return (
     <li class={isComing(fields) ? '' : 'is-out'}>
       <span class="roster-who">
-        {m.username ? (
+        {/* A guide rider is plain text: /@handle 404s one by design. */}
+        {m.username && !m.isGuide ? (
           <a class="rider-display" href={`/@${m.username}`}>
             {m.displayName}
           </a>
@@ -753,6 +754,9 @@ type RiderJson = {
   riderId: number
   displayName: string
   username: string | null
+  /** A seeded tour guide. The tab renders the name without a profile link,
+   *  and the tour resolves the guides' ids through this. */
+  isGuide: boolean
   role: RideRole
   rsvp: Rsvp
   /** The subgroup they are on, by id — `ride_members.subgroup_id`. Null is a
@@ -780,6 +784,7 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
     riderId: m.riderId,
     displayName: m.displayName,
     username: m.username,
+    isGuide: m.isGuide,
     role: m.role,
     rsvp: m.rsvp,
     subgroupId: m.subgroupId,

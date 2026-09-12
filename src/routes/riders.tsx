@@ -27,7 +27,7 @@
 // show; that one decides what may be done.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { and, ne, sql } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { users } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
@@ -124,6 +124,9 @@ async function loadRoster(meId: number, q: string): Promise<RosterRow[]> {
                      or lower(${users.displayName}) like lower(${'%' + q + '%'}))`
           : sql`${users.status} = 'active' and ${users.username} is not null
                 and ${users.deletionRequestedAt} is null`,
+        // The guided tour's seeded guide riders are on a real roster and must
+        // not be on this one: they are not people to befriend.
+        eq(users.isGuide, false),
         notBlockedWith(meId),
         ne(users.id, meId),
       ),

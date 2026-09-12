@@ -93,9 +93,11 @@ friendRoutes.post(
       .from(users)
       // Same predicate the roster and the public profile use: a pending, blocked
       // or leaving account has no presence, so it cannot be friended either.
+      // A tour guide rider is excluded at the VERB and not only at the list,
+      // so a handle typed by hand cannot friend one either.
       .where(
         sql`lower(${users.username}) = lower(${handle}) and ${users.status} = 'active'
-          and ${users.deletionRequestedAt} is null`,
+          and ${users.deletionRequestedAt} is null and ${users.isGuide} = false`,
       )
       .limit(1)
 

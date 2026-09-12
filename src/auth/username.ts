@@ -43,6 +43,13 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'survey',
   'video',
   'welcome',
+  // The guided tour's three guide riders. Held here so no rider can claim one
+  // and so the tour's lazy upsert — keyed on public_id, never on the name — can
+  // never find a real account under the handle it is about to give a guide.
+  // See src/tour/guides.ts.
+  'routeloop_guide_sam',
+  'routeloop_guide_priya',
+  'routeloop_guide_diego',
 ])
 
 export const usernameSchema = z

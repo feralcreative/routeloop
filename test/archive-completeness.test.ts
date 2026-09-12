@@ -39,8 +39,11 @@ function columnsOf(src: string, table: string): string[] {
 // userId is the FK that IS the primary key, and an archive is already one
 // rider's — writing their own id into it says nothing. avatarBytes is
 // bookkeeping for a file the archive ships in full, so the number is a fact
-// about storage rather than about the rider.
-const NOT_IN_ARCHIVE = new Set(['userId', 'avatarBytes'])
+// about storage rather than about the rider. tourRideId points at a ride the
+// tour is about to bin — a bookmark for a sweep, not a fact the rider gave us —
+// and the ride itself is in the archive with every other one for as long as
+// it exists.
+const NOT_IN_ARCHIVE = new Set(['userId', 'avatarBytes', 'tourRideId'])
 
 // ownerId is the rider whose archive this is, said once at the top rather than
 // on every row. photoHash is a cache-busting fingerprint for a URL — bookkeeping
