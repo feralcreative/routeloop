@@ -30,6 +30,7 @@ import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
+import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
 import { canClone } from '../access/policy'
@@ -1345,8 +1346,9 @@ ${
     // late repaint, and a preload is pointless after the parser is done. Note
     // they still land AFTER main.min.css, so style/_tour.scss has to outrank
     // Shepherd's own rules by specificity rather than by order.
-    head: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@15.3.0/dist/css/shepherd.css" integrity="sha384-C5yWgOSmSD4vj/xah+gT81JJz/Q4ZA+7m86bpX6cHQvmoEb0XdlZk1Kt02f/rH0l" crossorigin="anonymous">
-  <link rel="modulepreload" id="shepherd-module" href="https://cdn.jsdelivr.net/npm/shepherd.js@15.3.0/dist/js/shepherd.mjs" integrity="sha384-3c9ULgNKnju6snpqV4Hwd0Kku2L97ceRjbGdQZ8xu/d9IMhkkj3JqcTyKmImgPtg" crossorigin="anonymous">`,
+    // Spelled once in views/tour-assets.ts, because the tour follows the
+    // rider onto four other pages that carry the same pair while it runs.
+    head: TOUR_HEAD,
     scripts: `${googleMapsLoader(GMAPS_KEY)}
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js" integrity="sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc" crossorigin="anonymous" defer></script>
   <script src="${asset('/js/tabs.js')}" defer></script>
@@ -1365,6 +1367,6 @@ ${
   <script src="${asset('/js/corridor.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>
-  <script src="${asset('/js/tour.js')}" defer></script>`,
+  ${tourScript()}`,
   })
 }

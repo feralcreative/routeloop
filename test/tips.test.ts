@@ -21,7 +21,8 @@ import { readFileSync } from 'node:fs'
 import { TIPS, toTips, DEFAULT_TIPS, TIPS_CHOICES } from '../src/views/tips'
 
 let BODY: Record<string, string>
-let STEPS: { id: string; at?: string; demo?: unknown; done?: unknown; running?: string }[]
+let STEPS: { id: string; at?: unknown; demo?: unknown; done?: unknown; running?: string }[]
+let win: Record<string, unknown>
 
 beforeAll(() => {
   // Same harness as test/drag-index.test.ts, with `document` stubbed as well —
@@ -29,7 +30,7 @@ beforeAll(() => {
   // answering "off" is what keeps it from wiring listeners into a suite that has
   // no DOM to wire them to. tour.js looks for the Shepherd preload by id and
   // gives up without one. Both tables are built either way.
-  const win: Record<string, unknown> = { addEventListener: () => {} }
+  win = { addEventListener: () => {} }
   const doc = {
     documentElement: { getAttribute: () => 'off' },
     readyState: 'complete',
@@ -95,46 +96,78 @@ describe('tips', () => {
 })
 
 describe('tour', () => {
-  it('is three parts, each with more than one step, and four steps that demonstrate', () => {
-    // The shape Ziad chose: three parts a rider can take in any order or skip,
-    // narrated, with exactly four steps that do the thing in front of the rider
-    // — the name, two points, and a start time. Since 2026-09-11 those
-    // DEMONSTRATE rather than wait: the only interaction is Next, Back and
-    // Skip. Each carries the demo, the predicate that says it already
-    // happened, and the status line shown while it runs.
+  const PARTS_N = 5
+  const DEMOS = [
+    'name',
+    'second-point',
+    'more-points',
+    'via',
+    'category',
+    'dwell',
+    'when',
+    'timeline',
+    'bed',
+    'groups-add',
+    'riders-tab',
+    'empty',
+    'gas',
+    'meet-find',
+    'meet-take',
+    'split',
+  ]
+
+  it('is five parts, each with more than one step, and the demonstrating steps are the ones the story needs', () => {
+    // The shape Ziad chose on 2026-09-11: an instructional video about a
+    // planning session, five parts a rider can take in any order or skip, with
+    // the only interaction being Next, Back and Skip. Each demonstrating step
+    // carries the demo, the status line shown while it runs, and either the
+    // keyframe it lands on or its own predicate for "already done".
     const parts = new Set(STEPS.map((s: any) => s.part).filter(Boolean))
-    expect([...parts].sort()).toEqual([1, 2, 3])
+    expect([...parts].sort()).toEqual([1, 2, 3, 4, 5])
+    expect((win as any).TBTour.PARTS).toHaveLength(PARTS_N)
     for (const n of parts) expect(STEPS.filter((s: any) => s.part === n).length).toBeGreaterThan(1)
     const demos = STEPS.filter((s) => s.demo)
-    expect(demos.map((s) => s.id)).toEqual(['name', 'first-point', 'second-point', 'when'])
-    for (const s of demos) {
-      expect(typeof s.done).toBe('function')
+    expect(demos.map((s) => s.id)).toEqual(DEMOS)
+    for (const s of demos as any[]) {
       expect(typeof s.running).toBe('string')
+      expect(typeof s.done === 'function' || typeof s.frame === 'string').toBe(true)
     }
     // The welcome and closing cards belong to no part and carry the chooser.
     expect(STEPS.filter((s: any) => !s.part).every((s: any) => s.chooser)).toBe(true)
   })
 
-  it('opens parts 2 and 3 with an intro card, and part 1 with the welcome', () => {
-    // Ziad's call, 2026-09-11: an interstitial between parts says the subject
-    // has changed before the next control is pointed at. Part 1 gets none,
-    // because the welcome card is that interstitial. An intro is centered —
-    // it anchors to nothing and waits for nothing.
+  it('lands on every keyframe of the fixture, in fixture order', () => {
+    // A frame nothing applies is a beat the story skips; a frame applied out
+    // of order would un-do a later one. `needs` may name any frame — it is a
+    // floor, not a step.
+    const FRAMES: string[] = (win as any).TBTour.FRAMES
+    const landed = STEPS.map((s: any) => s.frame).filter(Boolean)
+    expect(landed).toEqual(FRAMES.filter((f) => f !== 'point3'))
+    for (const s of STEPS as any[]) if (s.needs) expect(FRAMES).toContain(s.needs)
+  })
+
+  it('opens parts 2 to 5 with an intro card that assumes the previous part, and part 1 with the welcome', () => {
     const first = (n: number) => STEPS.find((s: any) => s.part === n) as any
     expect(first(1).intro).toBeUndefined()
-    for (const n of [2, 3]) {
+    for (const n of [2, 3, 4, 5]) {
       const s = first(n)
       expect(s.intro).toBe(true)
       expect(s.at).toBeUndefined()
       expect(s.demo).toBeUndefined()
+      expect(typeof s.needs).toBe('string')
     }
-    expect(STEPS.filter((s: any) => s.intro).length).toBe(2)
+    expect(STEPS.filter((s: any) => s.intro).length).toBe(4)
+  })
+
+  it('visits the four other pages, and the closing card ends on the viewer', () => {
+    // The tour follows the rider across pages (Ziad's call, 2026-09-11); every
+    // page a step names has a URL urlFor() can build.
+    const pages = new Set(STEPS.map((s: any) => s.page).filter(Boolean))
+    expect([...pages].sort()).toEqual(['profile', 'riders', 'roster', 'viewer'])
+    expect((STEPS[STEPS.length - 1] as any).page).toBe('viewer')
   })
 
   it('opens the tab a step lives on', () => {
-    // A control on a shut tab has no box and Shepherd centers the card with
-    // no spotlight, silently. Every step anchored inside the Groups or Riders
-    // panel has to say which tab to open first.
     const src = readFileSync('src/routes/builder.ts', 'utf8')
     const onGroups = [...src.matchAll(/id="(sg-[a-z-]+)"/g)].map((m) => '#' + m[1])
     const onRiders = [...src.matchAll(/id="(riders-[a-z-]+)"/g)].map((m) => '#' + m[1])
@@ -144,11 +177,11 @@ describe('tour', () => {
 
   it('anchors every step on a control that exists', () => {
     // A `data-tip` key must be one the tree carries; a selector must appear in
-    // the source somewhere. Either failing is a step that centers itself with
-    // no spotlight and nothing to point at, which Shepherd does silently.
+    // the source somewhere. A function anchor resolves at show time and is
+    // checked by eye.
     const keys = new Set(keysInTree().map((k) => k.key))
     const src = SOURCES.map((f) => readFileSync(f, 'utf8')).join('\n')
-    const bad = STEPS.filter((s) => s.at).filter((s) => {
+    const bad = STEPS.filter((s) => typeof s.at === 'string').filter((s) => {
       const at = s.at as string
       if (/^[.#]/.test(at)) {
         const name = at.slice(1)

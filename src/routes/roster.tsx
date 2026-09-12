@@ -69,6 +69,7 @@ import { fmtDateFull } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
 import { page } from '../views/layout'
+import { tourAssets } from '../views/tour-assets'
 import { notifyRideAdded, notifyRsvp } from '../notifications/senders'
 import { ownRide } from './maps'
 
@@ -538,7 +539,8 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
     </>
   ).toString()
 
-  return c.html(page({ title: `${ride.title} – riders`, user, bodyClass: 'content-page roster-page', body }))
+  // The tour visits this page, so it carries the tour's assets while one is running.
+  return c.html(page({ title: `${ride.title} – riders`, user, bodyClass: 'content-page roster-page', body, ...tourAssets(user) }))
 })
 
 /**
