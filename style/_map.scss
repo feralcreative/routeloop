@@ -616,8 +616,8 @@ html.map-page.is-resizing {
     // THE GRIP IS A PILL. Ziad's call, 2026-09-13, the fourth shape tried
     // (a hover hairline, two ribs, and the dotted tab the row grips carry
     // came before it): a single 4×80 bar, centered in the drawer's 16px
-    // padding so it sits 6px off the edge and 6px off the content, gray at
-    // rest and brand on hover or focus.
+    // padding so it sits 6px off the edge and 6px off the content, faint
+    // gray at rest and brand on hover or focus.
     &::after {
       content: "";
       position: absolute;
@@ -627,7 +627,10 @@ html.map-page.is-resizing {
       height: 80px;
       margin-top: -40px;
       border-radius: 2px;
-      background: $neutral-76;
+      // Faint at rest — Ziad's call, 2026-09-13 — so it marks the edge
+      // without competing with the list; the hover color is where it asserts
+      // itself.
+      background: $neutral-88;
       transition: background-color 0.15s ease;
     }
 
