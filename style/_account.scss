@@ -1066,3 +1066,140 @@
   max-width: 60ch;
   color: $neutral-50;
 }
+
+// THE JARGON TABLE (#321). One row per term: the term and where it shows up on
+// the left, the words as a row of pill radios plus a Custom box on the right.
+// `.setting--wide` lifts the 60ch measure cap, because the pills need the room
+// and the prose is one line under the heading. A power row under Pedal is
+// `.is-off`: the pills go and the note says why, toggled by jargon.js as the
+// picker changes so the page does not need a reload to agree with itself.
+.setting--wide {
+  max-width: none;
+}
+
+.setting-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: $neutral-43;
+}
+
+.jargon-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.55rem 0.6rem;
+    border-top: 1px solid $grey;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    border-top: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $neutral-43;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  tbody th {
+    width: 14rem;
+    font-weight: 600;
+  }
+
+  .jargon-where {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: $neutral-43;
+  }
+
+  .jargon-off {
+    display: none;
+    font-size: 0.9rem;
+    color: $neutral-43;
+  }
+
+  tr.is-off {
+    .jargon-picks {
+      display: none;
+    }
+
+    .jargon-off {
+      display: block;
+    }
+  }
+}
+
+.jargon-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+// A pill: the radio is the whole pill, filled when it is the one. The Custom
+// pill carries its text box inside it, so typing in the box is visibly the
+// same act as picking the pill — jargon.js ticks the radio as the first letter
+// lands.
+.jargon-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid $grey;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+
+  small {
+    font-size: 0.75em;
+    color: $neutral-43;
+  }
+
+  &:hover {
+    border-color: $brand;
+  }
+
+  &:has(input[type="radio"]:checked) {
+    border-color: $brand;
+    background: color-mix(in srgb, $brand 6%, transparent);
+  }
+
+  &:has(input:focus-visible) {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+
+  input[type="text"] {
+    width: 9rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.9rem;
+  }
+}
+
+//@ Phone — the term column stacks over its pills
+@media (max-width: 640px) {
+  .jargon-table {
+    tr,
+    th,
+    td {
+      display: block;
+    }
+
+    thead {
+      display: none;
+    }
+
+    tbody th {
+      width: auto;
+      padding-bottom: 0.2rem;
+    }
+
+    td {
+      border-top: 0;
+      padding-top: 0;
+    }
+  }
+}

@@ -15,6 +15,7 @@
 // redirects to `?saved=1` and always has, so merging the pages merged the query
 // string with it.
 import { Hono, type Context } from 'hono'
+import { eq } from 'drizzle-orm'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
@@ -26,6 +27,7 @@ import { toUnits } from '../views/units'
 import { toClock } from '../views/clock'
 import { toVolumeUnits } from '../views/volume'
 import { toTips } from '../views/tips'
+import { TERMS, toJargon, toPower, toVehicle, vocabOf, wordsFor } from '../views/vocab'
 import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
 import { checkedKeys, rowsFromForm } from '../notifications/policy'
 import { savePrefs } from '../notifications/service'
@@ -188,6 +190,75 @@ settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, as
 
   return c.redirect('/account?saved=appearance#appearance', 303)
 })
+
+// What the app calls things (#321): the two presets and the rider's words.
+//
+// THREE HANDLERS, THREE COLUMNS, like units and clock below. The vehicle picker
+// coerces the stored power against the new vehicle — Bicycle turns Gas into
+// Pedal — and writes both, or the pair on the row could be one vocab.ts refuses.
+settingsRoutes.post('/settings/vehicle', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  const stored = await vocabRow(user.id)
+  const vehicle = toVehicle(body.vehicle)
+  const power = toPower(stored?.power, vehicle)
+  await upsertProfile(c, user.id, { vehicle, power })
+  return c.redirect('/account?saved=vehicle#vehicle', 303)
+})
+
+settingsRoutes.post('/settings/power', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  const stored = await vocabRow(user.id)
+  const power = toPower(body.power, toVehicle(stored?.vehicle))
+  await upsertProfile(c, user.id, { power })
+  return c.redirect('/account?saved=power#power', 303)
+})
+
+// THE TABLE POSTS A PICK PER ROW AND STORES ONLY WHAT DIFFERS FROM THE PRESET.
+// A radio equal to the word the rider's own preset would give is "follows the
+// pickers" and stores nothing, so changing the vehicle later moves it; any
+// other radio, or a typed word, is stored as the rider's own and wins on every
+// ride. A regional row's first option is its default and stores nothing too.
+settingsRoutes.post('/settings/jargon', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  const stored = vocabOf(await vocabRow(user.id))
+  const preset = wordsFor({ ...stored, jargon: {} })
+  const jargon: Record<string, string> = {}
+  for (const t of TERMS) {
+    const pick = body[`pick-${t.id}`]
+    if (typeof pick !== 'string') continue
+    const word = pick === 'custom' ? body[`custom-${t.id}`] : pick
+    if (typeof word !== 'string') continue
+    const follows = t.axis === 'regional' ? t.options?.[0]?.one : preset[t.id]?.one
+    if (word.trim() && word.trim() !== follows) jargon[t.id] = word
+  }
+  await upsertProfile(c, user.id, { jargon: toJargon(jargon) })
+  return c.redirect('/account?saved=jargon#words', 303)
+})
+
+async function vocabRow(userId: number) {
+  const [row] = await db
+    .select({ vehicle: userProfiles.vehicle, power: userProfiles.power, jargon: userProfiles.jargon })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1)
+  return row ?? null
+}
+
+/** The lazily-created-row upsert every handler here performs, with the
+ *  Accept-Language seeding trap handled once. */
+async function upsertProfile(
+  c: Context<AuthEnv>,
+  userId: number,
+  set: Partial<{ vehicle: string; power: string; jargon: Record<string, string> }>,
+): Promise<void> {
+  await db
+    .insert(userProfiles)
+    .values({ userId, ...set, dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')), updatedAt: new Date() })
+    .onConflictDoUpdate({ target: userProfiles.userId, set: { ...set, updatedAt: new Date() } })
+}
 
 // Miles or kilometers.
 //

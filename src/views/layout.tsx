@@ -10,6 +10,7 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { wordmark } from './logo'
 import { asset } from './assets'
+import { clientTerms, vocabOf, wordsFor, type Words } from './vocab'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
@@ -138,6 +139,14 @@ export type PageOpts = {
    * added to fix. Every existing reader guards with `window.TB && window.TB.x`.
    */
   tb?: Record<string, unknown>
+  /**
+   * The words for this page (#321). Almost nothing passes this — page()
+   * resolves them from `user` — but a page ABOUT ONE RIDE passes
+   * `wordsFor(vocabOf(user), ride)` so the ride's own vehicle wins, and the
+   * same pair is sent to the client as `TBVocabData.ride`.
+   */
+  words?: Words
+  ride?: { vehicle?: string | null; power?: string | null } | null
   /** Set false to suppress the alpha modal on a page. */
   splash?: boolean
   /** Plain message; page() supplies the <noscript> wrapper and markup. */
@@ -838,6 +847,19 @@ const unreadOf = (u: UserRow | null): number => {
 }
 
 /**
+ * The profile columns the session row carries beyond UserRow, read through
+ * `unknown` the way hideTourOf() and unreadOf() do — page() takes a UserRow and
+ * every caller passes the session user, which is one.
+ */
+const profileOf = (u: UserRow | null): { vehicle?: unknown; power?: unknown; jargon?: unknown } | null =>
+  u as unknown as { vehicle?: unknown; power?: unknown; jargon?: unknown } | null
+
+/** The words for a page (#321): passed in for a ride page, resolved from the
+ *  rider's own preset otherwise. */
+export const wordsOf = (opts: { user: UserRow | null; words?: Words; ride?: PageOpts['ride'] }): Words =>
+  opts.words ?? wordsFor(vocabOf(profileOf(opts.user)), opts.ride)
+
+/**
  * Whether the header's Take the tour sign is hidden — `user_profiles.hide_tour`,
  * riding on the session user exactly as `unread` does and read the same
  * defensive way, for the same reason.
@@ -1254,6 +1276,7 @@ ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
 ${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
+${jsonScript('TBVocabData', { terms: clientTerms(), profile: vocabOf(profileOf(opts.user)), ride: opts.ride ?? null })}
 <!--
   The error ring buffer, on every page and first in the list.
 
@@ -1279,6 +1302,12 @@ ${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
   is the column default and therefore the behavior every page had before #150.
 -->
 <script src="${asset('/js/units.js')}" defer></script>
+<!--
+  Beside units.js for the same reason (#321): what the app calls things is
+  read by the builder, the viewer, the tips and the paddock, and a page with
+  no TBVocabData renders the motorcycle words. See public/js/vocab.js.
+-->
+<script src="${asset('/js/vocab.js')}" defer></script>
 <script src="${asset('/js/feedback-buffer.js')}" defer></script>
 <script src="${asset('/js/site.js')}" defer></script>
 <!--

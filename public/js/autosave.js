@@ -177,6 +177,12 @@
         // AFTER the save, not before: a palette that flips and then fails to
         // store is a page lying about what it holds.
         restamp(form);
+        // A jargon save changed what the app calls things; vocab.js caches
+        // its resolution, and the table page's own data is what jargon.js
+        // already updated — this only drops the cache.
+        if (form.hasAttribute("data-jargon") || form.hasAttribute("data-jargon-preset")) {
+          if (window.TBVocab && window.TBVocab.forget) window.TBVocab.forget();
+        }
         say("saved");
       } catch {
         // Nothing is reverted. What the rider chose is still on screen and the
@@ -207,7 +213,9 @@
     // the same as the rest rather than waiting for a blur.
     form.addEventListener("change", queue);
     form.addEventListener("input", (e) => {
-      if (e.target.tagName === "TEXTAREA") queue();
+      // The jargon table's Custom boxes are text inputs and want the textarea
+      // treatment: a word being typed saves as it is typed, not on blur.
+      if (e.target.tagName === "TEXTAREA" || form.hasAttribute("data-jargon")) queue();
     });
 
     // A rider who presses Save anyway — script on, button un-hidden after a
