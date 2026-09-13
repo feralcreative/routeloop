@@ -59,23 +59,23 @@ const byTitle = (t: string): Route => {
 const coast = byTitle('Coast run')
 const direct = byTitle('Pescadero to Santa Cruz, direct')
 const home = byTitle('Home via 84')
-const [NAT_MAIN, NAT_SJ] = native.subgroups.map((g) => g.uid)
+const [NAT_MAIN, NAT_LIV] = native.subgroups.map((g) => g.uid)
 
 const [O, A, P, S] = coast.points
 const [L1, L2, L3S] = coast.legs
 const L3D = direct.legs[0]
 const LHOME = home.legs[0]
-const SJ = byTitle('San Jose crew').points[0]
+const LIV = byTitle('Livermore crew').points[0]
 
 // --- Identities ------------------------------------------------------------
 
 const MAIN = { ...TOUR_SEED.group }
-const SANJOSE = { uid: 'toursgsanjos', name: 'San Jose crew', color: '#a3541c' }
+const LIVERMORE = { uid: 'toursglivrmr', name: 'Livermore crew', color: '#a3541c' }
 const HOME = { uid: 'toursghome01', name: 'Heading home', color: '#2a7a2a' }
 
 const R = {
   main: TOUR_SEED.routeUid,
-  sanJose: 'tourroute002',
+  livermore: 'tourroute002',
   together: 'tourroute003',
   peel: 'tourroute004',
   onward: 'tourroute005',
@@ -86,7 +86,7 @@ const U = {
   pescadero: 'tourpoint003',
   santaCruz: 'tourpoint004',
   meet: 'tourpoint005',
-  sanJose: 'tourpoint006',
+  livermore: 'tourpoint006',
   pescaderoOn: 'tourpoint007',
   pescaderoOff: 'tourpoint008',
   redwood: 'tourpoint009',
@@ -219,12 +219,14 @@ push('start', (p) => {
 push('bed', (p) => {
   p.stopByMin = 16 * 60
 })
-push('group', (p) => {
-  p.subgroups.push(SANJOSE)
-  p.routes.push(route(R.sanJose, { subgroupUid: SANJOSE.uid, color: SANJOSE.color, points: [pt(SJ, U.sanJose, { roles: ['start'] })] }))
-})
+// Fuel is shown before the people (Ziad's call, 2026-09-12): the ring is
+// already on the map by then, so the gas stop lands ahead of the group.
 push('gas', (p) => {
   main(p).points[2].roles = ['food', 'gas']
+})
+push('group', (p) => {
+  p.subgroups.push(LIVERMORE)
+  p.routes.push(route(R.livermore, { subgroupUid: LIVERMORE.uid, color: LIVERMORE.color, points: [pt(LIV, U.livermore, { roles: ['start'] })] }))
 })
 
 // The meet. The proposer's first candidate is a Chevron in Hayward on the main
@@ -266,13 +268,13 @@ push('meet', (p) => {
   m.subgroupUid = MAIN.uid
   m.points = [o, copy(meetPoint)]
   m.legs = [L1A]
-  const sj = p.routes.find((r) => r.uid === R.sanJose)!
-  sj.points.push(copy(meetPoint))
-  sj.points[1].uid = 'tourpoint010'
-  sj.legs = [copy(APPROACH)]
-  sj.startAt = iso(arriveMeetS - APPROACH.durationS)
+  const liv = p.routes.find((r) => r.uid === R.livermore)!
+  liv.points.push(copy(meetPoint))
+  liv.points[1].uid = 'tourpoint010'
+  liv.legs = [copy(APPROACH)]
+  liv.startAt = iso(arriveMeetS - APPROACH.durationS)
   // The shared route goes after the last approach, per cutSharedStretch.
-  p.routes = [m, sj, tail]
+  p.routes = [m, liv, tail]
 })
 
 // The split, at Pescadero: Diego turns for home over 84 and everybody else
@@ -305,7 +307,7 @@ push('split', (p) => {
 
 // --- The recorded proposal, with the tour's group uids ---------------------
 
-const uidMap: Record<string, string> = { [NAT_MAIN]: MAIN.uid, [NAT_SJ]: SANJOSE.uid }
+const uidMap: Record<string, string> = { [NAT_MAIN]: MAIN.uid, [NAT_LIV]: LIVERMORE.uid }
 const meet = {
   groups: meetSrc.groups.map((g) => ({
     ...g,
@@ -326,11 +328,11 @@ const fixture = {
   title: TOUR_RIDE_TITLE,
   keyframes: frames,
   meet,
-  // Home groups for the Riders beat: the two long tanks ride in from San Jose,
+  // Home groups for the Riders beat: the two long tanks ride in from Livermore,
   // the short one rides with the planner from Oakland.
   members: [
-    { guide: guide(0), group: SANJOSE.uid },
-    { guide: guide(1), group: SANJOSE.uid },
+    { guide: guide(0), group: LIVERMORE.uid },
+    { guide: guide(1), group: LIVERMORE.uid },
   ],
   // Who rides which route after the split, written through
   // PUT /api/rides/:id/route-riders/:uid exactly as writeSplitRiders does.

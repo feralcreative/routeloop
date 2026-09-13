@@ -45,7 +45,7 @@ function inflate(fx: Fixture, ride: RidePayload): RidePayload {
 }
 
 const frames = raw.keyframes.map((f) => ({ id: f.id, ride: inflate(raw, f.ride) }))
-const ORDER = ['named', 'point2', 'point3', 'point4', 'via', 'category', 'dwell', 'start', 'bed', 'group', 'gas', 'meet', 'split']
+const ORDER = ['named', 'point2', 'point3', 'point4', 'via', 'category', 'dwell', 'start', 'bed', 'gas', 'group', 'meet', 'split']
 
 describe('the tour fixture', () => {
   it('is the thirteen frames of the story, in order', () => {
