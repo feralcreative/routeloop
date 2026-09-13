@@ -56,9 +56,17 @@
 
   // Typing rhythm: per character, the cursor blinking alone before the first
   // one, and a beat after the last so the word is read before anything moves.
-  var TYPE_MS = 60;
+  // TYPE_LEAD_MS is the pause before the first character; CARET_LEAD_MS is
+  // the pointer's, before a press, and stays longer because a press is one
+  // moment where typing is many. The first few cards were measured at 2.3s,
+  // 3.8s and 5.3s on 2026-09-13 and most of it was pauses, not letters.
+  var TYPE_MS = 45;
+  var TYPE_LEAD_MS = 400;
   var CARET_LEAD_MS = 700;
   var SETTLE_MS = 400;
+  // True while the camera sits on the story's box from a search; any fit
+  // that frames the whole ride clears it.
+  var boxHeld = false;
   // How long a demonstration gets before the card gives up and offers Next
   // anyway. A frame is one save; the split is a save and two writes.
   var DEMO_TIMEOUT_MS = 20000;
@@ -68,6 +76,10 @@
   // applied" — kept in the saved position rather than read off the DOM,
   // because thirteen predicates over the route list would each be a second
   // description of what a frame contains.
+  // What the ride is called before the first card names it — TOUR_SEED.title
+  // in src/tour/seed.ts, pinned by test/tips.test.ts.
+  var SEED_TITLE = "Untitled ride";
+
   var FRAMES = [
     "named",
     "point2",
@@ -78,8 +90,8 @@
     "dwell",
     "start",
     "bed",
-    "group",
     "gas",
+    "group",
     "meet",
     "split",
   ];
@@ -91,8 +103,8 @@
     alices: "Alice’s Restaurant, Woodside",
     pescadero: "Pescadero",
     santaCruz: "Santa Cruz",
-    groupName: "San Jose crew",
-    groupStart: "San Jose",
+    groupName: "Livermore crew",
+    groupStart: "Livermore",
     splitName: "Heading home",
     splitDest: "Redwood City",
   };
@@ -102,15 +114,25 @@
   // **FIVE PARTS A RIDER CAN TAKE IN ANY ORDER OR SKIP AT WILL.** Every card
   // carries Skip this part beside Next, the welcome and closing cards offer the
   // parts as buttons, and `jump()` is the one way between them. Fuel comes
-  // before the meet on purpose: the proposer only offers a meeting point a
-  // group can reach on the tank it leaves with, so the ring has to exist
-  // before a proposal can be explained.
+  // before the people (Ziad's call, 2026-09-12: the ring is already on the
+  // map by the clock, so it is explained next rather than two parts later)
+  // and before the meet on purpose: the proposer only offers a meeting point
+  // a group can reach on the tank it leaves with.
   var PARTS = [
-    { n: 1, name: "The route", blurb: "Name it, add points, shape the road, say what each stop is for." },
-    { n: 2, name: "The clock", blurb: "A start time, the arrival at every point, and the scrubber along the map." },
-    { n: 3, name: "The people", blurb: "Groups, the roster, who rides which route, and where friends come from." },
-    { n: 4, name: "Fuel", blurb: "The paddock, the range ring, where a tank runs dry, and the gas stop that fixes it." },
-    { n: 5, name: "Meet and split", blurb: "Where two groups meet, one group heading home early, and sharing the ride." },
+    {
+      n: 1,
+      name: "Route",
+      blurb:
+        "A <b>route</b> generally represents a day of riding (unless it’s a feeder route to a meeting point). Multiple routes together make up a complete <b>ride</b>.",
+    },
+    { n: 2, name: "Clock", blurb: "A start time, the arrival at every point, and the scrubber along the map." },
+    {
+      n: 3,
+      name: "Fuel",
+      blurb: "The paddock, a group’s range ring, where the first tank runs dry, and the fuel stop that fixes it.",
+    },
+    { n: 4, name: "People", blurb: "Groups, the roster, who rides which route, and where friends come from." },
+    { n: 5, name: "Meet", blurb: "Where two groups meet, one group heading home early, and sharing the ride." },
   ];
 
   // ——— The steps ———
@@ -123,12 +145,20 @@
   // and doubles as its "already done" test; `running` is the status line shown
   // in place of Next until it settles. `needs` is a frame applied silently
   // before a card that assumes it — an intro reached by Skip, or a card the
-  // rider comes back to the builder for.
+  // rider comes back to the builder for. `then` is where the spotlight moves
+  // once the demonstration has landed: a card about adding a point starts on
+  // the search box and ends on the row the point became, or the rider is left
+  // looking at a lit search box under a row that appeared by itself. `press`
+  // is a control clicked before the anchor resolves, for a card pinned to
+  // something that only exists once a button has been pressed — a menu.
+  // `open` is a list of <details> opened before the card and closed after.
+  // `prep` runs after the reset and before the anchor resolves, for a plain
+  // card about something a reset clears.
   var STEPS = [
     {
       id: "welcome",
       title: "This is where a ride gets planned",
-      text: "Five short parts, a few minutes each: the route, the clock, the people, fuel, and meeting up. Take them in order, jump to one, or skip any of them. Everything you are about to see is real—a real ride, planned in front of you with three riders who exist for exactly this—and it goes in the bin when you are done, so nothing here is homework.",
+      text: "Five short parts—skip whatever you don’t care about. The <b>ride</b> you are about to see is just an example and goes in the bin when you are done.",
       chooser: true,
     },
 
@@ -137,8 +167,8 @@
       id: "name",
       part: 1,
       at: "ride-name",
-      title: "Give it a name",
-      text: "The big title is the ride’s name. Click it and type anything—the town at the far end, whose birthday it is—and press Enter. Let me name this one.",
+      title: "Name your ride",
+      text: "Click the title, type a name, press Enter. Let me name this one.",
       running: "Typing a name…",
       frame: "named",
       demo: function () {
@@ -156,43 +186,47 @@
       part: 1,
       at: "#info-panel",
       side: "right",
-      title: "The builder is two halves. This is the first",
-      text: "The panel: your routes, every point on them, how long you stop, when you leave. It is a list, and the order of the list is the order you ride. Everything the map cannot say in a picture is said here.",
+      title: "This is the builder",
+      text: "Your routes, every point on them, how long you stop, when you leave. The order of the list is the order you ride, and the map draws it.",
     },
     {
-      id: "map",
+      id: "vocabulary",
       part: 1,
-      at: "#map",
-      side: "left",
-      title: "The map is the other half",
-      text: "Everything in the panel is drawn over here, and most of it can be done from either side—click the map to add a point, drag a road to reshape it. Neither half is the real one; they are the same ride, twice.",
+      at: ".route-section",
+      side: "right",
+      title: "Points → Legs → Routes → Ride",
+      text: "A point is a location on a map. Two points make a leg, a series of points with a start and finish make a route, and a collection of routes makes up a complete ride.",
     },
     {
       id: "route",
       part: 1,
       at: ".route-head",
-      title: "A ride is made of routes",
-      text: "Each of these is one stretch of the trip—usually a day, sometimes one group’s morning. It has a name, a color on the map, and its own start time. A weekend is two of them. A week away is seven, and the panel will happily hold more.",
+      title: "A route has a name, color, and start time",
+      text: "A route is one stretch of the ride, usually a day. It has a name, a color on the map, and its own start time.",
     },
     {
       id: "first-point",
       part: 1,
       at: ".point-row",
       title: "Every route starts somewhere",
-      text: "The first point is where you set off, and it is already here: Jack London Square in Oakland, where this run begins. You would type a place into the box below it—a town, a café, an address—and pick it from the list, or press + Point and click anywhere on the map. A new ride of your own starts from your home base, if you have set one.",
+      text: "The first point is where you set off—here, Jack London Square in Oakland. Type a place into the box below it, or press + Point and click the map.",
     },
     {
       id: "second-point",
       part: 1,
       at: ".add-row",
       extra: ["#map"],
-      title: "Add a second, and a road appears",
-      text: "A restaurant up on Skyline, typed into the search. The moment it lands a road is drawn between the two: that line is the leg, and every number in the builder comes from it. Watch.",
+      title: "Add a second, and a route line appears",
+      text: "A restaurant on Skyline, typed into the search. The moment it lands a line is drawn between the two.",
       running: "Finding a place…",
       frame: "point2",
+      fits: true,
+      then: function () {
+        return rowNamed("Alice");
+      },
       demo: function () {
         return typeSearch(TYPED.alices).then(function () {
-          return apply("point2");
+          return apply("point2", { fit: false });
         });
       },
     },
@@ -202,19 +236,23 @@
       at: ".add-row",
       extra: ["#map"],
       title: "Then the coast, then the far end",
-      text: "Pescadero for lunch, and Santa Cruz to finish. Each new point goes at the bottom of the list and the road extends to reach it; drop one between two others and the road bends to pass through it instead. Drag a point in the list and the road is redrawn.",
+      text: "Pescadero for lunch, Santa Cruz to finish. New points go at the bottom; drag one in the list and the route line is redrawn.",
       running: "Finding two more…",
       frame: "point4",
+      fits: true,
+      then: function () {
+        return rowNamed("Santa Cruz");
+      },
       demo: function () {
         return typeSearch(TYPED.pescadero)
           .then(function () {
-            return apply("point3");
+            return apply("point3", { fit: false });
           })
           .then(function () {
             return typeSearch(TYPED.santaCruz);
           })
           .then(function () {
-            return apply("point4");
+            return apply("point4", { fit: false });
           });
       },
     },
@@ -224,20 +262,29 @@
       at: "totals-ride",
       side: "bottom",
       title: "Ride totals and stats",
-      text: "Distance, riding time, and how twisty the road is, worked out from the road itself rather than guessed. Change anything about the route and these change with it.",
+      text: "Distance, riding time, and how twisty the road is, worked out from the route itself. Change the route and these follow.",
     },
     {
       id: "via",
       part: 1,
-      at: "#map",
+      // The map until the demonstration has framed the drag, then the patch
+      // of map the drag crosses — `.tour-spot`, a box slideOntoVia() lays
+      // over it — so the spotlight guides the eye to the road being moved
+      // rather than to the whole map. Ziad's call, 2026-09-12.
+      at: function () {
+        return document.querySelector(".tour-spot") || document.getElementById("map");
+      },
       side: "left",
-      title: "Drag the road onto a better one",
-      text: "The router took Highway 1 from Pescadero. Grab the line and drop it on the road you meant—inland, through the redwoods at Big Basin—and the leg is redrawn through that spot. This is a shaping point: it bends the road without becoming a stop.",
+      title: "The route line can be dragged onto a better road",
+      text: "The router took Highway 1. Dragging the line onto another road—inland through Big Basin—redraws the leg through that spot. Watch.",
       running: "Dragging the road…",
       frame: "via",
+      // The demonstration frames the drag itself, and the frame must not
+      // refit the map afterwards: the spotlight box is in screen pixels.
+      fits: true,
       demo: function () {
         return slideOntoVia().then(function () {
-          return apply("via");
+          return apply("via", { fit: false });
         });
       },
     },
@@ -246,36 +293,64 @@
       part: 1,
       at: ".via-row",
       title: "A shaping point is not a stop",
-      text: "It gets a line in the list under the point its leg leaves, with no number and no time, because you are not stopping there—you are riding through it. Delete it from here or from its handle on the map and the road goes back to the router’s choice.",
+      text: "That is a shaping point: it bends the leg without being a stop, so it gets a line in the list with no number and no time. Delete it and the leg goes back to the router’s choice.",
     },
     {
       id: "category",
       part: 1,
       at: ".point-row",
       nth: 3,
-      title: "Say what a place is for",
-      text: "Fuel, food, a bed, a view. The dot beside each point opens the list, and a point can carry up to four of them. Tagging a place promotes it to a numbered stop—Pescadero becomes lunch, Alice’s becomes coffee, Santa Cruz becomes the finish—and the icons land on the map. Gas is the one that matters most: it is how the builder knows where you fill up.",
+      title: "Give a stop a raison d’être (or four)",
+      text: "The icon next to a point says what it’s for—fuel, food, drinks, a bed, or what the hell, all four. Tagging a place makes it a numbered stop, and gas is the one that matters most: it is how the builder knows where you fill up.",
       running: "Picking a category…",
       frame: "category",
+      // The picker is opened, scrolled through and back so the rider sees
+      // how many kinds there are, and it STAYS OPEN until Next: the frame's
+      // re-render closes it (state.rolesOpen is cleared on every render), so
+      // `hold` reopens it after the frame and after any later re-render.
+      // Ziad's call, 2026-09-12.
       demo: function () {
-        return pressRoles(3).then(function () {
-          return apply("category");
-        });
+        var step = this;
+        return pressRoles(3)
+          .then(function () {
+            // From here the list watcher reopens the picker inside the same
+            // task as any re-render that closes it, so no closed state is
+            // ever painted — reopening after apply() resolved blinked.
+            step.holding = true;
+            return scrollThrough(anchor(".row-roles"), 900);
+          })
+          .then(function () {
+            return apply("category");
+          });
+      },
+      hold: function () {
+        holdRoles(3);
+      },
+      release: function () {
+        this.holding = false;
+        if (anchor(".row-roles")) {
+          var b = anchor("row-roles", 3);
+          if (b) b.click();
+        }
       },
     },
     {
       id: "dwell",
       part: 1,
-      at: "row-dur",
-      nth: 3,
+      // Both rows the demonstration types into, as one spotlight — the
+      // second field typed behind the backdrop when only the first was lit.
+      at: function () {
+        return document.querySelector(".tour-spot") || anchor("row-dur", 3);
+      },
       title: "Stops take time, and the builder knows it",
-      text: "Type how long you will be off the bike—lunch, a quick photo, a night in a motel. Forty-five minutes at Pescadero, thirty for coffee at Alice’s. Everything after a stop moves later, which is how the arrival at the far end stays honest.",
+      text: "Type how long you are off the bike. Forty-five minutes at Pescadero, thirty at Alice’s. Everything after a stop moves later.",
       running: "Typing the stops…",
       frame: "dwell",
       demo: function () {
-        return typeSilently(anchor("row-dur", 3), "45m")
+        spotlightOver([rowNamed("Alice"), rowNamed("Pescadero")], 4);
+        return typeSilently(anchor("row-dur", 3), "45")
           .then(function () {
-            return typeSilently(anchor("row-dur", 2), "30m");
+            return typeSilently(anchor("row-dur", 2), "30");
           })
           .then(function () {
             return apply("dwell");
@@ -285,9 +360,15 @@
     {
       id: "menu",
       part: 1,
-      at: "route-menu",
+      // The menu itself, opened by pressing the dots first — a card about
+      // what is behind them shows what is behind them. Ziad's call, 2026-09-12.
+      // The menu alone: a second cut-out for the dots overlaps this one by
+      // the overlay padding, and the overlap paints as a dim strip.
+      at: ".row-menu",
+      press: "route-menu",
+      side: "right",
       title: "Everything else is behind the dots",
-      text: "Duplicate a route, reverse it, split it at a stop, offer it as an alternative for a vote. The same three dots on a point row do the same for a point—including notes only you can see, like a confirmation number or a gate code.",
+      text: "The three dots hold the rest: duplicate or reverse a route, split it at a stop, offer it for a vote, and on a point, notes only you can see.",
     },
 
     // ——— Part 2: the clock ———
@@ -305,14 +386,14 @@
       intro: true,
       needs: "dwell",
       title: "Next: the clock",
-      text: "Part 1 gave the ride a road. This part gives it a clock: a start time on the route, an arrival time at every point worked out from it, an end that follows on its own, a slider along the bottom of the map, and an hour to start looking for a bed. Set one time and the rest appears.",
+      text: "Part 1 gave the ride a route. This part gives it a clock: set one start time and every arrival, the end, and a slider along the map follow from it.",
     },
     {
       id: "when",
       part: 2,
       at: ".route-start",
       title: "Give the route a start time",
-      text: "Pick the day and the hour you set off. Every point gets an arrival time from it, the end of the route works itself out, and a slider appears along the bottom of the map. Saturday at nine.",
+      text: "Pick the day and hour you set off. Every point gets an arrival time and a slider appears under the map. Saturday at nine.",
       running: "Setting a start time…",
       frame: "start",
       demo: function () {
@@ -330,10 +411,18 @@
     {
       id: "timeline",
       part: 2,
-      at: "timeline",
-      side: "top",
+      // The whole map is the spotlight, the bar included, and it stays live:
+      // this is the one card where the rider is invited to touch the thing —
+      // after the demonstration has run it through once. Pinned to the map
+      // rather than the bar because the bar lies INSIDE the map's box, and
+      // two overlapping cut-outs paint the overlap dark. Ziad's call,
+      // 2026-09-12. The card sits at the bar's left end — `tour-over-bar` in
+      // _tour.scss — so it covers as little of the map as it can.
+      at: "#map",
+      clickable: true,
+      classes: "tour-over-bar",
       title: "This is the time scrubber",
-      text: "Drag it and the dot on the map shows where you would be at that moment, with the leg you would be on lit up. On a ride with several routes a Route | Ride switch beside it lets the slider run over one day or the whole trip. Let me run it out to the coast.",
+      text: "Drag it and the dot on the map is where you would be at that moment. Try it. On a ride with several routes the Route | Ride switch runs it over one day or the whole trip. The ring around the dot is fuel—next part.",
       running: "Riding it through…",
       // A scrub is worth watching twice, so Back re-runs it.
       done: function () {
@@ -348,14 +437,14 @@
       part: 2,
       at: "route-end",
       title: "The end is worked out for you",
-      text: "Start time, plus the riding, plus every stop along the way. Type over it if you know better—a hard deadline at the far end—or clear it to hand it back to the builder.",
+      text: "Start time plus the riding plus every stop. Type over it if you know better, or clear it to hand it back.",
     },
     {
       id: "bed",
       part: 2,
       at: "ride-stop-by",
-      title: "When to start looking for a bed",
-      text: "Set an hour here and any route still going at that time gets a band across its list at the point it reaches it, with how much riding is still left after. It is advice, not a limit—riding past four is your call, and this puts the consequence beside the choice. Four o’clock; this run is home by two, so the band stays away, and on a long day it does not.",
+      title: "When to start looking for a place to stop for the night",
+      text: "Set an hour here and any route still going at that time gets a band across its list where it reaches it. Advice, not a limit. Four o’clock; this run is home by two, so no band.",
       running: "Setting the hour…",
       frame: "bed",
       demo: function () {
@@ -371,31 +460,114 @@
       },
     },
 
-    // ——— Part 3: the people ———
+    // ——— Part 3: fuel ———
     {
       id: "intro-3",
       part: 3,
       intro: true,
       needs: "bed",
+      title: "Next: fuel",
+      text: "Every bike has a tank, and the builder plans around the smallest one on the ride. This part is the ring that shows how far it reaches, the mark where it runs dry, and the fuel stop that fixes it.",
+    },
+    {
+      id: "to-paddock",
+      part: 3,
+      // How you get there, before the tour goes there: the header menu, then
+      // your name, then Profile. Both disclosures are opened for the card and
+      // closed after it. Ziad's call, 2026-09-12.
+      open: [".site-menu", ".nav-account"],
+      at: function () {
+        return document.querySelector('.nav-account a[href="/profile"]');
+      },
+      side: "bottom",
+      title: "Your bikes live on your profile",
+      text: "The menu, then your name, then Profile: that is where the paddock is. A bike’s range is typed there once and read everywhere. Let me open it.",
+    },
+    {
+      id: "paddock",
+      part: 3,
+      page: "profile",
+      at: "#paddock",
+      title: "The paddock: your bikes and their range",
+      text: "A name and a range is all a bike needs; that range is what the fuel planning reads. On this ride the guides’ bikes count: Sam’s KTM at 200 miles, Priya’s Triumph at 190, Diego’s Ducati at 120—the tank the ride is planned around.",
+      running: "Adding a bike…",
+      // A REAL BIKE, FOR THE LENGTH OF THE CARD. The add goes through the
+      // paddock's own button, so the rider sees the row appear; the range is
+      // typed for show. The bike is deleted the moment the card is left —
+      // the paddock is theirs and the tour adds nothing to it that lasts.
+      // Ziad's call, 2026-09-12. `done` is never true, so Back re-runs it
+      // against whatever the page holds.
+      done: function () {
+        return false;
+      },
+      demo: function () {
+        return addTourBike();
+      },
+      release: function () {
+        dropTourBike();
+      },
+    },
+    {
+      id: "ring",
+      part: 3,
+      // The map, lit, with the bar inside it and left live — the scrubber
+      // card's arrangement. The demonstration scrubs out to the dry mark at
+      // once; after that the rider can scrub as they like. Ziad's call,
+      // 2026-09-12, merging the ring card and the run-dry card.
+      at: "#map",
+      clickable: true,
+      classes: "tour-over-bar",
+      title: "The range ring, and where it runs dry",
+      text: "The dotted ring is how far the smallest tank reaches—green, then orange, then red. Diego’s 120 miles run out in the redwoods, twenty miles short of Santa Cruz: the red E, and the route past it painted red. Scrub it yourself; the Range button turns the overlay off.",
+      running: "Riding out to the mark…",
+      done: function () {
+        return false;
+      },
+      demo: function () {
+        return scrub(0, 0.88, 2600);
+      },
+    },
+    {
+      id: "gas",
+      part: 3,
+      at: ".point-row",
+      nth: 3,
+      title: "A fuel stop fixes it",
+      text: "Pescadero has a station, so tag that row Gas. The tank—or the battery—starts over from there and the E goes. With nothing in reach, the Gas chip under a route searches along the route.",
+      running: "Adding a gas stop…",
+      frame: "gas",
+      demo: function () {
+        return pressRoles(3).then(function () {
+          return apply("gas");
+        });
+      },
+    },
+
+    // ——— Part 4: the people ———
+    {
+      id: "intro-4",
+      part: 4,
+      intro: true,
+      needs: "gas",
       title: "Next: the people",
-      text: "A ride is rarely one person. This part is the riders on it: groups for people who set off from different places, the roster of who is coming, which route each of them is on, and where friends come from in the first place. Three riders are about to join this one.",
+      text: "This part is the people: groups for riders who set off from different places, the roster of who is coming, and which route each of them is on. Three riders are about to join.",
     },
     {
       id: "groups",
-      part: 3,
+      part: 4,
       at: "#tab-groups",
       tab: "tab-groups",
       side: "bottom",
       title: "Groups are where riders set off from",
-      text: "Every ride has one group to start with—yours. The first in the list is the main group: its road is the road everybody else joins, and its departure is what the other groups’ times are worked out from. Drag another group above it to hand that over.",
+      text: "Every ride starts with one group—yours. The first in the list is the main group: its route is the one everybody else joins. Drag another above it to hand that over.",
     },
     {
       id: "groups-add",
-      part: 3,
+      part: 4,
       at: "#sg-add",
       tab: "tab-groups",
       title: "Add a group for riders starting somewhere else",
-      text: "Name it and say where they set off from. Two friends are coming up from San Jose, so that is a second group with its own starting point; the builder gives it a route of its own, and later it will work out where the two groups should meet.",
+      text: "Name a group and say where it sets off from. Two friends are coming over from Livermore, so they get a group and a route of their own.",
       running: "Adding a group…",
       frame: "group",
       demo: function () {
@@ -409,30 +581,45 @@
       },
     },
     {
+      id: "to-roster",
+      part: 4,
+      // How you get to the ride's own page before the tour goes there: the
+      // Riders tab's link at the bottom. Ziad's call, 2026-09-12.
+      tab: "tab-riders",
+      at: function () {
+        return document.querySelector('#riders-body .tab-actions a[href$="/riders"]');
+      },
+      // The tab itself is lit too, so the rider sees which tab this is.
+      extra: ["#tab-riders"],
+      side: "right",
+      title: "The ride has a page of its own",
+      text: "The Riders tab is the plan’s view of who is coming. Roster opens the ride’s own page, where riders are invited and say whether they are in. Let me open it.",
+    },
+    {
       id: "roster",
-      part: 3,
+      part: 4,
       page: "roster",
       at: ".roster-list",
       title: "The roster: who is coming",
-      text: "This is the ride’s own page, and everybody on it. Sam, Priya, and Diego are the three riders who exist for this tour—they are on every tour ride, and nowhere else. Each rider says whether they are in, which bike they are bringing, and, once there are groups, which group they set off with.",
+      text: "The ride’s own page, and everybody on it. Sam, Priya, and Diego exist for this tour and are on every tour ride. Each rider says whether they are in and which bike they are bringing.",
     },
     {
       id: "roster-invite",
-      part: 3,
+      part: 4,
       page: "roster",
       at: ".roster-invite",
       title: "Adding a rider",
-      text: "You add riders here, and only friends: somebody already on Routeloop who has said yes to riding with you. That is the whole invite mechanism—no links, no email addresses, nothing to forward. Pick a friend, choose what they may do to the ride, and press Add.",
+      text: "Riders are added here, and only friends—no links, no email addresses. Pick one, choose what they may do to the ride, press Add.",
     },
     {
       id: "riders-tab",
-      part: 3,
+      part: 4,
       at: "#tab-riders",
       tab: "tab-riders",
       side: "bottom",
       needs: "group",
       title: "The same people, in the builder",
-      text: "The Riders tab is the roster as the plan sees it: who is on which approach, and what each of them rides. Sam and Priya are coming from San Jose, so they go in the San Jose crew; Diego rides out of Oakland with you. Their bikes’ ranges are what the fuel warnings are built from, and the smallest tank on the ride is the one that counts.",
+      text: "The roster as the plan sees it. Sam and Priya go in the Livermore crew; Diego rides out of Oakland with you. Their bikes’ ranges drive the fuel warnings, and the smallest tank counts.",
       running: "Putting riders in their groups…",
       done: function () {
         var p = progress();
@@ -444,75 +631,19 @@
     },
     {
       id: "riders-routes",
-      part: 3,
+      part: 4,
       at: "route-groups",
       tab: "tab-routes",
       title: "Who rides which route",
-      text: "This pill on each route says who is on it. Leave it alone and everybody rides everything; tick a group here to say somebody joins or peels off at this point, and the roadbook and every export follow. Part 5 does this for real.",
+      text: "This pill says who is on the route. Leave it alone and everybody rides everything; tick a group to say who joins or peels off here. Part 5 does this for real.",
     },
     {
       id: "friends",
-      part: 3,
+      part: 4,
       page: "riders",
       at: ".page-tabs",
       title: "Where friends come from",
-      text: "Every rider on Routeloop is listed here by handle, and a friend request is one press. Until somebody accepts, you cannot put them on a ride—which is what keeps a roster a list of people who chose to be there. The tour’s three guides are not on this page; real riders are.",
-    },
-
-    // ——— Part 4: fuel ———
-    {
-      id: "intro-4",
-      part: 4,
-      intro: true,
-      needs: "group",
-      title: "Next: fuel",
-      text: "Every bike has a tank, and the builder plans around the smallest one on the ride. This part is where that number lives, the ring on the map that shows how far it reaches, the mark where it runs dry, and the gas stop that fixes it.",
-    },
-    {
-      id: "paddock",
-      part: 4,
-      page: "profile",
-      at: "#paddock",
-      title: "The paddock: your bikes and their range",
-      text: "Each bike you ride, with how far a tank takes it. This is the only place a range is typed; everything else reads it. Yours is empty—the tour adds nothing here—so on the tour ride it is the guides’ bikes that count: Sam’s KTM at 200 miles, Priya’s Triumph at 190, and Diego’s Ducati at 120, which is the tank the ride is planned around.",
-    },
-    {
-      id: "ring",
-      part: 4,
-      at: "range-ring",
-      side: "top",
-      title: "The range ring",
-      text: "The dotted ring on the map is how far the smallest tank reaches from the last fill—green through the first half, orange past it, red near the end. Its edge passes through the point where the tank runs dry, so it shrinks as you ride toward that point and vanishes when you get there. This button turns the whole fuel overlay off if you want the map back.",
-    },
-    {
-      id: "empty",
-      part: 4,
-      at: "#map",
-      side: "left",
-      title: "Where the tank runs dry",
-      text: "Diego’s 120 miles run out in the redwoods, twenty miles short of Santa Cruz. The red E is the point, and the road past it is painted red with white dashes: you can ride it, you just cannot get there on the fuel you have. Scrubbing out to it shows the ring closing in.",
-      running: "Riding out to the mark…",
-      done: function () {
-        return false;
-      },
-      demo: function () {
-        return scrub(0, 0.88, 2600);
-      },
-    },
-    {
-      id: "gas",
-      part: 4,
-      at: ".point-row",
-      nth: 3,
-      title: "A gas stop fixes it",
-      text: "Pescadero has a station, so lunch is also a fill-up: open the categories on that row and add Gas. The tank starts over from there, the E goes, and the ring is drawn from Pescadero instead. On a ride with no station in reach, the Gas chip under a route searches for one along the road.",
-      running: "Adding a gas stop…",
-      frame: "gas",
-      demo: function () {
-        return pressRoles(3).then(function () {
-          return apply("gas");
-        });
-      },
+      text: "Every rider on Routeloop is listed here by handle, and a friend request is one press. Until they accept, they cannot be put on a ride.",
     },
 
     // ——— Part 5: meet and split ———
@@ -520,23 +651,23 @@
       id: "intro-5",
       part: 5,
       intro: true,
-      needs: "gas",
+      needs: "group",
       title: "Next: meet and split",
-      text: "Two groups setting off from two towns want one road together. This part asks the builder where they should meet, takes its answer, sends one rider home early, and ends on the page you would share with everybody else.",
+      text: "Two groups from two towns want one route together. This part asks the builder where to meet, takes its answer, sends one rider home early, and ends on the page you share.",
     },
     {
       id: "meet-find",
       part: 5,
-      at: "#sg-meet",
+      at: "#sg-meet-all",
       tab: "tab-groups",
-      title: "Ask where to meet",
-      text: "One press. The builder walks the main group’s road looking for the earliest gas station every other group can reach on the tank they leave with, within the detour you allow, and offers the best few—each with how far out of their way the joining group comes.",
+      title: "Find meeting points",
+      text: "One press and the builder walks the main group’s route for the earliest gas station every other group can reach on their tank, within the detour you allow, and offers the best options.",
       running: "Working out where to meet…",
       done: function () {
         return !!document.querySelector(".sg-take");
       },
       demo: function () {
-        var btn = document.getElementById("sg-meet");
+        var btn = document.getElementById("sg-meet-all");
         if (btn) showCaret(btn);
         return sleep(CARET_LEAD_MS)
           .then(fixture)
@@ -548,30 +679,111 @@
       },
     },
     {
+      id: "meet-options",
+      part: 5,
+      at: "#sg-meet-out",
+      // The map too: the candidates are numbered dots on it and each one's
+      // feeder route is drawn from Livermore, so the list and the picture
+      // are lit together. Ziad's call, 2026-09-12.
+      extra: ["#map"],
+      tab: "tab-groups",
+      side: "right",
+      // Reached by Back from a taken meet, the reset has cleared the
+      // proposal this card is about; draw it again first. Either way the
+      // map is framed on the feeder routes and the candidates.
+      prep: function () {
+        return fixture().then(function (fx) {
+          var B = window.TBBuilder;
+          if (B && B.showMeet && !document.querySelector(".sg-take")) B.showMeet(fx.meet);
+          var pts = [];
+          (fx.meet.groups || []).forEach(function (g) {
+            (g.candidates || []).forEach(function (c) {
+              pts.push([c.lng, c.lat]);
+              (c.approach || []).forEach(function (q) {
+                pts.push(q);
+              });
+            });
+          });
+          if (B && B.fitTo && pts.length) {
+            try {
+              B.fitTo(pts);
+            } catch (e) {
+              /* the card shows either way */
+            }
+          }
+        });
+      },
+      title: "The options",
+      text: "Each one is a real station on the main group’s route: how far out of their way the joining group comes, and how much of the ride is left to ride together. The first is the earliest that works within the detour; the dots on the map are the same list.",
+    },
+    {
       id: "meet-take",
       part: 5,
       at: ".sg-take",
       tab: "tab-groups",
       title: "Take one",
-      text: "A Chevron in Hayward, sixteen miles into the main road, with the San Jose crew fourteen miles out of their way. Taking it puts the station on both groups’ routes, cuts the main road there so everything after it is ridden together, and sets the San Jose crew’s departure so both groups roll in at the same time.",
+      text: "A Chevron in Hayward, with the Livermore crew three miles out of their way. Taking it puts the station on both routes, cuts the main route there, and sets the Livermore departure so both groups arrive together.",
       running: "Taking the first one…",
       frame: "meet",
+      // The Take button is gone once it has been pressed; the spotlight
+      // moves to the map, where the three routes it made are drawn.
+      then: function () {
+        return document.getElementById("map");
+      },
       demo: function () {
-        var btn = document.querySelector(".sg-take");
-        if (btn) showCaret(btn);
-        return sleep(CARET_LEAD_MS).then(function () {
-          hideCaret();
-          return apply("meet");
+        // On Back the reset put the ride back to the gas frame, which clears
+        // the proposal this card points at; draw it again and re-pin first.
+        var shown = document.querySelector(".sg-take")
+          ? Promise.resolve()
+          : fixture().then(function (fx) {
+              if (window.TBBuilder && window.TBBuilder.showMeet) window.TBBuilder.showMeet(fx.meet);
+              repinCurrent();
+            });
+        return shown.then(function () {
+          var btn = document.querySelector(".sg-take");
+          if (btn) showCaret(btn);
+          return sleep(CARET_LEAD_MS).then(function () {
+            hideCaret();
+            return apply("meet");
+          });
         });
       },
     },
     {
       id: "meet-result",
       part: 5,
-      at: ".route-head",
+      // The whole list, which is the subject — and a node the re-renders
+      // that follow the meet's save never replace, so the card holds still.
+      // Pinned to the first route head it was rebuilt on every re-render and
+      // scrolled the panel each time. The routes are folded for the card so
+      // all three headers are in view — open, the third sat below the fold
+      // and the card said three over a panel showing two — and unfolded on
+      // the way out, since the split card needs a row in the third one.
+      at: "#route-list",
+      side: "right",
       tab: "tab-routes",
+      prep: function () {
+        foldRoutes();
+        // The card sits over the left of the map, where the meet frame's
+        // fit put the Chevron; refit with that strip excluded so the three
+        // routes and the meeting point are all clear of it.
+        return fixture().then(function (fx) {
+          var pts = [];
+          (fx.frames.meet.routes || []).forEach(function (route) {
+            (route.legs || []).forEach(function (l) {
+              (l.geometry || []).forEach(function (q) {
+                pts.push(q);
+              });
+            });
+          });
+          fitClearOfCard(pts);
+        });
+      },
+      release: function () {
+        unfoldRoutes();
+      },
       title: "Three routes where there was one",
-      text: "Oakland to the Chevron for your group, San Jose to the Chevron for theirs—leaving nineteen minutes earlier, because they have farther to ride—and one shared route from the Chevron to Santa Cruz that everybody is on. The meet needs no flag: a group’s own route followed by a shared one is what a meet is.",
+      text: "Oakland to the Chevron, Livermore to the Chevron—leaving twenty-one minutes earlier—and one shared route from there to Santa Cruz. A group’s own route followed by a shared one is what a meet is.",
     },
     {
       id: "split",
@@ -581,7 +793,7 @@
       },
       tab: "tab-routes",
       title: "Somebody heads home early",
-      text: "Diego is turning for home at Pescadero, over 84. The row menu’s Split a group off here asks who is leaving and where they are going, cuts the shared route at the stop, and gives the leavers a route of their own from there. Everybody else carries on to Santa Cruz.",
+      text: "Diego turns for home at Pescadero. Split a group off here on the row menu asks who is leaving and where to, cuts the shared route there, and gives them a route of their own.",
       running: "Splitting a group off…",
       frame: "split",
       demo: function () {
@@ -594,7 +806,7 @@
       at: ".row-splitoff",
       tab: "tab-routes",
       title: "And the list says so",
-      text: "The last point of the route they left carries a line naming the group and where they went. Press it to jump to their route. Who is on every route, and who leaves where, is what the roadbook and each rider’s own export are built from.",
+      text: "The last point of the route they left names the group and where they went; press it to jump to their route. The roadbook and each rider’s export follow this.",
     },
     {
       id: "share",
@@ -602,7 +814,7 @@
       page: "viewer",
       at: ".qr-share",
       title: "This is the page you share",
-      text: "The ride as everybody else sees it: the map, the routes, the times, and the roster link. Its address is the share link, and the QR code under here opens it from a phone camera. Who can open it is the visibility setting in the builder—private, friends, unlisted, or public.",
+      text: "The ride as everybody else sees it. Its address is the share link, and the QR code opens it from a phone. Who can open it is the visibility setting in the builder.",
     },
     {
       id: "exports",
@@ -610,14 +822,14 @@
       page: "viewer",
       at: ".route-table",
       title: "Take it with you",
-      text: "Each route can be handed to Google Maps for turn-by-turn, printed as a roadbook, or downloaded in six formats for whatever is on your bars. Every rider gets the routes they are on—Diego’s file ends at Redwood City, yours at Santa Cruz.",
+      text: "Each route can go to Google Maps for turn-by-turn, print as a roadbook, or download in six formats. Every rider gets the routes they are on—Diego’s file ends at Redwood City.",
     },
 
     {
       id: "done",
       page: "viewer",
       title: "That is the whole idea",
-      text: "A route, a clock, the people, fuel, and where to meet. Done bins this ride—it was the tour’s, not yours—and the three guides go back to waiting for the next rider. Everything you plan from here on is yours and saves as you go. Point at any control and it tells you what it is for, and the tour is under the menu whenever you want it again. Have a good ride.",
+      text: "A route, a clock, the people, fuel, and where to meet. Done bins this ride; everything you plan from here is yours. Point at any control and it tells you what it is for. Have a good ride.",
       chooser: true,
     },
   ];
@@ -780,12 +992,22 @@
           ride.routes.forEach(function (r) {
             r.legs = r.legs.map(function (l) {
               var src = fx.legs[l.ref];
-              return { geometry: src.geometry, distanceM: src.distanceM, durationS: src.durationS, viaPoints: l.viaPoints || [] };
+              return {
+                geometry: src.geometry,
+                distanceM: src.distanceM,
+                durationS: src.durationS,
+                viaPoints: l.viaPoints || [],
+              };
             });
             if (r.startAt) r.startAt = new Date(Date.parse(r.startAt) + delta).toISOString();
           });
           fx.frames[f.id] = ride;
         });
+        // Frame zero is not in the fixture: it is what POST /api/tour/start
+        // inserts, and it differs from "named" by the title alone. Derived
+        // here so Back from the first card can put the untitled ride back.
+        fx.frames.seed = JSON.parse(JSON.stringify(fx.frames.named));
+        fx.frames.seed.title = SEED_TITLE;
         return fx;
       });
     return fixturePromise;
@@ -804,22 +1026,33 @@
   /** Applies a keyframe through the builder and records it. Resolves either
    *  way; a failed apply leaves the card's copy to say what would have
    *  happened, which is the same floor every demonstration has. */
-  function apply(id) {
+  function apply(id, opts) {
     if (!window.TBBuilder || !window.TBBuilder.apply) return Promise.resolve(false);
+    var t0 = t1();
     return fixture()
       .then(function (fx) {
         var ride = fx.frames[id];
         if (!ride) throw new Error("no frame " + id);
-        return window.TBBuilder.apply({ id: id, ride: ride });
+        var fit = !(opts && opts.fit === false);
+        if (fit) boxHeld = false;
+        return window.TBBuilder.apply({ id: id, ride: ride, fit: fit });
       })
       .then(function (ok) {
-        if (ok !== false && !hasFrame(id)) patchProgress({ frame: id });
+        // `false` is the builder's saveNow() giving up after three seconds
+        // of the ride refusing to settle — twice per frame, so a frame that
+        // cannot save is a six-second hole in the tour. Say so.
+        if (ok === false) console.warn("[tour] frame " + id + " did not settle: " + (t1() - t0).toFixed(0) + "ms");
+        if (ok !== false && (!hasFrame(id) || (opts && opts.force))) patchProgress({ frame: id });
         return ok;
       })
       .catch(function (e) {
         console.warn("[tour] frame " + id + ":", e);
         return false;
       });
+  }
+
+  function t1() {
+    return performance.now();
   }
 
   /** The frame a card assumes, applied silently when the rider skipped to it. */
@@ -840,6 +1073,7 @@
     finishing = true;
     var p = progress();
     var rideId = p && p.rideId;
+    dropTourBike();
     clearProgress();
     document.documentElement.removeAttribute("data-tour");
     hideCaret();
@@ -870,31 +1104,25 @@
     tour.show(partStart(n));
   }
 
-  function titleCase(s) {
-    return s.replace(/\b[a-z]/g, function (c) {
-      return c.toUpperCase();
-    });
+  function skipLabel(part) {
+    var next = PARTS[part];
+    if (!next) return "Exit";
+    return "Skip to " + next.name;
   }
 
-  /** "Part 2 of 5 · The Clock · 3 of 4", rendered above the body. An intro
-   *  carries the first two and not the counter. */
-  function partLine(step) {
-    if (!step.part) return "";
-    var part = PARTS[step.part - 1];
-    var inPart = STEPS.filter(function (s) {
-      return s.part === step.part && !s.intro;
+  /** A thin red bar along the top edge of the card: how far through the tour
+   *  this step is, over every step that shows a card. It replaced "Part 2 of
+   *  5 · The Clock · 3 of 4", Ziad's call, 2026-09-12 — two counters on one
+   *  line was arithmetic the rider had to do, and a bar is read at a glance.
+   *  The chooser cards carry none: the welcome is before the tour and the
+   *  close is after it. */
+  function progressBar(step) {
+    if (step.chooser) return "";
+    var shown = STEPS.filter(function (s) {
+      return !s.chooser;
     });
-    var i = inPart.indexOf(step) + 1;
-    return (
-      '<small class="tour-part">Part ' +
-      part.n +
-      " of " +
-      PARTS.length +
-      " · " +
-      esc(titleCase(part.name)) +
-      (step.intro ? "" : " · " + i + " of " + inPart.length) +
-      "</small>"
-    );
+    var pct = Math.round(((shown.indexOf(step) + 1) / shown.length) * 100);
+    return '<div class="tour-progress" aria-hidden="true"><i style="width:' + pct + '%"></i></div>';
   }
 
   function chooserHtml() {
@@ -904,12 +1132,13 @@
         return (
           '<li><button type="button" class="tour-part-btn" data-tour-part="' +
           p.n +
-          '"><b>' +
+          '"><i>' +
           p.n +
-          ". " +
+          "</i><b>" +
           esc(p.name) +
+          // The blurb is our own string and may carry <b> around a term.
           "</b><span>" +
-          esc(p.blurb) +
+          p.blurb +
           "</span></button></li>"
         );
       }).join("") +
@@ -940,12 +1169,18 @@
           tour.back();
         },
       });
+    // "Skip to the clock" rather than "Skip this part": the button names
+    // where it lands, so a rider never has to know which part they are in.
+    // Past the last part it lands on the closing card.
     if (step.part)
       buttons.push({
-        text: "Skip this part",
+        text: skipLabel(step.part),
         classes: "btn btn-quiet",
         action: function () {
-          jump(step.part + 1);
+          // Past the last part the button says Exit, and it does: the
+          // closing card is the reward for finishing, not a place to skip to.
+          if (PARTS[step.part]) jump(step.part + 1);
+          else tour.complete();
         },
       });
     if (step.demo) {
@@ -962,8 +1197,9 @@
       });
     } else {
       buttons.push({
-        text: last ? "Done" : step.chooser ? "Start at part 1" : step.intro ? "Start part " + step.part : "Next",
-        classes: "btn",
+        text: last ? "Done" : step.chooser ? "Start" : step.intro ? "Part " + step.part : "Next",
+        // An intro's button wears its part's color — see _tour.scss.
+        classes: step.intro ? "btn tour-start" : "btn",
         action: function () {
           if (last) tour.complete();
           else tour.next();
@@ -973,11 +1209,11 @@
 
     var opts = {
       id: step.id,
-      classes: step.part ? "tour-part-" + step.part : "",
+      classes: (step.part ? "tour-part-" + step.part : "") + (step.classes ? " " + step.classes : ""),
       title: step.title,
       text: function () {
         var body = typeof step.text === "function" ? step.text() : step.text;
-        return partLine(step) + "<p>" + body + "</p>" + (step.chooser ? chooserHtml() : "");
+        return progressBar(step) + "<p>" + body + "</p>" + (step.chooser ? chooserHtml() : "");
       },
       buttons: buttons,
       scrollTo: false,
@@ -1004,15 +1240,52 @@
           var tab = document.getElementById(step.tab);
           if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
         }
-        return ensure(step.needs);
+        // A plain card resets before it is shown, so its anchor resolves
+        // against the right rows; a demonstrating one resets inside runDemo,
+        // so the card is up while the reset and the demo play out.
+        return ensure(step.needs)
+          .then(function () {
+            return step.demo ? undefined : resetFor(step);
+          })
+          .then(function () {
+            // `prep` puts back something the reset took away and the card
+            // is about — a proposal — before the anchor is resolved.
+            return step.prep ? step.prep() : undefined;
+          })
+          .then(function () {
+            (step.open || []).forEach(function (sel) {
+              var d = document.querySelector(sel);
+              if (d) d.open = true;
+            });
+            if (step.press && !anchor(step.at)) {
+              var b = anchor(step.press);
+              if (b) b.click();
+            }
+          })
+          .then(function () {
+            // A tab filled by a fetch (Riders) may not hold the anchor yet;
+            // give it a moment rather than showing a centered card. Only
+            // where a tab was opened: elsewhere a missing anchor is a state
+            // the demonstration is about to change, not a load in flight.
+            // Never on a re-pin after the demonstration: by then the anchor
+            // may be gone for good (a taken proposal), and the wait was a
+            // three-second hole between the meet landing and the next card.
+            return step.tab && !repinning && !stepDone(step) ? awaitAnchor(step, 3000) : undefined;
+          });
       },
       when: {
         show: function () {
           keepTabInside(this.getTarget());
+          // A re-pin (below) rebuilds the card; skip Shepherd's fade so the
+          // rebuilt card lands where the old one was with no flash.
+          if (repinning && this.el) this.el.classList.add("tour-repin");
           if (!step.demo) return;
           if (this.el) this.el.classList.remove("is-satisfied");
-          if (stepDone(step)) {
-            if (this.el) this.el.classList.add("is-satisfied");
+          // A re-pin — the list re-rendered under a running demonstration,
+          // or the demonstration finished and moved the spotlight — must not
+          // start it again; that is the one case a satisfied card is shown.
+          if (demoStep === step || repinning) {
+            if (repinning && stepDone(step) && this.el) this.el.classList.add("is-satisfied");
             return;
           }
           runDemo(step, this);
@@ -1020,20 +1293,45 @@
         hide: function () {
           releaseTab();
           hideCaret();
+          clearSpotlight();
+          if (step.release) {
+            // The release itself re-renders the list, and the watcher must
+            // not put the thing straight back.
+            releasing = true;
+            step.release();
+            releasing = false;
+          }
+          (step.open || []).forEach(function (sel) {
+            var d = document.querySelector(sel);
+            if (d) d.open = false;
+          });
+          // What `press` opened, closed on the way out — the button toggles.
+          if (step.press && anchor(step.at)) {
+            var b = anchor(step.press);
+            if (b) b.click();
+          }
         },
         cancel: function () {
           releaseTab();
           hideCaret();
+          clearSpotlight();
         },
       },
     };
 
     if (step.extra) opts.extraHighlights = step.extra;
+    // The default is false — see build() — and a card that hands the control
+    // to the rider says so.
+    if (step.clickable) opts.canClickTarget = true;
 
     if (step.at) {
       opts.attachTo = {
         element: function () {
-          var el = anchor(step.at, step.nth);
+          // `then` answers once the demonstration is done — and while it is
+          // running, for a re-pin after the frame has taken the original
+          // target away (the Take button goes with the proposal), so the
+          // card moves once, to where it ends up, instead of via the center.
+          var el = (step.then && (stepDone(step) || demoStep === step) && step.then()) || anchor(step.at, step.nth);
           if (el && el.scrollIntoView) el.scrollIntoView({ block: "center", inline: "nearest" });
           return el;
         },
@@ -1081,6 +1379,41 @@
     return !!(tour && tour.isActive() && tour.getCurrentStep() && tour.getCurrentStep().id === step.id);
   }
 
+  /** **THE SCENE A CARD IS SHOWN AGAINST: THE RIDE AS IT WAS WHEN THE CARD
+   *  WAS FIRST REACHED.** For a demonstrating step that is the frame before
+   *  its own; for any other step, the frame the last demonstration before it
+   *  in the list landed on — or the seed, ahead of the first. */
+  function sceneOf(step) {
+    if (step.frame) {
+      var i = frameRank(step.frame);
+      return i > 0 ? FRAMES[i - 1] : "seed";
+    }
+    for (var j = STEPS.indexOf(step) - 1; j >= 0; j--) if (STEPS[j].frame) return STEPS[j].frame;
+    return "seed";
+  }
+
+  /** **A CARD DOES THE SAME THING ARRIVED AT FROM EITHER DIRECTION.** Ziad's
+   *  call, 2026-09-12. Back used to land on a card already satisfied — the
+   *  frame was applied, so it offered Next and showed nothing — where the
+   *  rider pressing Back wants to see it again, and a plain card about the
+   *  first point was shown over a ride that already had three. So a card
+   *  reached with a LATER frame applied puts the ride back to its scene
+   *  first (typed name gone, points gone); forward, the ride is already there
+   *  and this costs nothing. Only backward: a card reached ahead of its scene
+   *  is the `needs` case, handled by ensure(). `force` records the rollback,
+   *  or hasFrame() would still say the later frame holds and the card's
+   *  anchors would resolve to rows that are no longer on the page. */
+  function resetFor(step) {
+    if (currentPage() !== "builder") return Promise.resolve();
+    var scene = sceneOf(step);
+    var p = progress();
+    var now = (p && p.frame) || "seed";
+    if (frameRank(now) <= frameRank(scene)) return Promise.resolve();
+    // A demonstration that frames the map itself (the searches) keeps the
+    // camera through the reset, or Back zooms to one point and out again.
+    return apply(scene, { force: true, fit: !step.fits });
+  }
+
   function runDemo(step, shepherdStep) {
     demoStep = step;
     var finished = function () {
@@ -1090,14 +1423,19 @@
       if (shepherdStep.el) shepherdStep.el.classList.add("is-satisfied");
       // A frame re-renders the list, and the row this card was pinned to may
       // now be a different node, or out of the way of the routes the frame
-      // added. Re-showing resolves a fresh target; `stepDone` holds, so the
-      // demonstration is not run twice.
+      // added. Re-showing resolves a fresh target; `repinning` is what stops
+      // when.show starting the demonstration a second time.
       var target = step.at ? shepherdStep.getTarget() : null;
-      if (step.at && (!target || !target.isConnected || !target.getBoundingClientRect().height)) shepherdStep.show();
+      if (step.then || (step.at && (!target || !target.isConnected || !target.getBoundingClientRect().height)))
+        repin(shepherdStep);
     };
     var timer = setTimeout(finished, DEMO_TIMEOUT_MS);
     Promise.resolve()
       .then(function () {
+        return resetFor(step);
+      })
+      .then(function () {
+        if (!stillOn(step)) return;
         return step.demo();
       })
       .catch(function (e) {
@@ -1113,6 +1451,105 @@
     return new Promise(function (r) {
       setTimeout(r, ms);
     });
+  }
+
+  // ——— Re-pinning ———
+  //
+  // **A FRAME REPLACES THE ROUTE LIST'S CHILDREN, AND THE CARD IS PINNED TO
+  // ONE OF THEM.** renderRoutes() rewrites innerHTML on every edit, so the
+  // moment a frame lands the row a card points at is a detached node: the
+  // spotlight hole collapses, Floating UI positions the card against a 0×0
+  // box at the top-left, and when the demo finally re-shows the card it fades
+  // back in from nothing. Seen as "flashing and jumping" between cards 7 and
+  // 8, where two frames land in one demonstration.
+  //
+  // The observer watches the list; the instant it is rewritten while a card
+  // is pinned inside it, the card is re-shown — Shepherd resolves the target
+  // afresh — with the fade suppressed, all inside the same task, so nothing
+  // is painted in between. `repinning` is read by `when.show` above.
+  // **COUNTED, NOT TIMED.** This was a boolean cleared on a setTimeout(0),
+  // and a beforeShowPromise that took longer than a task — the anchor wait,
+  // a tab click — let when.show run with the flag already down: it took the
+  // re-pin for a fresh arrival, ran the demonstration again, which reset the
+  // ride and re-applied the frame, whose re-render re-pinned, and so on
+  // forever, alternating two frames a second. Seen live on "Take one",
+  // 2026-09-12. Step.show() returns a promise that settles after _show, so
+  // the count comes down exactly when the show it belongs to is over.
+  var repinning = 0;
+
+  function repin(shepherdStep) {
+    repinning++;
+    Promise.resolve(shepherdStep.show())
+      .catch(function () {})
+      .then(function () {
+        repinning--;
+      });
+  }
+
+  /** Re-pins whatever card is up, for a demonstration that has just put its
+   *  own target back on the page. */
+  function repinCurrent() {
+    var st = tour && tour.isActive() && tour.getCurrentStep();
+    if (st && st.options.attachTo) repin(st);
+  }
+
+  var releasing = false;
+
+  function awaitAnchor(step, ms) {
+    if (!step.at) return Promise.resolve();
+    var t0 = performance.now();
+    return new Promise(function (resolve) {
+      (function poll() {
+        if (anchor(step.at, step.nth) || performance.now() - t0 > ms) return resolve();
+        setTimeout(poll, 100);
+      })();
+    });
+  }
+
+  /** Folds every open route section, remembering which, so a card about
+   *  the list as a whole can show every header; unfoldRoutes() puts them
+   *  back. The twirl is a class toggle in builder.js, so this re-renders
+   *  nothing. */
+  var folded = [];
+
+  // Fit the map to `pts` with the strip under the tour card left empty. The
+  // card is anchored to the panel's right edge, over the map, so a plain fit
+  // centers the story under it; padding the left by the card's width keeps
+  // the road in the part of the map a rider can see.
+  function fitClearOfCard(pts) {
+    var B = window.TBBuilder;
+    if (!B || !B.fitTo || !pts.length) return;
+    var card = document.querySelector(".shepherd-element");
+    var w = card ? card.getBoundingClientRect().width : 448;
+    try {
+      B.fitTo(pts, { top: 60, bottom: 60, right: 60, left: w + 80 });
+    } catch (e) {
+      /* the card shows either way */
+    }
+  }
+
+  function foldRoutes() {
+    folded = [];
+    document.querySelectorAll("#route-list .route-section:not(.is-shut)").forEach(function (sec) {
+      var b = sec.querySelector(".route-twirl");
+      if (!b) return;
+      folded.push(sec.dataset.route);
+      b.click();
+    });
+  }
+
+  function unfoldRoutes() {
+    folded.forEach(function (r) {
+      var sec = document.querySelector('#route-list .route-section.is-shut[data-route="' + r + '"]');
+      var b = sec && sec.querySelector(".route-twirl");
+      if (b) b.click();
+    });
+    folded = [];
+  }
+
+  function stepById(id) {
+    for (var i = 0; i < STEPS.length; i++) if (STEPS[i].id === id) return STEPS[i];
+    return null;
   }
 
   // ——— The cursor ———
@@ -1135,7 +1572,7 @@
   }
 
   function showCaret(input) {
-    caretNode();
+    caretNode().classList.remove("is-pointer");
     caretHost = input;
     placeCaret();
     caretEl.hidden = false;
@@ -1158,13 +1595,16 @@
     caretEl.style.height = h + "px";
   }
 
-  /** The cursor at a page coordinate, for the map. */
+  /** The cursor at a page coordinate, for the map — drawn as a pointer
+   *  arrow rather than the text caret, whose 2px bar vanishes over tiles.
+   *  The arrow's tip is its top-left corner, so it sits on the point. */
   function caretAt(x, y) {
     var el = caretNode();
     caretHost = null;
+    el.classList.add("is-pointer");
     el.style.left = x + "px";
-    el.style.top = y - 9 + "px";
-    el.style.height = "18px";
+    el.style.top = y + "px";
+    el.style.height = "";
     el.hidden = false;
   }
 
@@ -1179,21 +1619,40 @@
    *  leading. `silent` sets the value and dispatches nothing — for a box whose
    *  `input` handler would call Google; the frame that follows is what
    *  actually lands the place. */
-  function typeText(input, text, silent) {
+  function typeText(target, text, silent) {
     var step = demoStep;
+    // `target` is the field, or a function that finds it afresh. The route
+    // list is re-rendered under a demonstration more than once — the frame,
+    // then the riders reload that follows its save — and a field held by
+    // reference is a detached node after the first, so the typing stopped
+    // dead and the caret sat in an empty box. Re-resolving each character
+    // carries the typed text onto whichever node is live.
+    var live = typeof target === "function" ? target : null;
+    var input = live ? live() : target;
     if (!input) return Promise.resolve();
-    input.value = "";
-    if (!silent) input.dispatchEvent(new Event("input", { bubbles: true }));
+    var typed = "";
+    var put = function () {
+      var el = live ? live() : input;
+      if (el && el !== input) {
+        input = el;
+        showCaret(input);
+      }
+      if (!input || !input.isConnected) return false;
+      input.value = typed;
+      if (!silent) input.dispatchEvent(new Event("input", { bubbles: true }));
+      placeCaret();
+      return true;
+    };
+    put();
     showCaret(input);
-    return sleep(CARET_LEAD_MS).then(function () {
+    return sleep(TYPE_LEAD_MS).then(function () {
       var i = 0;
       return new Promise(function (resolve) {
         (function next() {
-          if (!input.isConnected || (step && !stillOn(step))) return resolve();
+          if (step && !stillOn(step)) return resolve();
           if (i >= text.length) return sleep(SETTLE_MS).then(resolve);
-          input.value += text.charAt(i++);
-          if (!silent) input.dispatchEvent(new Event("input", { bubbles: true }));
-          placeCaret();
+          typed += text.charAt(i++);
+          if (!put() && !live) return resolve();
           setTimeout(next, TYPE_MS);
         })();
       });
@@ -1209,18 +1668,28 @@
 
   /** Types a place into the active route's add-row search, for show. The map
    *  is fitted to the story's box first, because that is what a rider would
-   *  see the search restricted to. */
+   *  see the search restricted to — and the frame that follows is applied
+   *  with `fit: false`, so the camera holds there across cards 7 and 8
+   *  instead of zooming to the ride and back out for each search. */
   function typeSearch(query) {
     return fixture().then(function (fx) {
+      var input = function () {
+        return anchor(".add-row .add-search");
+      };
+      // The second search of a card finds the camera already on the box —
+      // the frame between them was applied with `fit: false` — so the fit
+      // is a no-op and the wait for it is skipped; it is still made, in case
+      // the rider dragged the map between the two.
+      var held = boxHeld;
       if (window.TBBuilder && window.TBBuilder.fitTo && fx.boxes && fx.boxes.peninsula) {
         try {
           window.TBBuilder.fitTo(fx.boxes.peninsula);
+          boxHeld = true;
         } catch (e) {
           /* the frame lands either way */
         }
       }
-      var input = anchor(".add-row .add-search");
-      return sleep(SETTLE_MS).then(function () {
+      return sleep(held ? 0 : SETTLE_MS).then(function () {
         return typeSilently(input, query);
       });
     });
@@ -1228,6 +1697,44 @@
 
   /** Presses the category dot on the nth point row — for real, because opening
    *  the picker costs nothing — then leaves it open for a beat. */
+  /** Keeps the nth row's category picker open across re-renders. */
+  function holdRoles(nth) {
+    if (anchor(".row-roles")) return;
+    var b = anchor("row-roles", nth);
+    if (b) b.click();
+  }
+
+  /** Scrolls a box to the bottom and back to the top, `ms` each way. */
+  function scrollThrough(el, ms) {
+    if (!el) return Promise.resolve();
+    var max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return sleep(SETTLE_MS);
+    var ease = function (f) {
+      return f < 0.5 ? 2 * f * f : -1 + (4 - 2 * f) * f;
+    };
+    var leg = function (from, to) {
+      var t0 = performance.now();
+      return new Promise(function (resolve) {
+        (function frame(now) {
+          var f = Math.min(1, (now - t0) / ms);
+          el.scrollTop = from + (to - from) * ease(f);
+          if (f < 1) requestAnimationFrame(frame);
+          else resolve();
+        })(t0);
+      });
+    };
+    return leg(0, max)
+      .then(function () {
+        return sleep(300);
+      })
+      .then(function () {
+        return leg(max, 0);
+      })
+      .then(function () {
+        return sleep(SETTLE_MS);
+      });
+  }
+
   function pressRoles(nth) {
     var btn = anchor("row-roles", nth);
     if (!btn) return Promise.resolve();
@@ -1241,6 +1748,69 @@
 
   /** The cursor sliding across the map from the middle of the last leg to
    *  where the shaping point lands, the way a drag would. */
+  /** A box over the map covering both points plus `pad`, for the overlay to
+   *  cut its hole around; the card re-pins to it. Removed on hide. */
+  function spotlight(a, b, pad, stretch) {
+    var el = document.querySelector(".tour-spot");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "tour-spot";
+      el.setAttribute("aria-hidden", "true");
+      document.body.appendChild(el);
+    }
+    var x = Math.min(a[0], b[0]) - pad;
+    var y = Math.min(a[1], b[1]) - pad;
+    var w = Math.abs(a[0] - b[0]) + pad * 2;
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    // `stretch` widens to the right — 1.6 on the drag, where the road being
+    // dragged onto runs on that side.
+    el.style.width = w * (stretch || 1.6) + "px";
+    el.style.height = Math.abs(a[1] - b[1]) + pad * 2 + "px";
+    repinCurrent();
+  }
+
+  /** A spotlight over the union of some elements' boxes. */
+  function spotlightOver(els, pad) {
+    var boxes = els.filter(Boolean).map(function (el) {
+      return el.getBoundingClientRect();
+    });
+    if (!boxes.length) return;
+    var edge = function (key, fn) {
+      return fn.apply(
+        null,
+        boxes.map(function (box) {
+          return box[key];
+        }),
+      );
+    };
+    spotlight(
+      [edge("left", Math.min), edge("top", Math.min)],
+      [edge("right", Math.max), edge("bottom", Math.max)],
+      pad,
+      1,
+    );
+  }
+
+  function clearSpotlight() {
+    var el = document.querySelector(".tour-spot");
+    if (el) el.remove();
+  }
+
+  /** The pointer eased from one page point to another over `ms`. */
+  function glide(from, to, ms) {
+    var t0 = performance.now();
+    return new Promise(function (resolve) {
+      (function frame(now) {
+        var f = Math.min(1, (now - t0) / ms);
+        var e = f < 0.5 ? 2 * f * f : -1 + (4 - 2 * f) * f;
+        caretAt(from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e);
+        if (f < 1) requestAnimationFrame(frame);
+        else resolve();
+      })(t0);
+    });
+  }
+
   function slideOntoVia() {
     return fixture().then(function (fx) {
       var B = window.TBBuilder;
@@ -1254,33 +1824,38 @@
         [Math.min(mid[0], via[0]) - 0.15, Math.min(mid[1], via[1]) - 0.1],
         [Math.max(mid[0], via[0]) + 0.15, Math.max(mid[1], via[1]) + 0.1],
       ];
+      // The pointer is on screen from the first moment — mid-map, while the
+      // camera settles on the leg — and glides to the road from there. It
+      // used to appear only after the fit, which read as a card doing
+      // nothing for a second.
+      var map = document.getElementById("map");
+      if (!map) return;
+      var r = map.getBoundingClientRect();
+      var here = [r.left + r.width / 2, r.top + r.height / 2];
+      caretAt(here[0], here[1]);
       try {
         B.fitTo(box);
       } catch (e) {
         /* the frame lands either way */
       }
       return sleep(900).then(function () {
-        var map = document.getElementById("map");
         var from = B.project(mid);
         var to = B.project(via);
-        if (!map || !from || !to) return;
-        var r = map.getBoundingClientRect();
+        if (!from || !to) return;
+        r = map.getBoundingClientRect();
         var start = [r.left + from[0], r.top + from[1]];
         var end = [r.left + to[0], r.top + to[1]];
-        caretAt(start[0], start[1]);
-        return sleep(CARET_LEAD_MS).then(function () {
-          var t0 = performance.now();
-          var ms = 1400;
-          return new Promise(function (resolve) {
-            (function frame(now) {
-              var f = Math.min(1, (now - t0) / ms);
-              var e = f < 0.5 ? 2 * f * f : -1 + (4 - 2 * f) * f;
-              caretAt(start[0] + (end[0] - start[0]) * e, start[1] + (end[1] - start[1]) * e);
-              if (f < 1) requestAnimationFrame(frame);
-              else sleep(SETTLE_MS).then(resolve);
-            })(t0);
+        spotlight(start, end, 90);
+        return glide(here, start, 500)
+          .then(function () {
+            return sleep(CARET_LEAD_MS);
+          })
+          .then(function () {
+            return glide(start, end, 1400);
+          })
+          .then(function () {
+            return sleep(SETTLE_MS);
           });
-        });
       });
     });
   }
@@ -1325,6 +1900,70 @@
       if (!r.ok) throw new Error(path + " " + r.status);
       return r.json();
     });
+  }
+
+  // ——— The paddock's demonstration bike ———
+
+  var TOUR_BIKE = "Tour bike";
+
+  function tourBikeRow() {
+    var rows = document.querySelectorAll("#paddock .bike[data-id]");
+    for (var i = 0; i < rows.length; i++) {
+      var f = rows[i].querySelector('[data-field="nickname"]');
+      if (f && f.value === TOUR_BIKE) return rows[i];
+    }
+    return null;
+  }
+
+  /** Waits for the paddock to render the added bike, up to a few seconds. */
+  function awaitTourBike() {
+    var t0 = performance.now();
+    return new Promise(function (resolve) {
+      (function poll() {
+        var row = tourBikeRow();
+        if (row || performance.now() - t0 > 4000) return resolve(row);
+        setTimeout(poll, 100);
+      })();
+    });
+  }
+
+  function addTourBike() {
+    var step = demoStep;
+    var existing = tourBikeRow();
+    var added = existing
+      ? Promise.resolve(existing)
+      : typeSilently(document.querySelector("#paddock [data-new-bike]"), TOUR_BIKE).then(function () {
+          var btn = document.querySelector('#paddock [data-act="add"]');
+          if (!btn) return null;
+          showCaret(btn);
+          return sleep(CARET_LEAD_MS).then(function () {
+            hideCaret();
+            btn.click();
+            return awaitTourBike();
+          });
+        });
+    return added.then(function (row) {
+      if (!row || (step && !stillOn(step))) return;
+      patchProgress({ bike: Number(row.getAttribute("data-id")) });
+      return typeSilently(row.querySelector('[data-field="usableRangeMi"]'), "150").then(function () {
+        return sleep(SETTLE_MS);
+      });
+    });
+  }
+
+  /** Deletes the demonstration bike. `keepalive`, because the card that
+   *  releases it is followed by a navigation. */
+  function dropTourBike() {
+    var p = progress();
+    var id = p && p.bike;
+    if (!id) return;
+    patchProgress({ bike: null });
+    fetch("/api/bikes/" + id, {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "fetch" },
+      keepalive: true,
+    }).catch(function () {});
   }
 
   function rosterIds() {
@@ -1433,9 +2072,11 @@
               .filter(Boolean);
           };
           var base = "/api/rides/" + ids.rideId + "/route-riders/";
-          return api(base + fx.split.peel.routeUid, { __put: { riders: resolve(fx.split.peel.riders) } }).then(function () {
-            return api(base + fx.split.onward.routeUid, { __put: { riders: resolve(fx.split.onward.riders) } });
-          });
+          return api(base + fx.split.peel.routeUid, { __put: { riders: resolve(fx.split.peel.riders) } }).then(
+            function () {
+              return api(base + fx.split.onward.routeUid, { __put: { riders: resolve(fx.split.onward.riders) } });
+            },
+          );
         });
       })
       .then(function () {
@@ -1465,6 +2106,12 @@
       keyboardNavigation: true,
       defaultStepOptions: {
         classes: "tour-step",
+        // The only interaction is Next, Back and Skip: the spotlit control is
+        // shown, never handed over. Shepherd puts pointer-events: none on the
+        // target; the demos type and click programmatically, which that does
+        // not stop. Ziad's call, 2026-09-12, after a rider could edit the
+        // first point while the card about it was up.
+        canClickTarget: false,
         modalOverlayOpeningPadding: 6,
         modalOverlayOpeningRadius: 8,
         // Shepherd deep-merges `floatingUIOptions` and deepmerge CONCATENATES
@@ -1501,9 +2148,10 @@
     tour.on("cancel", finish);
     tour.on("active", reanchorOn);
     tour.on("inactive", reanchorOff);
-    // `html.tour-active` is for the stylesheet: the place-search dropdown and
-    // the split dialog sit at z-indexes that lose to Shepherd's overlay, and
-    // _tour.scss lifts them while a tour is running.
+    // `html.tour-active` is for the stylesheet — the place-search dropdown
+    // and the split dialog sit at z-indexes that lose to Shepherd's overlay,
+    // and _tour.scss lifts them while a tour is running — and for tips.js,
+    // which shows no bubble while it is stamped.
     tour.on("active", function () {
       document.documentElement.classList.add("tour-active");
       // The alpha splash returns on every load until its box is ticked, and
@@ -1524,30 +2172,31 @@
   // ——— Surviving a re-render ———
   //
   // The builder replaces the route list on every edit, and a card pinned to a
-  // node that no longer exists slides to the top-left corner. Watch the list,
-  // and when the current step's target is gone show the step again so it
-  // resolves a fresh one. `getTarget()` is public API.
+  // node that no longer exists slides to the top-left corner. The list is
+  // watched while a tour is active, and when the current step's target is
+  // gone the card is re-pinned — through repin(), never a bare step.show():
+  // a bare show reads to when.show as a fresh arrival and runs the
+  // demonstration again, which was the two-frames-a-second loop on "Take
+  // one". Synchronous rather than on a frame, so nothing is painted with the
+  // card adrift. `getTarget()` is public API.
   var listMo = null;
-  var reanchorQueued = false;
 
   function reanchor() {
-    reanchorQueued = false;
     if (!tour || !tour.isActive()) return;
-    var step = tour.getCurrentStep();
-    if (!step || !step.options.attachTo) return;
-    var target = step.getTarget();
-    if (target && target.isConnected) return;
-    step.show();
+    var st = tour.getCurrentStep();
+    if (!st || !st.options.attachTo) return;
+    var t = st.getTarget();
+    if (t && !t.isConnected) repin(st);
+    // A step holding something open (a category picker) puts it back after
+    // the re-render that closed it — once its own demonstration has opened it.
+    var step = stepById(st.id);
+    if (step && step.hold && step.holding && !releasing) step.hold();
   }
 
   function reanchorOn() {
     var list = document.getElementById("route-list");
     if (!list || !window.MutationObserver || listMo) return;
-    listMo = new MutationObserver(function () {
-      if (reanchorQueued) return;
-      reanchorQueued = true;
-      requestAnimationFrame(reanchor);
-    });
+    listMo = new MutationObserver(reanchor);
     listMo.observe(list, { childList: true, subtree: true });
   }
 
@@ -1598,15 +2247,13 @@
     return true;
   }
 
-  function blankRide() {
-    return window.location.pathname.replace(/\/+$/, "") === "/builder";
-  }
-
   /**
-   * Called once Shepherd's import has resolved. Three doors: `?tour` on the
+   * Called once Shepherd's import has resolved. Two doors: `?tour` on the
    * builder is somebody asking; a saved position on its own page is a tour in
-   * progress; `data-tour="new"` on a blank builder is a rider who has never
-   * been offered it, and the whole tour starts unasked.
+   * progress. THE TOUR NEVER STARTS UNASKED — Ziad's call, 2026-09-13. There
+   * was a third door, `data-tour="new"` on a blank builder for a rider who
+   * had never been offered it; the stamp survives for the account menu, and
+   * nothing here reads it.
    */
   function boot(S) {
     Shepherd = S;
@@ -1618,9 +2265,7 @@
       start();
       return;
     }
-    if (resume()) return;
-    var isNew = document.documentElement.getAttribute("data-tour") === "new";
-    if (isNew && blankRide()) start();
+    resume();
   }
 
   document.addEventListener("click", function (e) {
@@ -1662,6 +2307,7 @@
     STEPS: STEPS,
     PARTS: PARTS,
     FRAMES: FRAMES,
+    SEED_TITLE: SEED_TITLE,
     get tour() {
       return tour;
     },

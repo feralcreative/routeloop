@@ -3864,9 +3864,7 @@
         : "") +
       '<div class="tab-actions">' +
       (state.slug
-        ? '<a class="btn btn-sm btn-quiet" href="/m/' +
-          encodeURIComponent(state.slug) +
-          '/riders">Invite, RSVP and the vote</a>'
+        ? '<a class="btn btn-sm btn-quiet" href="/m/' + encodeURIComponent(state.slug) + '/riders">Roster</a>'
         : "") +
       "</div>";
   }
@@ -8713,10 +8711,14 @@
   // menu never outlives the render that replaced its host.
   function wireMenuDismiss() {
     document.addEventListener("pointerdown", (e) => {
+      // A press on a tour card is not "anywhere else": the tour opens a menu
+      // to show it, and closing it under the card's own Next moved the card
+      // out from under the pointer before the click could land.
       if (
         !e.target.closest(".row-menu") &&
         !e.target.closest(".row-menu-btn") &&
-        !e.target.closest(".route-menu-btn")
+        !e.target.closest(".route-menu-btn") &&
+        !e.target.closest(".shepherd-element")
       ) {
         closeMenu();
       }
@@ -11130,8 +11132,11 @@
     if (bar) bar.hidden = true;
     renderEverything();
     renderSelectBar();
+    // The tour owns the camera when it says so: a demonstration that has
+    // already framed the story's box passes `fit: false`, or the map zooms
+    // to the ride after every frame and back out before the next one.
     const all = allTrackPoints();
-    if (all.length) fitTo(state.map, all);
+    if (all.length && frame.fit !== false) fitTo(state.map, all);
     markDirty();
     const ok = await saveNow();
     // A save is what gives a new route its stored uid and a new group its id,
@@ -11142,7 +11147,8 @@
   }
 
   window.TBBuilder = {
-    fitTo: (lngLats) => fitTo(state.map, lngLats),
+    // `padding` is optional; the tour passes one to keep a card off the road.
+    fitTo: (lngLats, padding) => fitTo(state.map, lngLats, padding),
     apply: tourApply,
     // Awaited before the tour leaves the page, so the beforeunload guard has
     // nothing to hold the rider for.

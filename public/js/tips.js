@@ -253,6 +253,10 @@
   }
 
   function show(node) {
+    // NOTHING WHILE A TOUR IS RUNNING. tour.js stamps `html.tour-active` for
+    // as long as one is up; a card is already explaining the control, and a
+    // bubble beside it is a second voice. Ziad's call, 2026-09-12.
+    if (document.documentElement.classList.contains("tour-active")) return;
     var key = node.getAttribute("data-tip");
     var body = BODY[key];
     if (!body) return; // an unknown key keeps its native title—see wire()

@@ -77,6 +77,9 @@
     //    dialog, so nothing dismisses it for us.
     document.addEventListener("click", (e) => {
       if (e.target.closest("#site-header")) return;
+      // A tour card is not "away": the tour opens the drawer to show where a
+      // page lives, and closes it itself when the card goes.
+      if (e.target.closest(".shepherd-element")) return;
       closeSubs();
       menu.open = false;
     });
