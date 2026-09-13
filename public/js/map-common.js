@@ -1631,6 +1631,7 @@
         w0: panel.classList.contains("collapsed") ? 0 : current(),
         moved: false,
         under: false,
+        opening: false,
         map,
       };
       html.classList.add("is-resizing");
@@ -1654,11 +1655,20 @@
       // so a rider who overshoots can pull back and nothing has folded.
       const want = e.clientX;
       const collapsed = panel.classList.contains("collapsed");
+      //
+      // AND A DRAG THAT OPENED IT NEVER CLOSES IT. Ziad's call, 2026-09-13: a
+      // pull from the rail pops the drawer to the minimum, and a rider whose
+      // pointer is still short of 360px on release was opening it, not
+      // closing it — so the pop-open sticks and the warning is never armed on
+      // that gesture. Only a drag that STARTED open can fold it.
       if (collapsed) {
         if (dx > 12) {
           setCollapsed(false);
+          drag.opening = true;
           setWidth(Math.max(DRAWER_MIN, want));
         }
+      } else if (drag.opening) {
+        setWidth(Math.max(DRAWER_MIN, want));
       } else {
         setWidth(want);
         drag.under = want < DRAWER_MIN;
