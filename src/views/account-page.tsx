@@ -438,7 +438,7 @@ export async function accountPage(
           written, and this is about what the thing is called.
         */}
         <section class="setting-topic" id="jargon">
-          <h2>What the app calls things</h2>
+          <h2>Vocabulary</h2>
           <p>
             A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. Pick what you drive and what it
             runs on, and every page uses the words that fit; a ride can carry its own in the builder. Any word you would
