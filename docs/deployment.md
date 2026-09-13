@@ -82,9 +82,11 @@ Neither workflow holds an application secret; see the section above. Neither has
 utils/deploy/prod.sh  --dry-run     # preview
 utils/deploy/stage.sh               # stage
 utils/deploy/prod.sh                # prod
+utils/deploy/both.sh                # prod, then stage — the order a migration needs
+utils/deploy/both.sh --stage-first  # stage, then prod — refused while a drizzle/*.sql is not yet on prod
 ```
 
-Both wrappers set `DEPLOY_ENV` and exec `utils/deploy/deploy.sh`, which gates on a clean tree and being on `main` unless `--force`.
+Both wrappers set `DEPLOY_ENV` and exec `utils/deploy/deploy.sh`, which gates on a clean tree and being on `main` unless `--force`. `both.sh` runs the two wrappers in sequence with every flag passed through, and stops if the first half fails: stage runs on prod's database and applies no migration, so it must never get ahead of prod. It reads the commit prod is serving off `/healthz` to decide whether `--stage-first` is safe, and refuses when it cannot.
 
 From a terminal, as above, or from the Actions tab—see the previous section. Both paths run the same scripts on purpose; two deploy paths that drift is a failure this repository has hit more than once.
 
