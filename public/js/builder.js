@@ -43,9 +43,11 @@
     containerPixel,
     markerElement,
     initPanelToggle,
+    initPanelResize,
   } = window.TBMap;
 
   initPanelToggle(() => state.map);
+  initPanelResize(() => state.map);
 
   // The ride's time model is shared with the viewer so the two can never
   // disagree about what is happening at a given moment. See ride-time.js.

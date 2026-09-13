@@ -555,6 +555,24 @@ export function panelShell(o: {
       <div class="drawer-rail" aria-hidden="true">
         {o.rail ? raw(o.rail) : ''}
       </div>
+      {/*
+        THE WIDTH IS THE RIDER'S TO SET (#323). Ziad's call, 2026-09-13: a drag
+        handle on the drawer's right edge replaces the collapse icon on desktop.
+        A focusable separator rather than a button: it is a divider whose
+        position is the value, which is what the role says, and the arrow keys
+        move it — initPanelResize() in map-common.js. The phone sheet keeps the
+        collapse icon above, since it has no width to set.
+      */}
+      <div
+        class="drawer-resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Drawer width"
+        aria-valuemin={360}
+        aria-valuenow={380}
+        tabindex={0}
+        title="Drag to resize; click to collapse"
+      ></div>
     </div>
   ).toString()
 }
@@ -1123,6 +1141,15 @@ function siteFooter(splash: boolean): string {
   ).toString()
 }
 
+// THE DRAWER'S REMEMBERED WIDTH, APPLIED BEFORE FIRST PAINT (#323). It lives in
+// localStorage — a width is a fact about this screen, not about the rider, so a
+// column would sync the wrong number to their phone — and a script that ran on
+// DOMContentLoaded would draw the drawer at 380px and jump. This one is emitted
+// right after the drawer's markup, so the element exists and nothing has
+// painted yet. Exactly what initPanelResize() writes, read back; the shape is
+// {w, collapsed}. Every read is wrapped: a private window can refuse storage.
+const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
+
 export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
@@ -1277,6 +1304,7 @@ export function page(opts: PageOpts): string {
 ${stageBanner()}
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} words={wordsOf(opts)} />).toString()}
 ${body}
+${isMap ? DRAWER_RESTORE : ''}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
