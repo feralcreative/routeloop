@@ -945,8 +945,9 @@ export const rides = pgTable(
     // WHICH VEHICLE THIS RIDE IS FOR (#321). Per ride from the start, Ziad's
     // call, 2026-09-13: a rider who owns a bike and a car plans rides for
     // each, and the words on every surface showing the ride follow this pair.
-    // Null means the owner's default. Varchar for the reason the profile's
-    // columns are; coerced by src/views/vocab.ts on every read.
+    // Null means unset: each viewer reads it in their own default words, which
+    // is what every ride carried before this existed. Varchar for the reason
+    // the profile's columns are; coerced by src/views/vocab.ts on every read.
     vehicle: varchar('vehicle', { length: 20 }),
     power: varchar('power', { length: 20 }),
     gpxPresent: boolean('gpx_present').notNull().default(false),

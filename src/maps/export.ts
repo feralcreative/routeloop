@@ -778,7 +778,7 @@ export async function loadNativeRide(
       // Which vehicle the ride is for (#321), read here rather than threaded
       // through the four callers' meta. Nullable with a default in the payload
       // schema, like stopByMin, so no format-version bump: a file without them
-      // is a ride on the owner's default vehicle.
+      // is a ride with no vehicle set, read in each viewer's own words.
       vehicle: rideRow?.vehicle ?? null,
       power: rideRow?.power ?? null,
       routes: out,

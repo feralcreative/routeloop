@@ -15,8 +15,10 @@
 // one.
 //
 // **PER RIDE, WITH THE RIDER'S OWN WORDS OVER THE TOP.** A ride carries its own
-// vehicle and power (`rides.vehicle`, `rides.power`; null means the owner's
-// default), because a rider who owns a bike and a car plans rides for each. The
+// vehicle and power (`rides.vehicle`, `rides.power`; null means unset, and each
+// viewer reads the ride in their own default words — what every ride did
+// before this existed), because a rider who owns a bike and a car plans rides
+// for each. The
 // rider's profile carries their default preset AND their Custom words, and the
 // precedence is: the ride picks the preset, and a row the rider set to Custom is
 // their word everywhere, whatever the ride. "Adventure" for journey is how they
