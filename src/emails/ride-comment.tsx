@@ -11,9 +11,11 @@
 // email the place it happens, and nothing there can be replied to.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Who wrote it, as they are shown everywhere else — users.display_name. */
   commenterName: string
   rideTitle: string
@@ -35,7 +37,7 @@ export const rideCommentEmail = defineEmail<Props>({
 
   preheader: ({ excerpt }) => excerpt,
 
-  text: ({ commenterName, rideTitle, rideSlug, excerpt, pointLabel }) =>
+  text: ({ commenterName, rideTitle, rideSlug, excerpt, pointLabel, ...p }) =>
     [
       pointLabel
         ? `${commenterName} commented on ${pointLabel}, on your ride ${rideTitle}.`
@@ -45,19 +47,22 @@ export const rideCommentEmail = defineEmail<Props>({
       '',
       url(rideSlug),
       '',
-      `Only riders on the ride can comment, and only you and they can read it.`,
+      `Only ${wds(wordsIn(p), 'person')} on the ${wd(wordsIn(p), 'journey')} can comment, and only you and they can read it.`,
     ].join('\n'),
 
-  html: ({ commenterName, rideTitle, rideSlug, excerpt, pointLabel }) =>
+  html: ({ commenterName, rideTitle, rideSlug, excerpt, pointLabel, ...p }) =>
     (
       <>
         <P>
-          {commenterName} commented on {pointLabel ? `${pointLabel}, on` : ''} your ride{' '}
+          {commenterName} commented on {pointLabel ? `${pointLabel}, on` : ''} your {wd(wordsIn(p), 'journey')}{' '}
           <A href={url(rideSlug)}>{rideTitle}</A>.
         </P>
         <P>“{excerpt}”</P>
         <Button href={url(rideSlug)}>Read it on the ride</Button>
-        <Muted>Only riders on the ride can comment, and only you and they can read&nbsp;it.</Muted>
+        <Muted>
+          Only {wds(wordsIn(p), 'person')} on the {wd(wordsIn(p), 'journey')} can comment, and only you and they can
+          read&nbsp;it.
+        </Muted>
       </>
     ).toString(),
 

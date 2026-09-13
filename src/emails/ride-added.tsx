@@ -16,9 +16,11 @@
 // rider's behalf is a one-click forgery of the one thing the roster is for.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Who added them — the ride's owner, or a co-owner. */
   ownerName: string
   rideTitle: string
@@ -36,29 +38,29 @@ export const rideAddedEmail = defineEmail<Props>({
 
   subject: ({ ownerName, rideTitle }) => `${ownerName} put you on ${rideTitle}`,
 
-  preheader: ({ startsOn }) => (startsOn ? `It sets off ${startsOn}. Say whether you are coming.` : 'Say whether you are coming.'),
+  preheader: ({ startsOn }) =>
+    startsOn ? `It sets off ${startsOn}. Say whether you are coming.` : 'Say whether you are coming.',
 
-  text: ({ ownerName, rideTitle, rideSlug, startsOn }) =>
+  text: ({ ownerName, rideTitle, rideSlug, startsOn, ...p }) =>
     [
       `${ownerName} added you to ${rideTitle}.`,
       ...(startsOn ? ['', `It sets off ${startsOn}.`] : []),
       '',
       url(rideSlug),
       '',
-      `Going, Maybe and Not this time are on the ride page, under who is coming. Nobody is counting on an answer until you give one.`,
+      `Going, Maybe and Not this time are on the ${wd(wordsIn(p), 'journey')} page, under who is coming. Nobody is counting on an answer until you give one.`,
     ].join('\n'),
 
-  html: ({ ownerName, rideTitle, rideSlug, startsOn }) =>
+  html: ({ ownerName, rideTitle, rideSlug, startsOn, ...p }) =>
     (
       <>
         <P>
-          {ownerName} added you to <A href={url(rideSlug)}>{rideTitle}</A>.
-          {startsOn ? ` It sets off ${startsOn}.` : ''}
+          {ownerName} added you to <A href={url(rideSlug)}>{rideTitle}</A>.{startsOn ? ` It sets off ${startsOn}.` : ''}
         </P>
         <Button href={url(rideSlug)}>Say whether you are coming</Button>
         <Muted>
-          Going, Maybe and Not this time are on the ride page, under who is coming. Nobody is counting on an answer
-          until you give&nbsp;one.
+          Going, Maybe and Not this time are on the {wd(wordsIn(p), 'journey')} page, under who is coming. Nobody is
+          counting on an answer until you give&nbsp;one.
         </Muted>
       </>
     ).toString(),

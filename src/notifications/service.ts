@@ -24,11 +24,12 @@
 // carry, unchanged.
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { notificationPrefs, notifications, users } from '../db/schema'
+import { notificationPrefs, notifications, userProfiles, users } from '../db/schema'
 import { sendTemplateDetached } from '../auth/mailer'
 import type { EmailTemplate } from '../emails/types'
 import { EVENTS, type Channel, type NotificationEvent } from './catalog'
 import { enabledFor, prefMap, type PrefRow } from './policy'
+import { vocabOf, wordsFor } from '../views/vocab'
 
 /** How long a raised notification is kept before the poll prunes it. Long
  *  enough that a rider who left a tab open over a weekend does not lose the
@@ -58,7 +59,9 @@ export async function savePrefs(userId: number, rows: readonly PrefRow[]): Promi
   if (rows.length === 0) return
   await db
     .insert(notificationPrefs)
-    .values(rows.map((r) => ({ userId, event: r.event, channel: r.channel, enabled: r.enabled, updatedAt: new Date() })))
+    .values(
+      rows.map((r) => ({ userId, event: r.event, channel: r.channel, enabled: r.enabled, updatedAt: new Date() })),
+    )
     .onConflictDoUpdate({
       target: [notificationPrefs.userId, notificationPrefs.event, notificationPrefs.channel],
       set: { enabled: sql`excluded.enabled`, updatedAt: new Date() },
@@ -104,6 +107,12 @@ async function humansOnly(ids: readonly number[]): Promise<number[]> {
   return rows.map((r) => r.id)
 }
 
+/** The props plus the recipient's words (#321). Typed as the template's own
+ *  props: a template that declares `words` reads it, and one that does not is
+ *  handed a key it never looks at. */
+const withWords = <P>(props: P, row: { vehicle?: unknown; power?: unknown; jargon?: unknown } | undefined): P =>
+  ({ ...props, words: wordsFor(vocabOf(row)) }) as P
+
 /**
  * Tell one rider one thing, on whichever channels they asked for.
  *
@@ -123,8 +132,22 @@ export function notify<P>(userId: number, notice: Notice<P>): void {
       // The address is read here rather than passed in: every caller would
       // otherwise carry a users lookup it has no other use for, and
       // sendTemplateDetached already treats a null recipient as a skip.
-      const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1)
-      sendTemplateDetached(row?.email, notice.email.template, notice.email.props, {
+      const [row] = await db
+        .select({
+          email: users.email,
+          vehicle: userProfiles.vehicle,
+          power: userProfiles.power,
+          jargon: userProfiles.jargon,
+        })
+        .from(users)
+        .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+        .where(eq(users.id, userId))
+        .limit(1)
+      // THE RECIPIENT'S OWN WORDS RIDE ALONG AS A PROP (#321), read here beside
+      // the address for the reason the address is: only the sender knows who
+      // is being written to, and src/emails/ stays pure. A template that takes
+      // no `words` ignores it.
+      sendTemplateDetached(row?.email, notice.email.template, withWords(notice.email.props, row), {
         replyTo: notice.email.replyTo,
         limitKey: notice.email.limitKey,
       })
@@ -215,13 +238,20 @@ export function notifyMany<P>(
 
     if (wantEmail.length > 0) {
       const addrs = await db
-        .select({ id: users.id, email: users.email })
+        .select({
+          id: users.id,
+          email: users.email,
+          vehicle: userProfiles.vehicle,
+          power: userProfiles.power,
+          jargon: userProfiles.jargon,
+        })
         .from(users)
+        .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
         .where(inArray(users.id, wantEmail))
       for (const a of addrs) {
         const notice = notices.get(a.id)
         if (!notice?.email) continue
-        sendTemplateDetached(a.email, notice.email.template, notice.email.props, {
+        sendTemplateDetached(a.email, notice.email.template, withWords(notice.email.props, a), {
           replyTo: notice.email.replyTo,
           limitKey: notice.email.limitKey,
         })

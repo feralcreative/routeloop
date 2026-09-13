@@ -18,9 +18,11 @@
 // would silently un-bin rides for anybody whose mail client fetches links.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   rideTitle: string
   /** How many days are left, as a whole number. */
   daysLeft: number
@@ -35,29 +37,34 @@ export const ridePurgeSoonEmail = defineEmail<Props>({
   key: 'ride-purge-soon',
 
   subject: ({ rideTitle, daysLeft }) =>
-    daysLeft === 1 ? `${rideTitle} is deleted for good tomorrow` : `${rideTitle} is deleted for good in ${daysLeft} days`,
+    daysLeft === 1
+      ? `${rideTitle} is deleted for good tomorrow`
+      : `${rideTitle} is deleted for good in ${daysLeft} days`,
 
   preheader: ({ purgeOn }) => `Restoring it from your bin before ${purgeOn} keeps it.`,
 
-  text: ({ rideTitle, daysLeft, purgeOn }) =>
+  text: ({ rideTitle, daysLeft, purgeOn, ...p }) =>
     [
       `${rideTitle} has been in your bin for a while, and on ${purgeOn} it is destroyed for good — that is ${daysLeft === 1 ? 'tomorrow' : `${daysLeft} days from now`}.`,
       '',
-      `Nothing brings a ride back after that. The route, every stop on it, and the file you uploaded all go.`,
+      `Nothing brings ${aWd(wordsIn(p), 'journey')} back after that. The ${wd(wordsIn(p), 'route')}, every stop on it, and the file you uploaded all go.`,
       '',
       BIN_URL,
       '',
       `Restoring it from your bin resets the thirty days, so there is no hurry beyond the date above. If you meant to delete it, you need do nothing at all.`,
     ].join('\n'),
 
-  html: ({ rideTitle, daysLeft, purgeOn }) =>
+  html: ({ rideTitle, daysLeft, purgeOn, ...p }) =>
     (
       <>
         <P>
           <b>{rideTitle}</b> has been in your bin for a while, and on {purgeOn} it is destroyed for good — that is{' '}
           {daysLeft === 1 ? 'tomorrow' : `${daysLeft} days from now`}.
         </P>
-        <P>Nothing brings a ride back after that. The route, every stop on it, and the file you uploaded all&nbsp;go.</P>
+        <P>
+          Nothing brings {aWd(wordsIn(p), 'journey')} back after that. The {wd(wordsIn(p), 'route')}, every stop on it,
+          and the file you uploaded all&nbsp;go.
+        </P>
         <Button href={BIN_URL}>Open your bin</Button>
         <Muted>
           Restoring it from <A href={BIN_URL}>{BIN_URL}</A> resets the thirty days, so there is no hurry beyond the date
