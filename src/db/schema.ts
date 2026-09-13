@@ -497,6 +497,20 @@ export const userProfiles = pgTable('user_profiles', {
   // than the schema refusing it — see src/places/ranking.ts. A CHECK could not
   // express it anyway, since matching is substring and approximate.
   favorPlaces: varchar('favor_places', { length: 1000 }),
+  // WHAT THE APP CALLS THINGS (#321). The rider's default preset — a vehicle
+  // and what powers it — and their own words for any term they set to Custom.
+  // VARCHAR AND NOT pgEnum for the reason notifications.event is: a new vehicle
+  // is a code change and nothing else, and src/views/vocab.ts coerces every
+  // stored string. Null means the default (motorcycle, gas), which is also what
+  // every rider who never opened the setting has. A ride carries its own pair
+  // on `rides` and wins over these; the words in `jargon` win over both. See
+  // wordsFor() in src/views/vocab.ts for the precedence.
+  vehicle: varchar('vehicle', { length: 20 }),
+  power: varchar('power', { length: 20 }),
+  // `{ journey: 'adventure', highway: 'motorway' }` — only the rows a rider
+  // customized. jsonb rather than fourteen columns because the row set is the
+  // table in vocab.ts and a fifteenth term must not be a migration.
+  jargon: jsonb('jargon').$type<Record<string, string>>(),
   // Contact details, each behind its own share flag (#183).
   //
   // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four
@@ -928,6 +942,13 @@ export const rides = pgTable(
     // would not, and a per-route one would ask nine times for an answer that is
     // the same on all nine.
     stopByMin: integer('stop_by_min'),
+    // WHICH VEHICLE THIS RIDE IS FOR (#321). Per ride from the start, Ziad's
+    // call, 2026-09-13: a rider who owns a bike and a car plans rides for
+    // each, and the words on every surface showing the ride follow this pair.
+    // Null means the owner's default. Varchar for the reason the profile's
+    // columns are; coerced by src/views/vocab.ts on every read.
+    vehicle: varchar('vehicle', { length: 20 }),
+    power: varchar('power', { length: 20 }),
     gpxPresent: boolean('gpx_present').notNull().default(false),
     kmlBytes: integer('kml_bytes').notNull().default(0),
     gpxBytes: integer('gpx_bytes').notNull().default(0),
