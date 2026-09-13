@@ -42,7 +42,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable, type RideRow, type Rsvp } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
-import { page } from '../views/layout'
+import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
 import { CardFace } from '../views/cards'
@@ -54,6 +54,7 @@ import { LIVE_RIDE } from '../trash/service'
 import { ridesImOn } from '../members/service'
 import { RSVP_LABELS } from '../members/policy'
 import { unitsFor } from '../views/prefs'
+import { Wd, Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { SEP } from '../views/sep'
 
 export const homeRoutes = new Hono<AuthEnv>()
@@ -402,13 +403,15 @@ function RecordCard({ r }: { r: RecordTile }) {
 // The third door is deliberately quieter than the other two: /explore is a real
 // way to start — clone someone else's route — but it is not what this app is
 // for, and giving it equal weight would suggest browsing is the point.
-function FirstRun() {
+function FirstRun({ w }: { w: Words }) {
   return (
     <section class="first-run">
       <h2>Nothing planned yet</h2>
       <p class="lede">
-        Plan a multi-route ride on one map, then take it with you. Once you have one, this page fills up with what you
-        have covered — miles, routes, the stops you keep making, and the twistiest roads you have picked.
+        Plan a multi-{wd(w, 'route')} {wd(w, 'journey')} on one map, then take it with you. Once you have one, this page
+        fills up with what you have covered — miles, {wds(w, 'route')}, the stops you keep making, and the{' '}
+        {wd(w, 'curvy')}
+        -est roads you have picked.
       </p>
 
       <ol class="first-run-steps">
@@ -429,15 +432,15 @@ function FirstRun() {
         <li>
           <strong>Share it, or don’t</strong>
           <span>
-            Send one link and everyone riding sees the same plan. Every ride starts private and stays that way until you
-            change it.
+            Send one link and everyone {wd(w, 'travel')} sees the same plan. Every {wd(w, 'journey')} starts private and
+            stays that way until you change it.
           </span>
         </li>
       </ol>
 
       <p class="first-run-actions">
         <a class="btn" href="/builder">
-          Plan your first ride
+          Plan your first {wd(w, 'journey')}
         </a>{' '}
         <a class="linkbtn" href="/import">
           or import one you already have
@@ -577,7 +580,10 @@ homeRoutes.get('/', requireActive, async (c) => {
   const visibleRides = hasMore ? owned.slice(0, RIDE_PAGE) : owned
 
   const units = await unitsFor(c)
-  const s = shapeStats(stats, cached, new Date(), global, units)
+  // What the app calls things (#321) — the rider's own preset, since this
+  // page is about no one ride.
+  const w = wordsOf({ user })
+  const s = shapeStats(stats, cached, new Date(), global, units, w)
   const drawChart = s.months.some((m) => m.n > 0)
 
   // dashboard.js carries two unrelated enhancements now — the chart, and the
@@ -630,7 +636,8 @@ homeRoutes.get('/', requireActive, async (c) => {
               {s.saddle && (
                 <span title={s.saddle.note}>
                   {SEP}
-                  {s.saddle.hours} hours riding{s.saddle.estimated && '*'}
+                  {s.saddle.hours} hours {wd(w, 'travel')}
+                  {s.saddle.estimated && '*'}
                 </span>
               )}
               {s.twist && (
@@ -662,7 +669,7 @@ homeRoutes.get('/', requireActive, async (c) => {
           */}
           <p class="dash-cta">
             <a class="btn" href="/builder">
-              Plan a ride
+              Plan {aWd(w, 'journey')}
             </a>
           </p>
 
@@ -696,9 +703,9 @@ homeRoutes.get('/', requireActive, async (c) => {
           */}
           {joined.length > 0 && (
             <section class="stat-block">
-              <h2>Riding with others</h2>
+              <h2>{Wd(w, 'travel')} with others</h2>
               <p class="sub">
-                {joined.length} {joined.length === 1 ? 'ride' : 'rides'} you were added to
+                {joined.length} {wn(w, 'journey', joined.length)} you were added to
               </p>
               <ul class="ride-cards ride-cards--dense">
                 {joined.map((j) => (
@@ -754,7 +761,7 @@ homeRoutes.get('/', requireActive, async (c) => {
                 aria-controls="rides-mine"
                 aria-selected="true"
               >
-                Your rides <span class="tab-count">{stats.totals.rides}</span>
+                Your {wds(w, 'journey')} <span class="tab-count">{stats.totals.rides}</span>
               </button>
               <button
                 type="button"
@@ -781,7 +788,7 @@ homeRoutes.get('/', requireActive, async (c) => {
                 role="tab"
                 id="tab-following"
                 data-tip="rides-following"
-                title="Rides from riders you follow"
+                title={`${Wds(w, 'journey')} from ${wds(w, 'person')} you follow`}
                 aria-controls="rides-following"
                 aria-selected="false"
                 tabindex={-1}
@@ -845,7 +852,7 @@ homeRoutes.get('/', requireActive, async (c) => {
                 rideCards(friendly, false, {
                   units,
                   dense: true,
-                  empty: 'Nothing here yet. A ride shows up when a friend sets one to Friends.',
+                  empty: `Nothing here yet. ${cap(aWd(w, 'journey'))} shows up when a friend sets one to Friends.`,
                 }),
               )}
             </div>
@@ -868,12 +875,12 @@ homeRoutes.get('/', requireActive, async (c) => {
                 rideCards(feed, false, {
                   units,
                   dense: true,
-                  empty: 'Nothing here yet. Follow a rider and their public rides show up in this tab.',
+                  empty: `Nothing here yet. Follow ${aWd(w, 'person')} and their public ${wds(w, 'journey')} show up in this tab.`,
                 }),
               )}
               <p>
                 <a class="linkbtn" href="/riders">
-                  Find riders to follow
+                  Find {wds(w, 'person')} to follow
                 </a>
               </p>
             </div>
@@ -895,19 +902,19 @@ homeRoutes.get('/', requireActive, async (c) => {
                 rideCards(publik, false, {
                   units,
                   dense: true,
-                  empty: 'Nobody else has published a ride yet.',
+                  empty: `Nobody else has published ${aWd(w, 'journey')} yet.`,
                 }),
               )}
               <p>
                 <a class="linkbtn" href="/explore">
-                  Explore all public rides
+                  Explore all public {wds(w, 'journey')}
                 </a>
               </p>
             </div>
           </section>
         </>
       ) : (
-        <FirstRun />
+        <FirstRun w={w} />
       )}
     </main>
   ).toString()
