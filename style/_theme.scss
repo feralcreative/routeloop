@@ -80,3 +80,32 @@
     @include -emit(colorblind, dark);
   }
 }
+
+// --- The wordmark's ink ------------------------------------------------------
+//
+// `wordmark()` in src/views/logo.tsx renders both inks of the mark and these
+// rules HIDE the wrong one — only ever `display: none`, never a display value
+// for the shown one, because each host sets its own (`.modal-logo` is block)
+// and a rule here would fight it on equal specificity. That is also why the
+// un-stamped case is two media queries rather than a toggle: the light half has
+// to be scoped to a light OS, or it would hide the dark mark under a dark one.
+// A stamped value the app does not know renders the light palette, so it hides
+// the dark mark with `light`.
+:root[data-scheme]:not([data-scheme="dark"]) .logo-dark,
+:root[data-scheme="dark"] .logo-light {
+  display: none;
+}
+
+//@ Following the OS, dark
+@media (prefers-color-scheme: dark) {
+  :root:not([data-scheme]) .logo-light {
+    display: none;
+  }
+}
+
+//@ Following the OS, light
+@media not (prefers-color-scheme: dark) {
+  :root:not([data-scheme]) .logo-dark {
+    display: none;
+  }
+}

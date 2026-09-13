@@ -8,6 +8,7 @@ import { alphaSplash } from './splash'
 export { esc } from './esc'
 import { esc } from './esc'
 import { raw } from 'hono/html'
+import { wordmark } from './logo'
 import { asset } from './assets'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
@@ -309,17 +310,18 @@ function SiteHeader({
   // header on a map page is the hamburger alone, in the opposite corner.
   //
   // The stacked artwork is therefore unused here; the drawer takes the
-  // horizontal lockup, which suits a wide, short header far better. Both are the
-  // unsuffixed artwork: the suffix names the *background*, not the ink, so no
-  // suffix is the dark lockup for a light ground and `-dk` is the reversed white
-  // one for a dark ground. It reads backwards at a glance, which is why it is
-  // written down — but it is the convention src/emails/shell.tsx was already
-  // using, so the alternative was two conventions instead of one.
+  // horizontal lockup, which suits a wide, short header far better. Both inks are
+  // rendered and the stylesheet shows one (`wordmark()` in logo.tsx, #317): the
+  // suffix names the *background*, not the ink, so no suffix is the dark lockup
+  // for a light ground and `-dk` is the reversed white one for a dark ground. It
+  // reads backwards at a glance, which is why it is written down — but it is
+  // the convention src/emails/shell.tsx was already using, so the alternative
+  // was two conventions instead of one.
   return (
     <header class={`site-header${isMap ? ' site-header--map' : ''}`} id="site-header">
       {!isMap && (
         <a class="site-logo" href="/">
-          <img src="/img/logo-routeloop-hz.svg" alt="Routeloop" width={1500} height={184} />
+          {raw(wordmark('hz', 'Routeloop'))}
         </a>
       )}
       {/*
@@ -506,7 +508,7 @@ export function panelShell(o: {
     <div id="info-panel" class={`floating-panel map-drawer${o.extraClass ? ` ${o.extraClass}` : ''}`}>
       <div class="drawer-head">
         <a class="drawer-logo" href="/" aria-label="Routeloop home">
-          <img src="/img/logo-routeloop-hz.svg" alt="Routeloop" width={1500} height={184} />
+          {raw(wordmark('hz', 'Routeloop'))}
         </a>
         <div class="panel-controls">
           {/*
