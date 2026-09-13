@@ -235,7 +235,7 @@ export const ridePayload = z
     // subgroups, so a native file written before this stays valid with no
     // format-version bump.
     stopByMin: z.number().int().min(0).max(1439).nullable().default(null),
-    // WHICH VEHICLE THIS RIDE IS FOR (#321), null meaning the owner's default.
+    // WHICH VEHICLE THIS RIDE IS FOR (#321), null meaning unset — each viewer's own.
     // Validated to the members vocab.ts knows so a hostile payload cannot
     // write an arbitrary string; nullable-with-a-default like stopByMin, so
     // every existing native file and client still parses.

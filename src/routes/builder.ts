@@ -27,10 +27,11 @@ import { ROUTE_COLORS } from '../maps/palette'
 import { detailsForViewer } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
-import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
+import { faqLink, googleMapsLoader, page, panelShell, rideTimeline, wordsOf } from '../views/layout'
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
-import { POWERS, VEHICLES } from '../views/vocab'
+import { esc } from '../views/esc'
+import { POWERS, POWER_CHOICES, VEHICLES, VEHICLE_CHOICES, cap } from '../views/vocab'
 import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -775,7 +776,7 @@ builderRoutes.get('/builder', requireActive, async (c) => {
   // ownRange, not groupRange: a ride that does not exist has no roster to ask.
   // See the note on ownRange for why the two are deliberately separate.
   const [home, prefs, range] = await Promise.all([homeSeed(user.id), builderPrefs(user.id), ownRange(user.id)])
-  return c.html(builderHtml(null, user, home, prefs, null, undefined, range))
+  return c.html(builderHtml(null, user, home, prefs, null, undefined, range, null))
 })
 
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
@@ -803,6 +804,7 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
         perm: member?.role === 'owner' ? null : (member?.perm ?? null),
       },
       range,
+      { vehicle: ride.vehicle, power: ride.power },
     ),
   )
 })
@@ -831,6 +833,10 @@ function builderHtml(
   // Null-ranged by default so a caller that has not worked it out yet renders a
   // page with no fuel warning, rather than one claiming a range of zero.
   range: GroupRange = { miles: null, riderName: null, bikeLabel: null, unknown: 0, riders: 0, fuelType: null },
+  // The ride's own vehicle and power (#321), for the words on this page and
+  // for the two selects in the ride band. Null on a new ride, and null on
+  // either field means unset — the rider's own default.
+  vehicle: { vehicle: string | null; power: string | null } | null = null,
 ): string {
   // The route slider is a focus control, not a navigation one: every route stays
   // drawn on the map at all times and the slider only changes which one is
@@ -1024,6 +1030,11 @@ function builderHtml(
         </div>
 `
 
+  // The words for this page (#321): the ride's own pair over the rider's
+  // default. The two selects' "My default" option names the default so the
+  // rider can see what leaving them alone means.
+  const words = wordsOf({ user, ride: vehicle })
+
   const contents = `${standingBanner}        <div class="panel-band panel-band--ride">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
 ${
@@ -1039,6 +1050,17 @@ ${
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>${faqLink('visibility', 'private, friends, unlisted and public')}
+          </div>
+          <div class="meta-row meta-row--vehicle">
+            <label for="ride-vehicle">For</label>
+            <select id="ride-vehicle" name="vehicle" data-tip="ride-vehicle" title="What this ride is for">
+              <option value="">${esc(`My default (${cap(VEHICLE_CHOICES.find((v) => v.id === words.vehicle_)?.label ?? '')})`)}</option>
+              ${VEHICLE_CHOICES.map((v) => `<option value="${v.id}">${esc(v.label)}</option>`).join('')}
+            </select>
+            <select id="ride-power" name="power" data-tip="ride-power" title="What it runs on">
+              <option value="">${esc(`My default (${cap(POWER_CHOICES.find((p) => p.id === words.power_)?.label ?? '')})`)}</option>
+              ${POWER_CHOICES.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join('')}
+            </select>
           </div>
           <div class="meta-row meta-row--stopby">
             <label for="ride-stop-by">Start looking for a bed at</label>
@@ -1251,6 +1273,8 @@ ${
   return page({
     title: rideId ? 'Edit ride' : 'Plan a ride',
     user,
+    words,
+    ride: vehicle,
     variant: 'map',
     bodyClass: 'builder-page',
     navKey: 'builder',

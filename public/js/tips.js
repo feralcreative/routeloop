@@ -96,6 +96,10 @@
     "ride-name": "What the ride is called, everywhere it appears. Click it and type.",
     "ride-visibility":
       "Who can open the link. Private is you and the people on the ride, unlisted is anyone holding the link, and public puts it on the explore page.",
+    "ride-vehicle":
+      "What this ride is for. The words on every page follow it—trip and driver for a car, ride and rider for a bike—and it starts as whatever you picked in your preferences.",
+    "ride-power":
+      "What it runs on. Gas or electric changes the fuel words; pedal turns the fuel planning off for this ride, since there is no tank to plan around.",
     "ride-stop-by":
       "The hour you would rather start looking for a bed. Set it and each route gets a band across the list at the point it reaches that time, with how much riding is left after it.",
     undo: "Takes back the last change to the ride. Every edit here is undoable, including deleting a route.",

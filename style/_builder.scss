@@ -3158,6 +3158,19 @@
 }
 
 // The ride-level time, under the visibility select.
+// The ride's own vehicle and power (#321): two small selects on one line,
+// reading "For [My default (Motorcycle)] [My default (Gas)]".
+.meta-row--vehicle {
+  gap: 0.4rem;
+  font-size: 0.8em;
+  color: $neutral-50;
+
+  select {
+    font-size: inherit;
+    padding: 0.3em 0.4em;
+  }
+}
+
 .meta-row--stopby {
   gap: 0.4rem;
   font-size: 0.8em;

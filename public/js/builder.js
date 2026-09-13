@@ -538,6 +538,11 @@
       // feature is quiet until they do. A wall clock at the departure point, see
       // rides.stop_by_min.
       stopByMin: null,
+      // WHICH VEHICLE THIS RIDE IS FOR (#321), or null for "not said" — the
+      // rider's own default, which is what TBVocab resolves to. The words on
+      // every rider-facing string in this file follow it through TBVocab.
+      vehicle: null,
+      power: null,
     },
     routes: [newRoute()],
     // WHICH FEATURE OWNS THE MAP'S PREVIEW DOTS — "search", "meet" or null.
@@ -790,6 +795,9 @@
   // plus the three inputs that no render function touches (they are written
   // only by loadExisting), which would otherwise keep showing pre-undo text.
   function renderEverything() {
+    // FIRST, before anything renders a word: it tells TBVocab which vehicle
+    // the strings below are for.
+    renderVehicle();
     rebuildLayers();
     renderMarkers();
     renderRoutes();
@@ -848,6 +856,43 @@
   function setFieldValue(id, value) {
     const el = $(id);
     if (el) el.value = value;
+  }
+
+  // The two vehicle selects follow state, and TBVocab follows them: every
+  // string this file builds goes through W()/Ws() below, so a change here is
+  // a re-render away from every label agreeing. `"" ` is "my default".
+  function renderVehicle() {
+    setFieldValue("ride-vehicle", state.meta.vehicle || "");
+    setFieldValue("ride-power", state.meta.power || "");
+    if (window.TBVocab) window.TBVocab.setRide({ vehicle: state.meta.vehicle, power: state.meta.power });
+  }
+
+  // What the app calls things (#321): the singular, the plural, and either
+  // capitalized. Falls back to the motorcycle words when vocab.js is absent,
+  // which is what every string here read before.
+  const W = (id) => (window.TBVocab ? window.TBVocab.w(id) : FALLBACK_WORDS[id][0]);
+  const Ws = (id) => (window.TBVocab ? window.TBVocab.many(id) : FALLBACK_WORDS[id][1]);
+  const Wc = (id) => cap(W(id));
+  const Wsc = (id) => cap(Ws(id));
+  const fuelOff = () => !!(window.TBVocab && window.TBVocab.off("fuel"));
+  const FALLBACK_WORDS = {
+    journey: ["ride", "rides"],
+    travel: ["riding", "riding"],
+    vehicle: ["bike", "bikes"],
+    person: ["rider", "riders"],
+    storage: ["paddock", "paddocks"],
+    curvy: ["twisty", "twisty"],
+    route: ["route", "routes"],
+    roadbook: ["roadbook", "roadbooks"],
+    fuel: ["gas", "gas"],
+    refuel: ["fill up", "fill up"],
+    tank: ["tank", "tanks"],
+    station: ["gas station", "gas stations"],
+    dry: ["runs dry", "runs dry"],
+    highway: ["highway", "highways"],
+  };
+  function cap(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   }
 
   function markDirty() {
@@ -10104,6 +10149,8 @@
       trunkSubgroup: state.meta.trunkSubgroup,
       timeAnchor: state.meta.timeAnchor,
       stopByMin: state.meta.stopByMin,
+      vehicle: state.meta.vehicle,
+      power: state.meta.power,
       // The API requires at least one stop per route, so a route you added but
       // never filled in would fail validation for the whole ride. Dropping it
       // is what the rider means; save() warns when it happens.
@@ -10385,6 +10432,8 @@
       // `?? null` rather than `||`: midnight is 0 and a real answer, and `||`
       // would turn "start looking at 00:00" into "never said".
       stopByMin: ride.stopByMin ?? null,
+      vehicle: ride.vehicle ?? null,
+      power: ride.power ?? null,
     };
     // ORDER IS RANK, SO THE STORED MAIN GROUP IS MOVED TO THE FRONT rather than
     // the column simply being trusted where it sits. A ride saved before
@@ -10426,6 +10475,7 @@
     $("ride-title").value = state.meta.title;
     $("ride-description").value = state.meta.description;
     setFieldValue("ride-visibility", state.meta.visibility);
+    renderVehicle();
     // MISSED ON THE LOAD PATH FIRST TIME ROUND. The snapshot render calls this
     // and this one did not, so a stop-by time set, saved and reloaded came back
     // to an empty field — the value was in state and on the server, and the one
@@ -10752,6 +10802,24 @@
       markDirty();
       offerPublicStart();
     });
+    // The ride's own vehicle (#321). Picking Bicycle coerces the power to
+    // Pedal the way the server will, so the select does not claim a pair the
+    // save will not keep; the whole panel re-renders because the words in it
+    // just changed.
+    const vehicleChanged = (label) => (e) => {
+      beginEdit(label);
+      state.meta.vehicle = $("ride-vehicle")?.value || null;
+      state.meta.power = $("ride-power")?.value || null;
+      if (state.meta.vehicle && window.TBVocab) {
+        const p = window.TBVocab.toPower(state.meta.power || window.TBVocabData?.profile?.power, state.meta.vehicle);
+        if (state.meta.power && p !== state.meta.power) state.meta.power = p;
+      }
+      renderVehicle();
+      renderEverything();
+      markDirty();
+    };
+    $("ride-vehicle")?.addEventListener("change", vehicleChanged("change what the ride is for"));
+    $("ride-power")?.addEventListener("change", vehicleChanged("change what it runs on"));
     // A <input type="time"> reports "" when it is cleared or half-typed, which
     // is the same thing as "they have not said" — so it lands as null rather
     // than being refused or defaulted.
