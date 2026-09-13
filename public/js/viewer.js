@@ -4,6 +4,17 @@
 (function () {
   "use strict";
 
+  // What the app calls things (#321): the ride's own vehicle over the
+  // viewer's default, both stamped by page(); the motorcycle words when
+  // vocab.js is absent, which is what every string here said before.
+  const FALLBACK_WORDS = { journey: "ride", route: "route", fuel: "gas", roadbook: "roadbook" };
+  const W = (id) => (window.TBVocab ? window.TBVocab.w(id) : FALLBACK_WORDS[id] || id);
+  const Ws = (id) => (window.TBVocab ? window.TBVocab.many(id) : W(id) + "s");
+  const Wc = (id) => {
+    const t = W(id);
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+
   // The interpunct data delimiter and the space around it, mirroring SEP in
   // src/views/sep.ts — read that file for why it is an en space rather than a
   // word space, and why it is written as an escape. test/sep.test.ts fails if
@@ -320,10 +331,10 @@
     }
     const a = activeAtMoment(state.ride.routes, state.moment);
     const multi = state.ride.routes.length > 1;
-    const routeName = (i) => state.ride.routes[i].title || (multi ? "Route " + (i + 1) : state.ride.title);
+    const routeName = (i) => state.ride.routes[i].title || (multi ? Wc("route") + " " + (i + 1) : state.ride.title);
     let what;
     if (a.routeIndex == null) {
-      what = "between routes";
+      what = "between " + Ws("route");
     } else if (a.legIndex != null) {
       what =
         routeName(a.routeIndex) +
@@ -379,7 +390,7 @@
     btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
     if (btn.hidden) return;
     btn.textContent = "Range";
-    btn.title = state.ringOn ? "Hide the fuel range" : "Show the fuel range";
+    btn.title = state.ringOn ? "Hide the " + W("fuel") + " range" : "Show the " + W("fuel") + " range";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }
@@ -432,7 +443,7 @@
     const anyAlt = routes.some((r) => r.altGroup != null);
     table.innerHTML = routes
       .map((r, i) => {
-        const name = r.title || (multi ? "Route " + ordinals[i] : state.ride.title);
+        const name = r.title || (multi ? Wc("route") + " " + ordinals[i] : state.ride.title);
         const ghost = r.altGroup != null && !r.altActive;
         // BOTH MEMBERS ARE BADGED, not only the loser. A single "alternate" tag
         // on one row leaves the reader wondering what it is an alternate TO;
@@ -444,12 +455,16 @@
               (ghost ? "" : " is-on") +
               '" title="' +
               (ghost
-                ? "An alternative to route " +
+                ? "An alternative to " +
+                  W("route") +
+                  " " +
                   esc(ordinals[i].replace(/[a-z]+$/, "")) +
-                  ". Not counted in the ride total."
-                : "The route counted in the ride total. This one has alternatives.") +
+                  ". Not counted in the " +
+                  W("journey") +
+                  " total."
+                : "The " + W("route") + " counted in the " + W("journey") + " total. This one has alternatives.") +
               '">' +
-              (ghost ? "alternative" : "riding this") +
+              (ghost ? "alternative" : "on this one") +
               "</span>";
         // Read from the ride rather than recomputed: a published ride is not
         // being edited, so the stored figure is current by definition. The
@@ -516,7 +531,8 @@
         "beforeend",
         '<tr class="route-total"><td>' +
           n +
-          (n === 1 ? " route" : " routes") +
+          " " +
+          (n === 1 ? W("route") : Ws("route")) +
           ", not counting alternatives</td>" +
           '<td class="route-miles">' +
           U.distanceFromMiles(counted, UNITS).toFixed(1) +
@@ -532,25 +548,34 @@
     // depends on which one the ride came from. See the DOWNLOADS table in
     // src/index.tsx.
     const dls = [];
-    if (state.ride.gpxUrl) dls.push(dlButton(state.ride.gpxUrl + "?dl", "GPX", true, "For a GPS unit or a phone nav app"));
+    if (state.ride.gpxUrl)
+      dls.push(dlButton(state.ride.gpxUrl + "?dl", "GPX", true, "For a GPS unit or a phone nav app"));
     if (state.ride.kmlUrl) dls.push(dlButton(state.ride.kmlUrl + "?dl", "KML", true, "For Google Earth"));
-    if (state.ride.geojsonUrl) dls.push(dlButton(state.ride.geojsonUrl + "?dl", "GeoJSON", true, "For a map you are building yourself"));
+    if (state.ride.geojsonUrl)
+      dls.push(dlButton(state.ride.geojsonUrl + "?dl", "GeoJSON", true, "For a map you are building yourself"));
     // The stop list on its own, for a spreadsheet. Last because it is the one
     // that is not a route.
-    if (state.ride.csvUrl) dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true, "Just the stops, for a spreadsheet"));
+    if (state.ride.csvUrl)
+      dls.push(dlButton(state.ride.csvUrl + "?dl", "CSV", true, "Just the stops, for a spreadsheet"));
     // Last and titled, because it is the one to pick for a backup: every other
     // format on this row loses something on the way back in.
     // Not a download — a page you print. Separate from the file formats above
     // because it answers a different question: not "give me this ride in
     // another app" but "give me this ride on paper".
-    if (state.ride.roadbookUrl) dls.push(dlButton(state.ride.roadbookUrl, "Roadbook", false, "A page to print and carry"));
+    if (state.ride.roadbookUrl)
+      dls.push(dlButton(state.ride.roadbookUrl, Wc("roadbook"), false, "A page to print and carry"));
     if (state.ride.nativeUrl) {
       dls.push(
-        dlButton(state.ride.nativeUrl + "?dl", "Routeloop", true, "Lossless \u2014 re-imports as the same ride"),
+        dlButton(
+          state.ride.nativeUrl + "?dl",
+          "Routeloop",
+          true,
+          "Lossless \u2014 re-imports as the same " + W("journey"),
+        ),
       );
     }
     if (state.ride.externalUrl && /^https?:/i.test(state.ride.externalUrl)) {
-      dls.push(dlButton(state.ride.externalUrl, "URL", false, "Where this ride was imported from"));
+      dls.push(dlButton(state.ride.externalUrl, "URL", false, "Where this " + W("journey") + " was imported from"));
     }
     if (dls.length) {
       table.innerHTML += '<tr class="route-downloads-row"><td colspan="2">' + dls.join(" ") + "</td></tr>";
@@ -580,8 +605,12 @@
       table.innerHTML +=
         '<tr class="route-downloads-row route-zip-row"><td colspan="2">' +
         '<a class="route-zip-label" data-tip="route-zip" href="/faq#one-file-per-route" target="_blank" rel="noopener" ' +
-        'title="One file per route, named so they re-import in order and dated">' +
-        "One file per route (zip)</a>: " +
+        'title="One file per ' +
+        esc(W("route")) +
+        ', named so they re-import in order and dated">' +
+        "One file per " +
+        esc(W("route")) +
+        " (zip)</a>: " +
         zips +
         "</td></tr>";
     }
@@ -631,7 +660,7 @@
             window.location.href = "/builder/" + data.id;
           } catch (e) {
             cloneBtn.disabled = false;
-            cloneBtn.textContent = "Clone this ride";
+            cloneBtn.textContent = "Clone this " + W("journey");
             console.warn("[viewer] clone:", e);
           }
         });

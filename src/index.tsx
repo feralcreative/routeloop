@@ -60,7 +60,8 @@ import { memberOrOwner } from './members/service'
 import { groupRange } from './bikes/group-range'
 import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
-import { googleMapsLoader, page, panelShell, rideTimeline } from './views/layout'
+import { googleMapsLoader, page, panelShell, rideTimeline, wordsOf } from './views/layout'
+import { DEFAULT_VOCAB, Wds, wd, wordsFor, type Words } from './views/vocab'
 import { notFoundPage } from './views/not-found'
 import { asset } from './views/assets'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
@@ -736,6 +737,8 @@ function viewerPanel(
   signedIn = false,
   rosterUrl: string | null = null,
   qrSvg: string | null = null,
+  // The ride's words (#321): its own vehicle over the viewer's default.
+  w: Words = wordsFor(DEFAULT_VOCAB),
 ): string {
   return panelShell({
     title: m.title,
@@ -757,7 +760,12 @@ function viewerPanel(
             disabled control, since there is no action to enable.
           */}
           {builderLink && (
-            <a class="panel-edit" href={builderLink.href} data-tip="viewer-edit" title="Open this ride in the builder">
+            <a
+              class="panel-edit"
+              href={builderLink.href}
+              data-tip="viewer-edit"
+              title={`Open this ${wd(w, 'journey')} in the builder`}
+            >
               {builderLink.label}
             </a>
           )}
@@ -773,7 +781,7 @@ function viewerPanel(
               data-tip="viewer-clone"
               title="Make a copy that is yours"
             >
-              Clone this ride
+              Clone this {wd(w, 'journey')}
             </button>
           )}
           {/*
@@ -783,8 +791,13 @@ function viewerPanel(
             permission to see a route, not to see the roster.
           */}
           {rosterUrl && (
-            <a class="panel-roster-link" href={rosterUrl} data-tip="viewer-roster" title="Who is on this ride">
-              Riders and the vote
+            <a
+              class="panel-roster-link"
+              href={rosterUrl}
+              data-tip="viewer-roster"
+              title={`Who is on this ${wd(w, 'journey')}`}
+            >
+              {Wds(w, 'person')} and the vote
             </a>
           )}
           {/*
@@ -806,7 +819,7 @@ function viewerPanel(
               <div class="qr-card">
                 <div class="qr-code">{raw(qrSvg)}</div>
                 <p class="qr-url">{`${APP_ORIGIN}/m/${m.slug}`}</p>
-                <p class="qr-hint">Point a camera at this to open the ride.</p>
+                <p class="qr-hint">Point a camera at this to open the {wd(w, 'journey')}.</p>
               </div>
             </details>
           )}
@@ -852,9 +865,12 @@ function viewHtml(
   range: ViewerRange,
   qrSvg: string | null,
 ): string {
+  const w = wordsOf({ user, ride: m })
   return page({
     title: m.title,
     user,
+    words: w,
+    ride: m,
     variant: 'map',
     noscript: VIEWER_NOSCRIPT,
     // Matches areaFromPath('/m/:slug') in src/feedback/policy.ts.
@@ -866,7 +882,8 @@ function viewHtml(
       Boolean(user),
       onRoster ? `/m/${m.slug}/riders` : null,
       qrSvg,
-    )}\n\n  ${rideTimeline()}`,
+      w,
+    )}\n\n  ${rideTimeline({ words: w })}`,
     tb: {
       rideUrl: `/api/public/rides/${m.slug}/ride.json`,
       gmapsKey: GMAPS_KEY,
