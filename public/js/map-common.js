@@ -1528,9 +1528,9 @@
   //
   // THE WIDTH IS THE RIDER'S TO SET. Ziad's call, 2026-09-13: a handle on the
   // drawer's right edge replaces the collapse icon on a wide screen. Drag it
-  // and the drawer follows; held below DRAWER_MIN it stops at the minimum
-  // and warns, collapsing into the rail on release; pulled back out it pops
-  // to DRAWER_MIN and goes on up to DRAWER_MAX_VW of the viewport. A click with no drag toggles collapsed, which is what the
+  // and the drawer follows; pushed under DRAWER_MIN it folds into the rail,
+  // and pulled back out it pops to DRAWER_MIN and goes on up to
+  // DRAWER_MAX_VW of the viewport. A click with no drag toggles collapsed, which is what the
   // icon did; the arrow keys move it for a keyboard. Remembered in localStorage
   // — a width is a fact about this screen, not the rider — and applied before
   // first paint by the inline script page() emits after the drawer, so the
@@ -1630,8 +1630,8 @@
         x0: e.clientX,
         w0: panel.classList.contains("collapsed") ? 0 : current(),
         moved: false,
-        under: false,
         opening: false,
+        closing: false,
         map,
       };
       html.classList.add("is-resizing");
@@ -1648,20 +1648,16 @@
       // outward at all, and follows the pointer from there — waiting for the
       // pointer to reach 360px would leave a pull of 300px doing nothing.
       //
-      // UNDER THE MINIMUM IT WARNS AND WAITS. Ziad's call, 2026-09-13, after
-      // a first pass collapsed the moment the edge crossed 360px: the drawer
-      // stops at the minimum and the handle glows (html.will-collapse) while
-      // the pointer is held past it, and the collapse happens on release —
-      // so a rider who overshoots can pull back and nothing has folded.
+      // ONE GESTURE, ONE DIRECTION. Ziad's call, 2026-09-13: a pull from the
+      // rail pops the drawer to the minimum and it stays open on release
+      // wherever the pointer ends up, and a push past the minimum folds it
+      // and it stays folded on release even if the pointer comes back — the
+      // drag decided, and the rest of the gesture is the rider letting go. A
+      // warn-and-wait version (hold at 360, glow, fold on release) was tried
+      // and pulled the same day: it read as the drawer resisting.
       const want = e.clientX;
-      const collapsed = panel.classList.contains("collapsed");
-      //
-      // AND A DRAG THAT OPENED IT NEVER CLOSES IT. Ziad's call, 2026-09-13: a
-      // pull from the rail pops the drawer to the minimum, and a rider whose
-      // pointer is still short of 360px on release was opening it, not
-      // closing it — so the pop-open sticks and the warning is never armed on
-      // that gesture. Only a drag that STARTED open can fold it.
-      if (collapsed) {
+      if (drag.closing) return;
+      if (panel.classList.contains("collapsed")) {
         if (dx > 12) {
           setCollapsed(false);
           drag.opening = true;
@@ -1669,10 +1665,11 @@
         }
       } else if (drag.opening) {
         setWidth(Math.max(DRAWER_MIN, want));
+      } else if (want < DRAWER_MIN) {
+        setCollapsed(true);
+        drag.closing = true;
       } else {
         setWidth(want);
-        drag.under = want < DRAWER_MIN;
-        html.classList.toggle("will-collapse", drag.under);
       }
     });
     const finish = (e) => {
@@ -1680,15 +1677,12 @@
       const d = drag;
       drag = null;
       html.classList.remove("is-resizing");
-      html.classList.remove("will-collapse");
       try {
         handle.releasePointerCapture(e.pointerId);
       } catch (err) {
         /* already released */
       }
-      if (d.under) {
-        setCollapsed(true);
-      } else if (!d.moved) {
+      if (!d.moved) {
         // A click. Collapsed pops open to the minimum, as a pull would.
         const collapsed = !panel.classList.contains("collapsed");
         setCollapsed(collapsed);
