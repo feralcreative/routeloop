@@ -440,13 +440,13 @@ export async function accountPage(
         <section class="setting-topic" id="jargon">
           <h2>Vocabulary</h2>
           <p>
-            A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. Pick what you drive and what it
-            runs on, and every page uses the words that fit; a ride can carry its own in the builder. Any word you would
-            rather say differently, say it&nbsp;here.
+            A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. The two defaults below decide
+            which set every page starts from; a ride can carry its own pair in the builder. Under them, any single word
+            can be overridden with one you would rather&nbsp;say.
           </p>
           <div class="three-col">
             <section class="setting" id="vehicle">
-              <h3>What you are on</h3>
+              <h3>Default: what you are on</h3>
               <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Vehicle</legend>
@@ -468,7 +468,7 @@ export async function accountPage(
             </section>
 
             <section class="setting" id="power">
-              <h3>What it runs on</h3>
+              <h3>Default: what it runs on</h3>
               <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Power</legend>
@@ -491,10 +491,11 @@ export async function accountPage(
           </div>
 
           <section class="setting setting--wide" id="words">
-            <h3>Your words</h3>
+            <h3>Overrides: your own words</h3>
             <p class="setting-hint">
-              The choice marked default follows the pickers above. Pick another, or type your own—a slash gives it a
-              plural, like <code>person/people</code>.
+              The choice marked default comes from the two defaults above and moves with them. Pick another, or type
+              your own, and that word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
+              <code>person/people</code>.
             </p>
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
               <table class="jargon-table">
