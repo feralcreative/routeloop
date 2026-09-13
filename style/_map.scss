@@ -585,14 +585,10 @@ html.map-page.is-resizing {
   // grab and invisible until hovered or focused — a visible bar down every
   // drawer would be furniture. The bar it paints on hover is the affordance;
   // `col-resize` is the cursor for exactly this.
-  // IT LOOKS LIKE A HANDLE, AND THE SAME HANDLE AS EVERY OTHER GRIP HERE.
-  // Ziad's call, 2026-09-13, after a first pass that painted only a hairline
-  // on hover and a second that drew two ribs: the hit area is the whole edge,
-  // and a tab halfway down it carries the DOTS — the 4px dot tile .row-drag,
-  // .route-drag and .sg-drag all use, two columns by three rows — so this
-  // reads as the same gesture as reordering a stop. The tab is inside the
-  // drawer (it clips overflow) and hugs the edge; hover and focus darken the
-  // dots and light a line down the edge itself.
+  // IT LOOKS LIKE A HANDLE. The hit area is the whole edge, and a pill halfway
+  // down it is the affordance — see ::after below for its shape and the shapes
+  // it replaced. The pill is inside the drawer (it clips overflow); hover and
+  // focus color it and light a line down the edge itself.
   .drawer-resize {
     display: none;
     position: absolute;
@@ -617,38 +613,22 @@ html.map-page.is-resizing {
       transition: opacity 0.15s ease;
     }
 
-    // The grip tab, built like .route-drag: a tab with a FIXED 8×12 dot box
-    // centered in it, on the same 4px tile. 14×44 clears the tap-target minimum
-    // on height.
+    // THE GRIP IS A PILL. Ziad's call, 2026-09-13, the fourth shape tried
+    // (a hover hairline, two ribs, and the dotted tab the row grips carry
+    // came before it): a single 4×80 bar, centered in the drawer's 16px
+    // padding so it sits 6px off the edge and 6px off the content, gray at
+    // rest and brand on hover or focus.
     &::after {
       content: "";
       position: absolute;
       top: 50%;
-      // One pixel in from the drawer's edge and one pixel short of the content
-      // — Ziad's call, 2026-09-13 — so the tab reads as a thing sitting on the
-      // panel, not a notch cut out of its border, and fills the drawer's own
-      // 16px padding but for that pixel either side. The strip is 20px wide to
-      // hold it.
-      right: 1px;
-      width: 14px;
-      height: 44px;
-      margin-top: -22px;
-      box-sizing: border-box;
-      border: 1px solid $neutral-76;
-      border-radius: 7px;
-      // Six tiles placed by hand rather than one repeating tile, which would
-      // speckle the whole pill — the trap .route-drag records. Columns at 2
-      // and 6, rows at 14, 18 and 22, inside the border: an 8×12 box centered
-      // in the 12×42 padding box.
-      background:
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 14px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 14px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 18px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 18px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 22px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 22px / 4px 4px no-repeat,
-        $neutral-94;
-      transition: border-color 0.15s ease;
+      right: 6px;
+      width: 4px;
+      height: 80px;
+      margin-top: -40px;
+      border-radius: 2px;
+      background: $neutral-76;
+      transition: background-color 0.15s ease;
     }
 
     &:hover::before,
@@ -658,7 +638,7 @@ html.map-page.is-resizing {
 
     &:hover::after,
     &:focus-visible::after {
-      border-color: $brand;
+      background: $brand;
     }
 
     &:focus-visible {
