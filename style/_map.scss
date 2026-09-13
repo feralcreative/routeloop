@@ -599,7 +599,7 @@ html.map-page.is-resizing {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 12px;
+    width: 20px;
     cursor: col-resize;
     z-index: 2;
     touch-action: none;
@@ -618,31 +618,35 @@ html.map-page.is-resizing {
     }
 
     // The grip tab, built like .route-drag: a tab with a FIXED 8×12 dot box
-    // centered in it, on the same 4px tile. 14×44 clears the tap-target minimum
+    // centered in it, on the same 4px tile. 12×44 clears the tap-target minimum
     // on height.
     &::after {
       content: "";
       position: absolute;
       top: 50%;
-      right: 1px;
-      width: 14px;
+      // Set in from the drawer's edge rather than flush with it — Ziad's
+      // call, 2026-09-13 — so the tab reads as a thing sitting on the panel,
+      // not a notch cut out of its border. The strip is 20px wide to hold it.
+      right: 4px;
+      width: 12px;
       height: 44px;
       margin-top: -22px;
       box-sizing: border-box;
-      border: 1px solid $grey;
+      border: 1px solid $neutral-76;
       border-radius: 7px;
       // Six tiles placed by hand rather than one repeating tile, which would
-      // speckle the whole pill — the trap .route-drag records. Columns at 2
-      // and 6, rows at 14, 18 and 22, inside the border: an 8×12 box centered
-      // in the 12×42 padding box.
+      // speckle the whole pill — the trap .route-drag records. Columns at 1
+      // and 5, rows at 14, 18 and 22, inside the border: an 8×12 box centered
+      // in the 10×42 padding box. 12 wide plus the 4px inset is the drawer's
+      // own 16px padding, so the tab never crosses onto the content.
       background:
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 14px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 14px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 18px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 18px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 2px 22px / 4px 4px no-repeat,
-        radial-gradient($neutral-50 1.1px, transparent 1.3px) 6px 22px / 4px 4px no-repeat,
-        $white;
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 1px 14px / 4px 4px no-repeat,
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 5px 14px / 4px 4px no-repeat,
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 1px 18px / 4px 4px no-repeat,
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 5px 18px / 4px 4px no-repeat,
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 1px 22px / 4px 4px no-repeat,
+        radial-gradient($neutral-50 1.1px, transparent 1.3px) 5px 22px / 4px 4px no-repeat,
+        $neutral-94;
       transition: border-color 0.15s ease;
     }
 
