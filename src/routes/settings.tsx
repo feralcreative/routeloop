@@ -29,33 +29,38 @@ import { toTips } from '../views/tips'
 import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
 import { checkedKeys, rowsFromForm } from '../notifications/policy'
 import { savePrefs } from '../notifications/service'
-import { accountPage } from '../views/account-page'
+import { accountPage, type AccountTab } from '../views/account-page'
 import { loadProfile, profilePanel, PROFILE_SCRIPTS } from './profile'
 import { usernameHistoryFor } from '../auth/username'
 
 export const settingsRoutes = new Hono<AuthEnv>()
 
-settingsRoutes.get('/settings', requireActive, async (c) => {
+/** The account page with one tab open. `/profile` renders the same page from
+ *  profile.tsx, which owns that form's error re-render. */
+async function renderAccount(c: Context<AuthEnv>, tab: AccountTab): Promise<string> {
   const user = currentUser(c)
-  return c.html(
-    await accountPage(c, {
-      tab: 'preferences',
-      // THE PROFILE PANEL IS RENDERED EVEN WHEN ITS TAB IS SHUT, because
-      // tabs.js swaps `hidden` client-side with no round trip — a panel that is
-      // not in the DOM is a tab that does nothing. Its cost is one query.
-      profile: profilePanel({
-        user,
-        values: {
-          ...(await loadProfile(user.id)),
-          username: user.username ?? '',
-          displayName: user.displayName,
-        },
-        history: await usernameHistoryFor(user.id),
-      }),
-      scripts: PROFILE_SCRIPTS,
+  return accountPage(c, {
+    tab,
+    // THE PROFILE PANEL IS RENDERED EVEN WHEN ITS TAB IS SHUT, because
+    // tabs.js swaps `hidden` client-side with no round trip — a panel that is
+    // not in the DOM is a tab that does nothing. Its cost is one query.
+    profile: profilePanel({
+      user,
+      values: {
+        ...(await loadProfile(user.id)),
+        username: user.username ?? '',
+        displayName: user.displayName,
+      },
+      history: await usernameHistoryFor(user.id),
     }),
-  )
-})
+    scripts: PROFILE_SCRIPTS,
+  })
+}
+
+settingsRoutes.get('/settings', requireActive, async (c) => c.html(await renderAccount(c, 'preferences')))
+// Two more doors into the same page (#319), the `/riders` + `/friends` shape.
+settingsRoutes.get('/places', requireActive, async (c) => c.html(await renderAccount(c, 'places')))
+settingsRoutes.get('/paddock', requireActive, async (c) => c.html(await renderAccount(c, 'paddock')))
 
 // One preference, one route, one column.
 //

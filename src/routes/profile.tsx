@@ -638,48 +638,9 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           )}
         </fieldset>
 
-        {/*
-          Saved places. NOT part of the profile form's own submit — every write
-          goes through /api/places as JSON, so this is a region inside the
-          fieldset rather than fields on it. A nested <form> would be invalid
-          HTML and the outer submit would swallow it.
-
-          Places are CREATED from the builder ("Save to my places" on a stop),
-          because a place needs a pin and the builder is where the map is. This
-          screen is for organizing what is already there: rename, refile, delete.
-          A create-from-scratch flow here wants the address picker from roadmap
-          item 19 and should wait for it rather than ship a lat/lng text box.
-        */}
-        {/*
-          THE PADDOCK. Same arrangement as Your places below: a region inside
-          this form that is not part of its submit, driven by paddock.js against
-          /api/bikes. A nested <form> would be invalid markup and the outer
-          submit would swallow its controls.
-
-          Full-span rather than sharing the two-up grid, because a bike row is a
-          photo plus seven fields and half a column is not enough for it.
-        */}
-        <fieldset class="full-span">
-          <legend>Paddock</legend>
-          <p class="field-hint">
-            The bikes you ride. A range here is what the app will plan fuel stops around&nbsp;later.
-          </p>
-          <div id="paddock" data-paddock>
-            <p class="field-hint">Loading&hellip;</p>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Your places</legend>
-          <p class="field-hint">
-            Save a stop from the ride builder and it turns up here, and in the builder&rsquo;s search box on every ride
-            after&nbsp;that.
-          </p>
-          <div id="places-manager" data-places-manager>
-            <p class="field-hint">Loading&hellip;</p>
-          </div>
-        </fieldset>
-
+        {/* Places and the Paddock used to sit here as two regions inside this
+            form. They are tabs of the account page now (#319) — see
+            placesPanel() and paddockPanel() in views/account-page.tsx. */}
         {/*
           THE BUTTON STAYS (#100). Autosave relabels this row rather than
           replacing it: with script off the button is the only way to save, and

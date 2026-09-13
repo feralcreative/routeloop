@@ -360,7 +360,7 @@ function Fuel({ range }: { range: GroupRange }) {
     return (
       <p class="roster-fuel is-quiet">
         Nobody coming has a range on file, so there is nothing to plan fuel stops around. Ranges live in the{' '}
-        <a href="/profile">paddock</a>.
+        <a href="/paddock">paddock</a>.
       </p>
     )
   }

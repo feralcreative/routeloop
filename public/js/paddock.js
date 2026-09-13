@@ -1,11 +1,9 @@
-// The Paddock — a rider's bikes, on the profile page.
+// The Paddock — a rider's bikes, on its own tab of the account page (#319).
 //
 // Mirrors places.js deliberately: same delegated-listener shape, same
-// save-on-change editing, same "this region sits INSIDE the profile form but is
-// not part of its submit" arrangement. A nested <form> would be invalid markup
-// and the outer submit would swallow these controls, so every write here goes to
-// /api/bikes as JSON — except the photo, which is multipart because that is what
-// a file input posts.
+// save-on-change editing. It sat inside the profile form until #319 and was
+// never part of its submit, so every write here goes to /api/bikes as JSON —
+// except the photo, which is multipart because that is what a file input posts.
 //
 // RANGES ARE MILES ON THIS SIDE OF THE WIRE. The column stores meters; the API
 // converts both ways so nothing here has to know that. See src/bikes/policy.ts.
@@ -26,6 +24,7 @@
 
   let bikes = [];
   let max = 0;
+  let tankUnit = "gal";
 
   async function api(path, options) {
     const res = await fetch(path, options);
@@ -47,6 +46,7 @@
       const data = await api("/api/bikes");
       bikes = data.bikes || [];
       max = data.max || 0;
+      tankUnit = data.tankUnit || tankUnit;
       render();
     } catch (e) {
       host.innerHTML = '<p class="field-hint">Could not load your bikes. Reload to try again.</p>';
@@ -91,6 +91,19 @@
     );
   }
 
+  // THE EMPTY PADDOCK IS ONE BLANK ROW, NOT A HINT. Ziad's call, 2026-09-13
+  // (#319): at least one bike should be on file — the fuel overlay and the
+  // tour's fuel part both read a range — and "No bikes yet" plus an add box
+  // asked for a name before showing what a bike record even is. The row is the
+  // real form with no id behind it; the first field a rider commits POSTs the
+  // bike and the row becomes that bike in place, without a re-render taking the
+  // field they have moved on to (#188).
+  const BLANK = { id: "", label: "Your first bike", fuelType: "gas", isDefault: true };
+
+  function isNew(row) {
+    return row.classList.contains("is-new");
+  }
+
   function bikeRow(bike) {
     const fuel = ["gas", "electric"]
       .map(
@@ -106,7 +119,9 @@
       .join("");
 
     return (
-      '<li class="bike" data-id="' +
+      '<li class="bike' +
+      (bike.id === "" ? " is-new" : "") +
+      '" data-id="' +
       bike.id +
       '">' +
       photoCell(bike) +
@@ -131,22 +146,28 @@
       field(
         bike,
         "tank",
-        "Tank (" + esc(bike.tankUnit || "gal") + ")",
+        "Tank (" + esc(bike.tankUnit || tankUnit) + ")",
         'type="number" min="0.1" step="0.1" placeholder="unmeasured"',
       ) +
       "</div>" +
       '<div class="bike-actions">' +
       (bike.isDefault ? "" : '<button type="button" class="linkbtn" data-act="default">Make default</button>') +
-      '<button type="button" class="linkbtn" data-act="delete">Delete</button>' +
+      (bike.id === "" ? "" : '<button type="button" class="linkbtn" data-act="delete">Delete</button>') +
       "</div></li>"
     );
   }
 
   function render() {
-    const list = bikes.length
-      ? '<ul class="bike-list">' + bikes.map(bikeRow).join("") + "</ul>"
-      : '<p class="field-hint">No bikes yet. Add one and the app can plan fuel stops around its range.</p>';
+    const list =
+      '<ul class="bike-list">' +
+      (bikes.length ? bikes.map(bikeRow).join("") : bikeRow(BLANK)) +
+      "</ul>" +
+      (bikes.length
+        ? ""
+        : '<p class="field-hint">Fill in what you know; the range is what the app plans fuel stops around.</p>');
 
+    // The add box stays under the blank row, for a rider who would rather name
+    // a bike than fill one in.
     const adder =
       bikes.length >= max
         ? '<p class="field-hint">That is as many bikes as we hold (' + max + ").</p>"
@@ -233,11 +254,22 @@
   async function save(row) {
     if (!row) return;
     try {
-      const bike = await api("/api/bikes/" + row.getAttribute("data-id"), {
-        method: "PUT",
+      // The blank row's first commit creates the bike; it then IS that bike,
+      // so the row takes the id and every later change is an ordinary PUT.
+      const fresh = isNew(row);
+      const bike = await api(fresh ? "/api/bikes" : "/api/bikes/" + row.getAttribute("data-id"), {
+        method: fresh ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload(row)),
       });
+      if (fresh) {
+        row.classList.remove("is-new");
+        row.setAttribute("data-id", String(bike.id));
+        bikes.push(bike);
+        const acts = row.querySelector(".bike-actions");
+        if (acts) acts.innerHTML = '<button type="button" class="linkbtn" data-act="delete">Delete</button>';
+        wire();
+      }
       const i = bikes.findIndex((b) => String(b.id) === row.getAttribute("data-id"));
       if (i >= 0) bikes[i] = bike;
       patchRow(row, bike);
@@ -273,6 +305,10 @@
       } else if (act === "photo") {
         const file = el.files && el.files[0];
         if (!file) return;
+        if (!id) {
+          fail("Fill in a field first so the bike exists, then add its photo.");
+          return;
+        }
         const form = new FormData();
         form.append("photo", file);
         await api("/api/bikes/" + id + "/photo", { method: "POST", body: form });

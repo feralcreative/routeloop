@@ -79,7 +79,13 @@ bikesRoutes.get('/api/bikes', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const liters = (await volumeFor(c)) === 'liters'
   const rows = await listBikes(user.id)
-  return c.json({ bikes: rows.map((b) => serialize(b, liters)), max: MAX_BIKES })
+  // `tankUnit` at the list level as well as per bike: an empty paddock draws a
+  // blank row before any bike exists to carry the unit (#319).
+  return c.json({
+    bikes: rows.map((b) => serialize(b, liters)),
+    max: MAX_BIKES,
+    tankUnit: volumeUnit(liters ? 'liters' : 'gallons'),
+  })
 })
 
 bikesRoutes.post('/api/bikes', requireActiveApi, requireSameOrigin, async (c) => {
