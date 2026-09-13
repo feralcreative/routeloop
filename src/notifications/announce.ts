@@ -20,6 +20,7 @@
 // then have to merge two sources to order them by time, the badge would be two
 // counts, and none of the existing preference or read machinery would apply. A
 // row each buys all of it for the price of N inserts.
+import { and, eq, notInArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import { announcedReleases, notifications, users } from '../db/schema'
 import { content } from '../views/content'
@@ -90,10 +91,41 @@ export async function announceReleases(): Promise<number> {
     .values(releases.map((r) => ({ id: r.id })))
     .onConflictDoNothing()
     .returning({ id: announcedReleases.id })
-  if (claimed.length === 0) return 0
-
   const won = new Set(claimed.map((c) => c.id))
   const mine = releases.filter((r) => won.has(r.id))
+
+  // **A RENAMED HEADING IS A NEW ID, AND THE ROWS UNDER THE OLD ONE ARE
+  // ORPHANS.** The heading is the announcement's identity (see the file header),
+  // so editing one — merging a day's sections into one, fixing a title — leaves
+  // every rider's center holding the old row beside the one this claim writes.
+  // Seen on 2026-09-13, when eight days were merged to one section each and
+  // every merged day showed twice. The orphans go, and so do their claims, so a
+  // heading renamed BACK is announced again rather than being remembered as
+  // done with no row to show for it. Reconciled here on every boot rather than
+  // by a one-off statement, because a data fix that runs nowhere is the class
+  // of migration AGENTS.md records as failing silently.
+  //
+  // **AN ORPHAN FROM THE SAME DAY AS THE NEWEST RELEASE KEEPS IT QUIET.** The
+  // newest heading is the one that goes out loud, and a rename of it would
+  // otherwise mail every rider about a release they were already told about.
+  // Ids are slugs of the heading and open with the date, so "the same day" is
+  // a prefix test on the id.
+  const live = releases.map((r) => releaseUrl(r))
+  const orphans = await db
+    .delete(notifications)
+    .where(and(eq(notifications.event, 'release'), notInArray(notifications.url, live)))
+    .returning({ url: notifications.url })
+  await db.delete(announcedReleases).where(
+    notInArray(
+      announcedReleases.id,
+      releases.map((r) => r.id),
+    ),
+  )
+  const orphanIds = new Set(orphans.map((o) => (o.url ?? '').replace(/^\/release-notes#/, '')))
+  const datePrefix = (id: string) => id.match(/^\d{1,2}-[a-z]+-\d{4}/)?.[0] ?? id
+  const alreadyTold = (r: Release) => [...orphanIds].some((id) => datePrefix(id) === datePrefix(r.id))
+  if (orphans.length > 0) console.log(`[announce] removed ${orphans.length} release rows under renamed headings`)
+  if (mine.length === 0) return 0
 
   // EVERY RIDER, INCLUDING PENDING AND SUSPENDED ONES. A release note is not
   // about their account, the old ones are written as read, and filtering on
@@ -107,7 +139,7 @@ export async function announceReleases(): Promise<number> {
   // adds an OLD entry to the history announces it quietly rather than raising a
   // badge for something that shipped in July.
   const [head, ...older] = mine
-  const isNew = head.id === releases[0].id
+  const isNew = head.id === releases[0].id && !alreadyTold(head)
   const quiet = isNew ? older : mine
 
   if (quiet.length > 0) {
