@@ -57,7 +57,20 @@ async function renderAccount(c: Context<AuthEnv>, tab: AccountTab): Promise<stri
   })
 }
 
-settingsRoutes.get('/settings', requireActive, async (c) => c.html(await renderAccount(c, 'preferences')))
+// `/account` IS THE PAGE AND `/settings` REDIRECTS TO IT (#320). Ziad's call,
+// 2026-09-13: one My Account item in the menu instead of Profile and
+// Preferences, and the page is titled Account settings. The redirect is a 301
+// with the query carried over, so a `?saved=` that reached the old URL still
+// shows its chip; the fragment survives on its own, browsers keep it across a
+// redirect. THE POST ACTIONS STAY AT `/settings/*` — a 301 turns a redirected
+// POST into a GET and the save silently does nothing, which is the trap
+// docs/main-menu.md recorded for the rename that never shipped. They are form
+// actions, not pages, and nothing a rider types or reads names them.
+settingsRoutes.get('/account', requireActive, async (c) => c.html(await renderAccount(c, 'preferences')))
+settingsRoutes.get('/settings', (c) => {
+  const q = new URL(c.req.url).search
+  return c.redirect('/account' + q, 301)
+})
 // Two more doors into the same page (#319), the `/riders` + `/friends` shape.
 settingsRoutes.get('/places', requireActive, async (c) => c.html(await renderAccount(c, 'places')))
 settingsRoutes.get('/paddock', requireActive, async (c) => c.html(await renderAccount(c, 'paddock')))
@@ -102,7 +115,7 @@ settingsRoutes.post('/settings/duration-format', requireActive, requireSameOrigi
     })
 
   // Redirect rather than re-render so a refresh cannot resubmit.
-  return c.redirect('/settings?saved=duration#stop-durations', 303)
+  return c.redirect('/account?saved=duration#stop-durations', 303)
 })
 
 settingsRoutes.post('/settings/date-format', requireActive, requireSameOrigin, async (c) => {
@@ -125,7 +138,7 @@ settingsRoutes.post('/settings/date-format', requireActive, requireSameOrigin, a
       set: { dateFormat, updatedAt: new Date() },
     })
 
-  return c.redirect('/settings?saved=dates#dates', 303)
+  return c.redirect('/account?saved=dates#dates', 303)
 })
 
 settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, async (c) => {
@@ -173,7 +186,7 @@ settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, as
       set: { theme, scheme, motion, updatedAt: new Date() },
     })
 
-  return c.redirect('/settings?saved=appearance#appearance', 303)
+  return c.redirect('/account?saved=appearance#appearance', 303)
 })
 
 // Miles or kilometers.
@@ -210,7 +223,7 @@ settingsRoutes.post('/settings/units', requireActive, requireSameOrigin, async (
       set: { units, updatedAt: new Date() },
     })
 
-  return c.redirect('/settings?saved=units#units', 303)
+  return c.redirect('/account?saved=units#units', 303)
 })
 
 // Whether a control explains itself (#133).
@@ -245,7 +258,7 @@ settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c
       set: { tips, updatedAt: new Date() },
     })
 
-  return c.redirect('/settings?saved=tips#tips', 303)
+  return c.redirect('/account?saved=tips#tips', 303)
 })
 
 // Whether the header's Take the tour sign is shown. Ziad's call, 2026-09-11.
@@ -257,7 +270,7 @@ settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c
 settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const body = await c.req.parseBody()
-  if (body.present !== '1') return c.redirect('/settings#tips', 303)
+  if (body.present !== '1') return c.redirect('/account#tips', 303)
   const hideTour = body.hideTour === 'on'
 
   await db
@@ -273,7 +286,7 @@ settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, a
       set: { hideTour, updatedAt: new Date() },
     })
 
-  return c.redirect('/settings?saved=tour-button#tips', 303)
+  return c.redirect('/account?saved=tour-button#tips', 303)
 })
 
 // Twelve- or twenty-four-hour time (#270).
@@ -303,7 +316,7 @@ settingsRoutes.post('/settings/clock', requireActive, requireSameOrigin, async (
     })
     .onConflictDoUpdate({ target: userProfiles.userId, set: { clock, updatedAt: new Date() } })
 
-  return c.redirect('/settings?saved=clock#clock', 303)
+  return c.redirect('/account?saved=clock#clock', 303)
 })
 
 // Gallons or liters (#270). Same contract as every handler above, `dateFormat`
@@ -323,7 +336,7 @@ settingsRoutes.post('/settings/volume', requireActive, requireSameOrigin, async 
     })
     .onConflictDoUpdate({ target: userProfiles.userId, set: { volumeUnits, updatedAt: new Date() } })
 
-  return c.redirect('/settings?saved=volume#volume', 303)
+  return c.redirect('/account?saved=volume#volume', 303)
 })
 
 // The places a rider would rather not stop at (#271).
@@ -399,7 +412,7 @@ settingsRoutes.post('/settings/notifications', requireActive, requireSameOrigin,
   // Anything unrecognized lands back on the page having written nothing, which
   // is the same contract every other handler here follows: the only way to send
   // a bad value is to hand-craft the request.
-  if (!group) return c.redirect('/settings#notifications', 303)
+  if (!group) return c.redirect('/account#notifications', 303)
 
   const events = eventsInGroup(group.id as GroupId).map((e) => e.key)
   await savePrefs(user.id, rowsFromForm(events, checkedKeys(body as Record<string, unknown>)))

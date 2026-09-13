@@ -74,13 +74,13 @@ export type NavKey =
   // 'rides': /friends became a tab of the riders screen (#179), both its URLs
   // set 'riders', and a key no NavItem carries is an aria-current that is wired
   // and can never fire.
-  // 'profile' AND 'settings' NOW NAME TWO DOORS INTO ONE PAGE (#269), which is
-  // why both survive the merge. The rule on this union is that a key no NavItem
-  // carries is an aria-current that is wired and can never fire — and both are
-  // still carried and both still fire, because the account menu keeps an item
-  // for each and /profile and /settings each set their own. Collapsing them to
-  // one key would mark BOTH items current on every visit, which is worse than
-  // the duplication it would be tidying away.
+  // 'profile' AND 'settings' NAME TWO DOORS INTO ONE PAGE (#269). The menu
+  // carried an item for each until #320 folded them into My Account, which
+  // carries 'settings'; 'profile' survives because /profile still SETS it, and
+  // a page entered by that door must not light My Account as though it were
+  // the Preferences tab. The rule on this union is that a key nothing sets is
+  // an aria-current that is wired and can never fire; a key no item carries is
+  // merely one the menu does not highlight.
   | 'profile'
   | 'settings'
   | 'trash'
@@ -887,17 +887,18 @@ const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: 
           navKey={navKey}
           badge={unread}
         />
-        {/* TWO ITEMS, ONE PAGE (#269), the way /friends and /riders are — each
-            URL opens its own tab of /settings. They stay two because a rider
-            looking for their profile looks for the word "profile", and the point
-            of the merge is that they should not have to know which page it was
-            filed on. Each keeps its own key so exactly one is marked current.
-
-            "Preferences" rather than "Settings", 2026-09-07: the page's own tab
-            is called Preferences, and the menu naming it something else was the
-            same rider-has-to-translate problem the merge was for. */}
-        <NavLink item={{ key: 'profile', href: '/profile', label: 'Profile' }} navKey={navKey} />
-        <NavLink item={{ key: 'settings', href: '/settings', label: 'Preferences' }} navKey={navKey} />
+        {/* ONE ITEM, ONE PAGE (#320). Ziad's call, 2026-09-13, reversing the
+            #269 arrangement of a Profile item and a Preferences item side by
+            side: with Places and the Paddock as tabs too (#319) the page is
+            everything about the rider, and four menu items for four tabs — or
+            two for four — is the rider-has-to-translate problem the merge was
+            for. My Account opens it on Preferences; the tab strip is where the
+            rest is found. `/profile` keeps its own NavKey because the page
+            still sets it when entered by that door, and the union's rule is
+            that a carried key must be able to fire — it fires nowhere in this
+            menu now, which is allowed; what is not allowed is a key nothing
+            sets. */}
+        <NavLink item={{ key: 'settings', href: '/account', label: 'My Account' }} navKey={navKey} />
         {/* Under the account rather than under Rides: the bin holds saved places
             and groups as well, so it belongs to the rider rather than to their
             rides. */}

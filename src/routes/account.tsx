@@ -80,7 +80,7 @@ accountRoutes.get('/account/delete', requireActive, async (c) => {
         <>
           <p class="lede">{REFUSAL_MESSAGES[check.reason]}</p>
           <p>
-            <a href="/settings">Back to settings</a>
+            <a href="/account">Back to account settings</a>
           </p>
         </>
       ) : (
@@ -127,7 +127,7 @@ accountRoutes.get('/account/delete', requireActive, async (c) => {
               <button type="submit" class="btn btn-danger">
                 Delete Me
               </button>
-              <a href="/settings">Cancel</a>
+              <a href="/account">Cancel</a>
             </div>
           </form>
         </>
@@ -159,7 +159,7 @@ accountRoutes.post('/account/delete', requireActive, requireSameOrigin, async (c
 // cannot loop back into itself.
 accountRoutes.get('/account/gone', requireAuth, async (c) => {
   const user = currentUser(c)
-  if (!user.deletionRequestedAt) return c.redirect('/settings', 302)
+  if (!user.deletionRequestedAt) return c.redirect('/account', 302)
 
   const days = daysUntilPurge(user, new Date())
   const dateFormat = await dateFormatFor(c)
@@ -225,5 +225,5 @@ accountRoutes.get('/account/gone', requireAuth, async (c) => {
 accountRoutes.post('/account/save', requireAuth, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const restored = await cancelDeletion(user.id, 'rider')
-  return c.redirect(restored ? '/settings?saved=1' : '/account/gone', 302)
+  return c.redirect(restored ? '/account?saved=1' : '/account/gone', 302)
 })

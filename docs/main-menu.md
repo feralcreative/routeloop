@@ -30,8 +30,7 @@ About ▾
                                        ← the account menu is pushed right from here
 
 {displayName} {avatar} ▾
-  Your profile        /profile
-  Settings            /settings
+  My Account          /account         (Preferences · Profile · Places · Paddock tabs; /profile, /places, /paddock open theirs; /settings 301s here)
   Recycle bin         /trash
   ───
   Tell us something   /feedback
@@ -72,6 +71,8 @@ The drawer header carried an X beside the collapse button, and Ziad's call is th
 - What this gives up, stated plainly: the exit is now two taps rather than one. That is the point—leaving is not a thing to do by accident, and the collapse button, which is the one riders actually reach for, keeps its corner to itself.
 
 **[shipped] Import / Export is one page.** `/import` grew an export half rather than a second page being created beside it—the URL already exists, the FAQ links to it, and import is the primary action. The label in the menu is "Import / Export". **This is built**, not pending: `src/routes/import.tsx` renders `<h1>Import / Export</h1>` over two `.transfer-head` sections, and the export half lists the rider's own rides with a per-format download row. It read as an open decision here until 2026-08-16 and misled a planning pass; the URL keeps the singular name it shipped under.
+
+**[shipped 2026-09-13] One My Account item at `/account`, titled Account settings (#319, #320).** Places and the Paddock left the foot of the Profile form for tabs of their own, which made the page everything about the rider—and two menu items for four tabs was the rider-has-to-translate problem #269 was for. `/settings` 301s to `/account` with its query carried; the `POST /settings/*` form actions deliberately do not move, for the reason the superseded entry below records about redirected POSTs. Ziad's call.
 
 **[superseded 2026-09-07] Settings is renamed Preferences, and the canonical URL is `/prefs`.**
 
