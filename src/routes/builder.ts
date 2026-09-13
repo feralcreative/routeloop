@@ -30,6 +30,7 @@ import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline } from '../views/layout'
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
+import { POWERS, VEHICLES } from '../views/vocab'
 import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -303,6 +304,12 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     primarySubgroup: null,
     trunkSubgroup: null,
     stopByMin: null,
+    // The vehicle comes across (#321): a clone of a car trip is a car trip,
+    // and what the road was routed for is part of the plan the way routePrefs
+    // is. It is coerced on read, so a stored value the app no longer knows
+    // clones as null.
+    vehicle: VEHICLES.includes(src.vehicle as never) ? (src.vehicle as RidePayload['vehicle']) : null,
+    power: POWERS.includes(src.power as never) ? (src.power as RidePayload['power']) : null,
     timeAnchor: 'departure',
     routes: payloadRoutes,
   }
@@ -629,6 +636,8 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
     primarySubgroup: ride.primarySubgroupId ? (uidOf.get(ride.primarySubgroupId) ?? null) : null,
     trunkSubgroup: ride.trunkSubgroupId ? (uidOf.get(ride.trunkSubgroupId) ?? null) : null,
     stopByMin: ride.stopByMin,
+    vehicle: ride.vehicle,
+    power: ride.power,
     timeAnchor: ride.timeAnchor,
     routes: [] as unknown[],
   }

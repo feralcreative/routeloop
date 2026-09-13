@@ -186,12 +186,17 @@ export async function writeRideAnchors(
   trunkUid: string | null,
   timeAnchor: TimeAnchor,
   stopByMin: number | null,
+  // Which vehicle the ride is for (#321); in this write for the reason the
+  // anchor and stop-by are — a ride-level fact the payload carries whole.
+  vehicle: { vehicle: string | null; power: string | null },
 ): Promise<void> {
   await tx
     .update(rides)
     .set({
       primarySubgroupId: primaryUid ? (byUid.get(primaryUid) ?? null) : null,
       trunkSubgroupId: trunkUid ? (byUid.get(trunkUid) ?? null) : null,
+      vehicle: vehicle.vehicle,
+      power: vehicle.power,
       // ALL OF THEM IN ONE WRITE. The anchor was left out of the first draft of
       // this function and the round-trip test caught it: the payload carried
       // 'meet', the save reported success, and the ride came back 'departure'

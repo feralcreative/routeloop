@@ -274,6 +274,17 @@ export function wordsFor(profile: Vocab, ride?: { vehicle?: string | null; power
 /** The default profile, for a signed-out visitor and for a rider with no row. */
 export const DEFAULT_VOCAB: Vocab = { vehicle: DEFAULT_VEHICLE, power: DEFAULT_POWER, jargon: {} }
 
+/** The profile's vocab off the session user (or any row carrying the three
+ *  columns), coerced. Null user is the default. */
+export function vocabOf(u: { vehicle?: unknown; power?: unknown; jargon?: unknown } | null | undefined): Vocab {
+  if (!u) return DEFAULT_VOCAB
+  const vehicle = toVehicle(u.vehicle)
+  return { vehicle, power: toPower(u.power, vehicle), jargon: toJargon(u.jargon) }
+}
+
+/** The table as the client needs it — ids, axes and words, no labels. */
+export const clientTerms = () => TERMS.map((t) => ({ id: t.id, axis: t.axis, by: t.by, options: t.options }))
+
 export const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
 /** The settings page's two pickers. */

@@ -41,6 +41,8 @@ export function seedPayload(): RidePayload {
     primarySubgroup: TOUR_SEED.group.uid,
     trunkSubgroup: null,
     stopByMin: null,
+    vehicle: 'motorcycle',
+    power: 'gas',
     timeAnchor: 'departure',
     routes: [
       {

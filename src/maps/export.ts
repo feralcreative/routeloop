@@ -662,7 +662,12 @@ export async function loadNativeRide(
   const groups = await subgroupsOf(rideId)
   const subgroupUid = new Map(groups.map((g) => [g.id, g.uid]))
   const [rideRow] = await db
-    .select({ primary: rides.primarySubgroupId, trunk: rides.trunkSubgroupId })
+    .select({
+      primary: rides.primarySubgroupId,
+      trunk: rides.trunkSubgroupId,
+      vehicle: rides.vehicle,
+      power: rides.power,
+    })
     .from(rides)
     .where(eq(rides.id, rideId))
     .limit(1)
@@ -770,6 +775,12 @@ export async function loadNativeRide(
       primarySubgroup: primaryUid,
       trunkSubgroup: trunkUid,
       timeAnchor: meta.timeAnchor ?? 'departure',
+      // Which vehicle the ride is for (#321), read here rather than threaded
+      // through the four callers' meta. Nullable with a default in the payload
+      // schema, like stopByMin, so no format-version bump: a file without them
+      // is a ride on the owner's default vehicle.
+      vehicle: rideRow?.vehicle ?? null,
+      power: rideRow?.power ?? null,
       routes: out,
     },
   }

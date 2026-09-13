@@ -24,6 +24,7 @@ import { reconcileVotes } from '../votes/service'
 import { reconcileRouteRiders } from '../route-riders/service'
 import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
+import { POWERS, VEHICLES } from '../views/vocab'
 
 // 31 rather than 30: a month-long ride plus the route you get home.
 export const MAX_ROUTES = 31
@@ -234,6 +235,12 @@ export const ridePayload = z
     // subgroups, so a native file written before this stays valid with no
     // format-version bump.
     stopByMin: z.number().int().min(0).max(1439).nullable().default(null),
+    // WHICH VEHICLE THIS RIDE IS FOR (#321), null meaning the owner's default.
+    // Validated to the members vocab.ts knows so a hostile payload cannot
+    // write an arbitrary string; nullable-with-a-default like stopByMin, so
+    // every existing native file and client still parses.
+    vehicle: z.enum(VEHICLES).nullable().default(null),
+    power: z.enum(POWERS).nullable().default(null),
     timeAnchor: z.enum(timeAnchorEnum.enumValues).default('departure'),
     routes: z.array(routeSchema).min(1).max(MAX_ROUTES),
   })
@@ -467,7 +474,10 @@ export async function insertRideGraph(
 
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
-  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor, p.stopByMin)
+  await writeRideAnchors(tx, rideId, subgroupIds, p.primarySubgroup, p.trunkSubgroup, p.timeAnchor, p.stopByMin, {
+    vehicle: p.vehicle,
+    power: p.power,
+  })
   if (detailsMode === 'reconcile') await writePointDetails(tx, rideId, details, liveUids)
   // THE THIRD RECONCILIATION, AND THE ONE THAT GOES THE OTHER WAY. The two
   // around it DELETE what has lost its uid; this one clears the anchor and keeps

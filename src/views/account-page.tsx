@@ -44,6 +44,7 @@ import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { TIPS_CHOICES, toTips } from './tips'
+import { POWER_CHOICES, TERMS, VEHICLE_CHOICES, cap, vocabOf, wordsFor } from './vocab'
 import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
@@ -118,6 +119,9 @@ async function prefsFor(userId: number) {
       hideTour: userProfiles.hideTour,
       avoidPlaces: userProfiles.avoidPlaces,
       favorPlaces: userProfiles.favorPlaces,
+      vehicle: userProfiles.vehicle,
+      power: userProfiles.power,
+      jargon: userProfiles.jargon,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -132,6 +136,7 @@ async function prefsFor(userId: number) {
     hideTour: p?.hideTour ?? false,
     avoidPlaces: p?.avoidPlaces ?? '',
     favorPlaces: p?.favorPlaces ?? '',
+    vocab: vocabOf(p),
   }
 }
 
@@ -168,6 +173,9 @@ export async function accountPage(
     'favor',
     'tips',
     'tour-button',
+    'vehicle',
+    'power',
+    'jargon',
     // One per notification group, DERIVED rather than typed: five hand-written
     // strings is five chances to add a group and forget one, and the symptom of
     // forgetting is a rider being told their account is no longer scheduled for
@@ -177,9 +185,11 @@ export async function accountPage(
   ]
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
-  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips, hideTour } = await prefsFor(
-    user.id,
-  )
+  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips, hideTour, vocab } =
+    await prefsFor(user.id)
+  // The words the presets alone would give, with no Custom row — what each
+  // jargon row marks as "from your vehicle".
+  const presetWords = wordsFor({ ...vocab, jargon: {} })
   const dateFormat = await dateFormatFor(c)
   // ONE QUERY FOR ALL THIRTEEN EVENTS ACROSS BOTH CHANNELS, like prefsFor above
   // and for the same reason: they are rows of one table for one rider, and this
@@ -405,6 +415,153 @@ export async function accountPage(
           GTFO stays outside both topics: it is a boxed-off danger area and half
           a page is not where it belongs.
         */}
+        {/*
+          WHAT THE APP CALLS THINGS (#321). Ziad's call, 2026-09-13: Routeloop
+          is for every vehicle a rider owns, and the words were a motorcycle's.
+          Two pickers and a table. The pickers are the PRESETS — a vehicle and
+          what powers it — and the table is one row per term with the words
+          each preset would use as radios and a Custom box; typing in the box
+          picks Custom (public/js/jargon.js). A ride carries its own pair too,
+          set in the builder, and wins over the pickers; a row set here wins
+          over both. See src/views/vocab.ts for the precedence and the table.
+
+          THREE FORMS, THREE COLUMNS, like every other topic: the pickers each
+          write their own column and the table writes `jargon`, so saving a
+          word cannot revert the vehicle.
+
+          Second on the page — after Show me around and before Appearance —
+          because it is the other preference that exists for a rider who has
+          not used the app yet: everything below it is about how a thing is
+          written, and this is about what the thing is called.
+        */}
+        <section class="setting-topic" id="jargon">
+          <h2>What the app calls things</h2>
+          <p>
+            A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. Pick what you drive and what it
+            runs on, and every page uses the words that fit; a ride can carry its own in the builder. Any word you
+            would rather say differently, say it&nbsp;here.
+          </p>
+          <div class="three-col">
+            <section class="setting" id="vehicle">
+              <h3>What you are on</h3>
+              <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
+                <fieldset class="choice-set">
+                  <legend class="visually-hidden">Vehicle</legend>
+                  {VEHICLE_CHOICES.map((choice) => (
+                    <label class="choice">
+                      <input type="radio" name="vehicle" value={choice.id} checked={choice.id === vocab.vehicle} />
+                      <span class="choice-label">{choice.label}</span>
+                      <span class="choice-example">{choice.example}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('vehicle')} />
+                </div>
+              </form>
+            </section>
+
+            <section class="setting" id="power">
+              <h3>What it runs on</h3>
+              <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
+                <fieldset class="choice-set">
+                  <legend class="visually-hidden">Power</legend>
+                  {POWER_CHOICES.map((choice) => (
+                    <label class="choice">
+                      <input type="radio" name="power" value={choice.id} checked={choice.id === vocab.power} />
+                      <span class="choice-label">{choice.label}</span>
+                      <span class="choice-example">{choice.example}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('power')} />
+                </div>
+              </form>
+            </section>
+          </div>
+
+          <section class="setting setting--wide" id="words">
+            <h3>Your words</h3>
+            <p class="setting-hint">
+              The first choice on each row follows the pickers above. Pick another, or type your own—a slash gives it
+              a plural, like <code>person/people</code>.
+            </p>
+            <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
+              <table class="jargon-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Term</th>
+                    <th scope="col">Word</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TERMS.map((t) => {
+                    const preset = presetWords[t.id]
+                    const custom = vocab.jargon[t.id]
+                    // Every word a preset on this row's axis would use, deduped
+                    // (Ride is Motorcycle and Bicycle), with the current preset's
+                    // first — the "follows your vehicle" choice.
+                    const words = [...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)])]
+                    const options = t.axis === 'regional' ? (t.options ?? []).map((o) => o.one) : words
+                    const picked = custom && options.includes(custom) ? custom : custom ? 'custom' : options[0]
+                    const off = t.axis === 'power' && vocab.power === 'pedal'
+                    return (
+                      <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
+                        <th scope="row">
+                          <span class="jargon-label">{t.label}</span>
+                          <span class="jargon-where">{t.where}</span>
+                        </th>
+                        <td>
+                          {off ? (
+                            <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
+                          ) : (
+                            <div class="jargon-picks">
+                              {options.map((word, i) => (
+                                <label class="jargon-pick">
+                                  <input type="radio" name={`pick-${t.id}`} value={word} checked={picked === word} />
+                                  <span>
+                                    {cap(word)}
+                                    {i === 0 && t.axis !== 'regional' ? <small> · from your vehicle</small> : null}
+                                  </span>
+                                </label>
+                              ))}
+                              <label class="jargon-pick jargon-pick--custom">
+                                <input type="radio" name={`pick-${t.id}`} value="custom" checked={picked === 'custom'} />
+                                <span>Custom</span>
+                                <input
+                                  type="text"
+                                  name={`custom-${t.id}`}
+                                  maxlength={40}
+                                  value={picked === 'custom' ? custom : ''}
+                                  placeholder={cap(options[0])}
+                                  aria-label={`Your word for ${t.label.toLowerCase()}`}
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div class="setting-actions">
+                <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                  Save
+                </button>
+                <Saved when={on('jargon')} />
+              </div>
+            </form>
+          </section>
+        </section>
+
         <section class="setting-topic" id="appearance">
           <h2>Appearance</h2>
           <p>
@@ -1003,7 +1160,8 @@ export async function accountPage(
     // buttons that do nothing — the panels are server-rendered into the right
     // state, so a missing script fails silently rather than loudly.
     scripts: `<script src="${asset('/js/tabs.js')}" defer></script>
-  <script src="${asset('/js/autosave.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
+  <script src="${asset('/js/autosave.js')}" defer></script>
+  <script src="${asset('/js/jargon.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
     // The tour's paddock beat lands on the Paddock tab, so the page carries
     // the tour's assets while one is running.
     head: tourAssets(user).head,
