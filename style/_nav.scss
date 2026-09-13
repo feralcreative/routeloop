@@ -86,9 +86,11 @@
   border-radius: 4px;
   background: $interstate;
   color: $ink-light;
-  // A hair under `.notif-more`'s 0.72rem — Ziad's call, 2026-09-11, against
-  // the chip beside it.
-  font-size: 0.66rem;
+  // Was 0.66rem, a hair under `.notif-more`'s 0.72rem against the chip beside
+  // it; about 30% up on 2026-09-13, Ziad's call, now that the sign is the
+  // only way in — the tour no longer starts unasked. The padding is in rem
+  // and did not move, so the field grew with the type and not around it.
+  font-size: 0.86rem;
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;

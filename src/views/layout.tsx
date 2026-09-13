@@ -1171,11 +1171,12 @@ export function page(opts: PageOpts): string {
   // is the whole direction of the feature. See src/views/tips.ts.
   const tipsAttr_ = u?.tips === 'off' ? ' data-tips="off"' : ''
   // A FOURTH, AND IT IS THE ONE THAT SAYS "NEW" RATHER THAN "OFF". `data-tour`
-  // is stamped for a signed-in rider whose `tour_done_at` is null, and read by
-  // public/js/tour.js on the builder to start the guided tour unasked. Absent
+  // is stamped for a signed-in rider whose `tour_done_at` is null. Absent
   // for everybody else, including a signed-out visitor — there is no builder
-  // for them to be toured through. The account menu reads the same stamp to
-  // decide whether Take the tour is a thing they have seen.
+  // for them to be toured through. The account menu reads it to decide
+  // whether Take the tour is a thing they have seen; public/js/tour.js used
+  // to read it too, to start the tour unasked on a blank builder, and no
+  // longer does — the tour is manual only, Ziad's call, 2026-09-13.
   const tourAttr_ = opts.user && u?.tourDoneAt === null ? ' data-tour="new"' : ''
   // A FIFTH: WHICH RIDE THE TOUR IS BUILDING. tour.js keeps its position in
   // sessionStorage so it can follow the rider across pages, and this is what
@@ -1304,6 +1305,7 @@ ${variant === 'splash' ? '' : `<script src="${asset('/js/tips.js')}" defer></scr
 ${opts.user ? `<script src="${asset('/js/notifications.js')}" defer></script>` : ''}
 ${opts.scripts ?? ''}
 ${IS_DEV ? liveReloadScript() : ''}
+${IS_DEV ? `<script src="${asset('/js/devtools.js')}" defer></script>` : ''}
 </body>
 </html>`
 }

@@ -1,5 +1,6 @@
 @use "tokens" as *;
 @use "motion";
+@use "chrome";
 
 // A colored field with an inset keyline — the /feedback card construction.
 @mixin tour-sign($field, $ink) {
@@ -56,6 +57,27 @@
   // a rider who asked for no motion, by either route the `still` mixin knows.
   @include motion.still {
     transition: none;
+  }
+
+  // A card rebuilt in place because the row under it was re-rendered — see
+  // repin() in tour.js. Same content, same spot: a fade here is a flash.
+  &.tour-repin {
+    transition: none;
+  }
+
+  // The scrubber card: parked at the left end of the timeline bar, just
+  // above it, instead of where Floating UI would put a card for the whole
+  // map. `!important` because Shepherd writes left/top inline; the bar's own
+  // offsets are restated so the card follows the drawer the way the bar does.
+  &.tour-over-bar {
+    top: auto !important;
+    left: calc(var(--drawer-current) + var(--panel-inset)) !important;
+    bottom: calc(var(--panel-inset) + var(--timeline-height) + 0.6rem);
+    transform: none !important;
+
+    .shepherd-arrow {
+      display: none;
+    }
   }
 
   .shepherd-arrow::before {
@@ -128,20 +150,72 @@
     p {
       margin: 0;
     }
+
+    // The site's bold is 600, which on this dark card at this size barely
+    // separates from the body; a term is meant to be found at a glance.
+    b {
+      font-weight: 800;
+    }
   }
 
-  // "Part 2 of 3 · The clock · 3 of 4", above the body. Small and quiet: it
-  // is a position, not a message.
-  .tour-part {
-    display: block;
-    margin-bottom: 0.5rem;
-    // Half of the 1.5x pass, then 1.5x again — 11px, which is where it is
-    // legible without becoming the loudest thing on the card.
-    font-size: 0.81rem;
-    // Title Case rather than uppercase, Ziad's call. The tracking went with
-    // the caps: it exists to open up a line of capitals and reads as a gap
-    // in mixed case.
-    color: $neutral-76;
+  // A thin bar along the top edge in the part's color: how far through the
+  // tour this card is. It replaced the "Part 2 of 5 · The clock · 3 of 4"
+  // line and the part-colored band, Ziad's call, 2026-09-12. Absolute rather
+  // than in flow because it is rendered inside `.shepherd-text` and has to
+  // sit above the header; the card is already positioned by Popper, so this
+  // is the card's own top edge.
+  .tour-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 10px 10px 0 0;
+    overflow: hidden;
+    background: $neutral-88;
+    i {
+      display: block;
+      height: 100%;
+      background: $yield;
+    }
+  }
+
+  // The fill takes the part's own color — the same five the chooser buttons
+  // wear, part 1's yellow being the default above — so the bar says where you
+  // are as well as how far. Ziad's call, 2026-09-12. The card carries
+  // `tour-part-N` for exactly this.
+  &.tour-part-2 .tour-progress i {
+    background: $disabled;
+  }
+  &.tour-part-3 .tour-progress i {
+    background: $interstate;
+  }
+  &.tour-part-4 .tour-progress i {
+    background: $detour;
+  }
+  &.tour-part-5 .tour-progress i {
+    background: $recreation;
+  }
+
+  // An intro card's "Part N" button is a sign in the part's own color, the
+  // same five as the chooser buttons and the bar. Ziad's call, 2026-09-12.
+  // `sign-field()` is the real variant mixin — keyline restated, arrow off,
+  // dark ink where the field needs it — so these are the /brand buttons and
+  // not a repaint of the green one.
+  &.tour-part-1 .tour-start {
+    @include chrome.sign-field($yield, $dark-ink: true);
+  }
+  &.tour-part-2 .tour-start {
+    @include chrome.sign-field($disabled);
+  }
+  &.tour-part-3 .tour-start {
+    @include chrome.sign-field($interstate);
+  }
+  &.tour-part-4 .tour-start {
+    @include chrome.sign-field($detour, $dark-ink: true);
+  }
+  &.tour-part-5 .tour-start {
+    @include chrome.sign-field($recreation);
   }
 
   // The three parts as buttons, on the welcome and closing cards. A list of
@@ -154,26 +228,53 @@
     padding: 0;
     display: grid;
     gap: 0.4rem;
+    // Equal rows, so a two-line blurb does not make one button taller than
+    // the rest; each li is a grid so its button stretches to the row.
+    grid-auto-rows: 1fr;
+
+    li {
+      display: grid;
+    }
   }
 
-  // **THE THREE PARTS ARE RED, YELLOW, AND GREEN.** Ziad's call, 2026-09-10.
-  // Drawn as signs, the way the three kind cards on /feedback are, and with
-  // the same legend rule: $stop and $go take the light legend, $yield takes
-  // the dark one — white on that yellow is about 1.2:1 and is the single
-  // worst pairing the palette can produce. `tour-sign()` is the /feedback
+  // **THE FIVE PARTS ARE YELLOW, BLUE, GREEN, ORANGE, AND BROWN.**
+  // Ziad's call, 2026-09-10, recolored 2026-09-12. Drawn as signs, the way
+  // the three kind cards on /feedback are, and with the same legend rule:
+  // $disabled, $interstate, and $recreation take the light legend; $yield and
+  // $detour take the dark one — white on that yellow is about 1.2:1 and is the single worst
+  // pairing the palette can produce. `tour-sign()` is the /feedback
   // mixin's construction, restated here rather than shared, for the reason
   // that file gives about `sign-field()`: a card is not a button.
+  // The number is a big numeral in its own column spanning the name and the
+  // blurb, Ziad's call, 2026-09-12 — it was inline ahead of the name.
   .tour-part-btn {
     display: grid;
-    gap: 0.1rem;
+    // A fixed numeral column rather than `auto`, so a 1 and a 4 leave the
+    // name at the same x on every button; the numeral is centered in it.
+    grid-template-columns: 3.6rem 1fr;
+    column-gap: 0.4rem;
+    row-gap: 0;
+    align-items: center;
+    // The button is stretched to its row; without this the two auto tracks
+    // stretch too and the name and blurb drift apart. Pack them and center.
+    align-content: center;
     width: 100%;
     text-align: left;
-    padding: 0.55rem 0.8rem;
+    padding: 0.55rem 0.8rem 0.55rem 0.8rem;
     border: 0;
     border-radius: 8px;
     font: inherit;
     font-size: 1.035rem;
     cursor: pointer;
+
+    i {
+      grid-row: 1 / span 2;
+      font-style: normal;
+      font-weight: 700;
+      font-size: 3rem;
+      line-height: 1;
+      text-align: center;
+    }
 
     b {
       font-weight: 700;
@@ -181,6 +282,11 @@
 
     span {
       font-size: 0.92rem;
+      line-height: 1.25;
+
+      b {
+        font-weight: 800;
+      }
       // The legend color at a little less than full strength; inherits the
       // sign's own ink rather than naming a gray that would be wrong on the
       // yellow one.
@@ -188,79 +294,43 @@
     }
 
     &[data-tour-part="1"] {
-      @include tour-sign($stop, $ink-light);
-    }
-    &[data-tour-part="2"] {
       @include tour-sign($yield, $ink-dark);
     }
-    &[data-tour-part="3"] {
-      @include tour-sign($go, $ink-light);
+    &[data-tour-part="2"] {
+      @include tour-sign($disabled, $ink-light);
     }
-    // Parts 4 and 5 (2026-09-11): fuel wears the half-tank orange, which is
-    // a BLACK-legend field like the yellow, and the meet wears the interstate
-    // blue. Both are in the sign sets, so the theme moves them with the rest.
+    &[data-tour-part="3"] {
+      @include tour-sign($interstate, $ink-light);
+    }
+    // The people (part 4 since 2026-09-12) wear the work-zone orange, a
+    // BLACK-legend field, and the meet wears the recreation brown. All are in
+    // the sign sets, so the theme moves them with the rest.
     &[data-tour-part="4"] {
       @include tour-sign($detour, $ink-dark);
     }
     &[data-tour-part="5"] {
-      @include tour-sign($interstate, $ink-light);
+      @include tour-sign($recreation, $ink-light);
     }
   }
 
-  // The card itself wears its part's color as a band along the top, and the
-  // part line carries a swatch of it — a cue and never the ink, so no text
-  // pairing changes and nothing needs auditing.
-  &.tour-part-1 {
-    border-top: 5px solid $stop;
-    .tour-part::before {
-      background: $stop;
-    }
-  }
-  &.tour-part-2 {
-    border-top: 5px solid $yield;
-    .tour-part::before {
-      background: $yield;
-    }
-  }
-  &.tour-part-3 {
-    border-top: 5px solid $go;
-    .tour-part::before {
-      background: $go;
-    }
-  }
-  &.tour-part-4 {
-    border-top: 5px solid $detour;
-    .tour-part::before {
-      background: $detour;
-    }
-  }
-  &.tour-part-5 {
-    border-top: 5px solid $interstate;
-    .tour-part::before {
-      background: $interstate;
-    }
-  }
-
-  .tour-part::before {
-    content: "";
-    display: inline-block;
-    width: 0.6em;
-    height: 0.6em;
-    margin-right: 0.45em;
-    border-radius: 2px;
-    vertical-align: 0.05em;
-  }
-
-  // Three buttons in the footer is a full row on a phone; let them wrap.
-  .shepherd-footer {
-    flex-wrap: wrap;
-  }
-
+  // **EVERY FOOTER BUTTON IS A THIRD OF THE CARD.** Ziad's call, 2026-09-12.
+  // Back, Skip and Next (or the status line standing in for Next) each take
+  // one third, so nothing resizes when the status becomes Next, when a label
+  // is longer than its neighbor, or from one card to the next. A card with
+  // fewer than three keeps them at the right, where Next always is.
   .shepherd-footer {
     padding: 0 1.2rem 1.2rem;
     gap: 0.6rem;
     align-items: center;
+    justify-content: flex-end;
     font-size: 1.125rem;
+
+    .shepherd-button {
+      flex: 0 0 calc((100% - 1.2rem) / 3);
+      min-width: 0;
+      text-align: center;
+      justify-content: center;
+    }
   }
 
   // `.btn` restated only where the vendor sheet and the flat button collide:
@@ -306,11 +376,19 @@
   // A waiting step's "button" is a status line and not a control: no field,
   // no keyline, an ellipsis, and it never takes the pointer. It is disabled
   // in the markup as well, so a screen reader reports it as one.
+  // Its vertical padding is the sign button's (0.75rem each way), not the
+  // quiet button's: the two swap places in the same footer, and at 0.55rem
+  // the card grew by a few pixels the moment Next appeared.
   .shepherd-button.tour-waiting {
     background: transparent;
     color: $neutral-76;
     border: 0;
-    padding: 0.55rem 0;
+    padding: 0.75rem 0;
+    // Its third is the same third Next takes; a long status ("Finding two
+    // more…") is clipped rather than allowed to wrap the row.
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 1.125rem;
     font-weight: 400;
     font-style: italic;
@@ -350,6 +428,13 @@ html.tour-active #search-results {
 // native caret draws only with focus — which Shepherd holds on the card — and
 // is too thin to be the thing a rider watches. Above the overlay and below the
 // card, the same layer the search dropdown is lifted to while a tour runs.
+// The patch of map a demonstration wants the eye on — see spotlight() in
+// tour.js. Nothing is drawn; it exists so the overlay has a box to cut out.
+.tour-spot {
+  position: fixed;
+  pointer-events: none;
+}
+
 .tour-caret {
   position: fixed;
   width: 2px;
@@ -361,6 +446,18 @@ html.tour-active #search-results {
 
   &[hidden] {
     display: none;
+  }
+
+  // Over the map it is a pointer, not a text caret: a black arrow with a
+  // white outline, the shape the OS draws, sized to be seen over tiles. The
+  // path's tip is at the box's top-left, which is where caretAt() puts it.
+  &.is-pointer {
+    width: 28px;
+    height: 28px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M3 2L3 23L8.5 17.5L12.5 26L16.5 24L12.5 15.5L20 15.5Z' fill='%23000' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat;
+    border-radius: 0;
+    animation: none;
   }
 }
 

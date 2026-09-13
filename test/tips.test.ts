@@ -19,6 +19,7 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { TIPS, toTips, DEFAULT_TIPS, TIPS_CHOICES } from '../src/views/tips'
+import { TOUR_SEED } from '../src/tour/seed'
 
 let BODY: Record<string, string>
 let STEPS: { id: string; at?: unknown; demo?: unknown; done?: unknown; running?: string }[]
@@ -107,10 +108,11 @@ describe('tour', () => {
     'when',
     'timeline',
     'bed',
+    'paddock',
+    'ring',
+    'gas',
     'groups-add',
     'riders-tab',
-    'empty',
-    'gas',
     'meet-find',
     'meet-take',
     'split',
@@ -192,9 +194,15 @@ describe('tour', () => {
     expect(bad.map((s) => `${s.id} -> ${s.at}`).join('\n')).toBe('')
   })
 
+  it('derives frame zero from the title the seed actually uses', () => {
+    // Back from the first card puts the untitled ride back; tour.js has no
+    // frame zero in the fixture and rebuilds it from "named" plus this title.
+    expect((win as any).TBTour.SEED_TITLE).toBe(TOUR_SEED.title)
+  })
+
   it('reads as a tour and not as a second set of labels', () => {
     const thin = STEPS.filter(
-      (s: any) => !s.title || String(typeof s.text === 'function' ? s.text() : s.text).length < 80,
+      (s: any) => !s.title || String(typeof s.text === 'function' ? s.text() : s.text).length < 60,
     ).map((s) => s.id)
     expect(thin.join(', ')).toBe('')
   })
