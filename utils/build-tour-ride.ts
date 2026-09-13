@@ -44,7 +44,9 @@ const ALICES: LngLat = [-122.2572, 37.3873] // Alice's Restaurant, Skyline & 84
 const PESCADERO: LngLat = [-122.3836, 37.2555]
 const SANTA_CRUZ: LngLat = [-122.0308, 36.9741]
 const BIG_BASIN: LngLat = [-122.2224, 37.1722] // the via: inland through the redwoods instead of Highway 1
-const SAN_JOSE: LngLat = [-121.8863, 37.3382]
+// Livermore, not San Jose — Ziad's call, 2026-09-12: a second group joining
+// from the east side of the bay is the more ordinary shape.
+const LIVERMORE: LngLat = [-121.768, 37.6819]
 const REDWOOD_CITY: LngLat = [-122.2364, 37.4852] // where the split-off rider heads home
 const LA_HONDA: LngLat = [-122.2708, 37.3157] // the split-off's via, so it is 84 and not 1
 
@@ -78,7 +80,7 @@ async function leg(from: LngLat, to: LngLat, vias: LngLat[] = []) {
 
 async function buildPayload(): Promise<RidePayload> {
   const main = { uid: newUid(), name: 'Oakland', color: '#0066cc' }
-  const sanJose = { uid: newUid(), name: 'San Jose crew', color: '#a3541c' }
+  const livermore = { uid: newUid(), name: 'Livermore crew', color: '#a3541c' }
 
   console.log('[tour] routing five legs…')
   const l1 = await leg(OAKLAND, ALICES)
@@ -92,7 +94,7 @@ async function buildPayload(): Promise<RidePayload> {
     description: 'The guided tour’s demo ride. Built by utils/build-tour-ride.ts; do not edit by hand.',
     visibility: 'private',
     external_url: '',
-    subgroups: [main, sanJose],
+    subgroups: [main, livermore],
     primarySubgroup: main.uid,
     trunkSubgroup: null,
     stopByMin: 16 * 60,
@@ -138,15 +140,15 @@ async function buildPayload(): Promise<RidePayload> {
       {
         // A joining group contributes a starting point and nothing else.
         uid: newUid(),
-        subgroupUid: sanJose.uid,
-        title: 'San Jose crew',
+        subgroupUid: livermore.uid,
+        title: 'Livermore crew',
         color: '#a3541c',
         startAt: null,
         endAt: null,
         altGroup: null,
         altActive: true,
         routePrefs: null,
-        points: [point(SAN_JOSE, 'San Jose', { roles: ['start'], address: 'San Jose, CA' })],
+        points: [point(LIVERMORE, 'Livermore', { roles: ['start'], address: 'Livermore, CA' })],
         legs: [],
       },
       {
