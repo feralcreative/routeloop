@@ -26,6 +26,16 @@
   let max = 0;
   let tankUnit = "gal";
 
+  // What the app calls things (#321), from the rider's own preset — this page
+  // is about no one ride. The motorcycle words when vocab.js is absent.
+  const W = (id) => (window.TBVocab ? window.TBVocab.w(id) : { vehicle: "bike", tank: "tank" }[id] || id);
+  const Ws = (id) => (window.TBVocab ? window.TBVocab.many(id) : W(id) + "s");
+  const Wc = (id) => {
+    const s = W(id);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const an = (word) => (/^[aeiou]/i.test(word) ? "an " : "a ") + word;
+
   async function api(path, options) {
     const res = await fetch(path, options);
     const data = await res.json().catch(() => ({}));
@@ -98,7 +108,7 @@
   // real form with no id behind it; the first field a rider commits POSTs the
   // bike and the row becomes that bike in place, without a re-render taking the
   // field they have moved on to (#188).
-  const BLANK = { id: "", label: "Your first bike", fuelType: "gas", isDefault: true };
+  const BLANK = { id: "", label: "Your first " + W("vehicle"), fuelType: "gas", isDefault: true };
 
   function isNew(row) {
     return row.classList.contains("is-new");
@@ -146,7 +156,7 @@
       field(
         bike,
         "tank",
-        "Tank (" + esc(bike.tankUnit || tankUnit) + ")",
+        Wc("tank") + " (" + esc(bike.tankUnit || tankUnit) + ")",
         'type="number" min="0.1" step="0.1" placeholder="unmeasured"',
       ) +
       "</div>" +
@@ -164,16 +174,22 @@
       "</ul>" +
       (bikes.length
         ? ""
-        : '<p class="field-hint">Fill in what you know; the range is what the app plans fuel stops around.</p>');
+        : '<p class="field-hint">Fill in what you know; the range is what the app plans ' +
+          esc(W("fuel") || "fuel") +
+          " stops around.</p>");
 
     // The add box stays under the blank row, for a rider who would rather name
     // a bike than fill one in.
     const adder =
       bikes.length >= max
-        ? '<p class="field-hint">That is as many bikes as we hold (' + max + ").</p>"
+        ? '<p class="field-hint">That is as many ' + esc(Ws("vehicle")) + " as we hold (" + max + ").</p>"
         : '<div class="bike-add">' +
-          '<input type="text" maxlength="80" placeholder="Nickname or make and model" data-new-bike aria-label="New bike">' +
-          '<button type="button" class="linkbtn" data-act="add">Add a bike</button></div>';
+          '<input type="text" maxlength="80" placeholder="Nickname or make and model" data-new-bike aria-label="New ' +
+          esc(W("vehicle")) +
+          '">' +
+          '<button type="button" class="linkbtn" data-act="add">Add ' +
+          esc(an(W("vehicle"))) +
+          "</button></div>";
 
     host.innerHTML = '<p class="notice is-error" data-paddock-error hidden></p>' + list + adder;
     wire();
@@ -296,7 +312,7 @@
       } else if (act === "delete") {
         // Confirmed, unlike a ride: a bike is NOT in the recycle bin, so this
         // one really is gone.
-        if (!window.confirm("Delete this bike? This cannot be undone.")) return;
+        if (!window.confirm("Delete this " + W("vehicle") + "? This cannot be undone.")) return;
         await api("/api/bikes/" + id, { method: "DELETE" });
       } else if (act === "default") {
         await api("/api/bikes/" + id + "/default", { method: "POST" });
@@ -306,7 +322,7 @@
         const file = el.files && el.files[0];
         if (!file) return;
         if (!id) {
-          fail("Fill in a field first so the bike exists, then add its photo.");
+          fail("Fill in a field first so the " + W("vehicle") + " exists, then add its photo.");
           return;
         }
         const form = new FormData();

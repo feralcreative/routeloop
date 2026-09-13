@@ -44,7 +44,7 @@ import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { TIPS_CHOICES, toTips } from './tips'
-import { POWER_CHOICES, TERMS, VEHICLE_CHOICES, cap, vocabOf, wordsFor } from './vocab'
+import { POWER_CHOICES, TERMS, VEHICLE_CHOICES, Wd, cap, vocabOf, wd, wds, wordsFor, type Words } from './vocab'
 import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
@@ -83,14 +83,14 @@ const placesPanel = (): string =>
     </div>
   ).toString()
 
-const paddockPanel = (): string =>
+const paddockPanel = (w: Words): string =>
   (
     <div class="profile-form">
       <fieldset>
-        <legend>Paddock</legend>
+        <legend>{Wd(w, 'storage')}</legend>
         <p class="field-hint">
-          The bikes you ride. A range here is what the app plans fuel stops around, and the tour&rsquo;s fuel part
-          points at&nbsp;it.
+          The {wds(w, 'vehicle')} you take. A range here is what the app plans {w.fuel ? wd(w, 'fuel') : 'fuel'} stops
+          around, and the tour&rsquo;s fuel part points at&nbsp;it.
         </p>
         <div id="paddock" data-paddock>
           <p class="field-hint">Loading&hellip;</p>
@@ -190,6 +190,9 @@ export async function accountPage(
   // The words the presets alone would give, with no Custom row — what each
   // jargon row marks as "from your vehicle".
   const presetWords = wordsFor({ ...vocab, jargon: {} })
+  // The page's own words: the rider's default preset with their Custom rows,
+  // which is what every surface with no ride on it reads.
+  const w = wordsFor(vocab)
   const dateFormat = await dateFormatFor(c)
   // ONE QUERY FOR ALL THIRTEEN EVENTS ACROSS BOTH CHANNELS, like prefsFor above
   // and for the same reason: they are rows of one table for one rider, and this
@@ -228,7 +231,7 @@ export async function accountPage(
         <>
           <h1>Your profile</h1>
           <p class="lede">
-            Who you are and where you set off from. Your preferences, places, and bikes are on the tabs
+            Who you are and where you set off from. Your preferences, places, and {wds(w, 'vehicle')} are on the tabs
             beside&nbsp;this.
           </p>
         </>
@@ -288,7 +291,7 @@ export async function accountPage(
           aria-selected={tabOn('paddock') ? 'true' : 'false'}
           tabindex={tabOn('paddock') ? undefined : -1}
         >
-          Paddock
+          {Wd(w, 'storage')}
         </button>
       </div>
 
@@ -438,8 +441,8 @@ export async function accountPage(
           <h2>What the app calls things</h2>
           <p>
             A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. Pick what you drive and what it
-            runs on, and every page uses the words that fit; a ride can carry its own in the builder. Any word you
-            would rather say differently, say it&nbsp;here.
+            runs on, and every page uses the words that fit; a ride can carry its own in the builder. Any word you would
+            rather say differently, say it&nbsp;here.
           </p>
           <div class="three-col">
             <section class="setting" id="vehicle">
@@ -490,8 +493,8 @@ export async function accountPage(
           <section class="setting setting--wide" id="words">
             <h3>Your words</h3>
             <p class="setting-hint">
-              The first choice on each row follows the pickers above. Pick another, or type your own—a slash gives it
-              a plural, like <code>person/people</code>.
+              The first choice on each row follows the pickers above. Pick another, or type your own—a slash gives it a
+              plural, like <code>person/people</code>.
             </p>
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
               <table class="jargon-table">
@@ -508,7 +511,9 @@ export async function accountPage(
                     // Every word a preset on this row's axis would use, deduped
                     // (Ride is Motorcycle and Bicycle), with the current preset's
                     // first — the "follows your vehicle" choice.
-                    const words = [...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)])]
+                    const words = [
+                      ...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)]),
+                    ]
                     const options = t.axis === 'regional' ? (t.options ?? []).map((o) => o.one) : words
                     const picked = custom && options.includes(custom) ? custom : custom ? 'custom' : options[0]
                     const off = t.axis === 'power' && vocab.power === 'pedal'
@@ -533,7 +538,12 @@ export async function accountPage(
                                 </label>
                               ))}
                               <label class="jargon-pick jargon-pick--custom">
-                                <input type="radio" name={`pick-${t.id}`} value="custom" checked={picked === 'custom'} />
+                                <input
+                                  type="radio"
+                                  name={`pick-${t.id}`}
+                                  value="custom"
+                                  checked={picked === 'custom'}
+                                />
                                 <span>Custom</span>
                                 <input
                                   type="text"
@@ -822,27 +832,32 @@ export async function accountPage(
               it, and a preference that prints nowhere is a control that does
               nothing. The Paddock's Tank field is what reads it.
             */}
-            <section class="setting" id="volume">
-              <h3>Fuel volume</h3>
-              <form method="post" action="/settings/volume" class="setting-form" data-autosave>
-                <fieldset class="choice-set">
-                  <legend class="visually-hidden">Fuel volume</legend>
-                  {VOLUME_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="volumeUnits" value={choice.id} checked={choice.id === volumeUnits} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">{choice.example}</span>
-                    </label>
-                  ))}
-                </fieldset>
-                <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                    Save
-                  </button>
-                  <Saved when={on('volume')} />
-                </div>
-              </form>
-            </section>
+            {/* NOTHING TO PLAN FUEL AROUND ON A PEDAL BIKE (#321): the volume
+                preference is for a tank, and a rider whose default is pedal has
+                none. The column keeps its value for the day they switch. */}
+            {w.fuel ? (
+              <section class="setting" id="volume">
+                <h3>{Wd(w, 'fuel')} volume</h3>
+                <form method="post" action="/settings/volume" class="setting-form" data-autosave>
+                  <fieldset class="choice-set">
+                    <legend class="visually-hidden">Fuel volume</legend>
+                    {VOLUME_CHOICES.map((choice) => (
+                      <label class="choice">
+                        <input type="radio" name="volumeUnits" value={choice.id} checked={choice.id === volumeUnits} />
+                        <span class="choice-label">{choice.label}</span>
+                        <span class="choice-example">{choice.example}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <div class="setting-actions">
+                    <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                      Save
+                    </button>
+                    <Saved when={on('volume')} />
+                  </div>
+                </form>
+              </section>
+            ) : null}
           </div>
         </section>
 
@@ -1140,7 +1155,7 @@ export async function accountPage(
         aria-labelledby="tab-paddock"
         hidden={!tabOn('paddock')}
       >
-        {raw(paddockPanel())}
+        {raw(paddockPanel(w))}
       </div>
     </>
   ).toString()
