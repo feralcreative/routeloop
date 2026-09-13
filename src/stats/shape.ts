@@ -27,6 +27,7 @@ import { ROLE_META, type Role } from '../maps/roles'
 import { roleColor } from '../maps/role-colors'
 import { twistLabel } from '../maps/twist'
 import { type Units, distanceFrom, distanceUnit, distanceUnitLong, twistFrom, twistUnit } from '../views/units'
+import { DEFAULT_VOCAB, wd, wn, wordsFor, type Words } from '../views/vocab'
 
 const METERS_PER_MILE = 1609.344
 
@@ -454,6 +455,9 @@ export function shapeStats(
   now: Date,
   global?: RawGlobal,
   units: Units = 'imperial',
+  // What the app calls things (#321); the tile labels follow the rider's own
+  // words for a journey and a route. Defaulted so the tests keep reading rides.
+  w: Words = wordsFor(DEFAULT_VOCAB),
 ): DashboardStats {
   const t = raw.totals
   const hasRides = t.rides > 0
@@ -462,8 +466,8 @@ export function shapeStats(
   const spread = (s: RawSpread | undefined) => (s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top) } : undefined)
 
   const tiles: Tile[] = [
-    { label: t.rides === 1 ? 'ride' : 'rides', value: fmtCount(t.rides), spread: spread(global?.rides) },
-    { label: t.routes === 1 ? 'route' : 'routes', value: fmtCount(t.routes), spread: spread(global?.routes) },
+    { label: wn(w, 'journey', t.rides), value: fmtCount(t.rides), spread: spread(global?.rides) },
+    { label: wn(w, 'route', t.routes), value: fmtCount(t.routes), spread: spread(global?.routes) },
     // LEGS IS ON THIS LIST KNOWINGLY. A leg is an internal artifact, one per pair
     // of consecutive points, and it is not a unit any rider thinks in. It was put
     // in the scope deliberately on 2026-08-16 rather than by omission, so it is
@@ -526,7 +530,7 @@ export function shapeStats(
 
   if (r.longestRouteM != null && r.longestRouteM > 0) {
     records.push({
-      label: 'Longest single route',
+      label: `Longest single ${wd(w, 'route')}`,
       value: fmtDistance(r.longestRouteM, units),
       unit: distanceUnit(units),
       // The ride's title, which this record did not carry before it had a
@@ -540,7 +544,7 @@ export function shapeStats(
   }
   if (r.biggestRideM != null && r.biggestRideM > 0) {
     records.push({
-      label: 'Biggest ride',
+      label: `Biggest ${wd(w, 'journey')}`,
       value: fmtDistance(r.biggestRideM, units),
       unit: distanceUnit(units),
       hint: r.biggestRideTitle ?? undefined,

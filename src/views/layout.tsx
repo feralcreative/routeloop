@@ -10,7 +10,7 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { wordmark } from './logo'
 import { asset } from './assets'
-import { clientTerms, vocabOf, wordsFor, type Words } from './vocab'
+import { DEFAULT_VOCAB, Wds, aWd, clientTerms, vocabOf, wordsFor, type Words } from './vocab'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
@@ -208,9 +208,11 @@ const DASH_LINK: NavItem = { key: 'home', href: '/', label: 'Dash' }
 
 // Three verbs, which is what the group reads as now that the destination came
 // out of it.
-const RIDES_LINKS: NavItem[] = [
-  { key: 'builder', href: '/builder', label: 'Plan a ride' },
-  { key: 'explore', href: '/explore', label: 'Find a ride' },
+// A FUNCTION OF THE WORDS since #321: "Plan a ride" is "Plan a trip" to a
+// rider whose preset is a car, and the group is labeled with their plural.
+const ridesLinks = (w: Words): NavItem[] => [
+  { key: 'builder', href: '/builder', label: `Plan ${aWd(w, 'journey')}` },
+  { key: 'explore', href: '/explore', label: `Find ${aWd(w, 'journey')}` },
   { key: 'import', href: '/import', label: 'Import / Export' },
 ]
 
@@ -221,7 +223,7 @@ const RIDES_LINKS: NavItem[] = [
 // first time anyone edited the list. Removing that first element again for #184
 // is exactly the edit that used to break this; the guard is why it did not.
 // Do not undo it while tidying the list up.
-const EXPLORE_LINK: NavItem = RIDES_LINKS.find((l) => l.key === 'explore')!
+const exploreLink = (w: Words): NavItem => ridesLinks(w).find((l) => l.key === 'explore')!
 
 // IN THE ACCOUNT MENU, NOT THE BAR, since 2026-08-29. These are four links for
 // the one rider who owns the site, and they were taking a top-level slot from
@@ -293,11 +295,13 @@ function SiteHeader({
   navKey,
   isMap = false,
   unread = 0,
+  words = wordsFor(DEFAULT_VOCAB),
 }: {
   user: UserRow | null
   navKey?: NavKey
   isMap?: boolean
   unread?: number
+  words?: Words
 }) {
   // A map page gives the header a floating badge in the corner rather than a
   // full-width bar, and the stacked mark suits that shape: at a legible height
@@ -432,14 +436,14 @@ function SiteHeader({
             {user ? (
               <>
                 <NavLink item={DASH_LINK} navKey={navKey} />
-                <NavGroup label="Rides" items={RIDES_LINKS} navKey={navKey} />
-                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavGroup label={Wds(words, 'journey')} items={ridesLinks(words)} navKey={navKey} />
+                <NavLink item={{ ...RIDERS_LINK, label: Wds(words, 'person') }} navKey={navKey} />
                 <NavAboutMenu user={user} navKey={navKey} />
               </>
             ) : (
               <>
-                <NavLink item={EXPLORE_LINK} navKey={navKey} />
-                <NavLink item={RIDERS_LINK} navKey={navKey} />
+                <NavLink item={exploreLink(words)} navKey={navKey} />
+                <NavLink item={{ ...RIDERS_LINK, label: Wds(words, 'person') }} navKey={navKey} />
                 <NavAboutMenu user={null} navKey={navKey} />
                 {/*
                   "Join the beta", not "Sign in". Nobody can sign themselves in —
@@ -1270,7 +1274,7 @@ export function page(opts: PageOpts): string {
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
 ${stageBanner()}
-${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} />).toString()}
+${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} words={wordsOf(opts)} />).toString()}
 ${body}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}

@@ -218,7 +218,11 @@ export function toJargon(v: unknown): Jargon {
   for (const id of TERM_IDS) {
     const raw = (v as Record<string, unknown>)[id]
     if (typeof raw !== 'string') continue
-    const s = raw.trim().slice(0, 40)
+    // LOWERCASE, because a word is used mid-sentence far more than it opens
+    // one — "Plan a trip", "3 trips you were added to" — and cap() is what
+    // capitalizes at the call sites that need it. A rider who types "Adventure"
+    // in the box meant the word, not the capital.
+    const s = raw.trim().slice(0, 40).toLowerCase()
     if (s) out[id] = s
   }
   return out
@@ -288,6 +292,19 @@ export function vocabOf(u: { vehicle?: unknown; power?: unknown; jargon?: unknow
 export const clientTerms = () => TERMS.map((t) => ({ id: t.id, axis: t.axis, by: t.by, options: t.options }))
 
 export const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+/** The four readers a template wants: singular, plural, and each capitalized.
+ *  A blanked term (a fuel word under pedal) reads as an empty string, so a
+ *  sentence built around one degrades to a gap rather than "null". */
+export const wd = (w: Words, id: TermId): string => w[id]?.one ?? ''
+export const wds = (w: Words, id: TermId): string => w[id]?.many ?? ''
+export const Wd = (w: Words, id: TermId): string => cap(wd(w, id))
+export const Wds = (w: Words, id: TermId): string => cap(wds(w, id))
+/** One or many, by count. */
+export const wn = (w: Words, id: TermId, n: number): string => (n === 1 ? wd(w, id) : wds(w, id))
+/** With its indefinite article: "a ride", "an adventure", "an itinerary". */
+export const aWd = (w: Words, id: TermId): string => an(wd(w, id))
+export const an = (word: string): string => (/^[aeiou]/i.test(word) ? `an ${word}` : `a ${word}`)
 
 /** The settings page's two pickers. */
 export const VEHICLE_CHOICES: { id: Vehicle; label: string; example: string }[] = [

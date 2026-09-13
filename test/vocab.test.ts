@@ -6,6 +6,7 @@ import {
   TERM_IDS,
   VEHICLES,
   POWERS,
+  aWd,
   customWord,
   toJargon,
   toPower,
@@ -52,6 +53,13 @@ describe('vocab', () => {
     expect(wordsFor(me, { vehicle: 'bicycle', power: 'pedal' }).fuel).toBeNull()
   })
 
+  it('puts the right article in front', () => {
+    const w = wordsFor({ ...DEFAULT_VOCAB, jargon: { journey: 'adventure', roadbook: 'itinerary' } })
+    expect(aWd(w, 'journey')).toBe('an adventure')
+    expect(aWd(w, 'roadbook')).toBe('an itinerary')
+    expect(aWd(w, 'person')).toBe('a rider')
+  })
+
   it('pluralizes typed words with +s, or a slash', () => {
     expect(customWord('trip')).toEqual({ one: 'trip', many: 'trips' })
     expect(customWord('person/people')).toEqual({ one: 'person', many: 'people' })
@@ -60,7 +68,7 @@ describe('vocab', () => {
 
   it('drops what it does not know and never throws', () => {
     expect(toJargon(null)).toEqual({})
-    expect(toJargon({ journey: '  Adventure ', bogus: 'x', fuel: '', tank: 7 })).toEqual({ journey: 'Adventure' })
+    expect(toJargon({ journey: '  Adventure ', bogus: 'x', fuel: '', tank: 7 })).toEqual({ journey: 'adventure' })
     expect(toJargon({ journey: 'x'.repeat(80) }).journey).toHaveLength(40)
   })
 

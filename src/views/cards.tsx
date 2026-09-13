@@ -24,6 +24,7 @@
 import type { RideRow } from '../db/schema'
 import { DEFAULT_UNITS, type Units, distanceFromMiles, distanceUnit } from './units'
 import { SEP } from './sep'
+import { DEFAULT_VOCAB, wds, wordsFor, type Words } from './vocab'
 
 export type CardRow = { ride: RideRow; color: string | null }
 
@@ -141,9 +142,10 @@ function Card({ ride, color, showViews, units }: CardRow & { showViews: boolean;
 export function rideCards(
   rows: CardRow[],
   showViews = false,
-  o: { dense?: boolean; empty?: string; units?: Units } = {},
+  o: { dense?: boolean; empty?: string; units?: Units; words?: Words } = {},
 ): string {
-  if (rows.length === 0) return `<p class="empty">${o.empty ?? 'No rides yet.'}</p>`
+  if (rows.length === 0)
+    return `<p class="empty">${o.empty ?? `No ${wds(o.words ?? wordsFor(DEFAULT_VOCAB), 'journey')} yet.`}</p>`
   return (
     <ul class={`ride-cards${o.dense ? ' ride-cards--dense' : ''}`}>
       {rows.map((row) => (

@@ -14,7 +14,7 @@ import type { Context } from 'hono'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable, userProfiles, users } from '../db/schema'
-import { page, type NavKey } from '../views/layout'
+import { page, wordsOf, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
 import { faqTokens } from '../views/faq-tokens'
@@ -28,6 +28,7 @@ import { FriendActions } from '../views/friend-actions'
 import { FollowForm } from '../views/follow-form'
 import { followViewOf } from '../follows/service'
 import { unitsFor } from '../views/prefs'
+import { wds } from '../views/vocab'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -99,6 +100,7 @@ pageRoutes.get('/explore', async (c) => {
   const hasNext = rows.length > PER_PAGE
   const cards = rows.slice(0, PER_PAGE)
   const units = await unitsFor(c)
+  const w = wordsOf({ user: c.get('user') ?? null })
 
   const Tab = ({ key_, label }: { key_: string; label: string }) => (
     <a class={`explore-tab${sort === key_ ? ' is-on' : ''}`} href={`/explore?sort=${key_}`}>
@@ -115,13 +117,13 @@ pageRoutes.get('/explore', async (c) => {
     <>
       <h1>Explore</h1>
       <p class="lede">
-        Public rides other people have planned. Open one, or clone it as a starting point for your own.
+        Public {wds(w, 'journey')} other people have planned. Open one, or clone it as a starting point for your own.
       </p>
       <nav class="explore-tabs">
         <Tab key_="popular" label="Most viewed" />
         <Tab key_="new" label="Newest" />
       </nav>
-      {raw(rideCards(cards, sort === 'popular', { units }))}
+      {raw(rideCards(cards, sort === 'popular', { units, words: w }))}
       <nav class="explore-pager">
         {page_ > 1 && <PageLink n={page_ - 1} label="← Newer page" />}
         {hasNext && <PageLink n={page_ + 1} label="Older page →" />}
@@ -219,6 +221,7 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     : (['none', 'none'] as const)
 
   const units = await unitsFor(c)
+  const w = wordsOf({ user: c.get('user') ?? null })
 
   const body = (
     <>
@@ -240,8 +243,8 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
           <FollowForm handle={row.username} view={followView_} back={`/@${row.username}`} />
         </div>
       )}
-      <h2>Public rides</h2>
-      {raw(rideCards(cards, false, { units }))}
+      <h2>Public {wds(w, 'journey')}</h2>
+      {raw(rideCards(cards, false, { units, words: w }))}
     </>
   ).toString()
 
