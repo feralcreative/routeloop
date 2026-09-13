@@ -585,18 +585,26 @@ html.map-page.is-resizing {
   // grab and invisible until hovered or focused — a visible bar down every
   // drawer would be furniture. The bar it paints on hover is the affordance;
   // `col-resize` is the cursor for exactly this.
+  // IT LOOKS LIKE A HANDLE. Ziad's call, 2026-09-13, after a first pass that
+  // painted only a hairline on hover: the hit area is the whole edge, and a
+  // grip tab sits halfway down it — a rounded pill with two ribbed lines, the
+  // shape a drag handle has everywhere — so the edge reads as something to
+  // take hold of before the pointer is anywhere near it. The tab is inside the
+  // drawer (it clips overflow) and hugs the edge; hover and focus color the
+  // ribs and light a line down the edge itself.
   .drawer-resize {
     display: none;
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
-    width: 10px;
+    width: 12px;
     cursor: col-resize;
     z-index: 2;
     touch-action: none;
 
-    &::after {
+    // The edge line, on hover and focus.
+    &::before {
       content: "";
       position: absolute;
       top: 0;
@@ -608,9 +616,36 @@ html.map-page.is-resizing {
       transition: opacity 0.15s ease;
     }
 
+    // The grip tab: the pill, with the two ribs drawn as gradients so there
+    // is no glyph file to load. 14×44 clears the tap-target minimum on height.
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 1px;
+      width: 14px;
+      height: 44px;
+      margin-top: -22px;
+      box-sizing: border-box;
+      border: 1px solid $grey;
+      border-radius: 7px;
+      background:
+        linear-gradient($neutral-43, $neutral-43) 4px 50% / 1px 18px no-repeat,
+        linear-gradient($neutral-43, $neutral-43) 8px 50% / 1px 18px no-repeat,
+        $white;
+      transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+    }
+
+    &:hover::before,
+    &:focus-visible::before {
+      opacity: 1;
+    }
+
     &:hover::after,
     &:focus-visible::after {
-      opacity: 1;
+      border-color: $brand;
     }
 
     &:focus-visible {
@@ -628,8 +663,8 @@ html.map-page.is-resizing {
       display: none;
     }
 
-    // Collapsed, the handle is the whole rail edge and reads as "pull".
-    &.collapsed .drawer-resize::after {
+    // Collapsed, the tab is most of the rail's width and reads as "pull".
+    &.collapsed .drawer-resize::before {
       opacity: 0.45;
     }
   }
