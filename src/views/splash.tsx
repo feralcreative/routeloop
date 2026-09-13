@@ -4,6 +4,7 @@
 import { raw } from 'hono/html'
 import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL, ALPHA_VMC_URL } from '../config'
 import { icon } from './icon'
+import { wordmark } from './logo'
 
 // `name` is both the icon file (`icon-<name>.svg`) and the CSS hook that gives
 // the mark its brand color, so the two cannot drift apart.
@@ -55,8 +56,8 @@ export function alphaSplash(): string {
         aria-describedby="alpha-body"
         tabindex={-1}
       >
-        {/* .modal is $white, so this takes the dark artwork, not the reversed one. */}
-        <img class="modal-logo" src="/img/logo-routeloop.svg" alt="" width="920" height="518" />
+        {/* .modal is $white, which follows the scheme, so both inks are rendered. */}
+        {raw(wordmark('stacked', '', 'modal-logo'))}
         <h2 id="alpha-title">This is an alpha</h2>
         <div id="alpha-body" class="modal-body">
           <p>
