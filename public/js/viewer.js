@@ -43,6 +43,7 @@
     attachPopup,
     stopMileages,
     initPanelToggle,
+    initPanelResize,
   } = window.TBMap;
 
   // Shared with the builder so a ride resolves to the same leg at the same
@@ -65,6 +66,7 @@
   const ALT = window.TBAlt;
 
   initPanelToggle(() => state.map);
+  initPanelResize(() => state.map);
 
   const state = {
     map: null,

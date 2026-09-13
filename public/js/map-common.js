@@ -1524,6 +1524,195 @@
     });
   }
 
+  // --- Drawer width (#323) --------------------------------------------------
+  //
+  // THE WIDTH IS THE RIDER'S TO SET. Ziad's call, 2026-09-13: a handle on the
+  // drawer's right edge replaces the collapse icon on a wide screen. Drag it
+  // and the drawer follows; below DRAWER_MIN it collapses into the rail, and
+  // pulled back out it pops to DRAWER_MIN and goes on up to DRAWER_MAX_VW of
+  // the viewport. A click with no drag toggles collapsed, which is what the
+  // icon did; the arrow keys move it for a keyboard. Remembered in localStorage
+  // — a width is a fact about this screen, not the rider — and applied before
+  // first paint by the inline script page() emits after the drawer, so the
+  // shape written here is the shape that script reads: {w, collapsed}.
+  //
+  // The width lands on <html> as --panel-width, which is what --drawer-current
+  // already reads, so the map and the timeline resize with the drawer through
+  // the one declaration _map.scss records. Nothing here sizes an element.
+  const DRAWER_KEY = "routeloop.drawer";
+  const DRAWER_DEFAULT = 380;
+  const DRAWER_MIN = 360;
+  const DRAWER_MAX_VW = 0.75;
+  const DRAWER_STEP = 20;
+
+  function readDrawer() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAWER_KEY) || "null");
+      return d && typeof d === "object" ? d : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeDrawer(d) {
+    try {
+      localStorage.setItem(DRAWER_KEY, JSON.stringify(d));
+    } catch (e) {
+      /* a private window can refuse; the width still holds for this page */
+    }
+  }
+
+  function initPanelResize(getMap) {
+    const panel = document.getElementById("info-panel");
+    const handle = panel && panel.querySelector(".drawer-resize");
+    if (!panel || !handle) return;
+    const html = document.documentElement;
+    const rail = panel.querySelector(".drawer-rail");
+    const toggle = panel.querySelector(".collapse-toggle");
+
+    const maxWidth = () => Math.max(DRAWER_MIN, Math.round(window.innerWidth * DRAWER_MAX_VW));
+    const current = () => {
+      const v = parseFloat(getComputedStyle(html).getPropertyValue("--panel-width"));
+      return Number.isFinite(v) && v > 0 ? v : DRAWER_DEFAULT;
+    };
+
+    // The collapsed state is the class initPanelToggle flips, with the same
+    // aria bookkeeping, so the phone sheet's icon and this handle cannot
+    // disagree about what a screen reader is told.
+    function setCollapsed(collapsed) {
+      panel.classList.toggle("collapsed", collapsed);
+      if (toggle) {
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+        toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
+      }
+      if (rail) rail.setAttribute("aria-hidden", String(!collapsed));
+      handle.setAttribute("title", collapsed ? "Drag to open" : "Drag to resize; click to collapse");
+    }
+
+    function setWidth(px) {
+      const w = Math.round(Math.min(maxWidth(), Math.max(DRAWER_MIN, px)));
+      html.style.setProperty("--panel-width", w + "px");
+      handle.setAttribute("aria-valuenow", String(w));
+      handle.setAttribute("aria-valuemax", String(maxWidth()));
+      return w;
+    }
+
+    function remember() {
+      writeDrawer({ w: current(), collapsed: panel.classList.contains("collapsed") });
+    }
+
+    // The map keeps its top-left fixed through a resize, which slides the road
+    // sideways by half the change. Captured at the start and put back at the
+    // end, the way the collapse toggle does it.
+    let center = null;
+    const holdCenter = () => {
+      const map = typeof getMap === "function" ? getMap() : null;
+      center = map && map.getCenter ? map.getCenter() : null;
+      return map;
+    };
+    const restoreCenter = (map) => {
+      if (map && center) requestAnimationFrame(() => map.setCenter(center));
+    };
+
+    handle.setAttribute("aria-valuenow", String(current()));
+    handle.setAttribute("aria-valuemax", String(maxWidth()));
+    setCollapsed(panel.classList.contains("collapsed"));
+
+    // Pointer: one gesture from down to up. A move of less than a few pixels is
+    // a click and toggles; anything more is a drag and sets the width.
+    let drag = null;
+    handle.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const map = holdCenter();
+      drag = { x0: e.clientX, w0: panel.classList.contains("collapsed") ? 0 : current(), moved: false, map };
+      html.classList.add("is-resizing");
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x0;
+      if (!drag.moved && Math.abs(dx) < 4) return;
+      drag.moved = true;
+      // The pointer's own x is the drawer's edge, which is what a drag on an
+      // edge means; the start offset is only for the click test. Open, the
+      // drawer collapses the moment the edge is pulled under the minimum;
+      // collapsed, it POPS to the minimum as soon as the rail is pulled
+      // outward at all, and follows the pointer from there — waiting for the
+      // pointer to reach 360px would leave a pull of 300px doing nothing.
+      const want = e.clientX;
+      const collapsed = panel.classList.contains("collapsed");
+      if (collapsed) {
+        if (dx > 12) {
+          setCollapsed(false);
+          setWidth(Math.max(DRAWER_MIN, want));
+        }
+      } else if (want < DRAWER_MIN) {
+        setCollapsed(true);
+      } else {
+        setWidth(want);
+      }
+    });
+    const finish = (e) => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      html.classList.remove("is-resizing");
+      try {
+        handle.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        /* already released */
+      }
+      if (!d.moved) {
+        // A click. Collapsed pops open to the minimum, as a pull would.
+        const collapsed = !panel.classList.contains("collapsed");
+        setCollapsed(collapsed);
+        if (!collapsed) setWidth(DRAWER_MIN);
+      }
+      remember();
+      restoreCenter(d.map);
+    };
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", finish);
+
+    // Keyboard: the arrows nudge, Home collapses, End is the widest, Enter and
+    // Space toggle — the same gestures as the pointer, one key each.
+    handle.addEventListener("keydown", (e) => {
+      const collapsed = panel.classList.contains("collapsed");
+      let handled = true;
+      const map = holdCenter();
+      if (e.key === "ArrowLeft") {
+        if (collapsed) handled = false;
+        else if (current() - DRAWER_STEP < DRAWER_MIN) setCollapsed(true);
+        else setWidth(current() - DRAWER_STEP);
+      } else if (e.key === "ArrowRight") {
+        if (collapsed) {
+          setCollapsed(false);
+          setWidth(DRAWER_MIN);
+        } else setWidth(current() + DRAWER_STEP);
+      } else if (e.key === "Home") {
+        setCollapsed(true);
+      } else if (e.key === "End") {
+        setCollapsed(false);
+        setWidth(maxWidth());
+      } else if (e.key === "Enter" || e.key === " ") {
+        setCollapsed(!collapsed);
+        if (collapsed) setWidth(DRAWER_MIN);
+      } else handled = false;
+      if (!handled) return;
+      e.preventDefault();
+      remember();
+      restoreCenter(map);
+    });
+
+    // A narrower window than the remembered width: clamp, do not remember —
+    // the wide screen's number is still right for the wide screen.
+    window.addEventListener("resize", () => {
+      if (window.innerWidth < 768) return;
+      if (current() > maxWidth()) setWidth(maxWidth());
+    });
+  }
+
   // --- Search result preview ------------------------------------------------
   //
   // WHERE THE CANDIDATES ACTUALLY ARE. The category search answers with names
@@ -1933,5 +2122,6 @@
     highlightMeetApproaches,
     iconSvg,
     initPanelToggle,
+    initPanelResize,
   };
 })();

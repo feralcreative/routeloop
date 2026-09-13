@@ -347,6 +347,26 @@ html.map-page:has(#info-panel.collapsed) {
   --drawer-current: var(--drawer-rail);
 }
 
+// While the handle is held (#323): no width transition on the drawer, and none
+// on anything that sizes off --drawer-current, so the map and the timeline
+// keep step with the pointer. The class is set and cleared by initPanelResize.
+html.map-page.is-resizing {
+  #info-panel,
+  #map,
+  .map-timeline {
+    transition: none !important;
+  }
+
+  // The map's own pointer handling would otherwise grab the drag the moment
+  // the pointer crossed onto it.
+  #map {
+    pointer-events: none;
+  }
+
+  cursor: col-resize;
+  user-select: none;
+}
+
 // THE DRAWER. Every edge is pinned, so its height is the viewport's and nothing
 // it contains can change its size — which is the whole point. A floating card
 // grew and shrank with its own contents, and because it was anchored at one
@@ -385,7 +405,9 @@ html.map-page:has(#info-panel.collapsed) {
   background: $white;
   border-radius: 0;
   // Width alone. Animating the padding or the contents would reflow the whole
-  // stop list on every frame of the transition.
+  // stop list on every frame of the transition. Off while the handle is being
+  // dragged — see html.is-resizing below — or every frame would chase the
+  // pointer a quarter-second late.
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   // Nothing may spill into the map while the drawer is narrowing to the rail.
   overflow: hidden;
@@ -554,6 +576,62 @@ html.map-page:has(#info-panel.collapsed) {
   .collapse-toggle[aria-expanded="false"] .collapse-icon {
     -webkit-mask-image: url("/img/icons/icon-expand.svg");
     mask-image: url("/img/icons/icon-expand.svg");
+  }
+
+  // THE DRAG HANDLE (#323), and on a wide screen it is the only collapse
+  // control: the icon above hides at this width and survives for the phone
+  // sheet, which travels vertically and has no width to set. A strip down the
+  // drawer's right edge, inside it (the drawer clips overflow), wide enough to
+  // grab and invisible until hovered or focused — a visible bar down every
+  // drawer would be furniture. The bar it paints on hover is the affordance;
+  // `col-resize` is the cursor for exactly this.
+  .drawer-resize {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    z-index: 2;
+    touch-action: none;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 3px;
+      background: $brand;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    &:hover::after,
+    &:focus-visible::after {
+      opacity: 1;
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  //@ Desktop — the handle is the control and the icon is not
+  @media (min-width: 768px) {
+    .drawer-resize {
+      display: block;
+    }
+
+    .collapse-toggle {
+      display: none;
+    }
+
+    // Collapsed, the handle is the whole rail edge and reads as "pull".
+    &.collapsed .drawer-resize::after {
+      opacity: 0.45;
+    }
   }
 
   // THE DAY ACTIONS DRAW THEIR GLYPHS AS A MASK rather than as an <img> or an
