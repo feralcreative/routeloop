@@ -54,6 +54,7 @@ This section outranks everything else in this file and everything in the codebas
 | Deploy a migration that cannot be made additive | `utils/deploy/prod.sh --no-overlap` (**has downtime**) |
 | Deploy to stage | `gh workflow run deploy-stage.yml`, or the Actions tab. **Deploy prod FIRST if main carries a migration** |
 | Deploy to prod | `gh workflow run deploy-prod.yml`, or the Actions tab. `utils/deploy/prod.sh` still works |
+| Deploy both, prod then stage | `utils/deploy/both.sh`—the order a migration needs, from a terminal. `--stage-first` reverses it and refuses when a `drizzle/*.sql` is not yet on prod |
 | Re-cut legs on days stored before 2026-08-24 | `npx tsx utils/split-imported-legs.ts` (`--dry-run` first) |
 | Un-apply the offset on instant-valued `start_at` | `npx tsx utils/shift-days-to-wall-clock.ts --zone <IANA>`—**runs once, not idempotent** |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath .githooks` |
