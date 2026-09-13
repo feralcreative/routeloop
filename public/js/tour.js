@@ -473,15 +473,15 @@
       id: "to-paddock",
       part: 3,
       // How you get there, before the tour goes there: the header menu, then
-      // your name, then Profile. Both disclosures are opened for the card and
+      // your name, then My Account. Both disclosures are opened for the card and
       // closed after it. Ziad's call, 2026-09-12.
       open: [".site-menu", ".nav-account"],
       at: function () {
-        return document.querySelector('.nav-account a[href="/profile"]');
+        return document.querySelector('.nav-account a[href="/account"]');
       },
       side: "bottom",
-      title: "Your bikes live on your profile",
-      text: "The menu, then your name, then Profile: that is where the paddock is. A bike’s range is typed there once and read everywhere. Let me open it.",
+      title: "Your bikes live on your account",
+      text: "The menu, then your name, then My Account: the Paddock tab is where your bikes are. A bike’s range is typed there once and read everywhere. Let me open it.",
     },
     {
       id: "paddock",
@@ -889,7 +889,8 @@
     if (/^\/m\/[^/]+$/.test(p)) return "viewer";
     if (p === "/riders" || p === "/friends") return "riders";
     // One page at four URLs (#319); the paddock card lands on its own tab.
-    if (p === "/profile" || p === "/settings" || p === "/places" || p === "/paddock") return "profile";
+    if (p === "/account" || p === "/profile" || p === "/settings" || p === "/places" || p === "/paddock")
+      return "profile";
     return "";
   }
 

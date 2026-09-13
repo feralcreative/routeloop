@@ -205,10 +205,12 @@ export async function accountPage(
   const body = (
     <>
       {/* THE HEADING FOLLOWS THE DOOR, like the title and the nav key (#269). A
-          rider who pressed "Your profile" and landed on a page headed Settings
-          has been told they went somewhere else — which is the confusion the
-          merge exists to remove, arriving from the other side. The tab strip
-          under it says which of the two they are on either way.
+          rider who pressed "Your profile" and landed on a page headed Account
+          settings has been told they went somewhere else — which is the
+          confusion the merge exists to remove, arriving from the other side.
+          The tab strip under it says which of the four they are on either way.
+          "Account settings" rather than "Settings" since #320, when the menu
+          item became My Account.
 
           The panel's own heading went with this: the tab, the H1 and a third
           "Your profile" inside the panel is the same words three times. */}
@@ -222,7 +224,7 @@ export async function accountPage(
         </>
       ) : (
         <>
-          <h1>Settings</h1>
+          <h1>Account settings</h1>
           <p class="lede">How the app looks, how it writes things down, and everything it knows about&nbsp;you.</p>
         </>
       )}
@@ -233,7 +235,7 @@ export async function accountPage(
         </p>
       ) : null}
 
-      <div class="page-tabs" role="tablist" aria-label="Settings" data-tabs>
+      <div class="page-tabs" role="tablist" aria-label="Account settings" data-tabs>
         <button
           type="button"
           class={`page-tab${tabOn('preferences') ? ' is-active' : ''}`}
@@ -987,7 +989,7 @@ export async function accountPage(
   ).toString()
 
   return page({
-    title: opts.tab === 'profile' ? 'Your profile' : 'Settings',
+    title: opts.tab === 'profile' ? 'Your profile' : 'Account settings',
     user,
     // THE KEY FOLLOWS THE DOOR, NOT THE PAGE (#269). Two account-menu items
     // point here and exactly one may be marked current — see the note on NavKey
