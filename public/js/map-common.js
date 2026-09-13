@@ -1528,9 +1528,9 @@
   //
   // THE WIDTH IS THE RIDER'S TO SET. Ziad's call, 2026-09-13: a handle on the
   // drawer's right edge replaces the collapse icon on a wide screen. Drag it
-  // and the drawer follows; below DRAWER_MIN it collapses into the rail, and
-  // pulled back out it pops to DRAWER_MIN and goes on up to DRAWER_MAX_VW of
-  // the viewport. A click with no drag toggles collapsed, which is what the
+  // and the drawer follows; held below DRAWER_MIN it stops at the minimum
+  // and warns, collapsing into the rail on release; pulled back out it pops
+  // to DRAWER_MIN and goes on up to DRAWER_MAX_VW of the viewport. A click with no drag toggles collapsed, which is what the
   // icon did; the arrow keys move it for a keyboard. Remembered in localStorage
   // — a width is a fact about this screen, not the rider — and applied before
   // first paint by the inline script page() emits after the drawer, so the
@@ -1626,7 +1626,13 @@
       e.preventDefault();
       handle.setPointerCapture(e.pointerId);
       const map = holdCenter();
-      drag = { x0: e.clientX, w0: panel.classList.contains("collapsed") ? 0 : current(), moved: false, map };
+      drag = {
+        x0: e.clientX,
+        w0: panel.classList.contains("collapsed") ? 0 : current(),
+        moved: false,
+        under: false,
+        map,
+      };
       html.classList.add("is-resizing");
     });
     handle.addEventListener("pointermove", (e) => {
@@ -1640,6 +1646,12 @@
       // collapsed, it POPS to the minimum as soon as the rail is pulled
       // outward at all, and follows the pointer from there — waiting for the
       // pointer to reach 360px would leave a pull of 300px doing nothing.
+      //
+      // UNDER THE MINIMUM IT WARNS AND WAITS. Ziad's call, 2026-09-13, after
+      // a first pass collapsed the moment the edge crossed 360px: the drawer
+      // stops at the minimum and the handle glows (html.will-collapse) while
+      // the pointer is held past it, and the collapse happens on release —
+      // so a rider who overshoots can pull back and nothing has folded.
       const want = e.clientX;
       const collapsed = panel.classList.contains("collapsed");
       if (collapsed) {
@@ -1647,10 +1659,10 @@
           setCollapsed(false);
           setWidth(Math.max(DRAWER_MIN, want));
         }
-      } else if (want < DRAWER_MIN) {
-        setCollapsed(true);
       } else {
         setWidth(want);
+        drag.under = want < DRAWER_MIN;
+        html.classList.toggle("will-collapse", drag.under);
       }
     });
     const finish = (e) => {
@@ -1658,12 +1670,15 @@
       const d = drag;
       drag = null;
       html.classList.remove("is-resizing");
+      html.classList.remove("will-collapse");
       try {
         handle.releasePointerCapture(e.pointerId);
       } catch (err) {
         /* already released */
       }
-      if (!d.moved) {
+      if (d.under) {
+        setCollapsed(true);
+      } else if (!d.moved) {
         // A click. Collapsed pops open to the minimum, as a pull would.
         const collapsed = !panel.classList.contains("collapsed");
         setCollapsed(collapsed);

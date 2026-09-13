@@ -347,6 +347,24 @@ html.map-page:has(#info-panel.collapsed) {
   --drawer-current: var(--drawer-rail);
 }
 
+// THE EDGE IS PULLED PAST THE MINIMUM AND THE DRAWER WILL FOLD ON RELEASE
+// (#323). The drawer stops at 360px; the handle and the edge go amber and
+// glow, which is the warning — advice, not a verdict, so `$warning` rather
+// than `$stop`. Set and cleared by initPanelResize with the pointer held.
+html.map-page.will-collapse #info-panel .drawer-resize {
+  &::before {
+    opacity: 1;
+    background: $warning;
+  }
+
+  &::after {
+    background: $warning;
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, $warning 35%, transparent),
+      0 0 12px $warning;
+  }
+}
+
 // While the handle is held (#323): no width transition on the drawer, and none
 // on anything that sizes off --drawer-current, so the map and the timeline
 // keep step with the pointer. The class is set and cleared by initPanelResize.
