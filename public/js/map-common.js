@@ -758,7 +758,10 @@
     glyph.className = "tb-moment-disc";
     glyph.textContent = "E";
     glyph.setAttribute("role", "img");
-    glyph.setAttribute("aria-label", "Out of fuel here");
+    // What the app calls things (#321): "runs dry" or "goes flat", in the
+    // words of the ride on screen. Falls back to the motorcycle's when vocab.js
+    // is absent, which is what the label always said.
+    glyph.setAttribute("aria-label", cap((window.TBVocab ? window.TBVocab.w("dry") : "runs dry") + " here"));
     el.appendChild(glyph);
     // A TOOLTIP OF OUR OWN, NOT `title`. The native one waits about a second,
     // renders in the OS style at the pointer, and cannot be styled — on a map
@@ -1220,13 +1223,20 @@
     );
   }
 
+  // Capitalizes a vocabulary word for a label; the one place this file needs
+  // it, and named for what it does rather than shadowing a helper elsewhere.
+  function cap(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
   // mileage: { fromStartMi, fromGasMi, fromChargeMi (null to hide), durationMin }
   function popupHtml(point, color, mileage) {
     const m = mileage || {};
     const fmt = (v) => (v == null ? "-" : v.toFixed(1) + " mi");
     let rows = "";
     if (m.fromStartMi !== undefined) rows += numRow("From Start", fmt(m.fromStartMi));
-    if (m.fromGasMi !== undefined) rows += numRow("From Gas", fmt(m.fromGasMi));
+    if (m.fromGasMi !== undefined)
+      rows += numRow("From " + cap(window.TBVocab ? window.TBVocab.w("fuel") : "gas"), fmt(m.fromGasMi));
     if (m.fromChargeMi !== undefined && m.showCharge) rows += numRow("From Charge", fmt(m.fromChargeMi));
     if (point.durationMin != null) rows += numRow("Stop", point.durationMin + " min");
     return (

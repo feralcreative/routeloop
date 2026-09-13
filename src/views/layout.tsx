@@ -10,7 +10,7 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { wordmark } from './logo'
 import { asset } from './assets'
-import { DEFAULT_VOCAB, Wds, aWd, clientTerms, vocabOf, wordsFor, type Words } from './vocab'
+import { DEFAULT_VOCAB, Wd, Wds, aWd, clientTerms, vocabOf, wordsFor, type Words } from './vocab'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
@@ -575,7 +575,8 @@ export function panelShell(o: {
 // The ids are the contract. builder.js and viewer.js both reach #time-slider and
 // #time-readout by getElementById and neither walks up from them, which is the
 // entire reason this move cost almost no JS.
-export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
+export function rideTimeline(opts: { scopeToggle?: boolean; words?: Words } = {}): string {
+  const w = opts.words ?? wordsFor(DEFAULT_VOCAB)
   return (
     <div class="map-timeline" id="ride-timeline" hidden>
       {/* Readout above the slider: the bar is wide and short, so the label reads
@@ -609,10 +610,10 @@ export function rideTimeline(opts: { scopeToggle?: boolean } = {}): string {
              scopes are the same slider. */
           <div class="time-scope-set" id="time-scope" role="group" aria-label="What the slider covers" hidden>
             <button type="button" class="time-seg" data-scope="route" data-tip="time-scope" aria-pressed="true">
-              Route
+              {Wd(w, 'route')}
             </button>
             <button type="button" class="time-seg" data-scope="ride" data-tip="time-scope" aria-pressed="false">
-              Ride
+              {Wd(w, 'journey')}
             </button>
           </div>
         ) : (
