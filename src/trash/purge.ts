@@ -1,5 +1,7 @@
-// The recycle bin's purge. THE ONLY CODE IN THE APP THAT DESTROYS A RIDER'S
-// RIDE, and the reason every other path in ./service.ts is reversible.
+// The recycle bin's purge. THE ONLY CODE IN THE APP THAT DESTROYS A RIDE A
+// RIDER MADE, and the reason every other path in ./service.ts is reversible.
+// (`destroyTourRide` in src/tour/service.ts destroys the one ride the APP
+// makes, the guided tour's, and says why there.)
 //
 // Rules in ./policy.ts, bin operations in ./service.ts, this is the end of the
 // line. Nothing here is undoable and nothing here asks a rider anything: a row
@@ -17,7 +19,7 @@ import { db } from '../db/index'
 import { placeGroups, places, rides } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
 import { warnRidePurges } from '../notifications/warnings'
-import { binAbandonedTourRides } from '../tour/service'
+import { destroyAbandonedTourRides } from '../tour/service'
 
 /**
  * How long a claim is trusted before another sweep may take it.
@@ -130,7 +132,7 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
   // is all this does — the purge above takes it thirty days after that like
   // any other ride. Its own failure is swallowed for the reason the warnings'
   // is.
-  await binAbandonedTourRides(now).catch((err) => console.warn('[purge] tour sweep failed', err))
+  await destroyAbandonedTourRides(now).catch((err) => console.warn('[purge] tour sweep failed', err))
   return { rides: rideCount, places: placeCount, groups: groupCount }
 }
 

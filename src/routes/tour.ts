@@ -4,8 +4,9 @@
 // shows is real — a real roster, a real bike's range, a real split — because
 // every surface it visits reads the tables, and the alternative is a second
 // rendering path per surface that has to be kept in step. What makes that
-// affordable is that the ride is BINNED at the end: on Finish, on Skip, on the
-// next start, and by the hourly sweep if a tab was simply closed.
+// affordable is that the ride is DESTROYED at the end: on Finish, on Skip, on
+// the next start, and by the hourly sweep if a tab was simply closed. It was
+// binned until 2026-09-13; see destroyTourRide for why it no longer is.
 //
 // START IS ALSO WHERE THE GUIDE RIDERS ARE CREATED — lazily, on the first tour
 // a deployment sees, never at boot. See src/tour/guides.ts for why.
@@ -18,18 +19,16 @@ import { generateSlug } from '../maps/slug'
 import { seedOwner } from '../members/service'
 import { DEFAULT_PERM } from '../members/policy'
 import { seedMainGroup } from '../subgroups/service'
-import { trashRide } from '../trash/service'
 import { ensureGuideRiders } from '../tour/guides'
 import { seedPayload } from '../tour/seed'
-import { stampTour, tourRideOf } from '../tour/service'
+import { destroyTourRide, stampTour, tourRideOf } from '../tour/service'
 
 export const tourRoutes = new Hono<AuthEnv>()
 
-/** Bins the rider's previous tour ride if it is still live. A ride binned by
- *  hand already is a no-op here — trashRide is narrowed by LIVE_RIDE. */
-async function binPrevious(userId: number): Promise<void> {
+/** Destroys the rider's previous tour ride, binned by hand or not. */
+async function destroyPrevious(userId: number): Promise<void> {
   const prev = await tourRideOf(userId)
-  if (prev) await trashRide(userId, prev)
+  if (prev) await destroyTourRide(userId, prev)
 }
 
 /**
@@ -52,7 +51,7 @@ tourRoutes.post('/api/tour/start', requireActiveApi, requireSameOrigin, async (c
     console.error('[tour] could not seed the guide riders', err)
     return c.json({ error: 'the tour’s guide riders could not be created' }, 503)
   }
-  await binPrevious(user.id)
+  await destroyPrevious(user.id)
 
   const p = seedPayload()
   const created = await db.transaction(async (tx) => {
@@ -74,7 +73,13 @@ tourRoutes.post('/api/tour/start', requireActiveApi, requireSameOrigin, async (c
     await tx
       .insert(rideMembers)
       .values(
-        guides.map((g) => ({ rideId: ride.id, riderId: g.id, role: 'rider' as const, perm: DEFAULT_PERM, invitedBy: user.id })),
+        guides.map((g) => ({
+          rideId: ride.id,
+          riderId: g.id,
+          role: 'rider' as const,
+          perm: DEFAULT_PERM,
+          invitedBy: user.id,
+        })),
       )
       .onConflictDoNothing({ target: [rideMembers.rideId, rideMembers.riderId] })
     return ride
@@ -90,17 +95,17 @@ tourRoutes.post('/api/tour/start', requireActiveApi, requireSameOrigin, async (c
  * ONE ENDPOINT FOR BOTH OUTCOMES, deliberately. `tour_done_at` answers "has
  * this rider been offered the tour", and a rider who pressed Skip at step one
  * has been — offering it again on the next load is what makes a tour hated,
- * and the account menu keeps a way back in. The ride is binned ONLY when it
- * is the one this rider's profile names: a stray id from a stale tab must not
- * bin a ride the rider is keeping. Idempotent — a second call finds no tour
- * ride and stamps the date again, which is the same answer.
+ * and the account menu keeps a way back in. The ride is destroyed ONLY when
+ * it is the one this rider's profile names: a stray id from a stale tab must
+ * not touch a ride the rider is keeping. Idempotent — a second call finds no
+ * tour ride and stamps the date again, which is the same answer.
  */
 tourRoutes.post('/api/tour/done', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const body = (await c.req.json().catch(() => ({}))) as { rideId?: unknown }
   const asked = typeof body.rideId === 'number' && Number.isInteger(body.rideId) ? body.rideId : null
   const held = await tourRideOf(user.id)
-  if (held && (asked === null || asked === held)) await trashRide(user.id, held)
+  if (held && (asked === null || asked === held)) await destroyTourRide(user.id, held)
   await stampTour(user.id, c.req.header('Accept-Language'), { tourDoneAt: new Date(), tourRideId: null })
   return c.json({ ok: true })
 })
